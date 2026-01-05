@@ -1,6 +1,6 @@
 # Архитектура системы
 
-> Техническое описание компонентов Burned Chats
+> Техническое описание компонентов Burned Chats (Java Stack)
 
 ## 📋 Содержание
 
@@ -28,15 +28,15 @@
 ┌──────────────┐     HTTPS/WSS      ┌─────────────────────┐
 │              │◄──────────────────►│                     │
 │   Frontend   │                    │      Backend        │
-│  (Mini App)  │                    │                     │
+│  (Mini App)  │                    │   (Spring Boot)     │
 │              │◄──────────────────►│  ┌───────────────┐  │
-└──────────────┘     Socket.io      │  │   Fastify     │  │
-       │                            │  │   Server      │  │
+└──────────────┘    WebSocket/STOMP │  │  Spring       │  │
+       │                            │  │  WebFlux      │  │
        │                            │  └───────┬───────┘  │
        │                            │          │          │
        │                            │  ┌───────▼───────┐  │
        │  Web Crypto API            │  │    Redis      │  │
-       │  (все ключи здесь)         │  │  (metadata)   │  │
+       │  (все ключи здесь)         │  │  (Lettuce)    │  │
        │                            │  └───────────────┘  │
        ▼                            └─────────────────────┘
 ┌──────────────┐
@@ -59,42 +59,46 @@
 ### 1. Frontend (Telegram Mini App)
 
 ```
-src/
-├── main.tsx                 # Entry point
-├── App.tsx                  # Root component
-├── components/
-│   ├── Chat/
-│   │   ├── ChatRoom.tsx     # Основной чат
-│   │   ├── MessageList.tsx  # Список сообщений
-│   │   ├── MessageInput.tsx # Ввод с шифрованием
-│   │   └── BurnButton.tsx   # Кнопка уничтожения
-│   ├── Search/
-│   │   ├── UserSearch.tsx   # Поиск по Telegram ID
-│   │   └── PendingRequest.tsx
-│   ├── Verification/
-│   │   ├── VisualFingerprint.tsx  # Визуальная верификация
-│   │   └── SecretQuestion.tsx     # Опциональный вопрос
-│   └── UI/
-│       └── ...
-├── crypto/
-│   ├── ecdh.ts              # ECDH key exchange
-│   ├── aes.ts               # AES-GCM encryption
-│   ├── fingerprint.ts       # Visual fingerprint generation
-│   └── keyStore.ts          # sessionStorage wrapper
-├── socket/
-│   ├── client.ts            # Socket.io client
-│   ├── events.ts            # Event types
-│   └── handlers.ts          # Message handlers
-├── telegram/
-│   ├── init.ts              # Mini App initialization
-│   ├── theme.ts             # Adaptive theming
-│   └── haptics.ts           # Haptic feedback
-├── hooks/
-│   ├── useEncryptedChat.ts
-│   ├── useKeyExchange.ts
-│   └── useTelegram.ts
-└── types/
-    └── index.ts
+frontend/
+├── src/
+│   ├── main.tsx                 # Entry point
+│   ├── App.tsx                  # Root component
+│   ├── components/
+│   │   ├── Chat/
+│   │   │   ├── ChatRoom.tsx     # Основной чат
+│   │   │   ├── MessageList.tsx  # Список сообщений
+│   │   │   ├── MessageInput.tsx # Ввод с шифрованием
+│   │   │   └── BurnButton.tsx   # Кнопка уничтожения
+│   │   ├── Search/
+│   │   │   ├── UserSearch.tsx   # Поиск по Telegram ID
+│   │   │   └── PendingRequest.tsx
+│   │   ├── Verification/
+│   │   │   ├── VisualFingerprint.tsx  # Визуальная верификация
+│   │   │   └── SecretQuestion.tsx     # Опциональный вопрос
+│   │   └── UI/
+│   │       └── ...
+│   ├── crypto/
+│   │   ├── ecdh.ts              # ECDH key exchange
+│   │   ├── aes.ts               # AES-GCM encryption
+│   │   ├── fingerprint.ts       # Visual fingerprint generation
+│   │   └── keyStore.ts          # sessionStorage wrapper
+│   ├── socket/
+│   │   ├── client.ts            # STOMP client
+│   │   ├── events.ts            # Event types
+│   │   └── handlers.ts          # Message handlers
+│   ├── telegram/
+│   │   ├── init.ts              # Mini App initialization
+│   │   ├── theme.ts             # Adaptive theming
+│   │   └── haptics.ts           # Haptic feedback
+│   ├── hooks/
+│   │   ├── useEncryptedChat.ts
+│   │   ├── useKeyExchange.ts
+│   │   └── useTelegram.ts
+│   └── types/
+│       └── index.ts
+├── package.json
+├── vite.config.ts
+└── Dockerfile
 ```
 
 #### Ключевые особенности Frontend
@@ -103,48 +107,79 @@ src/
 |--------|-----------------|
 | `crypto/` | Вся криптография изолирована, использует только Web Crypto API |
 | `keyStore.ts` | Обёртка над sessionStorage с автоочисткой при закрытии |
-| `socket/` | Типизированные события, автореконнект |
+| `socket/` | STOMP клиент для WebSocket, типизированные события |
 | `telegram/` | Интеграция с Telegram: тема, haptics, back button |
 
 ---
 
-### 2. Backend (Node.js + Fastify)
+### 2. Backend (Java 21 + Spring Boot 3.3)
 
 ```
-server/
-├── src/
-│   ├── index.ts             # Entry point
-│   ├── config.ts            # Environment config
-│   ├── app.ts               # Fastify app setup
-│   ├── routes/
-│   │   ├── health.ts        # Health check
-│   │   └── telegram.ts      # Webhook для бота
-│   ├── socket/
-│   │   ├── server.ts        # Socket.io server
-│   │   ├── events.ts        # Event definitions
-│   │   ├── handlers/
-│   │   │   ├── connection.ts
-│   │   │   ├── search.ts    # User search
-│   │   │   ├── handshake.ts # Key exchange relay
-│   │   │   ├── message.ts   # Encrypted message relay
-│   │   │   └── burn.ts      # Session destruction
-│   │   └── middleware/
-│   │       ├── auth.ts      # Telegram initData validation
-│   │       └── rateLimit.ts
-│   ├── redis/
-│   │   ├── client.ts        # Redis connection
-│   │   ├── sessions.ts      # Session management
-│   │   ├── messages.ts      # Encrypted message queue
-│   │   └── requests.ts      # Pending chat requests
+backend/
+├── src/main/java/com/burnedchats/
+│   ├── BurnedChatsApplication.java      # Entry point
+│   ├── config/
+│   │   ├── WebSocketConfig.java         # STOMP/WebSocket настройки
+│   │   ├── RedisConfig.java             # Reactive Redis
+│   │   ├── SecurityConfig.java          # Security фильтры
+│   │   └── AppConfig.java               # Общие бины
+│   ├── controller/
+│   │   ├── HealthController.java        # Health check
+│   │   ├── TelegramWebhookController.java # Webhook для бота
+│   │   └── ChatController.java          # @MessageMapping для STOMP
+│   ├── service/
+│   │   ├── SessionService.java          # Управление сессиями
+│   │   ├── MessageService.java          # Relay сообщений
+│   │   ├── UserService.java             # Кеш пользователей
+│   │   └── NotificationService.java     # Telegram уведомления
 │   ├── telegram/
-│   │   ├── bot.ts           # Bot instance
-│   │   ├── notifications.ts # Notification sender
-│   │   └── validation.ts    # initData verification
-│   └── utils/
-│       ├── logger.ts
-│       └── errors.ts
+│   │   ├── BurnedChatsBot.java          # TelegramBots реализация
+│   │   ├── TelegramAuthService.java     # initData валидация
+│   │   └── BotCommands.java             # /start, /help команды
+│   ├── websocket/
+│   │   ├── WebSocketEventListener.java  # Connect/disconnect events
+│   │   ├── UserSessionRegistry.java     # Маппинг user → session
+│   │   ├── StompAuthInterceptor.java    # Авторизация WebSocket
+│   │   └── handlers/
+│   │       ├── SearchHandler.java       # SEARCH_USER
+│   │       ├── SessionHandler.java      # CREATE/ACCEPT/REJECT
+│   │       ├── HandshakeHandler.java    # PUBLIC_KEY relay
+│   │       ├── MessageHandler.java      # SEND_MESSAGE relay
+│   │       └── BurnHandler.java         # BURN_SESSION
+│   ├── redis/
+│   │   ├── SessionRepository.java       # session:* operations
+│   │   ├── MessageRepository.java       # messages:* queue
+│   │   ├── RequestRepository.java       # request:* queue
+│   │   └── OnlineStatusRepository.java  # online:* heartbeat
+│   ├── model/
+│   │   ├── Session.java                 # Session entity
+│   │   ├── ChatRequest.java             # Chat request DTO
+│   │   ├── EncryptedMessage.java        # Encrypted message DTO
+│   │   ├── TelegramUser.java            # Telegram user data
+│   │   └── enums/
+│   │       ├── SessionStatus.java
+│   │       └── ErrorCode.java
+│   ├── dto/
+│   │   ├── request/                     # Incoming DTOs
+│   │   └── response/                    # Outgoing DTOs
+│   ├── exception/
+│   │   ├── GlobalExceptionHandler.java
+│   │   ├── SessionNotFoundException.java
+│   │   └── UnauthorizedException.java
+│   └── util/
+│       ├── HmacUtils.java               # HMAC for initData
+│       └── JsonUtils.java
+├── src/main/resources/
+│   ├── application.yml
+│   ├── application-dev.yml
+│   └── application-prod.yml
+├── src/test/java/com/burnedchats/
+│   ├── service/
+│   ├── websocket/
+│   └── telegram/
+├── build.gradle.kts
 ├── Dockerfile
-└── package.json
+└── docker-compose.yml
 ```
 
 #### Backend НЕ делает:
@@ -213,6 +248,143 @@ online:{tgId}                 # Статус онлайн
    - Имени отправителя
    - Текста сообщения
    - Любых идентификаторов, кроме sessionId
+```
+
+---
+
+## Ключевые Java компоненты
+
+### WebSocket Configuration
+
+```java
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // Используем простой брокер (или Redis для масштабирования)
+        config.enableSimpleBroker("/topic", "/queue");
+        config.setApplicationDestinationPrefixes("/app");
+        config.setUserDestinationPrefix("/user");
+    }
+    
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOrigins("*")
+                .withSockJS();
+    }
+    
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompAuthInterceptor);
+    }
+}
+```
+
+### Reactive Redis Repository
+
+```java
+@Repository
+@RequiredArgsConstructor
+public class SessionRepository {
+    
+    private final ReactiveRedisTemplate<String, Session> redisTemplate;
+    private static final Duration SESSION_TTL = Duration.ofHours(1);
+    
+    public Mono<Session> findById(String sessionId) {
+        return redisTemplate.opsForValue()
+            .get(keyFor(sessionId));
+    }
+    
+    public Mono<Boolean> save(Session session) {
+        return redisTemplate.opsForValue()
+            .set(keyFor(session.getId()), session, SESSION_TTL);
+    }
+    
+    public Mono<Boolean> delete(String sessionId) {
+        return redisTemplate.delete(keyFor(sessionId))
+            .map(count -> count > 0);
+    }
+    
+    private String keyFor(String sessionId) {
+        return "session:" + sessionId;
+    }
+}
+```
+
+### Chat Controller (STOMP)
+
+```java
+@Controller
+@RequiredArgsConstructor
+@Slf4j
+public class ChatController {
+    
+    private final SessionService sessionService;
+    private final SimpMessagingTemplate messagingTemplate;
+    
+    @MessageMapping("/search")
+    public void searchUser(@Payload SearchRequest request, 
+                          Principal principal) {
+        String tgId = principal.getName();
+        
+        sessionService.searchUser(request.getQuery(), tgId)
+            .subscribe(result -> {
+                messagingTemplate.convertAndSendToUser(
+                    tgId,
+                    "/queue/search-result",
+                    result
+                );
+            });
+    }
+    
+    @MessageMapping("/send-message")
+    public void sendMessage(@Payload SendMessageRequest request,
+                           Principal principal) {
+        String senderTgId = principal.getName();
+        
+        sessionService.relayMessage(request.getSessionId(), 
+                                   request.getMessage(), 
+                                   senderTgId)
+            .subscribe(result -> {
+                // Отправляем получателю
+                messagingTemplate.convertAndSendToUser(
+                    result.getRecipientTgId(),
+                    "/queue/messages",
+                    new NewMessageEvent(request.getSessionId(), 
+                                       request.getMessage())
+                );
+                
+                // Подтверждаем отправителю
+                messagingTemplate.convertAndSendToUser(
+                    senderTgId,
+                    "/queue/message-sent",
+                    new MessageSentEvent(request.getMessage().getId(), 
+                                        result.isDelivered())
+                );
+            });
+    }
+    
+    @MessageMapping("/burn")
+    public void burnSession(@Payload BurnRequest request,
+                           Principal principal) {
+        String tgId = principal.getName();
+        
+        sessionService.burnSession(request.getSessionId(), tgId)
+            .subscribe(session -> {
+                // Уведомляем обоих участников
+                session.getParticipants().forEach(participantId -> {
+                    messagingTemplate.convertAndSendToUser(
+                        participantId,
+                        "/queue/session-burned",
+                        new SessionBurnedEvent(request.getSessionId(), tgId)
+                    );
+                });
+            });
+    }
+}
 ```
 
 ---
@@ -299,7 +471,7 @@ Alice                    Server                      Bob
          │                   │                   │
          ▼                   ▼                   ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│   Node Server   │ │   Node Server   │ │   Node Server   │
+│   Spring Boot   │ │   Spring Boot   │ │   Spring Boot   │
 │   (instance 1)  │ │   (instance 2)  │ │   (instance N)  │
 └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
          │                   │                   │
@@ -311,12 +483,12 @@ Alice                    Server                      Bob
                     └─────────────────┘
 ```
 
-Socket.io поддерживает Redis Adapter для синхронизации между инстансами.
+Для масштабирования WebSocket используем Redis pub/sub через Spring Session.
 
 ### Текущая архитектура (v1.0)
 
 Для self-hosted MVP достаточно:
-- 1 Node.js инстанс
+- 1 Spring Boot инстанс
 - 1 Redis инстанс
 - nginx как reverse proxy
 
@@ -328,27 +500,56 @@ Socket.io поддерживает Redis Adapter для синхронизаци
 
 | Сценарий | Поведение | Восстановление |
 |----------|-----------|----------------|
-| Потеря соединения | Auto-reconnect Socket.io | Сообщения из Redis очереди |
+| Потеря соединения | Auto-reconnect STOMP | Сообщения из Redis очереди |
 | Crash сервера | Все активные сессии теряются | Пользователи создают новую сессию |
 | Redis недоступен | Сервер возвращает 503 | Автоматически после восстановления Redis |
 | Закрытие Mini App | Ключи стираются из sessionStorage | Новый handshake при повторном входе |
 
 ### Graceful Degradation
 
-```typescript
-// Пример: обработка потери соединения
-socket.on('disconnect', () => {
-  // Показываем UI индикатор
-  setConnectionStatus('reconnecting');
-  
-  // НЕ стираем ключи — они понадобятся при reconnect
-  // Стираем только при явном BURN или закрытии app
-});
-
-socket.on('connect', () => {
-  // Запрашиваем пропущенные сообщения
-  socket.emit('SYNC_MESSAGES', { lastMessageId });
-});
+```java
+@Component
+@RequiredArgsConstructor
+public class WebSocketEventListener {
+    
+    private final SessionService sessionService;
+    private final SimpMessagingTemplate messagingTemplate;
+    
+    @EventListener
+    public void handleSessionDisconnect(SessionDisconnectEvent event) {
+        StompHeaderAccessor headers = StompHeaderAccessor.wrap(event.getMessage());
+        String tgId = headers.getUser().getName();
+        
+        // Помечаем пользователя как offline
+        sessionService.setOffline(tgId);
+        
+        // Уведомляем собеседников
+        sessionService.getActiveSessions(tgId)
+            .flatMap(session -> {
+                String peerId = session.getOtherParticipant(tgId);
+                return Mono.fromRunnable(() -> 
+                    messagingTemplate.convertAndSendToUser(
+                        peerId,
+                        "/queue/peer-status",
+                        new PeerStatusEvent(session.getId(), false)
+                    )
+                );
+            })
+            .subscribe();
+    }
+    
+    @EventListener
+    public void handleSessionConnect(SessionConnectedEvent event) {
+        StompHeaderAccessor headers = StompHeaderAccessor.wrap(event.getMessage());
+        String tgId = headers.getUser().getName();
+        
+        // Помечаем пользователя как online
+        sessionService.setOnline(tgId);
+        
+        // Синхронизируем пропущенные сообщения
+        sessionService.syncMessages(tgId).subscribe();
+    }
+}
 ```
 
 ---

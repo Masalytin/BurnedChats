@@ -1,6 +1,6 @@
 # План разработки
 
-> Детальный план с задачами, оценками времени и зависимостями
+> Детальный план с задачами, оценками времени и зависимостями (Java Stack)
 
 ## 📋 Содержание
 
@@ -21,17 +21,19 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Неделя    1      2      3      4      5      6                             │
-│           ─┬──────┬──────┬──────┬──────┬──────┬─                             │
-│ Sprint 1   ████████                              Foundation                  │
-│ Sprint 2          ████████                       Telegram & Crypto           │
-│ Sprint 3                 ████████                Core Features               │
-│ Sprint 4                        ████████         Chat & UX                   │
-│ Sprint 5                               ████████  Polish & Launch             │
+│  Неделя    1      2      3      4      5      6      7                      │
+│           ─┬──────┬──────┬──────┬──────┬──────┬──────┬─                      │
+│ Sprint 1   █████████                              Foundation                │
+│ Sprint 2           █████████                      Telegram & Crypto         │
+│ Sprint 3                    █████████             Core Features             │
+│ Sprint 4                             █████████    Chat & UX                 │
+│ Sprint 5                                      ████████ Polish & Launch      │
 │                                                                             │
-│ 🎯 MVP Release ─────────────────────────────────────────► День 42           │
+│ 🎯 MVP Release ─────────────────────────────────────────► День 49          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+> **Примечание:** Java стек добавляет ~1 неделю к разработке по сравнению с Node.js из-за большего boilerplate.
 
 ### Легенда приоритетов
 
@@ -59,7 +61,7 @@
 
 **Цель:** Настроить инфраструктуру, создать скелет проекта
 
-**Длительность:** 5 рабочих дней
+**Длительность:** 6 рабочих дней
 
 ### Задачи
 
@@ -67,39 +69,42 @@
 |----|--------|-----------|----|-----------:|--------|
 | **1.1** | **Репозиторий и инструменты** | | | | |
 | 1.1.1 | Создать GitHub репозиторий | 🔴 P0 | 1 | — | ⬜ |
-| 1.1.2 | Настроить monorepo (pnpm workspaces) | 🔴 P0 | 2 | 1.1.1 | ⬜ |
-| 1.1.3 | Настроить ESLint + Prettier | 🟠 P1 | 2 | 1.1.2 | ⬜ |
-| 1.1.4 | Настроить TypeScript (strict mode) | 🔴 P0 | 2 | 1.1.2 | ⬜ |
-| 1.1.5 | Добавить Husky + lint-staged | 🟡 P2 | 1 | 1.1.3 | ⬜ |
-| **1.2** | **Backend скелет** | | | | |
-| 1.2.1 | Инициализировать Fastify проект | 🔴 P0 | 2 | 1.1.4 | ⬜ |
-| 1.2.2 | Добавить Socket.io | 🔴 P0 | 2 | 1.2.1 | ⬜ |
-| 1.2.3 | Подключить Redis (ioredis) | 🔴 P0 | 2 | 1.2.1 | ⬜ |
-| 1.2.4 | Создать структуру папок | 🟠 P1 | 1 | 1.2.1 | ⬜ |
-| 1.2.5 | Добавить логирование (pino) | 🟠 P1 | 1 | 1.2.1 | ⬜ |
-| 1.2.6 | Настроить env конфигурацию | 🔴 P0 | 1 | 1.2.1 | ⬜ |
+| 1.1.2 | Настроить multi-module Gradle проект | 🔴 P0 | 3 | 1.1.1 | ⬜ |
+| 1.1.3 | Настроить Checkstyle + SpotBugs | 🟠 P1 | 2 | 1.1.2 | ⬜ |
+| 1.1.4 | Настроить .editorconfig и code style | 🟠 P1 | 1 | 1.1.2 | ⬜ |
+| 1.1.5 | Добавить pre-commit hooks (git-hooks) | 🟡 P2 | 1 | 1.1.3 | ⬜ |
+| **1.2** | **Backend скелет (Spring Boot)** | | | | |
+| 1.2.1 | Инициализировать Spring Boot 3.3 проект | 🔴 P0 | 2 | 1.1.2 | ⬜ |
+| 1.2.2 | Добавить spring-boot-starter-webflux | 🔴 P0 | 2 | 1.2.1 | ⬜ |
+| 1.2.3 | Добавить spring-boot-starter-websocket | 🔴 P0 | 2 | 1.2.1 | ⬜ |
+| 1.2.4 | Настроить STOMP over WebSocket | 🔴 P0 | 3 | 1.2.3 | ⬜ |
+| 1.2.5 | Подключить Lettuce (Redis reactive) | 🔴 P0 | 2 | 1.2.2 | ⬜ |
+| 1.2.6 | Создать структуру пакетов | 🟠 P1 | 1 | 1.2.1 | ⬜ |
+| 1.2.7 | Добавить логирование (SLF4J + Logback) | 🟠 P1 | 1 | 1.2.1 | ⬜ |
+| 1.2.8 | Настроить application.yml | 🔴 P0 | 2 | 1.2.1 | ⬜ |
+| 1.2.9 | Добавить Lombok + MapStruct | 🟠 P1 | 1 | 1.2.1 | ⬜ |
 | **1.3** | **Frontend скелет** | | | | |
-| 1.3.1 | Создать Vite + React + TS проект | 🔴 P0 | 2 | 1.1.4 | ⬜ |
+| 1.3.1 | Создать Vite + React + TS проект | 🔴 P0 | 2 | 1.1.2 | ⬜ |
 | 1.3.2 | Установить @twa-dev/sdk | 🔴 P0 | 1 | 1.3.1 | ⬜ |
 | 1.3.3 | Настроить CSS Variables (Telegram тема) | 🟠 P1 | 2 | 1.3.1 | ⬜ |
 | 1.3.4 | Создать базовую структуру компонентов | 🟠 P1 | 2 | 1.3.1 | ⬜ |
-| 1.3.5 | Добавить Socket.io-client | 🔴 P0 | 1 | 1.3.1 | ⬜ |
+| 1.3.5 | Добавить @stomp/stompjs клиент | 🔴 P0 | 2 | 1.3.1 | ⬜ |
 | **1.4** | **DevOps** | | | | |
-| 1.4.1 | Создать Dockerfile для backend | 🔴 P0 | 2 | 1.2.1 | ⬜ |
+| 1.4.1 | Создать Dockerfile для backend (Java 21) | 🔴 P0 | 2 | 1.2.1 | ⬜ |
 | 1.4.2 | Создать Dockerfile для frontend | 🔴 P0 | 2 | 1.3.1 | ⬜ |
 | 1.4.3 | Настроить docker-compose.yml | 🔴 P0 | 3 | 1.4.1, 1.4.2 | ⬜ |
 | 1.4.4 | Добавить Redis в compose | 🔴 P0 | 1 | 1.4.3 | ⬜ |
 | 1.4.5 | Настроить nginx конфигурацию | 🟠 P1 | 2 | 1.4.3 | ⬜ |
 | 1.4.6 | Настроить mkcert для dev SSL | 🟡 P2 | 2 | 1.4.5 | ⬜ |
 
-**Total Sprint 1:** ~35 SP ≈ 5 дней
+**Total Sprint 1:** ~42 SP ≈ 6 дней
 
 ### Критерии готовности Sprint 1
 
 - [ ] `docker-compose up` запускает все сервисы
 - [ ] Frontend доступен на https://localhost:3000
-- [ ] Backend отвечает на /health
-- [ ] WebSocket соединение устанавливается
+- [ ] Backend отвечает на /actuator/health
+- [ ] WebSocket STOMP соединение устанавливается
 - [ ] Redis подключён и работает
 
 ---
@@ -108,47 +113,49 @@
 
 **Цель:** Интеграция с Telegram, реализация криптографии
 
-**Длительность:** 5 рабочих дней
+**Длительность:** 6 рабочих дней
 
 ### Задачи
 
 | ID | Задача | Приоритет | SP | Зависит от | Статус |
 |----|--------|-----------|----|-----------:|--------|
-| **2.1** | **Telegram Bot** | | | | |
+| **2.1** | **Telegram Bot (Java)** | | | | |
 | 2.1.1 | Создать бота через @BotFather | 🔴 P0 | 1 | — | ⬜ |
-| 2.1.2 | Настроить Telegraf в backend | 🔴 P0 | 2 | 2.1.1, 1.2.1 | ⬜ |
-| 2.1.3 | Реализовать /start команду | 🔴 P0 | 2 | 2.1.2 | ⬜ |
-| 2.1.4 | Реализовать /help команду | 🟡 P2 | 1 | 2.1.2 | ⬜ |
-| 2.1.5 | Настроить webhook | 🔴 P0 | 3 | 2.1.2, 1.4.5 | ⬜ |
-| **2.2** | **Mini App Auth** | | | | |
-| 2.2.1 | Реализовать валидацию initData | 🔴 P0 | 3 | 2.1.2 | ⬜ |
-| 2.2.2 | Создать auth middleware для Socket.io | 🔴 P0 | 3 | 2.2.1, 1.2.2 | ⬜ |
-| 2.2.3 | Инициализировать Mini App SDK на frontend | 🔴 P0 | 2 | 1.3.2 | ⬜ |
-| 2.2.4 | Передавать initData при подключении | 🔴 P0 | 2 | 2.2.2, 2.2.3 | ⬜ |
-| **2.3** | **Криптография: ECDH** | | | | |
+| 2.1.2 | Добавить TelegramBots dependency | 🔴 P0 | 1 | 2.1.1 | ⬜ |
+| 2.1.3 | Реализовать BurnedChatsBot.java | 🔴 P0 | 3 | 2.1.2, 1.2.1 | ⬜ |
+| 2.1.4 | Реализовать /start команду | 🔴 P0 | 2 | 2.1.3 | ⬜ |
+| 2.1.5 | Реализовать /help команду | 🟡 P2 | 1 | 2.1.3 | ⬜ |
+| 2.1.6 | Настроить webhook endpoint | 🔴 P0 | 3 | 2.1.3, 1.4.5 | ⬜ |
+| **2.2** | **Mini App Auth (Java)** | | | | |
+| 2.2.1 | Реализовать TelegramAuthService | 🔴 P0 | 3 | 2.1.3 | ⬜ |
+| 2.2.2 | Реализовать HMAC-SHA256 валидацию initData | 🔴 P0 | 3 | 2.2.1 | ⬜ |
+| 2.2.3 | Создать StompAuthInterceptor | 🔴 P0 | 3 | 2.2.1, 1.2.4 | ⬜ |
+| 2.2.4 | Инициализировать Mini App SDK на frontend | 🔴 P0 | 2 | 1.3.2 | ⬜ |
+| 2.2.5 | Передавать initData при STOMP connect | 🔴 P0 | 2 | 2.2.3, 2.2.4 | ⬜ |
+| **2.3** | **Криптография: ECDH (Frontend)** | | | | |
 | 2.3.1 | Создать модуль crypto/ecdh.ts | 🔴 P0 | 1 | 1.3.1 | ⬜ |
 | 2.3.2 | Реализовать generateKeyPair() | 🔴 P0 | 2 | 2.3.1 | ⬜ |
 | 2.3.3 | Реализовать exportPublicKey() | 🔴 P0 | 2 | 2.3.2 | ⬜ |
 | 2.3.4 | Реализовать importPublicKey() | 🔴 P0 | 2 | 2.3.1 | ⬜ |
 | 2.3.5 | Реализовать computeSharedSecret() | 🔴 P0 | 3 | 2.3.2, 2.3.4 | ⬜ |
 | 2.3.6 | Реализовать deriveAESKey() (HKDF) | 🔴 P0 | 3 | 2.3.5 | ⬜ |
-| **2.4** | **Криптография: AES-GCM** | | | | |
+| **2.4** | **Криптография: AES-GCM (Frontend)** | | | | |
 | 2.4.1 | Создать модуль crypto/aes.ts | 🔴 P0 | 1 | 1.3.1 | ⬜ |
 | 2.4.2 | Реализовать encrypt() | 🔴 P0 | 3 | 2.4.1 | ⬜ |
 | 2.4.3 | Реализовать decrypt() | 🔴 P0 | 3 | 2.4.1 | ⬜ |
 | 2.4.4 | Написать unit тесты | 🟠 P1 | 2 | 2.4.2, 2.4.3 | ⬜ |
-| **2.5** | **Key Storage** | | | | |
+| **2.5** | **Key Storage (Frontend)** | | | | |
 | 2.5.1 | Создать модуль crypto/keyStore.ts | 🔴 P0 | 2 | 1.3.1 | ⬜ |
 | 2.5.2 | Реализовать store/retrieve ключей | 🔴 P0 | 2 | 2.5.1 | ⬜ |
 | 2.5.3 | Реализовать burn() с перезаписью | 🔴 P0 | 2 | 2.5.1 | ⬜ |
 | 2.5.4 | Добавить beforeunload handler | 🔴 P0 | 1 | 2.5.3 | ⬜ |
 
-**Total Sprint 2:** ~47 SP ≈ 6 дней
+**Total Sprint 2:** ~54 SP ≈ 7 дней
 
 ### Критерии готовности Sprint 2
 
 - [ ] Бот отвечает на /start с кнопкой Mini App
-- [ ] initData валидируется на сервере
+- [ ] initData валидируется на Java сервере
 - [ ] ECDH обмен ключами работает (unit test)
 - [ ] AES шифрование/дешифрование работает (unit test)
 - [ ] Ключи очищаются при закрытии страницы
@@ -159,43 +166,43 @@
 
 **Цель:** Поиск пользователей, создание сессий, handshake
 
-**Длительность:** 5 рабочих дней
+**Длительность:** 6 рабочих дней
 
 ### Задачи
 
 | ID | Задача | Приоритет | SP | Зависит от | Статус |
 |----|--------|-----------|----|-----------:|--------|
-| **3.1** | **Redis модели** | | | | |
-| 3.1.1 | Реализовать sessions.ts | 🔴 P0 | 3 | 1.2.3 | ⬜ |
-| 3.1.2 | Реализовать requests.ts | 🔴 P0 | 3 | 1.2.3 | ⬜ |
-| 3.1.3 | Реализовать users.ts (кеш) | 🟠 P1 | 2 | 1.2.3 | ⬜ |
-| 3.1.4 | Реализовать online status | 🟠 P1 | 2 | 1.2.3 | ⬜ |
+| **3.1** | **Redis модели (Java)** | | | | |
+| 3.1.1 | Реализовать SessionRepository | 🔴 P0 | 3 | 1.2.5 | ⬜ |
+| 3.1.2 | Реализовать RequestRepository | 🔴 P0 | 3 | 1.2.5 | ⬜ |
+| 3.1.3 | Реализовать UserRepository (кеш) | 🟠 P1 | 2 | 1.2.5 | ⬜ |
+| 3.1.4 | Реализовать OnlineStatusRepository | 🟠 P1 | 2 | 1.2.5 | ⬜ |
 | **3.2** | **Поиск пользователей** | | | | |
-| 3.2.1 | Backend: SEARCH_USER handler | 🔴 P0 | 3 | 3.1.3 | ⬜ |
+| 3.2.1 | Backend: SearchHandler (STOMP) | 🔴 P0 | 3 | 3.1.3 | ⬜ |
 | 3.2.2 | Frontend: UI поиска | 🔴 P0 | 3 | 1.3.4 | ⬜ |
 | 3.2.3 | Frontend: hook useSearch | 🔴 P0 | 2 | 3.2.1, 3.2.2 | ⬜ |
 | 3.2.4 | Frontend: отображение результата | 🔴 P0 | 2 | 3.2.3 | ⬜ |
 | **3.3** | **Создание сессии** | | | | |
-| 3.3.1 | Backend: CREATE_SESSION handler | 🔴 P0 | 3 | 3.1.1, 3.1.2 | ⬜ |
-| 3.3.2 | Backend: отправка уведомления | 🔴 P0 | 3 | 3.3.1, 2.1.2 | ⬜ |
+| 3.3.1 | Backend: SessionHandler.createSession() | 🔴 P0 | 3 | 3.1.1, 3.1.2 | ⬜ |
+| 3.3.2 | Backend: отправка Telegram уведомления | 🔴 P0 | 3 | 3.3.1, 2.1.3 | ⬜ |
 | 3.3.3 | Frontend: UI создания запроса | 🔴 P0 | 3 | 3.2.4 | ⬜ |
 | 3.3.4 | Frontend: секретный вопрос (опционально) | 🟠 P1 | 2 | 3.3.3 | ⬜ |
 | 3.3.5 | Frontend: UI ожидания | 🔴 P0 | 2 | 3.3.3 | ⬜ |
 | **3.4** | **Принятие запроса** | | | | |
-| 3.4.1 | Backend: INCOMING_REQUEST event | 🔴 P0 | 2 | 3.3.2 | ⬜ |
-| 3.4.2 | Backend: ACCEPT_REQUEST handler | 🔴 P0 | 3 | 3.4.1 | ⬜ |
-| 3.4.3 | Backend: REJECT_REQUEST handler | 🟠 P1 | 2 | 3.4.1 | ⬜ |
+| 3.4.1 | Backend: уведомление INCOMING_REQUEST | 🔴 P0 | 2 | 3.3.2 | ⬜ |
+| 3.4.2 | Backend: SessionHandler.acceptRequest() | 🔴 P0 | 3 | 3.4.1 | ⬜ |
+| 3.4.3 | Backend: SessionHandler.rejectRequest() | 🟠 P1 | 2 | 3.4.1 | ⬜ |
 | 3.4.4 | Frontend: UI входящих запросов | 🔴 P0 | 3 | 3.4.1 | ⬜ |
 | 3.4.5 | Frontend: ответ на секретный вопрос | 🟠 P1 | 2 | 3.4.4 | ⬜ |
 | **3.5** | **Handshake** | | | | |
-| 3.5.1 | Backend: SEND_PUBLIC_KEY relay | 🔴 P0 | 2 | 3.4.2 | ⬜ |
-| 3.5.2 | Backend: PEER_PUBLIC_KEY event | 🔴 P0 | 2 | 3.5.1 | ⬜ |
+| 3.5.1 | Backend: HandshakeHandler.relayPublicKey() | 🔴 P0 | 2 | 3.4.2 | ⬜ |
+| 3.5.2 | Backend: событие PEER_PUBLIC_KEY | 🔴 P0 | 2 | 3.5.1 | ⬜ |
 | 3.5.3 | Frontend: автоматическая отправка ключа | 🔴 P0 | 3 | 2.3.3, 3.5.1 | ⬜ |
 | 3.5.4 | Frontend: получение и импорт ключа peer | 🔴 P0 | 3 | 2.3.4, 3.5.2 | ⬜ |
 | 3.5.5 | Frontend: вычисление shared secret | 🔴 P0 | 2 | 2.3.5, 3.5.4 | ⬜ |
 | 3.5.6 | Frontend: UI прогресса handshake | 🟠 P1 | 2 | 3.5.3 | ⬜ |
 
-**Total Sprint 3:** ~57 SP ≈ 7 дней
+**Total Sprint 3:** ~61 SP ≈ 8 дней
 
 ### Критерии готовности Sprint 3
 
@@ -211,7 +218,7 @@
 
 **Цель:** Чат, Visual Fingerprint, уничтожение
 
-**Длительность:** 5 рабочих дней
+**Длительность:** 6 рабочих дней
 
 ### Задачи
 
@@ -220,14 +227,14 @@
 | **4.1** | **Visual Fingerprint** | | | | |
 | 4.1.1 | Реализовать generateFingerprint() | 🔴 P0 | 3 | 2.3.5 | ⬜ |
 | 4.1.2 | Создать UI компонент VisualFingerprint | 🔴 P0 | 3 | 4.1.1 | ⬜ |
-| 4.1.3 | Backend: CONFIRM_VERIFICATION handler | 🔴 P0 | 2 | — | ⬜ |
+| 4.1.3 | Backend: VerificationHandler | 🔴 P0 | 2 | — | ⬜ |
 | 4.1.4 | Frontend: логика подтверждения | 🔴 P0 | 2 | 4.1.2, 4.1.3 | ⬜ |
 | 4.1.5 | Frontend: показ статуса peer | 🟠 P1 | 2 | 4.1.4 | ⬜ |
 | **4.2** | **Обмен сообщениями** | | | | |
-| 4.2.1 | Backend: SEND_MESSAGE relay | 🔴 P0 | 2 | — | ⬜ |
-| 4.2.2 | Backend: messages.ts (offline queue) | 🔴 P0 | 3 | 1.2.3 | ⬜ |
-| 4.2.3 | Backend: NEW_MESSAGE event | 🔴 P0 | 2 | 4.2.1 | ⬜ |
-| 4.2.4 | Backend: уведомление при offline | 🟠 P1 | 2 | 4.2.2, 2.1.2 | ⬜ |
+| 4.2.1 | Backend: MessageHandler.relayMessage() | 🔴 P0 | 2 | — | ⬜ |
+| 4.2.2 | Backend: MessageRepository (offline queue) | 🔴 P0 | 3 | 1.2.5 | ⬜ |
+| 4.2.3 | Backend: событие NEW_MESSAGE | 🔴 P0 | 2 | 4.2.1 | ⬜ |
+| 4.2.4 | Backend: Telegram уведомление при offline | 🟠 P1 | 2 | 4.2.2, 2.1.3 | ⬜ |
 | 4.2.5 | Frontend: шифрование перед отправкой | 🔴 P0 | 2 | 2.4.2 | ⬜ |
 | 4.2.6 | Frontend: дешифрование при получении | 🔴 P0 | 2 | 2.4.3 | ⬜ |
 | **4.3** | **Chat UI** | | | | |
@@ -238,9 +245,9 @@
 | 4.3.5 | Статусы доставки (✓ ✓✓) | 🟠 P1 | 2 | 4.3.4 | ⬜ |
 | 4.3.6 | Индикатор "печатает" | 🟡 P2 | 2 | 4.3.1 | ⬜ |
 | **4.4** | **Уничтожение** | | | | |
-| 4.4.1 | Backend: BURN_SESSION handler | 🔴 P0 | 3 | — | ⬜ |
+| 4.4.1 | Backend: BurnHandler.burnSession() | 🔴 P0 | 3 | — | ⬜ |
 | 4.4.2 | Backend: очистка Redis | 🔴 P0 | 2 | 4.4.1 | ⬜ |
-| 4.4.3 | Backend: BURN_SIGNAL event | 🔴 P0 | 2 | 4.4.1 | ⬜ |
+| 4.4.3 | Backend: событие BURN_SIGNAL | 🔴 P0 | 2 | 4.4.1 | ⬜ |
 | 4.4.4 | Frontend: кнопка Burn | 🔴 P0 | 2 | 4.3.1 | ⬜ |
 | 4.4.5 | Frontend: диалог подтверждения | 🔴 P0 | 2 | 4.4.4 | ⬜ |
 | 4.4.6 | Frontend: анимация уничтожения | 🟠 P1 | 2 | 4.4.5 | ⬜ |
@@ -251,7 +258,7 @@
 | 4.5.3 | Loading states | 🟠 P1 | 2 | — | ⬜ |
 | 4.5.4 | Error toasts | 🟠 P1 | 2 | — | ⬜ |
 
-**Total Sprint 4:** ~65 SP ≈ 8 дней
+**Total Sprint 4:** ~67 SP ≈ 8 дней
 
 ### Критерии готовности Sprint 4
 
@@ -267,7 +274,7 @@
 
 **Цель:** Edge cases, тестирование, подготовка к запуску
 
-**Длительность:** 5 рабочих дней
+**Длительность:** 6 рабочих дней
 
 ### Задачи
 
@@ -281,10 +288,10 @@
 | 5.1.5 | Обработка закрытия Mini App | 🔴 P0 | 2 | — | ⬜ |
 | 5.1.6 | Rate limiting на сервере | 🟠 P1 | 3 | — | ⬜ |
 | **5.2** | **Тестирование** | | | | |
-| 5.2.1 | Unit тесты: crypto модули | 🔴 P0 | 3 | 2.3, 2.4 | ⬜ |
-| 5.2.2 | Unit тесты: Redis модели | 🟠 P1 | 3 | 3.1 | ⬜ |
+| 5.2.1 | Unit тесты: crypto модули (Frontend) | 🔴 P0 | 3 | 2.3, 2.4 | ⬜ |
+| 5.2.2 | Unit тесты: Services (Backend) | 🟠 P1 | 3 | 3.1 | ⬜ |
 | 5.2.3 | Integration тесты: WebSocket flow | 🟠 P1 | 5 | — | ⬜ |
-| 5.2.4 | E2E тест: полный сценарий чата | 🟠 P1 | 5 | — | ⬜ |
+| 5.2.4 | Integration тесты: Testcontainers + Redis | 🟠 P1 | 3 | — | ⬜ |
 | 5.2.5 | Manual testing на реальных устройствах | 🔴 P0 | 5 | — | ⬜ |
 | **5.3** | **Security Review** | | | | |
 | 5.3.1 | Проверка initData validation | 🔴 P0 | 2 | — | ⬜ |
@@ -303,7 +310,7 @@
 | 5.5.4 | Деплой на сервер | 🔴 P0 | 3 | 5.5.1, 5.5.2, 5.5.3 | ⬜ |
 | 5.5.5 | Финальное тестирование в production | 🔴 P0 | 3 | 5.5.4 | ⬜ |
 
-**Total Sprint 5:** ~62 SP ≈ 8 дней
+**Total Sprint 5:** ~64 SP ≈ 8 дней
 
 ### Критерии готовности Sprint 5 (MVP Launch)
 
@@ -318,42 +325,42 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                              MVP DEVELOPMENT PLAN                                 │
+│                              MVP DEVELOPMENT PLAN (Java)                          │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│  Task                        │ W1  │ W2  │ W3  │ W4  │ W5  │ W6  │               │
-│──────────────────────────────┼─────┼─────┼─────┼─────┼─────┼─────┤               │
-│                              │     │     │     │     │     │     │               │
-│ 1.1 Репозиторий              │ ██  │     │     │     │     │     │               │
-│ 1.2 Backend скелет           │ ███ │     │     │     │     │     │               │
-│ 1.3 Frontend скелет          │ ███ │     │     │     │     │     │               │
-│ 1.4 DevOps                   │ ███ │     │     │     │     │     │               │
-│                              │     │     │     │     │     │     │               │
-│ 2.1 Telegram Bot             │     │ ██  │     │     │     │     │               │
-│ 2.2 Mini App Auth            │     │ ███ │     │     │     │     │               │
-│ 2.3 Криптография ECDH        │     │ ███ │ █   │     │     │     │               │
-│ 2.4 Криптография AES         │     │ ██  │ █   │     │     │     │               │
-│ 2.5 Key Storage              │     │ ██  │     │     │     │     │               │
-│                              │     │     │     │     │     │     │               │
-│ 3.1 Redis модели             │     │     │ ██  │     │     │     │               │
-│ 3.2 Поиск пользователей      │     │     │ ███ │     │     │     │               │
-│ 3.3 Создание сессии          │     │     │ ███ │ █   │     │     │               │
-│ 3.4 Принятие запроса         │     │     │ ██  │ █   │     │     │               │
-│ 3.5 Handshake                │     │     │     │ ███ │     │     │               │
-│                              │     │     │     │     │     │     │               │
-│ 4.1 Visual Fingerprint       │     │     │     │ ███ │     │     │               │
-│ 4.2 Обмен сообщениями        │     │     │     │ ███ │     │     │               │
-│ 4.3 Chat UI                  │     │     │     │ ███ │ ██  │     │               │
-│ 4.4 Уничтожение              │     │     │     │     │ ███ │     │               │
-│ 4.5 UX                       │     │     │     │     │ ██  │     │               │
-│                              │     │     │     │     │     │     │               │
-│ 5.1 Edge Cases               │     │     │     │     │ ██  │ █   │               │
-│ 5.2 Тестирование             │     │     │     │     │     │ ████│               │
-│ 5.3 Security Review          │     │     │     │     │     │ ██  │               │
-│ 5.4 Документация             │     │     │     │     │     │ █   │               │
-│ 5.5 Production Deploy        │     │     │     │     │     │ ███ │               │
-│                              │     │     │     │     │     │     │               │
-│──────────────────────────────┼─────┼─────┼─────┼─────┼─────┼─────┤               │
-│ 🎯 MVP RELEASE               │     │     │     │     │     │   ★ │               │
+│  Task                        │ W1  │ W2  │ W3  │ W4  │ W5  │ W6  │ W7  │         │
+│──────────────────────────────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤         │
+│                              │     │     │     │     │     │     │     │         │
+│ 1.1 Репозиторий + Gradle     │ ███ │     │     │     │     │     │     │         │
+│ 1.2 Backend Spring Boot      │ ████│     │     │     │     │     │     │         │
+│ 1.3 Frontend скелет          │ ███ │     │     │     │     │     │     │         │
+│ 1.4 DevOps                   │ ███ │ █   │     │     │     │     │     │         │
+│                              │     │     │     │     │     │     │     │         │
+│ 2.1 Telegram Bot (Java)      │     │ ███ │     │     │     │     │     │         │
+│ 2.2 Mini App Auth (Java)     │     │ ████│     │     │     │     │     │         │
+│ 2.3 Криптография ECDH        │     │ ███ │ ██  │     │     │     │     │         │
+│ 2.4 Криптография AES         │     │ ██  │ █   │     │     │     │     │         │
+│ 2.5 Key Storage              │     │ ██  │     │     │     │     │     │         │
+│                              │     │     │     │     │     │     │     │         │
+│ 3.1 Redis Repositories       │     │     │ ███ │     │     │     │     │         │
+│ 3.2 Поиск пользователей      │     │     │ ████│     │     │     │     │         │
+│ 3.3 Создание сессии          │     │     │ ███ │ ██  │     │     │     │         │
+│ 3.4 Принятие запроса         │     │     │ ███ │ █   │     │     │     │         │
+│ 3.5 Handshake                │     │     │     │ ████│     │     │     │         │
+│                              │     │     │     │     │     │     │     │         │
+│ 4.1 Visual Fingerprint       │     │     │     │ ████│     │     │     │         │
+│ 4.2 Обмен сообщениями        │     │     │     │ ████│     │     │     │         │
+│ 4.3 Chat UI                  │     │     │     │ ███ │ ███ │     │     │         │
+│ 4.4 Уничтожение              │     │     │     │     │ ████│     │     │         │
+│ 4.5 UX                       │     │     │     │     │ ███ │     │     │         │
+│                              │     │     │     │     │     │     │     │         │
+│ 5.1 Edge Cases               │     │     │     │     │ ██  │ ██  │     │         │
+│ 5.2 Тестирование             │     │     │     │     │     │ ████│ █   │         │
+│ 5.3 Security Review          │     │     │     │     │     │ ███ │     │         │
+│ 5.4 Документация             │     │     │     │     │     │ █   │     │         │
+│ 5.5 Production Deploy        │     │     │     │     │     │ ██  │ ███ │         │
+│                              │     │     │     │     │     │     │     │         │
+│──────────────────────────────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤         │
+│ 🎯 MVP RELEASE               │     │     │     │     │     │     │   ★ │         │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -366,21 +373,21 @@
 │                    DEPENDENCY GRAPH                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1.1 Repo ──► 1.2 Backend ──► 2.2 Auth ──► 3.x Features         │
-│       │              │              │              │             │
-│       │              ▼              │              ▼             │
-│       └────► 1.3 Frontend ◄────────┘       4.x Chat             │
-│                     │                             │              │
-│                     ▼                             ▼              │
-│              2.3-2.5 Crypto ──────────────► 4.1 Fingerprint     │
-│                     │                             │              │
-│                     └─────────────────────────────┼──► 5.x      │
-│                                                   │              │
-│  1.4 DevOps ──────────────────────────────────────┼──► 5.5      │
-│       │                                           │    Deploy    │
-│       └──► 2.1 Bot ──► 2.2 Auth                   │              │
-│                  │                                │              │
-│                  └──► 3.3.2 Notifications ────────┘              │
+│  1.1 Repo ──► 1.2 Spring Boot ──► 2.2 Auth ──► 3.x Features     │
+│       │              │                 │              │          │
+│       │              ▼                 │              ▼          │
+│       └────► 1.3 Frontend ◄───────────┘       4.x Chat          │
+│                     │                               │            │
+│                     ▼                               ▼            │
+│              2.3-2.5 Crypto ───────────────► 4.1 Fingerprint    │
+│                     │                               │            │
+│                     └───────────────────────────────┼──► 5.x    │
+│                                                     │            │
+│  1.4 DevOps ────────────────────────────────────────┼──► 5.5    │
+│       │                                             │    Deploy  │
+│       └──► 2.1 Bot ──► 2.2 Auth                     │            │
+│                  │                                  │            │
+│                  └──► 3.3.2 Notifications ──────────┘            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -391,16 +398,19 @@
 
 | Риск | Вероятность | Влияние | Митигация |
 |------|-------------|---------|-----------|
+| **TelegramBots library issues** | Средняя | Высокое | Альтернатива: java-telegram-bot-api |
+| **STOMP вместо Socket.io** | Низкая | Среднее | SockJS fallback для старых браузеров |
 | **Web Crypto API не работает в Mini App** | Низкая | Критическое | Тестировать на раннем этапе |
 | **Telegram меняет API** | Низкая | Высокое | Использовать стабильные версии SDK |
 | **Проблемы с SSL в dev** | Средняя | Среднее | mkcert или ngrok |
 | **Производительность шифрования** | Низкая | Среднее | Профилирование, web workers |
 | **Сложность отладки E2EE** | Высокая | Среднее | Логирование ключевых этапов (без секретов) |
 | **Нехватка времени** | Средняя | Высокое | Приоритизация P0 задач, отложить P2/P3 |
+| **Docker образ Java большой** | Низкая | Низкое | Использовать Eclipse Temurin slim |
 
 ### Contingency Plan
 
-Если не укладываемся в 6 недель:
+Если не укладываемся в 7 недель:
 
 1. **Отложить на v1.1:**
    - Секретный вопрос
@@ -425,7 +435,7 @@
 
 ```
 Developer (Full-stack)
-├── Backend: Fastify, Redis, Socket.io
+├── Backend: Spring Boot, Redis, WebSocket
 ├── Frontend: React, Web Crypto API
 ├── DevOps: Docker, nginx
 └── Security: Crypto implementation
@@ -434,18 +444,61 @@ Developer (Full-stack)
 ### Рекомендуемая команда (2-3 человека)
 
 ```
-Backend Developer
-├── Server, API, Redis
-└── Telegram Bot
+Backend Developer (Java)
+├── Spring Boot, WebFlux, STOMP
+├── Redis, Telegram Bot
+└── Security (initData validation)
 
 Frontend Developer  
 ├── React UI
-├── Crypto модули
+├── Crypto модули (Web Crypto API)
 └── Mini App integration
 
 DevOps (part-time)
 ├── Infrastructure
 └── CI/CD
+```
+
+---
+
+## Технологический стек (Summary)
+
+### Backend
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    
+    // Telegram Bot
+    implementation("org.telegram:telegrambots:6.9.7.1")
+    
+    // Utils
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+    implementation("org.mapstruct:mapstruct:1.5.5.Final")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.5.5.Final")
+    
+    // Testing
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers")
+    testImplementation("io.projectreactor:reactor-test")
+}
+```
+
+### Frontend
+```json
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "@twa-dev/sdk": "^7.0.0",
+    "@stomp/stompjs": "^7.0.0",
+    "sockjs-client": "^1.6.1"
+  }
+}
 ```
 
 ---
