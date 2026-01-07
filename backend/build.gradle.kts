@@ -11,11 +11,19 @@ val testcontainersVersion: String by project
 
 dependencies {
     // Spring Boot Starters
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
+    // Using spring-boot-starter-web for STOMP WebSocket support (servlet-based)
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    // Reactive Redis client (works with both reactive and imperative)
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    
+    // Reactor for async operations
+    implementation("io.projectreactor:reactor-core")
+    
+    // Connection pooling for Redis (required for Lettuce pooling)
+    implementation("org.apache.commons:commons-pool2:2.12.0")
 
     // Telegram Bot
     implementation("org.telegram:telegrambots:$telegramBotsVersion")
