@@ -1,5 +1,7 @@
 package dev.burnedchats.config;
 
+import dev.burnedchats.security.StompAuthInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,9 +32,12 @@ import org.springframework.web.socket.messaging.SessionSubscribeEvent;
  */
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
+
+    private final StompAuthInterceptor stompAuthInterceptor;
 
     /**
      * Heartbeat interval from server to client (ms).
@@ -165,10 +170,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * Configure inbound and outbound channel settings.
+     * Configure inbound channel settings with authentication interceptor.
      *
-     * <p>This is where authentication interceptors will be added in Sprint 2
-     * for validating Telegram initData on STOMP CONNECT.
+     * <p>The {@link StompAuthInterceptor} validates Telegram initData
+     * on STOMP CONNECT and sets up the user principal.
      *
      * @param registration the channel registration
      */
@@ -180,8 +185,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .maxPoolSize(10)
                 .queueCapacity(100);
 
-        // TODO Sprint 2.2.3: Add StompAuthInterceptor here
-        // registration.interceptors(stompAuthInterceptor);
+        // Add authentication interceptor for validating Telegram initData
+        registration.interceptors(stompAuthInterceptor);
+
+        log.info("Inbound channel configured with StompAuthInterceptor");
     }
 
     /**

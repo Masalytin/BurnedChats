@@ -129,9 +129,9 @@
 | **2.2** | **Mini App Auth (Java)** | | | | |
 | 2.2.1 | Реализовать TelegramAuthService | 🔴 P0 | 3 | 2.1.3 | ✅ |
 | 2.2.2 | Реализовать HMAC-SHA256 валидацию initData | 🔴 P0 | 3 | 2.2.1 | ✅ |
-| 2.2.3 | Создать StompAuthInterceptor | 🔴 P0 | 3 | 2.2.1, 1.2.4 | ⬜ |
-| 2.2.4 | Инициализировать Mini App SDK на frontend | 🔴 P0 | 2 | 1.3.2 | ⬜ |
-| 2.2.5 | Передавать initData при STOMP connect | 🔴 P0 | 2 | 2.2.3, 2.2.4 | ⬜ |
+| 2.2.3 | Создать StompAuthInterceptor | 🔴 P0 | 3 | 2.2.1, 1.2.4 | ✅ |
+| 2.2.4 | Инициализировать Mini App SDK на frontend | 🔴 P0 | 2 | 1.3.2 | ✅ |
+| 2.2.5 | Передавать initData при STOMP connect | 🔴 P0 | 2 | 2.2.3, 2.2.4 | ✅ |
 | **2.3** | **Криптография: ECDH (Frontend)** | | | | |
 | 2.3.1 | Создать модуль crypto/ecdh.ts | 🔴 P0 | 1 | 1.3.1 | ⬜ |
 | 2.3.2 | Реализовать generateKeyPair() | 🔴 P0 | 2 | 2.3.1 | ⬜ |
