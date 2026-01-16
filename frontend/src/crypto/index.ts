@@ -4,7 +4,7 @@
  * Provides end-to-end encryption using:
  * - ECDH (P-256) for key exchange
  * - HKDF-SHA256 for key derivation
- * - AES-256-GCM for message encryption (see aes.ts)
+ * - AES-256-GCM for message encryption
  */
 
 // ECDH key exchange
@@ -17,3 +17,16 @@ export {
   generateFingerprint,
   isCryptoAvailable,
 } from './ecdh';
+
+// AES-GCM encryption
+export {
+  encrypt,
+  decrypt,
+  encryptMessage,
+  decryptMessage,
+  isValidAESKey,
+  isValidIV,
+  type EncryptedData,
+  type EncryptOptions,
+  type DecryptOptions,
+} from './aes';

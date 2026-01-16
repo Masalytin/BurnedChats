@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "clean": "rimraf dist"
   },
   "dependencies": {
@@ -23,7 +26,9 @@
     "@types/react-dom": "^19.2.3",
     "@types/sockjs-client": "^1.5.4",
     "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^27.0.1",
     "typescript": "~5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.0.17"
   }
 }
