@@ -175,7 +175,8 @@ export function useTelegram(): UseTelegramReturn {
   }): Promise<string | null> => {
     if (isInTelegram) {
       return new Promise((resolve) => {
-        WebApp.showPopup(params, (buttonId) => {
+        // Cast to any to handle strict SDK types - our interface is more flexible
+        WebApp.showPopup(params as Parameters<typeof WebApp.showPopup>[0], (buttonId) => {
           resolve(buttonId || null);
         });
       });
@@ -208,12 +209,12 @@ export function useTelegram(): UseTelegramReturn {
   }, []);
 
   const setBackgroundColor = useCallback((color: string) => {
-    WebApp.setBackgroundColor(color);
+    WebApp.setBackgroundColor(color as `#${string}`);
   }, []);
 
   // Links
   const openLink = useCallback((url: string, options?: { try_instant_view?: boolean }) => {
-    WebApp.openLink(url, options);
+    WebApp.openLink(url, options ? { try_instant_view: options.try_instant_view ?? false } : undefined);
   }, []);
 
   const openTelegramLink = useCallback((url: string) => {
