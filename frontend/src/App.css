@@ -1,0 +1,85 @@
+/* App-specific styles */
+
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  gap: var(--bc-spacing-md);
+  color: var(--bc-text-secondary);
+  padding: var(--bc-spacing-xl);
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--bc-border-color);
+  border-top-color: var(--bc-brand-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error screen */
+.error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-xl);
+  text-align: center;
+  background: var(--bc-bg-primary);
+}
+
+.error-screen .error-icon {
+  font-size: 48px;
+  margin-bottom: var(--bc-spacing-sm);
+}
+
+.error-screen h2 {
+  color: var(--bc-text-primary);
+  font-size: var(--bc-font-size-xl);
+  font-weight: 600;
+  margin: 0;
+}
+
+.error-screen p {
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-font-size-md);
+  margin: 0;
+  max-width: 280px;
+}
+
+.retry-button {
+  margin-top: var(--bc-spacing-lg);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-xl);
+  background: var(--bc-brand-primary);
+  color: white;
+  border: none;
+  border-radius: var(--bc-radius-md);
+  font-size: var(--bc-font-size-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.retry-button:hover {
+  background: var(--bc-brand-secondary);
+}
+
+.retry-button:active {
+  transform: scale(0.98);
+}
+
+

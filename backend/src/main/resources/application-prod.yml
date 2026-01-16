@@ -1,0 +1,69 @@
+# Production profile configuration
+# Activated by: SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  data:
+    redis:
+      # Production Redis settings (from environment)
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    max-connections: 5000
+    threads:
+      max: 400
+
+# Production logging - less verbose
+logging:
+  level:
+    root: WARN
+    dev.burnedchats: INFO
+    org.springframework: WARN
+    io.lettuce.core: WARN
+  file:
+    name: ${LOG_PATH:/var/log/burnedchats}/burned-chats.log
+
+# Production Telegram settings
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN}
+    username: ${TELEGRAM_BOT_USERNAME}
+    webhook:
+      enabled: true
+      url: ${TELEGRAM_WEBHOOK_URL}
+      secret-token: ${TELEGRAM_WEBHOOK_SECRET}
+  mini-app:
+    url: ${TELEGRAM_MINI_APP_URL}
+
+# Strict rate limits in production
+rate-limit:
+  enabled: true
+  requests:
+    per-minute: 60
+    per-hour: 1000
+  messages:
+    per-minute: 30
+    per-session: 100
+
+# Production CORS - restrict origins
+security:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# Actuator - hide details in production
+management:
+  endpoint:
+    health:
+      show-details: when_authorized
+
+
+

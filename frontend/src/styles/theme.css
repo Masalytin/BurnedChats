@@ -1,0 +1,342 @@
+/*
+ * BurnedChats Theme - Telegram Mini App CSS Variables
+ * 
+ * These variables map Telegram's theme to our app.
+ * Telegram injects CSS variables automatically when running in Mini App context.
+ * We provide fallbacks for development/testing outside Telegram.
+ */
+
+:root {
+  /* ============================================
+   * TELEGRAM THEME VARIABLES (with fallbacks)
+   * ============================================ */
+  
+  /* Primary colors - from Telegram theme */
+  --tg-theme-bg-color: var(--tg-theme-bg-color, #0f0f0f);
+  --tg-theme-text-color: var(--tg-theme-text-color, #ffffff);
+  --tg-theme-hint-color: var(--tg-theme-hint-color, #7d7d7d);
+  --tg-theme-link-color: var(--tg-theme-link-color, #5eaaff);
+  --tg-theme-button-color: var(--tg-theme-button-color, #ff6b35);
+  --tg-theme-button-text-color: var(--tg-theme-button-text-color, #ffffff);
+  --tg-theme-secondary-bg-color: var(--tg-theme-secondary-bg-color, #1a1a1a);
+  --tg-theme-header-bg-color: var(--tg-theme-header-bg-color, #0f0f0f);
+  --tg-theme-accent-text-color: var(--tg-theme-accent-text-color, #ff6b35);
+  --tg-theme-section-bg-color: var(--tg-theme-section-bg-color, #1a1a1a);
+  --tg-theme-section-header-text-color: var(--tg-theme-section-header-text-color, #7d7d7d);
+  --tg-theme-subtitle-text-color: var(--tg-theme-subtitle-text-color, #7d7d7d);
+  --tg-theme-destructive-text-color: var(--tg-theme-destructive-text-color, #ff4444);
+
+  /* ============================================
+   * APPLICATION THEME VARIABLES
+   * ============================================ */
+  
+  /* Background layers */
+  --bc-bg-primary: var(--tg-theme-bg-color);
+  --bc-bg-secondary: var(--tg-theme-secondary-bg-color);
+  --bc-bg-elevated: #242424;
+  --bc-bg-overlay: rgba(0, 0, 0, 0.6);
+  
+  /* Text colors */
+  --bc-text-primary: var(--tg-theme-text-color);
+  --bc-text-secondary: var(--tg-theme-hint-color);
+  --bc-text-muted: var(--tg-theme-subtitle-text-color);
+  --bc-text-link: var(--tg-theme-link-color);
+  --bc-text-accent: var(--tg-theme-accent-text-color);
+  
+  /* Brand colors - "Burned" theme */
+  --bc-brand-primary: #ff6b35;
+  --bc-brand-primary-hover: #ff8555;
+  --bc-brand-primary-active: #e55a2a;
+  --bc-brand-secondary: #ff9f1c;
+  --bc-brand-gradient: linear-gradient(135deg, #ff6b35 0%, #ff9f1c 100%);
+  
+  /* Semantic colors */
+  --bc-success: #34c759;
+  --bc-success-muted: rgba(52, 199, 89, 0.15);
+  --bc-warning: #ffcc00;
+  --bc-warning-muted: rgba(255, 204, 0, 0.15);
+  --bc-error: #ff4444;
+  --bc-error-muted: rgba(255, 68, 68, 0.15);
+  --bc-destructive: var(--tg-theme-destructive-text-color);
+  
+  /* Message bubbles */
+  --bc-message-outgoing-bg: var(--bc-brand-primary);
+  --bc-message-outgoing-text: #ffffff;
+  --bc-message-incoming-bg: var(--bc-bg-elevated);
+  --bc-message-incoming-text: var(--bc-text-primary);
+  
+  /* Interactive elements */
+  --bc-button-primary-bg: var(--tg-theme-button-color, var(--bc-brand-primary));
+  --bc-button-primary-text: var(--tg-theme-button-text-color);
+  --bc-button-secondary-bg: var(--bc-bg-elevated);
+  --bc-button-secondary-text: var(--bc-text-primary);
+  
+  /* Borders & separators */
+  --bc-border-color: rgba(255, 255, 255, 0.08);
+  --bc-border-color-strong: rgba(255, 255, 255, 0.16);
+  
+  /* Shadows */
+  --bc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --bc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --bc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --bc-shadow-glow: 0 0 20px rgba(255, 107, 53, 0.3);
+  
+  /* ============================================
+   * TYPOGRAPHY
+   * ============================================ */
+  
+  --bc-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                    'Helvetica Neue', Arial, sans-serif;
+  --bc-font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  
+  /* Font sizes */
+  --bc-text-xs: 0.75rem;    /* 12px */
+  --bc-text-sm: 0.875rem;   /* 14px */
+  --bc-text-base: 1rem;     /* 16px */
+  --bc-text-lg: 1.125rem;   /* 18px */
+  --bc-text-xl: 1.25rem;    /* 20px */
+  --bc-text-2xl: 1.5rem;    /* 24px */
+  --bc-text-3xl: 1.875rem;  /* 30px */
+  
+  /* Line heights */
+  --bc-leading-tight: 1.25;
+  --bc-leading-normal: 1.5;
+  --bc-leading-relaxed: 1.75;
+  
+  /* ============================================
+   * SPACING & LAYOUT
+   * ============================================ */
+  
+  --bc-spacing-xs: 0.25rem;   /* 4px */
+  --bc-spacing-sm: 0.5rem;    /* 8px */
+  --bc-spacing-md: 1rem;      /* 16px */
+  --bc-spacing-lg: 1.5rem;    /* 24px */
+  --bc-spacing-xl: 2rem;      /* 32px */
+  --bc-spacing-2xl: 3rem;     /* 48px */
+  
+  /* Border radius */
+  --bc-radius-sm: 0.25rem;    /* 4px */
+  --bc-radius-md: 0.5rem;     /* 8px */
+  --bc-radius-lg: 1rem;       /* 16px */
+  --bc-radius-xl: 1.5rem;     /* 24px */
+  --bc-radius-full: 9999px;
+  
+  /* ============================================
+   * ANIMATION
+   * ============================================ */
+  
+  --bc-transition-fast: 150ms ease;
+  --bc-transition-normal: 250ms ease;
+  --bc-transition-slow: 400ms ease;
+  
+  /* Burn animation */
+  --bc-burn-duration: 800ms;
+  --bc-burn-color-1: #ff6b35;
+  --bc-burn-color-2: #ff9f1c;
+  --bc-burn-color-3: #ffcc00;
+  
+  /* ============================================
+   * Z-INDEX LAYERS
+   * ============================================ */
+  
+  --bc-z-base: 0;
+  --bc-z-dropdown: 100;
+  --bc-z-sticky: 200;
+  --bc-z-modal: 300;
+  --bc-z-toast: 400;
+  --bc-z-tooltip: 500;
+}
+
+/* ============================================
+ * GLOBAL STYLES
+ * ============================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--bc-font-family);
+  font-size: var(--bc-text-base);
+  line-height: var(--bc-leading-normal);
+  color: var(--bc-text-primary);
+  background-color: var(--bc-bg-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Links */
+a {
+  color: var(--bc-text-link);
+  text-decoration: none;
+  transition: color var(--bc-transition-fast);
+}
+
+a:hover {
+  color: var(--bc-brand-primary-hover);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bc-border-color-strong);
+  border-radius: var(--bc-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bc-text-muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--bc-brand-primary);
+  color: white;
+}
+
+/* Disable pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* ============================================
+ * UTILITY CLASSES
+ * ============================================ */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================
+ * ANIMATIONS
+ * ============================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes burn {
+  0% {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+    transform: scale(1);
+  }
+  25% {
+    filter: brightness(1.5) saturate(1.5);
+  }
+  50% {
+    opacity: 0.8;
+    filter: brightness(2) saturate(2) hue-rotate(-10deg);
+    transform: scale(1.02);
+  }
+  75% {
+    opacity: 0.4;
+    filter: brightness(1.5) saturate(1) hue-rotate(-20deg);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.5) saturate(0);
+    transform: scale(0.95);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--bc-transition-normal) ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--bc-transition-normal) ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown var(--bc-transition-normal) ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-burn {
+  animation: burn var(--bc-burn-duration) ease-out forwards;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+

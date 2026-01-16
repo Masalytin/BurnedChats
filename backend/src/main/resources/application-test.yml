@@ -1,0 +1,44 @@
+# Test profile configuration
+# Activated automatically by Spring Boot Test
+
+spring:
+  data:
+    redis:
+      # Testcontainers will override these
+      host: localhost
+      port: 6379
+      password: ""
+
+server:
+  port: 0  # Random port for tests
+
+# Minimal logging in tests
+logging:
+  level:
+    root: WARN
+    dev.burnedchats: DEBUG
+    org.springframework.test: WARN
+
+# Test Telegram settings
+telegram:
+  bot:
+    token: test-bot-token
+    username: TestBot
+    webhook:
+      enabled: false
+  mini-app:
+    url: https://test.example.com
+    auth:
+      max-age: 3600  # Extended for tests
+
+# Disable rate limiting in tests
+rate-limit:
+  enabled: false
+
+# Test CORS
+security:
+  cors:
+    allowed-origins: "*"
+
+
+

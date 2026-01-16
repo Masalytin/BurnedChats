@@ -1,0 +1,12 @@
+# Ignore all certificate files - they should be generated locally
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+
+# Keep this .gitignore
+!.gitignore
+
+# Keep the README
+!README.md

@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Build artifacts (will be rebuilt in container)
+backend/build/
+backend/bin/
+frontend/dist/
+frontend/node_modules/
+build/
+
+# Gradle
+.gradle/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (should be passed via docker-compose)
+.env
+.env.local
+.env.*.local
+
+# Test files
+*.test.*
+__tests__/
+coverage/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+!backend/Dockerfile
+!frontend/Dockerfile
+

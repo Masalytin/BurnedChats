@@ -1,0 +1,109 @@
+# EditorConfig for BurnedChats
+# https://editorconfig.org
+
+root = true
+
+# Default settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 120
+
+# Java files
+[*.java]
+indent_size = 4
+ij_java_class_count_to_use_import_on_demand = 999
+ij_java_names_count_to_use_import_on_demand = 999
+ij_java_continuation_indent_size = 4
+ij_java_blank_lines_after_class_header = 0
+ij_java_blank_lines_after_imports = 1
+ij_java_blank_lines_after_package = 1
+ij_java_blank_lines_around_class = 1
+ij_java_blank_lines_around_field = 0
+ij_java_blank_lines_around_method = 1
+ij_java_blank_lines_before_class_end = 0
+ij_java_blank_lines_before_imports = 1
+ij_java_blank_lines_before_method_body = 0
+ij_java_keep_blank_lines_before_right_brace = 0
+ij_java_keep_blank_lines_between_package_declaration_and_header = 0
+ij_java_keep_blank_lines_in_code = 1
+ij_java_keep_blank_lines_in_declarations = 1
+
+# Kotlin files (for Gradle scripts)
+[*.{kt,kts}]
+indent_size = 4
+ij_kotlin_continuation_indent_size = 4
+ij_kotlin_imports_layout = *,java.**,javax.**,kotlin.**,^
+
+# Gradle files
+[*.gradle]
+indent_size = 4
+
+[*.gradle.kts]
+indent_size = 4
+
+# TypeScript/JavaScript (Frontend)
+[*.{ts,tsx,js,jsx}]
+indent_size = 2
+max_line_length = 100
+
+# JSON files
+[*.json]
+indent_size = 2
+
+# YAML files
+[*.{yml,yaml}]
+indent_size = 2
+
+# XML files
+[*.xml]
+indent_size = 2
+
+# HTML files
+[*.html]
+indent_size = 2
+
+# CSS/SCSS files
+[*.{css,scss,sass,less}]
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Shell scripts
+[*.sh]
+end_of_line = lf
+
+# Windows batch files
+[*.{cmd,bat}]
+end_of_line = crlf
+
+# Makefiles
+[Makefile]
+indent_style = tab
+
+# Docker files
+[Dockerfile*]
+indent_size = 4
+
+[docker-compose*.{yml,yaml}]
+indent_size = 2
+
+# Properties files
+[*.properties]
+charset = latin1
+
+# Git config
+[.gitattributes]
+end_of_line = lf
+
+[.gitconfig]
+indent_style = tab
+
+

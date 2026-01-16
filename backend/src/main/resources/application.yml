@@ -1,0 +1,142 @@
+# BurnedChats Backend Configuration
+# Sprint 1.2: Foundation setup
+
+spring:
+  application:
+    name: burned-chats-backend
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # Redis configuration (Sprint 1.2.5)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+        shutdown-timeout: 100ms
+
+  # Jackson JSON configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: ""
+  tomcat:
+    connection-timeout: 30s
+    max-connections: 2000
+    accept-count: 100
+    threads:
+      max: 200
+      min-spare: 10
+  # Compression for responses
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+# WebSocket configuration (Sprint 1.2.4)
+websocket:
+  # Heartbeat intervals in milliseconds
+  heartbeat:
+    server: 10000   # Server sends heartbeat every 10s
+    client: 10000   # Client expected heartbeat every 10s
+  # Message settings
+  message:
+    max-size: 65536  # 64KB max message size
+  # Send settings
+  send:
+    buffer-size: 524288  # 512KB send buffer
+    timeout: 15000       # 15s send timeout
+
+# Telegram Bot configuration (Sprint 2.1)
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN:}
+    username: ${TELEGRAM_BOT_USERNAME:BurnedChatsBot}
+    # Webhook settings (production)
+    webhook:
+      enabled: ${TELEGRAM_WEBHOOK_ENABLED:false}
+      url: ${TELEGRAM_WEBHOOK_URL:}
+      path: /api/telegram/webhook
+      secret-token: ${TELEGRAM_WEBHOOK_SECRET:}
+  # Mini App settings
+  mini-app:
+    url: ${TELEGRAM_MINI_APP_URL:}
+    # initData validation
+    auth:
+      # Max age of initData in seconds (5 minutes)
+      max-age: 300
+
+# Session and request settings
+session:
+  # Chat request expiration (5 minutes)
+  request:
+    ttl: 300
+  # Active session expiration (1 hour of inactivity)
+  active:
+    ttl: 3600
+  # Pending handshake timeout (30 seconds)
+  handshake:
+    timeout: 30
+
+# Rate limiting configuration
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  # Requests per window
+  requests:
+    per-minute: 60
+    per-hour: 1000
+  # Message rate limits
+  messages:
+    per-minute: 30
+    per-session: 100
+
+# Security settings
+security:
+  # CORS configuration
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+    allowed-methods: GET,POST,OPTIONS
+    allowed-headers: "*"
+    max-age: 3600
+
+# Actuator endpoints for health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  health:
+    redis:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+# Application info
+info:
+  app:
+    name: BurnedChats
+    description: Secure E2E encrypted messaging via Telegram Mini App
+    version: "@project.version@"

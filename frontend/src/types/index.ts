@@ -1,0 +1,134 @@
+/**
+ * Common types for BurnedChats frontend
+ */
+
+// ============================================
+// Session & Chat Types
+// ============================================
+
+export type SessionStatus = 
+  | 'pending'       // Request sent, waiting for response
+  | 'handshaking'   // Key exchange in progress
+  | 'active'        // Chat is active
+  | 'expired'       // Session has expired
+  | 'burned';       // Session was destroyed
+
+export interface Session {
+  id: string;
+  peerId: number;
+  peerUsername?: string;
+  peerName: string;
+  status: SessionStatus;
+  createdAt: number;
+  expiresAt?: number;
+  hasUnread?: boolean;
+}
+
+export interface ChatRequest {
+  id: string;
+  fromUserId: number;
+  fromUsername?: string;
+  fromName: string;
+  secretQuestion?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+// ============================================
+// Message Types
+// ============================================
+
+export type MessageStatus = 
+  | 'sending'    // Message is being sent
+  | 'sent'       // Message sent to server
+  | 'delivered'  // Message delivered to peer
+  | 'read'       // Message read by peer
+  | 'failed';    // Message failed to send
+
+export interface Message {
+  id: string;
+  sessionId: string;
+  fromUserId: number;
+  encryptedContent: string;    // Base64 encoded
+  iv: string;                  // Base64 encoded initialization vector
+  timestamp: number;
+  status: MessageStatus;
+}
+
+export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv'> {
+  content: string;
+  isOwn: boolean;
+}
+
+// ============================================
+// WebSocket Event Types
+// ============================================
+
+export type WebSocketEventType =
+  | 'INCOMING_REQUEST'
+  | 'REQUEST_ACCEPTED'
+  | 'REQUEST_REJECTED'
+  | 'REQUEST_EXPIRED'
+  | 'PEER_PUBLIC_KEY'
+  | 'HANDSHAKE_COMPLETE'
+  | 'NEW_MESSAGE'
+  | 'MESSAGE_DELIVERED'
+  | 'MESSAGE_READ'
+  | 'TYPING_START'
+  | 'TYPING_STOP'
+  | 'BURN_SIGNAL'
+  | 'SESSION_EXPIRED'
+  | 'PEER_OFFLINE'
+  | 'PEER_ONLINE'
+  | 'ERROR';
+
+export interface WebSocketEvent<T = unknown> {
+  type: WebSocketEventType;
+  sessionId?: string;
+  payload: T;
+  timestamp: number;
+}
+
+// ============================================
+// Crypto Types
+// ============================================
+
+export interface KeyPair {
+  publicKey: CryptoKey;
+  privateKey: CryptoKey;
+}
+
+export interface ExportedKeyPair {
+  publicKey: string;    // Base64 encoded
+  privateKey: string;   // Base64 encoded (for backup only)
+}
+
+export interface SharedSecret {
+  sessionId: string;
+  key: CryptoKey;
+  fingerprint: string;  // Visual verification code
+}
+
+// ============================================
+// UI State Types
+// ============================================
+
+export type ViewType = 
+  | 'home'
+  | 'search'
+  | 'incoming-request'
+  | 'outgoing-request'
+  | 'handshake'
+  | 'verification'
+  | 'chat';
+
+export interface AppState {
+  currentView: ViewType;
+  activeSessionId: string | null;
+  sessions: Session[];
+  incomingRequests: ChatRequest[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+

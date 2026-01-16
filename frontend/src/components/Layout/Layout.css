@@ -1,0 +1,17 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--bc-bg-primary);
+}
+
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--bc-spacing-md);
+  padding-bottom: calc(var(--bc-spacing-md) + env(safe-area-inset-bottom, 0px));
+}
+
+

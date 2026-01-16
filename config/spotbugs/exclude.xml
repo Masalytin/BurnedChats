@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!--
+        SpotBugs exclusion filter for BurnedChats project
+        See: https://spotbugs.readthedocs.io/en/stable/filter.html
+    -->
+
+    <!-- Exclude generated code -->
+    <Match>
+        <Source name="~.*Generated.*\.java"/>
+    </Match>
+
+    <!-- Exclude test classes from certain checks -->
+    <Match>
+        <Class name="~.*Test"/>
+        <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+    </Match>
+
+    <!-- Lombok-generated code patterns -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP"/>
+        <Class name="~.*Dto"/>
+    </Match>
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Class name="~.*Dto"/>
+    </Match>
+
+    <!-- Allow certain patterns in configuration classes -->
+    <Match>
+        <Class name="~.*Config"/>
+        <Bug pattern="MS_SHOULD_BE_FINAL"/>
+    </Match>
+
+    <!-- Spring-specific exclusions -->
+    <Match>
+        <Class name="~.*Application"/>
+        <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+    </Match>
+
+    <!-- Exclude builder pattern false positives -->
+    <Match>
+        <Class name="~.*Builder"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Exclude MapStruct generated mappers -->
+    <Match>
+        <Class name="~.*MapperImpl"/>
+    </Match>
+
+    <!-- Allow null checks in reactive code -->
+    <Match>
+        <Package name="~dev\.burnedchats\..*"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
+    </Match>
+
+    <!-- Serialization warnings for DTOs -->
+    <Match>
+        <Class name="~.*Dto"/>
+        <Bug pattern="SE_NO_SERIALVERSIONID"/>
+    </Match>
+    <Match>
+        <Class name="~.*Request"/>
+        <Bug pattern="SE_NO_SERIALVERSIONID"/>
+    </Match>
+    <Match>
+        <Class name="~.*Response"/>
+        <Bug pattern="SE_NO_SERIALVERSIONID"/>
+    </Match>
+
+    <!-- Exclude certain patterns in exception classes -->
+    <Match>
+        <Class name="~.*Exception"/>
+        <Bug pattern="SE_NO_SERIALVERSIONID"/>
+    </Match>
+</FindBugsFilter>
+
+

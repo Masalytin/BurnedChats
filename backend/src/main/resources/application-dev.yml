@@ -1,0 +1,50 @@
+# Development profile configuration
+# Activated by: SPRING_PROFILES_ACTIVE=dev
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+
+server:
+  port: 8080
+
+# More verbose logging in development
+logging:
+  level:
+    root: INFO
+    dev.burnedchats: DEBUG
+    dev.burnedchats.telegram: DEBUG
+    org.springframework.websocket: DEBUG
+    org.springframework.messaging: DEBUG
+    org.telegram.telegrambots: INFO
+    io.lettuce.core: DEBUG
+
+# Development Telegram settings (use test bot)
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN:test-token-replace-me}
+    username: ${TELEGRAM_BOT_USERNAME:BurnedChatsDevBot}
+    webhook:
+      enabled: false
+  mini-app:
+    url: https://localhost:3000
+
+# Relaxed rate limits for development
+rate-limit:
+  enabled: false
+
+# Development CORS - allow all origins
+security:
+  cors:
+    allowed-origins: "*"
+
+# Actuator - show all details in dev
+management:
+  endpoint:
+    health:
+      show-details: always
+
+

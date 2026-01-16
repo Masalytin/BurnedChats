@@ -1,0 +1,155 @@
+#!/bin/bash
+# Pre-commit hook for BurnedChats
+# This hook runs code quality checks before allowing a commit
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}Running pre-commit checks...${NC}"
+
+# Get the root directory of the repository
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# Check if there are staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo -e "${GREEN}No staged files to check.${NC}"
+    exit 0
+fi
+
+# Check for staged Java files
+JAVA_FILES=$(echo "$STAGED_FILES" | grep '\.java$' || true)
+
+# Check for staged TypeScript/JavaScript files
+TS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ts|tsx|js|jsx)$' || true)
+
+# Track if any check failed
+FAILED=0
+
+# ========================
+# Java Checks
+# ========================
+if [ -n "$JAVA_FILES" ]; then
+    echo -e "${YELLOW}Checking Java files...${NC}"
+
+    # Run Checkstyle on staged Java files
+    echo "Running Checkstyle..."
+    if ./gradlew checkstyleMain checkstyleTest --quiet 2>/dev/null; then
+        echo -e "${GREEN}✓ Checkstyle passed${NC}"
+    else
+        echo -e "${RED}✗ Checkstyle failed${NC}"
+        FAILED=1
+    fi
+
+    # Run SpotBugs (only if build exists)
+    if [ -d "backend/build/classes" ]; then
+        echo "Running SpotBugs..."
+        if ./gradlew spotbugsMain --quiet 2>/dev/null; then
+            echo -e "${GREEN}✓ SpotBugs passed${NC}"
+        else
+            echo -e "${RED}✗ SpotBugs failed${NC}"
+            FAILED=1
+        fi
+    fi
+fi
+
+# ========================
+# Frontend Checks
+# ========================
+if [ -n "$TS_FILES" ]; then
+    echo -e "${YELLOW}Checking TypeScript/JavaScript files...${NC}"
+
+    # Check if frontend directory exists and has node_modules
+    if [ -d "frontend/node_modules" ]; then
+        cd frontend
+
+        # Run ESLint
+        echo "Running ESLint..."
+        if npm run lint --silent 2>/dev/null; then
+            echo -e "${GREEN}✓ ESLint passed${NC}"
+        else
+            echo -e "${RED}✗ ESLint failed${NC}"
+            FAILED=1
+        fi
+
+        # Run TypeScript type check
+        echo "Running TypeScript check..."
+        if npm run type-check --silent 2>/dev/null; then
+            echo -e "${GREEN}✓ TypeScript check passed${NC}"
+        else
+            echo -e "${RED}✗ TypeScript check failed${NC}"
+            FAILED=1
+        fi
+
+        cd "$REPO_ROOT"
+    else
+        echo -e "${YELLOW}⚠ Skipping frontend checks (node_modules not found)${NC}"
+    fi
+fi
+
+# ========================
+# General Checks
+# ========================
+
+# Check for debug statements
+echo "Checking for debug statements..."
+DEBUG_PATTERNS="console\.log\|System\.out\.print\|debugger\|TODO.*REMOVE"
+if echo "$STAGED_FILES" | xargs grep -l "$DEBUG_PATTERNS" 2>/dev/null | grep -v "test" | grep -v "Test"; then
+    echo -e "${YELLOW}⚠ Warning: Found potential debug statements${NC}"
+    # Not failing on this, just warning
+fi
+
+# Check for large files (> 1MB)
+echo "Checking for large files..."
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        SIZE=$(wc -c < "$file" 2>/dev/null || echo 0)
+        if [ "$SIZE" -gt 1048576 ]; then
+            echo -e "${RED}✗ File too large: $file ($(($SIZE / 1024))KB)${NC}"
+            FAILED=1
+        fi
+    fi
+done
+
+# Check for secrets/sensitive data
+echo "Checking for sensitive data..."
+SENSITIVE_PATTERNS="password\s*=\|secret\s*=\|api_key\s*=\|apikey\s*=\|token\s*=\|-----BEGIN.*PRIVATE"
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        # Skip certain files
+        case "$file" in
+            *.md|*.example|*test*|*Test*|*.lock)
+                continue
+                ;;
+        esac
+        if grep -iE "$SENSITIVE_PATTERNS" "$file" 2>/dev/null; then
+            echo -e "${RED}✗ Potential sensitive data in: $file${NC}"
+            FAILED=1
+        fi
+    fi
+done
+
+# ========================
+# Final Result
+# ========================
+echo ""
+if [ $FAILED -eq 1 ]; then
+    echo -e "${RED}═══════════════════════════════════════════${NC}"
+    echo -e "${RED}Pre-commit checks FAILED. Please fix the issues above.${NC}"
+    echo -e "${RED}═══════════════════════════════════════════${NC}"
+    exit 1
+else
+    echo -e "${GREEN}═══════════════════════════════════════════${NC}"
+    echo -e "${GREEN}All pre-commit checks passed!${NC}"
+    echo -e "${GREEN}═══════════════════════════════════════════${NC}"
+    exit 0
+fi
+
+

@@ -1,0 +1,51 @@
+.card {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  overflow: hidden;
+}
+
+.card--elevated {
+  background: var(--bc-bg-elevated);
+  box-shadow: var(--bc-shadow-md);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.card-header-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+  margin: 0;
+}
+
+.card-subtitle {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: var(--bc-spacing-xs) 0 0;
+}
+
+.card-header-action {
+  flex-shrink: 0;
+}
+
+.card-content {
+  padding: var(--bc-spacing-md);
+}
+
+.card-content--no-padding {
+  padding: 0;
+}
+
+
