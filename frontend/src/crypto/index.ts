@@ -5,6 +5,7 @@
  * - ECDH (P-256) for key exchange
  * - HKDF-SHA256 for key derivation
  * - AES-256-GCM for message encryption
+ * - Secure in-memory key storage
  */
 
 // ECDH key exchange
@@ -30,3 +31,37 @@ export {
   type EncryptOptions,
   type DecryptOptions,
 } from './aes';
+
+// Secure key storage
+export {
+  // Store operations
+  storeKeyPair,
+  storePeerPublicKey,
+  storeSharedSecret,
+  // Retrieve operations
+  getSessionKeys,
+  getKeyPair,
+  getPeerPublicKey,
+  getSharedSecret,
+  getAESKey,
+  getFingerprint,
+  isHandshakeComplete,
+  hasSession,
+  getActiveSessionIds,
+  getSessionCount,
+  // Burn operations
+  burn,
+  burnAll,
+  // Event handling
+  addKeyStoreListener,
+  removeKeyStoreListener,
+  // Unload handler management
+  removeUnloadHandler,
+  isUnloadHandlerInstalled,
+  // Debug
+  getDebugInfo,
+  // Types
+  type SessionKeys,
+  type KeyStoreEventCallback,
+  type KeyStoreEventType,
+} from './keyStore';

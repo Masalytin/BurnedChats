@@ -1,0 +1,554 @@
+/**
+ * Secure Key Storage module for BurnedChats.
+ * 
+ * Provides in-memory storage for cryptographic keys with secure destruction.
+ * Keys are NEVER persisted to localStorage, IndexedDB, or any other persistent storage.
+ * 
+ * Security features:
+ * - Keys stored only in memory (volatile)
+ * - Secure burn() with memory overwriting
+ * - Automatic cleanup on page unload
+ * - Session isolation (keys indexed by sessionId)
+ * 
+ * WARNING: This module stores sensitive cryptographic material.
+ * Always call burn() or burnAll() when sessions end.
+ */
+
+import type { KeyPair, SharedSecret } from '@/types';
+
+// ============================================
+// Types
+// ============================================
+
+/**
+ * Complete cryptographic state for a session.
+ * Contains all keys needed for E2EE communication.
+ */
+export interface SessionKeys {
+  /** Session identifier */
+  sessionId: string;
+  /** Our ECDH key pair for this session */
+  keyPair: KeyPair;
+  /** Peer's public key (after handshake) */
+  peerPublicKey?: CryptoKey;
+  /** Shared secret and derived AES key (after handshake) */
+  sharedSecret?: SharedSecret;
+  /** Raw shared secret bytes for fingerprint regeneration */
+  rawSharedSecret?: ArrayBuffer;
+  /** Timestamp when keys were created */
+  createdAt: number;
+}
+
+/**
+ * Callback for key events.
+ */
+export type KeyStoreEventCallback = (sessionId: string, eventType: KeyStoreEventType) => void;
+
+/**
+ * Key store event types.
+ */
+export type KeyStoreEventType = 'stored' | 'updated' | 'burned' | 'burned_all';
+
+// ============================================
+// Internal Storage
+// ============================================
+
+/**
+ * In-memory key storage.
+ * Uses Map for O(1) access and easy iteration for cleanup.
+ */
+const keyStore = new Map<string, SessionKeys>();
+
+/**
+ * Event listeners for key store changes.
+ */
+const eventListeners = new Set<KeyStoreEventCallback>();
+
+/**
+ * Flag to track if beforeunload handler is installed.
+ */
+let unloadHandlerInstalled = false;
+
+// ============================================
+// Store Operations
+// ============================================
+
+/**
+ * Stores a new key pair for a session.
+ * 
+ * Called when initiating or accepting a chat request.
+ * The key pair is used for ECDH key exchange.
+ * 
+ * @param sessionId - Unique session identifier
+ * @param keyPair - ECDH key pair to store
+ * @throws Error if sessionId is empty or keyPair is invalid
+ * 
+ * @example
+ * ```ts
+ * const keyPair = await generateKeyPair();
+ * storeKeyPair(sessionId, keyPair);
+ * ```
+ */
+export function storeKeyPair(sessionId: string, keyPair: KeyPair): void {
+  validateSessionId(sessionId);
+  
+  if (!keyPair || !keyPair.publicKey || !keyPair.privateKey) {
+    throw new Error('Invalid key pair: both public and private keys are required');
+  }
+
+  const existing = keyStore.get(sessionId);
+  
+  if (existing) {
+    // Update existing entry
+    existing.keyPair = keyPair;
+    existing.createdAt = Date.now();
+    notifyListeners(sessionId, 'updated');
+  } else {
+    // Create new entry
+    keyStore.set(sessionId, {
+      sessionId,
+      keyPair,
+      createdAt: Date.now(),
+    });
+    notifyListeners(sessionId, 'stored');
+  }
+
+  // Ensure cleanup handler is installed
+  installUnloadHandler();
+}
+
+/**
+ * Stores the peer's public key after receiving it during handshake.
+ * 
+ * @param sessionId - Session identifier
+ * @param peerPublicKey - Peer's imported public key
+ * @throws Error if session doesn't exist or key is invalid
+ * 
+ * @example
+ * ```ts
+ * const peerKey = await importPublicKey(peerPublicKeyBase64);
+ * storePeerPublicKey(sessionId, peerKey);
+ * ```
+ */
+export function storePeerPublicKey(sessionId: string, peerPublicKey: CryptoKey): void {
+  validateSessionId(sessionId);
+  
+  const session = keyStore.get(sessionId);
+  if (!session) {
+    throw new Error(`No keys found for session: ${sessionId}`);
+  }
+
+  if (!peerPublicKey) {
+    throw new Error('Invalid peer public key');
+  }
+
+  session.peerPublicKey = peerPublicKey;
+  notifyListeners(sessionId, 'updated');
+}
+
+/**
+ * Stores the shared secret after ECDH computation.
+ * 
+ * This includes the derived AES key for message encryption.
+ * 
+ * @param sessionId - Session identifier
+ * @param sharedSecret - Shared secret with AES key and fingerprint
+ * @param rawSecret - Raw ECDH shared secret bytes (for fingerprint regeneration)
+ * @throws Error if session doesn't exist
+ * 
+ * @example
+ * ```ts
+ * const rawSecret = await computeSharedSecret(privateKey, peerPublicKey);
+ * const aesKey = await deriveAESKey(rawSecret, sessionId);
+ * const fingerprint = await generateFingerprint(rawSecret);
+ * 
+ * storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint }, rawSecret);
+ * ```
+ */
+export function storeSharedSecret(
+  sessionId: string,
+  sharedSecret: SharedSecret,
+  rawSecret?: ArrayBuffer
+): void {
+  validateSessionId(sessionId);
+  
+  const session = keyStore.get(sessionId);
+  if (!session) {
+    throw new Error(`No keys found for session: ${sessionId}`);
+  }
+
+  session.sharedSecret = sharedSecret;
+  if (rawSecret) {
+    // Clone the ArrayBuffer to prevent external modifications
+    session.rawSharedSecret = rawSecret.slice(0);
+  }
+  notifyListeners(sessionId, 'updated');
+}
+
+// ============================================
+// Retrieve Operations
+// ============================================
+
+/**
+ * Retrieves all keys for a session.
+ * 
+ * @param sessionId - Session identifier
+ * @returns SessionKeys or undefined if not found
+ * 
+ * @example
+ * ```ts
+ * const keys = getSessionKeys(sessionId);
+ * if (keys?.sharedSecret) {
+ *   // Ready for encrypted communication
+ * }
+ * ```
+ */
+export function getSessionKeys(sessionId: string): SessionKeys | undefined {
+  return keyStore.get(sessionId);
+}
+
+/**
+ * Retrieves the key pair for a session.
+ * 
+ * @param sessionId - Session identifier
+ * @returns KeyPair or undefined if not found
+ */
+export function getKeyPair(sessionId: string): KeyPair | undefined {
+  return keyStore.get(sessionId)?.keyPair;
+}
+
+/**
+ * Retrieves the peer's public key for a session.
+ * 
+ * @param sessionId - Session identifier
+ * @returns CryptoKey or undefined if not found/not yet received
+ */
+export function getPeerPublicKey(sessionId: string): CryptoKey | undefined {
+  return keyStore.get(sessionId)?.peerPublicKey;
+}
+
+/**
+ * Retrieves the shared secret (AES key) for a session.
+ * 
+ * @param sessionId - Session identifier
+ * @returns SharedSecret or undefined if handshake not complete
+ */
+export function getSharedSecret(sessionId: string): SharedSecret | undefined {
+  return keyStore.get(sessionId)?.sharedSecret;
+}
+
+/**
+ * Retrieves just the AES key for encryption/decryption.
+ * 
+ * @param sessionId - Session identifier
+ * @returns CryptoKey or undefined if handshake not complete
+ */
+export function getAESKey(sessionId: string): CryptoKey | undefined {
+  return keyStore.get(sessionId)?.sharedSecret?.key;
+}
+
+/**
+ * Retrieves the visual fingerprint for verification.
+ * 
+ * @param sessionId - Session identifier
+ * @returns Fingerprint string or undefined if handshake not complete
+ */
+export function getFingerprint(sessionId: string): string | undefined {
+  return keyStore.get(sessionId)?.sharedSecret?.fingerprint;
+}
+
+/**
+ * Checks if a session has completed handshake.
+ * 
+ * @param sessionId - Session identifier
+ * @returns true if session has shared secret and is ready for encrypted messages
+ */
+export function isHandshakeComplete(sessionId: string): boolean {
+  const session = keyStore.get(sessionId);
+  return !!(session?.sharedSecret?.key);
+}
+
+/**
+ * Checks if a session exists in the store.
+ * 
+ * @param sessionId - Session identifier
+ * @returns true if session keys exist
+ */
+export function hasSession(sessionId: string): boolean {
+  return keyStore.has(sessionId);
+}
+
+/**
+ * Gets all active session IDs.
+ * 
+ * @returns Array of session IDs
+ */
+export function getActiveSessionIds(): string[] {
+  return Array.from(keyStore.keys());
+}
+
+/**
+ * Gets the number of active sessions.
+ * 
+ * @returns Number of sessions with stored keys
+ */
+export function getSessionCount(): number {
+  return keyStore.size;
+}
+
+// ============================================
+// Burn Operations (Secure Destruction)
+// ============================================
+
+/**
+ * Securely destroys all keys for a session.
+ * 
+ * This function performs secure destruction by:
+ * 1. Overwriting ArrayBuffer contents with zeros
+ * 2. Nullifying all object references
+ * 3. Removing from the store
+ * 
+ * Note: CryptoKey objects cannot be directly overwritten as they are
+ * managed by the browser's crypto subsystem. However, they become
+ * unreachable and will be garbage collected.
+ * 
+ * @param sessionId - Session identifier to burn
+ * @returns true if session was found and burned, false if not found
+ * 
+ * @example
+ * ```ts
+ * // When user ends chat or presses burn button
+ * burn(sessionId);
+ * ```
+ */
+export function burn(sessionId: string): boolean {
+  const session = keyStore.get(sessionId);
+  if (!session) {
+    return false;
+  }
+
+  // Securely wipe the raw shared secret (ArrayBuffer can be overwritten)
+  if (session.rawSharedSecret) {
+    secureWipeArrayBuffer(session.rawSharedSecret);
+  }
+
+  // Nullify all references to allow garbage collection
+  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
+  session.keyPair = undefined;
+  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
+  session.peerPublicKey = undefined;
+  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
+  session.sharedSecret = undefined;
+  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
+  session.rawSharedSecret = undefined;
+
+  // Remove from store
+  keyStore.delete(sessionId);
+  
+  notifyListeners(sessionId, 'burned');
+  
+  return true;
+}
+
+/**
+ * Securely destroys ALL stored keys.
+ * 
+ * Called on page unload or when user logs out.
+ * Iterates through all sessions and burns each one.
+ * 
+ * @example
+ * ```ts
+ * // On logout or app close
+ * burnAll();
+ * ```
+ */
+export function burnAll(): void {
+  const sessionIds = Array.from(keyStore.keys());
+  
+  for (const sessionId of sessionIds) {
+    burn(sessionId);
+  }
+
+  // Double-check the store is empty
+  keyStore.clear();
+  
+  // Notify listeners (use empty string to indicate all sessions)
+  notifyListeners('', 'burned_all');
+}
+
+// ============================================
+// Page Unload Handler
+// ============================================
+
+/**
+ * Handler for page unload events.
+ * Automatically burns all keys when page is closed/refreshed.
+ */
+function handlePageUnload(): void {
+  burnAll();
+}
+
+/**
+ * Installs the beforeunload handler if not already installed.
+ * Called automatically when first key is stored.
+ */
+function installUnloadHandler(): void {
+  if (unloadHandlerInstalled) {
+    return;
+  }
+
+  if (typeof window !== 'undefined') {
+    // Use both events for better browser coverage
+    window.addEventListener('beforeunload', handlePageUnload);
+    window.addEventListener('unload', handlePageUnload);
+    
+    // Also handle visibility change (tab hidden/closed on mobile)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        // On mobile, this might be the last event before the app is killed
+        // We don't burn immediately but mark for potential cleanup
+        // For maximum security, you could call burnAll() here
+      }
+    });
+
+    unloadHandlerInstalled = true;
+  }
+}
+
+/**
+ * Removes the beforeunload handler.
+ * Call this for testing or when you want to disable auto-cleanup.
+ */
+export function removeUnloadHandler(): void {
+  if (typeof window !== 'undefined' && unloadHandlerInstalled) {
+    window.removeEventListener('beforeunload', handlePageUnload);
+    window.removeEventListener('unload', handlePageUnload);
+    unloadHandlerInstalled = false;
+  }
+}
+
+/**
+ * Checks if the unload handler is currently installed.
+ * 
+ * @returns true if handler is active
+ */
+export function isUnloadHandlerInstalled(): boolean {
+  return unloadHandlerInstalled;
+}
+
+// ============================================
+// Event Listeners
+// ============================================
+
+/**
+ * Adds a listener for key store events.
+ * 
+ * @param callback - Function to call on key store changes
+ * @returns Unsubscribe function
+ * 
+ * @example
+ * ```ts
+ * const unsubscribe = addKeyStoreListener((sessionId, event) => {
+ *   console.log(`Session ${sessionId}: ${event}`);
+ * });
+ * 
+ * // Later:
+ * unsubscribe();
+ * ```
+ */
+export function addKeyStoreListener(callback: KeyStoreEventCallback): () => void {
+  eventListeners.add(callback);
+  return () => eventListeners.delete(callback);
+}
+
+/**
+ * Removes a listener for key store events.
+ * 
+ * @param callback - The callback to remove
+ */
+export function removeKeyStoreListener(callback: KeyStoreEventCallback): void {
+  eventListeners.delete(callback);
+}
+
+// ============================================
+// Internal Utilities
+// ============================================
+
+/**
+ * Validates a session ID.
+ * @throws Error if sessionId is invalid
+ */
+function validateSessionId(sessionId: string): void {
+  if (!sessionId || typeof sessionId !== 'string' || sessionId.trim() === '') {
+    throw new Error('Invalid session ID: must be a non-empty string');
+  }
+}
+
+/**
+ * Notifies all listeners of a key store event.
+ */
+function notifyListeners(sessionId: string, eventType: KeyStoreEventType): void {
+  for (const listener of eventListeners) {
+    try {
+      listener(sessionId, eventType);
+    } catch (error) {
+      // Don't let listener errors break the key store
+      console.error('Key store listener error:', error);
+    }
+  }
+}
+
+/**
+ * Securely wipes an ArrayBuffer by overwriting with zeros.
+ * 
+ * This provides defense-in-depth against memory scraping attacks.
+ * While JavaScript doesn't guarantee memory handling, this makes
+ * the sensitive data harder to recover.
+ */
+function secureWipeArrayBuffer(buffer: ArrayBuffer): void {
+  try {
+    const view = new Uint8Array(buffer);
+    
+    // First pass: overwrite with zeros
+    view.fill(0);
+    
+    // Second pass: overwrite with ones (helps detect incomplete wipes)
+    view.fill(0xFF);
+    
+    // Third pass: final zeros
+    view.fill(0);
+    
+    // Additional passes with random data for extra security
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(view);
+      view.fill(0);
+    }
+  } catch {
+    // Buffer might already be detached or invalid
+    // This is fine - it means the data is already inaccessible
+  }
+}
+
+// ============================================
+// Debug Utilities (Development Only)
+// ============================================
+
+/**
+ * Gets debug information about the key store.
+ * Only use in development - do not expose key material!
+ * 
+ * @returns Object with store statistics
+ */
+export function getDebugInfo(): {
+  sessionCount: number;
+  sessionIds: string[];
+  unloadHandlerInstalled: boolean;
+  listenerCount: number;
+} {
+  return {
+    sessionCount: keyStore.size,
+    sessionIds: Array.from(keyStore.keys()),
+    unloadHandlerInstalled,
+    listenerCount: eventListeners.size,
+  };
+}
