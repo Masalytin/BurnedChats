@@ -189,11 +189,11 @@
 | 3.3.4 | Frontend: секретный вопрос (опционально) | 🟠 P1 | 2 | 3.3.3 | ✅ |
 | 3.3.5 | Frontend: UI ожидания | 🔴 P0 | 2 | 3.3.3 | ✅ |
 | **3.4** | **Принятие запроса** | | | | |
-| 3.4.1 | Backend: уведомление INCOMING_REQUEST | 🔴 P0 | 2 | 3.3.2 | ⬜ |
-| 3.4.2 | Backend: SessionHandler.acceptRequest() | 🔴 P0 | 3 | 3.4.1 | ⬜ |
-| 3.4.3 | Backend: SessionHandler.rejectRequest() | 🟠 P1 | 2 | 3.4.1 | ⬜ |
-| 3.4.4 | Frontend: UI входящих запросов | 🔴 P0 | 3 | 3.4.1 | ⬜ |
-| 3.4.5 | Frontend: ответ на секретный вопрос | 🟠 P1 | 2 | 3.4.4 | ⬜ |
+| 3.4.1 | Backend: уведомление INCOMING_REQUEST | 🔴 P0 | 2 | 3.3.2 | ✅ |
+| 3.4.2 | Backend: SessionHandler.acceptRequest() | 🔴 P0 | 3 | 3.4.1 | ✅ |
+| 3.4.3 | Backend: SessionHandler.rejectRequest() | 🟠 P1 | 2 | 3.4.1 | ✅ |
+| 3.4.4 | Frontend: UI входящих запросов | 🔴 P0 | 3 | 3.4.1 | ✅ |
+| 3.4.5 | Frontend: ответ на секретный вопрос | 🟠 P1 | 2 | 3.4.4 | ✅ |
 | **3.5** | **Handshake** | | | | |
 | 3.5.1 | Backend: HandshakeHandler.relayPublicKey() | 🔴 P0 | 2 | 3.4.2 | ⬜ |
 | 3.5.2 | Backend: событие PEER_PUBLIC_KEY | 🔴 P0 | 2 | 3.5.1 | ⬜ |

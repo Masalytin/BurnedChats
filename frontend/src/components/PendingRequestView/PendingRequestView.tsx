@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { UserInfo } from '../../types';
 import type { PendingSession } from '../../hooks/useSession';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
 import { StatusBadge } from '../StatusBadge';
-import { LoaderIcon, CloseIcon, ClockIcon } from '../../icons';
+import { LoaderIcon, CloseIcon } from '../../icons';
 import './PendingRequestView.css';
 
 interface PendingRequestViewProps {

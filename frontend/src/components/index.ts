@@ -12,3 +12,4 @@ export { UserSearchResult } from './UserSearchResult';
 // Feature Components
 export { ChatRequestDialog } from './ChatRequestDialog';
 export { PendingRequestView } from './PendingRequestView';
+export { IncomingRequestView } from './IncomingRequestView';

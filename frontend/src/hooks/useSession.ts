@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import type { UserInfo, Session, SessionStatus } from '../types';
+import type { UserInfo } from '../types';
 
 /** Destination for creating session */
 const SESSION_CREATE_DESTINATION = '/app/session.create';

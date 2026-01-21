@@ -14,8 +14,6 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
-import org.springframework.web.socket.messaging.SessionConnectedEvent;
-import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
 /**
@@ -204,28 +202,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     // ==================== Session Event Listeners ====================
-
-    /**
-     * Handle WebSocket session connected event.
-     *
-     * @param event the session connected event
-     */
-    @EventListener
-    public void handleSessionConnected(SessionConnectedEvent event) {
-        log.info("WebSocket session connected: sessionId={}",
-                event.getMessage().getHeaders().get("simpSessionId"));
-    }
-
-    /**
-     * Handle WebSocket session disconnect event.
-     *
-     * @param event the session disconnect event
-     */
-    @EventListener
-    public void handleSessionDisconnect(SessionDisconnectEvent event) {
-        log.info("WebSocket session disconnected: sessionId={}, closeStatus={}",
-                event.getSessionId(), event.getCloseStatus());
-    }
+    // Note: Main event handling moved to WebSocketEventListener component
+    // for business logic (online status, pending requests).
+    // This listener only handles subscription debugging.
 
     /**
      * Handle subscription events for debugging.
