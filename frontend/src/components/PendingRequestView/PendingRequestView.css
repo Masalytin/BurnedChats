@@ -1,0 +1,208 @@
+/* Container */
+.pending-request-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 100px);
+  padding: var(--bc-spacing-lg);
+}
+
+.pending-request-view__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+/* Waiting animation */
+.pending-request-view__animation {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  margin-bottom: var(--bc-spacing-lg);
+}
+
+.pending-request-view__pulse-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--bc-brand-primary);
+  border-radius: var(--bc-radius-full);
+  opacity: 0;
+  animation: pulseRing 2s ease-out infinite;
+}
+
+.pending-request-view__pulse-ring--delayed {
+  animation-delay: 1s;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.pending-request-view__icon-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-full);
+  border: 2px solid var(--bc-brand-primary);
+}
+
+.pending-request-view__spinner {
+  color: var(--bc-brand-primary);
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status text */
+.pending-request-view__status {
+  margin-bottom: var(--bc-spacing-lg);
+}
+
+.pending-request-view__title {
+  font-size: var(--bc-text-xl);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+  margin: 0;
+}
+
+.pending-request-view__subtitle {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: var(--bc-spacing-xs) 0 0;
+}
+
+/* User card */
+.pending-request-view__user-card {
+  width: 100%;
+  margin-bottom: var(--bc-spacing-lg);
+  background: var(--bc-bg-secondary);
+}
+
+.pending-request-view__user {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-md);
+}
+
+.pending-request-view__user-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.pending-request-view__user-header {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+}
+
+.pending-request-view__user-name {
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pending-request-view__premium {
+  margin-left: var(--bc-spacing-xs);
+  font-size: var(--bc-text-sm);
+}
+
+.pending-request-view__user-username {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: var(--bc-spacing-xs) 0 0;
+}
+
+/* Timer */
+.pending-request-view__timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-elevated);
+  border-radius: var(--bc-radius-full);
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+  color: var(--bc-text-secondary);
+  margin-bottom: var(--bc-spacing-md);
+}
+
+.pending-request-view__timer svg {
+  color: var(--bc-text-muted);
+}
+
+.pending-request-view__timer--low {
+  background: var(--bc-warning-muted);
+  color: var(--bc-warning);
+}
+
+.pending-request-view__timer--low svg {
+  color: var(--bc-warning);
+}
+
+/* Info badges */
+.pending-request-view__info {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-md);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  margin-bottom: var(--bc-spacing-sm);
+}
+
+.pending-request-view__info-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: var(--bc-bg-elevated);
+  border-radius: var(--bc-radius-full);
+  font-size: 10px;
+}
+
+.pending-request-view__info--notification .pending-request-view__info-icon {
+  background: var(--bc-success-muted);
+  color: var(--bc-success);
+}
+
+/* Actions */
+.pending-request-view__actions {
+  width: 100%;
+  margin-top: var(--bc-spacing-md);
+}
+
+/* Help text */
+.pending-request-view__help {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  margin-top: var(--bc-spacing-md);
+  line-height: var(--bc-leading-relaxed);
+}

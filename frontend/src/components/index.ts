@@ -9,4 +9,6 @@ export { Input } from './Input';
 export { StatusBadge } from './StatusBadge';
 export { UserSearchResult } from './UserSearchResult';
 
-
+// Feature Components
+export { ChatRequestDialog } from './ChatRequestDialog';
+export { PendingRequestView } from './PendingRequestView';

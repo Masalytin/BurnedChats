@@ -3,5 +3,5 @@ export type { TelegramUser, TelegramChat } from './useTelegram';
 export { useWebSocket } from './useWebSocket';
 export type { WebSocketErrorType } from './useWebSocket';
 export { useSearch } from './useSearch';
-
-
+export { useSession } from './useSession';
+export type { SessionErrorCode, CreateSessionStatus, CreateSessionResult, PendingSession } from './useSession';
