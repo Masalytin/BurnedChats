@@ -1,6 +1,8 @@
+import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
 import type { TelegramUser } from '../hooks/useTelegram';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input } from '../components';
-import { FlameIcon, SearchIcon, ShieldIcon } from '../icons';
+import type { SearchResult, UserInfo } from '../types';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult } from '../components';
+import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon } from '../icons';
 import './HomePage.css';
 
 interface HomePageProps {
@@ -8,17 +10,51 @@ interface HomePageProps {
   isConnected: boolean;
   isConnecting?: boolean;
   reconnectAttempt?: number;
+  /** Search query value */
+  searchQuery?: string;
+  /** Set search query */
+  onSearchQueryChange?: (query: string) => void;
+  /** Search result state */
+  searchResult?: SearchResult;
+  /** Execute search */
+  onSearch?: (query?: string) => void;
+  /** Clear search */
+  onClearSearch?: () => void;
+  /** Whether search is in progress */
+  isSearching?: boolean;
+  /** Callback when user wants to start chat */
+  onStartChat?: (user: UserInfo) => void;
 }
 
+/** Default search result state */
+const defaultSearchResult: SearchResult = {
+  status: 'idle',
+  user: null,
+  error: null,
+};
+
 /**
- * Main home page component
+ * Main home page component with search functionality
  */
 export function HomePage({ 
   user, 
   isConnected, 
   isConnecting = false,
   reconnectAttempt = 0,
+  searchQuery = '',
+  onSearchQueryChange,
+  searchResult = defaultSearchResult,
+  onSearch,
+  onClearSearch,
+  isSearching = false,
+  onStartChat,
 }: HomePageProps) {
+  const [localQuery, setLocalQuery] = useState('');
+  
+  // Use controlled or uncontrolled query
+  const query = onSearchQueryChange ? searchQuery : localQuery;
+  const setQuery = onSearchQueryChange || setLocalQuery;
+
   const displayName = user 
     ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
     : 'Anonymous';
@@ -29,6 +65,31 @@ export function HomePage({
     : isConnecting 
       ? 'connecting' 
       : 'offline';
+
+  // Handle search form submission
+  const handleSearchSubmit = useCallback((e?: FormEvent) => {
+    e?.preventDefault();
+    if (query.trim() && onSearch) {
+      onSearch(query);
+    }
+  }, [query, onSearch]);
+
+  // Handle keyboard events
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearchSubmit();
+    }
+  }, [handleSearchSubmit]);
+
+  // Handle clear search
+  const handleClearSearch = useCallback(() => {
+    setQuery('');
+    onClearSearch?.();
+  }, [setQuery, onClearSearch]);
+
+  // Show clear button when there's text or results
+  const showClearButton = query.length > 0 || searchResult.status !== 'idle';
 
   return (
     <div className="home-page">
@@ -75,15 +136,45 @@ export function HomePage({
       {/* Search Section */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '100ms' }}>
         <h3 className="home-section-title">Start a Secure Chat</h3>
-        <div className="home-search">
+        <form className="home-search" onSubmit={handleSearchSubmit}>
           <Input 
-            placeholder="Search by @username"
-            leftIcon={<SearchIcon />}
+            placeholder="Search by @username or ID"
+            leftIcon={<SearchIcon size={20} />}
+            rightIcon={showClearButton ? (
+              <button 
+                type="button" 
+                className="home-search-clear"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+              >
+                <CloseIcon size={18} />
+              </button>
+            ) : undefined}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={!isConnected}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
-          <Button fullWidth>
+          <Button 
+            type="submit"
+            fullWidth 
+            disabled={!isConnected || !query.trim()}
+            isLoading={isSearching}
+          >
             Search User
           </Button>
-        </div>
+        </form>
+
+        {/* Search Results */}
+        <UserSearchResult
+          result={searchResult}
+          isLoading={isSearching}
+          onStartChat={onStartChat}
+        />
       </section>
 
       {/* Features Section */}

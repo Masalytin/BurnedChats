@@ -3,6 +3,38 @@
  */
 
 // ============================================
+// User & Search Types
+// ============================================
+
+export interface UserInfo {
+  id: number;
+  username?: string;
+  displayName: string;
+  photoUrl?: string;
+  online: boolean;
+  premium: boolean;
+}
+
+export type SearchStatus = 
+  | 'idle'        // No search in progress
+  | 'searching'   // Search request sent
+  | 'found'       // User found
+  | 'not_found'   // User not found
+  | 'error';      // Search error
+
+export type SearchErrorCode = 
+  | 'SELF_SEARCH'    // User tried to search for themselves
+  | 'INVALID_QUERY'  // Query format is invalid
+  | 'RATE_LIMITED'   // Too many search requests
+  | 'CONNECTION_ERROR'; // WebSocket not connected
+
+export interface SearchResult {
+  status: SearchStatus;
+  user: UserInfo | null;
+  error: SearchErrorCode | null;
+}
+
+// ============================================
 // Session & Chat Types
 // ============================================
 

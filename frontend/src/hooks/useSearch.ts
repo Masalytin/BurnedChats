@@ -1,0 +1,297 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { IMessage } from '@stomp/stompjs';
+import type { SearchResult, SearchErrorCode, UserInfo } from '../types';
+
+/** Destination for sending search requests */
+const SEARCH_DESTINATION = '/app/search';
+
+/** Destination for receiving search results */
+const SEARCH_RESULT_DESTINATION = '/user/queue/search-result';
+
+/** Debounce delay for search input (ms) */
+const SEARCH_DEBOUNCE_MS = 300;
+
+interface UseSearchOptions {
+  /** Whether WebSocket is connected */
+  isConnected: boolean;
+  /** Subscribe to a STOMP destination */
+  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
+  /** Unsubscribe from a STOMP destination */
+  unsubscribe: (destination: string) => void;
+  /** Publish message to STOMP destination */
+  publish: (destination: string, body: unknown) => void;
+  /** Debounce search input */
+  debounce?: boolean;
+  /** Callback when user is found */
+  onUserFound?: (user: UserInfo) => void;
+  /** Callback when search fails */
+  onSearchError?: (error: SearchErrorCode) => void;
+}
+
+interface UseSearchReturn {
+  /** Current search query */
+  query: string;
+  /** Set search query */
+  setQuery: (query: string) => void;
+  /** Current search result */
+  result: SearchResult;
+  /** Execute search manually */
+  search: (query?: string) => void;
+  /** Clear search state */
+  clearSearch: () => void;
+  /** Whether search is in progress */
+  isSearching: boolean;
+}
+
+/**
+ * Initial search result state
+ */
+const initialResult: SearchResult = {
+  status: 'idle',
+  user: null,
+  error: null,
+};
+
+/**
+ * Parse server search result event
+ */
+interface ServerSearchResult {
+  found: boolean;
+  user?: {
+    id: number;
+    username?: string;
+    displayName: string;
+    photoUrl?: string;
+    online: boolean;
+    premium: boolean;
+  };
+  error?: string;
+}
+
+/**
+ * Hook for user search functionality via STOMP WebSocket.
+ * 
+ * Handles:
+ * - Subscribing to search result events
+ * - Sending search requests
+ * - Managing search state
+ * - Optional input debouncing
+ * 
+ * @example
+ * ```tsx
+ * function SearchComponent() {
+ *   const { isConnected, subscribe, unsubscribe, publish } = useWebSocket({ autoConnect: true });
+ *   
+ *   const { 
+ *     query, 
+ *     setQuery, 
+ *     result, 
+ *     search, 
+ *     clearSearch,
+ *     isSearching 
+ *   } = useSearch({
+ *     isConnected,
+ *     subscribe,
+ *     unsubscribe,
+ *     publish,
+ *     onUserFound: (user) => console.log('Found:', user),
+ *   });
+ * 
+ *   return (
+ *     <div>
+ *       <input 
+ *         value={query}
+ *         onChange={(e) => setQuery(e.target.value)}
+ *         placeholder="Search by @username"
+ *       />
+ *       <button onClick={() => search()} disabled={isSearching}>
+ *         Search
+ *       </button>
+ *       {result.status === 'found' && <UserCard user={result.user} />}
+ *       {result.status === 'not_found' && <p>User not found</p>}
+ *       {result.error && <p>Error: {result.error}</p>}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+export function useSearch({
+  isConnected,
+  subscribe,
+  unsubscribe,
+  publish,
+  debounce = false,
+  onUserFound,
+  onSearchError,
+}: UseSearchOptions): UseSearchReturn {
+  const [query, setQueryState] = useState('');
+  const [result, setResult] = useState<SearchResult>(initialResult);
+  
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSubscribedRef = useRef(false);
+  const lastQueryRef = useRef('');
+
+  /**
+   * Handle incoming search result from server
+   */
+  const handleSearchResult = useCallback((message: IMessage) => {
+    try {
+      const data: ServerSearchResult = JSON.parse(message.body);
+      
+      if (data.error) {
+        const errorCode = data.error as SearchErrorCode;
+        setResult({
+          status: 'error',
+          user: null,
+          error: errorCode,
+        });
+        onSearchError?.(errorCode);
+        return;
+      }
+
+      if (data.found && data.user) {
+        const user: UserInfo = {
+          id: data.user.id,
+          username: data.user.username,
+          displayName: data.user.displayName,
+          photoUrl: data.user.photoUrl,
+          online: data.user.online,
+          premium: data.user.premium,
+        };
+        
+        setResult({
+          status: 'found',
+          user,
+          error: null,
+        });
+        onUserFound?.(user);
+      } else {
+        setResult({
+          status: 'not_found',
+          user: null,
+          error: null,
+        });
+      }
+    } catch (error) {
+      console.error('[useSearch] Failed to parse search result:', error);
+      setResult({
+        status: 'error',
+        user: null,
+        error: 'CONNECTION_ERROR',
+      });
+    }
+  }, [onUserFound, onSearchError]);
+
+  /**
+   * Subscribe to search results when connected
+   */
+  useEffect(() => {
+    if (isConnected && !isSubscribedRef.current) {
+      subscribe(SEARCH_RESULT_DESTINATION, handleSearchResult);
+      isSubscribedRef.current = true;
+      console.log('[useSearch] Subscribed to search results');
+    }
+
+    return () => {
+      if (isSubscribedRef.current) {
+        unsubscribe(SEARCH_RESULT_DESTINATION);
+        isSubscribedRef.current = false;
+        console.log('[useSearch] Unsubscribed from search results');
+      }
+    };
+  }, [isConnected, subscribe, unsubscribe, handleSearchResult]);
+
+  /**
+   * Execute search request
+   */
+  const search = useCallback((searchQuery?: string) => {
+    const queryToSearch = (searchQuery ?? query).trim();
+    
+    if (!queryToSearch) {
+      setResult(initialResult);
+      return;
+    }
+
+    if (!isConnected) {
+      setResult({
+        status: 'error',
+        user: null,
+        error: 'CONNECTION_ERROR',
+      });
+      onSearchError?.('CONNECTION_ERROR');
+      return;
+    }
+
+    // Avoid duplicate searches
+    if (queryToSearch === lastQueryRef.current && result.status === 'searching') {
+      return;
+    }
+
+    lastQueryRef.current = queryToSearch;
+    setResult({
+      status: 'searching',
+      user: null,
+      error: null,
+    });
+
+    publish(SEARCH_DESTINATION, { query: queryToSearch });
+    console.log('[useSearch] Search request sent:', queryToSearch);
+  }, [query, isConnected, publish, result.status, onSearchError]);
+
+  /**
+   * Set query with optional debouncing
+   */
+  const setQuery = useCallback((newQuery: string) => {
+    setQueryState(newQuery);
+
+    // Clear previous debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // If query is empty, clear results immediately
+    if (!newQuery.trim()) {
+      setResult(initialResult);
+      return;
+    }
+
+    // Debounced search if enabled
+    if (debounce) {
+      debounceTimerRef.current = setTimeout(() => {
+        search(newQuery);
+      }, SEARCH_DEBOUNCE_MS);
+    }
+  }, [debounce, search]);
+
+  /**
+   * Clear search state
+   */
+  const clearSearch = useCallback(() => {
+    setQueryState('');
+    setResult(initialResult);
+    lastQueryRef.current = '';
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    query,
+    setQuery,
+    result,
+    search,
+    clearSearch,
+    isSearching: result.status === 'searching',
+  };
+}

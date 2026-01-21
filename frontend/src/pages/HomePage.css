@@ -113,6 +113,30 @@
   gap: var(--bc-spacing-md);
 }
 
+.home-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-muted);
+  cursor: pointer;
+  border-radius: var(--bc-radius-sm);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.home-search-clear:hover {
+  color: var(--bc-text-secondary);
+  background: var(--bc-bg-secondary);
+}
+
+.home-search-clear:active {
+  color: var(--bc-text-primary);
+}
+
 /* Features */
 .home-features {
   display: flex;

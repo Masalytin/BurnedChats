@@ -333,13 +333,10 @@ export function burn(sessionId: string): boolean {
   }
 
   // Nullify all references to allow garbage collection
-  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
+  // @ts-expect-error - Intentionally setting to undefined for secure cleanup (keyPair is required)
   session.keyPair = undefined;
-  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
   session.peerPublicKey = undefined;
-  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
   session.sharedSecret = undefined;
-  // @ts-expect-error - Intentionally setting to undefined for secure cleanup
   session.rawSharedSecret = undefined;
 
   // Remove from store

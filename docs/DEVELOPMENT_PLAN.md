@@ -173,15 +173,15 @@
 | ID | Задача | Приоритет | SP | Зависит от | Статус |
 |----|--------|-----------|----|-----------:|--------|
 | **3.1** | **Redis модели (Java)** | | | | |
-| 3.1.1 | Реализовать SessionRepository | 🔴 P0 | 3 | 1.2.5 | ⬜ |
-| 3.1.2 | Реализовать RequestRepository | 🔴 P0 | 3 | 1.2.5 | ⬜ |
-| 3.1.3 | Реализовать UserRepository (кеш) | 🟠 P1 | 2 | 1.2.5 | ⬜ |
-| 3.1.4 | Реализовать OnlineStatusRepository | 🟠 P1 | 2 | 1.2.5 | ⬜ |
+| 3.1.1 | Реализовать SessionRepository | 🔴 P0 | 3 | 1.2.5 | ✅ |
+| 3.1.2 | Реализовать RequestRepository | 🔴 P0 | 3 | 1.2.5 | ✅ |
+| 3.1.3 | Реализовать UserRepository (кеш) | 🟠 P1 | 2 | 1.2.5 | ✅ |
+| 3.1.4 | Реализовать OnlineStatusRepository | 🟠 P1 | 2 | 1.2.5 | ✅ |
 | **3.2** | **Поиск пользователей** | | | | |
-| 3.2.1 | Backend: SearchHandler (STOMP) | 🔴 P0 | 3 | 3.1.3 | ⬜ |
-| 3.2.2 | Frontend: UI поиска | 🔴 P0 | 3 | 1.3.4 | ⬜ |
-| 3.2.3 | Frontend: hook useSearch | 🔴 P0 | 2 | 3.2.1, 3.2.2 | ⬜ |
-| 3.2.4 | Frontend: отображение результата | 🔴 P0 | 2 | 3.2.3 | ⬜ |
+| 3.2.1 | Backend: SearchHandler (STOMP) | 🔴 P0 | 3 | 3.1.3 | ✅ |
+| 3.2.2 | Frontend: UI поиска | 🔴 P0 | 3 | 1.3.4 | ✅ |
+| 3.2.3 | Frontend: hook useSearch | 🔴 P0 | 2 | 3.2.1, 3.2.2 | ✅ |
+| 3.2.4 | Frontend: отображение результата | 🔴 P0 | 2 | 3.2.3 | ✅ |
 | **3.3** | **Создание сессии** | | | | |
 | 3.3.1 | Backend: SessionHandler.createSession() | 🔴 P0 | 3 | 3.1.1, 3.1.2 | ⬜ |
 | 3.3.2 | Backend: отправка Telegram уведомления | 🔴 P0 | 3 | 3.3.1, 2.1.3 | ⬜ |
