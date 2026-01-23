@@ -1,0 +1,1 @@
+export { VerificationView } from './VerificationView';

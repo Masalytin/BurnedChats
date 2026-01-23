@@ -13,3 +13,6 @@ export { UserSearchResult } from './UserSearchResult';
 export { ChatRequestDialog } from './ChatRequestDialog';
 export { PendingRequestView } from './PendingRequestView';
 export { IncomingRequestView } from './IncomingRequestView';
+export { HandshakeView } from './HandshakeView';
+export { VisualFingerprint, VisualFingerprintCompact } from './VisualFingerprint';
+export { VerificationView } from './VerificationView';

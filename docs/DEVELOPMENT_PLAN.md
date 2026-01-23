@@ -195,12 +195,12 @@
 | 3.4.4 | Frontend: UI входящих запросов | 🔴 P0 | 3 | 3.4.1 | ✅ |
 | 3.4.5 | Frontend: ответ на секретный вопрос | 🟠 P1 | 2 | 3.4.4 | ✅ |
 | **3.5** | **Handshake** | | | | |
-| 3.5.1 | Backend: HandshakeHandler.relayPublicKey() | 🔴 P0 | 2 | 3.4.2 | ⬜ |
-| 3.5.2 | Backend: событие PEER_PUBLIC_KEY | 🔴 P0 | 2 | 3.5.1 | ⬜ |
-| 3.5.3 | Frontend: автоматическая отправка ключа | 🔴 P0 | 3 | 2.3.3, 3.5.1 | ⬜ |
-| 3.5.4 | Frontend: получение и импорт ключа peer | 🔴 P0 | 3 | 2.3.4, 3.5.2 | ⬜ |
-| 3.5.5 | Frontend: вычисление shared secret | 🔴 P0 | 2 | 2.3.5, 3.5.4 | ⬜ |
-| 3.5.6 | Frontend: UI прогресса handshake | 🟠 P1 | 2 | 3.5.3 | ⬜ |
+| 3.5.1 | Backend: HandshakeHandler.relayPublicKey() | 🔴 P0 | 2 | 3.4.2 | ✅ |
+| 3.5.2 | Backend: событие PEER_PUBLIC_KEY | 🔴 P0 | 2 | 3.5.1 | ✅ |
+| 3.5.3 | Frontend: автоматическая отправка ключа | 🔴 P0 | 3 | 2.3.3, 3.5.1 | ✅ |
+| 3.5.4 | Frontend: получение и импорт ключа peer | 🔴 P0 | 3 | 2.3.4, 3.5.2 | ✅ |
+| 3.5.5 | Frontend: вычисление shared secret | 🔴 P0 | 2 | 2.3.5, 3.5.4 | ✅ |
+| 3.5.6 | Frontend: UI прогресса handshake | 🟠 P1 | 2 | 3.5.3 | ✅ |
 
 **Total Sprint 3:** ~61 SP ≈ 8 дней
 
@@ -225,11 +225,11 @@
 | ID | Задача | Приоритет | SP | Зависит от | Статус |
 |----|--------|-----------|----|-----------:|--------|
 | **4.1** | **Visual Fingerprint** | | | | |
-| 4.1.1 | Реализовать generateFingerprint() | 🔴 P0 | 3 | 2.3.5 | ⬜ |
-| 4.1.2 | Создать UI компонент VisualFingerprint | 🔴 P0 | 3 | 4.1.1 | ⬜ |
-| 4.1.3 | Backend: VerificationHandler | 🔴 P0 | 2 | — | ⬜ |
-| 4.1.4 | Frontend: логика подтверждения | 🔴 P0 | 2 | 4.1.2, 4.1.3 | ⬜ |
-| 4.1.5 | Frontend: показ статуса peer | 🟠 P1 | 2 | 4.1.4 | ⬜ |
+| 4.1.1 | Реализовать generateFingerprint() | 🔴 P0 | 3 | 2.3.5 | ✅ |
+| 4.1.2 | Создать UI компонент VisualFingerprint | 🔴 P0 | 3 | 4.1.1 | ✅ |
+| 4.1.3 | Backend: VerificationHandler | 🔴 P0 | 2 | — | ✅ |
+| 4.1.4 | Frontend: логика подтверждения | 🔴 P0 | 2 | 4.1.2, 4.1.3 | ✅ |
+| 4.1.5 | Frontend: показ статуса peer | 🟠 P1 | 2 | 4.1.4 | ✅ |
 | **4.2** | **Обмен сообщениями** | | | | |
 | 4.2.1 | Backend: MessageHandler.relayMessage() | 🔴 P0 | 2 | — | ⬜ |
 | 4.2.2 | Backend: MessageRepository (offline queue) | 🔴 P0 | 3 | 1.2.5 | ⬜ |

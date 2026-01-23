@@ -1,17 +1,21 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
+import { useIncomingRequests } from './hooks/useIncomingRequests';
+import { useHandshake } from './hooks/useHandshake';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { PendingRequestView } from './components/PendingRequestView';
+import { IncomingRequestView } from './components/IncomingRequestView';
+import { HandshakeView } from './components/HandshakeView';
 import { HomePage } from './pages/HomePage';
-import type { UserInfo } from './types';
+import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
 /** Application view states */
-type AppView = 'home' | 'pending-request';
+type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake';
 
 function App() {
   const { 
@@ -83,12 +87,69 @@ function App() {
     },
   });
 
+  // Incoming requests hook
+  const {
+    actionResult: incomingActionResult,
+    acceptRequest,
+    rejectRequest,
+    resetAction: resetIncomingAction,
+  } = useIncomingRequests({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onRequestReceived: (request) => {
+      notificationOccurred('success');
+      // If we're on home, show the incoming request
+      if (currentView === 'home') {
+        setActiveIncomingRequest(request);
+        setCurrentView('incoming-request');
+      }
+    },
+    onSessionAccepted: (sessionId, peer) => {
+      // Start handshake after accepting a request
+      notificationOccurred('success');
+      handshakePeerRef.current = peer;
+      startHandshake(sessionId, peer);
+      setCurrentView('handshake');
+    },
+    onError: () => {
+      notificationOccurred('error');
+    },
+  });
+
+  // Handshake hook
+  const {
+    result: handshakeResult,
+    startHandshake,
+    cancelHandshake,
+    reset: resetHandshake,
+    isComplete: isHandshakeComplete,
+  } = useHandshake({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onHandshakeComplete: (sessionId, fingerprint) => {
+      notificationOccurred('success');
+      console.log('[App] Handshake complete:', sessionId, fingerprint);
+      // TODO: Navigate to chat view (Sprint 4)
+    },
+    onError: () => {
+      notificationOccurred('error');
+    },
+  });
+
   // App state
   const [initError, setInitError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
+  const [activeIncomingRequest, setActiveIncomingRequest] = useState<ChatRequest | null>(null);
+
+  // Reference to store peer info for handshake
+  const handshakePeerRef = useRef<UserInfo | null>(null);
 
   // Initialize Mini App
   useEffect(() => {
@@ -152,6 +213,92 @@ function App() {
     clearSearch();
   }, [resetSession, clearSearch]);
 
+  // Handle accepting an incoming request
+  const handleAcceptRequest = useCallback((secretAnswer?: string) => {
+    if (!activeIncomingRequest) return;
+    acceptRequest(activeIncomingRequest.id, secretAnswer);
+  }, [acceptRequest, activeIncomingRequest]);
+
+  // Handle rejecting an incoming request
+  const handleRejectRequest = useCallback(() => {
+    if (!activeIncomingRequest) return;
+    rejectRequest(activeIncomingRequest.id);
+    setActiveIncomingRequest(null);
+    setCurrentView('home');
+  }, [rejectRequest, activeIncomingRequest]);
+
+  // Handle closing incoming request view
+  const handleCloseIncomingRequest = useCallback(() => {
+    setActiveIncomingRequest(null);
+    resetIncomingAction();
+    setCurrentView('home');
+  }, [resetIncomingAction]);
+
+  // Handle canceling handshake
+  const handleCancelHandshake = useCallback(() => {
+    cancelHandshake();
+    handshakePeerRef.current = null;
+    setCurrentView('home');
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    resetSession();
+    clearSearch();
+  }, [cancelHandshake, resetSession, clearSearch]);
+
+  // Handle continuing after handshake complete
+  const handleHandshakeComplete = useCallback(() => {
+    // TODO: Navigate to chat view (Sprint 4)
+    // For now, just go back to home
+    handshakePeerRef.current = null;
+    resetHandshake();
+    setCurrentView('home');
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    clearSearch();
+  }, [resetHandshake, clearSearch]);
+
+  // Handle retry handshake
+  const handleRetryHandshake = useCallback(() => {
+    if (handshakeResult.sessionId && handshakePeerRef.current) {
+      startHandshake(handshakeResult.sessionId, handshakePeerRef.current);
+    }
+  }, [handshakeResult.sessionId, startHandshake]);
+
+  // Subscribe to REQUEST_ACCEPTED for initiator (when our pending request is accepted)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRequestAccepted = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body);
+        if (data.success && data.sessionId && pendingSession?.id === data.sessionId) {
+          // Our pending request was accepted - start handshake
+          console.log('[App] Our request was accepted, starting handshake');
+          notificationOccurred('success');
+          
+          // Use the recipient info from pending session (already checked via ?.id above)
+          const peer: UserInfo = pendingSession!.recipient;
+          handshakePeerRef.current = peer;
+          
+          startHandshake(data.sessionId, peer);
+          setCurrentView('handshake');
+          setPendingSession(null);
+        }
+      } catch (error) {
+        console.error('[App] Failed to parse request accepted event:', error);
+      }
+    };
+
+    // Subscribe to the accepted event for initiator
+    const sub = subscribe('/user/queue/request-accepted', handleRequestAccepted);
+    
+    return () => {
+      if (sub) {
+        unsubscribe('/user/queue/request-accepted');
+      }
+    };
+  }, [isConnected, subscribe, unsubscribe, pendingSession, startHandshake, notificationOccurred]);
+
   // Loading state
   if (!isReady) {
     return (
@@ -190,13 +337,43 @@ function App() {
     );
   }
 
-  // Pending request view
+  // Pending request view (waiting for recipient to accept)
   if (currentView === 'pending-request' && pendingSession) {
     return (
       <Layout>
         <PendingRequestView
           session={pendingSession}
           onCancel={handleCancelPendingRequest}
+        />
+      </Layout>
+    );
+  }
+
+  // Incoming request view (someone wants to chat with us)
+  if (currentView === 'incoming-request' && activeIncomingRequest) {
+    return (
+      <Layout>
+        <IncomingRequestView
+          request={activeIncomingRequest}
+          isAccepting={incomingActionResult.status === 'accepting'}
+          isRejecting={incomingActionResult.status === 'rejecting'}
+          error={incomingActionResult.error}
+          onAccept={handleAcceptRequest}
+          onReject={handleRejectRequest}
+          onExpire={handleCloseIncomingRequest}
+        />
+      </Layout>
+    );
+  }
+
+  // Handshake view (establishing encrypted connection)
+  if (currentView === 'handshake') {
+    return (
+      <Layout>
+        <HandshakeView
+          result={handshakeResult}
+          onCancel={isHandshakeComplete ? handleHandshakeComplete : handleCancelHandshake}
+          onRetry={handleRetryHandshake}
         />
       </Layout>
     );

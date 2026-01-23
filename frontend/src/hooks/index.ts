@@ -7,3 +7,7 @@ export { useSession } from './useSession';
 export type { SessionErrorCode, CreateSessionStatus, CreateSessionResult, PendingSession } from './useSession';
 export { useIncomingRequests } from './useIncomingRequests';
 export type { AcceptErrorCode, ActionStatus, ActionResult } from './useIncomingRequests';
+export { useHandshake } from './useHandshake';
+export type { HandshakeStage, HandshakeErrorCode, HandshakeResult } from './useHandshake';
+export { useVerification } from './useVerification';
+export type { VerificationErrorCode, VerificationStatus } from './useVerification';

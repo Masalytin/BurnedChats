@@ -16,6 +16,7 @@ export {
   computeSharedSecret,
   deriveAESKey,
   generateFingerprint,
+  generateVisualFingerprint,
   isCryptoAvailable,
 } from './ecdh';
 

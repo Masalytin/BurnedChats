@@ -1,0 +1,281 @@
+/* ============================================
+   Verification View Component Styles
+   ============================================ */
+
+.verification-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 1rem;
+}
+
+.verification-view__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  max-width: 400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ============================================
+   Header
+   ============================================ */
+
+.verification-view__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.verification-view__header-icon {
+  color: var(--tg-theme-link-color, #2481cc);
+  margin-bottom: 0.5rem;
+}
+
+.verification-view__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--tg-theme-text-color, #000);
+}
+
+.verification-view__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #999);
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+/* ============================================
+   Fingerprint Container
+   ============================================ */
+
+.verification-view__fingerprint-container {
+  padding: 1rem 0;
+}
+
+/* ============================================
+   Mismatch Warning
+   ============================================ */
+
+.verification-view__mismatch-warning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.verification-view__mismatch-icon {
+  color: #ff3b30;
+}
+
+.verification-view__mismatch-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--tg-theme-text-color, #000);
+  line-height: 1.5;
+}
+
+/* ============================================
+   Peer Card
+   ============================================ */
+
+.verification-view__peer-card {
+  width: 100%;
+}
+
+.verification-view__peer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.verification-view__peer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.verification-view__peer-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--tg-theme-text-color, #000);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.verification-view__premium {
+  font-size: 0.875rem;
+}
+
+.verification-view__peer-username {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #999);
+}
+
+/* ============================================
+   Peer Badge
+   ============================================ */
+
+.peer-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.peer-badge--verified {
+  background: rgba(52, 199, 89, 0.15);
+  color: #34c759;
+}
+
+.peer-badge--pending {
+  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.peer-badge--mismatch {
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+}
+
+/* ============================================
+   Verification Status
+   ============================================ */
+
+.verification-view__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.verification-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
+  border-radius: 8px;
+}
+
+.verification-status__label {
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.verification-status__value {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.verification-status--verified .verification-status__value {
+  color: #34c759;
+}
+
+.verification-status--pending .verification-status__value {
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.verification-status--mismatch .verification-status__value {
+  color: #ff3b30;
+}
+
+/* ============================================
+   Actions
+   ============================================ */
+
+.verification-view__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.verification-view__waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #999);
+}
+
+.verification-view__waiting-spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--tg-theme-hint-color, #999);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   Help Text
+   ============================================ */
+
+.verification-view__help {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--tg-theme-hint-color, #999);
+  text-align: center;
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   Dark Mode
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .verification-view__mismatch-warning {
+    background: rgba(255, 59, 48, 0.15);
+  }
+}

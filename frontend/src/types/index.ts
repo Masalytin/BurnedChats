@@ -138,7 +138,24 @@ export interface ExportedKeyPair {
 export interface SharedSecret {
   sessionId: string;
   key: CryptoKey;
-  fingerprint: string;  // Visual verification code
+  fingerprint: string;  // 8-char hex fingerprint
+  visualFingerprint: VisualFingerprintElement[];  // Visual verification shapes
+}
+
+// ============================================
+// Visual Fingerprint Types
+// ============================================
+
+/** Available shapes for visual fingerprint */
+export type FingerprintShape = '◆' | '○' | '□' | '△' | '⬡' | '⬢';
+
+/** Available colors for visual fingerprint */
+export type FingerprintColor = 'red' | 'blue' | 'green' | 'purple' | 'orange' | 'cyan';
+
+/** Single element of a visual fingerprint (shape + color) */
+export interface VisualFingerprintElement {
+  shape: FingerprintShape;
+  color: FingerprintColor;
 }
 
 // ============================================

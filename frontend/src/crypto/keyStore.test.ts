@@ -167,6 +167,7 @@ describe('Key Storage', () => {
           sessionId,
           key: aesKey,
           fingerprint,
+          visualFingerprint: [],
         };
 
         storeSharedSecret(sessionId, sharedSecret, rawSecret);
@@ -182,6 +183,7 @@ describe('Key Storage', () => {
           sessionId: 'non-existent',
           key: {} as CryptoKey,
           fingerprint: 'ABC123',
+          visualFingerprint: [],
         };
 
         expect(() => storeSharedSecret('non-existent', sharedSecret))
@@ -246,7 +248,7 @@ describe('Key Storage', () => {
         const aesKey = await deriveAESKey(rawSecret, sessionId);
         const fingerprint = await generateFingerprint(rawSecret);
 
-        storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint });
+        storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] });
 
         expect(isHandshakeComplete(sessionId)).toBe(true);
       });
@@ -350,7 +352,7 @@ describe('Key Storage', () => {
         const aesKey = await deriveAESKey(rawSecret, sessionId);
         const fingerprint = await generateFingerprint(rawSecret);
 
-        storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint }, rawSecret);
+        storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
         
         // Verify keys are stored
         expect(getAESKey(sessionId)).toBeDefined();
@@ -606,7 +608,7 @@ describe('Debug Info', () => {
       const aesKey = await deriveAESKey(rawSecret, sessionId);
       const fingerprint = await generateFingerprint(rawSecret);
 
-      storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint }, rawSecret);
+      storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
       expect(isHandshakeComplete(sessionId)).toBe(true);
 
       // 4. Retrieve keys for encryption

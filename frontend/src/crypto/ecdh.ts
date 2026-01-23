@@ -10,7 +10,12 @@
  * - All operations are performed in the browser's native crypto implementation
  */
 
-import type { KeyPair } from '@/types';
+import type { 
+  KeyPair, 
+  VisualFingerprintElement, 
+  FingerprintShape, 
+  FingerprintColor 
+} from '@/types';
 
 // ============================================
 // Constants
@@ -278,6 +283,68 @@ export async function generateFingerprint(sharedSecret: ArrayBuffer): Promise<st
     .join('');
   
   return fingerprint;
+}
+
+// ============================================
+// Visual Fingerprint
+// ============================================
+
+/** Available shapes for visual fingerprint display */
+const FINGERPRINT_SHAPES: FingerprintShape[] = ['◆', '○', '□', '△', '⬡', '⬢'];
+
+/** Available colors for visual fingerprint display */
+const FINGERPRINT_COLORS: FingerprintColor[] = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
+
+/**
+ * Generates a visual fingerprint from the shared secret.
+ * 
+ * Creates 4 colored geometric shapes that can be easily compared
+ * by users to verify they have the same encryption key. This provides
+ * protection against MITM attacks when users compare out-of-band.
+ * 
+ * The visual fingerprint uses a combination of:
+ * - 6 shapes: ◆ ○ □ △ ⬡ ⬢
+ * - 6 colors: red, blue, green, purple, orange, cyan
+ * 
+ * This gives 36^4 = 1,679,616 unique combinations, providing
+ * sufficient protection against random collisions.
+ * 
+ * @param sharedSecret - The raw shared secret from ECDH
+ * @returns Array of 4 VisualFingerprintElements (shape + color pairs)
+ * 
+ * @example
+ * ```ts
+ * const visual = await generateVisualFingerprint(sharedSecret);
+ * // visual: [
+ * //   { shape: '◆', color: 'red' },
+ * //   { shape: '○', color: 'blue' },
+ * //   { shape: '□', color: 'green' },
+ * //   { shape: '△', color: 'purple' }
+ * // ]
+ * // Both parties should see the same 4 colored shapes
+ * ```
+ */
+export async function generateVisualFingerprint(
+  sharedSecret: ArrayBuffer
+): Promise<VisualFingerprintElement[]> {
+  // Hash the shared secret to get deterministic bytes
+  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
+  const bytes = new Uint8Array(hash);
+  
+  const elements: VisualFingerprintElement[] = [];
+  
+  // Generate 4 elements, using 2 bytes each (one for shape, one for color)
+  for (let i = 0; i < 4; i++) {
+    const shapeIndex = bytes[i * 2] % FINGERPRINT_SHAPES.length;
+    const colorIndex = bytes[i * 2 + 1] % FINGERPRINT_COLORS.length;
+    
+    elements.push({
+      shape: FINGERPRINT_SHAPES[shapeIndex],
+      color: FINGERPRINT_COLORS[colorIndex],
+    });
+  }
+  
+  return elements;
 }
 
 /**
