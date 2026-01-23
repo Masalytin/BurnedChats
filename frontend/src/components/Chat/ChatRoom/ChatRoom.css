@@ -1,0 +1,179 @@
+/* ============================================
+ * ChatRoom Component Styles (4.3.1)
+ * ============================================ */
+
+.chat-room {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bc-bg-primary);
+}
+
+/* ============================================
+ * Chat Header
+ * ============================================ */
+
+.chat-room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-bottom: 1px solid var(--bc-border-color);
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.chat-room-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-room-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex-shrink: 0;
+}
+
+/* Back Button */
+.chat-room-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  transition: background var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.chat-room-back:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.chat-room-back:active {
+  transform: scale(0.95);
+}
+
+/* Peer Info */
+.chat-room-peer-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-room-peer-name {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  font-weight: 600;
+  font-size: var(--bc-text-base);
+  color: var(--bc-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-room-premium {
+  font-size: var(--bc-text-sm);
+  flex-shrink: 0;
+}
+
+.chat-room-verified {
+  font-size: var(--bc-text-sm);
+  flex-shrink: 0;
+}
+
+.chat-room-peer-status {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.chat-room-typing {
+  color: var(--bc-brand-primary);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.chat-room-online {
+  color: var(--bc-success);
+}
+
+.chat-room-offline {
+  color: var(--bc-text-muted);
+}
+
+/* Burn Button */
+.chat-room-burn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  transition: all var(--bc-transition-fast);
+}
+
+.chat-room-burn:hover {
+  background: var(--bc-error-muted);
+  transform: scale(1.1);
+}
+
+.chat-room-burn:active {
+  transform: scale(0.95);
+}
+
+.chat-room-burn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chat-room-burn:disabled:hover {
+  background: transparent;
+  transform: none;
+}
+
+/* ============================================
+ * Messages Area
+ * ============================================ */
+
+.chat-room-messages {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ============================================
+ * Animations
+ * ============================================ */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ============================================
+ * Mobile Safe Area
+ * ============================================ */
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  .chat-room-header {
+    padding-top: calc(var(--bc-spacing-sm) + env(safe-area-inset-top));
+  }
+}

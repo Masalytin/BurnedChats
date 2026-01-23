@@ -1,0 +1,133 @@
+/* ============================================
+ * MessageInput Component Styles (4.3.3)
+ * ============================================ */
+
+.message-input {
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-primary);
+  border-top: 1px solid var(--bc-border-color);
+  flex-shrink: 0;
+}
+
+.message-input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--bc-spacing-sm);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-xl);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-xs) var(--bc-spacing-xs) var(--bc-spacing-md);
+}
+
+/* Textarea */
+.message-input-field {
+  flex: 1;
+  min-height: 40px;
+  max-height: 150px;
+  padding: var(--bc-spacing-sm) 0;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  font-family: var(--bc-font-family);
+  font-size: var(--bc-text-base);
+  line-height: var(--bc-leading-normal);
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+}
+
+.message-input-field::placeholder {
+  color: var(--bc-text-muted);
+}
+
+.message-input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Scrollbar in textarea */
+.message-input-field::-webkit-scrollbar {
+  width: 4px;
+}
+
+.message-input-field::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-input-field::-webkit-scrollbar-thumb {
+  background: var(--bc-border-color-strong);
+  border-radius: var(--bc-radius-full);
+}
+
+/* Send Button */
+.message-input-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-muted);
+  cursor: pointer;
+  transition: all var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.message-input-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.message-input-send--active {
+  background: var(--bc-brand-primary);
+  color: white;
+}
+
+.message-input-send--active:hover {
+  background: var(--bc-brand-primary-hover);
+  transform: scale(1.05);
+}
+
+.message-input-send--active:active {
+  background: var(--bc-brand-primary-active);
+  transform: scale(0.95);
+}
+
+.message-input-send-icon {
+  width: 20px;
+  height: 20px;
+  transform: translateX(1px);
+}
+
+/* Send spinner */
+.message-input-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Character Counter */
+.message-input-counter {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm) 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+/* Mobile safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .message-input {
+    padding-bottom: calc(var(--bc-spacing-sm) + env(safe-area-inset-bottom));
+  }
+}

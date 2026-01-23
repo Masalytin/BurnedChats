@@ -16,3 +16,6 @@ export { IncomingRequestView } from './IncomingRequestView';
 export { HandshakeView } from './HandshakeView';
 export { VisualFingerprint, VisualFingerprintCompact } from './VisualFingerprint';
 export { VerificationView } from './VerificationView';
+
+// Chat UI Components (Sprint 4.3)
+export { ChatRoom, MessageList, MessageInput, Message, TypingIndicator } from './Chat';
