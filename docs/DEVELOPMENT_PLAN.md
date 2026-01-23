@@ -231,12 +231,12 @@
 | 4.1.4 | Frontend: логика подтверждения | 🔴 P0 | 2 | 4.1.2, 4.1.3 | ✅ |
 | 4.1.5 | Frontend: показ статуса peer | 🟠 P1 | 2 | 4.1.4 | ✅ |
 | **4.2** | **Обмен сообщениями** | | | | |
-| 4.2.1 | Backend: MessageHandler.relayMessage() | 🔴 P0 | 2 | — | ⬜ |
-| 4.2.2 | Backend: MessageRepository (offline queue) | 🔴 P0 | 3 | 1.2.5 | ⬜ |
-| 4.2.3 | Backend: событие NEW_MESSAGE | 🔴 P0 | 2 | 4.2.1 | ⬜ |
-| 4.2.4 | Backend: Telegram уведомление при offline | 🟠 P1 | 2 | 4.2.2, 2.1.3 | ⬜ |
-| 4.2.5 | Frontend: шифрование перед отправкой | 🔴 P0 | 2 | 2.4.2 | ⬜ |
-| 4.2.6 | Frontend: дешифрование при получении | 🔴 P0 | 2 | 2.4.3 | ⬜ |
+| 4.2.1 | Backend: MessageHandler.relayMessage() | 🔴 P0 | 2 | — | ✅ |
+| 4.2.2 | Backend: MessageRepository (offline queue) | 🔴 P0 | 3 | 1.2.5 | ✅ |
+| 4.2.3 | Backend: событие NEW_MESSAGE | 🔴 P0 | 2 | 4.2.1 | ✅ |
+| 4.2.4 | Backend: Telegram уведомление при offline | 🟠 P1 | 2 | 4.2.2, 2.1.3 | ✅ |
+| 4.2.5 | Frontend: шифрование перед отправкой | 🔴 P0 | 2 | 2.4.2 | ✅ |
+| 4.2.6 | Frontend: дешифрование при получении | 🔴 P0 | 2 | 2.4.3 | ✅ |
 | **4.3** | **Chat UI** | | | | |
 | 4.3.1 | Компонент ChatRoom | 🔴 P0 | 3 | — | ⬜ |
 | 4.3.2 | Компонент MessageList | 🔴 P0 | 3 | 4.3.1 | ⬜ |

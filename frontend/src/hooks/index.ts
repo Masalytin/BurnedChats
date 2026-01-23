@@ -11,3 +11,5 @@ export { useHandshake } from './useHandshake';
 export type { HandshakeStage, HandshakeErrorCode, HandshakeResult } from './useHandshake';
 export { useVerification } from './useVerification';
 export type { VerificationErrorCode, VerificationStatus } from './useVerification';
+export { useMessages } from './useMessages';
+export type { MessageErrorCode, SendMessageResult } from './useMessages';
