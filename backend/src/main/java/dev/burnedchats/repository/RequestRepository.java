@@ -79,8 +79,11 @@ public class RequestRepository {
 
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
-                .map(this::parseRequest)
-                .filter(request -> request != null && !request.isExpired())
+                .flatMap(json -> {
+                    ChatRequest request = parseRequest(json);
+                    return request != null ? reactor.core.publisher.Mono.just(request) : reactor.core.publisher.Mono.empty();
+                })
+                .filter(request -> !request.isExpired())
                 .doOnComplete(() -> log.debug("Retrieved requests for recipient: {}", recipientTgId));
     }
 

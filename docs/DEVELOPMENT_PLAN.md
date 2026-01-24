@@ -288,8 +288,8 @@
 | 5.1.5 | Обработка закрытия Mini App | 🔴 P0 | 2 | — | ✅ |
 | 5.1.6 | Rate limiting на сервере | 🟠 P1 | 3 | — | ✅ |
 | **5.2** | **Тестирование** | | | | |
-| 5.2.1 | Unit тесты: crypto модули (Frontend) | 🔴 P0 | 3 | 2.3, 2.4 | ⬜ |
-| 5.2.2 | Unit тесты: Services (Backend) | 🟠 P1 | 3 | 3.1 | ⬜ |
+| 5.2.1 | Unit тесты: crypto модули (Frontend) | 🔴 P0 | 3 | 2.3, 2.4 | ✅ |
+| 5.2.2 | Unit тесты: Services (Backend) | 🟠 P1 | 3 | 3.1 | ✅ |
 | 5.2.3 | Integration тесты: WebSocket flow | 🟠 P1 | 5 | — | ⬜ |
 | 5.2.4 | Integration тесты: Testcontainers + Redis | 🟠 P1 | 3 | — | ⬜ |
 | 5.2.5 | Manual testing на реальных устройствах | 🔴 P0 | 5 | — | ⬜ |

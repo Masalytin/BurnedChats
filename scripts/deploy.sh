@@ -132,6 +132,82 @@ renew_ssl() {
     log_info "Certificate renewal complete!"
 }
 
+setup_webhook() {
+    log_info "Setting up Telegram webhook..."
+    
+    check_env_file
+    source "$ENV_FILE"
+    
+    if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+        log_error "TELEGRAM_BOT_TOKEN not set in .env.prod"
+        exit 1
+    fi
+    
+    if [ -z "$TELEGRAM_WEBHOOK_SECRET" ]; then
+        log_error "TELEGRAM_WEBHOOK_SECRET not set in .env.prod"
+        exit 1
+    fi
+    
+    if [ -z "$DOMAIN" ]; then
+        log_error "DOMAIN not set in .env.prod"
+        exit 1
+    fi
+    
+    WEBHOOK_URL="https://${DOMAIN}/api/telegram/webhook"
+    
+    log_info "Setting webhook to: $WEBHOOK_URL"
+    
+    RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+        -H "Content-Type: application/json" \
+        -d "{\"url\": \"${WEBHOOK_URL}\", \"secret_token\": \"${TELEGRAM_WEBHOOK_SECRET}\"}")
+    
+    if echo "$RESPONSE" | grep -q '"ok":true'; then
+        log_info "Webhook set successfully!"
+        echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+    else
+        log_error "Failed to set webhook:"
+        echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+        exit 1
+    fi
+}
+
+check_webhook() {
+    log_info "Checking Telegram webhook status..."
+    
+    check_env_file
+    source "$ENV_FILE"
+    
+    if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+        log_error "TELEGRAM_BOT_TOKEN not set in .env.prod"
+        exit 1
+    fi
+    
+    RESPONSE=$(curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo")
+    
+    echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+}
+
+delete_webhook() {
+    log_info "Deleting Telegram webhook..."
+    
+    check_env_file
+    source "$ENV_FILE"
+    
+    if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+        log_error "TELEGRAM_BOT_TOKEN not set in .env.prod"
+        exit 1
+    fi
+    
+    RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook")
+    
+    if echo "$RESPONSE" | grep -q '"ok":true'; then
+        log_info "Webhook deleted successfully!"
+    else
+        log_error "Failed to delete webhook:"
+        echo "$RESPONSE"
+    fi
+}
+
 # Main
 case "$1" in
     setup)
@@ -155,17 +231,29 @@ case "$1" in
     renew)
         renew_ssl
         ;;
+    webhook)
+        setup_webhook
+        ;;
+    webhook-info)
+        check_webhook
+        ;;
+    webhook-delete)
+        delete_webhook
+        ;;
     *)
-        echo "Usage: $0 {setup|start|stop|restart|update|logs|renew}"
+        echo "Usage: $0 {setup|start|stop|restart|update|logs|renew|webhook|webhook-info|webhook-delete}"
         echo ""
         echo "Commands:"
-        echo "  setup    - First time setup (obtain SSL certificates)"
-        echo "  start    - Start all services"
-        echo "  stop     - Stop all services"
-        echo "  restart  - Restart all services"
-        echo "  update   - Pull git changes and restart"
-        echo "  logs     - View container logs"
-        echo "  renew    - Renew SSL certificates"
+        echo "  setup          - First time setup (obtain SSL certificates)"
+        echo "  start          - Start all services"
+        echo "  stop           - Stop all services"
+        echo "  restart        - Restart all services"
+        echo "  update         - Pull git changes and restart"
+        echo "  logs           - View container logs"
+        echo "  renew          - Renew SSL certificates"
+        echo "  webhook        - Set Telegram webhook"
+        echo "  webhook-info   - Check current webhook status"
+        echo "  webhook-delete - Remove webhook (switch to polling)"
         exit 1
         ;;
 esac
