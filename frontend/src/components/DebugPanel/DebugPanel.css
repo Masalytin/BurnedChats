@@ -60,6 +60,8 @@
 }
 
 .debug-section h4 {
+  display: flex;
+  align-items: center;
   margin: 0 0 8px 0;
   font-size: 11px;
   font-weight: 600;
@@ -132,6 +134,56 @@
 
 .debug-actions button:active {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.debug-actions button.active {
+  background: rgba(74, 222, 128, 0.3);
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.debug-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.debug-test-result {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 4px;
+  padding: 12px;
+  margin: 0;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #4ade80;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.debug-close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.debug-close-btn:hover {
+  color: #fff;
+}
+
+.debug-paused-badge {
+  background: rgba(250, 204, 21, 0.3);
+  color: #facc15;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 .debug-logs {

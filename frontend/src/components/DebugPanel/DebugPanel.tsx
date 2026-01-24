@@ -65,6 +65,9 @@ export function DebugPanel({
 }: DebugPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>(globalLogs);
+  const [isPaused, setIsPaused] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   
   // WS URL from env
@@ -76,40 +79,62 @@ export function DebugPanel({
   const platform = WebApp.platform;
   const version = WebApp.version;
 
-  // Subscribe to log updates
+  // Subscribe to log updates (respects pause)
   useEffect(() => {
-    const updateLogs = () => setLogs([...globalLogs]);
+    const updateLogs = () => {
+      if (!isPaused) {
+        setLogs([...globalLogs]);
+      }
+    };
     listeners.add(updateLogs);
     return () => { listeners.delete(updateLogs); };
-  }, []);
+  }, [isPaused]);
 
   // Auto-scroll to bottom
   useEffect(() => {
-    if (isExpanded) {
+    if (isExpanded && !isPaused) {
       logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs, isExpanded]);
+  }, [logs, isExpanded, isPaused]);
 
-  // Test WebSocket URL directly
+  // Test WebSocket URL directly - copies result to clipboard
   const testConnection = useCallback(async () => {
-    debugLog('info', 'Testing connection...', { wsUrl });
+    setIsTesting(true);
+    setTestResult(null);
+    
+    const infoUrl = wsUrl.replace(/\/$/, '') + '/info';
+    let resultText = `=== /ws/info Test ===\nURL: ${infoUrl}\nTime: ${new Date().toISOString()}\n\n`;
     
     try {
-      // Test /ws/info endpoint (SockJS info endpoint)
-      const infoUrl = wsUrl.replace(/\/$/, '') + '/info';
-      debugLog('info', `Fetching ${infoUrl}`);
-      
       const response = await fetch(infoUrl);
       const text = await response.text();
+      const headers: Record<string, string> = {};
+      response.headers.forEach((v, k) => { headers[k] = v; });
+      
+      resultText += `Status: ${response.status} ${response.statusText}\n`;
+      resultText += `Headers: ${JSON.stringify(headers, null, 2)}\n`;
+      resultText += `Body: ${text}\n`;
       
       if (response.ok) {
-        debugLog('success', 'SockJS info endpoint OK', { status: response.status, body: text });
+        resultText += `\n✅ SUCCESS`;
       } else {
-        debugLog('error', 'SockJS info endpoint failed', { status: response.status, body: text });
+        resultText += `\n❌ FAILED`;
       }
     } catch (error) {
-      debugLog('error', 'Connection test failed', { error: String(error) });
+      resultText += `Error: ${String(error)}\n`;
+      resultText += `\n❌ FAILED (network error)`;
     }
+    
+    // Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(resultText);
+      resultText += `\n\n📋 Copied to clipboard!`;
+    } catch {
+      resultText += `\n\n⚠️ Could not copy to clipboard`;
+    }
+    
+    setTestResult(resultText);
+    setIsTesting(false);
   }, [wsUrl]);
 
   // Copy logs to clipboard
@@ -197,14 +222,41 @@ export function DebugPanel({
 
           {/* Actions */}
           <div className="debug-actions">
-            <button onClick={testConnection}>Test /ws/info</button>
+            <button onClick={testConnection} disabled={isTesting}>
+              {isTesting ? 'Testing...' : 'Test /ws/info'}
+            </button>
             <button onClick={copyLogs}>Copy Logs</button>
+            <button 
+              onClick={() => setIsPaused(!isPaused)}
+              className={isPaused ? 'active' : ''}
+            >
+              {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+            </button>
             <button onClick={clearDebugLogs}>Clear</button>
           </div>
 
+          {/* Test Result (shown prominently) */}
+          {testResult && (
+            <div className="debug-section">
+              <h4>
+                Test Result 
+                <button 
+                  className="debug-close-btn"
+                  onClick={() => setTestResult(null)}
+                >
+                  ✕
+                </button>
+              </h4>
+              <pre className="debug-test-result">{testResult}</pre>
+            </div>
+          )}
+
           {/* Logs section */}
           <div className="debug-section">
-            <h4>Logs ({logs.length})</h4>
+            <h4>
+              Logs ({logs.length})
+              {isPaused && <span className="debug-paused-badge">PAUSED</span>}
+            </h4>
             <div className="debug-logs">
               {logs.length === 0 ? (
                 <div className="debug-log-empty">No logs yet</div>
