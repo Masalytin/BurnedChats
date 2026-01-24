@@ -83,8 +83,12 @@ out/
 .env.development
 .env.test
 .env.production
+.env.prod
 *.env
 !.env.example
+
+# Let's Encrypt certificates
+certbot/
 
 # Secrets
 secrets/
