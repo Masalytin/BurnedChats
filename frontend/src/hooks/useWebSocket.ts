@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
+import { debugLog } from '../components/DebugPanel';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -185,12 +186,21 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     // Get fresh initData for each connection attempt
     const initData = WebApp.initData;
 
+    debugLog('info', 'Creating STOMP client', { 
+      wsUrl: WS_URL,
+      hasInitData: Boolean(initData),
+      initDataLength: initData?.length || 0,
+    });
+
     if (!initData && import.meta.env.PROD) {
-      console.warn('[WebSocket] No initData available - authentication will fail');
+      debugLog('warn', 'No initData available - authentication will fail');
     }
 
     const client = new Client({
-      webSocketFactory: () => new SockJS(WS_URL),
+      webSocketFactory: () => {
+        debugLog('info', 'Creating SockJS connection', { url: WS_URL });
+        return new SockJS(WS_URL);
+      },
       connectHeaders: {
         [INIT_DATA_HEADER]: initData || '',
       },
@@ -199,7 +209,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       heartbeatOutgoing,
       
       onConnect: () => {
-        console.log('[WebSocket] Connected successfully');
+        debugLog('success', 'STOMP connected successfully');
         setIsConnected(true);
         setIsConnecting(false);
         setError(null);
@@ -212,7 +222,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         
         // Restore subscriptions after reconnect (5.1.1)
         if (wasReconnection && storedSubscriptionsRef.current.size > 0) {
-          console.log('[WebSocket] Restoring subscriptions after reconnect...');
+          debugLog('info', 'Restoring subscriptions after reconnect');
           setIsReconnection(true);
           
           // Clear old subscription refs
@@ -223,9 +233,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
             try {
               const subscription = client.subscribe(destination, callback);
               subscriptionsRef.current.set(destination, subscription);
-              console.log(`[WebSocket] Restored subscription to ${destination}`);
+              debugLog('info', `Restored subscription to ${destination}`);
             } catch (e) {
-              console.error(`[WebSocket] Failed to restore subscription to ${destination}:`, e);
+              debugLog('error', `Failed to restore subscription to ${destination}`, { error: String(e) });
             }
           });
           
@@ -238,21 +248,29 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       },
       
       onDisconnect: () => {
-        console.log('[WebSocket] Disconnected');
+        debugLog('warn', 'STOMP disconnected');
         setIsConnected(false);
         setIsConnecting(false);
         onDisconnect?.();
       },
       
       onStompError: (frame) => {
-        console.error('[WebSocket] STOMP Error:', frame.headers?.message || frame.body);
+        const errorMsg = frame.headers?.message || frame.body || 'Unknown STOMP error';
+        debugLog('error', 'STOMP error', { 
+          message: errorMsg,
+          headers: frame.headers,
+          body: frame.body,
+        });
         const wsError = parseStompError(frame);
         handleError(wsError);
         setIsConnecting(false);
       },
       
       onWebSocketError: (event) => {
-        console.error('[WebSocket] WebSocket Error:', event);
+        debugLog('error', 'WebSocket error', { 
+          type: event?.type,
+          message: (event as ErrorEvent)?.message || 'Unknown error',
+        });
         handleError({
           type: 'connection_error',
           message: 'WebSocket connection failed',
@@ -262,7 +280,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       },
       
       onWebSocketClose: (event) => {
-        console.log('[WebSocket] WebSocket Closed:', event?.reason || 'No reason');
+        debugLog('warn', 'WebSocket closed', { 
+          code: event?.code,
+          reason: event?.reason || 'No reason',
+          wasClean: event?.wasClean,
+        });
         setIsConnected(false);
         
         // Track reconnection attempts
@@ -271,7 +293,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           setReconnectAttempt(reconnectAttemptsRef.current);
           
           if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-            console.warn('[WebSocket] Max reconnection attempts reached');
+            debugLog('error', 'Max reconnection attempts reached', { 
+              attempts: reconnectAttemptsRef.current 
+            });
             handleError({
               type: 'connection_error',
               message: 'Unable to connect after multiple attempts',
@@ -286,18 +310,27 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   }, [reconnectDelay, heartbeatIncoming, heartbeatOutgoing, maxReconnectAttempts, onConnect, onDisconnect, handleError]);
 
   const connect = useCallback(() => {
+    debugLog('info', 'connect() called', { 
+      alreadyConnected: clientRef.current?.connected,
+      isConnecting,
+    });
+    
     if (clientRef.current?.connected) {
-      console.log('[WebSocket] Already connected');
+      debugLog('info', 'Already connected, skipping');
       return;
     }
 
     if (isConnecting) {
-      console.log('[WebSocket] Connection in progress');
+      debugLog('info', 'Connection in progress, skipping');
       return;
     }
 
     // Check for initData in production
     if (!WebApp.initData && import.meta.env.PROD) {
+      debugLog('error', 'No initData in production', { 
+        platform: WebApp.platform,
+        version: WebApp.version,
+      });
       handleError({
         type: 'auth_error',
         message: 'Missing authentication data. Please open the app from Telegram.',
@@ -314,7 +347,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     const client = createClient();
     clientRef.current = client;
     
-    console.log('[WebSocket] Initiating connection to', WS_URL);
+    debugLog('info', 'Activating STOMP client', { url: WS_URL });
     client.activate();
   }, [createClient, isConnecting, handleError]);
 

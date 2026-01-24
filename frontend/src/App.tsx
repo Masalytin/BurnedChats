@@ -13,6 +13,7 @@ import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
+import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -47,16 +48,24 @@ function AppContent() {
     publish,
   } = useWebSocket({
     onConnect: () => {
+      debugLog('success', 'WebSocket connected');
       notificationOccurred('success');
       toast.success('Connected to server');
     },
+    onDisconnect: () => {
+      debugLog('warn', 'WebSocket disconnected');
+    },
     onError: (error) => {
+      debugLog('error', 'WebSocket error', error);
       if (error.recoverable) {
         toast.warning('Connection lost. Reconnecting...', { duration: 3000 });
       } else {
         notificationOccurred('error');
         toast.error(error.message, { title: 'Connection Error' });
       }
+    },
+    onReconnect: () => {
+      debugLog('info', 'WebSocket reconnected');
     },
   });
 
@@ -470,6 +479,14 @@ function AppContent() {
           onSubmit={handleSubmitChatRequest}
         />
       )}
+
+      {/* Debug panel for production debugging */}
+      <DebugPanel
+        isConnected={isConnected}
+        isConnecting={isConnecting}
+        reconnectAttempt={reconnectAttempt}
+        wsError={wsError}
+      />
     </Layout>
   );
 }
