@@ -19,3 +19,13 @@ export { VerificationView } from './VerificationView';
 
 // Chat UI Components (Sprint 4.3)
 export { ChatRoom, MessageList, MessageInput, Message, TypingIndicator } from './Chat';
+
+// Burn Components (Sprint 4.4)
+export { BurnConfirmDialog } from './BurnConfirmDialog';
+export { BurnAnimation } from './BurnAnimation';
+
+// UX Components (Sprint 4.5)
+export { LoadingOverlay } from './LoadingOverlay';
+export { Skeleton, SkeletonText, SkeletonAvatar, SkeletonCard } from './Skeleton';
+export { Toast, ToastContainer, ToastProvider, useToast } from './Toast';
+export type { ToastData, ToastType } from './Toast';

@@ -1,0 +1,98 @@
+/* Base Skeleton */
+.skeleton {
+  background: var(--bc-bg-elevated);
+  display: block;
+}
+
+/* Variants */
+.skeleton--text {
+  height: 1em;
+  border-radius: var(--bc-radius-sm);
+  transform-origin: 0 55%;
+  transform: scale(1, 0.6);
+}
+
+.skeleton--circular {
+  border-radius: 50%;
+}
+
+.skeleton--rectangular {
+  border-radius: 0;
+}
+
+.skeleton--rounded {
+  border-radius: var(--bc-radius-md);
+}
+
+/* Animations */
+.skeleton--pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton--wave {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton--wave::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  animation: skeleton-wave 1.5s linear infinite;
+}
+
+/* Text Block */
+.skeleton-text {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.skeleton-text--gap-sm {
+  gap: var(--bc-spacing-sm);
+}
+
+.skeleton-text--gap-md {
+  gap: var(--bc-spacing-md);
+}
+
+/* Card Skeleton */
+.skeleton-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
+}
+
+.skeleton-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Animations keyframes */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes skeleton-wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

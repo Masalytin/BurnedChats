@@ -42,7 +42,7 @@ interface ChatRoomProps {
  * - Burn button for destroying the session
  */
 export const ChatRoom = memo(function ChatRoom({
-  sessionId,
+  sessionId: _sessionId,
   peer,
   messages,
   isPeerTyping = false,
@@ -86,9 +86,8 @@ export const ChatRoom = memo(function ChatRoom({
           )}
           <Avatar
             name={peer.displayName}
-            photoUrl={peer.photoUrl}
+            src={peer.photoUrl}
             size="sm"
-            online={peer.online}
           />
           <div className="chat-room-peer-info">
             <div className="chat-room-peer-name">

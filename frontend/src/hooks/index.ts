@@ -13,3 +13,10 @@ export { useVerification } from './useVerification';
 export type { VerificationErrorCode, VerificationStatus } from './useVerification';
 export { useMessages } from './useMessages';
 export type { MessageErrorCode, SendMessageResult } from './useMessages';
+export { useBurn } from './useBurn';
+export type { BurnErrorCode, BurnStatus } from './useBurn';
+
+// UX hooks (Sprint 4.5)
+export { useHaptics } from './useHaptics';
+export type { ImpactStyle, NotificationType } from './useHaptics';
+export { useBackButton, useAutoBackButton } from './useBackButton';

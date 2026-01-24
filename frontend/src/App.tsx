@@ -5,11 +5,14 @@ import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake } from './hooks/useHandshake';
+import { useBackButton } from './hooks/useBackButton';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
+import { ToastProvider, useToast } from './components/Toast';
+import { LoadingOverlay } from './components/LoadingOverlay';
 import { HomePage } from './pages/HomePage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -17,7 +20,11 @@ import './App.css';
 /** Application view states */
 type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake';
 
-function App() {
+/**
+ * Main application content with toast integration
+ */
+function AppContent() {
+  const toast = useToast();
   const { 
     isReady, 
     isInTelegram,
@@ -41,10 +48,14 @@ function App() {
   } = useWebSocket({
     onConnect: () => {
       notificationOccurred('success');
+      toast.success('Connected to server');
     },
     onError: (error) => {
-      if (!error.recoverable) {
+      if (error.recoverable) {
+        toast.warning('Connection lost. Reconnecting...', { duration: 3000 });
+      } else {
         notificationOccurred('error');
+        toast.error(error.message, { title: 'Connection Error' });
       }
     },
   });
@@ -77,13 +88,15 @@ function App() {
     publish,
     onSessionCreated: (session) => {
       notificationOccurred('success');
+      toast.success('Chat request sent!');
       setCurrentView('pending-request');
       setPendingSession(session);
       setShowChatRequestDialog(false);
       setSelectedUser(null);
     },
-    onError: () => {
+    onError: (errorCode) => {
       notificationOccurred('error');
+      toast.error(`Failed to create session: ${errorCode}`, { title: 'Error' });
     },
   });
 
@@ -100,6 +113,10 @@ function App() {
     publish,
     onRequestReceived: (request) => {
       notificationOccurred('success');
+      toast.info(`${request.fromName} wants to chat!`, { 
+        title: 'New Request',
+        duration: 5000,
+      });
       // If we're on home, show the incoming request
       if (currentView === 'home') {
         setActiveIncomingRequest(request);
@@ -109,12 +126,14 @@ function App() {
     onSessionAccepted: (sessionId, peer) => {
       // Start handshake after accepting a request
       notificationOccurred('success');
+      toast.success('Request accepted! Establishing secure connection...');
       handshakePeerRef.current = peer;
       startHandshake(sessionId, peer);
       setCurrentView('handshake');
     },
-    onError: () => {
+    onError: (errorCode) => {
       notificationOccurred('error');
+      toast.error(`Request failed: ${errorCode}`, { title: 'Error' });
     },
   });
 
@@ -132,11 +151,13 @@ function App() {
     publish,
     onHandshakeComplete: (sessionId, fingerprint) => {
       notificationOccurred('success');
+      toast.success('Secure connection established!');
       console.log('[App] Handshake complete:', sessionId, fingerprint);
       // TODO: Navigate to chat view (Sprint 4)
     },
-    onError: () => {
+    onError: (errorCode) => {
       notificationOccurred('error');
+      toast.error(`Handshake failed: ${errorCode}`, { title: 'Connection Error' });
     },
   });
 
@@ -150,6 +171,54 @@ function App() {
 
   // Reference to store peer info for handshake
   const handshakePeerRef = useRef<UserInfo | null>(null);
+
+  // Back button handling - show when not on home view
+  const handleBackButton = useCallback(() => {
+    if (showChatRequestDialog) {
+      setShowChatRequestDialog(false);
+      setSelectedUser(null);
+      resetSession();
+      return;
+    }
+    
+    if (currentView === 'pending-request') {
+      setCurrentView('home');
+      setPendingSession(null);
+      resetSession();
+      clearSearch();
+      return;
+    }
+    
+    if (currentView === 'incoming-request') {
+      setActiveIncomingRequest(null);
+      resetIncomingAction();
+      setCurrentView('home');
+      return;
+    }
+    
+    if (currentView === 'handshake') {
+      cancelHandshake();
+      handshakePeerRef.current = null;
+      setCurrentView('home');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      resetSession();
+      clearSearch();
+    }
+  }, [
+    showChatRequestDialog, 
+    currentView, 
+    resetSession, 
+    clearSearch, 
+    resetIncomingAction, 
+    cancelHandshake
+  ]);
+
+  // Setup back button
+  useBackButton({
+    visible: currentView !== 'home' || showChatRequestDialog,
+    onBack: handleBackButton,
+  });
 
   // Initialize Mini App
   useEffect(() => {
@@ -301,12 +370,7 @@ function App() {
 
   // Loading state
   if (!isReady) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-        <p>Loading BurnedChats...</p>
-      </div>
-    );
+    return <LoadingOverlay message="Loading BurnedChats..." />
   }
 
   // Initialization error
@@ -407,6 +471,17 @@ function App() {
         />
       )}
     </Layout>
+  );
+}
+
+/**
+ * App wrapper with providers
+ */
+function App() {
+  return (
+    <ToastProvider position="bottom" maxToasts={3}>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

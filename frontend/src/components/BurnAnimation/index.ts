@@ -1,0 +1,1 @@
+export { BurnAnimation } from './BurnAnimation';

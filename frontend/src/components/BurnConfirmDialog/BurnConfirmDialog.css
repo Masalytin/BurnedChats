@@ -1,0 +1,153 @@
+/* ============================================
+ * BurnConfirmDialog Styles (4.4.5)
+ * ============================================ */
+
+/* Overlay */
+.burn-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-overlay);
+  z-index: var(--bc-z-modal);
+  animation: fadeIn var(--bc-transition-fast) ease-out;
+}
+
+/* Dialog container */
+.burn-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: var(--bc-spacing-xl) var(--bc-spacing-lg) var(--bc-spacing-lg);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-xl);
+  box-shadow: var(--bc-shadow-lg);
+  text-align: center;
+}
+
+/* Close button */
+.burn-dialog__close {
+  position: absolute;
+  top: var(--bc-spacing-md);
+  right: var(--bc-spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-muted);
+  border-radius: var(--bc-radius-full);
+  cursor: pointer;
+  transition: color var(--bc-transition-fast), background-color var(--bc-transition-fast);
+  z-index: 1;
+}
+
+.burn-dialog__close:hover {
+  color: var(--bc-text-primary);
+  background: var(--bc-border-color-strong);
+}
+
+.burn-dialog__close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icon */
+.burn-dialog__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--bc-spacing-md);
+  background: linear-gradient(135deg, var(--bc-error) 0%, #ff8a00 100%);
+  border-radius: var(--bc-radius-full);
+  color: white;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+  }
+}
+
+/* Title */
+.burn-dialog__title {
+  font-size: var(--bc-text-xl);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+  margin: 0 0 var(--bc-spacing-sm);
+}
+
+/* Description */
+.burn-dialog__description {
+  font-size: var(--bc-text-base);
+  color: var(--bc-text-secondary);
+  margin: 0 0 var(--bc-spacing-md);
+  line-height: 1.5;
+}
+
+.burn-dialog__description strong {
+  color: var(--bc-text-primary);
+}
+
+/* Warning */
+.burn-dialog__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-error-muted);
+  border-radius: var(--bc-radius-md);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-error);
+  text-align: left;
+  margin-bottom: var(--bc-spacing-md);
+}
+
+.burn-dialog__warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* List */
+.burn-dialog__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--bc-spacing-lg);
+  text-align: left;
+}
+
+.burn-dialog__list li {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xs) 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+}
+
+.burn-dialog__list-icon {
+  font-size: var(--bc-text-base);
+  width: 24px;
+  text-align: center;
+}
+
+/* Actions */
+.burn-dialog__actions {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+}
+
+.burn-dialog__actions > * {
+  flex: 1;
+}

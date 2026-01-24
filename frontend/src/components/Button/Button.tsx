@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, MouseEvent } from 'react';
+import { useHaptics } from '../../hooks/useHaptics';
 import './Button.css';
 
 type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost';
@@ -11,11 +12,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
+  /** Disable haptic feedback */
+  disableHaptics?: boolean;
   children: ReactNode;
 }
 
 /**
- * Reusable button component with Telegram theme support
+ * Reusable button component with Telegram theme support and haptic feedback
  */
 export function Button({
   variant = 'primary',
@@ -24,11 +27,15 @@ export function Button({
   isLoading = false,
   leftIcon,
   rightIcon,
+  disableHaptics = false,
   children,
   disabled,
   className = '',
+  onClick,
   ...props
 }: ButtonProps) {
+  const haptics = useHaptics();
+
   const classes = [
     'button',
     `button--${variant}`,
@@ -40,10 +47,23 @@ export function Button({
     .filter(Boolean)
     .join(' ');
 
+  const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (!disableHaptics && !disabled && !isLoading) {
+      // Use different haptic styles based on button variant
+      if (variant === 'destructive') {
+        haptics.impact('heavy');
+      } else {
+        haptics.buttonClick();
+      }
+    }
+    onClick?.(e);
+  };
+
   return (
     <button
       className={classes}
       disabled={disabled || isLoading}
+      onClick={handleClick}
       {...props}
     >
       {isLoading && <span className="button-spinner" />}

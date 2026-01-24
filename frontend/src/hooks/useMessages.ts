@@ -132,7 +132,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const { sessionId, userId, onNewMessage, onStatusChange, onError } = options;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, _setIsLoading] = useState(false);
   const [error, setError] = useState<MessageErrorCode | null>(null);
 
   // Pending messages waiting for acknowledgment
