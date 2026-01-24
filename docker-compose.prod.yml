@@ -80,7 +80,7 @@ services:
       dockerfile: Dockerfile.prod
       args:
         - VITE_API_URL=https://${DOMAIN}
-        - VITE_WS_URL=wss://${DOMAIN}/ws
+        - VITE_WS_URL=https://${DOMAIN}/ws
     container_name: burnedchats-frontend
     restart: always
     networks:

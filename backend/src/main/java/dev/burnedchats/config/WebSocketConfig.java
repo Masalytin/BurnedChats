@@ -131,6 +131,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         String[] allowedOrigins = {
             "https://*.telegram.org",
             "https://web.telegram.org",
+            "https://burnedchats.net",
+            "https://*.burnedchats.net",
             "http://localhost:*",
             "https://localhost:*"
         };
