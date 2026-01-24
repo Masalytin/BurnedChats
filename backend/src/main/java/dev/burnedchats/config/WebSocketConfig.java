@@ -1,5 +1,6 @@
 package dev.burnedchats.config;
 
+import dev.burnedchats.security.RateLimitInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
 
     private final StompAuthInterceptor stompAuthInterceptor;
+    private final RateLimitInterceptor rateLimitInterceptor;
 
     /**
      * Heartbeat interval from server to client (ms).
@@ -184,9 +186,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .queueCapacity(100);
 
         // Add authentication interceptor for validating Telegram initData
-        registration.interceptors(stompAuthInterceptor);
+        // Add rate limiting interceptor (5.1.6)
+        registration.interceptors(stompAuthInterceptor, rateLimitInterceptor);
 
-        log.info("Inbound channel configured with StompAuthInterceptor");
+        log.info("Inbound channel configured with StompAuthInterceptor and RateLimitInterceptor");
     }
 
     /**

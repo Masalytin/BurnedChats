@@ -32,6 +32,11 @@ public class Session implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
+     * Default session TTL in minutes (1 hour).
+     */
+    public static final int DEFAULT_TTL_MINUTES = 60;
+
+    /**
      * Unique session identifier (UUID).
      */
     private String id;
@@ -157,6 +162,34 @@ public class Session implements Serializable {
      */
     public void touch() {
         this.lastActivityAt = Instant.now();
+    }
+
+    /**
+     * Calculate expiration timestamp based on creation time (5.1.4).
+     *
+     * @return expiration instant (1 hour after creation)
+     */
+    public Instant getExpiresAt() {
+        return createdAt.plusSeconds(DEFAULT_TTL_MINUTES * 60L);
+    }
+
+    /**
+     * Check if the session has expired (5.1.4).
+     *
+     * @return true if expired
+     */
+    public boolean isExpired() {
+        return Instant.now().isAfter(getExpiresAt());
+    }
+
+    /**
+     * Get remaining time in seconds until expiration (5.1.4).
+     *
+     * @return remaining seconds, 0 if expired
+     */
+    public long getRemainingSeconds() {
+        long remaining = java.time.Duration.between(Instant.now(), getExpiresAt()).getSeconds();
+        return Math.max(0, remaining);
     }
 }
 

@@ -12,6 +12,8 @@ interface PendingRequestViewProps {
   session: PendingSession;
   /** Callback when user cancels the request */
   onCancel: () => void;
+  /** Callback when request expires (5.1.3) */
+  onExpire?: () => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -28,6 +30,7 @@ interface PendingRequestViewProps {
 export function PendingRequestView({
   session,
   onCancel,
+  onExpire,
   className = '',
 }: PendingRequestViewProps) {
   const { recipient, hasSecretQuestion, expiresAt } = session;
@@ -36,6 +39,9 @@ export function PendingRequestView({
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
     Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
   );
+  
+  // Track if expiration callback was called
+  const [expireCalled, setExpireCalled] = useState(false);
 
   // Update countdown every second
   useEffect(() => {
@@ -45,11 +51,16 @@ export function PendingRequestView({
 
       if (remaining === 0) {
         clearInterval(interval);
+        // Call onExpire callback when timer reaches 0 (5.1.3)
+        if (!expireCalled && onExpire) {
+          setExpireCalled(true);
+          onExpire();
+        }
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [expiresAt]);
+  }, [expiresAt, expireCalled, onExpire]);
 
   // Format remaining time as MM:SS
   const formatTime = useCallback((seconds: number) => {

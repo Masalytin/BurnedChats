@@ -2,7 +2,9 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.MessageSentEvent;
 import dev.burnedchats.dto.event.NewMessageEvent;
+import dev.burnedchats.dto.event.SyncMessagesEvent;
 import dev.burnedchats.dto.request.SendMessageRequest;
+import dev.burnedchats.dto.request.SyncMessagesRequest;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
@@ -24,6 +26,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * STOMP handler for encrypted message relay.
@@ -82,6 +85,11 @@ public class MessageHandler {
     private static final String MESSAGE_SENT_DESTINATION = "/queue/message-sent";
 
     /**
+     * STOMP destination for synced messages (sent to requester).
+     */
+    private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
+
+    /**
      * Emoji constants for Telegram notifications.
      */
     private static final String MESSAGE_EMOJI = "💬";
@@ -135,6 +143,96 @@ public class MessageHandler {
                             sendError(senderId, sessionId, messageId, "INTERNAL_ERROR");
                         }
                 );
+    }
+
+    /**
+     * Sync pending messages after reconnection (5.1.2).
+     *
+     * <p>Called when a client reconnects and needs to retrieve messages
+     * that were queued while offline. Returns all pending messages for
+     * the specified session.
+     *
+     * @param request   the sync request containing session ID
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/message.sync")
+    public void syncMessages(@Payload SyncMessagesRequest request, Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+        String sessionId = request.sessionId();
+
+        log.info("Sync messages requested: sessionId={}, userId={}", sessionId, userId);
+
+        // Validate session and sync messages
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.debug("Session not found for sync: {}", sessionId);
+                    sendSyncError(userId, sessionId, "SESSION_NOT_FOUND");
+                    return Mono.empty();
+                }))
+                .flatMap(session -> {
+                    // Validate user is participant
+                    if (!session.isParticipant(userId)) {
+                        log.debug("User {} is not a participant in session {}", userId, sessionId);
+                        sendSyncError(userId, sessionId, "NOT_PARTICIPANT");
+                        return Mono.empty();
+                    }
+
+                    // Get pending messages
+                    return messageRepository.getPendingMessages(userId, sessionId)
+                            .collectList()
+                            .flatMap(messages -> {
+                                // Convert to sync event messages
+                                List<SyncMessagesEvent.SyncedMessage> syncedMessages = messages.stream()
+                                        .map(msg -> SyncMessagesEvent.SyncedMessage.builder()
+                                                .messageId(msg.getMessageId())
+                                                .senderId(msg.getSenderId())
+                                                .encryptedContent(msg.getEncryptedContent())
+                                                .iv(msg.getIv())
+                                                .clientTimestamp(msg.getClientTimestamp())
+                                                .serverTimestamp(msg.getServerTimestamp())
+                                                .build())
+                                        .toList();
+
+                                // Send sync event to user
+                                SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages);
+                                messagingTemplate.convertAndSendToUser(
+                                        String.valueOf(userId),
+                                        SYNC_MESSAGES_DESTINATION,
+                                        event
+                                );
+
+                                log.info("Synced {} messages for user {} in session {}",
+                                        syncedMessages.size(), userId, sessionId);
+
+                                // Delete delivered messages from queue
+                                if (!messages.isEmpty()) {
+                                    return messageRepository.deleteMessages(userId, sessionId)
+                                            .then(Mono.empty());
+                                }
+                                return Mono.empty();
+                            });
+                })
+                .subscribe(
+                        result -> {},
+                        error -> {
+                            log.error("Error syncing messages: sessionId={}, userId={}, error={}",
+                                    sessionId, userId, error.getMessage());
+                            sendSyncError(userId, sessionId, "INTERNAL_ERROR");
+                        }
+                );
+    }
+
+    /**
+     * Send sync error event to user.
+     */
+    private void sendSyncError(Long userId, String sessionId, String errorCode) {
+        SyncMessagesEvent event = SyncMessagesEvent.error(sessionId, errorCode);
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                SYNC_MESSAGES_DESTINATION,
+                event
+        );
     }
 
     /**

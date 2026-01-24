@@ -52,18 +52,42 @@ interface MessageSentEvent {
   error?: string;
 }
 
+/** Synced message from server (5.1.2) */
+interface SyncedMessage {
+  messageId: string;
+  senderId: number;
+  encryptedContent: string;
+  iv: string;
+  clientTimestamp?: number;
+  serverTimestamp: string;
+}
+
+/** Sync messages event from server (5.1.2) */
+interface SyncMessagesEvent {
+  success: boolean;
+  sessionId: string;
+  messages: SyncedMessage[];
+  count: number;
+  serverTimestamp: string;
+  error?: string;
+}
+
 /** Hook options */
 interface UseMessagesOptions {
   /** Session ID to listen for messages */
   sessionId: string;
   /** Current user's Telegram ID */
   userId: number;
+  /** Whether WebSocket is a reconnection (5.1.2) */
+  isReconnection?: boolean;
   /** Callback when new message arrives */
   onNewMessage?: (message: DecryptedMessage) => void;
   /** Callback when message status changes */
   onStatusChange?: (messageId: string, status: MessageStatus) => void;
   /** Callback when error occurs */
   onError?: (error: MessageErrorCode, details?: string) => void;
+  /** Callback when messages are synced after reconnection (5.1.2) */
+  onSyncComplete?: (count: number) => void;
 }
 
 /** Hook return value */
@@ -72,12 +96,16 @@ interface UseMessagesReturn {
   messages: DecryptedMessage[];
   /** Whether messages are loading */
   isLoading: boolean;
+  /** Whether sync is in progress (5.1.2) */
+  isSyncing: boolean;
   /** Send a new message */
   sendMessage: (text: string) => Promise<SendMessageResult>;
   /** Clear all messages (local only) */
   clearMessages: () => void;
   /** Retry failed message */
   retryMessage: (messageId: string) => Promise<SendMessageResult>;
+  /** Manually trigger message sync (5.1.2) */
+  syncMessages: () => void;
   /** Current error */
   error: MessageErrorCode | null;
 }
@@ -89,6 +117,8 @@ interface UseMessagesReturn {
 const NEW_MESSAGE_DESTINATION = '/user/queue/new-message';
 const MESSAGE_SENT_DESTINATION = '/user/queue/message-sent';
 const SEND_MESSAGE_DESTINATION = '/app/message.send';
+const SYNC_MESSAGES_DESTINATION = '/app/message.sync';
+const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
 
 // ============================================
 // Hook Implementation
@@ -129,14 +159,17 @@ const SEND_MESSAGE_DESTINATION = '/app/message.send';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userId, onNewMessage, onStatusChange, onError } = options;
+  const { sessionId, userId, isReconnection, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading, _setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<MessageErrorCode | null>(null);
 
   // Pending messages waiting for acknowledgment
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
+  // Track if sync has been triggered for this session/reconnection
+  const syncTriggeredRef = useRef(false);
 
   const { isConnected, subscribe, unsubscribe, publish } = useWebSocket();
 
@@ -293,6 +326,117 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, [sessionId, userId, onNewMessage, handleError]);
 
   /**
+   * Handle synced messages response (5.1.2).
+   */
+  const handleSyncMessages = useCallback(async (message: IMessage) => {
+    try {
+      const event: SyncMessagesEvent = JSON.parse(message.body);
+      
+      // Ignore events for other sessions
+      if (event.sessionId !== sessionId) {
+        return;
+      }
+
+      setIsSyncing(false);
+
+      if (!event.success) {
+        console.warn('[useMessages] Sync failed:', event.error);
+        return;
+      }
+
+      if (event.count === 0) {
+        console.log('[useMessages] No messages to sync');
+        onSyncComplete?.(0);
+        return;
+      }
+
+      // Get AES key for decryption
+      const aesKey = getAESKey(sessionId);
+      if (!aesKey) {
+        handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt synced messages - no AES key');
+        return;
+      }
+
+      // Decrypt all synced messages
+      const decryptedMessages: DecryptedMessage[] = [];
+      
+      for (const syncedMsg of event.messages) {
+        try {
+          const plaintext = await decryptMessage(
+            aesKey,
+            syncedMsg.encryptedContent,
+            syncedMsg.iv,
+            sessionId
+          );
+
+          decryptedMessages.push({
+            id: syncedMsg.messageId,
+            sessionId,
+            fromUserId: syncedMsg.senderId,
+            content: plaintext,
+            timestamp: syncedMsg.clientTimestamp || new Date(syncedMsg.serverTimestamp).getTime(),
+            status: 'delivered',
+            isOwn: syncedMsg.senderId === userId,
+          });
+        } catch (decryptErr) {
+          console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
+        }
+      }
+
+      // Add synced messages (avoid duplicates)
+      if (decryptedMessages.length > 0) {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = decryptedMessages.filter(m => !existingIds.has(m.id));
+          
+          if (newMessages.length === 0) return prev;
+          
+          // Sort by timestamp
+          const allMessages = [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
+          return allMessages;
+        });
+
+        // Notify callbacks
+        decryptedMessages.forEach(msg => onNewMessage?.(msg));
+      }
+
+      console.log(`[useMessages] Synced ${decryptedMessages.length} messages`);
+      onSyncComplete?.(decryptedMessages.length);
+
+    } catch (parseErr) {
+      console.error('[useMessages] Failed to parse sync event:', parseErr);
+      setIsSyncing(false);
+    }
+  }, [sessionId, userId, onNewMessage, onSyncComplete, handleError]);
+
+  /**
+   * Trigger message sync (5.1.2).
+   */
+  const syncMessages = useCallback(() => {
+    if (!isConnected || !sessionId) {
+      console.warn('[useMessages] Cannot sync - not connected or no session');
+      return;
+    }
+
+    if (!isHandshakeComplete(sessionId)) {
+      console.warn('[useMessages] Cannot sync - handshake not complete');
+      return;
+    }
+
+    setIsSyncing(true);
+    
+    // Get timestamp of last message for incremental sync
+    const lastMessage = messages[messages.length - 1];
+    
+    publish(SYNC_MESSAGES_DESTINATION, {
+      sessionId,
+      lastMessageTimestamp: lastMessage?.timestamp || null,
+    });
+
+    console.log('[useMessages] Sync request sent');
+  }, [isConnected, sessionId, messages, publish]);
+
+  /**
    * Handle message sent acknowledgment.
    */
   const handleMessageSent = useCallback((message: IMessage) => {
@@ -388,11 +532,45 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     // Subscribe to message sent acknowledgments
     subscribe(MESSAGE_SENT_DESTINATION, handleMessageSent);
 
+    // Subscribe to sync results (5.1.2)
+    subscribe(SYNC_MESSAGES_RESULT_DESTINATION, handleSyncMessages);
+
     return () => {
       unsubscribe(NEW_MESSAGE_DESTINATION);
       unsubscribe(MESSAGE_SENT_DESTINATION);
+      unsubscribe(SYNC_MESSAGES_RESULT_DESTINATION);
     };
-  }, [isConnected, sessionId, subscribe, unsubscribe, handleNewMessage, handleMessageSent]);
+  }, [isConnected, sessionId, subscribe, unsubscribe, handleNewMessage, handleMessageSent, handleSyncMessages]);
+
+  // ============================================
+  // Auto-sync on Reconnection (5.1.2)
+  // ============================================
+
+  useEffect(() => {
+    if (!isConnected || !sessionId || !isReconnection) {
+      return;
+    }
+
+    // Only sync once per reconnection
+    if (syncTriggeredRef.current) {
+      return;
+    }
+
+    // Check if handshake is complete before syncing
+    if (!isHandshakeComplete(sessionId)) {
+      console.log('[useMessages] Skipping auto-sync - handshake not complete');
+      return;
+    }
+
+    console.log('[useMessages] Auto-syncing messages after reconnection');
+    syncTriggeredRef.current = true;
+    syncMessages();
+  }, [isConnected, sessionId, isReconnection, syncMessages]);
+
+  // Reset sync flag when session changes
+  useEffect(() => {
+    syncTriggeredRef.current = false;
+  }, [sessionId]);
 
   // ============================================
   // Cleanup on Session Change
@@ -408,9 +586,11 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   return {
     messages,
     isLoading,
+    isSyncing,
     sendMessage,
     clearMessages,
     retryMessage,
+    syncMessages,
     error,
   };
 }

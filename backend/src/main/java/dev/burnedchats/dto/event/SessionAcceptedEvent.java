@@ -75,6 +75,11 @@ public class SessionAcceptedEvent {
     private Instant acceptedAt;
 
     /**
+     * Timestamp when the session will expire (5.1.4).
+     */
+    private Instant expiresAt;
+
+    /**
      * Error code if acceptance failed.
      *
      * <p>Possible values:
@@ -98,11 +103,26 @@ public class SessionAcceptedEvent {
      * @return successful event
      */
     public static SessionAcceptedEvent success(String sessionId, UserResponse peer, Instant acceptedAt) {
+        return success(sessionId, peer, acceptedAt, null);
+    }
+
+    /**
+     * Create a successful session accepted event with expiration time (5.1.4).
+     *
+     * @param sessionId  the session ID
+     * @param peer       peer user info
+     * @param acceptedAt acceptance timestamp
+     * @param expiresAt  session expiration timestamp
+     * @return successful event
+     */
+    public static SessionAcceptedEvent success(String sessionId, UserResponse peer, 
+                                                Instant acceptedAt, Instant expiresAt) {
         return SessionAcceptedEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
                 .peer(peer)
                 .acceptedAt(acceptedAt)
+                .expiresAt(expiresAt)
                 .build();
     }
 

@@ -20,3 +20,6 @@ export type { BurnErrorCode, BurnStatus } from './useBurn';
 export { useHaptics } from './useHaptics';
 export type { ImpactStyle, NotificationType } from './useHaptics';
 export { useBackButton, useAutoBackButton } from './useBackButton';
+
+// Lifecycle hooks (Sprint 5.1)
+export { useAppLifecycle } from './useAppLifecycle';

@@ -17,6 +17,12 @@ interface WebSocketError {
   recoverable: boolean;
 }
 
+/** Stored subscription for reconnect restoration */
+interface StoredSubscription {
+  destination: string;
+  callback: (message: IMessage) => void;
+}
+
 interface UseWebSocketOptions {
   /** Auto-connect when hook mounts */
   autoConnect?: boolean;
@@ -34,6 +40,8 @@ interface UseWebSocketOptions {
   onDisconnect?: () => void;
   /** Callback when error occurs */
   onError?: (error: WebSocketError) => void;
+  /** Callback when reconnected (after disconnect) */
+  onReconnect?: () => void;
 }
 
 interface UseWebSocketReturn {
@@ -45,10 +53,12 @@ interface UseWebSocketReturn {
   error: WebSocketError | null;
   /** Reconnection attempt count */
   reconnectAttempt: number;
+  /** Whether this is a reconnection (not first connect) */
+  isReconnection: boolean;
   /** Initiate connection */
   connect: () => void;
-  /** Disconnect from server */
-  disconnect: () => void;
+  /** Disconnect from server (clearStoredSubscriptions=true clears for full disconnect) */
+  disconnect: (clearStoredSubscriptions?: boolean) => void;
   /** Subscribe to a destination */
   subscribe: (destination: string, callback: (message: IMessage) => void) => StompSubscription | null;
   /** Unsubscribe from a destination */
@@ -144,16 +154,22 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onConnect,
     onDisconnect,
     onError,
+    onReconnect,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<WebSocketError | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [isReconnection, setIsReconnection] = useState(false);
   
   const clientRef = useRef<Client | null>(null);
   const subscriptionsRef = useRef<Map<string, StompSubscription>>(new Map());
+  /** Store subscription callbacks for reconnect restoration */
+  const storedSubscriptionsRef = useRef<Map<string, StoredSubscription>>(new Map());
   const reconnectAttemptsRef = useRef(0);
+  /** Track if we've connected at least once */
+  const hasConnectedOnceRef = useRef(false);
 
   const handleError = useCallback((wsError: WebSocketError) => {
     setError(wsError);
@@ -187,8 +203,37 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         setIsConnected(true);
         setIsConnecting(false);
         setError(null);
+        
+        const wasReconnection = hasConnectedOnceRef.current;
+        hasConnectedOnceRef.current = true;
+        
         reconnectAttemptsRef.current = 0;
         setReconnectAttempt(0);
+        
+        // Restore subscriptions after reconnect (5.1.1)
+        if (wasReconnection && storedSubscriptionsRef.current.size > 0) {
+          console.log('[WebSocket] Restoring subscriptions after reconnect...');
+          setIsReconnection(true);
+          
+          // Clear old subscription refs
+          subscriptionsRef.current.clear();
+          
+          // Re-subscribe to all stored destinations
+          storedSubscriptionsRef.current.forEach(({ destination, callback }) => {
+            try {
+              const subscription = client.subscribe(destination, callback);
+              subscriptionsRef.current.set(destination, subscription);
+              console.log(`[WebSocket] Restored subscription to ${destination}`);
+            } catch (e) {
+              console.error(`[WebSocket] Failed to restore subscription to ${destination}:`, e);
+            }
+          });
+          
+          onReconnect?.();
+        } else {
+          setIsReconnection(false);
+        }
+        
         onConnect?.();
       },
       
@@ -273,9 +318,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     client.activate();
   }, [createClient, isConnecting, handleError]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((clearStoredSubscriptions = true) => {
     if (clientRef.current) {
-      // Clear all subscriptions
+      // Clear all active subscriptions
       subscriptionsRef.current.forEach((sub) => {
         try {
           sub.unsubscribe();
@@ -285,10 +330,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       });
       subscriptionsRef.current.clear();
 
+      // Clear stored subscriptions only if explicitly requested (full disconnect)
+      if (clearStoredSubscriptions) {
+        storedSubscriptionsRef.current.clear();
+        hasConnectedOnceRef.current = false;
+      }
+
       clientRef.current.deactivate();
       clientRef.current = null;
       setIsConnected(false);
       setIsConnecting(false);
+      setIsReconnection(false);
       reconnectAttemptsRef.current = 0;
       setReconnectAttempt(0);
     }
@@ -296,8 +348,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const subscribe = useCallback(
     (destination: string, callback: (message: IMessage) => void): StompSubscription | null => {
+      // Store subscription callback for reconnect restoration (5.1.1)
+      storedSubscriptionsRef.current.set(destination, { destination, callback });
+      
       if (!clientRef.current?.connected) {
-        console.warn('[WebSocket] Cannot subscribe - not connected');
+        console.warn('[WebSocket] Cannot subscribe - not connected (will subscribe on connect)');
         return null;
       }
 
@@ -317,6 +372,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   );
 
   const unsubscribe = useCallback((destination: string) => {
+    // Remove from stored subscriptions (5.1.1)
+    storedSubscriptionsRef.current.delete(destination);
+    
     const subscription = subscriptionsRef.current.get(destination);
     if (subscription) {
       try {
@@ -364,6 +422,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     isConnecting,
     error,
     reconnectAttempt,
+    isReconnection,
     connect,
     disconnect,
     subscribe,

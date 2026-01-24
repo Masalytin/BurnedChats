@@ -4,10 +4,14 @@ import dev.burnedchats.dto.event.IncomingRequestEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
 import dev.burnedchats.dto.event.SessionRejectedEvent;
+import dev.burnedchats.dto.event.PeerDisconnectedEvent;
+import dev.burnedchats.dto.event.SessionStatusEvent;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.request.AcceptSessionRequest;
 import dev.burnedchats.dto.request.CreateSessionRequest;
 import dev.burnedchats.dto.request.RejectSessionRequest;
+import dev.burnedchats.dto.request.PeerDisconnectRequest;
+import dev.burnedchats.dto.request.SessionStatusRequest;
 import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Session;
@@ -98,6 +102,16 @@ public class SessionHandler {
      * STOMP destination for session rejected event (sent to initiator).
      */
     private static final String SESSION_REJECTED_DESTINATION = "/queue/session-rejected";
+
+    /**
+     * STOMP destination for session status event (5.1.4).
+     */
+    private static final String SESSION_STATUS_DESTINATION = "/queue/session-status";
+
+    /**
+     * STOMP destination for peer disconnected event (5.1.5).
+     */
+    private static final String PEER_DISCONNECTED_DESTINATION = "/queue/peer-disconnected";
 
     /**
      * Emoji constants for Telegram notifications.
@@ -465,9 +479,12 @@ public class SessionHandler {
                     UserResponse initiatorInfo = users.getT1();
                     UserResponse responderInfo = users.getT2();
 
+                    // Calculate session expiration (5.1.4)
+                    Instant expiresAt = session.getExpiresAt();
+
                     // Send to initiator with responder info
                     SessionAcceptedEvent initiatorEvent = SessionAcceptedEvent.success(
-                            sessionId, responderInfo, acceptedAt);
+                            sessionId, responderInfo, acceptedAt, expiresAt);
                     messagingTemplate.convertAndSendToUser(
                             String.valueOf(initiatorId),
                             SESSION_ACCEPTED_DESTINATION,
@@ -476,15 +493,15 @@ public class SessionHandler {
 
                     // Send to responder with initiator info
                     SessionAcceptedEvent responderEvent = SessionAcceptedEvent.success(
-                            sessionId, initiatorInfo, acceptedAt);
+                            sessionId, initiatorInfo, acceptedAt, expiresAt);
                     messagingTemplate.convertAndSendToUser(
                             String.valueOf(responderId),
                             SESSION_ACCEPTED_DESTINATION,
                             responderEvent
                     );
 
-                    log.info("Session accepted: sessionId={}, initiator={}, responder={}",
-                            sessionId, initiatorId, responderId);
+                    log.info("Session accepted: sessionId={}, initiator={}, responder={}, expiresAt={}",
+                            sessionId, initiatorId, responderId, expiresAt);
                 })
                 .then();
     }
@@ -525,6 +542,128 @@ public class SessionHandler {
             // SHA-256 is always available
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+
+    // ==================== Session Status (5.1.4) ====================
+
+    /**
+     * Check session status and remaining time (5.1.4).
+     *
+     * <p>Used by clients to verify if a session is still active
+     * and to get the remaining time until expiration.
+     *
+     * @param request   the session status request
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/session.status")
+    public void checkSessionStatus(@Payload SessionStatusRequest request, Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+        String sessionId = request.sessionId();
+
+        log.debug("Session status check: sessionId={}, userId={}", sessionId, userId);
+
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    // Session not found (expired or never existed)
+                    sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                    return Mono.empty();
+                }))
+                .subscribe(
+                        session -> {
+                            // Validate user is participant
+                            if (!session.isParticipant(userId)) {
+                                sendSessionStatus(userId, SessionStatusEvent.error(sessionId, "NOT_PARTICIPANT"));
+                                return;
+                            }
+
+                            // Check if session is expired by status
+                            if (session.getStatus() == SessionStatus.EXPIRED 
+                                    || session.getStatus() == SessionStatus.BURNED) {
+                                sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                                return;
+                            }
+
+                            // Check TTL expiration
+                            if (session.isExpired()) {
+                                sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                                return;
+                            }
+
+                            // Session is active
+                            sendSessionStatus(userId, SessionStatusEvent.active(
+                                    sessionId,
+                                    session.getStatus(),
+                                    session.getExpiresAt(),
+                                    session.getRemainingSeconds()
+                            ));
+                        },
+                        error -> {
+                            log.error("Error checking session status: {}", error.getMessage());
+                            sendSessionStatus(userId, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
+                        }
+                );
+    }
+
+    /**
+     * Send session status event to user.
+     */
+    private void sendSessionStatus(Long userId, SessionStatusEvent event) {
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                SESSION_STATUS_DESTINATION,
+                event
+        );
+    }
+
+    // ==================== Peer Disconnect (5.1.5) ====================
+
+    /**
+     * Handle peer disconnect notification (5.1.5).
+     *
+     * <p>Called when a user is about to close the Mini App.
+     * Notifies the peer that the other participant has disconnected.
+     *
+     * @param request   the disconnect request
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/peer.disconnect")
+    public void handlePeerDisconnect(@Payload PeerDisconnectRequest request, Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+        String sessionId = request.sessionId();
+
+        log.info("Peer disconnect notification: sessionId={}, userId={}, reason={}",
+                sessionId, userId, request.reason());
+
+        sessionRepository.findById(sessionId)
+                .subscribe(
+                        session -> {
+                            // Validate user is participant
+                            if (!session.isParticipant(userId)) {
+                                log.debug("User {} is not participant in session {}", userId, sessionId);
+                                return;
+                            }
+
+                            // Get peer ID
+                            Long peerId = session.getPeerId(userId);
+                            if (peerId == null) {
+                                return;
+                            }
+
+                            // Notify peer
+                            PeerDisconnectedEvent event = PeerDisconnectedEvent.appClosed(sessionId, userId);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(peerId),
+                                    PEER_DISCONNECTED_DESTINATION,
+                                    event
+                            );
+
+                            log.info("Peer {} notified about disconnect of user {} in session {}",
+                                    peerId, userId, sessionId);
+                        },
+                        error -> log.error("Error handling peer disconnect: {}", error.getMessage())
+                );
     }
 
     // ==================== Reject Request (Task 3.4.3) ====================
