@@ -257,8 +257,21 @@
 | 4.5.2 | Back button handling | 🔴 P0 | 2 | 1.3.2 | ✅ |
 | 4.5.3 | Loading states | 🟠 P1 | 2 | — | ✅ |
 | 4.5.4 | Error toasts | 🟠 P1 | 2 | — | ✅ |
+| **4.6** | **Active Sessions Management** | | | | |
+| 4.6.1 | Backend: GET_ACTIVE_SESSIONS handler | 🔴 P0 | 3 | 3.1.1 | ⬜ |
+| 4.6.2 | Backend: событие ACTIVE_SESSIONS_LIST | 🔴 P0 | 2 | 4.6.1 | ⬜ |
+| 4.6.3 | Backend: RESUME_SESSION handler | 🔴 P0 | 3 | 4.6.1 | ⬜ |
+| 4.6.4 | Backend: очистка expired сессий при запросе | 🟠 P1 | 2 | 4.6.1 | ⬜ |
+| 4.6.5 | Frontend: hook useActiveSessions | 🔴 P0 | 3 | 4.6.2 | ⬜ |
+| 4.6.6 | Frontend: компонент SessionCard | 🔴 P0 | 2 | — | ⬜ |
+| 4.6.7 | Frontend: список активных сессий в HomePage | 🔴 P0 | 3 | 4.6.5, 4.6.6 | ⬜ |
+| 4.6.8 | Frontend: навигация к существующей сессии | 🔴 P0 | 2 | 4.6.7, 4.3.1 | ⬜ |
+| 4.6.9 | Frontend: восстановление crypto keys из keyStore | 🔴 P0 | 3 | 4.6.8, 2.5.2 | ⬜ |
+| 4.6.10 | Frontend: индикатор online/offline peer | 🟠 P1 | 2 | 4.6.7, 3.1.4 | ⬜ |
+| 4.6.11 | Frontend: Burn сессии из списка | 🟠 P1 | 2 | 4.6.7, 4.4.4 | ⬜ |
+| 4.6.12 | Frontend: pull-to-refresh для списка сессий | 🟡 P2 | 2 | 4.6.7 | ⬜ |
 
-**Total Sprint 4:** ~67 SP ≈ 8 дней
+**Total Sprint 4:** ~96 SP ≈ 12 дней
 
 ### Критерии готовности Sprint 4
 
@@ -267,6 +280,9 @@
 - [ ] Сообщения отображаются корректно
 - [ ] Burn работает и очищает данные на обоих устройствах
 - [x] Haptic feedback работает
+- [ ] Список активных сессий отображается на главной странице
+- [ ] Можно продолжить существующую сессию после перезапуска Mini App
+- [ ] Crypto ключи корректно восстанавливаются для существующих сессий
 
 ---
 
