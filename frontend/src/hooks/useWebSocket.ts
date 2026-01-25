@@ -171,16 +171,32 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const reconnectAttemptsRef = useRef(0);
   /** Track if we've connected at least once */
   const hasConnectedOnceRef = useRef(false);
+  /** Track connection state without causing re-renders in connect callback */
+  const isConnectingRef = useRef(false);
+  
+  /** Store callbacks in refs to prevent unnecessary recreations of createClient */
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+  const onReconnectRef = useRef(onReconnect);
+  
+  // Keep refs up to date
+  useEffect(() => {
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    onErrorRef.current = onError;
+    onReconnectRef.current = onReconnect;
+  }, [onConnect, onDisconnect, onError, onReconnect]);
 
   const handleError = useCallback((wsError: WebSocketError) => {
     setError(wsError);
-    onError?.(wsError);
+    onErrorRef.current?.(wsError);
 
     // For non-recoverable errors, stop reconnection attempts
     if (!wsError.recoverable && clientRef.current) {
       clientRef.current.deactivate();
     }
-  }, [onError]);
+  }, []);
 
   const createClient = useCallback(() => {
     // Get fresh initData for each connection attempt
@@ -211,6 +227,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       onConnect: () => {
         debugLog('success', 'STOMP connected successfully');
         setIsConnected(true);
+        isConnectingRef.current = false;
         setIsConnecting(false);
         setError(null);
         
@@ -239,19 +256,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
             }
           });
           
-          onReconnect?.();
+          onReconnectRef.current?.();
         } else {
           setIsReconnection(false);
         }
         
-        onConnect?.();
+        onConnectRef.current?.();
       },
       
       onDisconnect: () => {
         debugLog('warn', 'STOMP disconnected');
         setIsConnected(false);
+        isConnectingRef.current = false;
         setIsConnecting(false);
-        onDisconnect?.();
+        onDisconnectRef.current?.();
       },
       
       onStompError: (frame) => {
@@ -263,6 +281,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         });
         const wsError = parseStompError(frame);
         handleError(wsError);
+        isConnectingRef.current = false;
         setIsConnecting(false);
       },
       
@@ -276,6 +295,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           message: 'WebSocket connection failed',
           recoverable: true,
         });
+        isConnectingRef.current = false;
         setIsConnecting(false);
       },
       
@@ -307,12 +327,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     });
 
     return client;
-  }, [reconnectDelay, heartbeatIncoming, heartbeatOutgoing, maxReconnectAttempts, onConnect, onDisconnect, handleError]);
+  }, [reconnectDelay, heartbeatIncoming, heartbeatOutgoing, maxReconnectAttempts, handleError]);
 
   const connect = useCallback(() => {
     debugLog('info', 'connect() called', { 
       alreadyConnected: clientRef.current?.connected,
-      isConnecting,
+      isConnecting: isConnectingRef.current,
     });
     
     if (clientRef.current?.connected) {
@@ -320,7 +340,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       return;
     }
 
-    if (isConnecting) {
+    // Use ref to check connection state (avoids race condition from state updates)
+    if (isConnectingRef.current) {
       debugLog('info', 'Connection in progress, skipping');
       return;
     }
@@ -339,6 +360,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       return;
     }
 
+    // Set ref immediately to prevent race conditions
+    isConnectingRef.current = true;
     setIsConnecting(true);
     setError(null);
     reconnectAttemptsRef.current = 0;
@@ -349,7 +372,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     
     debugLog('info', 'Activating STOMP client', { url: WS_URL });
     client.activate();
-  }, [createClient, isConnecting, handleError]);
+  }, [createClient, handleError]);
 
   const disconnect = useCallback((clearStoredSubscriptions = true) => {
     if (clientRef.current) {
@@ -372,6 +395,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       clientRef.current.deactivate();
       clientRef.current = null;
       setIsConnected(false);
+      isConnectingRef.current = false;
       setIsConnecting(false);
       setIsReconnection(false);
       reconnectAttemptsRef.current = 0;
