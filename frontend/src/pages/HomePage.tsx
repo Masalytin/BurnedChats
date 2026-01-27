@@ -2,7 +2,7 @@ import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react
 import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { SearchResult, UserInfo } from '../types';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard } from '../components';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon } from '../icons';
 import './HomePage.css';
 
@@ -33,6 +33,8 @@ interface HomePageProps {
   onSessionClick?: (session: ActiveSession) => void;
   /** Session currently being resumed */
   resumingSessionId?: string | null;
+  /** Callback to refresh sessions list (4.6.12) */
+  onRefreshSessions?: () => void;
 }
 
 /** Default search result state */
@@ -61,6 +63,7 @@ export function HomePage({
   isLoadingSessions = false,
   onSessionClick,
   resumingSessionId = null,
+  onRefreshSessions,
 }: HomePageProps) {
   const [localQuery, setLocalQuery] = useState('');
   
@@ -204,39 +207,46 @@ export function HomePage({
         />
       </section>
 
-      {/* Active Sessions List (4.6.7) */}
+      {/* Active Sessions List (4.6.7) with Pull-to-Refresh (4.6.12) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '300ms' }}>
         <h3 className="home-section-title">Active Sessions</h3>
         
-        {/* Loading state */}
-        {isLoadingSessions && (
-          <div className="session-list">
-            <SessionCardSkeleton />
-            <SessionCardSkeleton />
-          </div>
-        )}
+        <PullToRefresh
+          onRefresh={() => onRefreshSessions?.()}
+          isRefreshing={isLoadingSessions}
+          disabled={!isConnected}
+          className="sessions-pull-to-refresh"
+        >
+          {/* Loading state */}
+          {isLoadingSessions && (
+            <div className="session-list">
+              <SessionCardSkeleton />
+              <SessionCardSkeleton />
+            </div>
+          )}
 
-        {/* Sessions list */}
-        {!isLoadingSessions && activeSessions.length > 0 && (
-          <div className="session-list">
-            {activeSessions.map((session) => (
-              <SessionCard
-                key={session.sessionId}
-                session={session}
-                onClick={() => onSessionClick?.(session)}
-                isLoading={resumingSessionId === session.sessionId}
-              />
-            ))}
-          </div>
-        )}
+          {/* Sessions list */}
+          {!isLoadingSessions && activeSessions.length > 0 && (
+            <div className="session-list">
+              {activeSessions.map((session) => (
+                <SessionCard
+                  key={session.sessionId}
+                  session={session}
+                  onClick={() => onSessionClick?.(session)}
+                  isLoading={resumingSessionId === session.sessionId}
+                />
+              ))}
+            </div>
+          )}
 
-        {/* Empty state */}
-        {!isLoadingSessions && activeSessions.length === 0 && (
-          <div className="home-empty-state">
-            <p>No active sessions</p>
-            <span>Start a chat to see your sessions here</span>
-          </div>
-        )}
+          {/* Empty state */}
+          {!isLoadingSessions && activeSessions.length === 0 && (
+            <div className="home-empty-state">
+              <p>No active sessions</p>
+              <span>Pull down to refresh</span>
+            </div>
+          )}
+        </PullToRefresh>
       </section>
     </div>
   );

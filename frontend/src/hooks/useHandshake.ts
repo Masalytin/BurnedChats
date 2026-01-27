@@ -13,7 +13,9 @@ import {
   storePeerPublicKey,
   storeSharedSecret,
   getKeyPair,
+  getSessionKeys,
   hasSession,
+  isHandshakeComplete,
   burn,
 } from '../crypto';
 
@@ -370,6 +372,37 @@ export function useHandshake({
   }, [isConnected, subscribe, unsubscribe, handlePeerPublicKey]);
 
   /**
+   * Restore session from existing keys in keyStore (4.6.9).
+   * Returns true if restoration was successful, false if fresh handshake is needed.
+   */
+  const restoreFromKeyStore = useCallback((sessionId: string, peer: UserInfo): boolean => {
+    // Check if we have a completed handshake for this session
+    if (!isHandshakeComplete(sessionId)) {
+      return false;
+    }
+
+    const sessionKeys = getSessionKeys(sessionId);
+    if (!sessionKeys?.sharedSecret?.fingerprint) {
+      return false;
+    }
+
+    console.log('[useHandshake] Restoring session from keyStore:', sessionId);
+
+    // Session is already complete - restore the state
+    setResult({
+      stage: 'complete',
+      sessionId,
+      peer,
+      fingerprint: sessionKeys.sharedSecret.fingerprint,
+      error: null,
+      progress: 100,
+    });
+
+    onHandshakeComplete?.(sessionId, sessionKeys.sharedSecret.fingerprint);
+    return true;
+  }, [onHandshakeComplete]);
+
+  /**
    * Start handshake process for a session.
    */
   const startHandshake = useCallback(async (sessionId: string, peer: UserInfo) => {
@@ -384,10 +417,16 @@ export function useHandshake({
       return;
     }
 
-    // Check if session already has keys (resuming)
+    // Task 4.6.9: Try to restore from existing keys first
     if (hasSession(sessionId)) {
-      console.log('[useHandshake] Session already has keys, checking state...');
-      // If keys exist, we might already be in handshake
+      console.log('[useHandshake] Session already has keys, attempting to restore...');
+      if (restoreFromKeyStore(sessionId, peer)) {
+        console.log('[useHandshake] Session restored from keyStore successfully');
+        return;
+      }
+      // Keys exist but handshake not complete - burn and start fresh
+      console.log('[useHandshake] Partial keys found, starting fresh handshake...');
+      burn(sessionId);
     }
 
     console.log('[useHandshake] Starting handshake for session:', sessionId);
@@ -434,7 +473,7 @@ export function useHandshake({
       console.error('[useHandshake] Failed to start handshake:', error);
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
-  }, [isConnected, timeout, publish, updateStage, handleError]);
+  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore]);
 
   /**
    * Cancel/abort the current handshake.

@@ -1,0 +1,91 @@
+.pull-to-refresh {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Pull indicator */
+.pull-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.pull-indicator-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-sm);
+}
+
+/* Pull arrow */
+.pull-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.pull-arrow svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Ready state - arrow rotated */
+.pull-indicator--ready .pull-arrow {
+  color: var(--bc-brand-primary);
+}
+
+/* Pull text */
+.pull-text {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  white-space: nowrap;
+}
+
+.pull-indicator--ready .pull-text {
+  color: var(--bc-brand-primary);
+}
+
+.pull-indicator--refreshing .pull-text {
+  color: var(--bc-text-secondary);
+}
+
+/* Spinner */
+.pull-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--bc-border);
+  border-top-color: var(--bc-brand-primary);
+  border-radius: 50%;
+  animation: pull-spin 0.8s linear infinite;
+}
+
+@keyframes pull-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Content wrapper */
+.pull-content {
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+
+/* When pulling, disable transition for smooth drag */
+.pull-indicator--pulling + .pull-content,
+.pull-indicator--ready + .pull-content {
+  transition: none;
+}

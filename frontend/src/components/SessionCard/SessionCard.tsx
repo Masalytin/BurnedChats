@@ -29,7 +29,6 @@ export function SessionCard({
   
   const isActive = status === 'ACTIVE';
   const isHandshaking = status === 'HANDSHAKING';
-  const isPending = status === 'PENDING';
   const bothVerified = verified && peerVerified;
   
   const statusLabel = getStatusLabel(status);

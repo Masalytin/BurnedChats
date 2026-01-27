@@ -177,7 +177,6 @@ function AppContent() {
     isLoading: isLoadingSessions,
     fetchSessions,
     resumeSession,
-    isResuming: isResumingSession,
     resumeResult,
     resetResume,
   } = useActiveSessions({
@@ -541,6 +540,7 @@ function AppContent() {
         isLoadingSessions={isLoadingSessions}
         onSessionClick={handleSessionClick}
         resumingSessionId={resumingSessionId}
+        onRefreshSessions={fetchSessions}
       />
 
       {/* Chat request dialog */}
