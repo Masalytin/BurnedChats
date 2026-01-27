@@ -258,10 +258,10 @@
 | 4.5.3 | Loading states | 🟠 P1 | 2 | — | ✅ |
 | 4.5.4 | Error toasts | 🟠 P1 | 2 | — | ✅ |
 | **4.6** | **Active Sessions Management** | | | | |
-| 4.6.1 | Backend: GET_ACTIVE_SESSIONS handler | 🔴 P0 | 3 | 3.1.1 | ⬜ |
-| 4.6.2 | Backend: событие ACTIVE_SESSIONS_LIST | 🔴 P0 | 2 | 4.6.1 | ⬜ |
-| 4.6.3 | Backend: RESUME_SESSION handler | 🔴 P0 | 3 | 4.6.1 | ⬜ |
-| 4.6.4 | Backend: очистка expired сессий при запросе | 🟠 P1 | 2 | 4.6.1 | ⬜ |
+| 4.6.1 | Backend: GET_ACTIVE_SESSIONS handler | 🔴 P0 | 3 | 3.1.1 | ✅ |
+| 4.6.2 | Backend: событие ACTIVE_SESSIONS_LIST | 🔴 P0 | 2 | 4.6.1 | ✅ |
+| 4.6.3 | Backend: RESUME_SESSION handler | 🔴 P0 | 3 | 4.6.1 | ✅ |
+| 4.6.4 | Backend: очистка expired сессий при запросе | 🟠 P1 | 2 | 4.6.1 | ✅ |
 | 4.6.5 | Frontend: hook useActiveSessions | 🔴 P0 | 3 | 4.6.2 | ⬜ |
 | 4.6.6 | Frontend: компонент SessionCard | 🔴 P0 | 2 | — | ⬜ |
 | 4.6.7 | Frontend: список активных сессий в HomePage | 🔴 P0 | 3 | 4.6.5, 4.6.6 | ⬜ |

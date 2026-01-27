@@ -1,17 +1,22 @@
 package dev.burnedchats.handler;
 
+import dev.burnedchats.dto.event.ActiveSessionsListEvent;
 import dev.burnedchats.dto.event.IncomingRequestEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
 import dev.burnedchats.dto.event.SessionRejectedEvent;
+import dev.burnedchats.dto.event.SessionResumedEvent;
 import dev.burnedchats.dto.event.PeerDisconnectedEvent;
 import dev.burnedchats.dto.event.SessionStatusEvent;
 import dev.burnedchats.dto.mapper.UserMapper;
+import dev.burnedchats.dto.mapper.SessionMapper;
 import dev.burnedchats.dto.request.AcceptSessionRequest;
 import dev.burnedchats.dto.request.CreateSessionRequest;
 import dev.burnedchats.dto.request.RejectSessionRequest;
+import dev.burnedchats.dto.request.ResumeSessionRequest;
 import dev.burnedchats.dto.request.PeerDisconnectRequest;
 import dev.burnedchats.dto.request.SessionStatusRequest;
+import dev.burnedchats.dto.response.SessionResponse;
 import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Session;
@@ -37,7 +42,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -114,6 +121,16 @@ public class SessionHandler {
     private static final String PEER_DISCONNECTED_DESTINATION = "/queue/peer-disconnected";
 
     /**
+     * STOMP destination for active sessions list event (4.6.1).
+     */
+    private static final String ACTIVE_SESSIONS_DESTINATION = "/queue/active-sessions";
+
+    /**
+     * STOMP destination for session resumed event (4.6.3).
+     */
+    private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
+
+    /**
      * Emoji constants for Telegram notifications.
      */
     private static final String FIRE_EMOJI = "🔥";
@@ -125,6 +142,7 @@ public class SessionHandler {
     private final UserRepository userRepository;
     private final OnlineStatusRepository onlineStatusRepository;
     private final UserMapper userMapper;
+    private final SessionMapper sessionMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final BurnedChatsBot telegramBot;
 
@@ -749,5 +767,242 @@ public class SessionHandler {
                             sessionId, initiatorId, responderId);
                 })
                 .then();
+    }
+
+    // ==================== Active Sessions (4.6.1, 4.6.2, 4.6.4) ====================
+
+    /**
+     * Get list of active sessions for the authenticated user (4.6.1).
+     *
+     * <p>Returns all sessions where the user is a participant and the session
+     * is not burned or expired. Also performs cleanup of expired sessions (4.6.4).
+     *
+     * <p>Destinations:
+     * <ul>
+     *   <li>Input: {@code /app/session.active.list}</li>
+     *   <li>Output: {@code /user/queue/active-sessions}</li>
+     * </ul>
+     *
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/session.active.list")
+    public void getActiveSessions(Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+
+        log.info("Getting active sessions for user: {}", userId);
+
+        // Use concurrent list for thread-safe access from reactive streams
+        List<String> expiredSessionIds = new ArrayList<>();
+
+        sessionRepository.findAllActiveByParticipant(userId)
+                .flatMap(session -> {
+                    // 4.6.4: Check if session is expired and needs cleanup
+                    if (session.isExpired()) {
+                        synchronized (expiredSessionIds) {
+                            expiredSessionIds.add(session.getId());
+                        }
+                        log.debug("Session {} is expired, marking for cleanup", session.getId());
+                        return Mono.<SessionResponse>empty();
+                    }
+
+                    Long peerId = session.getPeerId(userId);
+                    boolean isInitiator = userId.equals(session.getInitiatorId());
+
+                    // Get peer info
+                    return Mono.zip(
+                            userRepository.findById(peerId)
+                                    .defaultIfEmpty(createPlaceholderUser(peerId)),
+                            onlineStatusRepository.isOnline(peerId)
+                    ).map(tuple -> {
+                        UserResponse peerResponse = userMapper.toResponse(tuple.getT1(), tuple.getT2());
+                        return sessionMapper.toResponse(session, peerResponse, isInitiator);
+                    });
+                })
+                .collectList()
+                .doOnSuccess(sessions -> {
+                    // 4.6.4: Cleanup expired sessions
+                    synchronized (expiredSessionIds) {
+                        if (!expiredSessionIds.isEmpty()) {
+                            cleanupExpiredSessions(new ArrayList<>(expiredSessionIds));
+                        }
+                    }
+                })
+                .subscribe(
+                        sessions -> {
+                            ActiveSessionsListEvent event = sessions.isEmpty()
+                                    ? ActiveSessionsListEvent.empty()
+                                    : ActiveSessionsListEvent.success(sessions);
+
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(userId),
+                                    ACTIVE_SESSIONS_DESTINATION,
+                                    event
+                            );
+
+                            log.info("Sent active sessions list to user {}: count={}", userId, sessions.size());
+                        },
+                        error -> {
+                            log.error("Error getting active sessions for user {}: {}",
+                                    userId, error.getMessage());
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(userId),
+                                    ACTIVE_SESSIONS_DESTINATION,
+                                    ActiveSessionsListEvent.error("INTERNAL_ERROR")
+                            );
+                        }
+                );
+    }
+
+    /**
+     * Cleanup expired sessions from Redis (4.6.4).
+     *
+     * @param sessionIds list of session IDs to delete
+     */
+    private void cleanupExpiredSessions(List<String> sessionIds) {
+        for (String sessionId : sessionIds) {
+            sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
+                    .then(sessionRepository.delete(sessionId))
+                    .subscribe(
+                            deleted -> log.info("Cleaned up expired session: {}", sessionId),
+                            error -> log.error("Error cleaning up session {}: {}",
+                                    sessionId, error.getMessage())
+                    );
+        }
+    }
+
+    // ==================== Resume Session (4.6.3) ====================
+
+    /**
+     * Resume an existing session (4.6.3).
+     *
+     * <p>Called when a user reopens the Mini App and wants to continue
+     * an existing session. Validates the session exists, is active,
+     * and the user is a participant.
+     *
+     * <p>Destinations:
+     * <ul>
+     *   <li>Input: {@code /app/session.resume}</li>
+     *   <li>Output: {@code /user/queue/session-resumed}</li>
+     * </ul>
+     *
+     * @param request   the resume session request payload
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/session.resume")
+    public void resumeSession(@Payload ResumeSessionRequest request, Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+        String sessionId = request.sessionId();
+
+        log.info("Session resume requested: sessionId={}, userId={}", sessionId, userId);
+
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.debug("Session not found for resume: {}", sessionId);
+                    sendResumeError(userId, sessionId, "SESSION_NOT_FOUND");
+                    return Mono.empty();
+                }))
+                .flatMap(session -> validateAndResumeSession(session, userId))
+                .subscribe(
+                        result -> {},
+                        error -> {
+                            log.error("Error resuming session {}: {}", sessionId, error.getMessage());
+                            sendResumeError(userId, sessionId, "INTERNAL_ERROR");
+                        }
+                );
+    }
+
+    /**
+     * Validate and process session resume.
+     */
+    private Mono<Void> validateAndResumeSession(Session session, Long userId) {
+        String sessionId = session.getId();
+
+        // Validate user is a participant
+        if (!session.isParticipant(userId)) {
+            log.debug("User {} is not participant in session {}", userId, sessionId);
+            sendResumeError(userId, sessionId, "NOT_PARTICIPANT");
+            return Mono.empty();
+        }
+
+        // Check if session is burned or expired
+        if (session.getStatus() == SessionStatus.BURNED) {
+            log.debug("Session {} is burned, cannot resume", sessionId);
+            sendResumeEvent(userId, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
+            return Mono.empty();
+        }
+
+        if (session.getStatus() == SessionStatus.EXPIRED || session.isExpired()) {
+            log.debug("Session {} is expired, cannot resume", sessionId);
+            // Cleanup the expired session
+            return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
+                    .doOnSuccess(v -> sendResumeEvent(userId, SessionResumedEvent.expired(sessionId)))
+                    .then();
+        }
+
+        return doResumeSession(session, userId);
+    }
+
+    /**
+     * Process session resume after validations pass.
+     */
+    private Mono<Void> doResumeSession(Session session, Long userId) {
+        String sessionId = session.getId();
+        Long peerId = session.getPeerId(userId);
+        boolean isInitiator = userId.equals(session.getInitiatorId());
+
+        // Update last activity and refresh TTL
+        return sessionRepository.updateLastActivity(sessionId)
+                .then(sessionRepository.refreshTtl(sessionId))
+                .then(Mono.zip(
+                        userRepository.findById(peerId)
+                                .defaultIfEmpty(createPlaceholderUser(peerId)),
+                        onlineStatusRepository.isOnline(peerId)
+                ))
+                .doOnSuccess(tuple -> {
+                    TelegramUser peerUser = tuple.getT1();
+                    boolean peerOnline = tuple.getT2();
+
+                    UserResponse peerResponse = userMapper.toResponse(peerUser, peerOnline);
+                    SessionResponse sessionResponse = sessionMapper.toResponse(session, peerResponse, isInitiator);
+
+                    SessionResumedEvent event = SessionResumedEvent.success(
+                            sessionId,
+                            sessionResponse,
+                            session.getStatus(),
+                            session.getExpiresAt(),
+                            session.getRemainingSeconds(),
+                            peerOnline
+                    );
+
+                    messagingTemplate.convertAndSendToUser(
+                            String.valueOf(userId),
+                            SESSION_RESUMED_DESTINATION,
+                            event
+                    );
+
+                    log.info("Session resumed: sessionId={}, userId={}, status={}, peerOnline={}",
+                            sessionId, userId, session.getStatus(), peerOnline);
+                })
+                .then();
+    }
+
+    /**
+     * Send resume error to user.
+     */
+    private void sendResumeError(Long userId, String sessionId, String errorCode) {
+        sendResumeEvent(userId, SessionResumedEvent.error(sessionId, errorCode));
+    }
+
+    /**
+     * Send resume event to user.
+     */
+    private void sendResumeEvent(Long userId, SessionResumedEvent event) {
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                SESSION_RESUMED_DESTINATION,
+                event
+        );
     }
 }

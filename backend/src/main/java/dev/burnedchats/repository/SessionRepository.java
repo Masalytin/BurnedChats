@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -227,6 +228,35 @@ public class SessionRepository {
                         log.debug("Found active session for user {}: {}", userId, session.getId());
                     }
                 });
+    }
+
+    /**
+     * Find ALL active sessions for a participant (4.6.1).
+     *
+     * <p>Returns all sessions where the user is a participant and the session
+     * is not burned or expired. Used for displaying active sessions list.
+     *
+     * <p>Note: This is an expensive operation as it scans all session keys.
+     * Consider maintaining a user->sessions index for better performance.
+     *
+     * @param userId Telegram user ID
+     * @return flux of active sessions for user
+     */
+    public Flux<Session> findAllActiveByParticipant(Long userId) {
+        log.debug("Finding all active sessions for user: {}", userId);
+        
+        return redisTemplate.keys(KEY_PREFIX + "*")
+                .flatMap(key -> redisTemplate.opsForHash().entries(key)
+                        .collectMap(
+                                entry -> entry.getKey().toString(),
+                                entry -> entry.getValue().toString()
+                        )
+                        .filter(map -> !map.isEmpty())
+                        .map(this::mapToSession))
+                .filter(session -> session.isParticipant(userId)
+                        && session.getStatus() != SessionStatus.BURNED
+                        && session.getStatus() != SessionStatus.EXPIRED)
+                .doOnComplete(() -> log.debug("Completed finding active sessions for user: {}", userId));
     }
 
     private String keyFor(String sessionId) {
