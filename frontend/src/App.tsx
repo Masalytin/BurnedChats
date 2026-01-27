@@ -6,6 +6,7 @@ import { useSession, type PendingSession } from './hooks/useSession';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake } from './hooks/useHandshake';
 import { useBackButton } from './hooks/useBackButton';
+import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { PendingRequestView } from './components/PendingRequestView';
@@ -169,6 +170,58 @@ function AppContent() {
       toast.error(`Handshake failed: ${errorCode}`, { title: 'Connection Error' });
     },
   });
+
+  // Active sessions hook (4.6.5 - 4.6.8)
+  const {
+    sessions: activeSessions,
+    isLoading: isLoadingSessions,
+    fetchSessions,
+    resumeSession,
+    isResuming: isResumingSession,
+    resumeResult,
+    resetResume,
+  } = useActiveSessions({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    autoFetch: true,
+    onSessionResumed: (session) => {
+      notificationOccurred('success');
+      console.log('[App] Session resumed:', session.sessionId);
+      // Store peer info for potential handshake continuation
+      const peerInfo: UserInfo = {
+        id: session.peer.id,
+        username: session.peer.username,
+        displayName: session.peer.displayName,
+        photoUrl: session.peer.photoUrl,
+        online: session.peer.online,
+        premium: session.peer.premium,
+      };
+      handshakePeerRef.current = peerInfo;
+      
+      // Navigate based on session status
+      if (session.status === 'ACTIVE') {
+        // Session is active - go directly to chat (TODO: implement chat view)
+        toast.success(`Resumed chat with ${session.peer.displayName}`);
+        // For now, start handshake to restore connection
+        startHandshake(session.sessionId, peerInfo);
+        setCurrentView('handshake');
+      } else if (session.status === 'HANDSHAKING') {
+        // Need to complete handshake
+        toast.info('Resuming secure connection...');
+        startHandshake(session.sessionId, peerInfo);
+        setCurrentView('handshake');
+      }
+    },
+    onError: (errorCode) => {
+      notificationOccurred('error');
+      toast.error(`Failed to resume session: ${errorCode}`, { title: 'Error' });
+    },
+  });
+
+  // Track which session is being resumed
+  const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
   // App state
   const [initError, setInitError] = useState<string | null>(null);
@@ -342,6 +395,23 @@ function AppContent() {
     }
   }, [handshakeResult.sessionId, startHandshake]);
 
+  // Handle clicking on an active session (4.6.8)
+  const handleSessionClick = useCallback((session: ActiveSession) => {
+    setResumingSessionId(session.sessionId);
+    resumeSession(session.sessionId);
+  }, [resumeSession]);
+
+  // Reset resuming state when resume completes
+  useEffect(() => {
+    if (resumeResult) {
+      setResumingSessionId(null);
+      if (!resumeResult.success) {
+        // Keep on home screen, error is shown via toast
+        resetResume();
+      }
+    }
+  }, [resumeResult, resetResume]);
+
   // Subscribe to REQUEST_ACCEPTED for initiator (when our pending request is accepted)
   useEffect(() => {
     if (!isConnected) return;
@@ -467,6 +537,10 @@ function AppContent() {
         onClearSearch={clearSearch}
         isSearching={isSearching}
         onStartChat={handleStartChat}
+        activeSessions={activeSessions}
+        isLoadingSessions={isLoadingSessions}
+        onSessionClick={handleSessionClick}
+        resumingSessionId={resumingSessionId}
       />
 
       {/* Chat request dialog */}

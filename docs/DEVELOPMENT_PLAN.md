@@ -262,10 +262,10 @@
 | 4.6.2 | Backend: событие ACTIVE_SESSIONS_LIST | 🔴 P0 | 2 | 4.6.1 | ✅ |
 | 4.6.3 | Backend: RESUME_SESSION handler | 🔴 P0 | 3 | 4.6.1 | ✅ |
 | 4.6.4 | Backend: очистка expired сессий при запросе | 🟠 P1 | 2 | 4.6.1 | ✅ |
-| 4.6.5 | Frontend: hook useActiveSessions | 🔴 P0 | 3 | 4.6.2 | ⬜ |
-| 4.6.6 | Frontend: компонент SessionCard | 🔴 P0 | 2 | — | ⬜ |
-| 4.6.7 | Frontend: список активных сессий в HomePage | 🔴 P0 | 3 | 4.6.5, 4.6.6 | ⬜ |
-| 4.6.8 | Frontend: навигация к существующей сессии | 🔴 P0 | 2 | 4.6.7, 4.3.1 | ⬜ |
+| 4.6.5 | Frontend: hook useActiveSessions | 🔴 P0 | 3 | 4.6.2 | ✅ |
+| 4.6.6 | Frontend: компонент SessionCard | 🔴 P0 | 2 | — | ✅ |
+| 4.6.7 | Frontend: список активных сессий в HomePage | 🔴 P0 | 3 | 4.6.5, 4.6.6 | ✅ |
+| 4.6.8 | Frontend: навигация к существующей сессии | 🔴 P0 | 2 | 4.6.7, 4.3.1 | ✅ |
 | 4.6.9 | Frontend: восстановление crypto keys из keyStore | 🔴 P0 | 3 | 4.6.8, 2.5.2 | ⬜ |
 | 4.6.10 | Frontend: индикатор online/offline peer | 🟠 P1 | 2 | 4.6.7, 3.1.4 | ⬜ |
 | 4.6.11 | Frontend: Burn сессии из списка | 🟠 P1 | 2 | 4.6.7, 4.4.4 | ⬜ |

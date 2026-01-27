@@ -23,3 +23,14 @@ export { useBackButton, useAutoBackButton } from './useBackButton';
 
 // Lifecycle hooks (Sprint 5.1)
 export { useAppLifecycle } from './useAppLifecycle';
+
+// Active Sessions hooks (Sprint 4.6)
+export { useActiveSessions } from './useActiveSessions';
+export type { 
+  SessionStatus as ActiveSessionStatus,
+  PeerInfo, 
+  ActiveSession, 
+  ActiveSessionsErrorCode,
+  ResumeSessionErrorCode,
+  ResumeSessionResult,
+} from './useActiveSessions';

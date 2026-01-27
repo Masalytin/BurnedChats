@@ -1,7 +1,8 @@
 import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
 import type { TelegramUser } from '../hooks/useTelegram';
+import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { SearchResult, UserInfo } from '../types';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult } from '../components';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard } from '../components';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon } from '../icons';
 import './HomePage.css';
 
@@ -24,6 +25,14 @@ interface HomePageProps {
   isSearching?: boolean;
   /** Callback when user wants to start chat */
   onStartChat?: (user: UserInfo) => void;
+  /** Active sessions list (4.6.7) */
+  activeSessions?: ActiveSession[];
+  /** Whether sessions are loading */
+  isLoadingSessions?: boolean;
+  /** Callback when user clicks on a session (4.6.8) */
+  onSessionClick?: (session: ActiveSession) => void;
+  /** Session currently being resumed */
+  resumingSessionId?: string | null;
 }
 
 /** Default search result state */
@@ -48,6 +57,10 @@ export function HomePage({
   onClearSearch,
   isSearching = false,
   onStartChat,
+  activeSessions = [],
+  isLoadingSessions = false,
+  onSessionClick,
+  resumingSessionId = null,
 }: HomePageProps) {
   const [localQuery, setLocalQuery] = useState('');
   
@@ -191,13 +204,39 @@ export function HomePage({
         />
       </section>
 
-      {/* Coming Soon - Sessions List */}
+      {/* Active Sessions List (4.6.7) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '300ms' }}>
         <h3 className="home-section-title">Active Sessions</h3>
-        <div className="home-empty-state">
-          <p>No active sessions</p>
-          <span>Start a chat to see your sessions here</span>
-        </div>
+        
+        {/* Loading state */}
+        {isLoadingSessions && (
+          <div className="session-list">
+            <SessionCardSkeleton />
+            <SessionCardSkeleton />
+          </div>
+        )}
+
+        {/* Sessions list */}
+        {!isLoadingSessions && activeSessions.length > 0 && (
+          <div className="session-list">
+            {activeSessions.map((session) => (
+              <SessionCard
+                key={session.sessionId}
+                session={session}
+                onClick={() => onSessionClick?.(session)}
+                isLoading={resumingSessionId === session.sessionId}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoadingSessions && activeSessions.length === 0 && (
+          <div className="home-empty-state">
+            <p>No active sessions</p>
+            <span>Start a chat to see your sessions here</span>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -216,6 +255,21 @@ function FeatureItem({ icon, title, description }: FeatureItemProps) {
       <div className="feature-content">
         <h4 className="feature-title">{title}</h4>
         <p className="feature-description">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Skeleton loader for SessionCard (4.6.7)
+ */
+function SessionCardSkeleton() {
+  return (
+    <div className="session-card-skeleton">
+      <div className="session-card-skeleton-avatar" />
+      <div className="session-card-skeleton-content">
+        <div className="session-card-skeleton-line session-card-skeleton-line--short" />
+        <div className="session-card-skeleton-line session-card-skeleton-line--medium" />
       </div>
     </div>
   );

@@ -29,3 +29,6 @@ export { LoadingOverlay } from './LoadingOverlay';
 export { Skeleton, SkeletonText, SkeletonAvatar, SkeletonCard } from './Skeleton';
 export { Toast, ToastContainer, ToastProvider, useToast } from './Toast';
 export type { ToastData, ToastType } from './Toast';
+
+// Active Sessions Components (Sprint 4.6)
+export { SessionCard } from './SessionCard';
