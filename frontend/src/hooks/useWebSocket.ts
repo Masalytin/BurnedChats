@@ -226,10 +226,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       
       onConnect: () => {
         debugLog('success', 'STOMP connected successfully');
-        setIsConnected(true);
-        isConnectingRef.current = false;
-        setIsConnecting(false);
-        setError(null);
         
         const wasReconnection = hasConnectedOnceRef.current;
         hasConnectedOnceRef.current = true;
@@ -237,29 +233,44 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         reconnectAttemptsRef.current = 0;
         setReconnectAttempt(0);
         
-        // Restore subscriptions after reconnect (5.1.1)
-        if (wasReconnection && storedSubscriptionsRef.current.size > 0) {
-          debugLog('info', 'Restoring subscriptions after reconnect');
-          setIsReconnection(true);
+        // Restore/apply stored subscriptions BEFORE signaling connected
+        // This prevents race conditions where server sends messages before subscriptions are ready
+        if (storedSubscriptionsRef.current.size > 0) {
+          debugLog('info', wasReconnection ? 'Restoring subscriptions after reconnect' : 'Applying stored subscriptions on first connect');
           
-          // Clear old subscription refs
-          subscriptionsRef.current.clear();
+          if (wasReconnection) {
+            setIsReconnection(true);
+            // Clear old subscription refs on reconnect
+            subscriptionsRef.current.clear();
+          }
           
-          // Re-subscribe to all stored destinations
+          // Subscribe to all stored destinations
           storedSubscriptionsRef.current.forEach(({ destination, callback }) => {
+            // Skip if already subscribed (for first connect)
+            if (subscriptionsRef.current.has(destination)) {
+              return;
+            }
             try {
               const subscription = client.subscribe(destination, callback);
               subscriptionsRef.current.set(destination, subscription);
-              debugLog('info', `Restored subscription to ${destination}`);
+              debugLog('info', `${wasReconnection ? 'Restored' : 'Applied'} subscription to ${destination}`);
             } catch (e) {
-              debugLog('error', `Failed to restore subscription to ${destination}`, { error: String(e) });
+              debugLog('error', `Failed to subscribe to ${destination}`, { error: String(e) });
             }
           });
           
-          onReconnectRef.current?.();
+          if (wasReconnection) {
+            onReconnectRef.current?.();
+          }
         } else {
           setIsReconnection(false);
         }
+        
+        // Set connected state AFTER subscriptions are established
+        setIsConnected(true);
+        isConnectingRef.current = false;
+        setIsConnecting(false);
+        setError(null);
         
         onConnectRef.current?.();
       },

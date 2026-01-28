@@ -277,14 +277,17 @@ export function useIncomingRequests({
   }, [onSessionAccepted, onError]);
 
   /**
-   * Subscribe to events when connected.
+   * Register subscriptions immediately (even before connected).
+   * This ensures the WebSocket hook can apply them when connection is established,
+   * preventing race conditions where server sends messages before subscriptions are ready.
    */
   useEffect(() => {
-    if (isConnected && !isSubscribedRef.current) {
+    // Register subscriptions immediately - they will be stored and applied on connect
+    if (!isSubscribedRef.current) {
       subscribe(INCOMING_REQUEST_DESTINATION, handleIncomingRequest);
       subscribe(SESSION_ACCEPTED_DESTINATION, handleSessionAccepted);
       isSubscribedRef.current = true;
-      console.log('[useIncomingRequests] Subscribed to incoming requests');
+      console.log('[useIncomingRequests] Registered subscriptions for incoming requests');
     }
 
     return () => {
@@ -295,7 +298,7 @@ export function useIncomingRequests({
         console.log('[useIncomingRequests] Unsubscribed from incoming requests');
       }
     };
-  }, [isConnected, subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted]);
+  }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted]);
 
   /**
    * Accept a request.
