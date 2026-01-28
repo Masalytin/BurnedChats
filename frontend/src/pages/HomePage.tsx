@@ -35,6 +35,10 @@ interface HomePageProps {
   resumingSessionId?: string | null;
   /** Callback to refresh sessions list (4.6.12) */
   onRefreshSessions?: () => void;
+  /** Callback when user wants to burn a session (4.6.11) */
+  onBurnSession?: (sessionId: string, peerName: string) => void;
+  /** Session currently being burned (4.6.11) */
+  burningSessionId?: string | null;
 }
 
 /** Default search result state */
@@ -64,6 +68,8 @@ export function HomePage({
   onSessionClick,
   resumingSessionId = null,
   onRefreshSessions,
+  onBurnSession,
+  burningSessionId = null,
 }: HomePageProps) {
   const [localQuery, setLocalQuery] = useState('');
   
@@ -233,7 +239,9 @@ export function HomePage({
                   key={session.sessionId}
                   session={session}
                   onClick={() => onSessionClick?.(session)}
+                  onBurn={onBurnSession}
                   isLoading={resumingSessionId === session.sessionId}
+                  isBurning={burningSessionId === session.sessionId}
                 />
               ))}
             </div>

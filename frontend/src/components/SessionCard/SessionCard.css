@@ -41,19 +41,37 @@
   flex-shrink: 0;
 }
 
-.session-card-online-dot {
+/* Online/Offline presence indicator (4.6.10) */
+.session-card-presence {
   position: absolute;
   bottom: 2px;
   right: 2px;
   width: 10px;
   height: 10px;
-  background: var(--bc-success);
   border: 2px solid var(--bc-bg-secondary);
   border-radius: 50%;
+  transition: background-color 0.2s ease;
 }
 
-.session-card:hover .session-card-online-dot {
+.session-card:hover .session-card-presence {
   border-color: var(--bc-bg-elevated);
+}
+
+.session-card-presence--online {
+  background: var(--bc-success);
+}
+
+.session-card-presence--offline {
+  background: var(--bc-text-muted);
+  opacity: 0.5;
+}
+
+/* Online text indicator (4.6.10) */
+.session-card-online-text {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-success);
+  font-weight: 500;
+  margin-left: auto;
 }
 
 /* Content */
@@ -180,6 +198,7 @@
   opacity: 1;
 }
 
+/* Burn indicator (display only) */
 .session-card-burn-indicator {
   display: flex;
   align-items: center;
@@ -191,6 +210,48 @@
 
 .session-card:hover .session-card-burn-indicator {
   opacity: 0.8;
+}
+
+/* Burn button (4.6.11) */
+.session-card-burn-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--bc-brand-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--bc-radius-md);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: all 0.2s ease;
+}
+
+.session-card-burn-btn:hover {
+  opacity: 1;
+  background: rgba(255, 107, 53, 0.1);
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+.session-card-burn-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 107, 53, 0.2);
+}
+
+.session-card-burn-btn--loading {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+}
+
+.session-card-burn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-top-color: var(--bc-brand-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* Loading spinner */

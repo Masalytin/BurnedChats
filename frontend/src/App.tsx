@@ -9,6 +9,7 @@ import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
+import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
@@ -16,6 +17,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { burn as burnKeys } from './crypto/keyStore';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
@@ -222,6 +224,11 @@ function AppContent() {
   // Track which session is being resumed
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
+  // Burn session state (4.6.11)
+  const [showBurnDialog, setShowBurnDialog] = useState(false);
+  const [burnTargetSession, setBurnTargetSession] = useState<{ sessionId: string; peerName: string } | null>(null);
+  const [burningSessionId, setBurningSessionId] = useState<string | null>(null);
+
   // App state
   const [initError, setInitError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
@@ -400,6 +407,31 @@ function AppContent() {
     resumeSession(session.sessionId);
   }, [resumeSession]);
 
+  // Handle burn session from list (4.6.11)
+  const handleBurnSessionRequest = useCallback((sessionId: string, peerName: string) => {
+    setBurnTargetSession({ sessionId, peerName });
+    setShowBurnDialog(true);
+    notificationOccurred('warning');
+  }, [notificationOccurred]);
+
+  // Confirm burn session (4.6.11)
+  const handleConfirmBurn = useCallback(() => {
+    if (!burnTargetSession || !isConnected) return;
+
+    setBurningSessionId(burnTargetSession.sessionId);
+    setShowBurnDialog(false);
+    
+    // Send burn request to server
+    publish('/app/session.burn', { sessionId: burnTargetSession.sessionId });
+    console.log('[App] Burn request sent for session:', burnTargetSession.sessionId);
+  }, [burnTargetSession, isConnected, publish]);
+
+  // Cancel burn dialog (4.6.11)
+  const handleCancelBurn = useCallback(() => {
+    setShowBurnDialog(false);
+    setBurnTargetSession(null);
+  }, []);
+
   // Reset resuming state when resume completes
   useEffect(() => {
     if (resumeResult) {
@@ -445,6 +477,51 @@ function AppContent() {
       }
     };
   }, [isConnected, subscribe, unsubscribe, pendingSession, startHandshake, notificationOccurred]);
+
+  // Subscribe to BURN_SIGNAL for session list burn (4.6.11)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleBurnSignal = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body);
+        
+        if (data.success && data.sessionId) {
+          // Session was burned successfully
+          console.log('[App] Session burned:', data.sessionId);
+          
+          // Clean up local crypto keys
+          burnKeys(data.sessionId);
+          
+          // Reset burn state
+          setBurningSessionId(null);
+          setBurnTargetSession(null);
+          
+          // Refresh sessions list
+          fetchSessions();
+          
+          // Show notification
+          notificationOccurred('success');
+          toast.success('Session burned successfully');
+        } else if (!data.success && data.error) {
+          // Burn failed
+          console.error('[App] Burn failed:', data.error);
+          setBurningSessionId(null);
+          notificationOccurred('error');
+          toast.error(`Failed to burn session: ${data.error}`, { title: 'Error' });
+        }
+      } catch (error) {
+        console.error('[App] Failed to parse burn signal:', error);
+        setBurningSessionId(null);
+      }
+    };
+
+    subscribe('/user/queue/burn-signal', handleBurnSignal);
+    
+    return () => {
+      unsubscribe('/user/queue/burn-signal');
+    };
+  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast]);
 
   // Loading state
   if (!isReady) {
@@ -541,6 +618,8 @@ function AppContent() {
         onSessionClick={handleSessionClick}
         resumingSessionId={resumingSessionId}
         onRefreshSessions={fetchSessions}
+        onBurnSession={handleBurnSessionRequest}
+        burningSessionId={burningSessionId}
       />
 
       {/* Chat request dialog */}
@@ -551,6 +630,16 @@ function AppContent() {
           error={sessionResult.error}
           onClose={handleCloseChatRequestDialog}
           onSubmit={handleSubmitChatRequest}
+        />
+      )}
+
+      {/* Burn confirm dialog (4.6.11) */}
+      {showBurnDialog && burnTargetSession && (
+        <BurnConfirmDialog
+          peerName={burnTargetSession.peerName}
+          isLoading={burningSessionId === burnTargetSession.sessionId}
+          onConfirm={handleConfirmBurn}
+          onCancel={handleCancelBurn}
         />
       )}
 

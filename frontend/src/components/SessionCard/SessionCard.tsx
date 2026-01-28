@@ -8,10 +8,14 @@ interface SessionCardProps {
   session: ActiveSession;
   /** Click handler */
   onClick?: () => void;
+  /** Burn session handler (4.6.11) */
+  onBurn?: (sessionId: string, peerName: string) => void;
   /** Whether the card is currently selected */
   isSelected?: boolean;
   /** Whether action is in progress (e.g., resuming) */
   isLoading?: boolean;
+  /** Whether burn is in progress for this session */
+  isBurning?: boolean;
 }
 
 /**
@@ -22,8 +26,10 @@ interface SessionCardProps {
 export function SessionCard({ 
   session, 
   onClick, 
+  onBurn,
   isSelected = false,
   isLoading = false,
+  isBurning = false,
 }: SessionCardProps) {
   const { peer, status, verified, peerVerified, lastActivityAt } = session;
   
@@ -34,26 +40,44 @@ export function SessionCard({
   const statusLabel = getStatusLabel(status);
   const timeAgo = getTimeAgo(lastActivityAt);
 
+  /**
+   * Handle burn button click (4.6.11).
+   * Stops propagation to prevent card click handler.
+   */
+  const handleBurnClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onBurn && !isBurning && !isLoading) {
+      onBurn(session.sessionId, peer.displayName);
+    }
+  };
+
   return (
     <button
       className={`session-card ${isSelected ? 'session-card--selected' : ''} ${isLoading ? 'session-card--loading' : ''}`}
       onClick={onClick}
-      disabled={isLoading}
+      disabled={isLoading || isBurning}
       type="button"
     >
+      {/* Avatar with online/offline indicator (4.6.10) */}
       <div className="session-card-avatar">
         <Avatar 
           src={peer.photoUrl} 
           name={peer.displayName} 
           size="md"
         />
-        {peer.online && <span className="session-card-online-dot" />}
+        <span 
+          className={`session-card-presence ${peer.online ? 'session-card-presence--online' : 'session-card-presence--offline'}`}
+          title={peer.online ? 'Online' : 'Offline'}
+        />
       </div>
       
       <div className="session-card-content">
         <div className="session-card-header">
           <span className="session-card-name">{peer.displayName}</span>
           {peer.premium && <span className="session-card-premium">⭐</span>}
+          {/* Online text indicator (4.6.10) */}
+          {peer.online && <span className="session-card-online-text">online</span>}
         </div>
         
         {peer.username && (
@@ -81,8 +105,30 @@ export function SessionCard({
           </div>
         )}
         
-        {/* Burn indicator for active sessions */}
-        {isActive && (
+        {/* Burn button for active sessions (4.6.11) */}
+        {isActive && onBurn && (
+          <div 
+            className={`session-card-burn-btn ${isBurning ? 'session-card-burn-btn--loading' : ''}`}
+            onClick={handleBurnClick}
+            role="button"
+            tabIndex={0}
+            aria-label="Burn session"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                handleBurnClick(e as unknown as React.MouseEvent);
+              }
+            }}
+          >
+            {isBurning ? (
+              <div className="session-card-burn-spinner" />
+            ) : (
+              <FlameIcon size={16} />
+            )}
+          </div>
+        )}
+        
+        {/* Burn indicator when no handler (display only) */}
+        {isActive && !onBurn && (
           <div className="session-card-burn-indicator">
             <FlameIcon size={16} />
           </div>
