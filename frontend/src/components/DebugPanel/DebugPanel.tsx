@@ -38,6 +38,45 @@ interface DebugPanelProps {
 type TabId = 'status' | 'flow' | 'crypto' | 'logs';
 
 // ============================================
+// Local Storage Keys
+// ============================================
+
+const STORAGE_KEY_EXPANDED = 'debug-panel-expanded';
+const STORAGE_KEY_TAB = 'debug-panel-tab';
+const STORAGE_KEY_MINIMIZED = 'debug-panel-minimized';
+
+/** Load boolean from localStorage */
+function loadBoolean(key: string, defaultValue: boolean): boolean {
+  try {
+    const value = localStorage.getItem(key);
+    if (value === null) return defaultValue;
+    return value === 'true';
+  } catch {
+    return defaultValue;
+  }
+}
+
+/** Save boolean to localStorage */
+function saveBoolean(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/** Load string from localStorage */
+function loadString<T extends string>(key: string, defaultValue: T): T {
+  try {
+    const value = localStorage.getItem(key);
+    if (value === null) return defaultValue;
+    return value as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+// ============================================
 // Global Log Storage
 // ============================================
 
@@ -105,13 +144,70 @@ export function DebugPanel({
   sessionResult,
   handshakeResult,
 }: DebugPanelProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>('status');
+  // Panel state with persistence
+  const [isExpanded, setIsExpanded] = useState(() => loadBoolean(STORAGE_KEY_EXPANDED, false));
+  const [isMinimized, setIsMinimized] = useState(() => loadBoolean(STORAGE_KEY_MINIMIZED, false));
+  const [activeTab, setActiveTab] = useState<TabId>(() => loadString(STORAGE_KEY_TAB, 'status'));
+  
+  // Other state
   const [logs, setLogs] = useState<LogEntry[]>(globalLogs);
   const [isPaused, setIsPaused] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Persist expanded state
+  useEffect(() => {
+    saveBoolean(STORAGE_KEY_EXPANDED, isExpanded);
+  }, [isExpanded]);
+
+  // Persist minimized state
+  useEffect(() => {
+    saveBoolean(STORAGE_KEY_MINIMIZED, isMinimized);
+  }, [isMinimized]);
+
+  // Persist active tab
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TAB, activeTab);
+    } catch {
+      // Ignore
+    }
+  }, [activeTab]);
+
+  // Keyboard shortcut: Ctrl+Shift+D to toggle panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        if (isMinimized) {
+          setIsMinimized(false);
+          setIsExpanded(true);
+        } else {
+          setIsExpanded(prev => !prev);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMinimized]);
+
+  // Toggle expanded state
+  const toggleExpanded = useCallback(() => {
+    if (isMinimized) {
+      setIsMinimized(false);
+      setIsExpanded(true);
+    } else {
+      setIsExpanded(prev => !prev);
+    }
+  }, [isMinimized]);
+
+  // Minimize panel (show only floating indicator)
+  const minimizePanel = useCallback(() => {
+    setIsExpanded(false);
+    setIsMinimized(true);
+  }, []);
   
   // WS URL from env
   const wsUrl = import.meta.env.VITE_WS_URL || '/ws';
@@ -254,12 +350,27 @@ export function DebugPanel({
   const hasErrors = logs.some(l => l.level === 'error');
   const errorCount = logs.filter(l => l.level === 'error').length;
 
+  // Minimized mode - only show floating status indicator
+  if (isMinimized) {
+    return (
+      <button 
+        className={`debug-floating-btn ${hasErrors ? 'has-errors' : ''}`}
+        onClick={toggleExpanded}
+        title="Open Debug Panel (Ctrl+Shift+D)"
+      >
+        {statusIcon}
+        {hasErrors && <span className="debug-floating-error">{errorCount}</span>}
+      </button>
+    );
+  }
+
   return (
     <div className={`debug-panel ${isExpanded ? 'expanded' : 'collapsed'}`}>
       {/* Toggle button */}
       <button 
         className={`debug-toggle ${hasErrors ? 'has-errors' : ''}`}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={toggleExpanded}
+        title="Toggle Debug Panel (Ctrl+Shift+D)"
       >
         🐛 Debug {statusIcon}
         {hasErrors && <span className="debug-error-count">{errorCount}</span>}
@@ -267,6 +378,27 @@ export function DebugPanel({
 
       {isExpanded && (
         <div className="debug-content">
+          {/* Header with minimize button */}
+          <div className="debug-header">
+            <span className="debug-header-title">Debug Panel</span>
+            <div className="debug-header-actions">
+              <button 
+                className="debug-minimize-btn"
+                onClick={minimizePanel}
+                title="Minimize to floating button"
+              >
+                ➖
+              </button>
+              <button 
+                className="debug-close-panel-btn"
+                onClick={() => setIsExpanded(false)}
+                title="Close panel"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
           {/* Tab Navigation */}
           <div className="debug-tabs">
             {TABS.map(tab => (
