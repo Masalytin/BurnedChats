@@ -18,6 +18,7 @@ import {
   isHandshakeComplete,
   burn,
 } from '../crypto';
+import { logCryptoOperation } from '../components/DebugPanel';
 
 // ============================================
 // Constants
@@ -227,7 +228,9 @@ export function useHandshake({
 
     // Burn any keys that were generated
     if (sessionId) {
+      const startTime = performance.now();
       burn(sessionId);
+      logCryptoOperation('burn', sessionId, true, performance.now() - startTime);
     }
 
     setResult((prev) => ({
@@ -251,12 +254,19 @@ export function useHandshake({
     try {
       // Derive AES key using HKDF
       console.log('[useHandshake] Deriving AES key...');
+      let startTime = performance.now();
       const aesKey = await deriveAESKey(rawSharedSecret, sessionId);
+      logCryptoOperation('deriveAESKey', sessionId, true, performance.now() - startTime);
 
       // Generate fingerprints
       console.log('[useHandshake] Generating fingerprints...');
+      startTime = performance.now();
       const fingerprint = await generateFingerprint(rawSharedSecret);
+      logCryptoOperation('generateFingerprint', sessionId, true, performance.now() - startTime);
+      
+      startTime = performance.now();
       const visualFingerprint = await generateVisualFingerprint(rawSharedSecret);
+      logCryptoOperation('generateVisualFingerprint', sessionId, true, performance.now() - startTime);
 
       // Store shared secret
       storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint }, rawSharedSecret);
@@ -275,6 +285,7 @@ export function useHandshake({
 
     } catch (error) {
       console.error('[useHandshake] Failed to complete handshake:', error);
+      logCryptoOperation('deriveAESKey', sessionId, false, 0, String(error));
       handleError('KEY_DERIVATION_FAILED', sessionId);
     }
   }, [updateStage, handleError, onHandshakeComplete]);
@@ -312,9 +323,12 @@ export function useHandshake({
       // Import peer's public key
       console.log('[useHandshake] Importing peer public key...');
       let peerPublicKey: CryptoKey;
+      let startTime = performance.now();
       try {
         peerPublicKey = await importPublicKey(data.publicKey);
+        logCryptoOperation('importPublicKey', sessionId, true, performance.now() - startTime);
       } catch (error) {
+        logCryptoOperation('importPublicKey', sessionId, false, performance.now() - startTime, String(error));
         console.error('[useHandshake] Failed to import peer key:', error);
         handleError('KEY_IMPORT_FAILED', sessionId);
         return;
@@ -333,9 +347,12 @@ export function useHandshake({
       // Compute shared secret
       console.log('[useHandshake] Computing shared secret...');
       let rawSharedSecret: ArrayBuffer;
+      startTime = performance.now();
       try {
         rawSharedSecret = await computeSharedSecret(keyPair.privateKey, peerPublicKey);
+        logCryptoOperation('computeSharedSecret', sessionId, true, performance.now() - startTime);
       } catch (error) {
+        logCryptoOperation('computeSharedSecret', sessionId, false, performance.now() - startTime, String(error));
         console.error('[useHandshake] Failed to compute shared secret:', error);
         handleError('SECRET_COMPUTE_FAILED', sessionId);
         return;
@@ -426,7 +443,9 @@ export function useHandshake({
       }
       // Keys exist but handshake not complete - burn and start fresh
       console.log('[useHandshake] Partial keys found, starting fresh handshake...');
+      const burnStart = performance.now();
       burn(sessionId);
+      logCryptoOperation('burn', sessionId, true, performance.now() - burnStart);
     }
 
     console.log('[useHandshake] Starting handshake for session:', sessionId);
@@ -451,14 +470,18 @@ export function useHandshake({
     try {
       // Step 1: Generate ECDH key pair
       console.log('[useHandshake] Generating key pair...');
+      let startTime = performance.now();
       const keyPair = await generateKeyPair();
+      logCryptoOperation('generateKeyPair', sessionId, true, performance.now() - startTime);
       storeKeyPair(sessionId, keyPair);
 
       updateStage('sending_key');
 
       // Step 2: Export and send public key
       console.log('[useHandshake] Exporting public key...');
+      startTime = performance.now();
       const publicKeyBase64 = await exportPublicKey(keyPair.publicKey);
+      logCryptoOperation('exportPublicKey', sessionId, true, performance.now() - startTime);
 
       console.log('[useHandshake] Sending public key to server...');
       publish(HANDSHAKE_KEY_DESTINATION, {
@@ -471,6 +494,7 @@ export function useHandshake({
 
     } catch (error) {
       console.error('[useHandshake] Failed to start handshake:', error);
+      logCryptoOperation('generateKeyPair', sessionId, false, 0, String(error));
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
   }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore]);
@@ -485,7 +509,10 @@ export function useHandshake({
     }
 
     if (activeSessionRef.current) {
-      burn(activeSessionRef.current);
+      const sessionId = activeSessionRef.current;
+      const startTime = performance.now();
+      burn(sessionId);
+      logCryptoOperation('burn', sessionId, true, performance.now() - startTime);
       activeSessionRef.current = null;
     }
 

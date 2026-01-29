@@ -1,0 +1,688 @@
+/* ============================================
+   Debug Panel Tabs Styles
+   ============================================ */
+
+.debug-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+/* ============================================
+   Cards
+   ============================================ */
+
+.debug-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.debug-card.error {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.debug-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.debug-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.debug-card-body {
+  padding: 10px 12px;
+}
+
+.debug-card-body-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ============================================
+   Badges
+   ============================================ */
+
+.debug-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.debug-status-badge.status-connected {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.debug-status-badge.status-connecting,
+.debug-status-badge.status-reconnecting {
+  background: rgba(250, 204, 21, 0.2);
+  color: #facc15;
+}
+
+.debug-status-badge.status-disconnected {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.debug-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.debug-count-badge.warn {
+  background: rgba(250, 204, 21, 0.2);
+  color: #facc15;
+}
+
+.debug-error-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.debug-error-badge.recoverable {
+  background: rgba(250, 204, 21, 0.2);
+  color: #facc15;
+}
+
+.debug-error-badge.fatal {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.debug-flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-flow-badge.flow-active {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.debug-flow-badge.flow-handshaking {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.debug-flow-badge.flow-pending,
+.debug-flow-badge.flow-incoming {
+  background: rgba(250, 204, 21, 0.2);
+  color: #facc15;
+}
+
+/* ============================================
+   Rows
+   ============================================ */
+
+.debug-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.debug-row:last-child {
+  margin-bottom: 0;
+}
+
+.debug-row-label {
+  color: #666;
+  min-width: 100px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.debug-row-value {
+  color: #ccc;
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.debug-row-value.mono {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.debug-row-value.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.debug-row-value.warn {
+  color: #facc15;
+}
+
+.debug-row-value.success {
+  color: #4ade80;
+}
+
+.debug-row-value.error {
+  color: #f87171;
+}
+
+.debug-empty {
+  color: #555;
+  text-align: center;
+  padding: 12px;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ============================================
+   Subscription List
+   ============================================ */
+
+.debug-subscription-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.debug-subscription-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 10px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.debug-subscription-item:last-child {
+  border-bottom: none;
+}
+
+.debug-subscription-item.pending {
+  opacity: 0.6;
+}
+
+.debug-subscription-icon {
+  color: #4ade80;
+  font-size: 11px;
+}
+
+.debug-subscription-item.pending .debug-subscription-icon {
+  color: #facc15;
+}
+
+.debug-subscription-dest {
+  color: #aaa;
+  word-break: break-all;
+}
+
+/* ============================================
+   Stats
+   ============================================ */
+
+.debug-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+}
+
+.debug-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debug-stat-icon {
+  font-size: 14px;
+  color: #666;
+}
+
+.debug-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-stat-label {
+  font-size: 10px;
+  color: #666;
+}
+
+/* ============================================
+   Flow Progress
+   ============================================ */
+
+.debug-flow-progress {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.debug-flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.debug-flow-step-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  color: #555;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-flow-step.complete .debug-flow-step-indicator {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.debug-flow-step.current .debug-flow-step-indicator {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.4);
+  animation: pulse 1.5s infinite;
+}
+
+.debug-flow-step-label {
+  font-size: 9px;
+  color: #555;
+  text-align: center;
+}
+
+.debug-flow-step.complete .debug-flow-step-label,
+.debug-flow-step.current .debug-flow-step-label {
+  color: #888;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================
+   Progress Bar
+   ============================================ */
+
+.debug-progress-container {
+  margin-top: 12px;
+}
+
+.debug-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.debug-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #4ade80);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.debug-progress-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+}
+
+/* ============================================
+   Key States
+   ============================================ */
+
+.debug-key-states {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.debug-key-state {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.debug-key-state.has {
+  color: #4ade80;
+}
+
+.debug-key-state.missing {
+  color: #555;
+}
+
+.debug-key-icon {
+  font-size: 11px;
+}
+
+.debug-peer-id {
+  font-size: 10px;
+  color: #666;
+}
+
+/* ============================================
+   Timeline
+   ============================================ */
+
+.debug-timeline {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.debug-timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.debug-timeline-item:last-child {
+  border-bottom: none;
+}
+
+.debug-timeline-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  color: #555;
+}
+
+.debug-timeline-item.complete .debug-timeline-indicator {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.debug-timeline-item.current .debug-timeline-indicator {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.debug-timeline-item.error .debug-timeline-indicator {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.debug-timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.debug-timeline-time {
+  font-size: 9px;
+  color: #555;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-timeline-label {
+  display: block;
+  font-size: 11px;
+  color: #ccc;
+  margin-top: 2px;
+}
+
+.debug-timeline-details {
+  display: block;
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.debug-error-time {
+  font-size: 10px;
+  color: #666;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-error-message {
+  color: #f87171;
+  font-size: 11px;
+}
+
+/* ============================================
+   Crypto Sessions
+   ============================================ */
+
+.debug-crypto-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debug-crypto-session {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.debug-crypto-session.complete {
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.debug-crypto-session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.debug-crypto-session-id {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  color: #888;
+}
+
+.debug-crypto-session-status {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.debug-crypto-session-status.complete {
+  color: #4ade80;
+}
+
+.debug-crypto-session-status.partial {
+  color: #facc15;
+}
+
+.debug-crypto-session-body {
+  padding: 8px 10px;
+}
+
+.debug-crypto-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.debug-crypto-key {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.debug-crypto-key.has {
+  color: #4ade80;
+}
+
+.debug-crypto-key.missing {
+  color: #555;
+}
+
+.debug-crypto-fingerprint {
+  margin-bottom: 8px;
+}
+
+.debug-crypto-fingerprint-label {
+  font-size: 10px;
+  color: #666;
+  margin-right: 6px;
+}
+
+.debug-crypto-fingerprint-value {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.debug-crypto-visual {
+  margin-bottom: 8px;
+}
+
+.debug-crypto-visual-label {
+  display: block;
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.debug-crypto-visual-grid {
+  display: inline-flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.debug-crypto-visual-row {
+  display: flex;
+}
+
+.debug-crypto-visual-cell {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.debug-crypto-created {
+  font-size: 9px;
+  color: #555;
+}
+
+/* ============================================
+   Crypto Operations
+   ============================================ */
+
+.debug-crypto-operations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-crypto-op {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 10px;
+}
+
+.debug-crypto-op:last-child {
+  border-bottom: none;
+}
+
+.debug-crypto-op-icon {
+  width: 14px;
+  font-weight: 600;
+}
+
+.debug-crypto-op.success .debug-crypto-op-icon {
+  color: #4ade80;
+}
+
+.debug-crypto-op.error .debug-crypto-op-icon {
+  color: #f87171;
+}
+
+.debug-crypto-op-name {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  color: #aaa;
+}
+
+.debug-crypto-op-duration {
+  color: #666;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-crypto-op-time {
+  color: #555;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+}
+
+.debug-crypto-op-error {
+  display: block;
+  width: 100%;
+  color: #f87171;
+  font-size: 9px;
+  margin-top: 2px;
+  padding-left: 20px;
+}
+
+.debug-crypto-api-status {
+  /* Uses standard debug-row styles */
+}

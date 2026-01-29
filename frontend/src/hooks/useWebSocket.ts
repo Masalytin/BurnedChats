@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
-import { debugLog } from '../components/DebugPanel';
+import { debugLog, incrementMessagesSent, incrementMessagesReceived } from '../components/DebugPanel';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -45,6 +45,14 @@ interface UseWebSocketOptions {
   onReconnect?: () => void;
 }
 
+/** Debug state for WebSocket */
+export interface WebSocketDebugInfo {
+  /** List of currently active subscription destinations */
+  activeSubscriptions: string[];
+  /** List of stored subscription destinations (for reconnect) */
+  storedSubscriptions: string[];
+}
+
 interface UseWebSocketReturn {
   /** Whether connected to server */
   isConnected: boolean;
@@ -68,6 +76,8 @@ interface UseWebSocketReturn {
   publish: (destination: string, body: unknown) => void;
   /** STOMP client instance */
   client: Client | null;
+  /** Debug information (subscriptions, etc.) */
+  _debug: WebSocketDebugInfo;
 }
 
 const WS_URL = import.meta.env.VITE_WS_URL || '/ws';
@@ -416,8 +426,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const subscribe = useCallback(
     (destination: string, callback: (message: IMessage) => void): StompSubscription | null => {
+      // Wrap callback to track received messages
+      const wrappedCallback = (message: IMessage) => {
+        incrementMessagesReceived();
+        callback(message);
+      };
+      
       // Store subscription callback for reconnect restoration (5.1.1)
-      storedSubscriptionsRef.current.set(destination, { destination, callback });
+      storedSubscriptionsRef.current.set(destination, { destination, callback: wrappedCallback });
       
       if (!clientRef.current?.connected) {
         console.warn('[WebSocket] Cannot subscribe - not connected (will subscribe on connect)');
@@ -430,7 +446,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         return subscriptionsRef.current.get(destination)!;
       }
 
-      const subscription = clientRef.current.subscribe(destination, callback);
+      const subscription = clientRef.current.subscribe(destination, wrappedCallback);
       subscriptionsRef.current.set(destination, subscription);
       
       console.log(`[WebSocket] Subscribed to ${destination}`);
@@ -469,6 +485,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       },
     });
     
+    // Track message for debug panel
+    incrementMessagesSent();
+    
     if (import.meta.env.DEV) {
       console.log(`[WebSocket] Published to ${destination}:`, body);
     }
@@ -485,6 +504,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     };
   }, [autoConnect, connect, disconnect]);
 
+  // Debug state for Debug Panel
+  const _debug: WebSocketDebugInfo = {
+    activeSubscriptions: Array.from(subscriptionsRef.current.keys()),
+    storedSubscriptions: Array.from(storedSubscriptionsRef.current.keys()),
+  };
+
   return {
     isConnected,
     isConnecting,
@@ -497,6 +522,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     unsubscribe,
     publish,
     client: clientRef.current,
+    _debug,
   };
 }
 

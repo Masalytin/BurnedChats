@@ -49,6 +49,7 @@ function AppContent() {
     subscribe,
     unsubscribe,
     publish,
+    _debug: wsDebug,
   } = useWebSocket({
     onConnect: () => {
       debugLog('success', 'WebSocket connected');
@@ -655,6 +656,10 @@ function AppContent() {
         isConnecting={isConnecting}
         reconnectAttempt={reconnectAttempt}
         wsError={wsError}
+        activeSubscriptions={wsDebug.activeSubscriptions}
+        storedSubscriptions={wsDebug.storedSubscriptions}
+        sessionResult={sessionResult}
+        handshakeResult={handshakeResult}
       />
     </Layout>
   );

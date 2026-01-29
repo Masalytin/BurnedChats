@@ -16,6 +16,9 @@
   position: absolute;
   bottom: 8px;
   right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 6px 12px;
   background: rgba(0, 0, 0, 0.8);
   color: white;
@@ -32,6 +35,24 @@
   background: rgba(0, 0, 0, 0.9);
 }
 
+.debug-toggle.has-errors {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.debug-error-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: rgba(248, 113, 113, 0.8);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+}
+
 .debug-panel.expanded .debug-toggle {
   bottom: auto;
   top: 8px;
@@ -42,9 +63,61 @@
   color: #e0e0e0;
   max-height: 70vh;
   overflow-y: auto;
-  padding: 40px 12px 12px;
+  padding: 12px;
+  padding-top: 40px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
+}
+
+/* ============================================
+   Tabs Navigation
+   ============================================ */
+
+.debug-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.debug-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+
+.debug-tab.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.debug-tab-icon {
+  font-size: 13px;
+}
+
+.debug-tab-label {
+  font-weight: 500;
+}
+
+.debug-tab-container {
+  min-height: 200px;
 }
 
 .debug-section {
