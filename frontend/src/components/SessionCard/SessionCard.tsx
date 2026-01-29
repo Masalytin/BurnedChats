@@ -34,7 +34,7 @@ export function SessionCard({
   const { peer, status, verified, peerVerified, lastActivityAt } = session;
   
   const isActive = status === 'ACTIVE';
-  const isHandshaking = status === 'HANDSHAKING';
+  const isHandshaking = status === 'HANDSHAKE';
   const bothVerified = verified && peerVerified;
   
   const statusLabel = getStatusLabel(status);
@@ -105,8 +105,8 @@ export function SessionCard({
           </div>
         )}
         
-        {/* Burn button for active sessions (4.6.11) */}
-        {isActive && onBurn && (
+        {/* Burn button for active/handshake sessions (4.6.11) */}
+        {(isActive || isHandshaking) && onBurn && (
           <div 
             className={`session-card-burn-btn ${isBurning ? 'session-card-burn-btn--loading' : ''}`}
             onClick={handleBurnClick}
@@ -150,7 +150,7 @@ function getStatusLabel(status: ActiveSession['status']): string {
   switch (status) {
     case 'PENDING':
       return 'Pending...';
-    case 'HANDSHAKING':
+    case 'HANDSHAKE':
       return 'Connecting...';
     case 'ACTIVE':
       return 'Active';

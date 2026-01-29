@@ -221,7 +221,7 @@ function AppContent() {
         // For now, start handshake to restore connection
         startHandshake(session.sessionId, peerInfo);
         setCurrentView('handshake');
-      } else if (session.status === 'HANDSHAKING') {
+      } else if (session.status === 'HANDSHAKE') {
         // Need to complete handshake
         toast.info('Resuming secure connection...');
         startHandshake(session.sessionId, peerInfo);

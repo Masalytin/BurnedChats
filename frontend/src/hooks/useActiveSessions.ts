@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 
 /** Destination for getting active sessions (4.6.1) */
-const GET_ACTIVE_SESSIONS_DESTINATION = '/app/session.getActive';
+const GET_ACTIVE_SESSIONS_DESTINATION = '/app/session.active.list';
 
 /** Destination for active sessions list event (4.6.2) */
 const ACTIVE_SESSIONS_DESTINATION = '/user/queue/active-sessions';
@@ -13,7 +13,7 @@ const SESSION_RESUMED_DESTINATION = '/user/queue/session-resumed';
 /** Session status types */
 export type SessionStatus = 
   | 'PENDING'
-  | 'HANDSHAKING'
+  | 'HANDSHAKE'
   | 'ACTIVE'
   | 'EXPIRED'
   | 'BURNED';
