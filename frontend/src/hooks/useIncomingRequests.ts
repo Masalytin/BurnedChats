@@ -86,8 +86,10 @@ interface UseIncomingRequestsOptions {
   publish: (destination: string, body: unknown) => void;
   /** Callback when a new request is received */
   onRequestReceived?: (request: ChatRequest) => void;
-  /** Callback when session is accepted */
+  /** Callback when session is accepted (as responder) */
   onSessionAccepted?: (sessionId: string, peer: UserInfo) => void;
+  /** Callback when OUR request is accepted by the peer (as initiator) */
+  onOurRequestAccepted?: (sessionId: string, peer: UserInfo) => void;
   /** Callback when a request is rejected */
   onRequestRejected?: (sessionId: string) => void;
   /** Callback when an error occurs */
@@ -168,6 +170,7 @@ export function useIncomingRequests({
   publish,
   onRequestReceived,
   onSessionAccepted,
+  onOurRequestAccepted,
   onRequestRejected,
   onError,
 }: UseIncomingRequestsOptions): UseIncomingRequestsReturn {
@@ -211,55 +214,73 @@ export function useIncomingRequests({
 
   /**
    * Handle session accepted event from server.
+   * This handles two cases:
+   * 1. We accepted a request (as responder) - pendingActionRef matches
+   * 2. Our request was accepted by peer (as initiator) - pendingActionRef doesn't match
    */
   const handleSessionAccepted = useCallback((message: IMessage) => {
     try {
       const data: ServerSessionAcceptedEvent = JSON.parse(message.body);
       const sessionId = data.sessionId;
 
-      // Only process if this was our pending action
-      if (pendingActionRef.current !== sessionId) {
-        // This might be an acceptance notification for when we're the initiator
-        // In that case, we just need to handle it elsewhere (session hook)
-        return;
-      }
+      // Check if this was our pending accept action (we're the responder)
+      const weAreResponder = pendingActionRef.current === sessionId;
 
-      pendingActionRef.current = null;
+      if (weAreResponder) {
+        // We accepted a request - handle responder case
+        pendingActionRef.current = null;
 
-      if (!data.success && data.error) {
-        const errorCode = data.error as AcceptErrorCode;
-        setActionResult({
-          status: 'error',
-          sessionId,
-          peer: null,
-          error: errorCode,
-        });
-        onError?.(errorCode);
-        return;
-      }
+        if (!data.success && data.error) {
+          const errorCode = data.error as AcceptErrorCode;
+          setActionResult({
+            status: 'error',
+            sessionId,
+            peer: null,
+            error: errorCode,
+          });
+          onError?.(errorCode);
+          return;
+        }
 
-      if (data.success && data.peer) {
-        const peer: UserInfo = {
-          id: data.peer.id,
-          username: data.peer.username,
-          displayName: data.peer.displayName,
-          photoUrl: data.peer.photoUrl,
-          online: data.peer.online,
-          premium: data.peer.premium,
-        };
+        if (data.success && data.peer) {
+          const peer: UserInfo = {
+            id: data.peer.id,
+            username: data.peer.username,
+            displayName: data.peer.displayName,
+            photoUrl: data.peer.photoUrl,
+            online: data.peer.online,
+            premium: data.peer.premium,
+          };
 
-        setActionResult({
-          status: 'accepted',
-          sessionId,
-          peer,
-          error: null,
-        });
+          setActionResult({
+            status: 'accepted',
+            sessionId,
+            peer,
+            error: null,
+          });
 
-        // Remove request from list
-        setRequests((prev) => prev.filter((r) => r.id !== sessionId));
+          // Remove request from list
+          setRequests((prev) => prev.filter((r) => r.id !== sessionId));
 
-        onSessionAccepted?.(sessionId, peer);
-        console.log('[useIncomingRequests] Session accepted:', sessionId);
+          onSessionAccepted?.(sessionId, peer);
+          console.log('[useIncomingRequests] Session accepted (as responder):', sessionId);
+        }
+      } else {
+        // We're the initiator - our request was accepted by the peer
+        // This happens when someone accepts our chat request
+        if (data.success && data.peer) {
+          const peer: UserInfo = {
+            id: data.peer.id,
+            username: data.peer.username,
+            displayName: data.peer.displayName,
+            photoUrl: data.peer.photoUrl,
+            online: data.peer.online,
+            premium: data.peer.premium,
+          };
+
+          onOurRequestAccepted?.(sessionId, peer);
+          console.log('[useIncomingRequests] Our request accepted (as initiator):', sessionId);
+        }
       }
     } catch (error) {
       console.error('[useIncomingRequests] Failed to parse session accepted event:', error);
@@ -274,7 +295,7 @@ export function useIncomingRequests({
         onError?.('CONNECTION_ERROR');
       }
     }
-  }, [onSessionAccepted, onError]);
+  }, [onSessionAccepted, onOurRequestAccepted, onError]);
 
   /**
    * Register subscriptions immediately (even before connected).

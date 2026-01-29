@@ -136,12 +136,25 @@ function AppContent() {
       }
     },
     onSessionAccepted: (sessionId, peer) => {
-      // Start handshake after accepting a request
+      // Start handshake after accepting a request (we're the responder)
       notificationOccurred('success');
       toast.success('Request accepted! Establishing secure connection...');
       handshakePeerRef.current = peer;
       startHandshake(sessionId, peer);
       setCurrentView('handshake');
+    },
+    onOurRequestAccepted: (sessionId, peer) => {
+      // Our pending request was accepted (we're the initiator)
+      // Only process if we have a matching pending session
+      if (pendingSession?.id === sessionId) {
+        console.log('[App] Our request was accepted, starting handshake');
+        notificationOccurred('success');
+        toast.success('Request accepted! Establishing secure connection...');
+        handshakePeerRef.current = peer;
+        startHandshake(sessionId, peer);
+        setCurrentView('handshake');
+        setPendingSession(null);
+      }
     },
     onError: (errorCode) => {
       notificationOccurred('error');
@@ -265,6 +278,9 @@ function AppContent() {
     }
     
     if (currentView === 'handshake') {
+      // Get the session ID before canceling
+      const sessionId = handshakeResult.sessionId;
+      
       cancelHandshake();
       handshakePeerRef.current = null;
       setCurrentView('home');
@@ -272,6 +288,13 @@ function AppContent() {
       setActiveIncomingRequest(null);
       resetSession();
       clearSearch();
+      
+      // Burn the session on backend to allow creating new sessions
+      if (sessionId && isConnected) {
+        console.log('[App] Burning session after handshake cancel (back button):', sessionId);
+        publish('/app/session.burn', { sessionId });
+        burnKeys(sessionId);
+      }
     }
   }, [
     showChatRequestDialog, 
@@ -279,7 +302,10 @@ function AppContent() {
     resetSession, 
     clearSearch, 
     resetIncomingAction, 
-    cancelHandshake
+    cancelHandshake,
+    handshakeResult.sessionId,
+    isConnected,
+    publish,
   ]);
 
   // Setup back button
@@ -373,6 +399,10 @@ function AppContent() {
 
   // Handle canceling handshake
   const handleCancelHandshake = useCallback(() => {
+    // Get the session ID before canceling
+    const sessionId = handshakeResult.sessionId;
+    
+    // Cancel local handshake state
     cancelHandshake();
     handshakePeerRef.current = null;
     setCurrentView('home');
@@ -380,7 +410,15 @@ function AppContent() {
     setActiveIncomingRequest(null);
     resetSession();
     clearSearch();
-  }, [cancelHandshake, resetSession, clearSearch]);
+    
+    // Burn the session on backend to allow creating new sessions
+    // This is important because the backend still has the session in HANDSHAKE status
+    if (sessionId && isConnected) {
+      console.log('[App] Burning session after handshake cancel:', sessionId);
+      publish('/app/session.burn', { sessionId });
+      burnKeys(sessionId);
+    }
+  }, [cancelHandshake, resetSession, clearSearch, handshakeResult.sessionId, isConnected, publish]);
 
   // Handle continuing after handshake complete
   const handleHandshakeComplete = useCallback(() => {
@@ -443,40 +481,8 @@ function AppContent() {
     }
   }, [resumeResult, resetResume]);
 
-  // Subscribe to REQUEST_ACCEPTED for initiator (when our pending request is accepted)
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const handleRequestAccepted = (message: { body: string }) => {
-      try {
-        const data = JSON.parse(message.body);
-        if (data.success && data.sessionId && pendingSession?.id === data.sessionId) {
-          // Our pending request was accepted - start handshake
-          console.log('[App] Our request was accepted, starting handshake');
-          notificationOccurred('success');
-          
-          // Use the recipient info from pending session (already checked via ?.id above)
-          const peer: UserInfo = pendingSession!.recipient;
-          handshakePeerRef.current = peer;
-          
-          startHandshake(data.sessionId, peer);
-          setCurrentView('handshake');
-          setPendingSession(null);
-        }
-      } catch (error) {
-        console.error('[App] Failed to parse request accepted event:', error);
-      }
-    };
-
-    // Subscribe to the accepted event for initiator
-    const sub = subscribe('/user/queue/request-accepted', handleRequestAccepted);
-    
-    return () => {
-      if (sub) {
-        unsubscribe('/user/queue/request-accepted');
-      }
-    };
-  }, [isConnected, subscribe, unsubscribe, pendingSession, startHandshake, notificationOccurred]);
+  // Note: REQUEST_ACCEPTED for initiator is now handled via onOurRequestAccepted callback
+  // in useIncomingRequests hook (listening to /user/queue/session-accepted)
 
   // Subscribe to BURN_SIGNAL for session list burn (4.6.11)
   useEffect(() => {
