@@ -563,105 +563,119 @@ function AppContent() {
     );
   }
 
+  // Debug panel props (shared across all views)
+  const debugPanelElement = (
+    <DebugPanel
+      isConnected={isConnected}
+      isConnecting={isConnecting}
+      reconnectAttempt={reconnectAttempt}
+      wsError={wsError}
+      activeSubscriptions={wsDebug.activeSubscriptions}
+      storedSubscriptions={wsDebug.storedSubscriptions}
+      sessionResult={sessionResult}
+      handshakeResult={handshakeResult}
+    />
+  );
+
   // Pending request view (waiting for recipient to accept)
   if (currentView === 'pending-request' && pendingSession) {
     return (
-      <Layout>
-        <PendingRequestView
-          session={pendingSession}
-          onCancel={handleCancelPendingRequest}
-        />
-      </Layout>
+      <>
+        <Layout>
+          <PendingRequestView
+            session={pendingSession}
+            onCancel={handleCancelPendingRequest}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
     );
   }
 
   // Incoming request view (someone wants to chat with us)
   if (currentView === 'incoming-request' && activeIncomingRequest) {
     return (
-      <Layout>
-        <IncomingRequestView
-          request={activeIncomingRequest}
-          isAccepting={incomingActionResult.status === 'accepting'}
-          isRejecting={incomingActionResult.status === 'rejecting'}
-          error={incomingActionResult.error}
-          onAccept={handleAcceptRequest}
-          onReject={handleRejectRequest}
-          onExpire={handleCloseIncomingRequest}
-        />
-      </Layout>
+      <>
+        <Layout>
+          <IncomingRequestView
+            request={activeIncomingRequest}
+            isAccepting={incomingActionResult.status === 'accepting'}
+            isRejecting={incomingActionResult.status === 'rejecting'}
+            error={incomingActionResult.error}
+            onAccept={handleAcceptRequest}
+            onReject={handleRejectRequest}
+            onExpire={handleCloseIncomingRequest}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
     );
   }
 
   // Handshake view (establishing encrypted connection)
   if (currentView === 'handshake') {
     return (
-      <Layout>
-        <HandshakeView
-          result={handshakeResult}
-          onCancel={isHandshakeComplete ? handleHandshakeComplete : handleCancelHandshake}
-          onRetry={handleRetryHandshake}
-        />
-      </Layout>
+      <>
+        <Layout>
+          <HandshakeView
+            result={handshakeResult}
+            onCancel={isHandshakeComplete ? handleHandshakeComplete : handleCancelHandshake}
+            onRetry={handleRetryHandshake}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
     );
   }
 
   // Default: Home view
   return (
-    <Layout>
-      <HomePage 
-        user={user} 
-        isConnected={isConnected}
-        isConnecting={isConnecting}
-        reconnectAttempt={reconnectAttempt}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        searchResult={searchResult}
-        onSearch={search}
-        onClearSearch={clearSearch}
-        isSearching={isSearching}
-        onStartChat={handleStartChat}
-        activeSessions={activeSessions}
-        isLoadingSessions={isLoadingSessions}
-        onSessionClick={handleSessionClick}
-        resumingSessionId={resumingSessionId}
-        onRefreshSessions={fetchSessions}
-        onBurnSession={handleBurnSessionRequest}
-        burningSessionId={burningSessionId}
-      />
-
-      {/* Chat request dialog */}
-      {showChatRequestDialog && selectedUser && (
-        <ChatRequestDialog
-          user={selectedUser}
-          isLoading={isCreatingSession}
-          error={sessionResult.error}
-          onClose={handleCloseChatRequestDialog}
-          onSubmit={handleSubmitChatRequest}
+    <>
+      <Layout>
+        <HomePage 
+          user={user} 
+          isConnected={isConnected}
+          isConnecting={isConnecting}
+          reconnectAttempt={reconnectAttempt}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          searchResult={searchResult}
+          onSearch={search}
+          onClearSearch={clearSearch}
+          isSearching={isSearching}
+          onStartChat={handleStartChat}
+          activeSessions={activeSessions}
+          isLoadingSessions={isLoadingSessions}
+          onSessionClick={handleSessionClick}
+          resumingSessionId={resumingSessionId}
+          onRefreshSessions={fetchSessions}
+          onBurnSession={handleBurnSessionRequest}
+          burningSessionId={burningSessionId}
         />
-      )}
 
-      {/* Burn confirm dialog (4.6.11) */}
-      {showBurnDialog && burnTargetSession && (
-        <BurnConfirmDialog
-          peerName={burnTargetSession.peerName}
-          isLoading={burningSessionId === burnTargetSession.sessionId}
-          onConfirm={handleConfirmBurn}
-          onCancel={handleCancelBurn}
-        />
-      )}
+        {/* Chat request dialog */}
+        {showChatRequestDialog && selectedUser && (
+          <ChatRequestDialog
+            user={selectedUser}
+            isLoading={isCreatingSession}
+            error={sessionResult.error}
+            onClose={handleCloseChatRequestDialog}
+            onSubmit={handleSubmitChatRequest}
+          />
+        )}
 
-      {/* Debug panel for production debugging */}
-      <DebugPanel
-        isConnected={isConnected}
-        isConnecting={isConnecting}
-        reconnectAttempt={reconnectAttempt}
-        wsError={wsError}
-        activeSubscriptions={wsDebug.activeSubscriptions}
-        storedSubscriptions={wsDebug.storedSubscriptions}
-        sessionResult={sessionResult}
-        handshakeResult={handshakeResult}
-      />
-    </Layout>
+        {/* Burn confirm dialog (4.6.11) */}
+        {showBurnDialog && burnTargetSession && (
+          <BurnConfirmDialog
+            peerName={burnTargetSession.peerName}
+            isLoading={burningSessionId === burnTargetSession.sessionId}
+            onConfirm={handleConfirmBurn}
+            onCancel={handleCancelBurn}
+          />
+        )}
+      </Layout>
+      {debugPanelElement}
+    </>
   );
 }
 
