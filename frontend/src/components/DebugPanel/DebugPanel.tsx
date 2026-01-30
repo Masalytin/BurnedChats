@@ -3,6 +3,7 @@ import WebApp from '@twa-dev/sdk';
 import { StatusTab } from './tabs/StatusTab';
 import { FlowTab } from './tabs/FlowTab';
 import { CryptoTab } from './tabs/CryptoTab';
+import { MessagesTab } from './tabs/MessagesTab';
 import { useDebugState } from './hooks/useDebugState';
 import type { CreateSessionResult } from '@/hooks/useSession';
 import type { HandshakeResult } from '@/hooks/useHandshake';
@@ -35,7 +36,7 @@ interface DebugPanelProps {
   handshakeResult?: HandshakeResult;
 }
 
-type TabId = 'status' | 'flow' | 'crypto' | 'logs';
+type TabId = 'status' | 'flow' | 'messages' | 'crypto' | 'logs';
 
 // ============================================
 // Local Storage Keys
@@ -123,6 +124,7 @@ export function clearDebugLogs() {
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'status', label: 'Status', icon: '📡' },
   { id: 'flow', label: 'Flow', icon: '🔄' },
+  { id: 'messages', label: 'Messages', icon: '💬' },
   { id: 'crypto', label: 'Crypto', icon: '🔐' },
   { id: 'logs', label: 'Logs', icon: '📋' },
 ];
@@ -424,6 +426,10 @@ export function DebugPanel({
                 state={debugState.sessionFlow} 
                 timeline={debugState.timeline}
               />
+            )}
+
+            {activeTab === 'messages' && (
+              <MessagesTab state={debugState.stomp} />
             )}
 
             {activeTab === 'crypto' && (

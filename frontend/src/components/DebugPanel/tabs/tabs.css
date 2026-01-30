@@ -686,3 +686,346 @@
 .debug-crypto-api-status {
   /* Uses standard debug-row styles */
 }
+
+/* ============================================
+   STOMP Messages Tab (Phase 2)
+   ============================================ */
+
+.debug-stomp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.debug-stomp-view-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.debug-stomp-view-btn {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-view-btn:hover {
+  color: #aaa;
+}
+
+.debug-stomp-view-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.debug-stomp-direction-filter {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.debug-stomp-dir-btn {
+  width: 28px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-dir-btn:hover {
+  color: #aaa;
+}
+
+.debug-stomp-dir-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.debug-stomp-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.debug-stomp-actions button {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-stomp-dest-filter {
+  margin-top: 8px;
+}
+
+.debug-stomp-filter-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #ccc;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-filter-input:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.debug-stomp-filter-input::placeholder {
+  color: #555;
+}
+
+.debug-stomp-messages-scroll {
+  max-height: 300px;
+}
+
+.debug-stomp-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-stomp-message {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-message:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.debug-stomp-message.outgoing {
+  border-left: 2px solid rgba(74, 222, 128, 0.5);
+}
+
+.debug-stomp-message.incoming {
+  border-left: 2px solid rgba(96, 165, 250, 0.5);
+}
+
+.debug-stomp-message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 10px;
+}
+
+.debug-stomp-direction {
+  font-size: 12px;
+  font-weight: 600;
+  width: 14px;
+  text-align: center;
+}
+
+.debug-stomp-message.outgoing .debug-stomp-direction {
+  color: #4ade80;
+}
+
+.debug-stomp-message.incoming .debug-stomp-direction {
+  color: #60a5fa;
+}
+
+.debug-stomp-time {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+  color: #555;
+  min-width: 70px;
+}
+
+.debug-stomp-destination {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-stomp-size {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+  color: #555;
+}
+
+.debug-stomp-message-details {
+  padding: 0 10px 10px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.debug-stomp-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.debug-stomp-detail-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.debug-stomp-detail-value {
+  font-size: 10px;
+  color: #aaa;
+}
+
+.debug-stomp-detail-value.mono {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-stomp-detail-pre {
+  margin: 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+  color: #888;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+/* Correlations */
+.debug-stomp-correlations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-stomp-correlation {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-stomp-correlation:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.debug-stomp-correlation.success {
+  border-left: 2px solid rgba(74, 222, 128, 0.5);
+}
+
+.debug-stomp-correlation.pending {
+  border-left: 2px solid rgba(250, 204, 21, 0.5);
+}
+
+.debug-stomp-correlation.error {
+  border-left: 2px solid rgba(248, 113, 113, 0.5);
+}
+
+.debug-stomp-correlation.timeout {
+  border-left: 2px solid rgba(250, 204, 21, 0.5);
+}
+
+.debug-stomp-correlation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 10px;
+}
+
+.debug-stomp-correlation-status {
+  font-size: 11px;
+  font-weight: 600;
+  width: 14px;
+  text-align: center;
+}
+
+.debug-stomp-correlation-status.success {
+  color: #4ade80;
+}
+
+.debug-stomp-correlation-status.warn {
+  color: #facc15;
+}
+
+.debug-stomp-correlation-status.error {
+  color: #f87171;
+}
+
+.debug-stomp-latency {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 9px;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.debug-stomp-correlation-details {
+  padding: 0 10px 10px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.debug-stomp-correlation-section {
+  margin-top: 8px;
+}
+
+.debug-stomp-correlation-section-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.debug-stomp-correlation-section-title:first-child {
+  color: #4ade80;
+}
+
+.debug-stomp-correlation-no-response {
+  font-size: 10px;
+  color: #666;
+  font-style: italic;
+  padding: 8px;
+  text-align: center;
+}

@@ -94,12 +94,53 @@ export interface TimelineEvent {
   details?: string;
 }
 
+// ============================================
+// STOMP Message Types (Phase 2)
+// ============================================
+
+/** STOMP command types */
+export type StompCommand = 'SEND' | 'MESSAGE' | 'SUBSCRIBE' | 'UNSUBSCRIBE' | 'CONNECT' | 'CONNECTED' | 'DISCONNECT' | 'ERROR' | 'ACK' | 'NACK';
+
+/** STOMP message for logging */
+export interface StompMessage {
+  id: number;
+  timestamp: number;
+  direction: 'outgoing' | 'incoming';
+  destination: string;
+  command: StompCommand;
+  headers: Record<string, string>;
+  body: unknown;
+  size: number;
+  /** For request/response correlation */
+  correlationId?: string;
+}
+
+/** Correlated request/response pair */
+export interface CorrelatedMessage {
+  requestId: string;
+  request: StompMessage;
+  response: StompMessage | null;
+  latencyMs: number | null;
+  status: 'pending' | 'success' | 'error' | 'timeout';
+}
+
+/** STOMP messages debug state */
+export interface StompMessagesState {
+  messages: StompMessage[];
+  correlatedMessages: CorrelatedMessage[];
+  filter: {
+    direction: 'all' | 'outgoing' | 'incoming';
+    destination: string | null;
+  };
+}
+
 /** Full debug state */
 export interface DebugState {
   websocket: WebSocketDebugState;
   sessionFlow: SessionFlowState;
   crypto: CryptoDebugState;
   timeline: TimelineEvent[];
+  stomp: StompMessagesState;
 }
 
 // ============================================
@@ -160,6 +201,126 @@ export function clearCryptoOperations(): void {
 }
 
 // ============================================
+// STOMP Message Logger (Phase 2)
+// ============================================
+
+let stompMessages: StompMessage[] = [];
+let stompMessageId = 0;
+const stompListeners = new Set<() => void>();
+const MAX_STOMP_MESSAGES = 100;
+
+/** Pending requests for correlation (key: correlationId) */
+const pendingRequests = new Map<string, { request: StompMessage; timestamp: number }>();
+let correlatedMessages: CorrelatedMessage[] = [];
+const CORRELATION_TIMEOUT_MS = 30000;
+
+/**
+ * Log a STOMP message (outgoing or incoming)
+ */
+export function logStompMessage(
+  direction: 'outgoing' | 'incoming',
+  destination: string,
+  command: StompCommand,
+  headers: Record<string, string>,
+  body: unknown,
+  correlationId?: string
+): StompMessage {
+  const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+  const size = new Blob([bodyStr]).size;
+
+  const message: StompMessage = {
+    id: stompMessageId++,
+    timestamp: Date.now(),
+    direction,
+    destination,
+    command,
+    headers,
+    body,
+    size,
+    correlationId,
+  };
+
+  stompMessages = [...stompMessages.slice(-(MAX_STOMP_MESSAGES - 1)), message];
+
+  // Handle request/response correlation
+  if (direction === 'outgoing' && correlationId) {
+    // Store pending request
+    pendingRequests.set(correlationId, { request: message, timestamp: Date.now() });
+    correlatedMessages = [
+      ...correlatedMessages.slice(-49),
+      {
+        requestId: correlationId,
+        request: message,
+        response: null,
+        latencyMs: null,
+        status: 'pending',
+      },
+    ];
+  } else if (direction === 'incoming' && correlationId) {
+    // Try to match with pending request
+    const pending = pendingRequests.get(correlationId);
+    if (pending) {
+      const latencyMs = Date.now() - pending.timestamp;
+      pendingRequests.delete(correlationId);
+
+      // Update correlated message
+      correlatedMessages = correlatedMessages.map(cm =>
+        cm.requestId === correlationId
+          ? {
+              ...cm,
+              response: message,
+              latencyMs,
+              status: command === 'ERROR' ? 'error' : 'success',
+            }
+          : cm
+      );
+    }
+  }
+
+  stompListeners.forEach(fn => fn());
+  return message;
+}
+
+/**
+ * Clear all STOMP messages
+ */
+export function clearStompMessages(): void {
+  stompMessages = [];
+  correlatedMessages = [];
+  pendingRequests.clear();
+  stompListeners.forEach(fn => fn());
+}
+
+/**
+ * Check for timed out pending requests
+ */
+function checkTimeouts(): void {
+  const now = Date.now();
+  let hasChanges = false;
+
+  pendingRequests.forEach((value, key) => {
+    if (now - value.timestamp > CORRELATION_TIMEOUT_MS) {
+      pendingRequests.delete(key);
+      correlatedMessages = correlatedMessages.map(cm =>
+        cm.requestId === key && cm.status === 'pending'
+          ? { ...cm, status: 'timeout' }
+          : cm
+      );
+      hasChanges = true;
+    }
+  });
+
+  if (hasChanges) {
+    stompListeners.forEach(fn => fn());
+  }
+}
+
+// Check for timeouts periodically
+if (typeof window !== 'undefined') {
+  setInterval(checkTimeouts, 5000);
+}
+
+// ============================================
 // Hook Options
 // ============================================
 
@@ -209,6 +370,26 @@ export function useDebugState({
   // Timeline events
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const timelineIdRef = { current: 0 };
+
+  // STOMP messages state (Phase 2)
+  const [stompState, setStompState] = useState<StompMessagesState>({
+    messages: stompMessages,
+    correlatedMessages: correlatedMessages,
+    filter: { direction: 'all', destination: null },
+  });
+
+  // Subscribe to STOMP message updates
+  useEffect(() => {
+    const updateStompState = () => {
+      setStompState(prev => ({
+        ...prev,
+        messages: [...stompMessages],
+        correlatedMessages: [...correlatedMessages],
+      }));
+    };
+    stompListeners.add(updateStompState);
+    return () => { stompListeners.delete(updateStompState); };
+  }, []);
 
   // Track connection state changes
   useEffect(() => {
@@ -443,5 +624,6 @@ export function useDebugState({
     sessionFlow: sessionFlowState,
     crypto: cryptoState,
     timeline,
+    stomp: stompState,
   };
 }

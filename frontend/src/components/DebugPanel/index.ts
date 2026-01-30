@@ -6,6 +6,9 @@ export {
   resetMessageCounters,
   logCryptoOperation,
   clearCryptoOperations,
+  // Phase 2: STOMP Message Tracing
+  logStompMessage,
+  clearStompMessages,
 } from './hooks';
 export type {
   WebSocketDebugState,
@@ -15,4 +18,9 @@ export type {
   CryptoOperationEntry,
   TimelineEvent,
   DebugState,
+  // Phase 2: STOMP Message Types
+  StompMessage,
+  StompCommand,
+  CorrelatedMessage,
+  StompMessagesState,
 } from './hooks';

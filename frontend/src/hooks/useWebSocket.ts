@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
-import { debugLog, incrementMessagesSent, incrementMessagesReceived } from '../components/DebugPanel';
+import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMessage } from '../components/DebugPanel';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -426,9 +426,36 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const subscribe = useCallback(
     (destination: string, callback: (message: IMessage) => void): StompSubscription | null => {
-      // Wrap callback to track received messages
+      // Wrap callback to track received messages and log STOMP messages
       const wrappedCallback = (message: IMessage) => {
         incrementMessagesReceived();
+        
+        // Log incoming STOMP message for Phase 2 tracing
+        let parsedBody: unknown;
+        try {
+          parsedBody = message.body ? JSON.parse(message.body) : null;
+        } catch {
+          parsedBody = message.body;
+        }
+        
+        const headers: Record<string, string> = {};
+        // IMessage headers is a StompHeaders object, convert to Record
+        if (message.headers) {
+          Object.keys(message.headers).forEach(key => {
+            headers[key] = String(message.headers[key]);
+          });
+        }
+        
+        logStompMessage(
+          'incoming',
+          destination,
+          'MESSAGE',
+          headers,
+          parsedBody,
+          // Use destination as correlation ID for simple correlation
+          destination
+        );
+        
         callback(message);
       };
       
@@ -477,16 +504,29 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       return;
     }
 
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+    };
+
     clientRef.current.publish({
       destination,
       body: JSON.stringify(body),
-      headers: {
-        'content-type': 'application/json',
-      },
+      headers,
     });
     
     // Track message for debug panel
     incrementMessagesSent();
+    
+    // Log STOMP message for Phase 2 tracing
+    logStompMessage(
+      'outgoing',
+      destination,
+      'SEND',
+      headers,
+      body,
+      // Use destination as correlation ID for simple correlation
+      destination
+    );
     
     if (import.meta.env.DEV) {
       console.log(`[WebSocket] Published to ${destination}:`, body);
