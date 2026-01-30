@@ -11,6 +11,8 @@ interface HandshakeViewProps {
   result: HandshakeResult;
   /** Callback when user cancels handshake */
   onCancel: () => void;
+  /** Callback when handshake is complete and user wants to continue to chat */
+  onContinue?: () => void;
   /** Callback to retry handshake */
   onRetry?: () => void;
   /** Additional CSS class */
@@ -92,6 +94,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 export function HandshakeView({
   result,
   onCancel,
+  onContinue,
   onRetry,
   className = '',
 }: HandshakeViewProps) {
@@ -261,7 +264,7 @@ export function HandshakeView({
           {isComplete && (
             <Button
               variant="primary"
-              onClick={onCancel}
+              onClick={onContinue || onCancel}
               fullWidth
             >
               Continue to Chat

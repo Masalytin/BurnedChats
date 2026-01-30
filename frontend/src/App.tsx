@@ -169,7 +169,6 @@ function AppContent() {
     startHandshake,
     cancelHandshake,
     reset: resetHandshake,
-    isComplete: isHandshakeComplete,
   } = useHandshake({
     isConnected,
     subscribe,
@@ -431,7 +430,9 @@ function AppContent() {
     setPendingSession(null);
     setActiveIncomingRequest(null);
     clearSearch();
-  }, [resetHandshake, clearSearch]);
+    // Refresh sessions list so the new session appears
+    fetchSessions();
+  }, [resetHandshake, clearSearch, fetchSessions]);
 
   // Handle retry handshake
   const handleRetryHandshake = useCallback(() => {
@@ -619,7 +620,8 @@ function AppContent() {
         <Layout>
           <HandshakeView
             result={handshakeResult}
-            onCancel={isHandshakeComplete ? handleHandshakeComplete : handleCancelHandshake}
+            onCancel={handleCancelHandshake}
+            onContinue={handleHandshakeComplete}
             onRetry={handleRetryHandshake}
           />
         </Layout>
