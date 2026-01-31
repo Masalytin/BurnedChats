@@ -134,6 +134,31 @@ export interface StompMessagesState {
   };
 }
 
+// ============================================
+// Performance Metrics Types (Phase 5)
+// ============================================
+
+/** Performance metrics for the application */
+export interface PerformanceMetrics {
+  /** Time to establish initial connection (ms) */
+  connectionTime: number | null;
+  /** Average message round-trip latency (ms) */
+  avgMessageLatency: number;
+  /** Total handshake duration from start to complete (ms) */
+  handshakeDuration: number | null;
+  /** Crypto operation times by operation type (ms) */
+  cryptoOperationTimes: Record<string, { avg: number; min: number; max: number; count: number }>;
+  /** Message counts */
+  messageStats: {
+    totalSent: number;
+    totalReceived: number;
+    sentPerMinute: number;
+    receivedPerMinute: number;
+  };
+  /** Latency samples for trend analysis */
+  latencySamples: Array<{ timestamp: number; latency: number }>;
+}
+
 /** Full debug state */
 export interface DebugState {
   websocket: WebSocketDebugState;
@@ -141,6 +166,7 @@ export interface DebugState {
   crypto: CryptoDebugState;
   timeline: TimelineEvent[];
   stomp: StompMessagesState;
+  performance: PerformanceMetrics;
 }
 
 // ============================================
@@ -321,6 +347,118 @@ if (typeof window !== 'undefined') {
 }
 
 // ============================================
+// Performance Metrics Tracking (Phase 5)
+// ============================================
+
+let connectionStartTime: number | null = null;
+let connectionEstablishedTime: number | null = null;
+let handshakeStartTime: number | null = null;
+let handshakeCompleteTime: number | null = null;
+let latencySamples: Array<{ timestamp: number; latency: number }> = [];
+const MAX_LATENCY_SAMPLES = 100;
+const performanceListeners = new Set<() => void>();
+
+/** Start tracking connection time */
+export function startConnectionTiming(): void {
+  connectionStartTime = Date.now();
+  connectionEstablishedTime = null;
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Mark connection as established */
+export function markConnectionEstablished(): void {
+  if (connectionStartTime) {
+    connectionEstablishedTime = Date.now();
+  }
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Get connection time in ms */
+export function getConnectionTime(): number | null {
+  if (connectionStartTime && connectionEstablishedTime) {
+    return connectionEstablishedTime - connectionStartTime;
+  }
+  return null;
+}
+
+/** Start tracking handshake time */
+export function startHandshakeTiming(): void {
+  handshakeStartTime = Date.now();
+  handshakeCompleteTime = null;
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Mark handshake as complete */
+export function markHandshakeComplete(): void {
+  if (handshakeStartTime) {
+    handshakeCompleteTime = Date.now();
+  }
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Get handshake duration in ms */
+export function getHandshakeDuration(): number | null {
+  if (handshakeStartTime && handshakeCompleteTime) {
+    return handshakeCompleteTime - handshakeStartTime;
+  }
+  return null;
+}
+
+/** Record a latency sample from correlated messages */
+export function recordLatencySample(latency: number): void {
+  latencySamples = [
+    ...latencySamples.slice(-(MAX_LATENCY_SAMPLES - 1)),
+    { timestamp: Date.now(), latency },
+  ];
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Get latency samples */
+export function getLatencySamples(): Array<{ timestamp: number; latency: number }> {
+  return [...latencySamples];
+}
+
+/** Clear all performance metrics */
+export function clearPerformanceMetrics(): void {
+  connectionStartTime = null;
+  connectionEstablishedTime = null;
+  handshakeStartTime = null;
+  handshakeCompleteTime = null;
+  latencySamples = [];
+  performanceListeners.forEach(fn => fn());
+}
+
+/** Compute crypto operation statistics */
+function computeCryptoStats(): Record<string, { avg: number; min: number; max: number; count: number }> {
+  const stats: Record<string, { total: number; min: number; max: number; count: number }> = {};
+  
+  for (const op of cryptoOperations) {
+    if (!op.success) continue;
+    
+    if (!stats[op.operation]) {
+      stats[op.operation] = { total: 0, min: Infinity, max: 0, count: 0 };
+    }
+    
+    stats[op.operation].total += op.durationMs;
+    stats[op.operation].min = Math.min(stats[op.operation].min, op.durationMs);
+    stats[op.operation].max = Math.max(stats[op.operation].max, op.durationMs);
+    stats[op.operation].count++;
+  }
+  
+  const result: Record<string, { avg: number; min: number; max: number; count: number }> = {};
+  for (const [key, value] of Object.entries(stats)) {
+    result[key] = {
+      avg: Math.round(value.total / value.count),
+      min: value.min === Infinity ? 0 : value.min,
+      max: value.max,
+      count: value.count,
+    };
+  }
+  
+  return result;
+}
+
+// ============================================
 // Hook Options
 // ============================================
 
@@ -378,6 +516,9 @@ export function useDebugState({
     filter: { direction: 'all', destination: null },
   });
 
+  // Performance metrics state (Phase 5)
+  const [performanceUpdate, setPerformanceUpdate] = useState(0);
+
   // Subscribe to STOMP message updates
   useEffect(() => {
     const updateStompState = () => {
@@ -389,6 +530,15 @@ export function useDebugState({
     };
     stompListeners.add(updateStompState);
     return () => { stompListeners.delete(updateStompState); };
+  }, []);
+
+  // Subscribe to performance metrics updates (Phase 5)
+  useEffect(() => {
+    const updatePerformance = () => {
+      setPerformanceUpdate(prev => prev + 1);
+    };
+    performanceListeners.add(updatePerformance);
+    return () => { performanceListeners.delete(updatePerformance); };
   }, []);
 
   // Track connection state changes
@@ -619,11 +769,46 @@ export function useDebugState({
     operations,
   }), [cryptoSessions, operations]);
 
+  // Compute performance metrics (Phase 5)
+  const performanceState: PerformanceMetrics = useMemo(() => {
+    // Calculate average latency from samples
+    const samples = getLatencySamples();
+    const avgLatency = samples.length > 0
+      ? Math.round(samples.reduce((sum, s) => sum + s.latency, 0) / samples.length)
+      : 0;
+
+    // Calculate messages per minute
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+    const recentSent = stompMessages.filter(
+      m => m.direction === 'outgoing' && m.timestamp > oneMinuteAgo
+    ).length;
+    const recentReceived = stompMessages.filter(
+      m => m.direction === 'incoming' && m.timestamp > oneMinuteAgo
+    ).length;
+
+    return {
+      connectionTime: getConnectionTime(),
+      avgMessageLatency: avgLatency,
+      handshakeDuration: getHandshakeDuration(),
+      cryptoOperationTimes: computeCryptoStats(),
+      messageStats: {
+        totalSent: messageCounters.sent,
+        totalReceived: messageCounters.received,
+        sentPerMinute: recentSent,
+        receivedPerMinute: recentReceived,
+      },
+      latencySamples: samples,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageCounters, performanceUpdate, stompState.messages]);
+
   return {
     websocket: websocketState,
     sessionFlow: sessionFlowState,
     crypto: cryptoState,
     timeline,
     stomp: stompState,
+    performance: performanceState,
   };
 }

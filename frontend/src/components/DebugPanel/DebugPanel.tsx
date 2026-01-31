@@ -4,6 +4,7 @@ import { StatusTab } from './tabs/StatusTab';
 import { FlowTab } from './tabs/FlowTab';
 import { CryptoTab } from './tabs/CryptoTab';
 import { MessagesTab } from './tabs/MessagesTab';
+import { AdvancedTab } from './tabs/AdvancedTab';
 import { useDebugState } from './hooks/useDebugState';
 import type { CreateSessionResult } from '@/hooks/useSession';
 import type { HandshakeResult } from '@/hooks/useHandshake';
@@ -36,7 +37,7 @@ interface DebugPanelProps {
   handshakeResult?: HandshakeResult;
 }
 
-type TabId = 'status' | 'flow' | 'messages' | 'crypto' | 'logs';
+type TabId = 'status' | 'flow' | 'messages' | 'crypto' | 'advanced' | 'logs';
 
 // ============================================
 // Local Storage Keys
@@ -126,6 +127,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'flow', label: 'Flow', icon: '🔄' },
   { id: 'messages', label: 'Messages', icon: '💬' },
   { id: 'crypto', label: 'Crypto', icon: '🔐' },
+  { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'logs', label: 'Logs', icon: '📋' },
 ];
 
@@ -434,6 +436,10 @@ export function DebugPanel({
 
             {activeTab === 'crypto' && (
               <CryptoTab state={debugState.crypto} />
+            )}
+
+            {activeTab === 'advanced' && (
+              <AdvancedTab performance={debugState.performance} />
             )}
 
             {activeTab === 'logs' && (

@@ -1029,3 +1029,686 @@
   padding: 8px;
   text-align: center;
 }
+
+/* ============================================
+   Advanced Tab Styles (Phase 5)
+   ============================================ */
+
+/* Sub-Tab Navigation */
+.debug-subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.debug-subtab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-subtab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+
+.debug-subtab.active {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.debug-advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Metrics Grid */
+.debug-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.debug-metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+}
+
+.debug-metric-label {
+  font-size: 9px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.debug-metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+/* Throughput Stats */
+.debug-throughput-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 24px;
+}
+
+.debug-throughput-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.debug-throughput-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debug-throughput-icon {
+  font-size: 14px;
+  color: #666;
+}
+
+.debug-throughput-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-throughput-label {
+  font-size: 10px;
+  color: #666;
+}
+
+.debug-throughput-rate {
+  font-size: 11px;
+  color: #60a5fa;
+  margin-top: 4px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+/* Sparkline */
+.debug-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 24px;
+  padding: 4px 0;
+}
+
+.debug-sparkline-bar {
+  color: #60a5fa;
+  font-size: 16px;
+  line-height: 1;
+  cursor: default;
+}
+
+.debug-latency-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Crypto Metrics */
+.debug-crypto-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debug-crypto-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.debug-crypto-metric-row:last-child {
+  border-bottom: none;
+}
+
+.debug-crypto-metric-name {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  color: #aaa;
+}
+
+.debug-crypto-metric-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  color: #60a5fa;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-crypto-metric-range {
+  color: #555;
+}
+
+.debug-crypto-metric-count {
+  color: #666;
+}
+
+/* Toggle Switch */
+.debug-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.debug-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.debug-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.debug-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #666;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.debug-toggle-switch input:checked + .debug-toggle-slider {
+  background-color: rgba(74, 222, 128, 0.3);
+}
+
+.debug-toggle-switch input:checked + .debug-toggle-slider:before {
+  transform: translateX(16px);
+  background-color: #4ade80;
+}
+
+/* Mock Server */
+.debug-mock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debug-mock-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.debug-mock-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-mock-enable input {
+  cursor: pointer;
+}
+
+.debug-mock-dest {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-mock-delay {
+  font-size: 9px;
+  color: #60a5fa;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.debug-mock-remove {
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  font-size: 10px;
+  transition: color 0.2s ease;
+}
+
+.debug-mock-remove:hover {
+  color: #f87171;
+}
+
+.debug-mock-desc {
+  font-size: 9px;
+  color: #555;
+  margin-top: 4px;
+  padding-left: 24px;
+}
+
+.debug-mock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.debug-mock-actions button {
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-mock-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-mock-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mock Form */
+.debug-mock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.debug-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-form-row label {
+  font-size: 10px;
+  color: #666;
+}
+
+.debug-form-row input {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #ccc;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.debug-form-row input:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.debug-form-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.debug-form-actions button {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-form-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-form-actions button:first-child {
+  background: rgba(96, 165, 250, 0.2);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #60a5fa;
+}
+
+.debug-form-actions button:first-child:hover {
+  background: rgba(96, 165, 250, 0.3);
+}
+
+.debug-form-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Import Textarea */
+.debug-import-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  color: #aaa;
+  resize: vertical;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.debug-import-textarea:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.debug-import-textarea::placeholder {
+  color: #444;
+}
+
+.debug-import-error {
+  color: #f87171;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* Replay */
+.debug-replay-status {
+  font-size: 10px;
+  color: #888;
+}
+
+.debug-replay-progress {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.debug-replay-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #4ade80);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.debug-replay-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.debug-replay-controls button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  font-size: 14px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-replay-controls button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-replay-controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.debug-replay-speed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.debug-replay-speed-label {
+  font-size: 10px;
+  color: #666;
+}
+
+.debug-replay-speed-buttons {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.debug-replay-speed-buttons button {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  font-size: 9px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-replay-speed-buttons button:hover {
+  color: #888;
+}
+
+.debug-replay-speed-buttons button.active {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.debug-replay-session-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.debug-replay-session-actions button {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-replay-session-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.debug-replay-import-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.debug-replay-import-actions button {
+  padding: 10px 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-replay-import-actions button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #aaa;
+}
+
+/* Saved Sessions */
+.debug-saved-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-saved-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.debug-saved-session:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.debug-saved-session.active {
+  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.debug-saved-session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.debug-saved-session-name {
+  font-size: 11px;
+  color: #ccc;
+}
+
+.debug-saved-session-meta {
+  font-size: 9px;
+  color: #555;
+}
+
+.debug-saved-session-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.debug-saved-session-actions button {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  font-size: 10px;
+  transition: color 0.2s ease;
+}
+
+.debug-saved-session-actions button:hover {
+  color: #aaa;
+}
+
+.debug-saved-session-actions button:last-child:hover {
+  color: #f87171;
+}
+
+/* Scrubber */
+.debug-replay-scrubber {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.debug-replay-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #60a5fa;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.debug-replay-scrubber::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.debug-replay-scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #60a5fa;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.debug-replay-scrubber-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Mini Button */
+.debug-mini-btn {
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border-radius: 4px;
+  font-size: 9px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-mini-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #888;
+}
