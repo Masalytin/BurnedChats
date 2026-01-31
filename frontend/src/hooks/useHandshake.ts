@@ -198,6 +198,9 @@ export function useHandshake({
   const isSubscribedRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeSessionRef = useRef<string | null>(null);
+  
+  // Buffer for peer keys that arrive before handshake starts (race condition fix)
+  const pendingPeerKeyRef = useRef<Map<string, ServerPeerPublicKeyEvent>>(new Map());
 
   /**
    * Update result with new stage and progress.
@@ -231,6 +234,8 @@ export function useHandshake({
       const startTime = performance.now();
       burn(sessionId);
       logCryptoOperation('burn', sessionId, true, performance.now() - startTime);
+      // Clear any buffered peer key for this session
+      pendingPeerKeyRef.current.delete(sessionId);
     }
 
     setResult((prev) => ({
@@ -291,6 +296,70 @@ export function useHandshake({
   }, [updateStage, handleError, onHandshakeComplete]);
 
   /**
+   * Process a peer public key event (either fresh or from buffer).
+   */
+  const processPeerKey = useCallback(async (data: ServerPeerPublicKeyEvent) => {
+    const sessionId = data.sessionId;
+
+    console.log('[useHandshake] Processing peer key for session:', sessionId);
+
+    // Handle error response
+    if (!data.success && data.error) {
+      handleError(data.error as HandshakeErrorCode, sessionId);
+      return;
+    }
+
+    // Validate public key
+    if (!data.publicKey) {
+      handleError('PEER_KEY_INVALID', sessionId);
+      return;
+    }
+
+    updateStage('computing_secret');
+
+    // Import peer's public key
+    console.log('[useHandshake] Importing peer public key...');
+    let peerPublicKey: CryptoKey;
+    let startTime = performance.now();
+    try {
+      peerPublicKey = await importPublicKey(data.publicKey);
+      logCryptoOperation('importPublicKey', sessionId, true, performance.now() - startTime);
+    } catch (error) {
+      logCryptoOperation('importPublicKey', sessionId, false, performance.now() - startTime, String(error));
+      console.error('[useHandshake] Failed to import peer key:', error);
+      handleError('KEY_IMPORT_FAILED', sessionId);
+      return;
+    }
+
+    // Store peer's public key
+    storePeerPublicKey(sessionId, peerPublicKey);
+
+    // Get our private key
+    const keyPair = getKeyPair(sessionId);
+    if (!keyPair) {
+      handleError('SESSION_NOT_FOUND', sessionId);
+      return;
+    }
+
+    // Compute shared secret
+    console.log('[useHandshake] Computing shared secret...');
+    let rawSharedSecret: ArrayBuffer;
+    startTime = performance.now();
+    try {
+      rawSharedSecret = await computeSharedSecret(keyPair.privateKey, peerPublicKey);
+      logCryptoOperation('computeSharedSecret', sessionId, true, performance.now() - startTime);
+    } catch (error) {
+      logCryptoOperation('computeSharedSecret', sessionId, false, performance.now() - startTime, String(error));
+      console.error('[useHandshake] Failed to compute shared secret:', error);
+      handleError('SECRET_COMPUTE_FAILED', sessionId);
+      return;
+    }
+
+    // Complete the handshake
+    await completeHandshake(sessionId, rawSharedSecret);
+  }, [updateStage, handleError, completeHandshake]);
+
+  /**
    * Handle peer's public key event from server.
    */
   const handlePeerPublicKey = useCallback(async (message: IMessage) => {
@@ -302,64 +371,15 @@ export function useHandshake({
 
       // Check if this is for our active handshake
       if (activeSessionRef.current !== sessionId) {
-        console.log('[useHandshake] Ignoring peer key for different session');
+        // Buffer the peer key for later - it may have arrived before startHandshake was called
+        // This fixes a race condition where peer-key arrives before session-accepted
+        console.log('[useHandshake] Buffering peer key for session (handshake not yet started):', sessionId);
+        pendingPeerKeyRef.current.set(sessionId, data);
         return;
       }
 
-      // Handle error response
-      if (!data.success && data.error) {
-        handleError(data.error as HandshakeErrorCode, sessionId);
-        return;
-      }
-
-      // Validate public key
-      if (!data.publicKey) {
-        handleError('PEER_KEY_INVALID', sessionId);
-        return;
-      }
-
-      updateStage('computing_secret');
-
-      // Import peer's public key
-      console.log('[useHandshake] Importing peer public key...');
-      let peerPublicKey: CryptoKey;
-      let startTime = performance.now();
-      try {
-        peerPublicKey = await importPublicKey(data.publicKey);
-        logCryptoOperation('importPublicKey', sessionId, true, performance.now() - startTime);
-      } catch (error) {
-        logCryptoOperation('importPublicKey', sessionId, false, performance.now() - startTime, String(error));
-        console.error('[useHandshake] Failed to import peer key:', error);
-        handleError('KEY_IMPORT_FAILED', sessionId);
-        return;
-      }
-
-      // Store peer's public key
-      storePeerPublicKey(sessionId, peerPublicKey);
-
-      // Get our private key
-      const keyPair = getKeyPair(sessionId);
-      if (!keyPair) {
-        handleError('SESSION_NOT_FOUND', sessionId);
-        return;
-      }
-
-      // Compute shared secret
-      console.log('[useHandshake] Computing shared secret...');
-      let rawSharedSecret: ArrayBuffer;
-      startTime = performance.now();
-      try {
-        rawSharedSecret = await computeSharedSecret(keyPair.privateKey, peerPublicKey);
-        logCryptoOperation('computeSharedSecret', sessionId, true, performance.now() - startTime);
-      } catch (error) {
-        logCryptoOperation('computeSharedSecret', sessionId, false, performance.now() - startTime, String(error));
-        console.error('[useHandshake] Failed to compute shared secret:', error);
-        handleError('SECRET_COMPUTE_FAILED', sessionId);
-        return;
-      }
-
-      // Complete the handshake
-      await completeHandshake(sessionId, rawSharedSecret);
+      // Process the peer key
+      await processPeerKey(data);
 
     } catch (error) {
       console.error('[useHandshake] Failed to handle peer key event:', error);
@@ -367,7 +387,7 @@ export function useHandshake({
         handleError('CONNECTION_ERROR', activeSessionRef.current);
       }
     }
-  }, [updateStage, handleError, completeHandshake]);
+  }, [processPeerKey, handleError]);
 
   /**
    * Subscribe to peer key events when connected.
@@ -492,12 +512,21 @@ export function useHandshake({
       updateStage('waiting_peer');
       console.log('[useHandshake] Waiting for peer public key...');
 
+      // Check if we have a buffered peer key (race condition: peer-key arrived before startHandshake)
+      const bufferedPeerKey = pendingPeerKeyRef.current.get(sessionId);
+      if (bufferedPeerKey) {
+        console.log('[useHandshake] Found buffered peer key, processing immediately...');
+        pendingPeerKeyRef.current.delete(sessionId);
+        // Process the buffered peer key
+        await processPeerKey(bufferedPeerKey);
+      }
+
     } catch (error) {
       console.error('[useHandshake] Failed to start handshake:', error);
       logCryptoOperation('generateKeyPair', sessionId, false, 0, String(error));
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
-  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore]);
+  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey]);
 
   /**
    * Cancel/abort the current handshake.
@@ -513,6 +542,8 @@ export function useHandshake({
       const startTime = performance.now();
       burn(sessionId);
       logCryptoOperation('burn', sessionId, true, performance.now() - startTime);
+      // Clear any buffered peer key for this session
+      pendingPeerKeyRef.current.delete(sessionId);
       activeSessionRef.current = null;
     }
 
