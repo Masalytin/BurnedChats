@@ -98,6 +98,20 @@ public class Session implements Serializable {
     private String secretAnswerHash;
 
     /**
+     * Temporary storage for initiator's public key during handshake.
+     * Cleared after both keys are exchanged.
+     * Server never processes or stores these long-term - only relays.
+     */
+    private transient String initiatorPublicKey;
+
+    /**
+     * Temporary storage for responder's public key during handshake.
+     * Cleared after both keys are exchanged.
+     * Server never processes or stores these long-term - only relays.
+     */
+    private transient String responderPublicKey;
+
+    /**
      * Session status enumeration.
      */
     public enum SessionStatus {
@@ -190,6 +204,79 @@ public class Session implements Serializable {
     public long getRemainingSeconds() {
         long remaining = java.time.Duration.between(Instant.now(), getExpiresAt()).getSeconds();
         return Math.max(0, remaining);
+    }
+
+    /**
+     * Check if the given user is the initiator of this session.
+     *
+     * @param userId Telegram user ID
+     * @return true if user is the initiator
+     */
+    public boolean isInitiator(Long userId) {
+        return userId != null && userId.equals(initiatorId);
+    }
+
+    /**
+     * Check if the given user is the responder of this session.
+     *
+     * @param userId Telegram user ID
+     * @return true if user is the responder
+     */
+    public boolean isResponder(Long userId) {
+        return userId != null && userId.equals(responderId);
+    }
+
+    /**
+     * Set the public key for a participant during handshake.
+     *
+     * @param userId    Telegram user ID of the participant
+     * @param publicKey Base64-encoded public key
+     * @return true if key was set, false if user is not a participant
+     */
+    public boolean setPublicKeyForUser(Long userId, String publicKey) {
+        if (isInitiator(userId)) {
+            this.initiatorPublicKey = publicKey;
+            return true;
+        }
+        if (isResponder(userId)) {
+            this.responderPublicKey = publicKey;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get the public key submitted by a participant.
+     *
+     * @param userId Telegram user ID
+     * @return the public key, or null if not yet submitted
+     */
+    public String getPublicKeyForUser(Long userId) {
+        if (isInitiator(userId)) {
+            return initiatorPublicKey;
+        }
+        if (isResponder(userId)) {
+            return responderPublicKey;
+        }
+        return null;
+    }
+
+    /**
+     * Check if both participants have submitted their public keys.
+     *
+     * @return true if both keys are available
+     */
+    public boolean areBothKeysReady() {
+        return initiatorPublicKey != null && responderPublicKey != null;
+    }
+
+    /**
+     * Clear temporary public keys after exchange is complete.
+     * Called after keys have been relayed to both participants.
+     */
+    public void clearPublicKeys() {
+        this.initiatorPublicKey = null;
+        this.responderPublicKey = null;
     }
 }
 

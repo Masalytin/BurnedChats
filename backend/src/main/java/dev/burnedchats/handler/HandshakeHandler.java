@@ -23,15 +23,18 @@ import java.util.Base64;
  * STOMP handler for cryptographic handshake coordination.
  *
  * <p>Handles the ECDH key exchange between two participants during
- * the handshake phase. The server acts purely as a relay - it never
- * stores or processes the actual cryptographic keys.
+ * the handshake phase. The server acts as a synchronized relay -
+ * it buffers keys until both participants have submitted, then
+ * relays both keys simultaneously. This prevents race conditions
+ * where a client receives peer-key before being ready to process it.
  *
  * <p>Handshake flow:
  * <ol>
  *   <li>Session is accepted, status becomes HANDSHAKE</li>
  *   <li>Both clients generate ECDH P-256 key pairs</li>
  *   <li>Each client sends public key via {@code /app/handshake.key}</li>
- *   <li>Server relays each key to the peer via PEER_PUBLIC_KEY event</li>
+ *   <li>Server buffers keys until both are received</li>
+ *   <li>Server relays both keys simultaneously via PEER_PUBLIC_KEY events</li>
  *   <li>Each client imports peer's key and computes shared secret</li>
  *   <li>Session becomes ACTIVE after both keys are exchanged</li>
  * </ol>
@@ -49,7 +52,7 @@ import java.util.Base64;
  * <p>Security considerations:
  * <ul>
  *   <li>Public keys are validated for Base64 format but not parsed</li>
- *   <li>Keys are relayed immediately and not stored</li>
+ *   <li>Keys are buffered temporarily (transient) and cleared after relay</li>
  *   <li>Only session participants can exchange keys</li>
  *   <li>Session must be in HANDSHAKE status</li>
  * </ul>
@@ -137,12 +140,17 @@ public class HandshakeHandler {
     }
 
     /**
-     * Validate session state and relay the public key to the peer.
+     * Validate session state and handle the public key.
+     *
+     * <p>Uses synchronized exchange: keys are buffered until both participants
+     * have submitted their keys, then both are relayed simultaneously.
+     * This prevents race conditions where one client receives peer-key
+     * before being ready to process it.
      *
      * @param session   the session
      * @param senderId  the sender's user ID
      * @param publicKey the Base64-encoded public key
-     * @return Mono completing when the key is relayed
+     * @return Mono completing when the key is processed
      */
     private Mono<Void> validateAndRelayKey(Session session, Long senderId, String publicKey) {
         String sessionId = session.getId();
@@ -165,27 +173,56 @@ public class HandshakeHandler {
             return Mono.empty();
         }
 
-        // Get peer ID
-        Long peerId = session.getPeerId(senderId);
-        if (peerId == null) {
-            log.error("Could not determine peer for sender {} in session {}", senderId, sessionId);
-            sendError(senderId, sessionId, "INTERNAL_ERROR");
+        // Check if user already submitted a key (prevent duplicate submissions)
+        if (session.getPublicKeyForUser(senderId) != null) {
+            log.debug("User {} already submitted key for session {}", senderId, sessionId);
+            // Not an error - just ignore duplicate
             return Mono.empty();
         }
 
-        // Update session last activity
+        // Store the public key for this participant
+        session.setPublicKeyForUser(senderId, publicKey);
         session.touch();
 
-        return sessionRepository.save(session)
-                .doOnSuccess(savedSession -> {
-                    // Relay the public key to the peer
-                    Instant timestamp = Instant.now();
-                    sendPeerPublicKey(peerId, sessionId, senderId, publicKey, timestamp);
+        log.info("Public key received: sessionId={}, from={}, bothReady={}",
+                sessionId, senderId, session.areBothKeysReady());
 
-                    log.info("Public key relayed: sessionId={}, from={}, to={}",
-                            sessionId, senderId, peerId);
-                })
-                .then();
+        // Check if both keys are now available
+        if (session.areBothKeysReady()) {
+            // Both keys ready - relay to both participants simultaneously
+            // Capture values before async operations
+            Long initiatorId = session.getInitiatorId();
+            Long responderId = session.getResponderId();
+            String initiatorKey = session.getInitiatorPublicKey();
+            String responderKey = session.getResponderPublicKey();
+
+            return sessionRepository.save(session)
+                    .doOnSuccess(saved -> {
+                        Instant timestamp = Instant.now();
+
+                        // Send responder's key to initiator
+                        sendPeerPublicKey(initiatorId, sessionId, responderId, responderKey, timestamp);
+                        // Send initiator's key to responder
+                        sendPeerPublicKey(responderId, sessionId, initiatorId, initiatorKey, timestamp);
+
+                        log.info("Both public keys relayed: sessionId={}, initiator={}, responder={}",
+                                sessionId, initiatorId, responderId);
+                    })
+                    .then(Mono.defer(() -> {
+                        // Clear temporary keys and update status to ACTIVE
+                        session.clearPublicKeys();
+                        session.setStatus(SessionStatus.ACTIVE);
+                        session.setHandshakeCompletedAt(Instant.now());
+                        return sessionRepository.save(session);
+                    }))
+                    .doOnSuccess(s -> log.info("Session {} is now ACTIVE", sessionId))
+                    .then();
+        } else {
+            // Only one key received - save and wait for the other
+            return sessionRepository.save(session)
+                    .doOnSuccess(s -> log.debug("Waiting for peer's key: sessionId={}", sessionId))
+                    .then();
+        }
     }
 
     /**
