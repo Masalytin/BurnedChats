@@ -390,13 +390,17 @@ export function useHandshake({
   }, [processPeerKey, handleError]);
 
   /**
-   * Subscribe to peer key events when connected.
+   * Register subscription to peer key events immediately.
+   * This ensures the subscription is stored and restored after reconnect.
+   * Similar pattern to useIncomingRequests for session-accepted.
    */
   useEffect(() => {
-    if (isConnected && !isSubscribedRef.current) {
+    // Register subscription immediately - it will be stored and applied on connect
+    // This is critical for reconnect scenarios where peer-key may arrive after reconnect
+    if (!isSubscribedRef.current) {
       subscribe(PEER_KEY_DESTINATION, handlePeerPublicKey);
       isSubscribedRef.current = true;
-      console.log('[useHandshake] Subscribed to peer key events');
+      console.log('[useHandshake] Registered subscription for peer key events');
     }
 
     return () => {
@@ -406,7 +410,7 @@ export function useHandshake({
         console.log('[useHandshake] Unsubscribed from peer key events');
       }
     };
-  }, [isConnected, subscribe, unsubscribe, handlePeerPublicKey]);
+  }, [subscribe, unsubscribe, handlePeerPublicKey]);
 
   /**
    * Restore session from existing keys in keyStore (4.6.9).
