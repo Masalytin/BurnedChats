@@ -99,17 +99,17 @@ public class Session implements Serializable {
 
     /**
      * Temporary storage for initiator's public key during handshake.
-     * Cleared after both keys are exchanged.
-     * Server never processes or stores these long-term - only relays.
+     * Stored in Redis until both keys are exchanged, then cleared.
+     * Server never processes these cryptographically - only relays.
      */
-    private transient String initiatorPublicKey;
+    private String initiatorPublicKey;
 
     /**
      * Temporary storage for responder's public key during handshake.
-     * Cleared after both keys are exchanged.
-     * Server never processes or stores these long-term - only relays.
+     * Stored in Redis until both keys are exchanged, then cleared.
+     * Server never processes these cryptographically - only relays.
      */
-    private transient String responderPublicKey;
+    private String responderPublicKey;
 
     /**
      * Session status enumeration.
