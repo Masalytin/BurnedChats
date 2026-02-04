@@ -13,16 +13,25 @@ import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
+import { ChatRoom } from './components/Chat';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { useMessages } from './hooks/useMessages';
 import { burn as burnKeys } from './crypto/keyStore';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
 /** Application view states */
-type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake';
+type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat';
+
+/** Active chat state */
+interface ActiveChat {
+  sessionId: string;
+  peer: UserInfo;
+  fingerprint: string;
+}
 
 /**
  * Main application content with toast integration
@@ -252,6 +261,9 @@ function AppContent() {
 
   // Reference to store peer info for handshake
   const handshakePeerRef = useRef<UserInfo | null>(null);
+  
+  // Active chat state
+  const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
 
   // Back button handling - show when not on home view
   const handleBackButton = useCallback(() => {
@@ -295,6 +307,18 @@ function AppContent() {
         publish('/app/session.burn', { sessionId });
         burnKeys(sessionId);
       }
+      return;
+    }
+    
+    if (currentView === 'chat') {
+      // Just go back to home, don't burn the session
+      console.log('[App] Leaving chat via back button');
+      setActiveChat(null);
+      handshakePeerRef.current = null;
+      resetHandshake();
+      setCurrentView('home');
+      clearSearch();
+      fetchSessions();
     }
   }, [
     showChatRequestDialog, 
@@ -306,6 +330,8 @@ function AppContent() {
     handshakeResult.sessionId,
     isConnected,
     publish,
+    resetHandshake,
+    fetchSessions,
   ]);
 
   // Setup back button
@@ -422,17 +448,30 @@ function AppContent() {
 
   // Handle continuing after handshake complete
   const handleHandshakeComplete = useCallback(() => {
-    // TODO: Navigate to chat view (Sprint 4)
-    // For now, just go back to home
-    handshakePeerRef.current = null;
-    resetHandshake();
-    setCurrentView('home');
-    setPendingSession(null);
-    setActiveIncomingRequest(null);
-    clearSearch();
-    // Refresh sessions list so the new session appears
-    fetchSessions();
-  }, [resetHandshake, clearSearch, fetchSessions]);
+    // Navigate to chat view
+    const sessionId = handshakeResult.sessionId;
+    const peer = handshakePeerRef.current;
+    const fingerprint = handshakeResult.fingerprint;
+    
+    if (sessionId && peer && fingerprint) {
+      setActiveChat({ sessionId, peer, fingerprint });
+      setCurrentView('chat');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      console.log('[App] Entering chat:', sessionId);
+    } else {
+      // Fallback to home if something is missing
+      console.warn('[App] Missing data for chat, going to home');
+      handshakePeerRef.current = null;
+      resetHandshake();
+      setCurrentView('home');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      fetchSessions();
+    }
+  }, [handshakeResult.sessionId, handshakeResult.fingerprint, resetHandshake, clearSearch, fetchSessions]);
 
   // Handle retry handshake
   const handleRetryHandshake = useCallback(() => {
@@ -440,6 +479,25 @@ function AppContent() {
       startHandshake(handshakeResult.sessionId, handshakePeerRef.current);
     }
   }, [handshakeResult.sessionId, startHandshake]);
+
+  // Handle leaving chat (back to home)
+  const handleLeaveChat = useCallback(() => {
+    console.log('[App] Leaving chat');
+    setActiveChat(null);
+    handshakePeerRef.current = null;
+    resetHandshake();
+    setCurrentView('home');
+    clearSearch();
+    fetchSessions();
+  }, [resetHandshake, clearSearch, fetchSessions]);
+
+  // Handle burn from chat
+  const handleBurnFromChat = useCallback(() => {
+    if (!activeChat) return;
+    setBurnTargetSession({ sessionId: activeChat.sessionId, peerName: activeChat.peer.displayName });
+    setShowBurnDialog(true);
+    notificationOccurred('warning');
+  }, [activeChat, notificationOccurred]);
 
   // Handle clicking on an active session (4.6.8)
   const handleSessionClick = useCallback((session: ActiveSession) => {
@@ -505,6 +563,14 @@ function AppContent() {
           setBurningSessionId(null);
           setBurnTargetSession(null);
           
+          // If we're in chat view for this session, go back to home
+          if (currentView === 'chat' && activeChat?.sessionId === data.sessionId) {
+            setActiveChat(null);
+            handshakePeerRef.current = null;
+            resetHandshake();
+            setCurrentView('home');
+          }
+          
           // Refresh sessions list
           fetchSessions();
           
@@ -529,7 +595,7 @@ function AppContent() {
     return () => {
       unsubscribe('/user/queue/burn-signal');
     };
-  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast]);
+  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast, currentView, activeChat, resetHandshake]);
 
   // Loading state
   if (!isReady) {
@@ -630,6 +696,34 @@ function AppContent() {
     );
   }
 
+  // Chat view (active chat)
+  if (currentView === 'chat' && activeChat && user) {
+    return (
+      <>
+        <Layout>
+          <ChatViewContent
+            sessionId={activeChat.sessionId}
+            peer={activeChat.peer}
+            userId={user.id}
+            onBack={handleLeaveChat}
+            onBurn={handleBurnFromChat}
+          />
+        </Layout>
+        {debugPanelElement}
+        
+        {/* Burn confirm dialog (4.6.11) */}
+        {showBurnDialog && burnTargetSession && (
+          <BurnConfirmDialog
+            peerName={burnTargetSession.peerName}
+            isLoading={burningSessionId === burnTargetSession.sessionId}
+            onConfirm={handleConfirmBurn}
+            onCancel={handleCancelBurn}
+          />
+        )}
+      </>
+    );
+  }
+
   // Default: Home view
   return (
     <>
@@ -678,6 +772,45 @@ function AppContent() {
       </Layout>
       {debugPanelElement}
     </>
+  );
+}
+
+/**
+ * Chat view content with useMessages hook
+ */
+interface ChatViewContentProps {
+  sessionId: string;
+  peer: UserInfo;
+  userId: number;
+  onBack: () => void;
+  onBurn: () => void;
+}
+
+function ChatViewContent({ sessionId, peer, userId, onBack, onBurn }: ChatViewContentProps) {
+  const { messages, sendMessage, isLoading, error } = useMessages({
+    sessionId,
+    userId,
+    onError: (err, details) => {
+      console.error('[ChatViewContent] Message error:', err, details);
+    },
+  });
+
+  const handleSendMessage = useCallback((text: string) => {
+    sendMessage(text);
+  }, [sendMessage]);
+
+  return (
+    <ChatRoom
+      sessionId={sessionId}
+      peer={peer}
+      messages={messages}
+      isLoading={isLoading}
+      isVerified={true}
+      onSendMessage={handleSendMessage}
+      onBack={onBack}
+      onBurn={onBurn}
+      disabled={!!error}
+    />
   );
 }
 
