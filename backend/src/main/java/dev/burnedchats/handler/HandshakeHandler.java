@@ -147,6 +147,9 @@ public class HandshakeHandler {
      * This prevents race conditions where one client receives peer-key
      * before being ready to process it.
      *
+     * <p>Uses atomic Redis operations to avoid lost updates when both
+     * participants submit keys simultaneously.
+     *
      * @param session   the session
      * @param senderId  the sender's user ID
      * @param publicKey the Base64-encoded public key
@@ -180,24 +183,21 @@ public class HandshakeHandler {
             return Mono.empty();
         }
 
-        // Store the public key for this participant
-        session.setPublicKeyForUser(senderId, publicKey);
-        session.touch();
+        log.info("Public key received: sessionId={}, from={}", sessionId, senderId);
 
-        log.info("Public key received: sessionId={}, from={}, bothReady={}",
-                sessionId, senderId, session.areBothKeysReady());
+        // Atomically set the public key and re-read session to check if both are ready
+        return sessionRepository.setPublicKeyAtomic(sessionId, senderId, publicKey)
+                .flatMap(updatedSession -> {
+                    log.info("After atomic set: sessionId={}, bothReady={}",
+                            sessionId, updatedSession.areBothKeysReady());
 
-        // Check if both keys are now available
-        if (session.areBothKeysReady()) {
-            // Both keys ready - relay to both participants simultaneously
-            // Capture values before async operations
-            Long initiatorId = session.getInitiatorId();
-            Long responderId = session.getResponderId();
-            String initiatorKey = session.getInitiatorPublicKey();
-            String responderKey = session.getResponderPublicKey();
-
-            return sessionRepository.save(session)
-                    .doOnSuccess(saved -> {
+                    // Check if both keys are now available
+                    if (updatedSession.areBothKeysReady()) {
+                        // Both keys ready - relay to both participants simultaneously
+                        Long initiatorId = updatedSession.getInitiatorId();
+                        Long responderId = updatedSession.getResponderId();
+                        String initiatorKey = updatedSession.getInitiatorPublicKey();
+                        String responderKey = updatedSession.getResponderPublicKey();
                         Instant timestamp = Instant.now();
 
                         // Send responder's key to initiator
@@ -207,22 +207,17 @@ public class HandshakeHandler {
 
                         log.info("Both public keys relayed: sessionId={}, initiator={}, responder={}",
                                 sessionId, initiatorId, responderId);
-                    })
-                    .then(Mono.defer(() -> {
-                        // Clear temporary keys and update status to ACTIVE
-                        session.clearPublicKeys();
-                        session.setStatus(SessionStatus.ACTIVE);
-                        session.setHandshakeCompletedAt(Instant.now());
-                        return sessionRepository.save(session);
-                    }))
-                    .doOnSuccess(s -> log.info("Session {} is now ACTIVE", sessionId))
-                    .then();
-        } else {
-            // Only one key received - save and wait for the other
-            return sessionRepository.save(session)
-                    .doOnSuccess(s -> log.debug("Waiting for peer's key: sessionId={}", sessionId))
-                    .then();
-        }
+
+                        // Clear temporary keys and update status to ACTIVE atomically
+                        return sessionRepository.clearPublicKeysAndSetActive(sessionId)
+                                .doOnSuccess(s -> log.info("Session {} is now ACTIVE", sessionId))
+                                .then();
+                    } else {
+                        // Only one key received - wait for the other
+                        log.debug("Waiting for peer's key: sessionId={}", sessionId);
+                        return Mono.empty();
+                    }
+                });
     }
 
     /**

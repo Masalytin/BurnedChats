@@ -125,6 +125,59 @@ public class SessionRepository {
     }
 
     /**
+     * Atomically set public key for a participant during handshake.
+     * Uses Redis HSET to update only the specific field, avoiding race conditions.
+     *
+     * @param sessionId session UUID
+     * @param userId    Telegram user ID of the participant
+     * @param publicKey Base64-encoded public key
+     * @return Mono with the updated session, or empty if user is not a participant
+     */
+    public Mono<Session> setPublicKeyAtomic(String sessionId, Long userId, String publicKey) {
+        String key = keyFor(sessionId);
+
+        return findById(sessionId)
+                .flatMap(session -> {
+                    String field;
+                    if (userId.equals(session.getInitiatorId())) {
+                        field = "initiatorPublicKey";
+                    } else if (userId.equals(session.getResponderId())) {
+                        field = "responderPublicKey";
+                    } else {
+                        return Mono.empty(); // Not a participant
+                    }
+
+                    // Atomically set only the public key field and lastActivityAt
+                    String now = String.valueOf(Instant.now().toEpochMilli());
+                    return redisTemplate.opsForHash()
+                            .put(key, field, publicKey)
+                            .then(redisTemplate.opsForHash().put(key, "lastActivityAt", now))
+                            .then(findById(sessionId)) // Re-read to get both keys
+                            .doOnSuccess(s -> log.debug(
+                                    "Atomically set {} for session {}", field, sessionId));
+                });
+    }
+
+    /**
+     * Atomically clear public keys and update status after handshake relay.
+     *
+     * @param sessionId session UUID
+     * @return true if cleared
+     */
+    public Mono<Boolean> clearPublicKeysAndSetActive(String sessionId) {
+        String key = keyFor(sessionId);
+        String now = String.valueOf(Instant.now().toEpochMilli());
+
+        return redisTemplate.opsForHash()
+                .remove(key, "initiatorPublicKey", "responderPublicKey")
+                .then(redisTemplate.opsForHash().put(key, "status", SessionStatus.ACTIVE.name()))
+                .then(redisTemplate.opsForHash().put(key, "handshakeCompletedAt", now))
+                .then(redisTemplate.opsForHash().put(key, "lastActivityAt", now))
+                .doOnSuccess(result -> log.debug(
+                        "Cleared public keys and set ACTIVE for session: {}", sessionId));
+    }
+
+    /**
      * Update verification status for a participant.
      *
      * @param sessionId session UUID
@@ -276,6 +329,8 @@ public class SessionRepository {
                 .responderVerified(parseBoolean(hash.get("responderVerified")))
                 .secretQuestion(hash.get("secretQuestion"))
                 .secretAnswerHash(hash.get("secretAnswerHash"))
+                .initiatorPublicKey(hash.get("initiatorPublicKey"))
+                .responderPublicKey(hash.get("responderPublicKey"))
                 .build();
     }
 
@@ -307,6 +362,14 @@ public class SessionRepository {
         }
         if (session.getSecretAnswerHash() != null) {
             map.put("secretAnswerHash", session.getSecretAnswerHash());
+        }
+
+        // Temporary public keys during handshake (relayed to peers, then cleared)
+        if (session.getInitiatorPublicKey() != null) {
+            map.put("initiatorPublicKey", session.getInitiatorPublicKey());
+        }
+        if (session.getResponderPublicKey() != null) {
+            map.put("responderPublicKey", session.getResponderPublicKey());
         }
 
         return map;
