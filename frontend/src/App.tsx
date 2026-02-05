@@ -787,12 +787,15 @@ interface ChatViewContentProps {
 }
 
 function ChatViewContent({ sessionId, peer, userId, onBack, onBurn }: ChatViewContentProps) {
+  // Memoize onError callback to prevent unnecessary re-renders
+  const handleMessageError = useCallback((err: string, details?: string) => {
+    console.error('[ChatViewContent] Message error:', err, details);
+  }, []);
+
   const { messages, sendMessage, isLoading, error } = useMessages({
     sessionId,
     userId,
-    onError: (err, details) => {
-      console.error('[ChatViewContent] Message error:', err, details);
-    },
+    onError: handleMessageError,
   });
 
   const handleSendMessage = useCallback((text: string) => {

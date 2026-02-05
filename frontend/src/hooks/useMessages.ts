@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { useWebSocket } from './useWebSocket';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
-import { getAESKey, isHandshakeComplete } from '@/crypto/keyStore';
+import { getAESKey, isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
 import type { DecryptedMessage, MessageStatus } from '@/types';
 
 // ============================================
@@ -191,20 +191,36 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    * Encrypt and send a message.
    */
   const sendMessage = useCallback(async (text: string): Promise<SendMessageResult> => {
+    // Clear previous error before attempting to send
+    setError(null);
+
+    const keyStoreInfo = getDebugInfo();
+    console.log('[useMessages] sendMessage called', {
+      text: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
+      sessionId,
+      isConnected,
+      handshakeComplete: isHandshakeComplete(sessionId),
+      keyStoreSessionIds: keyStoreInfo.sessionIds,
+      keyStoreSessionCount: keyStoreInfo.sessionCount,
+    });
+
     // Validate connection
     if (!isConnected) {
+      console.error('[useMessages] Not connected to WebSocket');
       handleError('NOT_CONNECTED');
       return { success: false, messageId: null, error: 'NOT_CONNECTED' };
     }
 
     // Validate session
     if (!sessionId) {
+      console.error('[useMessages] No session ID');
       handleError('NO_SESSION');
       return { success: false, messageId: null, error: 'NO_SESSION' };
     }
 
     // Check handshake is complete
     if (!isHandshakeComplete(sessionId)) {
+      console.error('[useMessages] Handshake not complete for session:', sessionId);
       handleError('NO_ENCRYPTION_KEY');
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
     }
@@ -212,6 +228,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     // Get AES key
     const aesKey = getAESKey(sessionId);
     if (!aesKey) {
+      console.error('[useMessages] No AES key found for session:', sessionId);
       handleError('NO_ENCRYPTION_KEY');
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
     }
@@ -240,6 +257,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       setMessages(prev => [...prev, localMessage]);
 
       // Send to server
+      console.log('[useMessages] Publishing message', { messageId, sessionId });
       publish(SEND_MESSAGE_DESTINATION, {
         sessionId,
         messageId,
@@ -248,6 +266,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         timestamp,
       });
 
+      console.log('[useMessages] Message published successfully', { messageId });
       return { success: true, messageId, error: null };
 
     } catch (err) {

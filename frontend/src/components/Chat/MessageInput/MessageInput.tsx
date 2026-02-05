@@ -80,17 +80,6 @@ export const MessageInput = memo(function MessageInput({
   }, [maxLength, onTypingChange]);
 
   /**
-   * Handle key press
-   */
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Send on Enter (without Shift)
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }, [text, disabled, isSending]);
-
-  /**
    * Submit the message
    */
   const handleSubmit = useCallback(() => {
@@ -118,6 +107,17 @@ export const MessageInput = memo(function MessageInput({
       textareaRef.current.style.height = 'auto';
     }
   }, [text, disabled, isSending, onSend, onTypingChange]);
+
+  /**
+   * Handle key press
+   */
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Send on Enter (without Shift)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }, [handleSubmit]);
 
   /**
    * Auto-resize textarea based on content
