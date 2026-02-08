@@ -3,7 +3,7 @@ import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
-import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon } from '../icons';
+import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon } from '../icons';
 import './HomePage.css';
 
 interface HomePageProps {
@@ -81,6 +81,23 @@ export function HomePage({
     ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
     : 'Anonymous';
 
+  const handleCopy = useCallback((text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        // Optional: could use toast if available
+        if (typeof document !== 'undefined' && document.hasFocus()) {
+          const el = document.createElement('span');
+          el.setAttribute('aria-live', 'polite');
+          el.className = 'home-copy-feedback';
+          el.textContent = `${label} copied`;
+          document.body.appendChild(el);
+          setTimeout(() => el.remove(), 1500);
+        }
+      },
+      () => {}
+    );
+  }, []);
+
   // Determine connection status
   const connectionStatus = isConnected 
     ? 'online' 
@@ -147,9 +164,36 @@ export function HomePage({
             />
             <div className="home-profile-info">
               <h2 className="home-profile-name">{displayName}</h2>
-              {user?.username && (
-                <p className="home-profile-username">@{user.username}</p>
-              )}
+              <div className="home-profile-ids">
+                {user?.username && (
+                  <span className="home-profile-id-row">
+                    <span className="home-profile-id-label">@{user.username}</span>
+                    <button
+                      type="button"
+                      className="home-profile-copy"
+                      onClick={() => handleCopy(`@${user.username}`, 'Username')}
+                      aria-label="Copy username"
+                      title="Copy username"
+                    >
+                      <CopyIcon size={14} />
+                    </button>
+                  </span>
+                )}
+                {user && (
+                  <span className="home-profile-id-row">
+                    <span className="home-profile-id-label">ID: {user.id}</span>
+                    <button
+                      type="button"
+                      className="home-profile-copy"
+                      onClick={() => handleCopy(String(user.id), 'ID')}
+                      aria-label="Copy ID"
+                      title="Copy ID"
+                    >
+                      <CopyIcon size={14} />
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>

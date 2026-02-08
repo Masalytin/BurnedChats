@@ -84,11 +84,28 @@ interface ServerActiveSessionsEvent {
   error?: string;
 }
 
-/** Server response for session resumed */
+/** Server response for session resumed (backend sends session in .session) */
 interface ServerSessionResumedEvent {
   success: boolean;
   sessionId: string;
   status?: string;
+  /** Session payload; peer and timestamps are inside session */
+  session?: {
+    sessionId?: string;
+    status?: string;
+    peer?: {
+      id: number;
+      username?: string;
+      displayName: string;
+      photoUrl?: string;
+      online: boolean;
+      premium: boolean;
+    };
+    verified?: boolean;
+    peerVerified?: boolean;
+    createdAt?: string;
+    lastActivityAt?: string;
+  };
   peer?: {
     id: number;
     username?: string;
@@ -279,22 +296,28 @@ export function useActiveSessions({
         return;
       }
 
-      if (data.success && data.peer) {
+      const peer = data.session?.peer ?? data.peer;
+      if (data.success && peer) {
+        const sessionPayload = data.session ?? data;
         const resumedSession: ActiveSession = {
           sessionId: data.sessionId,
-          status: (data.status || 'ACTIVE') as SessionStatus,
+          status: (data.status ?? sessionPayload.status ?? 'ACTIVE') as SessionStatus,
           peer: {
-            id: data.peer.id,
-            username: data.peer.username,
-            displayName: data.peer.displayName,
-            photoUrl: data.peer.photoUrl,
-            online: data.peer.online,
-            premium: data.peer.premium,
+            id: peer.id,
+            username: peer.username,
+            displayName: peer.displayName,
+            photoUrl: peer.photoUrl,
+            online: peer.online,
+            premium: peer.premium,
           },
-          verified: data.verified ?? false,
-          peerVerified: data.peerVerified ?? false,
-          createdAt: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
-          lastActivityAt: data.lastActivityAt ? new Date(data.lastActivityAt).getTime() : Date.now(),
+          verified: sessionPayload.verified ?? data.verified ?? false,
+          peerVerified: sessionPayload.peerVerified ?? data.peerVerified ?? false,
+          createdAt: (sessionPayload.createdAt ?? data.createdAt)
+            ? new Date(sessionPayload.createdAt ?? data.createdAt!).getTime()
+            : Date.now(),
+          lastActivityAt: (sessionPayload.lastActivityAt ?? data.lastActivityAt)
+            ? new Date(sessionPayload.lastActivityAt ?? data.lastActivityAt!).getTime()
+            : Date.now(),
         };
 
         setResumeResult({
