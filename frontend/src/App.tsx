@@ -18,7 +18,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
-import { useMessages } from './hooks/useMessages';
+import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
 import { burn as burnKeys } from './crypto/keyStore';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -705,6 +705,7 @@ function AppContent() {
             sessionId={activeChat.sessionId}
             peer={activeChat.peer}
             userId={user.id}
+            ws={{ isConnected, subscribe, unsubscribe, publish }}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
           />
@@ -782,11 +783,12 @@ interface ChatViewContentProps {
   sessionId: string;
   peer: UserInfo;
   userId: number;
+  ws: UseMessagesWebSocket;
   onBack: () => void;
   onBurn: () => void;
 }
 
-function ChatViewContent({ sessionId, peer, userId, onBack, onBurn }: ChatViewContentProps) {
+function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatViewContentProps) {
   // Memoize onError callback to prevent unnecessary re-renders
   const handleMessageError = useCallback((err: string, details?: string) => {
     console.error('[ChatViewContent] Message error:', err, details);
@@ -795,6 +797,7 @@ function ChatViewContent({ sessionId, peer, userId, onBack, onBurn }: ChatViewCo
   const { messages, sendMessage, isLoading, error } = useMessages({
     sessionId,
     userId,
+    ws,
     onError: handleMessageError,
   });
 

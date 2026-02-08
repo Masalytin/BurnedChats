@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import { useWebSocket } from './useWebSocket';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { getAESKey, isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
 import type { DecryptedMessage, MessageStatus } from '@/types';
+import { debugLog } from '@/components/DebugPanel';
 
 // ============================================
 // Types
@@ -72,12 +72,22 @@ interface SyncMessagesEvent {
   error?: string;
 }
 
+/** WebSocket API passed from parent (must use same connection as app) */
+export interface UseMessagesWebSocket {
+  isConnected: boolean;
+  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
+  unsubscribe: (destination: string) => void;
+  publish: (destination: string, body: unknown) => void;
+}
+
 /** Hook options */
 interface UseMessagesOptions {
   /** Session ID to listen for messages */
   sessionId: string;
   /** Current user's Telegram ID */
   userId: number;
+  /** WebSocket connection from app (required – use same instance as AppContent) */
+  ws: UseMessagesWebSocket;
   /** Whether WebSocket is a reconnection (5.1.2) */
   isReconnection?: boolean;
   /** Callback when new message arrives */
@@ -132,10 +142,11 @@ const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
  * 
  * @example
  * ```tsx
- * function ChatView({ sessionId, userId }: Props) {
+ * function ChatView({ sessionId, userId, ws }: Props) {
  *   const { messages, sendMessage, isLoading } = useMessages({
  *     sessionId,
  *     userId,
+ *     ws,
  *     onNewMessage: (msg) => console.log('New message:', msg.content),
  *   });
  * 
@@ -159,7 +170,8 @@ const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userId, isReconnection, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
+  const { sessionId, userId, ws, isReconnection, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
+  const { isConnected, subscribe, unsubscribe, publish } = ws;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading, _setIsLoading] = useState(false);
@@ -170,8 +182,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
   // Track if sync has been triggered for this session/reconnection
   const syncTriggeredRef = useRef(false);
-
-  const { isConnected, subscribe, unsubscribe, publish } = useWebSocket();
 
   // ============================================
   // Error Handling
@@ -195,17 +205,26 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     setError(null);
 
     const keyStoreInfo = getDebugInfo();
+    const handshakeComplete = isHandshakeComplete(sessionId);
+    debugLog('info', 'sendMessage called', {
+      textPreview: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
+      sessionId,
+      isConnected,
+      handshakeComplete,
+      keyStoreSessionCount: keyStoreInfo.sessionCount,
+    });
     console.log('[useMessages] sendMessage called', {
       text: text.substring(0, 20) + (text.length > 20 ? '...' : ''),
       sessionId,
       isConnected,
-      handshakeComplete: isHandshakeComplete(sessionId),
+      handshakeComplete,
       keyStoreSessionIds: keyStoreInfo.sessionIds,
       keyStoreSessionCount: keyStoreInfo.sessionCount,
     });
 
     // Validate connection
     if (!isConnected) {
+      debugLog('error', 'Send blocked: not connected to WebSocket');
       console.error('[useMessages] Not connected to WebSocket');
       handleError('NOT_CONNECTED');
       return { success: false, messageId: null, error: 'NOT_CONNECTED' };
@@ -213,14 +232,19 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     // Validate session
     if (!sessionId) {
+      debugLog('error', 'Send blocked: no session ID');
       console.error('[useMessages] No session ID');
       handleError('NO_SESSION');
       return { success: false, messageId: null, error: 'NO_SESSION' };
     }
 
     // Check handshake is complete
-    if (!isHandshakeComplete(sessionId)) {
-      console.error('[useMessages] Handshake not complete for session:', sessionId);
+    if (!handshakeComplete) {
+      debugLog('error', 'Send blocked: handshake not complete', {
+        sessionId,
+        hint: 'Complete handshake and click "Continue to Chat"',
+      });
+      console.error('[useMessages] Send blocked: handshake not complete for session:', sessionId, '(user may need to complete handshake and click "Continue to Chat")');
       handleError('NO_ENCRYPTION_KEY');
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
     }
@@ -228,6 +252,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     // Get AES key
     const aesKey = getAESKey(sessionId);
     if (!aesKey) {
+      debugLog('error', 'Send blocked: no AES key for session', { sessionId });
       console.error('[useMessages] No AES key found for session:', sessionId);
       handleError('NO_ENCRYPTION_KEY');
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
@@ -257,7 +282,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       setMessages(prev => [...prev, localMessage]);
 
       // Send to server
-      console.log('[useMessages] Publishing message', { messageId, sessionId });
+      debugLog('success', 'Message sent to server', { messageId, sessionId });
+      console.log('[useMessages] Sending message to server', { messageId, sessionId });
       publish(SEND_MESSAGE_DESTINATION, {
         sessionId,
         messageId,
@@ -270,8 +296,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return { success: true, messageId, error: null };
 
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      debugLog('error', 'Message encryption failed', { error: errMsg });
       console.error('[useMessages] Encryption failed:', err);
-      handleError('ENCRYPTION_FAILED', err instanceof Error ? err.message : 'Unknown error');
+      handleError('ENCRYPTION_FAILED', errMsg);
       return { success: false, messageId: null, error: 'ENCRYPTION_FAILED' };
     }
   }, [isConnected, sessionId, userId, publish, handleError]);
