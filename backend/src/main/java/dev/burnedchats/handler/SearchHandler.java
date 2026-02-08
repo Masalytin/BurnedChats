@@ -85,7 +85,7 @@ public class SearchHandler {
     public void searchUser(@Payload SearchRequest request, Principal principal) {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long searcherTgId = telegramPrincipal.getUserId();
-        String query = request.getQuery();
+        String query = request.getQuery() != null ? request.getQuery().trim() : "";
 
         log.debug("Search request from user {}: query='{}'", searcherTgId, query);
 
@@ -96,7 +96,7 @@ public class SearchHandler {
             return;
         }
 
-        // Determine search type and execute
+        // Determine search type and execute (numeric => by ID, otherwise by username)
         if (isUserIdQuery(query)) {
             searchByUserId(query, searcherTgId);
         } else {
