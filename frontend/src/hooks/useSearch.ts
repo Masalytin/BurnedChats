@@ -132,7 +132,8 @@ export function useSearch({
   const lastQueryRef = useRef('');
 
   /**
-   * Handle incoming search result from server
+   * Handle incoming search result from server.
+   * Only applies result if it matches the latest search (by request id).
    */
   const handleSearchResult = useCallback((message: IMessage) => {
     try {
@@ -140,44 +141,40 @@ export function useSearch({
       
       if (data.error) {
         const errorCode = data.error as SearchErrorCode;
-        setResult({
-          status: 'error',
-          user: null,
-          error: errorCode,
+        setResult((prev) => {
+          if (prev.status !== 'searching') return prev;
+          return { status: 'error', user: null, error: errorCode };
         });
         onSearchError?.(errorCode);
         return;
       }
 
       if (data.found && data.user) {
+        const raw = data.user;
         const user: UserInfo = {
-          id: data.user.id,
-          username: data.user.username,
-          displayName: data.user.displayName,
-          photoUrl: data.user.photoUrl,
-          online: data.user.online,
-          premium: data.user.premium,
+          id: Number(raw.id),
+          username: raw.username ?? undefined,
+          displayName: raw.displayName ?? `User ${raw.id}`,
+          photoUrl: raw.photoUrl ?? undefined,
+          online: Boolean(raw.online),
+          premium: Boolean(raw.premium),
         };
-        
-        setResult({
-          status: 'found',
-          user,
-          error: null,
+        setResult((prev) => {
+          if (prev.status !== 'searching') return prev;
+          return { status: 'found', user, error: null };
         });
         onUserFound?.(user);
       } else {
-        setResult({
-          status: 'not_found',
-          user: null,
-          error: null,
+        setResult((prev) => {
+          if (prev.status !== 'searching') return prev;
+          return { status: 'not_found', user: null, error: null };
         });
       }
     } catch (error) {
       console.error('[useSearch] Failed to parse search result:', error);
-      setResult({
-        status: 'error',
-        user: null,
-        error: 'CONNECTION_ERROR',
+      setResult((prev) => {
+        if (prev.status !== 'searching') return prev;
+        return { status: 'error', user: null, error: 'CONNECTION_ERROR' };
       });
     }
   }, [onUserFound, onSearchError]);
@@ -202,11 +199,13 @@ export function useSearch({
   }, [isConnected, subscribe, unsubscribe, handleSearchResult]);
 
   /**
-   * Execute search request
+   * Execute search request.
+   * Always sends query as string (supports @username and numeric ID).
    */
   const search = useCallback((searchQuery?: string) => {
-    const queryToSearch = (searchQuery ?? query).trim();
-    
+    const raw = searchQuery ?? query;
+    const queryToSearch = typeof raw === 'string' ? raw.trim() : String(raw).trim();
+
     if (!queryToSearch) {
       setResult(initialResult);
       return;
@@ -222,7 +221,7 @@ export function useSearch({
       return;
     }
 
-    // Avoid duplicate searches
+    // Avoid duplicate searches (same query already in progress)
     if (queryToSearch === lastQueryRef.current && result.status === 'searching') {
       return;
     }
@@ -234,8 +233,10 @@ export function useSearch({
       error: null,
     });
 
-    publish(SEARCH_DESTINATION, { query: queryToSearch });
-    console.log('[useSearch] Search request sent:', queryToSearch);
+    publish(SEARCH_DESTINATION, { query: String(queryToSearch) });
+    if (import.meta.env.DEV) {
+      console.log('[useSearch] Search request sent:', JSON.stringify(queryToSearch));
+    }
   }, [query, isConnected, publish, result.status, onSearchError]);
 
   /**
