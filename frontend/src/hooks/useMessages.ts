@@ -182,6 +182,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
   // Track if sync has been triggered for this session/reconnection
   const syncTriggeredRef = useRef(false);
+  // Refs for handlers so subscription effect doesn't re-run on handler identity change (avoids missing messages)
+  const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
+  const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
+  const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
 
   // ============================================
   // Error Handling
@@ -531,6 +535,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     }
   }, [sessionId, onStatusChange, handleError]);
 
+  // Keep handler refs up to date so subscription callbacks always use latest logic
+  useEffect(() => {
+    handleNewMessageRef.current = handleNewMessage;
+    handleMessageSentRef.current = handleMessageSent;
+    handleSyncMessagesRef.current = handleSyncMessages;
+  });
+
   // ============================================
   // Retry Failed Message
   // ============================================
@@ -573,21 +584,21 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return;
     }
 
-    // Subscribe to new messages
-    subscribe(NEW_MESSAGE_DESTINATION, handleNewMessage);
+    // Stable wrappers: call current handler from ref so we don't unsubscribe on handler identity change
+    const onNewMessage = (message: IMessage) => handleNewMessageRef.current(message);
+    const onMessageSent = (message: IMessage) => handleMessageSentRef.current(message);
+    const onSyncResult = (message: IMessage) => handleSyncMessagesRef.current(message);
 
-    // Subscribe to message sent acknowledgments
-    subscribe(MESSAGE_SENT_DESTINATION, handleMessageSent);
-
-    // Subscribe to sync results (5.1.2)
-    subscribe(SYNC_MESSAGES_RESULT_DESTINATION, handleSyncMessages);
+    subscribe(NEW_MESSAGE_DESTINATION, onNewMessage);
+    subscribe(MESSAGE_SENT_DESTINATION, onMessageSent);
+    subscribe(SYNC_MESSAGES_RESULT_DESTINATION, onSyncResult);
 
     return () => {
       unsubscribe(NEW_MESSAGE_DESTINATION);
       unsubscribe(MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_MESSAGES_RESULT_DESTINATION);
     };
-  }, [isConnected, sessionId, subscribe, unsubscribe, handleNewMessage, handleMessageSent, handleSyncMessages]);
+  }, [isConnected, sessionId, subscribe, unsubscribe]);
 
   // ============================================
   // Auto-sync on Reconnection (5.1.2)
