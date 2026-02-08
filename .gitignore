@@ -159,4 +159,6 @@ certs/*.crt
 certs/*.p12
 *.localhost.pem
 
+# SSH keys
+.ssh/*
 

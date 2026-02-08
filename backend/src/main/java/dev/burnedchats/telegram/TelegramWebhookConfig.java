@@ -86,7 +86,14 @@ public class TelegramWebhookConfig {
             return;
         }
 
-        String fullWebhookUrl = webhookUrl + webhookPath;
+        // Build full URL: use base URL only (no path) so path is appended once
+        String baseUrl = webhookUrl.trim().replaceAll("/+$", "");
+        String path = webhookPath != null ? webhookPath.trim() : "";
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        // Avoid double path if url was set with path included
+        String fullWebhookUrl = baseUrl.endsWith(path) ? baseUrl : baseUrl + path;
 
         try {
             SetWebhook.SetWebhookBuilder webhookBuilder = SetWebhook.builder()
