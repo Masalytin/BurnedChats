@@ -180,6 +180,22 @@ export function useIncomingRequests({
   const isSubscribedRef = useRef(false);
   const pendingActionRef = useRef<string | null>(null);
 
+  // Callback refs for stable handlers (prevents subscription churn on every render)
+  const onRequestReceivedRef = useRef(onRequestReceived);
+  const onSessionAcceptedRef = useRef(onSessionAccepted);
+  const onOurRequestAcceptedRef = useRef(onOurRequestAccepted);
+  const onRequestRejectedRef = useRef(onRequestRejected);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onRequestReceivedRef.current = onRequestReceived;
+    onSessionAcceptedRef.current = onSessionAccepted;
+    onOurRequestAcceptedRef.current = onOurRequestAccepted;
+    onRequestRejectedRef.current = onRequestRejected;
+    onErrorRef.current = onError;
+  });
+
   /**
    * Handle incoming request event from server.
    */
@@ -205,12 +221,12 @@ export function useIncomingRequests({
         return [...prev, request];
       });
 
-      onRequestReceived?.(request);
+      onRequestReceivedRef.current?.(request);
       console.log('[useIncomingRequests] Received incoming request:', request.id);
     } catch (error) {
       console.error('[useIncomingRequests] Failed to parse incoming request:', error);
     }
-  }, [onRequestReceived]);
+  }, []);
 
   /**
    * Handle session accepted event from server.
@@ -238,7 +254,7 @@ export function useIncomingRequests({
             peer: null,
             error: errorCode,
           });
-          onError?.(errorCode);
+          onErrorRef.current?.(errorCode);
           return;
         }
 
@@ -262,7 +278,7 @@ export function useIncomingRequests({
           // Remove request from list
           setRequests((prev) => prev.filter((r) => r.id !== sessionId));
 
-          onSessionAccepted?.(sessionId, peer);
+          onSessionAcceptedRef.current?.(sessionId, peer);
           console.log('[useIncomingRequests] Session accepted (as responder):', sessionId);
         }
       } else {
@@ -278,7 +294,7 @@ export function useIncomingRequests({
             premium: data.peer.premium,
           };
 
-          onOurRequestAccepted?.(sessionId, peer);
+          onOurRequestAcceptedRef.current?.(sessionId, peer);
           console.log('[useIncomingRequests] Our request accepted (as initiator):', sessionId);
         }
       }
@@ -292,10 +308,10 @@ export function useIncomingRequests({
           error: 'CONNECTION_ERROR',
         });
         pendingActionRef.current = null;
-        onError?.('CONNECTION_ERROR');
+        onErrorRef.current?.('CONNECTION_ERROR');
       }
     }
-  }, [onSessionAccepted, onOurRequestAccepted, onError]);
+  }, []);
 
   /**
    * Register subscriptions immediately (even before connected).
@@ -322,6 +338,24 @@ export function useIncomingRequests({
   }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted]);
 
   /**
+   * Fetch pending requests explicitly when connected.
+   * Fixes race condition: server sends pending requests on SessionConnectedEvent
+   * BEFORE the client's SUBSCRIBE frames arrive, so messages are lost.
+   */
+  const hasFetchedPendingRef = useRef(false);
+
+  useEffect(() => {
+    if (isConnected && !hasFetchedPendingRef.current) {
+      hasFetchedPendingRef.current = true;
+      publish('/app/session.pending', {});
+      console.log('[useIncomingRequests] Fetching pending requests');
+    }
+    if (!isConnected) {
+      hasFetchedPendingRef.current = false;
+    }
+  }, [isConnected, publish]);
+
+  /**
    * Accept a request.
    */
   const acceptRequest = useCallback((sessionId: string, secretAnswer?: string) => {
@@ -332,7 +366,7 @@ export function useIncomingRequests({
         peer: null,
         error: 'CONNECTION_ERROR',
       });
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
@@ -356,7 +390,7 @@ export function useIncomingRequests({
 
     publish(ACCEPT_SESSION_DESTINATION, payload);
     console.log('[useIncomingRequests] Accept request sent:', sessionId);
-  }, [isConnected, publish, onError]);
+  }, [isConnected, publish]);
 
   /**
    * Reject a request.
@@ -369,7 +403,7 @@ export function useIncomingRequests({
         peer: null,
         error: 'CONNECTION_ERROR',
       });
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
@@ -393,11 +427,11 @@ export function useIncomingRequests({
         peer: null,
         error: null,
       });
-      onRequestRejected?.(sessionId);
+      onRequestRejectedRef.current?.(sessionId);
     }, 100);
 
     console.log('[useIncomingRequests] Reject request sent:', sessionId);
-  }, [isConnected, publish, onError, onRequestRejected]);
+  }, [isConnected, publish]);
 
   /**
    * Clear a request from list (e.g., after expiration).

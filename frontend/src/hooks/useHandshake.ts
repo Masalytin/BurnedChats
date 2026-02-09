@@ -202,6 +202,16 @@ export function useHandshake({
   // Buffer for peer keys that arrive before handshake starts (race condition fix)
   const pendingPeerKeyRef = useRef<Map<string, ServerPeerPublicKeyEvent>>(new Map());
 
+  // Callback refs for stable handlers (prevents subscription churn on every render)
+  const onHandshakeCompleteRef = useRef(onHandshakeComplete);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onHandshakeCompleteRef.current = onHandshakeComplete;
+    onErrorRef.current = onError;
+  });
+
   /**
    * Update result with new stage and progress.
    */
@@ -246,8 +256,8 @@ export function useHandshake({
     }));
 
     activeSessionRef.current = null;
-    onError?.(errorCode);
-  }, [onError]);
+    onErrorRef.current?.(errorCode);
+  }, []);
 
   /**
    * Complete the handshake after computing shared secret.
@@ -286,14 +296,14 @@ export function useHandshake({
 
       updateStage('complete', { fingerprint });
       activeSessionRef.current = null;
-      onHandshakeComplete?.(sessionId, fingerprint);
+      onHandshakeCompleteRef.current?.(sessionId, fingerprint);
 
     } catch (error) {
       console.error('[useHandshake] Failed to complete handshake:', error);
       logCryptoOperation('deriveAESKey', sessionId, false, 0, String(error));
       handleError('KEY_DERIVATION_FAILED', sessionId);
     }
-  }, [updateStage, handleError, onHandshakeComplete]);
+  }, [updateStage, handleError]);
 
   /**
    * Process a peer public key event (either fresh or from buffer).
@@ -439,9 +449,9 @@ export function useHandshake({
       progress: 100,
     });
 
-    onHandshakeComplete?.(sessionId, sessionKeys.sharedSecret.fingerprint);
+    onHandshakeCompleteRef.current?.(sessionId, sessionKeys.sharedSecret.fingerprint);
     return true;
-  }, [onHandshakeComplete]);
+  }, []);
 
   /**
    * Start handshake process for a session.

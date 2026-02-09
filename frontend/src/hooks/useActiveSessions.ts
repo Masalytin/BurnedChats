@@ -222,6 +222,18 @@ export function useActiveSessions({
   const isSubscribedRef = useRef(false);
   const hasFetchedRef = useRef(false);
 
+  // Callback refs for stable handlers (prevents subscription churn on every render)
+  const onSessionsLoadedRef = useRef(onSessionsLoaded);
+  const onSessionResumedRef = useRef(onSessionResumed);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onSessionsLoadedRef.current = onSessionsLoaded;
+    onSessionResumedRef.current = onSessionResumed;
+    onErrorRef.current = onError;
+  });
+
   /**
    * Parse server session to client format
    */
@@ -255,7 +267,7 @@ export function useActiveSessions({
       if (!data.success && data.error) {
         const errorCode = data.error as ActiveSessionsErrorCode;
         setError(errorCode);
-        onError?.(errorCode);
+        onErrorRef.current?.(errorCode);
         return;
       }
 
@@ -266,16 +278,16 @@ export function useActiveSessions({
       
       setSessions(parsedSessions);
       setError(null);
-      onSessionsLoaded?.(parsedSessions);
+      onSessionsLoadedRef.current?.(parsedSessions);
       
       console.log('[useActiveSessions] Loaded sessions:', parsedSessions.length);
     } catch (err) {
       console.error('[useActiveSessions] Failed to parse sessions list:', err);
       setIsLoading(false);
       setError('INTERNAL_ERROR');
-      onError?.('INTERNAL_ERROR');
+      onErrorRef.current?.('INTERNAL_ERROR');
     }
-  }, [parseSession, onSessionsLoaded, onError]);
+  }, [parseSession]);
 
   /**
    * Handle session resumed event from server
@@ -292,7 +304,7 @@ export function useActiveSessions({
           session: null,
           error: errorCode,
         });
-        onError?.(errorCode);
+        onErrorRef.current?.(errorCode);
         return;
       }
 
@@ -326,7 +338,7 @@ export function useActiveSessions({
           error: null,
         });
         
-        onSessionResumed?.(resumedSession);
+        onSessionResumedRef.current?.(resumedSession);
         console.log('[useActiveSessions] Session resumed:', resumedSession.sessionId);
       }
     } catch (err) {
@@ -337,19 +349,21 @@ export function useActiveSessions({
         session: null,
         error: 'INTERNAL_ERROR',
       });
-      onError?.('INTERNAL_ERROR');
+      onErrorRef.current?.('INTERNAL_ERROR');
     }
-  }, [onSessionResumed, onError]);
+  }, []);
 
   /**
-   * Subscribe to session events when connected
+   * Register subscriptions immediately (even before connected).
+   * The WebSocket hook stores subscriptions and applies them on connect/reconnect.
+   * This prevents race conditions where server sends messages before subscriptions are ready.
    */
   useEffect(() => {
-    if (isConnected && !isSubscribedRef.current) {
+    if (!isSubscribedRef.current) {
       subscribe(ACTIVE_SESSIONS_DESTINATION, handleActiveSessionsList);
       subscribe(SESSION_RESUMED_DESTINATION, handleSessionResumed);
       isSubscribedRef.current = true;
-      console.log('[useActiveSessions] Subscribed to session events');
+      console.log('[useActiveSessions] Registered subscriptions for session events');
     }
 
     return () => {
@@ -360,7 +374,7 @@ export function useActiveSessions({
         console.log('[useActiveSessions] Unsubscribed from session events');
       }
     };
-  }, [isConnected, subscribe, unsubscribe, handleActiveSessionsList, handleSessionResumed]);
+  }, [subscribe, unsubscribe, handleActiveSessionsList, handleSessionResumed]);
 
   /**
    * Auto-fetch sessions when connected
@@ -389,7 +403,7 @@ export function useActiveSessions({
   const fetchSessions = useCallback(() => {
     if (!isConnected) {
       setError('CONNECTION_ERROR');
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
@@ -397,7 +411,7 @@ export function useActiveSessions({
     setError(null);
     publish(GET_ACTIVE_SESSIONS_DESTINATION, {});
     console.log('[useActiveSessions] Fetching active sessions');
-  }, [isConnected, publish, onError]);
+  }, [isConnected, publish]);
 
   /**
    * Resume a specific session (4.6.3)
@@ -409,7 +423,7 @@ export function useActiveSessions({
         session: null,
         error: 'CONNECTION_ERROR',
       });
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
@@ -417,7 +431,7 @@ export function useActiveSessions({
     setResumeResult(null);
     publish('/app/session.resume', { sessionId });
     console.log('[useActiveSessions] Resuming session:', sessionId);
-  }, [isConnected, publish, onError]);
+  }, [isConnected, publish]);
 
   /**
    * Reset resume state

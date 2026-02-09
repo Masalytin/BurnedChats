@@ -381,6 +381,81 @@ public class SessionHandler {
                 initiatorId, event.isSuccess(), event.getError());
     }
 
+    // ==================== Pending Requests (Fix: race condition on connect) ====================
+
+    /**
+     * Get pending incoming requests for the authenticated user.
+     *
+     * <p>This endpoint allows the client to explicitly fetch pending requests
+     * after establishing WebSocket subscriptions. This fixes a race condition
+     * where the server sends pending requests on SessionConnectedEvent before
+     * the client's SUBSCRIBE frames arrive.
+     *
+     * @param principal authenticated user principal
+     */
+    @MessageMapping("/session.pending")
+    public void getPendingRequests(Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long userId = telegramPrincipal.getUserId();
+
+        log.info("Pending requests requested by user: {}", userId);
+
+        requestRepository.findByRecipient(userId)
+                .flatMap(request -> buildIncomingRequestEvent(request)
+                        .doOnNext(event -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(userId),
+                                    INCOMING_REQUEST_DESTINATION,
+                                    event
+                            );
+                            log.debug("Sent pending request to user {}: sessionId={}",
+                                    userId, event.getSessionId());
+                        }))
+                .subscribe(
+                        event -> {},
+                        error -> log.error("Error sending pending requests to user {}: {}",
+                                userId, error.getMessage()),
+                        () -> log.debug("Finished sending pending requests to user {}", userId)
+                );
+    }
+
+    /**
+     * Build an IncomingRequestEvent from a ChatRequest.
+     */
+    private reactor.core.publisher.Mono<IncomingRequestEvent> buildIncomingRequestEvent(
+            dev.burnedchats.model.ChatRequest request) {
+        return userRepository.findById(request.getSenderTgId())
+                .map(sender -> userMapper.toResponse(sender, true))
+                .defaultIfEmpty(buildPlaceholderSender(request))
+                .map(senderResponse -> IncomingRequestEvent.create(
+                        request.getSessionId(),
+                        senderResponse,
+                        request.getQuestion(),
+                        request.getCreatedAt(),
+                        request.getExpiresAt()
+                ));
+    }
+
+    /**
+     * Build a placeholder sender response when user info is not cached.
+     */
+    private dev.burnedchats.dto.response.UserResponse buildPlaceholderSender(
+            dev.burnedchats.model.ChatRequest request) {
+        String displayName = request.getSenderFirstName();
+        if (request.getSenderLastName() != null) {
+            displayName += " " + request.getSenderLastName();
+        }
+
+        return dev.burnedchats.dto.response.UserResponse.builder()
+                .id(request.getSenderTgId())
+                .username(request.getSenderUsername())
+                .displayName(displayName)
+                .photoUrl(request.getSenderPhotoUrl())
+                .online(true)
+                .premium(false)
+                .build();
+    }
+
     // ==================== Accept Request (Task 3.4.2) ====================
 
     /**

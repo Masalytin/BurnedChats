@@ -142,6 +142,16 @@ export function useSession({
 
   const isSubscribedRef = useRef(false);
 
+  // Callback refs for stable handlers (prevents subscription churn on every render)
+  const onSessionCreatedRef = useRef(onSessionCreated);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onSessionCreatedRef.current = onSessionCreated;
+    onErrorRef.current = onError;
+  });
+
   /**
    * Handle session created event from server
    */
@@ -156,7 +166,7 @@ export function useSession({
           session: null,
           error: errorCode,
         });
-        onError?.(errorCode);
+        onErrorRef.current?.(errorCode);
         return;
       }
 
@@ -181,7 +191,7 @@ export function useSession({
           session,
           error: null,
         });
-        onSessionCreated?.(session);
+        onSessionCreatedRef.current?.(session);
       }
     } catch (error) {
       console.error('[useSession] Failed to parse session created event:', error);
@@ -190,18 +200,20 @@ export function useSession({
         session: null,
         error: 'CONNECTION_ERROR',
       });
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
     }
-  }, [onSessionCreated, onError]);
+  }, []);
 
   /**
-   * Subscribe to session events when connected
+   * Register subscription immediately (even before connected).
+   * The WebSocket hook stores subscriptions and applies them on connect/reconnect.
+   * This prevents race conditions where server sends messages before subscriptions are ready.
    */
   useEffect(() => {
-    if (isConnected && !isSubscribedRef.current) {
+    if (!isSubscribedRef.current) {
       subscribe(SESSION_CREATED_DESTINATION, handleSessionCreated);
       isSubscribedRef.current = true;
-      console.log('[useSession] Subscribed to session created events');
+      console.log('[useSession] Registered subscription for session created events');
     }
 
     return () => {
@@ -211,7 +223,7 @@ export function useSession({
         console.log('[useSession] Unsubscribed from session created events');
       }
     };
-  }, [isConnected, subscribe, unsubscribe, handleSessionCreated]);
+  }, [subscribe, unsubscribe, handleSessionCreated]);
 
   /**
    * Create a new session request
@@ -223,7 +235,7 @@ export function useSession({
         session: null,
         error: 'CONNECTION_ERROR',
       });
-      onError?.('CONNECTION_ERROR');
+      onErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
@@ -243,7 +255,7 @@ export function useSession({
 
     publish(SESSION_CREATE_DESTINATION, payload);
     console.log('[useSession] Session creation request sent:', recipientId);
-  }, [isConnected, publish, onError]);
+  }, [isConnected, publish]);
 
   /**
    * Reset state

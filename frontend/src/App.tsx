@@ -124,9 +124,11 @@ function AppContent() {
 
   // Incoming requests hook
   const {
+    requests: incomingRequests,
     actionResult: incomingActionResult,
     acceptRequest,
     rejectRequest,
+    clearRequest: clearIncomingRequest,
     resetAction: resetIncomingAction,
   } = useIncomingRequests({
     isConnected,
@@ -396,11 +398,20 @@ function AppContent() {
 
   // Handle canceling the pending request
   const handleCancelPendingRequest = useCallback(() => {
+    const sessionId = pendingSession?.id;
     setCurrentView('home');
     setPendingSession(null);
     resetSession();
     clearSearch();
-  }, [resetSession, clearSearch]);
+    
+    // Burn the session on backend to remove the request from the recipient's queue
+    // This fixes the bug where the recipient still sees the request after initiator cancels
+    if (sessionId && isConnected) {
+      console.log('[App] Burning session after pending request cancel:', sessionId);
+      publish('/app/session.burn', { sessionId });
+      burnKeys(sessionId);
+    }
+  }, [resetSession, clearSearch, pendingSession, isConnected, publish]);
 
   // Handle accepting an incoming request
   const handleAcceptRequest = useCallback((secretAnswer?: string) => {
@@ -418,10 +429,14 @@ function AppContent() {
 
   // Handle closing incoming request view
   const handleCloseIncomingRequest = useCallback(() => {
+    // Clear the request from the list so it doesn't reappear when returning to home
+    if (activeIncomingRequest) {
+      clearIncomingRequest(activeIncomingRequest.id);
+    }
     setActiveIncomingRequest(null);
     resetIncomingAction();
     setCurrentView('home');
-  }, [resetIncomingAction]);
+  }, [resetIncomingAction, activeIncomingRequest, clearIncomingRequest]);
 
   // Handle canceling handshake
   const handleCancelHandshake = useCallback(() => {
@@ -544,6 +559,26 @@ function AppContent() {
   // Note: REQUEST_ACCEPTED for initiator is now handled via onOurRequestAccepted callback
   // in useIncomingRequests hook (listening to /user/queue/session-accepted)
 
+  // When returning to home view, check for unhandled incoming requests
+  // This handles: (1) requests that arrived while on another view, (2) requests from offline period
+  useEffect(() => {
+    if (currentView === 'home' && !activeIncomingRequest && incomingRequests.length > 0) {
+      // Filter out expired requests
+      const now = Date.now();
+      const validRequests = incomingRequests.filter(r => r.expiresAt > now);
+      
+      if (validRequests.length > 0) {
+        const request = validRequests[0];
+        console.log('[App] Showing pending incoming request:', request.id);
+        setActiveIncomingRequest(request);
+        setCurrentView('incoming-request');
+      } else {
+        // Clean up expired requests
+        incomingRequests.forEach(r => clearIncomingRequest(r.id));
+      }
+    }
+  }, [currentView, activeIncomingRequest, incomingRequests, clearIncomingRequest]);
+
   // Subscribe to BURN_SIGNAL for session list burn (4.6.11)
   useEffect(() => {
     if (!isConnected) return;
@@ -563,11 +598,36 @@ function AppContent() {
           setBurningSessionId(null);
           setBurnTargetSession(null);
           
+          // Clean up incoming request if it matches the burned session
+          // This handles the case where the initiator cancels and the recipient has the request open
+          clearIncomingRequest(data.sessionId);
+          if (activeIncomingRequest?.id === data.sessionId) {
+            setActiveIncomingRequest(null);
+            if (currentView === 'incoming-request') {
+              setCurrentView('home');
+            }
+          }
+          
+          // Clean up pending session if it matches the burned session
+          if (pendingSession?.id === data.sessionId) {
+            setPendingSession(null);
+            if (currentView === 'pending-request') {
+              setCurrentView('home');
+            }
+          }
+          
           // If we're in chat view for this session, go back to home
           if (currentView === 'chat' && activeChat?.sessionId === data.sessionId) {
             setActiveChat(null);
             handshakePeerRef.current = null;
             resetHandshake();
+            setCurrentView('home');
+          }
+          
+          // If we're in handshake view for this session, go back to home
+          if (currentView === 'handshake' && handshakeResult.sessionId === data.sessionId) {
+            cancelHandshake();
+            handshakePeerRef.current = null;
             setCurrentView('home');
           }
           
@@ -595,7 +655,7 @@ function AppContent() {
     return () => {
       unsubscribe('/user/queue/burn-signal');
     };
-  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast, currentView, activeChat, resetHandshake]);
+  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast, currentView, activeChat, activeIncomingRequest, pendingSession, handshakeResult.sessionId, resetHandshake, cancelHandshake, clearIncomingRequest]);
 
   // Loading state
   if (!isReady) {
