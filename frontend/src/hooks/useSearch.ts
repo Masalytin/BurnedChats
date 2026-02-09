@@ -130,12 +130,22 @@ export function useSearch({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSubscribedRef = useRef(false);
   const lastQueryRef = useRef('');
+  /** Ignore any search response after the first one for the current request (avoids race where a late "not_found" overwrites "found") */
+  const searchResponseAppliedRef = useRef(false);
 
   /**
    * Handle incoming search result from server.
-   * Only applies result if it matches the latest search (by request id).
+   * Only applies the first response for the current request; ignores late/duplicate responses.
    */
   const handleSearchResult = useCallback((message: IMessage) => {
+    if (searchResponseAppliedRef.current) {
+      if (import.meta.env.DEV) {
+        console.log('[useSearch] Ignoring duplicate/late search response');
+      }
+      return;
+    }
+    searchResponseAppliedRef.current = true;
+
     try {
       const data: ServerSearchResult = JSON.parse(message.body);
       
@@ -227,6 +237,7 @@ export function useSearch({
     }
 
     lastQueryRef.current = queryToSearch;
+    searchResponseAppliedRef.current = false;
     setResult({
       status: 'searching',
       user: null,
@@ -271,7 +282,7 @@ export function useSearch({
     setQueryState('');
     setResult(initialResult);
     lastQueryRef.current = '';
-    
+    searchResponseAppliedRef.current = false;
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
