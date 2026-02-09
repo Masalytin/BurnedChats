@@ -55,6 +55,9 @@ export const ChatRoom = memo(function ChatRoom({
   disabled = false,
   className = '',
 }: ChatRoomProps) {
+  /** Display name for header/placeholder (backend may omit) */
+  const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || 'Unknown';
+
   /**
    * Handle message send
    */
@@ -85,13 +88,13 @@ export const ChatRoom = memo(function ChatRoom({
             </button>
           )}
           <Avatar
-            name={peer.displayName}
+            name={displayName}
             src={peer.photoUrl}
             size="sm"
           />
           <div className="chat-room-peer-info">
             <div className="chat-room-peer-name">
-              {peer.displayName}
+              {displayName}
               {peer.premium && <span className="chat-room-premium">⭐</span>}
               {isVerified && (
                 <span 
@@ -145,7 +148,7 @@ export const ChatRoom = memo(function ChatRoom({
         onSend={handleSend}
         onTypingChange={handleTypingChange}
         disabled={disabled}
-        placeholder={`Message ${peer.displayName}...`}
+        placeholder={`Message ${displayName}...`}
       />
     </div>
   );

@@ -33,12 +33,13 @@ export const Message = memo(function Message({
   showDateSeparator = false,
   className = '',
 }: MessageProps) {
-  const formattedTime = formatTime(timestamp);
-  const formattedDate = formatDate(timestamp);
+  const validTs = typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0;
+  const formattedTime = validTs ? formatTime(timestamp) : '--:--';
+  const formattedDate = validTs ? formatDate(timestamp) : '';
 
   return (
     <>
-      {showDateSeparator && (
+      {showDateSeparator && formattedDate && (
         <div className="message-date-separator">
           <span>{formattedDate}</span>
         </div>

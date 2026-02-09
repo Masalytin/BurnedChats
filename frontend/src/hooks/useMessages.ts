@@ -28,7 +28,7 @@ export type MessageErrorCode =
   | 'SESSION_BURNED'      // Session was destroyed
   | 'INTERNAL_ERROR';     // Unexpected error
 
-/** New message event from server */
+/** New message event from server (matches backend NewMessageEvent) */
 interface NewMessageEvent {
   success: boolean;
   sessionId: string;
@@ -36,8 +36,10 @@ interface NewMessageEvent {
   senderId: number;
   encryptedContent: string;
   iv: string;
-  clientTimestamp: number;
-  serverTimestamp: string;
+  /** Client epoch ms; may be null if omitted */
+  clientTimestamp?: number | null;
+  /** Server time ISO-8601 string */
+  serverTimestamp?: string;
   error?: string;
 }
 
@@ -52,14 +54,14 @@ interface MessageSentEvent {
   error?: string;
 }
 
-/** Synced message from server (5.1.2) */
+/** Synced message from server (5.1.2, matches SyncMessagesEvent.SyncedMessage) */
 interface SyncedMessage {
   messageId: string;
   senderId: number;
   encryptedContent: string;
   iv: string;
-  clientTimestamp?: number;
-  serverTimestamp: string;
+  clientTimestamp?: number | null;
+  serverTimestamp?: string;
 }
 
 /** Sync messages event from server (5.1.2) */
@@ -273,7 +275,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       // Add to pending
       pendingMessagesRef.current.set(messageId, { text, timestamp });
 
-      // Add to local messages with 'sending' status
+      // Add to local messages with 'sending' status, keep sorted by timestamp
       const localMessage: DecryptedMessage = {
         id: messageId,
         sessionId,
@@ -283,7 +285,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         status: 'sending',
         isOwn: true,
       };
-      setMessages(prev => [...prev, localMessage]);
+      setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
       // Send to server
       debugLog('success', 'Message sent to server', { messageId, sessionId });
@@ -345,22 +347,24 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           sessionId
         );
 
-        // Create decrypted message object
+        // Create decrypted message object (timestamp: prefer client, fallback server, then now)
+        const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
         const decryptedMessage: DecryptedMessage = {
           id: event.messageId,
           sessionId: event.sessionId,
           fromUserId: event.senderId,
           content: plaintext,
-          timestamp: event.clientTimestamp || new Date(event.serverTimestamp).getTime(),
+          timestamp: ts,
           status: 'delivered',
           isOwn: event.senderId === userId,
         };
 
-        // Add to messages (avoid duplicates)
+        // Add to messages (avoid duplicates), keep sorted by timestamp
         setMessages(prev => {
           const exists = prev.some(m => m.id === event.messageId);
           if (exists) return prev;
-          return [...prev, decryptedMessage];
+          const next = [...prev, decryptedMessage].sort((a, b) => a.timestamp - b.timestamp);
+          return next;
         });
 
         // Notify callback
@@ -420,12 +424,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             sessionId
           );
 
+          const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
           decryptedMessages.push({
             id: syncedMsg.messageId,
             sessionId,
             fromUserId: syncedMsg.senderId,
             content: plaintext,
-            timestamp: syncedMsg.clientTimestamp || new Date(syncedMsg.serverTimestamp).getTime(),
+            timestamp: ts,
             status: 'delivered',
             isOwn: syncedMsg.senderId === userId,
           });
@@ -664,6 +669,20 @@ function generateMessageId(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 10);
   return `msg-${timestamp}-${random}`;
+}
+
+/**
+ * Normalize timestamp from backend: client (epoch ms) or server (ISO string) to epoch ms.
+ */
+function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): number {
+  if (typeof clientTimestamp === 'number' && Number.isFinite(clientTimestamp) && clientTimestamp >= 0) {
+    return clientTimestamp;
+  }
+  if (serverTimestamp) {
+    const ms = new Date(serverTimestamp).getTime();
+    if (Number.isFinite(ms)) return ms;
+  }
+  return Date.now();
 }
 
 /**
