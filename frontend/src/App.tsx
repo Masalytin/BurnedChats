@@ -579,13 +579,31 @@ function AppContent() {
     }
   }, [currentView, activeIncomingRequest, incomingRequests, clearIncomingRequest]);
 
+  // Refs for burn-signal handler dependencies — avoids re-subscription on every state change
+  const burnSignalDepsRef = useRef({
+    currentView, activeChat, activeIncomingRequest, pendingSession,
+    handshakeSessionId: handshakeResult.sessionId,
+    fetchSessions, notificationOccurred, toast,
+    resetHandshake, cancelHandshake, clearIncomingRequest,
+  });
+  useEffect(() => {
+    burnSignalDepsRef.current = {
+      currentView, activeChat, activeIncomingRequest, pendingSession,
+      handshakeSessionId: handshakeResult.sessionId,
+      fetchSessions, notificationOccurred, toast,
+      resetHandshake, cancelHandshake, clearIncomingRequest,
+    };
+  });
+
   // Subscribe to BURN_SIGNAL for session list burn (4.6.11)
+  // Uses refs for handler deps so the subscription stays stable (no unnecessary UNSUBSCRIBE/SUBSCRIBE cycles)
   useEffect(() => {
     if (!isConnected) return;
 
     const handleBurnSignal = (message: { body: string }) => {
       try {
         const data = JSON.parse(message.body);
+        const deps = burnSignalDepsRef.current;
         
         if (data.success && data.sessionId) {
           // Session was burned successfully
@@ -600,49 +618,49 @@ function AppContent() {
           
           // Clean up incoming request if it matches the burned session
           // This handles the case where the initiator cancels and the recipient has the request open
-          clearIncomingRequest(data.sessionId);
-          if (activeIncomingRequest?.id === data.sessionId) {
+          deps.clearIncomingRequest(data.sessionId);
+          if (deps.activeIncomingRequest?.id === data.sessionId) {
             setActiveIncomingRequest(null);
-            if (currentView === 'incoming-request') {
+            if (deps.currentView === 'incoming-request') {
               setCurrentView('home');
             }
           }
           
           // Clean up pending session if it matches the burned session
-          if (pendingSession?.id === data.sessionId) {
+          if (deps.pendingSession?.id === data.sessionId) {
             setPendingSession(null);
-            if (currentView === 'pending-request') {
+            if (deps.currentView === 'pending-request') {
               setCurrentView('home');
             }
           }
           
           // If we're in chat view for this session, go back to home
-          if (currentView === 'chat' && activeChat?.sessionId === data.sessionId) {
+          if (deps.currentView === 'chat' && deps.activeChat?.sessionId === data.sessionId) {
             setActiveChat(null);
             handshakePeerRef.current = null;
-            resetHandshake();
+            deps.resetHandshake();
             setCurrentView('home');
           }
           
           // If we're in handshake view for this session, go back to home
-          if (currentView === 'handshake' && handshakeResult.sessionId === data.sessionId) {
-            cancelHandshake();
+          if (deps.currentView === 'handshake' && deps.handshakeSessionId === data.sessionId) {
+            deps.cancelHandshake();
             handshakePeerRef.current = null;
             setCurrentView('home');
           }
           
           // Refresh sessions list
-          fetchSessions();
+          deps.fetchSessions();
           
           // Show notification
-          notificationOccurred('success');
-          toast.success('Session burned successfully');
+          deps.notificationOccurred('success');
+          deps.toast.success('Session burned successfully');
         } else if (!data.success && data.error) {
           // Burn failed
           console.error('[App] Burn failed:', data.error);
           setBurningSessionId(null);
-          notificationOccurred('error');
-          toast.error(`Failed to burn session: ${data.error}`, { title: 'Error' });
+          deps.notificationOccurred('error');
+          deps.toast.error(`Failed to burn session: ${data.error}`, { title: 'Error' });
         }
       } catch (error) {
         console.error('[App] Failed to parse burn signal:', error);
@@ -655,7 +673,7 @@ function AppContent() {
     return () => {
       unsubscribe('/user/queue/burn-signal');
     };
-  }, [isConnected, subscribe, unsubscribe, fetchSessions, notificationOccurred, toast, currentView, activeChat, activeIncomingRequest, pendingSession, handshakeResult.sessionId, resetHandshake, cancelHandshake, clearIncomingRequest]);
+  }, [isConnected, subscribe, unsubscribe]);
 
   // Loading state
   if (!isReady) {

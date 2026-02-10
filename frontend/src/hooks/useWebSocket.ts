@@ -85,6 +85,13 @@ const DEFAULT_RECONNECT_DELAY = 5000;
 const DEFAULT_HEARTBEAT = 10000;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 
+/**
+ * Interval for sending application-level heartbeat to refresh Redis online status TTL.
+ * Server sets TTL=30s, so we refresh every 20s to keep the key alive.
+ */
+const PRESENCE_HEARTBEAT_INTERVAL = 20000;
+const PRESENCE_HEARTBEAT_DESTINATION = '/app/heartbeat';
+
 /** Header name for Telegram initData authentication */
 const INIT_DATA_HEADER = 'X-Telegram-Init-Data';
 
@@ -543,6 +550,46 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       disconnect();
     };
   }, [autoConnect, connect, disconnect]);
+
+  // Application-level presence heartbeat (refreshes Redis online TTL)
+  // Server online status key has 30s TTL; we refresh every 20s to keep it alive.
+  // Without this, after 30s the server considers the user offline and queues messages.
+  useEffect(() => {
+    if (!isConnected) return;
+
+    // Send heartbeat immediately on connect to refresh TTL
+    if (clientRef.current?.connected) {
+      try {
+        clientRef.current.publish({
+          destination: PRESENCE_HEARTBEAT_DESTINATION,
+          body: '{}',
+          headers: { 'content-type': 'application/json' },
+        });
+        debugLog('info', 'Presence heartbeat sent (initial)');
+      } catch (e) {
+        debugLog('warn', 'Failed to send initial presence heartbeat', { error: String(e) });
+      }
+    }
+
+    const intervalId = setInterval(() => {
+      if (clientRef.current?.connected) {
+        try {
+          clientRef.current.publish({
+            destination: PRESENCE_HEARTBEAT_DESTINATION,
+            body: '{}',
+            headers: { 'content-type': 'application/json' },
+          });
+          debugLog('info', 'Presence heartbeat sent');
+        } catch (e) {
+          debugLog('warn', 'Failed to send presence heartbeat', { error: String(e) });
+        }
+      }
+    }, PRESENCE_HEARTBEAT_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isConnected]);
 
   // Debug state for Debug Panel
   const _debug: WebSocketDebugInfo = {
