@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Map;
 
 /**
  * STOMP handler for cryptographic handshake coordination.
@@ -71,6 +72,12 @@ public class HandshakeHandler {
      * STOMP destination for peer public key event.
      */
     private static final String PEER_KEY_DESTINATION = "/queue/peer-key";
+
+    /**
+     * STOMP destination for key refresh notification.
+     * Sent to peer when one party initiates a key refresh for an ACTIVE session.
+     */
+    private static final String HANDSHAKE_REFRESH_DESTINATION = "/queue/handshake-refresh";
 
     /**
      * Minimum valid Base64-encoded SPKI public key length for P-256.
@@ -215,6 +222,17 @@ public class HandshakeHandler {
                     } else {
                         // Only one key received - wait for the other
                         log.debug("Waiting for peer's key: sessionId={}", sessionId);
+
+                        // For ACTIVE sessions (key refresh), notify the peer that they need
+                        // to submit their key too. This handles the case where one party
+                        // reconnects after closing the app and needs to re-establish encryption.
+                        if (status == SessionStatus.ACTIVE) {
+                            Long peerId = session.getInitiatorId().equals(senderId)
+                                    ? session.getResponderId()
+                                    : session.getInitiatorId();
+                            sendKeyRefreshNotification(peerId, sessionId);
+                        }
+
                         return Mono.empty();
                     }
                 });
@@ -262,6 +280,31 @@ public class HandshakeHandler {
         );
 
         log.trace("Sent handshake error to user {}: {}", userId, errorCode);
+    }
+
+    /**
+     * Notify a peer that a key refresh is in progress for an ACTIVE session.
+     *
+     * <p>This is sent when one participant submits a new public key for a session
+     * that is already ACTIVE (e.g., after reconnecting with lost keys). The peer
+     * needs to also generate and submit a new key to complete the key refresh.
+     *
+     * @param peerId    the peer's user ID to notify
+     * @param sessionId the session ID requiring key refresh
+     */
+    private void sendKeyRefreshNotification(Long peerId, String sessionId) {
+        var notification = Map.of(
+                "sessionId", sessionId,
+                "type", "KEY_REFRESH_NEEDED"
+        );
+
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(peerId),
+                HANDSHAKE_REFRESH_DESTINATION,
+                notification
+        );
+
+        log.info("Sent key refresh notification to user {} for session {}", peerId, sessionId);
     }
 
     /**

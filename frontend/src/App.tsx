@@ -180,6 +180,8 @@ function AppContent() {
     startHandshake,
     cancelHandshake,
     reset: resetHandshake,
+    keyRefreshSessionId,
+    clearKeyRefresh,
   } = useHandshake({
     isConnected,
     subscribe,
@@ -266,6 +268,10 @@ function AppContent() {
   
   // Active chat state
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
+
+  // Ref for activeChat to use in key refresh effect without causing re-subscriptions
+  const activeChatRef = useRef<ActiveChat | null>(null);
+  useEffect(() => { activeChatRef.current = activeChat; });
 
   // Back button handling - show when not on home view
   const handleBackButton = useCallback(() => {
@@ -674,6 +680,27 @@ function AppContent() {
       unsubscribe('/user/queue/burn-signal');
     };
   }, [isConnected, subscribe, unsubscribe]);
+
+  // Handle key refresh notifications (peer reconnected and needs re-handshake)
+  // When the peer sends a new key for an ACTIVE session, the server notifies us
+  // that we need to participate in the key refresh by also generating and sending new keys.
+  useEffect(() => {
+    if (!keyRefreshSessionId) return;
+    
+    // Clear the notification immediately to prevent re-processing
+    clearKeyRefresh();
+    
+    const chat = activeChatRef.current;
+    if (chat?.sessionId === keyRefreshSessionId) {
+      // We're currently in the chat for this session - auto-start handshake with forceRefresh
+      // This generates new keys and sends them to the server without switching to handshake view
+      console.log('[App] Auto key refresh for active chat:', keyRefreshSessionId);
+      handshakePeerRef.current = chat.peer;
+      startHandshake(keyRefreshSessionId, chat.peer, true);
+    } else {
+      console.log('[App] Key refresh notification for non-active chat, ignoring:', keyRefreshSessionId);
+    }
+  }, [keyRefreshSessionId, clearKeyRefresh, startHandshake]);
 
   // Loading state
   if (!isReady) {

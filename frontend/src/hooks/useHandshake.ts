@@ -30,6 +30,9 @@ const HANDSHAKE_KEY_DESTINATION = '/app/handshake.key';
 /** Destination for receiving peer's public key */
 const PEER_KEY_DESTINATION = '/user/queue/peer-key';
 
+/** Destination for receiving key refresh notifications (peer needs re-handshake) */
+const HANDSHAKE_REFRESH_DESTINATION = '/user/queue/handshake-refresh';
+
 // ============================================
 // Types
 // ============================================
@@ -99,8 +102,8 @@ interface UseHandshakeOptions {
 interface UseHandshakeReturn {
   /** Current handshake result */
   result: HandshakeResult;
-  /** Start handshake for a session */
-  startHandshake: (sessionId: string, peer: UserInfo) => void;
+  /** Start handshake for a session. Pass forceRefresh=true to skip key restoration and force a fresh handshake. */
+  startHandshake: (sessionId: string, peer: UserInfo, forceRefresh?: boolean) => void;
   /** Cancel/abort handshake */
   cancelHandshake: () => void;
   /** Reset state */
@@ -109,6 +112,10 @@ interface UseHandshakeReturn {
   isHandshaking: boolean;
   /** Whether handshake is complete */
   isComplete: boolean;
+  /** Session ID that needs key refresh (set when peer requests re-handshake for ACTIVE session) */
+  keyRefreshSessionId: string | null;
+  /** Clear the key refresh request after handling it */
+  clearKeyRefresh: () => void;
 }
 
 /** Initial result state */
@@ -194,6 +201,7 @@ export function useHandshake({
   timeout = DEFAULT_TIMEOUT,
 }: UseHandshakeOptions): UseHandshakeReturn {
   const [result, setResult] = useState<HandshakeResult>(initialResult);
+  const [keyRefreshSessionId, setKeyRefreshSessionId] = useState<string | null>(null);
 
   const isSubscribedRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -400,7 +408,36 @@ export function useHandshake({
   }, [processPeerKey, handleError]);
 
   /**
-   * Register subscription to peer key events immediately.
+   * Handle key refresh notification from server.
+   * Sent when the peer submits a new key for an ACTIVE session (e.g., after reconnecting).
+   * We need to also generate and submit our key to complete the key refresh.
+   */
+  const handleKeyRefresh = useCallback((message: IMessage) => {
+    try {
+      const data = JSON.parse(message.body);
+      if (data.sessionId && data.type === 'KEY_REFRESH_NEEDED') {
+        console.log('[useHandshake] Key refresh requested for session:', data.sessionId);
+        // Don't auto-start if we're already handshaking for this session
+        if (activeSessionRef.current === data.sessionId) {
+          console.log('[useHandshake] Already handshaking for this session, ignoring refresh');
+          return;
+        }
+        setKeyRefreshSessionId(data.sessionId);
+      }
+    } catch (error) {
+      console.error('[useHandshake] Failed to handle key refresh notification:', error);
+    }
+  }, []);
+
+  /**
+   * Clear the key refresh request after handling it.
+   */
+  const clearKeyRefresh = useCallback(() => {
+    setKeyRefreshSessionId(null);
+  }, []);
+
+  /**
+   * Register subscription to peer key events and key refresh notifications immediately.
    * This ensures the subscription is stored and restored after reconnect.
    * Similar pattern to useIncomingRequests for session-accepted.
    */
@@ -409,18 +446,20 @@ export function useHandshake({
     // This is critical for reconnect scenarios where peer-key may arrive after reconnect
     if (!isSubscribedRef.current) {
       subscribe(PEER_KEY_DESTINATION, handlePeerPublicKey);
+      subscribe(HANDSHAKE_REFRESH_DESTINATION, handleKeyRefresh);
       isSubscribedRef.current = true;
-      console.log('[useHandshake] Registered subscription for peer key events');
+      console.log('[useHandshake] Registered subscriptions for peer key and refresh events');
     }
 
     return () => {
       if (isSubscribedRef.current) {
         unsubscribe(PEER_KEY_DESTINATION);
+        unsubscribe(HANDSHAKE_REFRESH_DESTINATION);
         isSubscribedRef.current = false;
-        console.log('[useHandshake] Unsubscribed from peer key events');
+        console.log('[useHandshake] Unsubscribed from peer key and refresh events');
       }
     };
-  }, [subscribe, unsubscribe, handlePeerPublicKey]);
+  }, [subscribe, unsubscribe, handlePeerPublicKey, handleKeyRefresh]);
 
   /**
    * Restore session from existing keys in keyStore (4.6.9).
@@ -455,8 +494,11 @@ export function useHandshake({
 
   /**
    * Start handshake process for a session.
+   * @param sessionId - The session to handshake for
+   * @param peer - The peer user info
+   * @param forceRefresh - If true, skip key restoration and force a fresh handshake (used for key refresh on ACTIVE sessions)
    */
-  const startHandshake = useCallback(async (sessionId: string, peer: UserInfo) => {
+  const startHandshake = useCallback(async (sessionId: string, peer: UserInfo, forceRefresh?: boolean) => {
     if (!isConnected) {
       handleError('CONNECTION_ERROR');
       return;
@@ -468,15 +510,18 @@ export function useHandshake({
       return;
     }
 
-    // Task 4.6.9: Try to restore from existing keys first
+    // Task 4.6.9: Try to restore from existing keys first (skip if forcing refresh)
     if (hasSession(sessionId)) {
-      console.log('[useHandshake] Session already has keys, attempting to restore...');
-      if (restoreFromKeyStore(sessionId, peer)) {
-        console.log('[useHandshake] Session restored from keyStore successfully');
-        return;
+      if (!forceRefresh) {
+        console.log('[useHandshake] Session already has keys, attempting to restore...');
+        if (restoreFromKeyStore(sessionId, peer)) {
+          console.log('[useHandshake] Session restored from keyStore successfully');
+          return;
+        }
       }
-      // Keys exist but handshake not complete - burn and start fresh
-      console.log('[useHandshake] Partial keys found, starting fresh handshake...');
+      // Keys exist but handshake not complete (or force refresh) - burn and start fresh
+      console.log('[useHandshake] %s, starting fresh handshake...', 
+        forceRefresh ? 'Force refresh requested' : 'Partial keys found');
       const burnStart = performance.now();
       burn(sessionId);
       logCryptoOperation('burn', sessionId, true, performance.now() - burnStart);
@@ -588,5 +633,7 @@ export function useHandshake({
     reset,
     isHandshaking: result.stage !== 'idle' && result.stage !== 'complete' && result.stage !== 'error',
     isComplete: result.stage === 'complete',
+    keyRefreshSessionId,
+    clearKeyRefresh,
   };
 }
