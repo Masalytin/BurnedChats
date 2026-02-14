@@ -176,7 +176,7 @@ SADD blocked:111222333 "444555666" "777888999"
 
 ## Phase 2: Комнаты (Redis)
 
-> Полный план: [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md). Ниже — целевые структуры ключей.
+> Полный план: [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md). Ниже — целевые структуры ключей.
 
 ### `room:{roomId}`
 

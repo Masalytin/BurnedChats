@@ -116,7 +116,7 @@ frontend/
 
 ```
 backend/
-├── src/main/java/com/burnedchats/
+├── src/main/java/dev/burnedchats/
 │   ├── BurnedChatsApplication.java      # Entry point
 │   ├── config/
 │   │   ├── WebSocketConfig.java         # STOMP/WebSocket настройки
@@ -173,7 +173,7 @@ backend/
 │   ├── application.yml
 │   ├── application-dev.yml
 │   └── application-prod.yml
-├── src/test/java/com/burnedchats/
+├── src/test/java/dev/burnedchats/
 │   ├── service/
 │   ├── websocket/
 │   └── telegram/
@@ -556,7 +556,7 @@ public class WebSocketEventListener {
 
 ## Подготовка к групповым чатам и комнатам (v2.0 / Phase 2)
 
-Архитектура учитывает будущую поддержку групп и **комнат с паролем**. Детальный план: [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md).
+Архитектура учитывает будущую поддержку групп и **комнат с паролем**. Детальный план: [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md).
 
 ### Комнаты: принципы конфиденциальности
 
@@ -605,5 +605,5 @@ messages:{roomId}
 - [SECURITY.md](./SECURITY.md) — детали криптографии (в т.ч. пароли комнат в Phase 2)
 - [API.md](./API.md) — спецификация WebSocket событий
 - [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных (в т.ч. комнаты)
-- [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
+- [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
 

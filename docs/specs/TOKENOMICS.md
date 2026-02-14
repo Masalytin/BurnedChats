@@ -292,7 +292,7 @@ Staking Pool пополняется из:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. 🔓 PREMIUM FEATURES                                          │
-│     ├── Групповые чаты (v2.0)  (NFT creation on BURN system)                                  │
+│     ├── Групповые чаты (v2.0)                                                │
 │     ├── Увеличенные лимиты файлов (50 MB → 100 MB)               │
 │     ├── Приоритетная доставка уведомлений                        │
 │     ├── Кастомные темы оформления                                │
@@ -582,323 +582,28 @@ contracts/
     └── governance.spec.ts
 ```
 
-### Пример: BURN Jetton Master (Tact)
-
-```tact
-import "@stdlib/deploy";
-import "@stdlib/ownable";
-
-message Mint {
-    amount: Int;
-    receiver: Address;
-}
-
-message Burn {
-    amount: Int;
-}
-
-contract BurnJettonMaster with Deployable, Ownable {
-    totalSupply: Int;
-    maxSupply: Int;
-    burnRate: Int;           // В базисных пунктах (100 = 1%)
-    stakingPoolRate: Int;    // В базисных пунктах
-    treasuryRate: Int;       // В базисных пунктах
-    
-    owner: Address;
-    stakingPool: Address;
-    treasury: Address;
-    
-    init(owner: Address, stakingPool: Address, treasury: Address) {
-        self.owner = owner;
-        self.stakingPool = stakingPool;
-        self.treasury = treasury;
-        
-        self.totalSupply = 0;
-        self.maxSupply = 1000000000000;  // 1000 * 10^9 (9 decimals)
-        
-        self.burnRate = 50;              // 0.5%
-        self.stakingPoolRate = 30;       // 0.3%
-        self.treasuryRate = 20;          // 0.2%
-    }
-    
-    receive(msg: Mint) {
-        self.requireOwner();
-        require(self.totalSupply + msg.amount <= self.maxSupply, "Max supply exceeded");
-        
-        self.totalSupply += msg.amount;
-        self.mintTo(msg.receiver, msg.amount);
-    }
-    
-    receive(msg: TokenTransfer) {
-        let sender = context().sender;
-        
-        // Рассчитываем комиссии
-        let burnAmount = msg.amount * self.burnRate / 10000;
-        let stakingAmount = msg.amount * self.stakingPoolRate / 10000;
-        let treasuryAmount = msg.amount * self.treasuryRate / 10000;
-        let transferAmount = msg.amount - burnAmount - stakingAmount - treasuryAmount;
-        
-        // Сжигаем
-        self.totalSupply -= burnAmount;
-        emit(BurnEvent{amount: burnAmount, from: sender}.toCell());
-        
-        // В стейкинг пул
-        self.transferTo(self.stakingPool, stakingAmount);
-        
-        // В treasury
-        self.transferTo(self.treasury, treasuryAmount);
-        
-        // Получателю
-        self.transferTo(msg.destination, transferAmount);
-    }
-    
-    // Governance: изменение параметров
-    receive(msg: UpdateBurnRate) {
-        self.requireOwner();  // Позже заменить на governance
-        require(msg.newRate >= 10 && msg.newRate <= 500, "Rate must be 0.1%-5%");
-        self.burnRate = msg.newRate;
-    }
-    
-    get fun totalSupply(): Int {
-        return self.totalSupply;
-    }
-    
-    get fun burnRate(): Int {
-        return self.burnRate;
-    }
-}
-```
-
-### Пример: Staking Pool (Tact)
-
-```tact
-struct StakeInfo {
-    amount: Int;
-    lockPeriod: Int;      // 0, 180, 365, 1095 дней
-    startTime: Int;
-    lastClaim: Int;
-}
-
-contract StakingPool with Deployable, Ownable {
-    stakes: map<Address, StakeInfo>;
-    totalStaked: Int;
-    rewardsPool: Int;
-    
-    // APY в базисных пунктах (500 = 5%, 3500 = 35%)
-    apyFlexible: Int = 500;
-    apySilver: Int = 1200;
-    apyGold: Int = 2000;
-    apyDiamond: Int = 3500;
-    
-    owner: Address;
-    burnToken: Address;
-    
-    init(owner: Address, burnToken: Address) {
-        self.owner = owner;
-        self.burnToken = burnToken;
-        self.totalStaked = 0;
-        self.rewardsPool = 0;
-    }
-    
-    receive(msg: Stake) {
-        let sender = context().sender;
-        let lockPeriod = msg.lockDays;
-        
-        require(lockPeriod == 0 || lockPeriod == 180 || 
-                lockPeriod == 365 || lockPeriod == 1095, 
-                "Invalid lock period");
-        
-        let existingStake = self.stakes.get(sender);
-        if (existingStake != null) {
-            // Claim existing rewards first
-            self.claimRewards(sender);
-        }
-        
-        self.stakes.set(sender, StakeInfo{
-            amount: msg.amount + (existingStake?.amount ?? 0),
-            lockPeriod: lockPeriod,
-            startTime: now(),
-            lastClaim: now()
-        });
-        
-        self.totalStaked += msg.amount;
-    }
-    
-    receive(msg: Unstake) {
-        let sender = context().sender;
-        let stake = self.stakes.get(sender);
-        
-        require(stake != null, "No stake found");
-        
-        let unlockTime = stake!!.startTime + (stake!!.lockPeriod * 86400);
-        require(now() >= unlockTime, "Stake is still locked");
-        
-        // Claim rewards
-        self.claimRewards(sender);
-        
-        // Return staked amount
-        self.transferBurn(sender, stake!!.amount);
-        
-        self.totalStaked -= stake!!.amount;
-        self.stakes.set(sender, null);
-    }
-    
-    receive(msg: ClaimRewards) {
-        self.claimRewards(context().sender);
-    }
-    
-    fun claimRewards(staker: Address) {
-        let stake = self.stakes.get(staker);
-        require(stake != null, "No stake found");
-        
-        let apy = self.getAPY(stake!!.lockPeriod);
-        let timeElapsed = now() - stake!!.lastClaim;
-        let yearSeconds = 365 * 86400;
-        
-        let rewards = stake!!.amount * apy * timeElapsed / (10000 * yearSeconds);
-        
-        require(rewards <= self.rewardsPool, "Insufficient rewards pool");
-        
-        self.rewardsPool -= rewards;
-        self.transferBurn(staker, rewards);
-        
-        // Update lastClaim
-        let updatedStake = stake!!;
-        updatedStake.lastClaim = now();
-        self.stakes.set(staker, updatedStake);
-    }
-    
-    fun getAPY(lockPeriod: Int): Int {
-        if (lockPeriod == 0) { return self.apyFlexible; }
-        if (lockPeriod == 180) { return self.apySilver; }
-        if (lockPeriod == 365) { return self.apyGold; }
-        if (lockPeriod == 1095) { return self.apyDiamond; }
-        return 0;
-    }
-    
-    get fun getStakeInfo(staker: Address): StakeInfo? {
-        return self.stakes.get(staker);
-    }
-    
-    get fun totalStaked(): Int {
-        return self.totalStaked;
-    }
-    
-    get fun rewardsPool(): Int {
-        return self.rewardsPool;
-    }
-}
-```
+> Исходный код контрактов и интеграции появится в `contracts/` и соответствующих файлах `frontend/src/ton/`, `backend/src/.../ton/` при реализации v1.5.
 
 ---
 
 ## Интеграция с BurnedChats
 
-### Проверка Premium доступа
+### Premium доступ
 
-```java
-// PremiumService.java
-@Service
-@RequiredArgsConstructor
-public class PremiumService {
-    
-    private final TonService tonService;
-    private final StakingVerifier stakingVerifier;
-    
-    public PremiumAccess checkAccess(String walletAddress) {
-        // Проверяем баланс BURN
-        BigDecimal balance = tonService.getBurnBalance(walletAddress);
-        
-        // Проверяем стейкинг
-        StakingInfo staking = stakingVerifier.getStakingInfo(walletAddress);
-        
-        return PremiumAccess.builder()
-            .hasGroupChats(staking.getTier() >= StakingTier.GOLD)
-            .hasExtendedFileLimit(staking.getTier() >= StakingTier.SILVER)
-            .hasPriorityNotifications(staking.getTier() >= StakingTier.GOLD)
-            .hasCustomThemes(balance.compareTo(BigDecimal.ZERO) > 0)
-            .hasGovernance(staking.getTier() == StakingTier.DIAMOND)
-            .stakingTier(staking.getTier())
-            .burnBalance(balance)
-            .build();
-    }
-}
-```
+Доступ к Premium определяется по стейкинг-тиру пользователя:
 
-### Frontend: TON Connect
+| Стейкинг Tier | Групповые чаты | Файлы 100MB | Приоритетные уведомления | Governance |
+|---------------|:-:|:-:|:-:|:-:|
+| Flexible | — | — | — | — |
+| Silver | — | + | — | — |
+| Gold | + | + | + | — |
+| Diamond | + | + | + | + |
 
-```typescript
-// hooks/useTonConnect.ts
-import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
+### Компоненты интеграции
 
-export function useTonConnect() {
-  const [tonConnectUI] = useTonConnectUI();
-  const wallet = useTonWallet();
-  
-  const connect = async () => {
-    await tonConnectUI.connectWallet();
-  };
-  
-  const disconnect = async () => {
-    await tonConnectUI.disconnect();
-  };
-  
-  const sendBurn = async (to: string, amount: number) => {
-    const transaction = {
-      validUntil: Math.floor(Date.now() / 1000) + 60,
-      messages: [
-        {
-          address: BURN_JETTON_MASTER,
-          amount: toNano('0.05'), // Gas
-          payload: buildTransferPayload(to, amount)
-        }
-      ]
-    };
-    
-    return tonConnectUI.sendTransaction(transaction);
-  };
-  
-  return {
-    connected: !!wallet,
-    address: wallet?.account.address,
-    connect,
-    disconnect,
-    sendBurn
-  };
-}
-```
+**Backend:** `TonService` (TON RPC), `JettonService` (баланс BURN), `StakingVerifier` (тир стейкинга), `PremiumService` (логика доступа).
 
-### UI: Wallet Button
-
-```tsx
-// components/Wallet/WalletButton.tsx
-import { useTonConnect } from '../../hooks/useTonConnect';
-import { useBurnToken } from '../../hooks/useBurnToken';
-
-export function WalletButton() {
-  const { connected, address, connect, disconnect } = useTonConnect();
-  const { balance, isLoading } = useBurnToken(address);
-  
-  if (!connected) {
-    return (
-      <button onClick={connect} className="wallet-button">
-        🔗 Connect Wallet
-      </button>
-    );
-  }
-  
-  return (
-    <div className="wallet-info">
-      <span className="balance">
-        🔥 {isLoading ? '...' : balance} BURN
-      </span>
-      <button onClick={disconnect} className="disconnect-btn">
-        {shortenAddress(address)}
-      </button>
-    </div>
-  );
-}
-```
+**Frontend:** `useTonConnect` (подключение кошелька), `useBurnToken` (баланс), `useStaking` (стейкинг операции), `useGovernance` (голосование).
 
 ---
 
@@ -1067,7 +772,7 @@ export function WalletButton() {
 
 ## Связанные документы
 
-- [ROADMAP.md](./ROADMAP.md) — общий roadmap с токеном
+- [ROADMAP.md](../ROADMAP.md) — общий roadmap с токеном
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — техническая архитектура
 - [SECURITY.md](./SECURITY.md) — безопасность системы
 - [API.md](./API.md) — API спецификация
