@@ -174,6 +174,84 @@ SADD blocked:111222333 "444555666" "777888999"
 
 ---
 
+## Phase 2: Комнаты (Redis)
+
+> Полный план: [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md). Ниже — целевые структуры ключей.
+
+### `room:{roomId}`
+
+Метаданные комнаты (владелец, производная пароля, режим входа).
+
+```redis
+HSET room:uuid-room-1
+  ownerTgId       "111222333"
+  salt            "base64..."
+  passwordProofHash "base64..."
+  joinMode        "by_password"   # или "by_request"
+  createdAt       "1704067200000"
+
+EXPIRE room:uuid-room-1 2592000
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `ownerTgId` | string | Telegram ID владельца |
+| `salt` | string | Salt для KDF (Base64) |
+| `passwordProofHash` | string | Производная пароля (proof), не plaintext |
+| `joinMode` | enum | `by_password` \| `by_request` |
+| `createdAt` | number | Unix timestamp в мс |
+
+**TTL:** 30 дней (продлевается при активности)
+
+### `room_members:{roomId}`
+
+Участники комнаты (Set Telegram ID).
+
+```redis
+SADD room_members:uuid-room-1 "111222333" "444555666"
+```
+
+Удаляется при BURN_ROOM.
+
+### `invite:{token}`
+
+Инвайт-токен для ссылки приглашения.
+
+```redis
+HSET invite:abc123token
+  roomId      "uuid-room-1"
+  createdBy   "111222333"
+  expiresAt   "1704153600000"
+  maxUses     "10"
+
+EXPIRE invite:abc123token 604800
+```
+
+**TTL:** по expiresAt или 7 дней
+
+### `room_join_request:{roomId}`
+
+Заявки на вход в комнату (режим by_request).
+
+```redis
+LPUSH room_join_request:uuid-room-1 '{"senderTgId":"444555666","createdAt":1704067200000}'
+EXPIRE room_join_request:uuid-room-1 86400
+```
+
+**TTL:** 24 часа
+
+### `room_keys:{roomId}:{epoch}`
+
+Зашифрованные копии группового ключа для участников (opaque blobs). Сервер не расшифровывает.
+
+### `messages:{roomId}`
+
+Очередь зашифрованных сообщений комнаты (аналог `messages:{sessionId}`). Формат сообщения — как в 1-to-1, с полем `senderTgId` для отображения отправителя.
+
+**TTL:** 24 часа
+
+---
+
 ## Java DTOs
 
 ### Session Entity

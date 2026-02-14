@@ -554,30 +554,56 @@ public class WebSocketEventListener {
 
 ---
 
-## Подготовка к групповым чатам (v2.0)
+## Подготовка к групповым чатам и комнатам (v2.0 / Phase 2)
 
-Архитектура учитывает будущую поддержку групп:
+Архитектура учитывает будущую поддержку групп и **комнат с паролем**. Детальный план: [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md).
 
-### Изменения для групповых чатов
+### Комнаты: принципы конфиденциальности
 
-1. **Key Distribution** — вместо ECDH 1-на-1, используем Group Key Agreement (например, Tree-DH или Signal's Sender Keys)
+- **Пароль:** на сервер передаётся только производная (salt + proof от KDF). Plaintext пароль не хранится и не логируется.
+- **Инвайт-ссылки:** одноразовые или с лимитом использований; формат `startapp=invite_{token}` для Mini App.
+- **Заявки на вход:** владелец принимает/отклоняет; сервер хранит заявки с TTL, без избыточной истории.
 
-2. **Redis структура**:
+### Redis структура (Phase 2: комнаты)
+
 ```
-group:{groupId}
-  → { participants: [], adminTgId, createdAt }
-  
-group_keys:{groupId}:{epoch}
-  → { encryptedKeys: {} }  # Ключи зашифрованы для каждого участника
+room:{roomId}
+  → { ownerTgId, salt, passwordProofHash, joinMode, createdAt }
+  → TTL: 30 дней (продлевается при активности)
+
+room_members:{roomId}
+  → Set of tgId (участники)
+  → удаляется при BURN_ROOM
+
+invite:{token}
+  → { roomId, createdBy, expiresAt, maxUses? }
+  → TTL по expiresAt
+
+room_join_request:{roomId}
+  → заявки на вход (senderTgId, createdAt, …)
+  → TTL: 24 часа
+
+room_keys:{roomId}:{epoch}
+  → зашифрованные ключи для участников (opaque blobs)
+  → удаляется при BURN_ROOM / rekey
+
+messages:{roomId}
+  → List зашифрованных сообщений (аналог messages:{sessionId})
+  → TTL: 24 часа
 ```
 
-3. **Ротация ключей** — при выходе участника генерируется новый групповой ключ
+### Групповой E2EE
+
+1. **Key Distribution** — Group Key Agreement (один групповой ключ в MVP или Sender Keys / Tree-DH), см. phase-2-rooms.
+2. **Выдача ключа новому участнику** — key bundle (групповой ключ, зашифрованный публичным ключом участника); relay через сервер.
+3. **Ротация ключей** — при выходе участника генерируется новый групповой ключ (rekey), рассылка оставшимся.
 
 ---
 
 ## Связанные документы
 
-- [SECURITY.md](./SECURITY.md) — детали криптографии
+- [SECURITY.md](./SECURITY.md) — детали криптографии (в т.ч. пароли комнат в Phase 2)
 - [API.md](./API.md) — спецификация WebSocket событий
-- [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных
+- [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных (в т.ч. комнаты)
+- [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
 

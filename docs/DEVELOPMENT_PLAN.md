@@ -530,9 +530,28 @@ dependencies {
 
 ---
 
+## Фаза 2: Комнаты (после MVP)
+
+После завершения MVP (фаза 1) планируется **вторая фаза** — комнаты с паролем, приглашения по ссылке и заявки на подключение. Детальный план вынесен в отдельный документ и папку с карточками задач:
+
+- **[phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md)** — спринты P2-1 … P2-5, принципы конфиденциальности, оценки, риски
+- **[phase-2-rooms/cards/](./phase-2-rooms/cards/)** — карточки по каждой задаче (приёмка, зависимости)
+
+Кратко по фазам:
+
+| Фаза | Фокус | Документ |
+|------|--------|----------|
+| 1 (MVP) | 1-на-1 чаты, E2EE, handshake, Burn | Этот файл (DEVELOPMENT_PLAN.md) |
+| 2 | Комнаты с паролем, инвайты, заявки, групповой E2EE | [DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) |
+
+В [ROADMAP.md](./ROADMAP.md) и [ARCHITECTURE.md](./ARCHITECTURE.md) добавлены ссылки и описание изменений под фазу 2.
+
+---
+
 ## Связанные документы
 
-- [ROADMAP.md](./ROADMAP.md) — высокоуровневый roadmap версий
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — структура проекта
-- [SECURITY.md](./SECURITY.md) — криптографические детали
+- [ROADMAP.md](./ROADMAP.md) — высокоуровневый roadmap версий (в т.ч. v2.0 комнаты)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — структура проекта и подготовка к комнатам
+- [SECURITY.md](./SECURITY.md) — криптография (и пароли комнат в Phase 2)
+- [phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](./phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
 
