@@ -598,6 +598,7 @@
 
 ## Связанные документы
 
+- [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) — сценарии комнат (Phase 2)
 - [TELEGRAM.md](./TELEGRAM.md) — SDK и интеграция
 - [API.md](./API.md) — WebSocket события
 - [SECURITY.md](./SECURITY.md) — Visual Fingerprint
