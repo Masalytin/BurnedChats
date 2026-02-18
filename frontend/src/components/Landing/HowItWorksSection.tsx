@@ -50,38 +50,57 @@ export function HowItWorksSection() {
         role="img"
         aria-label="ECDH key exchange protocol"
       >
-        <div className="protocol-actors">
-          <div className="protocol-actor">Alice<span>your device</span></div>
-          <div className="protocol-actor">Server<span>relay only</span></div>
-          <div className="protocol-actor">Bob<span>peer device</span></div>
+        <div className="pv-header">
+          <div className="pv-col">Alice<span>your device</span></div>
+          <div className="pv-col">Server<span>relay only</span></div>
+          <div className="pv-col">Bob<span>peer device</span></div>
         </div>
 
-        <div className="protocol-flow">
-          <div className="protocol-arrow">
-            <span>pubKey</span>
-            <span className="line" />
-          </div>
-          <div className="protocol-arrow">
-            <span style={{ visibility: 'hidden' }}>pubKey</span>
-            <span className="line" />
-          </div>
-          <div className="protocol-arrow protocol-arrow--reverse">
-            <span className="line" />
-            <span>pubKey</span>
-          </div>
-          <div className="protocol-arrow protocol-arrow--reverse">
-            <span className="line" />
-            <span style={{ visibility: 'hidden' }}>pubKey</span>
-          </div>
+        <div className="pv-lines">
+          <div className="pv-col pv-line-col" /><div className="pv-col pv-line-col" /><div className="pv-col pv-line-col" />
         </div>
 
-        <div className="protocol-result">
-          <div className="protocol-result-item protocol-result-item--secret">sharedSecret</div>
-          <div className="protocol-result-item protocol-result-item--blob">??? encrypted blob</div>
-          <div className="protocol-result-item protocol-result-item--secret">sharedSecret</div>
+        <div className="pv-rows">
+          <ProtocolRow from={0} to={1} label="publicKey" />
+          <ProtocolRow from={1} to={2} label="publicKey" />
+          <ProtocolRow from={2} to={1} label="publicKey" />
+          <ProtocolRow from={1} to={0} label="publicKey" />
+        </div>
+
+        <div className="pv-result">
+          <div className="pv-pill pv-pill--ok">sharedSecret</div>
+          <div className="pv-pill pv-pill--err">??? blob</div>
+          <div className="pv-pill pv-pill--ok">sharedSecret</div>
         </div>
       </motion.div>
     </>
+  );
+}
+
+function ProtocolRow({ from, to, label }: { from: number; to: number; label: string }) {
+  const cols = [0, 1, 2];
+  const min = Math.min(from, to);
+  const max = Math.max(from, to);
+  const goesRight = to > from;
+
+  return (
+    <div className="pv-row">
+      {cols.map((c) => {
+        if (c === min) {
+          return (
+            <div key={c} className={`pv-cell pv-cell--span${max - min}`}>
+              <div className={`pv-arrow ${goesRight ? 'pv-arrow--right' : 'pv-arrow--left'}`}>
+                <span className="pv-arrow-label">{label}</span>
+                <span className="pv-arrow-line" />
+                <span className="pv-arrow-head">{goesRight ? '▸' : '◂'}</span>
+              </div>
+            </div>
+          );
+        }
+        if (c > min && c <= max) return null;
+        return <div key={c} className="pv-cell" />;
+      })}
+    </div>
   );
 }
 
