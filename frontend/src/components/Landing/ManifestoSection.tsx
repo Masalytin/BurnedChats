@@ -1,76 +1,51 @@
 import { motion } from 'motion/react';
 
 const principles = [
-  {
-    icon: ShieldLockIcon,
-    title: 'Zero Knowledge',
-    description: 'The server never sees your messages, keys, or passwords. It relays encrypted bytes — nothing more.',
-  },
-  {
-    icon: FlameIcon,
-    title: 'Ephemeral by Design',
-    description: 'Messages exist only in the moment. When you burn a chat, all data is permanently destroyed. No backups, no traces.',
-  },
-  {
-    icon: KeyIcon,
-    title: 'End-to-End Encrypted',
-    description: 'ECDH key exchange + AES-256-GCM encryption. Keys live only on your device and never leave it.',
-  },
-  {
-    icon: FingerprintIcon,
-    title: 'Verified Identity',
-    description: 'Visual fingerprint verification protects against man-in-the-middle attacks. You know who you\'re talking to.',
-  },
+  { icon: ShieldLockIcon, title: 'Zero Knowledge', desc: 'The server never sees your messages, keys, or passwords. It relays encrypted bytes — nothing more.' },
+  { icon: FlameIcon, title: 'Ephemeral by Design', desc: 'Messages exist only in the moment. When you burn a chat, all data is permanently destroyed. No backups, no traces.' },
+  { icon: KeyIcon, title: 'End-to-End Encrypted', desc: 'ECDH key exchange + AES-256-GCM encryption. Keys live only on your device and never leave it.' },
+  { icon: FingerprintIcon, title: 'Verified Identity', desc: 'Visual fingerprint verification protects against man-in-the-middle attacks. You know who you\'re talking to.' },
 ];
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 40 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      delay: i * 0.12,
-      duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94] as const,
-    },
-  }),
+const reveal = {
+  hidden: { opacity: 0, y: 50, scale: 0.95 },
+  visible: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -30, scale: 0.97 },
 };
 
 export function ManifestoSection() {
   return (
-    <section id="manifesto" className="manifesto" aria-label="Our principles">
-      <div className="landing-container">
-        <motion.p
-          className="manifesto-quote"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.7 }}
-        >
-          We can't read your messages. Even if we wanted to.
-        </motion.p>
+    <>
+      <motion.p
+        className="manifesto-quote"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ amount: 0.5 }}
+        variants={reveal}
+        transition={{ duration: 0.7 }}
+      >
+        <span className="q">&ldquo;</span>
+        We can&apos;t read your messages. Even if we wanted to.
+        <span className="q">&rdquo;</span>
+      </motion.p>
 
-        <div className="manifesto-grid">
-          {principles.map((p, i) => (
-            <motion.div
-              key={p.title}
-              className="manifesto-card"
-              custom={i}
-              variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: '-80px' }}
-            >
-              <div className="manifesto-card-icon">
-                <p.icon />
-              </div>
-              <h3>{p.title}</h3>
-              <p>{p.description}</p>
-            </motion.div>
-          ))}
-        </div>
+      <div className="manifesto-grid">
+        {principles.map((p, i) => (
+          <motion.div
+            key={p.title}
+            className="m-card"
+            initial={{ opacity: 0, y: 60 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ amount: 0.3 }}
+            transition={{ duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] as const }}
+          >
+            <div className="m-card-icon"><p.icon /></div>
+            <h3>{p.title}</h3>
+            <p>{p.desc}</p>
+          </motion.div>
+        ))}
       </div>
-    </section>
+    </>
   );
 }
 
@@ -96,9 +71,7 @@ function KeyIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="7.5" cy="15.5" r="5.5" />
-      <path d="m21 2-9.3 9.3" />
-      <path d="M18.5 5.5 20 7" />
-      <path d="m15 8 1.5 1.5" />
+      <path d="m21 2-9.3 9.3" /><path d="M18.5 5.5 20 7" /><path d="m15 8 1.5 1.5" />
     </svg>
   );
 }
@@ -112,8 +85,7 @@ function FingerprintIcon() {
       <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
       <path d="M8.65 22c.21-.66.45-1.32.57-2" />
       <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
-      <path d="M2 16h.01" />
-      <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+      <path d="M2 16h.01" /><path d="M21.8 16c.2-2 .131-5.354 0-6" />
       <path d="M9 6.8a6 6 0 0 1 9 5.2c0 .47 0 1.17-.02 2" />
     </svg>
   );
