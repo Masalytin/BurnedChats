@@ -20,6 +20,7 @@ import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
 import { burn as burnKeys } from './crypto/keyStore';
+import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
@@ -256,7 +257,7 @@ function AppContent() {
   const [burningSessionId, setBurningSessionId] = useState<string | null>(null);
 
   // App state
-  const [initError, setInitError] = useState<string | null>(null);
+  const [initError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
@@ -366,9 +367,8 @@ function AppContent() {
   useEffect(() => {
     if (!isReady) return;
 
-    // In production, require Telegram environment
+    // In production, require Telegram environment — landing page handles this case
     if (import.meta.env.PROD && !isInTelegram) {
-      setInitError('Please open this app from Telegram');
       return;
     }
 
@@ -705,6 +705,12 @@ function AppContent() {
   // Loading state
   if (!isReady) {
     return <LoadingOverlay message="Loading BurnedChats..." />
+  }
+
+  // Landing page for non-Telegram browsers (in production, or via ?landing query param in dev)
+  const showLanding = import.meta.env.PROD ? !isInTelegram : new URLSearchParams(window.location.search).has('landing');
+  if (showLanding) {
+    return <LandingPage />;
   }
 
   // Initialization error
