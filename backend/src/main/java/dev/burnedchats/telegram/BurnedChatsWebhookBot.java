@@ -37,22 +37,17 @@ import java.util.List;
 @Slf4j
 public class BurnedChatsWebhookBot extends TelegramWebhookBot {
 
-    private static final String FIRE_EMOJI = "🔥";
-    private static final String LOCK_EMOJI = "🔐";
-    private static final String SHIELD_EMOJI = "🛡️";
-    private static final String ROCKET_EMOJI = "🚀";
-    private static final String QUESTION_EMOJI = "❓";
-    private static final String CHECK_EMOJI = "✅";
-    private static final String KEY_EMOJI = "🔑";
 
     private final TelegramProperties telegramProperties;
+    private final BotMessageService botMessages;
 
     @Getter
     private final String botPath;
 
-    public BurnedChatsWebhookBot(TelegramProperties telegramProperties) {
+    public BurnedChatsWebhookBot(TelegramProperties telegramProperties, BotMessageService botMessages) {
         super(telegramProperties.getBot().getToken());
         this.telegramProperties = telegramProperties;
+        this.botMessages = botMessages;
         this.botPath = telegramProperties.getBot().getWebhook().getPath();
     }
 
@@ -71,19 +66,22 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     }
 
     /**
-     * Registers bot commands visible in the Telegram menu.
+     * Registers bot commands visible in the Telegram menu for supported languages.
      */
     private void registerBotCommands() throws TelegramApiException {
-        List<BotCommand> commands = new ArrayList<>();
-        commands.add(new BotCommand("/start", "Запустить приватный чат"));
-        commands.add(new BotCommand("/help", "Помощь и информация"));
+        for (String lang : List.of("en", "ru")) {
+            List<BotCommand> commands = new ArrayList<>();
+            commands.add(new BotCommand("/start", botMessages.get("bot.cmd.start", lang)));
+            commands.add(new BotCommand("/help", botMessages.get("bot.cmd.help", lang)));
 
-        SetMyCommands setMyCommands = new SetMyCommands();
-        setMyCommands.setCommands(commands);
-        setMyCommands.setScope(new BotCommandScopeDefault());
+            SetMyCommands setMyCommands = new SetMyCommands();
+            setMyCommands.setCommands(commands);
+            setMyCommands.setScope(new BotCommandScopeDefault());
+            setMyCommands.setLanguageCode(lang);
 
-        execute(setMyCommands);
-        log.debug("Bot commands registered: {}", commands);
+            execute(setMyCommands);
+        }
+        log.debug("Bot commands registered for all supported languages");
     }
 
     @Override
@@ -97,15 +95,16 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
             String username = update.getMessage().getFrom().getUserName();
+            String langCode = update.getMessage().getFrom().getLanguageCode();
 
             log.debug("Webhook received message from @{}: {}", username, messageText);
 
             if (messageText.startsWith("/start")) {
-                return handleStartCommand(chatId, update);
+                return handleStartCommand(chatId, update, langCode);
             } else if (messageText.equals("/help")) {
-                return handleHelpCommand(chatId);
+                return handleHelpCommand(chatId, langCode);
             } else {
-                return handleUnknownCommand(chatId);
+                return handleUnknownCommand(chatId, langCode);
             }
         }
         return null;
@@ -115,11 +114,12 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
      * Handles /start command.
      * Returns SendMessage with welcome text and Mini App button.
      *
-     * @param chatId Chat ID to send response
-     * @param update Original update (may contain deep link parameters)
+     * @param chatId   Chat ID to send response
+     * @param update   Original update (may contain deep link parameters)
+     * @param langCode Telegram user language code
      * @return SendMessage to be sent as webhook response
      */
-    private SendMessage handleStartCommand(long chatId, Update update) {
+    private SendMessage handleStartCommand(long chatId, Update update, String langCode) {
         String messageText = update.getMessage().getText();
         String deepLinkParam = null;
 
@@ -129,53 +129,24 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
             log.debug("Deep link parameter received: {}", deepLinkParam);
         }
 
-        String welcomeText = buildWelcomeMessage();
+        String welcomeText = botMessages.get("bot.start.text", langCode);
 
         log.info("Sent /start response to chatId: {}", chatId);
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(welcomeText)
                 .parseMode("HTML")
-                .replyMarkup(buildMiniAppKeyboard(deepLinkParam))
+                .replyMarkup(buildMiniAppKeyboard(deepLinkParam, langCode))
                 .build();
-    }
-
-    /**
-     * Builds the welcome message text.
-     */
-    private String buildWelcomeMessage() {
-        return String.format("""
-                %s <b>BurnedChats</b>
-                
-                Добро пожаловать в защищённый мессенджер!
-                
-                %s <b>Что это?</b>
-                Приложение для секретных переписок с end-to-end шифрованием. \
-                Сообщения не хранятся на сервере — только у вас.
-                
-                %s <b>Как работает:</b>
-                • Найдите собеседника по @username
-                • Дождитесь подтверждения связи
-                • Обменивайтесь сообщениями
-                • Нажмите "Сжечь" для уничтожения чата
-                
-                %s <b>Безопасность:</b>
-                • AES-256-GCM + ECDH шифрование
-                • Ключи генерируются на устройстве
-                • Сервер не видит ваши сообщения
-                • Данные уничтожаются без возможности восстановления
-                
-                Нажмите кнопку ниже, чтобы начать %s
-                """,
-                FIRE_EMOJI, QUESTION_EMOJI, CHECK_EMOJI, SHIELD_EMOJI, ROCKET_EMOJI);
     }
 
     /**
      * Builds inline keyboard with Mini App button.
      *
      * @param deepLinkParam Optional deep link parameter to append to Mini App URL
+     * @param langCode      Telegram user language code for button text
      */
-    private InlineKeyboardMarkup buildMiniAppKeyboard(String deepLinkParam) {
+    private InlineKeyboardMarkup buildMiniAppKeyboard(String deepLinkParam, String langCode) {
         String miniAppUrl = telegramProperties.getMiniApp().getUrl();
 
         // Append deep link parameter if present
@@ -184,7 +155,7 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
         }
 
         InlineKeyboardButton miniAppButton = InlineKeyboardButton.builder()
-                .text(ROCKET_EMOJI + " Открыть BurnedChats")
+                .text(botMessages.get("bot.start.button", langCode))
                 .webApp(new WebAppInfo(miniAppUrl))
                 .build();
 
@@ -203,51 +174,12 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
      * Handles /help command.
      * Returns SendMessage with help information.
      *
-     * @param chatId Chat ID to send response
+     * @param chatId   Chat ID to send response
+     * @param langCode Telegram user language code
      * @return SendMessage to be sent as webhook response
      */
-    private SendMessage handleHelpCommand(long chatId) {
-        String helpText = String.format("""
-                %s <b>Помощь — BurnedChats</b>
-                
-                %s <b>Основные функции:</b>
-                
-                %s <b>Начать чат</b>
-                1. Откройте приложение
-                2. Введите @username собеседника
-                3. Отправьте запрос на связь
-                4. Дождитесь подтверждения
-                
-                %s <b>Безопасная связь</b>
-                После подтверждения проверьте "отпечаток безопасности" — \
-                он должен совпадать у обоих участников.
-                
-                %s <b>Сжечь чат</b>
-                Нажмите кнопку "Сжечь" для полного уничтожения переписки. \
-                Данные удаляются у всех участников.
-                
-                ─────────────────────
-                
-                %s <b>FAQ:</b>
-                
-                <b>Q: Могут ли прочитать мои сообщения?</b>
-                A: Нет. Используется end-to-end шифрование. \
-                Ключи хранятся только на устройствах.
-                
-                <b>Q: Сохраняются ли сообщения на сервере?</b>
-                A: Нет. Сервер только пересылает зашифрованные данные. \
-                После доставки они удаляются.
-                
-                <b>Q: Что происходит при "сжигании"?</b>
-                A: Все данные чата уничтожаются на всех устройствах, \
-                включая ключи шифрования.
-                
-                ─────────────────────
-                
-                %s Есть вопросы? Свяжитесь с поддержкой.
-                """,
-                QUESTION_EMOJI, ROCKET_EMOJI, CHECK_EMOJI, KEY_EMOJI,
-                FIRE_EMOJI, LOCK_EMOJI, SHIELD_EMOJI);
+    private SendMessage handleHelpCommand(long chatId, String langCode) {
+        String helpText = botMessages.get("bot.help.text", langCode);
 
         log.info("Sent /help response to chatId: {}", chatId);
         return SendMessage.builder()
@@ -260,20 +192,17 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     /**
      * Handles unknown commands.
      *
-     * @param chatId Chat ID to send response
+     * @param chatId   Chat ID to send response
+     * @param langCode Telegram user language code
      * @return SendMessage to be sent as webhook response
      */
-    private SendMessage handleUnknownCommand(long chatId) {
-        String text = String.format("""
-                %s Неизвестная команда.
-                
-                Используйте /help для получения справки или нажмите кнопку ниже:
-                """, QUESTION_EMOJI);
+    private SendMessage handleUnknownCommand(long chatId, String langCode) {
+        String text = botMessages.get("bot.unknown.text", langCode);
 
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
-                .replyMarkup(buildMiniAppKeyboard(null))
+                .replyMarkup(buildMiniAppKeyboard(null, langCode))
                 .build();
     }
 
@@ -317,7 +246,7 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
                     .chatId(chatId)
                     .text(text)
                     .parseMode("HTML")
-                    .replyMarkup(buildMiniAppKeyboard(deepLinkParam))
+                    .replyMarkup(buildMiniAppKeyboard(deepLinkParam, null))
                     .build();
 
             execute(message);

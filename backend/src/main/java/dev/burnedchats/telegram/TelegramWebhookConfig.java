@@ -44,6 +44,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class TelegramWebhookConfig {
 
     private final TelegramProperties telegramProperties;
+    private final BotMessageService botMessages;
 
     /**
      * Creates the webhook bot bean.
@@ -59,7 +60,7 @@ public class TelegramWebhookConfig {
             log.warn("Set TELEGRAM_BOT_TOKEN environment variable.");
         }
 
-        return new BurnedChatsWebhookBot(telegramProperties);
+        return new BurnedChatsWebhookBot(telegramProperties, botMessages);
     }
 
     /**

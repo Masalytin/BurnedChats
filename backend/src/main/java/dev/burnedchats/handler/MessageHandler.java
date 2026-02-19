@@ -15,6 +15,7 @@ import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
+import dev.burnedchats.telegram.BotMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -89,11 +90,6 @@ public class MessageHandler {
      */
     private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
 
-    /**
-     * Emoji constants for Telegram notifications.
-     */
-    private static final String MESSAGE_EMOJI = "💬";
-    private static final String LOCK_EMOJI = "🔐";
 
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
@@ -101,6 +97,7 @@ public class MessageHandler {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final BurnedChatsBot telegramBot;
+    private final BotMessageService botMessages;
 
     /**
      * Relay an encrypted message to the peer.
@@ -389,23 +386,12 @@ public class MessageHandler {
      * @param sessionId   the session ID for deep linking
      */
     private void sendOfflineNotification(Long senderId, Long recipientId, String sessionId) {
-        // Get sender info for notification
-        userRepository.findById(senderId)
-                .defaultIfEmpty(createPlaceholderUser(senderId))
-                .subscribe(sender -> {
-                    String senderName = sender.getDisplayName();
-                    String senderUsername = sender.getUsername() != null
-                            ? " (@" + sender.getUsername() + ")"
-                            : "";
-
-                    String notificationText = String.format("""
-                            %s <b>Новое сообщение</b>
-                            
-                            %s <b>%s</b>%s отправил вам зашифрованное сообщение.
-                            
-                            Откройте приложение, чтобы прочитать.
-                            """,
-                            MESSAGE_EMOJI, LOCK_EMOJI, senderName, senderUsername);
+        // Get recipient info for language detection and sender info for display
+        userRepository.findById(recipientId)
+                .defaultIfEmpty(createPlaceholderUser(recipientId))
+                .subscribe(recipient -> {
+                    String langCode = recipient.getLanguageCode();
+                    String notificationText = botMessages.get("bot.notify.newMessage", langCode);
 
                     // Send notification with deep link to session
                     boolean sent = telegramBot.sendNotificationWithButton(

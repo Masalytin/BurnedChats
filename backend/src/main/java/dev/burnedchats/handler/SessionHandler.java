@@ -28,6 +28,7 @@ import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
+import dev.burnedchats.telegram.BotMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -130,12 +131,6 @@ public class SessionHandler {
      */
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
 
-    /**
-     * Emoji constants for Telegram notifications.
-     */
-    private static final String FIRE_EMOJI = "🔥";
-    private static final String LOCK_EMOJI = "🔐";
-    private static final String CLOCK_EMOJI = "⏰";
 
     private final SessionRepository sessionRepository;
     private final RequestRepository requestRepository;
@@ -145,6 +140,7 @@ public class SessionHandler {
     private final SessionMapper sessionMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final BurnedChatsBot telegramBot;
+    private final BotMessageService botMessages;
 
     /**
      * Create a new chat session request.
@@ -271,7 +267,7 @@ public class SessionHandler {
 
                         // Send Telegram notification if recipient is not online
                         if (!isRecipientOnline) {
-                            sendTelegramNotification(recipientId, initiator, sessionId);
+                            sendTelegramNotification(recipientId, recipient, initiator, sessionId);
                         }
 
                         // Build response for initiator
@@ -328,30 +324,18 @@ public class SessionHandler {
      * <p>The notification includes:
      * <ul>
      *   <li>Information about who sent the request</li>
-     *   <li>Expiration time warning</li>
      *   <li>Button to open Mini App with session context</li>
      * </ul>
      *
      * @param recipientId Telegram user ID of recipient
+     * @param recipient   recipient's user info (used for language detection)
      * @param sender      sender's user info
      * @param sessionId   the session ID for deep linking
      */
-    private void sendTelegramNotification(Long recipientId, TelegramUser sender, String sessionId) {
-        String senderName = sender.getDisplayName();
-        String senderUsername = sender.getUsername() != null
-                ? " (@" + sender.getUsername() + ")"
-                : "";
-
-        String notificationText = String.format("""
-                %s <b>Новый запрос на приватный чат</b>
-                
-                %s <b>%s</b>%s хочет начать защищённый диалог с вами.
-                
-                %s Запрос действителен 5 минут.
-                
-                Нажмите кнопку ниже, чтобы принять или отклонить запрос.
-                """,
-                FIRE_EMOJI, LOCK_EMOJI, senderName, senderUsername, CLOCK_EMOJI);
+    private void sendTelegramNotification(Long recipientId, TelegramUser recipient,
+                                           TelegramUser sender, String sessionId) {
+        String langCode = recipient.getLanguageCode();
+        String notificationText = botMessages.get("bot.notify.chatRequest", langCode);
 
         // Send notification with deep link to session
         boolean sent = telegramBot.sendNotificationWithButton(
