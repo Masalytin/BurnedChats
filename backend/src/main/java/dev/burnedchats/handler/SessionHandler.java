@@ -334,21 +334,20 @@ public class SessionHandler {
      */
     private void sendTelegramNotification(Long recipientId, TelegramUser recipient,
                                            TelegramUser sender, String sessionId) {
-        String langCode = recipient.getLanguageCode();
-        String notificationText = botMessages.get("bot.notify.chatRequest", langCode);
+        botMessages.getForUser("bot.notify.chatRequest", recipientId)
+                .subscribe(notificationText -> {
+                    boolean sent = telegramBot.sendNotificationWithButton(
+                            recipientId,
+                            notificationText,
+                            sessionId
+                    );
 
-        // Send notification with deep link to session
-        boolean sent = telegramBot.sendNotificationWithButton(
-                recipientId,
-                notificationText,
-                sessionId
-        );
-
-        if (sent) {
-            log.info("Telegram notification sent to recipient {}: sessionId={}", recipientId, sessionId);
-        } else {
-            log.warn("Failed to send Telegram notification to recipient {}", recipientId);
-        }
+                    if (sent) {
+                        log.info("Telegram notification sent to recipient {}: sessionId={}", recipientId, sessionId);
+                    } else {
+                        log.warn("Failed to send Telegram notification to recipient {}", recipientId);
+                    }
+                });
     }
 
     /**

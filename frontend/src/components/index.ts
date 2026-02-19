@@ -33,3 +33,6 @@ export type { ToastData, ToastType } from './Toast';
 // Active Sessions Components (Sprint 4.6)
 export { SessionCard } from './SessionCard';
 export { PullToRefresh } from './PullToRefresh';
+
+// Language Switcher
+export { LanguageSwitcher } from './LanguageSwitcher';

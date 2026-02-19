@@ -8,11 +8,9 @@ import dev.burnedchats.dto.request.SyncMessagesRequest;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
-import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
-import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
@@ -94,7 +92,6 @@ public class MessageHandler {
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
-    private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
@@ -386,14 +383,8 @@ public class MessageHandler {
      * @param sessionId   the session ID for deep linking
      */
     private void sendOfflineNotification(Long senderId, Long recipientId, String sessionId) {
-        // Get recipient info for language detection and sender info for display
-        userRepository.findById(recipientId)
-                .defaultIfEmpty(createPlaceholderUser(recipientId))
-                .subscribe(recipient -> {
-                    String langCode = recipient.getLanguageCode();
-                    String notificationText = botMessages.get("bot.notify.newMessage", langCode);
-
-                    // Send notification with deep link to session
+        botMessages.getForUser("bot.notify.newMessage", recipientId)
+                .subscribe(notificationText -> {
                     boolean sent = telegramBot.sendNotificationWithButton(
                             recipientId,
                             notificationText,
@@ -407,16 +398,6 @@ public class MessageHandler {
                         log.warn("Failed to send Telegram notification to recipient {}", recipientId);
                     }
                 });
-    }
-
-    /**
-     * Create a placeholder user for senders not in cache.
-     */
-    private TelegramUser createPlaceholderUser(Long userId) {
-        return TelegramUser.builder()
-                .id(userId)
-                .firstName("User")
-                .build();
     }
 
     /**

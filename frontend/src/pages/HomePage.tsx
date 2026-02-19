@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { SearchResult, UserInfo } from '../types';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon } from '../icons';
 import './HomePage.css';
 
@@ -151,6 +151,7 @@ export function HomePage({
                 {t('common.retry', { count: reconnectAttempt })}
               </span>
             )}
+            <LanguageSwitcher />
           </div>
         </div>
       </header>
