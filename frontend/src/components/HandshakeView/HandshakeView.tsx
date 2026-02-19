@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { HandshakeStage, HandshakeResult } from '../../hooks/useHandshake';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
@@ -98,6 +99,7 @@ export function HandshakeView({
   onRetry,
   className = '',
 }: HandshakeViewProps) {
+  const { t } = useTranslation();
   const { stage, peer, fingerprint, error, progress } = result;
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
@@ -258,7 +260,7 @@ export function HandshakeView({
               leftIcon={<CloseIcon size={18} />}
               fullWidth
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           )}
           {isComplete && (
@@ -267,7 +269,7 @@ export function HandshakeView({
               onClick={onContinue || onCancel}
               fullWidth
             >
-              Continue to Chat
+              {t('verification.continueButton')}
             </Button>
           )}
         </div>

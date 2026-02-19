@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChatRequest } from '../../types';
 import type { AcceptErrorCode } from '../../hooks/useIncomingRequests';
 import { Avatar } from '../Avatar';
@@ -50,6 +51,7 @@ export function IncomingRequestView({
   onExpire,
   className = '',
 }: IncomingRequestViewProps) {
+  const { t } = useTranslation();
   const { fromUsername, fromName, secretQuestion, expiresAt } = request;
   const hasSecretQuestion = !!secretQuestion;
 
@@ -122,25 +124,9 @@ export function IncomingRequestView({
 
   // Determine which error message to show
   const getErrorMessage = (errorCode: AcceptErrorCode): string => {
-    switch (errorCode) {
-      case 'SESSION_NOT_FOUND':
-        return 'This request no longer exists';
-      case 'NOT_RESPONDER':
-        return 'You cannot accept this request';
-      case 'ALREADY_ACCEPTED':
-        return 'This request has already been accepted';
-      case 'SESSION_EXPIRED':
-      case 'REQUEST_EXPIRED':
-        return 'This request has expired';
-      case 'ANSWER_REQUIRED':
-        return 'Please answer the secret question';
-      case 'CONNECTION_ERROR':
-        return 'Connection error. Please check your network';
-      case 'INTERNAL_ERROR':
-        return 'Something went wrong. Please try again';
-      default:
-        return 'An error occurred. Please try again';
-    }
+    const key = `incomingRequest.errors.${errorCode}` as const;
+    const message = t(key);
+    return message !== key ? message : t('incomingRequest.errors.DEFAULT');
   };
 
   return (
@@ -157,12 +143,10 @@ export function IncomingRequestView({
         {/* Status text */}
         <div className="incoming-request-view__status">
           <h2 className="incoming-request-view__title">
-            {isExpired ? 'Request Expired' : 'Incoming Chat Request'}
+            {isExpired ? t('incomingRequest.titleExpired') : t('incomingRequest.title')}
           </h2>
           <p className="incoming-request-view__subtitle">
-            {isExpired
-              ? 'This request has expired. It is no longer available.'
-              : 'Someone wants to start a secure conversation with you'}
+            {isExpired ? t('incomingRequest.subtitleExpired') : t('incomingRequest.subtitle')}
           </p>
         </div>
 
@@ -195,7 +179,7 @@ export function IncomingRequestView({
         {!isExpired && (
           <div className={`incoming-request-view__timer ${isLowTime ? 'incoming-request-view__timer--low' : ''}`}>
             <ClockIcon size={16} />
-            <span>Expires in {formatTime(remainingSeconds)}</span>
+            <span>{t('incomingRequest.expiresIn', { time: formatTime(remainingSeconds) })}</span>
           </div>
         )}
 
@@ -204,15 +188,15 @@ export function IncomingRequestView({
           <div className="incoming-request-view__secret-question animate-fade-in">
             <div className="incoming-request-view__question-label">
               <span className="incoming-request-view__question-icon">?</span>
-              <span>Secret Question</span>
+              <span>{t('incomingRequest.secretQuestion')}</span>
             </div>
             <div className="incoming-request-view__question-text">
               {secretQuestion}
             </div>
             <form onSubmit={handleAccept}>
               <Input
-                label="Your Answer"
-                placeholder="Enter your answer..."
+                label={t('incomingRequest.answerLabel')}
+                placeholder={t('incomingRequest.answerPlaceholder')}
                 value={secretAnswer}
                 onChange={(e) => {
                   setSecretAnswer(e.target.value);
@@ -221,7 +205,7 @@ export function IncomingRequestView({
                 onKeyDown={handleKeyDown}
                 maxLength={256}
                 disabled={isProcessing}
-                error={showError && !secretAnswer.trim() ? 'Answer is required' : undefined}
+                error={showError && !secretAnswer.trim() ? t('incomingRequest.answerRequired') : undefined}
                 autoFocus
               />
             </form>
@@ -246,7 +230,7 @@ export function IncomingRequestView({
               leftIcon={<CloseIcon size={18} />}
               fullWidth
             >
-              Decline
+              {t('incomingRequest.declineButton')}
             </Button>
             <Button
               variant="primary"
@@ -256,7 +240,7 @@ export function IncomingRequestView({
               leftIcon={<CheckIcon size={18} />}
               fullWidth
             >
-              Accept
+              {t('incomingRequest.acceptButton')}
             </Button>
           </div>
         )}
@@ -269,7 +253,7 @@ export function IncomingRequestView({
               onClick={handleReject}
               fullWidth
             >
-              Back to Home
+              {t('incomingRequest.backButton')}
             </Button>
           </div>
         )}
@@ -277,7 +261,7 @@ export function IncomingRequestView({
         {/* Security note */}
         <div className="incoming-request-view__note">
           <LockIcon size={14} />
-          <span>End-to-end encrypted. Messages cannot be read by anyone else.</span>
+          <span>{t('incomingRequest.securityNote')}</span>
         </div>
       </div>
     </div>

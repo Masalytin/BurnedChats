@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { CloseIcon, FlameIcon, AlertIcon } from '../../icons';
 import './BurnConfirmDialog.css';
@@ -46,6 +47,8 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
   onCancel,
   className = '',
 }: BurnConfirmDialogProps) {
+  const { t } = useTranslation();
+
   /**
    * Handle escape key to close dialog.
    */
@@ -94,7 +97,7 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
           type="button"
           className="burn-dialog__close"
           onClick={onCancel}
-          aria-label="Cancel"
+          aria-label={t('common.cancel')}
           disabled={isLoading}
         >
           <CloseIcon size={20} />
@@ -107,36 +110,37 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
 
         {/* Header */}
         <h2 id="burn-dialog-title" className="burn-dialog__title">
-          Burn this chat?
+          {t('burnDialog.title')}
         </h2>
 
         {/* Description */}
         <p id="burn-dialog-description" className="burn-dialog__description">
-          This will permanently destroy your chat with <strong>{peerName}</strong>.
+          {t('burnDialog.description', { name: peerName }).split('<1>').map((part, i) =>
+            i === 0 ? part : part.split('</1>').map((inner, j) =>
+              j === 0 ? <strong key={`${i}-${j}`}>{inner}</strong> : inner
+            )
+          )}
         </p>
 
         {/* Warning */}
         <div className="burn-dialog__warning">
           <AlertIcon size={16} />
-          <span>
-            All messages and encryption keys will be erased on both devices. 
-            This action cannot be undone.
-          </span>
+          <span>{t('burnDialog.warning')}</span>
         </div>
 
         {/* What will be destroyed */}
         <ul className="burn-dialog__list">
           <li>
             <span className="burn-dialog__list-icon">🔑</span>
-            Encryption keys (both devices)
+            {t('burnDialog.listKeys')}
           </li>
           <li>
             <span className="burn-dialog__list-icon">💬</span>
-            All message history
+            {t('burnDialog.listHistory')}
           </li>
           <li>
             <span className="burn-dialog__list-icon">🔗</span>
-            Session connection
+            {t('burnDialog.listSession')}
           </li>
         </ul>
 
@@ -148,7 +152,7 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
             onClick={onCancel}
             disabled={isLoading}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -157,7 +161,7 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
             isLoading={isLoading}
             leftIcon={<FlameIcon size={18} />}
           >
-            Burn Chat
+            {t('burnDialog.confirmButton')}
           </Button>
         </div>
       </div>

@@ -18,9 +18,11 @@
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "@twa-dev/sdk": "^8.0.2",
+    "i18next": "^25.8.11",
     "motion": "^12.34.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-i18next": "^16.5.4",
     "sockjs-client": "^1.6.1"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ActiveSession } from '../../hooks/useActiveSessions';
 import { Avatar } from '../Avatar';
 import { FlameIcon, ShieldIcon, ShieldCheckIcon } from '../../icons';
@@ -31,13 +32,14 @@ export function SessionCard({
   isLoading = false,
   isBurning = false,
 }: SessionCardProps) {
+  const { t } = useTranslation();
   const { peer, status, verified, peerVerified, lastActivityAt } = session;
   
   const isActive = status === 'ACTIVE';
   const isHandshaking = status === 'HANDSHAKE';
   const bothVerified = verified && peerVerified;
   
-  const statusLabel = getStatusLabel(status);
+  const statusLabel = getStatusLabel(status, t);
   const timeAgo = getTimeAgo(lastActivityAt);
 
   /**
@@ -77,7 +79,7 @@ export function SessionCard({
           <span className="session-card-name">{peer.displayName}</span>
           {peer.premium && <span className="session-card-premium">⭐</span>}
           {/* Online text indicator (4.6.10) */}
-          {peer.online && <span className="session-card-online-text">online</span>}
+          {peer.online && <span className="session-card-online-text">{t('sessionCard.online')}</span>}
         </div>
         
         {peer.username && (
@@ -146,18 +148,18 @@ export function SessionCard({
 /**
  * Get human-readable status label
  */
-function getStatusLabel(status: ActiveSession['status']): string {
+function getStatusLabel(status: ActiveSession['status'], t: (key: string) => string): string {
   switch (status) {
     case 'PENDING':
-      return 'Pending...';
+      return t('sessionCard.statusPending');
     case 'HANDSHAKE':
-      return 'Connecting...';
+      return t('sessionCard.statusHandshake');
     case 'ACTIVE':
-      return 'Active';
+      return t('sessionCard.statusActive');
     case 'EXPIRED':
-      return 'Expired';
+      return t('sessionCard.statusExpired');
     case 'BURNED':
-      return 'Burned';
+      return t('sessionCard.statusBurned');
     default:
       return status;
   }

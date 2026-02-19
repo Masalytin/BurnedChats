@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PendingSession } from '../../hooks/useSession';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
@@ -33,6 +34,7 @@ export function PendingRequestView({
   onExpire,
   className = '',
 }: PendingRequestViewProps) {
+  const { t } = useTranslation();
   const { recipient, hasSecretQuestion, expiresAt } = session;
 
   // Calculate remaining time
@@ -87,7 +89,7 @@ export function PendingRequestView({
         {/* Status text */}
         <div className="pending-request-view__status">
           <h2 className="pending-request-view__title">
-            {isExpired ? 'Request Expired' : 'Waiting for Response'}
+            {t('pendingRequest.title')}
           </h2>
           <p className="pending-request-view__subtitle">
             {isExpired
@@ -134,7 +136,7 @@ export function PendingRequestView({
         {!isExpired && (
           <div className={`pending-request-view__timer ${isLowTime ? 'pending-request-view__timer--low' : ''}`}>
             <ClockIcon size={16} />
-            <span>Expires in {formatTime(remainingSeconds)}</span>
+            <span>{t('incomingRequest.expiresIn', { time: formatTime(remainingSeconds) })}</span>
           </div>
         )}
 
@@ -162,7 +164,7 @@ export function PendingRequestView({
             leftIcon={isExpired ? undefined : <CloseIcon size={18} />}
             fullWidth
           >
-            {isExpired ? 'Back to Search' : 'Cancel Request'}
+            {isExpired ? t('common.back') : t('pendingRequest.cancelButton')}
           </Button>
         </div>
 

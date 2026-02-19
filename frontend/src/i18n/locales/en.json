@@ -1,0 +1,132 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "back": "Back",
+    "retry": "Retry {{count}}",
+    "copied": "{{label}} copied",
+    "unknown": "Unknown"
+  },
+
+  "status": {
+    "online": "online",
+    "offline": "offline",
+    "typing": "typing...",
+    "connecting": "connecting",
+    "reconnecting": "Reconnecting..."
+  },
+
+  "home": {
+    "sectionSearch": "Start a Secure Chat",
+    "searchPlaceholder": "Search by @username or ID",
+    "searchButton": "Search User",
+    "sectionSessions": "Active Sessions",
+    "noSessions": "No active sessions",
+    "pullToRefresh": "Pull down to refresh",
+    "featureE2eeTitle": "End-to-End Encrypted",
+    "featureE2eeDesc": "Messages are encrypted on your device. Even we can't read them.",
+    "featureBurnTitle": "Burn After Reading",
+    "featureBurnDesc": "Destroy all traces of your conversation with one tap."
+  },
+
+  "chat": {
+    "verifiedTitle": "Encrypted & Verified",
+    "burnButtonLabel": "Burn chat",
+    "burnButtonTitle": "Destroy this chat permanently",
+    "messagePlaceholder": "Message {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "Burn this chat?",
+    "description": "This will permanently destroy your chat with <1>{{name}}</1>.",
+    "warning": "All messages and encryption keys will be erased on both devices. This action cannot be undone.",
+    "listKeys": "Encryption keys (both devices)",
+    "listHistory": "All message history",
+    "listSession": "Session connection",
+    "confirmButton": "Burn Chat"
+  },
+
+  "incomingRequest": {
+    "title": "Incoming Chat Request",
+    "titleExpired": "Request Expired",
+    "subtitle": "Someone wants to start a secure conversation with you",
+    "subtitleExpired": "This request has expired. It is no longer available.",
+    "expiresIn": "Expires in {{time}}",
+    "secretQuestion": "Secret Question",
+    "answerLabel": "Your Answer",
+    "answerPlaceholder": "Enter your answer...",
+    "answerRequired": "Answer is required",
+    "declineButton": "Decline",
+    "acceptButton": "Accept",
+    "backButton": "Back to Home",
+    "securityNote": "End-to-end encrypted. Messages cannot be read by anyone else.",
+    "errors": {
+      "SESSION_NOT_FOUND": "This request no longer exists",
+      "NOT_RESPONDER": "You cannot accept this request",
+      "ALREADY_ACCEPTED": "This request has already been accepted",
+      "SESSION_EXPIRED": "This request has expired",
+      "REQUEST_EXPIRED": "This request has expired",
+      "ANSWER_REQUIRED": "Please answer the secret question",
+      "CONNECTION_ERROR": "Connection error. Please check your network",
+      "INTERNAL_ERROR": "Something went wrong. Please try again",
+      "DEFAULT": "An error occurred. Please try again"
+    }
+  },
+
+  "verification": {
+    "titlePending": "Verify Connection",
+    "titleWaiting": "Verify Connection",
+    "titleVerified": "Connection Verified",
+    "titleMismatch": "Security Alert",
+    "subtitlePending": "Compare this fingerprint with your peer to ensure secure connection.",
+    "subtitleVerified": "Both parties have verified the fingerprint.",
+    "subtitleMismatch": "Fingerprint mismatch detected. This connection may be compromised.",
+    "mismatchWarning": "The fingerprints do not match. This could indicate a man-in-the-middle attack. Do not share sensitive information in this chat.",
+    "yourVerification": "Your verification",
+    "peerVerification": "Peer's verification",
+    "statusVerified": "Verified",
+    "statusPending": "Pending",
+    "statusNotVerified": "Not verified",
+    "statusMismatch": "Mismatch",
+    "matchButton": "Fingerprint Matches",
+    "mismatchButton": "Doesn't Match",
+    "skipButton": "Skip and Continue",
+    "continueButton": "Continue to Chat",
+    "continueAnywayButton": "Continue Anyway (Not Recommended)",
+    "waitingPeer": "Waiting for peer to verify...",
+    "helpText": "Ask your peer to read their fingerprint symbols over a voice call or in person. If they match, press \"Fingerprint Matches\"."
+  },
+
+  "handshake": {
+    "title": "Establishing Secure Connection",
+    "subtitle": "Exchanging encryption keys..."
+  },
+
+  "pendingRequest": {
+    "title": "Waiting for response",
+    "cancelButton": "Cancel Request"
+  },
+
+  "userSearch": {
+    "searching": "Searching...",
+    "startChat": "Start Secure Chat",
+    "notFound": "User not found",
+    "notFoundHint": "Make sure the username is correct or try searching by Telegram ID",
+    "errorHint": "Please try again or check your connection",
+    "errors": {
+      "SELF_SEARCH": "You can't start a chat with yourself",
+      "INVALID_QUERY": "Invalid username or ID format",
+      "RATE_LIMITED": "Too many searches. Please wait a moment",
+      "CONNECTION_ERROR": "Connection error. Please check your network",
+      "DEFAULT": "An error occurred. Please try again"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "Pending...",
+    "statusHandshake": "Connecting...",
+    "statusActive": "Active",
+    "statusExpired": "Expired",
+    "statusBurned": "Burned",
+    "online": "online"
+  }
+}

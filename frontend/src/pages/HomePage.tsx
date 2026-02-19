@@ -1,4 +1,5 @@
 import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { SearchResult, UserInfo } from '../types';
@@ -71,6 +72,7 @@ export function HomePage({
   onBurnSession,
   burningSessionId = null,
 }: HomePageProps) {
+  const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
   
   // Use controlled or uncontrolled query
@@ -146,7 +148,7 @@ export function HomePage({
             />
             {isConnecting && reconnectAttempt > 0 && (
               <span className="reconnect-indicator">
-                Retry {reconnectAttempt}
+                {t('common.retry', { count: reconnectAttempt })}
               </span>
             )}
           </div>
@@ -201,10 +203,10 @@ export function HomePage({
 
       {/* Search Section */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '100ms' }}>
-        <h3 className="home-section-title">Start a Secure Chat</h3>
+        <h3 className="home-section-title">{t('home.sectionSearch')}</h3>
         <form className="home-search" onSubmit={handleSearchSubmit}>
           <Input 
-            placeholder="Search by @username or ID"
+            placeholder={t('home.searchPlaceholder')}
             leftIcon={<SearchIcon size={20} />}
             rightIcon={showClearButton ? (
               <button 
@@ -231,7 +233,7 @@ export function HomePage({
             disabled={!isConnected || !query.trim()}
             isLoading={isSearching}
           >
-            Search User
+            {t('home.searchButton')}
           </Button>
         </form>
 
@@ -247,19 +249,19 @@ export function HomePage({
       <section className="home-features animate-slide-up" style={{ animationDelay: '200ms' }}>
         <FeatureItem 
           icon={<ShieldIcon />}
-          title="End-to-End Encrypted"
-          description="Messages are encrypted on your device. Even we can't read them."
+          title={t('home.featureE2eeTitle')}
+          description={t('home.featureE2eeDesc')}
         />
         <FeatureItem 
           icon={<FlameIcon />}
-          title="Burn After Reading"
-          description="Destroy all traces of your conversation with one tap."
+          title={t('home.featureBurnTitle')}
+          description={t('home.featureBurnDesc')}
         />
       </section>
 
       {/* Active Sessions List (4.6.7) with Pull-to-Refresh (4.6.12) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '300ms' }}>
-        <h3 className="home-section-title">Active Sessions</h3>
+        <h3 className="home-section-title">{t('home.sectionSessions')}</h3>
         
         <PullToRefresh
           onRefresh={() => onRefreshSessions?.()}
@@ -294,8 +296,8 @@ export function HomePage({
           {/* Empty state */}
           {!isLoadingSessions && activeSessions.length === 0 && (
             <div className="home-empty-state">
-              <p>No active sessions</p>
-              <span>Pull down to refresh</span>
+              <p>{t('home.noSessions')}</p>
+              <span>{t('home.pullToRefresh')}</span>
             </div>
           )}
         </PullToRefresh>

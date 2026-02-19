@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { SearchResult, UserInfo } from '../../types';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
@@ -32,6 +33,7 @@ export function UserSearchResult({
   isLoading = false,
   className = '',
 }: UserSearchResultProps) {
+  const { t } = useTranslation();
   const { status, user, error } = result;
 
   // Don't render anything in idle state
@@ -45,7 +47,7 @@ export function UserSearchResult({
       {(status === 'searching' || isLoading) && (
         <div className="search-result__loading animate-fade-in">
           <LoaderIcon className="search-result__spinner" size={32} />
-          <p className="search-result__text">Searching...</p>
+          <p className="search-result__text">{t('userSearch.searching')}</p>
         </div>
       )}
 
@@ -86,7 +88,7 @@ export function UserSearchResult({
               onClick={() => onStartChat?.(user)}
               className="search-result__chat-button"
             >
-              Start Secure Chat
+              {t('userSearch.startChat')}
             </Button>
           </CardContent>
         </Card>
@@ -96,9 +98,9 @@ export function UserSearchResult({
       {status === 'not_found' && !isLoading && (
         <div className="search-result__empty animate-fade-in">
           <UserIcon className="search-result__empty-icon" size={48} />
-          <p className="search-result__text">User not found</p>
+          <p className="search-result__text">{t('userSearch.notFound')}</p>
           <span className="search-result__hint">
-            Make sure the username is correct or try searching by Telegram ID
+            {t('userSearch.notFoundHint')}
           </span>
         </div>
       )}
@@ -107,10 +109,10 @@ export function UserSearchResult({
       {status === 'error' && error && !isLoading && (
         <div className="search-result__error animate-fade-in">
           <AlertIcon className="search-result__error-icon" size={48} />
-          <p className="search-result__text">{getErrorMessage(error)}</p>
+          <p className="search-result__text">{getErrorMessage(error, t)}</p>
           {error !== 'SELF_SEARCH' && (
             <span className="search-result__hint">
-              Please try again or check your connection
+              {t('userSearch.errorHint')}
             </span>
           )}
         </div>
@@ -122,17 +124,8 @@ export function UserSearchResult({
 /**
  * Get user-friendly error message
  */
-function getErrorMessage(error: string): string {
-  switch (error) {
-    case 'SELF_SEARCH':
-      return "You can't start a chat with yourself";
-    case 'INVALID_QUERY':
-      return 'Invalid username or ID format';
-    case 'RATE_LIMITED':
-      return 'Too many searches. Please wait a moment';
-    case 'CONNECTION_ERROR':
-      return 'Connection error. Please check your network';
-    default:
-      return 'An error occurred. Please try again';
-  }
+function getErrorMessage(error: string, t: (key: string) => string): string {
+  const key = `userSearch.errors.${error}`;
+  const message = t(key);
+  return message !== key ? message : t('userSearch.errors.DEFAULT');
 }

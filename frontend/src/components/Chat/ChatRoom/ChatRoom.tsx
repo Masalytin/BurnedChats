@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import { Avatar } from '@/components/Avatar';
@@ -55,8 +56,9 @@ export const ChatRoom = memo(function ChatRoom({
   disabled = false,
   className = '',
 }: ChatRoomProps) {
+  const { t } = useTranslation();
   /** Display name for header/placeholder (backend may omit) */
-  const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || 'Unknown';
+  const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
 
   /**
    * Handle message send
@@ -99,8 +101,8 @@ export const ChatRoom = memo(function ChatRoom({
               {isVerified && (
                 <span 
                   className="chat-room-verified" 
-                  title="Encrypted & Verified"
-                  aria-label="Encrypted and verified"
+                  title={t('chat.verifiedTitle')}
+                  aria-label={t('chat.verifiedTitle')}
                 >
                   🔒
                 </span>
@@ -108,11 +110,11 @@ export const ChatRoom = memo(function ChatRoom({
             </div>
             <div className="chat-room-peer-status">
               {isPeerTyping ? (
-                <span className="chat-room-typing">typing...</span>
+                <span className="chat-room-typing">{t('status.typing')}</span>
               ) : peer.online ? (
-                <span className="chat-room-online">online</span>
+                <span className="chat-room-online">{t('status.online')}</span>
               ) : (
-                <span className="chat-room-offline">offline</span>
+                <span className="chat-room-offline">{t('status.offline')}</span>
               )}
             </div>
           </div>
@@ -125,8 +127,8 @@ export const ChatRoom = memo(function ChatRoom({
               className="chat-room-burn"
               onClick={onBurn}
               disabled={disabled}
-              aria-label="Burn chat"
-              title="Destroy this chat permanently"
+              aria-label={t('chat.burnButtonLabel')}
+              title={t('chat.burnButtonTitle')}
             >
               🔥
             </button>
@@ -148,7 +150,7 @@ export const ChatRoom = memo(function ChatRoom({
         onSend={handleSend}
         onTypingChange={handleTypingChange}
         disabled={disabled}
-        placeholder={`Message ${displayName}...`}
+        placeholder={t('chat.messagePlaceholder', { name: displayName })}
       />
     </div>
   );

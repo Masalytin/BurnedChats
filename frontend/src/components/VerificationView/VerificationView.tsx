@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement, UserInfo } from '../../types';
 import type { VerificationStatus } from '../../hooks/useVerification';
 import { VisualFingerprint } from '../VisualFingerprint';
@@ -47,6 +48,7 @@ export function VerificationView({
   isLoading = false,
   className = '',
 }: VerificationViewProps) {
+  const { t } = useTranslation();
   // sessionId is currently unused but kept in the interface for future use
   void _sessionId;
   const selfVerified = status?.selfVerified ?? false;
@@ -69,16 +71,16 @@ export function VerificationView({
         <div className="verification-view__header">
           <ShieldIcon size={32} className="verification-view__header-icon" />
           <h2 className="verification-view__title">
-            {viewState === 'mismatch' ? 'Security Alert' :
-             viewState === 'both_verified' ? 'Connection Verified' :
-             'Verify Connection'}
+            {viewState === 'mismatch' ? t('verification.titleMismatch') :
+             viewState === 'both_verified' ? t('verification.titleVerified') :
+             t('verification.titlePending')}
           </h2>
           <p className="verification-view__subtitle">
             {viewState === 'mismatch' 
-              ? 'Fingerprint mismatch detected. This connection may be compromised.'
+              ? t('verification.subtitleMismatch')
               : viewState === 'both_verified'
-              ? 'Both parties have verified the fingerprint.'
-              : 'Compare this fingerprint with your peer to ensure secure connection.'}
+              ? t('verification.subtitleVerified')
+              : t('verification.subtitlePending')}
           </p>
         </div>
 
@@ -100,9 +102,7 @@ export function VerificationView({
           <div className="verification-view__mismatch-warning">
             <AlertIcon size={48} className="verification-view__mismatch-icon" />
             <p className="verification-view__mismatch-text">
-              The fingerprints do not match. This could indicate a 
-              man-in-the-middle attack. Do not share sensitive information
-              in this chat.
+              {t('verification.mismatchWarning')}
             </p>
           </div>
         )}
@@ -144,12 +144,12 @@ export function VerificationView({
         {/* Verification status */}
         <div className="verification-view__status">
           <VerificationStatusItem
-            label="Your verification"
+            label={t('verification.yourVerification')}
             verified={selfVerified}
             mismatch={mismatchReported}
           />
           <VerificationStatusItem
-            label="Peer's verification"
+            label={t('verification.peerVerification')}
             verified={peerVerified}
             mismatch={mismatchReported}
             isPeer
@@ -167,7 +167,7 @@ export function VerificationView({
                 fullWidth
                 leftIcon={<CheckIcon size={18} />}
               >
-                Fingerprint Matches
+                {t('verification.matchButton')}
               </Button>
               <Button
                 variant="destructive"
@@ -176,7 +176,7 @@ export function VerificationView({
                 fullWidth
                 leftIcon={<AlertIcon size={18} />}
               >
-                Doesn't Match
+                {t('verification.mismatchButton')}
               </Button>
             </>
           )}
@@ -185,14 +185,14 @@ export function VerificationView({
             <>
               <div className="verification-view__waiting">
                 <div className="verification-view__waiting-spinner" />
-                <span>Waiting for peer to verify...</span>
+                <span>{t('verification.waitingPeer')}</span>
               </div>
               <Button
                 variant="secondary"
                 onClick={onContinue}
                 fullWidth
               >
-                Skip and Continue
+                {t('verification.skipButton')}
               </Button>
             </>
           )}
@@ -203,7 +203,7 @@ export function VerificationView({
               onClick={onContinue}
               fullWidth
             >
-              Continue to Chat
+              {t('verification.continueButton')}
             </Button>
           )}
 
@@ -214,7 +214,7 @@ export function VerificationView({
                 onClick={onContinue}
                 fullWidth
               >
-                Continue Anyway (Not Recommended)
+                {t('verification.continueAnywayButton')}
               </Button>
             </>
           )}
@@ -223,8 +223,7 @@ export function VerificationView({
         {/* Help text */}
         {viewState === 'pending' && (
           <p className="verification-view__help">
-            Ask your peer to read their fingerprint symbols over a voice call
-            or in person. If they match, press "Fingerprint Matches".
+            {t('verification.helpText')}
           </p>
         )}
       </div>
@@ -249,11 +248,12 @@ function VerificationStatusItem({
   mismatch,
   isPeer = false,
 }: VerificationStatusItemProps) {
+  const { t } = useTranslation();
   const getStatusText = () => {
-    if (mismatch) return 'Mismatch';
-    if (verified) return 'Verified';
-    if (isPeer) return 'Pending';
-    return 'Not verified';
+    if (mismatch) return t('verification.statusMismatch');
+    if (verified) return t('verification.statusVerified');
+    if (isPeer) return t('verification.statusPending');
+    return t('verification.statusNotVerified');
   };
 
   const getStatusClass = () => {
