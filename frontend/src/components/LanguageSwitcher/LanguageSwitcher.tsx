@@ -13,7 +13,10 @@ const LANG_OPTIONS: Record<SupportedLanguage, LangOption> = {
   ru: { countryCode: 'ru', label: 'RU' },
 };
 
-/** Circular flag image loaded from flagcdn.com */
+/**
+ * Circular flag image loaded from flagcdn.com.
+ * Uses fixed CDN sizes w40/w80 (valid flagcdn.com widths) regardless of display size.
+ */
 function FlagImg({ countryCode, size = 20 }: { countryCode: string; size?: number }) {
   return (
     <span
@@ -22,8 +25,8 @@ function FlagImg({ countryCode, size = 20 }: { countryCode: string; size?: numbe
       aria-hidden="true"
     >
       <img
-        src={`https://flagcdn.com/w${size * 2}/${countryCode}.png`}
-        srcSet={`https://flagcdn.com/w${size * 2}/${countryCode}.png 1x, https://flagcdn.com/w${size * 4}/${countryCode}.png 2x`}
+        src={`https://flagcdn.com/w40/${countryCode}.png`}
+        srcSet={`https://flagcdn.com/w40/${countryCode}.png 1x, https://flagcdn.com/w80/${countryCode}.png 2x`}
         width={size}
         height={size}
         alt=""

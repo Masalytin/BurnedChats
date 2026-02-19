@@ -25,12 +25,17 @@ i18n
   });
 
 // Async override from Telegram CloudStorage (after init, non-blocking)
-WebApp.CloudStorage.getItem(STORAGE_KEY, (err, savedLang) => {
-  if (!err && savedLang && (SUPPORTED_LANGS as readonly string[]).includes(savedLang)) {
-    if (savedLang !== i18n.language) {
-      i18n.changeLanguage(savedLang);
+// Wrapped in try-catch: CloudStorage requires Telegram Web App >= 6.9
+try {
+  WebApp.CloudStorage.getItem(STORAGE_KEY, (err, savedLang) => {
+    if (!err && savedLang && (SUPPORTED_LANGS as readonly string[]).includes(savedLang)) {
+      if (savedLang !== i18n.language) {
+        i18n.changeLanguage(savedLang);
+      }
     }
-  }
-});
+  });
+} catch {
+  // CloudStorage not supported in this Telegram Web App version — use Telegram language_code
+}
 
 export default i18n;

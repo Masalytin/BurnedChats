@@ -42,10 +42,14 @@ export function useLanguageSwitcher(): UseLanguageSwitcherReturn {
       i18n.changeLanguage(lang);
       setCurrentLang(lang);
 
-      // 2. Save to Telegram CloudStorage
-      WebApp.CloudStorage.setItem(STORAGE_KEY, lang, (err) => {
-        if (err) console.warn('Failed to save language preference', err);
-      });
+      // 2. Save to Telegram CloudStorage (requires Web App >= 6.9)
+      try {
+        WebApp.CloudStorage.setItem(STORAGE_KEY, lang, (err) => {
+          if (err) console.warn('Failed to save language preference', err);
+        });
+      } catch {
+        // CloudStorage not supported — preference won't persist across sessions
+      }
 
       // 3. Sync with backend (fire-and-forget, does not block UI)
       if (isConnected) {
