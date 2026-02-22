@@ -65,7 +65,7 @@ export async function derivePasswordProof(
   password: string,
   existingSalt?: string
 ): Promise<PasswordProofResult> {
-  const saltBytes = existingSalt
+  const saltBuffer: ArrayBuffer = existingSalt
     ? base64ToArrayBuffer(existingSalt)
     : generateSalt();
 
@@ -75,7 +75,7 @@ export async function derivePasswordProof(
     {
       name: 'PBKDF2',
       hash: 'SHA-256',
-      salt: saltBytes,
+      salt: saltBuffer,
       iterations: PBKDF2_ITERATIONS,
     },
     keyMaterial,
@@ -83,7 +83,7 @@ export async function derivePasswordProof(
   );
 
   return {
-    salt: arrayBufferToBase64(saltBytes),
+    salt: arrayBufferToBase64(saltBuffer),
     proof: arrayBufferToBase64(proofBuffer),
   };
 }
@@ -109,10 +109,10 @@ export function validatePassword(password: string): string | null {
 /**
  * Generate a cryptographically random salt.
  */
-function generateSalt(): Uint8Array {
+function generateSalt(): ArrayBuffer {
   const salt = new Uint8Array(SALT_LENGTH_BYTES);
   crypto.getRandomValues(salt);
-  return salt;
+  return salt.buffer as ArrayBuffer;
 }
 
 /**
@@ -144,11 +144,11 @@ function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
 /**
  * Convert a Base64 string to an ArrayBuffer.
  */
-function base64ToArrayBuffer(base64: string): Uint8Array {
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return bytes;
+  return bytes.buffer as ArrayBuffer;
 }
