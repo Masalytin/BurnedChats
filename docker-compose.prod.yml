@@ -81,6 +81,8 @@ services:
       args:
         - VITE_API_URL=https://${DOMAIN}
         - VITE_WS_URL=https://${DOMAIN}/ws
+        - VITE_TELEGRAM_BOT_URL=https://t.me/BurnedChatsBot
+        - VITE_GITHUB_URL=https://github.com/Masalytin/BurnedChats
     container_name: burnedchats-frontend
     restart: always
     networks:

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 
 const TELEGRAM_BOT_URL = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';
-const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/nicenemo/burned-chats';
+const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/Masalytin/BurnedChats';
 
 export function FooterSection() {
   return (
