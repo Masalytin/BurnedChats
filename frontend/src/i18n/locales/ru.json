@@ -121,6 +121,90 @@
     }
   },
 
+  "room": {
+    "sectionMyRooms": "Мои комнаты",
+    "emptyRooms": "Нет комнат",
+    "createRoomButton": "Создать комнату",
+    "roleOwner": "Владелец",
+    "roleMember": "Участник",
+    "burned": "Сожжена",
+    "left": "Покинута",
+
+    "create": {
+      "title": "Создать комнату",
+      "passwordLabel": "Пароль",
+      "passwordPlaceholder": "Введите пароль комнаты...",
+      "passwordConfirmLabel": "Подтверждение пароля",
+      "passwordConfirmPlaceholder": "Повторите пароль...",
+      "passwordMismatch": "Пароли не совпадают",
+      "passwordTooShort": "Пароль должен содержать не менее 8 символов",
+      "joinModeLabel": "Режим входа",
+      "joinModePassword": "По паролю — любой с ссылкой и паролем войдёт сразу",
+      "joinModeRequest": "По заявкам — участников одобряет владелец",
+      "submitButton": "Создать",
+      "successTitle": "Комната создана!",
+      "copyLinkButton": "Скопировать ссылку",
+      "linkCopied": "Ссылка скопирована",
+      "errorWeak": "Слишком слабый пароль",
+      "errorNetwork": "Ошибка сети. Попробуйте ещё раз"
+    },
+
+    "join": {
+      "title": "Войти в комнату",
+      "subtitle": "Введите пароль комнаты, чтобы продолжить",
+      "passwordLabel": "Пароль",
+      "passwordPlaceholder": "Введите пароль...",
+      "joinButton": "Войти",
+      "requestButton": "Отправить заявку",
+      "requestSent": "Ваша заявка отправлена. Ожидайте одобрения.",
+      "errorInvalidPassword": "Неверный пароль",
+      "errorExpiredToken": "Срок действия ссылки истёк",
+      "errorInvalidToken": "Недействительная ссылка",
+      "errorNetwork": "Ошибка сети. Попробуйте ещё раз"
+    },
+
+    "requests": {
+      "title": "Заявки на вход",
+      "empty": "Нет заявок",
+      "acceptButton": "Принять",
+      "rejectButton": "Отклонить",
+      "approvedNotice": "Заявка принята",
+      "rejectedNotice": "Заявка отклонена"
+    },
+
+    "chat": {
+      "noAccess": "Нет доступа",
+      "noAccessHint": "Вы не являетесь участником этой комнаты",
+      "loadingKey": "Загрузка ключа шифрования...",
+      "memberCount": "{{count}} участников",
+      "memberCount_one": "1 участник"
+    },
+
+    "manage": {
+      "title": "Настройки комнаты",
+      "inviteButton": "Пригласить",
+      "requestsButton": "Заявки на вход",
+      "membersButton": "Участники",
+      "burnButton": "Сжечь комнату",
+      "leaveButton": "Покинуть комнату",
+      "membersTitle": "Участники"
+    },
+
+    "burn": {
+      "title": "Сжечь комнату?",
+      "description": "Это навсегда уничтожит комнату и все её сообщения.",
+      "warning": "Все сообщения, ключи шифрования и список участников будут удалены для всех. Это действие нельзя отменить.",
+      "confirmButton": "Сжечь комнату"
+    },
+
+    "leave": {
+      "title": "Покинуть комнату?",
+      "description": "У вас больше не будет доступа к сообщениям этой комнаты.",
+      "warning": "После вашего выхода ключ шифрования комнаты будет сменён.",
+      "confirmButton": "Покинуть"
+    }
+  },
+
   "sessionCard": {
     "statusPending": "Ожидание...",
     "statusHandshake": "Подключение...",

@@ -964,6 +964,54 @@ client.activate();
 
 ---
 
+## Комнаты (Phase 2 — P2-1)
+
+### CREATE_ROOM
+
+**Направление:** Client → Server  
+**Destination:** `/app/room.create`
+
+```json
+{
+  "salt": "base64...",
+  "passwordProof": "base64...",
+  "joinMode": "BY_PASSWORD | BY_REQUEST",
+  "nameEncrypted": "base64... (optional)"
+}
+```
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `salt` | string (Base64, 16–48 bytes) | Да | KDF salt, client-generated |
+| `passwordProof` | string (Base64, 32 bytes) | Да | PBKDF2 proof (never the password) |
+| `joinMode` | enum | Да | `BY_PASSWORD` — вход сразу; `BY_REQUEST` — по одобрению |
+| `nameEncrypted` | string (Base64) | Нет | Зашифрованное имя комнаты |
+
+---
+
+### ROOM_CREATED
+
+**Направление:** Server → Client  
+**Destination:** `/user/queue/room-created`
+
+**Success:**
+```json
+{
+  "success": true,
+  "roomId": "uuid-v4"
+}
+```
+
+**Error:**
+```json
+{
+  "success": false,
+  "error": "VALIDATION_ERROR | RATE_LIMITED | INTERNAL_ERROR"
+}
+```
+
+---
+
 ## Связанные документы
 
 - [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных в Redis

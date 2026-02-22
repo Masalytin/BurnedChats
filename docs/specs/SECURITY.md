@@ -835,9 +835,59 @@ class TelegramAuthServiceTest {
 
 ### Пароль комнаты
 
-- **Клиент:** при создании комнаты и при входе пароль преобразуется в proof через KDF (PBKDF2 или Argon2id): `proof = KDF(salt, password)`. Salt генерируется на клиенте (crypto.getRandomValues). На сервер отправляются только `salt` и `proof`; пароль в открытом виде не передаётся.
-- **Сервер:** хранит в `room:{roomId}` поля `salt` и `passwordProofHash` (или сам proof). При попытке входа клиент присылает proof (вычисленный из введённого пароля и salt комнаты); сервер сравнивает с сохранённым значением в constant-time. Пароль и proof **не логируются**.
-- **Защита от перебора:** rate limiting на попытки входа по roomId/invite token (например, блокировка после N неудачных попыток по IP или по tgId). Рекомендуется лимит и увеличенная задержка при повторных попытках.
+#### Алгоритм KDF (реализовано в P2-1)
+
+Используется **PBKDF2-HMAC-SHA256** через Web Crypto API (фронтенд) и `javax.crypto` (бэкенд, только для тестов).
+
+| Параметр | Значение |
+|----------|----------|
+| Алгоритм | PBKDF2WithHmacSHA256 |
+| Итерации | 200 000 |
+| Длина proof | 256 бит (32 байта) |
+| Salt | 16 байт, `crypto.getRandomValues` |
+| Кодировка | Base64 |
+
+#### Поток создания комнаты
+
+```
+Клиент                              Сервер
+  │                                    │
+  ├─ salt = crypto.getRandomValues()   │
+  ├─ proof = PBKDF2(password, salt)    │
+  ├─── CREATE_ROOM {salt, proof} ─────►│
+  │                                    ├─ proofHash = SHA-256(proof)
+  │                                    ├─ room.salt = salt
+  │                                    ├─ room.passwordProofHash = proofHash
+  │                                    ├─ Redis: HSET room:{roomId} ...
+  │◄── ROOM_CREATED {roomId} ──────────┤
+```
+
+#### Поток проверки пароля при входе
+
+```
+Клиент                              Сервер
+  │                                    │
+  ├─ GET salt (из invite:{token})       │
+  ├─── REQUEST_JOIN {token, proof} ────►│
+  │                                    ├─ actualHash = SHA-256(proof)
+  │                                    ├─ stored = room.passwordProofHash
+  │                                    ├─ MessageDigest.isEqual(actual, stored)
+  │◄── JOIN_ACCEPTED / JOIN_REJECTED ──┤
+```
+
+#### Гарантии безопасности
+
+- **Plaintext пароль** не логируется, не передаётся на сервер, не хранится нигде.
+- **Proof** хешируется SHA-256 перед записью в Redis — утечка Redis-дампа не даёт proof напрямую.
+- **Constant-time сравнение** (`MessageDigest.isEqual`) предотвращает timing-атаки.
+- **Не логировать** `proof`, `salt` и `passwordProofHash` в DEBUG/INFO логах — только уровень TRACE при необходимости диагностики.
+
+#### Защита от перебора (Rate Limiting)
+
+Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/или tgId:
+- Рекомендуемый лимит: 5 неудачных попыток за 10 минут.
+- После N неудач — временная блокировка (15–60 минут) по tgId.
+- Реализация через `RateLimitService` (аналогично существующему).
 
 ### Групповой ключ комнаты
 

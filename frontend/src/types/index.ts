@@ -162,6 +162,24 @@ export interface VisualFingerprintElement {
 // UI State Types
 // ============================================
 
+// ============================================
+// Room Types (Phase 2)
+// ============================================
+
+export type RoomJoinMode = 'BY_PASSWORD' | 'BY_REQUEST';
+
+export interface Room {
+  id: string;
+  ownerTgId?: number;
+  joinMode?: RoomJoinMode;
+  createdAt?: number;
+  nameEncrypted?: string;
+}
+
+// ============================================
+// View Types
+// ============================================
+
 export type ViewType = 
   | 'home'
   | 'search'

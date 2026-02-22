@@ -33,6 +33,13 @@ export {
   type DecryptOptions,
 } from './aes';
 
+// Room password KDF (PBKDF2)
+export {
+  derivePasswordProof,
+  validatePassword,
+  type PasswordProofResult,
+} from './kdf';
+
 // Secure key storage
 export {
   // Store operations

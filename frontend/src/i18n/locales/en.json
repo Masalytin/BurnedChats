@@ -121,6 +121,90 @@
     }
   },
 
+  "room": {
+    "sectionMyRooms": "My Rooms",
+    "emptyRooms": "No rooms yet",
+    "createRoomButton": "Create Room",
+    "roleOwner": "Owner",
+    "roleMember": "Member",
+    "burned": "Burned",
+    "left": "Left",
+
+    "create": {
+      "title": "Create Room",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Enter room password...",
+      "passwordConfirmLabel": "Confirm Password",
+      "passwordConfirmPlaceholder": "Repeat password...",
+      "passwordMismatch": "Passwords do not match",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "joinModeLabel": "Join Mode",
+      "joinModePassword": "By password — anyone with the link and password can join",
+      "joinModeRequest": "By request — participants must be approved by the owner",
+      "submitButton": "Create",
+      "successTitle": "Room created!",
+      "copyLinkButton": "Copy Invite Link",
+      "linkCopied": "Link copied",
+      "errorWeak": "Password is too weak",
+      "errorNetwork": "Network error. Please try again"
+    },
+
+    "join": {
+      "title": "Join Room",
+      "subtitle": "Enter the room password to continue",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Enter password...",
+      "joinButton": "Join",
+      "requestButton": "Send Request",
+      "requestSent": "Your request has been sent. Waiting for approval.",
+      "errorInvalidPassword": "Incorrect password",
+      "errorExpiredToken": "This invite link has expired",
+      "errorInvalidToken": "Invalid invite link",
+      "errorNetwork": "Network error. Please try again"
+    },
+
+    "requests": {
+      "title": "Join Requests",
+      "empty": "No pending requests",
+      "acceptButton": "Accept",
+      "rejectButton": "Reject",
+      "approvedNotice": "Request approved",
+      "rejectedNotice": "Request rejected"
+    },
+
+    "chat": {
+      "noAccess": "No access",
+      "noAccessHint": "You are not a member of this room",
+      "loadingKey": "Loading encryption key...",
+      "memberCount": "{{count}} members",
+      "memberCount_one": "1 member"
+    },
+
+    "manage": {
+      "title": "Room Settings",
+      "inviteButton": "Invite",
+      "requestsButton": "Join Requests",
+      "membersButton": "Members",
+      "burnButton": "Burn Room",
+      "leaveButton": "Leave Room",
+      "membersTitle": "Members"
+    },
+
+    "burn": {
+      "title": "Burn this room?",
+      "description": "This will permanently destroy the room and all its messages.",
+      "warning": "All messages, encryption keys, and member list will be erased for everyone. This action cannot be undone.",
+      "confirmButton": "Burn Room"
+    },
+
+    "leave": {
+      "title": "Leave room?",
+      "description": "You will no longer have access to this room's messages.",
+      "warning": "The room encryption key will be rotated after you leave.",
+      "confirmButton": "Leave"
+    }
+  },
+
   "sessionCard": {
     "statusPending": "Pending...",
     "statusHandshake": "Connecting...",
