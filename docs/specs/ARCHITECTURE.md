@@ -90,6 +90,11 @@ frontend/
 │   │   ├── init.ts              # Mini App initialization
 │   │   ├── theme.ts             # Adaptive theming
 │   │   └── haptics.ts           # Haptic feedback
+│   ├── i18n/
+│   │   ├── index.ts             # i18next init, language_code → locale
+│   │   └── locales/
+│   │       ├── en.json          # English (fallback)
+│   │       └── ru.json          # Русский
 │   ├── hooks/
 │   │   ├── useEncryptedChat.ts
 │   │   ├── useKeyExchange.ts
@@ -109,6 +114,7 @@ frontend/
 | `keyStore.ts` | Обёртка над sessionStorage с автоочисткой при закрытии |
 | `socket/` | STOMP клиент для WebSocket, типизированные события |
 | `telegram/` | Интеграция с Telegram: тема, haptics, back button |
+| `i18n/` | Мультиязычность: react-i18next, автодетект из `language_code` |
 
 ---
 
@@ -135,6 +141,7 @@ backend/
 │   ├── telegram/
 │   │   ├── BurnedChatsBot.java          # TelegramBots реализация
 │   │   ├── TelegramAuthService.java     # initData валидация
+│   │   ├── BotMessageService.java       # i18n: ключи → локализованный текст
 │   │   └── BotCommands.java             # /start, /help команды
 │   ├── websocket/
 │   │   ├── WebSocketEventListener.java  # Connect/disconnect events
@@ -172,7 +179,11 @@ backend/
 ├── src/main/resources/
 │   ├── application.yml
 │   ├── application-dev.yml
-│   └── application-prod.yml
+│   ├── application-prod.yml
+│   └── i18n/
+│       ├── messages.properties      # fallback (English)
+│       ├── messages_en.properties
+│       └── messages_ru.properties
 ├── src/test/java/dev/burnedchats/
 │   ├── service/
 │   ├── websocket/
