@@ -7,6 +7,7 @@ import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake } from './hooks/useHandshake';
 import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
+import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
@@ -14,6 +15,7 @@ import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
 import { ChatRoom } from './components/Chat';
+import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
@@ -25,7 +27,7 @@ import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
 /** Application view states */
-type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat';
+type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat' | 'create-room';
 
 /** Active chat state */
 interface ActiveChat {
@@ -200,6 +202,27 @@ function AppContent() {
     },
   });
 
+  // Create room hook
+  const {
+    result: createRoomResult,
+    createRoom,
+    reset: resetCreateRoom,
+    isCreating: isCreatingRoom,
+  } = useCreateRoom({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onCreated: () => {
+      notificationOccurred('success');
+      toast.success('Room created!');
+    },
+    onError: (errorCode) => {
+      notificationOccurred('error');
+      toast.error(`Failed to create room: ${errorCode}`, { title: 'Error' });
+    },
+  });
+
   // Active sessions hook (4.6.5 - 4.6.8)
   const {
     sessions: activeSessions,
@@ -282,6 +305,12 @@ function AppContent() {
       resetSession();
       return;
     }
+
+    if (currentView === 'create-room') {
+      resetCreateRoom();
+      setCurrentView('home');
+      return;
+    }
     
     if (currentView === 'pending-request') {
       setCurrentView('home');
@@ -330,11 +359,12 @@ function AppContent() {
       fetchSessions();
     }
   }, [
-    showChatRequestDialog, 
-    currentView, 
-    resetSession, 
-    clearSearch, 
-    resetIncomingAction, 
+    showChatRequestDialog,
+    currentView,
+    resetSession,
+    resetCreateRoom,
+    clearSearch,
+    resetIncomingAction,
     cancelHandshake,
     handshakeResult.sessionId,
     isConnected,
@@ -348,6 +378,17 @@ function AppContent() {
     visible: currentView !== 'home' || showChatRequestDialog,
     onBack: handleBackButton,
   });
+
+  // Handle "Create Room" click from HomePage
+  const handleCreateRoom = useCallback(() => {
+    resetCreateRoom();
+    setCurrentView('create-room');
+  }, [resetCreateRoom]);
+
+  // Handle CreateRoomView form submit
+  const handleCreateRoomSubmit = useCallback((password: string, joinMode: RoomJoinMode) => {
+    createRoom(password, joinMode);
+  }, [createRoom]);
 
   // Initialize Mini App
   useEffect(() => {
@@ -836,6 +877,36 @@ function AppContent() {
     );
   }
 
+  // Create room view
+  if (currentView === 'create-room') {
+    return (
+      <>
+        <Layout>
+          {createRoomResult.status === 'created' && createRoomResult.roomId ? (
+            <RoomCreatedSuccess
+              roomId={createRoomResult.roomId}
+              onEnterRoom={() => {
+                resetCreateRoom();
+                setCurrentView('home');
+              }}
+            />
+          ) : (
+            <CreateRoomView
+              isLoading={isCreatingRoom}
+              error={createRoomResult.error}
+              onSubmit={handleCreateRoomSubmit}
+              onCancel={() => {
+                resetCreateRoom();
+                setCurrentView('home');
+              }}
+            />
+          )}
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
   // Default: Home view
   return (
     <>
@@ -859,6 +930,7 @@ function AppContent() {
           onRefreshSessions={fetchSessions}
           onBurnSession={handleBurnSessionRequest}
           burningSessionId={burningSessionId}
+          onCreateRoom={handleCreateRoom}
         />
 
         {/* Chat request dialog */}

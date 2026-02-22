@@ -40,6 +40,8 @@ interface HomePageProps {
   onBurnSession?: (sessionId: string, peerName: string) => void;
   /** Session currently being burned (4.6.11) */
   burningSessionId?: string | null;
+  /** Callback when user clicks "Create Room" */
+  onCreateRoom?: () => void;
 }
 
 /** Default search result state */
@@ -71,6 +73,7 @@ export function HomePage({
   onRefreshSessions,
   onBurnSession,
   burningSessionId = null,
+  onCreateRoom,
 }: HomePageProps) {
   const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
@@ -244,6 +247,24 @@ export function HomePage({
           isLoading={isSearching}
           onStartChat={onStartChat}
         />
+      </section>
+
+      {/* Rooms Section */}
+      <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
+        <div className="home-section-header">
+          <h3 className="home-section-title">{t('room.sectionMyRooms')}</h3>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!isConnected}
+            onClick={onCreateRoom}
+          >
+            {t('room.createRoomButton')}
+          </Button>
+        </div>
+        <div className="home-empty-state">
+          <p>{t('room.emptyRooms')}</p>
+        </div>
       </section>
 
       {/* Features Section */}

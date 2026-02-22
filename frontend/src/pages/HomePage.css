@@ -167,6 +167,13 @@
   margin: 0;
 }
 
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+}
+
 /* Search */
 .home-search {
   display: flex;
