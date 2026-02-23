@@ -7,7 +7,7 @@
 #
 # First run (get SSL certificates):
 #   docker compose -f docker-compose.prod.yml up -d nginx-certbot
-#   docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d burnedchats.net -d www.burnedchats.net --email your@email.com --agree-tos --no-eff-email
+#   docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d burnedchats.net -d www.burnedchats.net -d redis.burnedchats.net --email your@email.com --agree-tos --no-eff-email
 #   docker compose -f docker-compose.prod.yml down
 #
 # Start all services:
@@ -93,8 +93,6 @@ services:
     image: redis/redisinsight:latest
     container_name: burnedchats-redisinsight
     restart: always
-    environment:
-      - RI_PROXY_PATH=/redisinsight
     volumes:
       - redisinsight-data:/data
     depends_on:
