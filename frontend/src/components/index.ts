@@ -39,4 +39,4 @@ export { LanguageSwitcher } from './LanguageSwitcher';
 
 // Room Components (Phase 2)
 export { JoinRoomView } from './JoinRoomView';
-export type { JoinRoomErrorCode } from './JoinRoomView';
+
