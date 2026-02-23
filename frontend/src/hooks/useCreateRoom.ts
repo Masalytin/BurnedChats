@@ -20,12 +20,15 @@ export type CreateRoomStatus = 'idle' | 'creating' | 'created' | 'error';
 export interface CreateRoomResult {
   status: CreateRoomStatus;
   roomId: string | null;
+  /** Telegram deep-link invite URL returned by the server at room creation. */
+  inviteUrl: string | null;
   error: CreateRoomErrorCode | null;
 }
 
 interface ServerRoomCreatedEvent {
   success: boolean;
   roomId?: string;
+  inviteUrl?: string;
   error?: string;
 }
 
@@ -48,6 +51,7 @@ interface UseCreateRoomReturn {
 const initialResult: CreateRoomResult = {
   status: 'idle',
   roomId: null,
+  inviteUrl: null,
   error: null,
 };
 
@@ -83,15 +87,15 @@ export function useCreateRoom({
 
       if (!data.success || !data.roomId) {
         const errorCode = (data.error ?? 'INTERNAL_ERROR') as CreateRoomErrorCode;
-        setResult({ status: 'error', roomId: null, error: errorCode });
+        setResult({ status: 'error', roomId: null, inviteUrl: null, error: errorCode });
         onErrorRef.current?.(errorCode);
         return;
       }
 
-      setResult({ status: 'created', roomId: data.roomId, error: null });
+      setResult({ status: 'created', roomId: data.roomId, inviteUrl: data.inviteUrl ?? null, error: null });
       onCreatedRef.current?.({ id: data.roomId } as Room);
     } catch {
-      setResult({ status: 'error', roomId: null, error: 'CONNECTION_ERROR' });
+      setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CONNECTION_ERROR' });
       onErrorRef.current?.('CONNECTION_ERROR');
     }
   }, []);
@@ -112,12 +116,12 @@ export function useCreateRoom({
   const createRoom = useCallback(
     async (password: string, joinMode: RoomJoinMode, nameEncrypted?: string) => {
       if (!isConnected) {
-        setResult({ status: 'error', roomId: null, error: 'CONNECTION_ERROR' });
+        setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CONNECTION_ERROR' });
         onErrorRef.current?.('CONNECTION_ERROR');
         return;
       }
 
-      setResult({ status: 'creating', roomId: null, error: null });
+      setResult({ status: 'creating', roomId: null, inviteUrl: null, error: null });
 
       try {
         const { salt, proof } = await derivePasswordProof(password);
@@ -133,7 +137,7 @@ export function useCreateRoom({
 
         publish(CREATE_ROOM_DESTINATION, payload);
       } catch {
-        setResult({ status: 'error', roomId: null, error: 'CRYPTO_ERROR' });
+        setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CRYPTO_ERROR' });
         onErrorRef.current?.('CRYPTO_ERROR');
       }
     },

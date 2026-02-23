@@ -22,6 +22,13 @@ public class RoomCreatedEvent {
     private String roomId;
 
     /**
+     * Telegram deep-link invite URL generated at room creation.
+     * Present when {@code success = true}. May be {@code null} if token generation failed
+     * (room is still created; owner can request a link later via GET_INVITE_LINK).
+     */
+    private String inviteUrl;
+
+    /**
      * Error code when {@code success = false}.
      * Possible values: {@code VALIDATION_ERROR}, {@code RATE_LIMITED}, {@code INTERNAL_ERROR}.
      */
@@ -31,6 +38,14 @@ public class RoomCreatedEvent {
         return RoomCreatedEvent.builder()
                 .success(true)
                 .roomId(roomId)
+                .build();
+    }
+
+    public static RoomCreatedEvent success(String roomId, String inviteUrl) {
+        return RoomCreatedEvent.builder()
+                .success(true)
+                .roomId(roomId)
+                .inviteUrl(inviteUrl)
                 .build();
     }
 

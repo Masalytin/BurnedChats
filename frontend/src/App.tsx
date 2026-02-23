@@ -16,6 +16,7 @@ import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
 import { ChatRoom } from './components/Chat';
 import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
+import { JoinRoomView } from './components/JoinRoomView';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
@@ -27,7 +28,7 @@ import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
 /** Application view states */
-type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat' | 'create-room';
+type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat' | 'create-room' | 'join-room';
 
 /** Active chat state */
 interface ActiveChat {
@@ -49,6 +50,7 @@ function AppContent() {
     setClosingConfirmation, 
     setHeaderColor,
     notificationOccurred,
+    startParam,
   } = useTelegram();
   
   const { 
@@ -271,6 +273,9 @@ function AppContent() {
     },
   });
 
+  // Invite token state (P2-2.1.3)
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+
   // Track which session is being resumed
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
@@ -308,6 +313,12 @@ function AppContent() {
 
     if (currentView === 'create-room') {
       resetCreateRoom();
+      setCurrentView('home');
+      return;
+    }
+
+    if (currentView === 'join-room') {
+      setInviteToken(null);
       setCurrentView('home');
       return;
     }
@@ -379,6 +390,12 @@ function AppContent() {
     onBack: handleBackButton,
   });
 
+  // Navigate to join-room when token arrives (e.g. from getInviteLink for testing)
+  const handleJoinByToken = useCallback((token: string) => {
+    setInviteToken(token);
+    setCurrentView('join-room');
+  }, []);
+
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {
     resetCreateRoom();
@@ -389,6 +406,20 @@ function AppContent() {
   const handleCreateRoomSubmit = useCallback((password: string, joinMode: RoomJoinMode) => {
     createRoom(password, joinMode);
   }, [createRoom]);
+
+  // Handle invite deep link from startapp parameter (P2-2.1.3)
+  // startParam format: "invite_{token}" → route to join-room view
+  useEffect(() => {
+    if (!isReady) return;
+    if (!startParam) return;
+    if (!startParam.startsWith('invite_')) return;
+
+    const token = startParam.slice('invite_'.length);
+    if (!token) return;
+
+    setInviteToken(token);
+    setCurrentView('join-room');
+  }, [isReady, startParam]);
 
   // Initialize Mini App
   useEffect(() => {
@@ -885,6 +916,7 @@ function AppContent() {
           {createRoomResult.status === 'created' && createRoomResult.roomId ? (
             <RoomCreatedSuccess
               roomId={createRoomResult.roomId}
+              inviteLink={createRoomResult.inviteUrl}
               onEnterRoom={() => {
                 resetCreateRoom();
                 setCurrentView('home');
@@ -901,6 +933,32 @@ function AppContent() {
               }}
             />
           )}
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  // Join room view (opened via Telegram invite deep link)
+  if (currentView === 'join-room' && inviteToken) {
+    return (
+      <>
+        <Layout>
+          <JoinRoomView
+            token={inviteToken}
+            onJoin={(_token, _password) => {
+              // P2-2.2 will implement JOIN_BY_PASSWORD STOMP call
+              toast.info('Join by password — coming in P2-2.2');
+            }}
+            onRequestJoin={(_token, _password) => {
+              // P2-2.2 will implement REQUEST_JOIN_ROOM STOMP call
+              toast.info('Send join request — coming in P2-2.2');
+            }}
+            onCancel={() => {
+              setInviteToken(null);
+              setCurrentView('home');
+            }}
+          />
         </Layout>
         {debugPanelElement}
       </>

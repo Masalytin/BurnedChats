@@ -1,0 +1,77 @@
+.join-room-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 16px);
+  padding: var(--spacing-lg, 24px) var(--spacing-md, 16px);
+}
+
+/* Header */
+.join-room-view__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  text-align: center;
+}
+
+.join-room-view__icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.join-room-view__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--tg-theme-text-color, #000);
+}
+
+.join-room-view__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #666);
+  line-height: 1.4;
+}
+
+/* Token badge */
+.join-room-view__token {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  color: var(--tg-theme-hint-color, #666);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+/* Form */
+.join-room-view__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 16px);
+}
+
+/* Error */
+.join-room-view__error {
+  margin: 0;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  background: rgba(var(--tg-theme-destructive-color-rgb, 255, 59, 48), 0.1);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--tg-theme-destructive-color, #ff3b30);
+}
+
+.join-room-view__error--expired {
+  background: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
+}
+
+/* Actions */
+.join-room-view__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
