@@ -8,6 +8,8 @@ import { useHandshake } from './hooks/useHandshake';
 import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
+import { useJoinRoom } from './hooks/useJoinRoom';
+import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
@@ -17,6 +19,7 @@ import { HandshakeView } from './components/HandshakeView';
 import { ChatRoom } from './components/Chat';
 import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
+import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
@@ -28,7 +31,15 @@ import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
 /** Application view states */
-type AppView = 'home' | 'pending-request' | 'incoming-request' | 'handshake' | 'chat' | 'create-room' | 'join-room';
+type AppView =
+  | 'home'
+  | 'pending-request'
+  | 'incoming-request'
+  | 'handshake'
+  | 'chat'
+  | 'create-room'
+  | 'join-room'
+  | 'room-join-requests';
 
 /** Active chat state */
 interface ActiveChat {
@@ -225,6 +236,55 @@ function AppContent() {
     },
   });
 
+  // Join room hook (P2-2.2.4)
+  const {
+    result: joinRoomResult,
+    loadInviteInfo,
+    submitJoin,
+    reset: resetJoinRoom,
+  } = useJoinRoom({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onApproved: (roomId) => {
+      notificationOccurred('success');
+      toast.success('Joined room successfully!');
+      console.log('[App] Joined room:', roomId);
+      // TODO P2-3: navigate to room chat after key exchange
+    },
+    onRejected: () => {
+      notificationOccurred('error');
+      toast.info('Your join request was rejected.');
+    },
+    onError: (errorCode) => {
+      notificationOccurred('error');
+      toast.error(`Join failed: ${errorCode}`, { title: 'Error' });
+    },
+  });
+
+  // Room join requests hook (P2-2.2.5) — owner side
+  const {
+    requests: joinRequests,
+    pendingCount: pendingJoinCount,
+    acceptRequest: acceptJoinRequest,
+    rejectRequest: rejectJoinRequest,
+    removeRequest: removeJoinRequest,
+  } = useRoomJoinRequests({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onNewRequest: (request) => {
+      notificationOccurred('success');
+      const name = request.senderUsername ? `@${request.senderUsername}` : request.senderFirstName;
+      toast.info(`${name} wants to join the room`, { title: 'Join Request', duration: 5000 });
+    },
+  });
+
+  // Track which requests are being processed (for loading state)
+  const [processingJoinKeys, setProcessingJoinKeys] = useState<Set<string>>(new Set());
+
   // Active sessions hook (4.6.5 - 4.6.8)
   const {
     sessions: activeSessions,
@@ -276,6 +336,9 @@ function AppContent() {
   // Invite token state (P2-2.1.3)
   const [inviteToken, setInviteToken] = useState<string | null>(null);
 
+  // Active room ID for the requests view (P2-2.2.5)
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+
   // Track which session is being resumed
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
@@ -318,8 +381,20 @@ function AppContent() {
     }
 
     if (currentView === 'join-room') {
+      resetJoinRoom();
       setInviteToken(null);
       setCurrentView('home');
+      return;
+    }
+
+    if (currentView === 'room-join-requests') {
+      setActiveRoomId(null);
+      // Go back to create-room success if we came from there, otherwise home
+      if (createRoomResult.status === 'created') {
+        setCurrentView('create-room');
+      } else {
+        setCurrentView('home');
+      }
       return;
     }
     
@@ -374,6 +449,7 @@ function AppContent() {
     currentView,
     resetSession,
     resetCreateRoom,
+    resetJoinRoom,
     clearSearch,
     resetIncomingAction,
     cancelHandshake,
@@ -382,25 +458,69 @@ function AppContent() {
     publish,
     resetHandshake,
     fetchSessions,
+    createRoomResult.status,
   ]);
 
-  // Setup back button
+  // Show back button on all non-home views
   useBackButton({
     visible: currentView !== 'home' || showChatRequestDialog,
     onBack: handleBackButton,
   });
 
-  // Navigate to join-room when token arrives (e.g. from getInviteLink for testing)
+  // Navigate to join-room when token arrives; immediately loads invite info
   const handleJoinByToken = useCallback((token: string) => {
+    resetJoinRoom();
     setInviteToken(token);
     setCurrentView('join-room');
-  }, []);
+    // Load invite info (salt + joinMode) so the form can show the correct button
+    loadInviteInfo(token);
+  }, [resetJoinRoom, loadInviteInfo]);
 
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {
     resetCreateRoom();
     setCurrentView('create-room');
   }, [resetCreateRoom]);
+
+  // Handle "View Requests" from RoomCreatedSuccess
+  const handleViewRequests = useCallback((roomId: string) => {
+    setActiveRoomId(roomId);
+    setCurrentView('room-join-requests');
+  }, []);
+
+  // Handle accept/reject join request (P2-2.2.5)
+  const handleAcceptJoinRequest = useCallback((roomId: string, senderTgId: number) => {
+    const key = `${roomId}:${senderTgId}`;
+    setProcessingJoinKeys(prev => new Set(prev).add(key));
+    acceptJoinRequest(roomId, senderTgId);
+    // Optimistically remove from list after a short delay
+    setTimeout(() => {
+      removeJoinRequest(roomId, senderTgId);
+      setProcessingJoinKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      notificationOccurred('success');
+      toast.success('Request accepted');
+    }, 500);
+  }, [acceptJoinRequest, removeJoinRequest, notificationOccurred, toast]);
+
+  const handleRejectJoinRequest = useCallback((roomId: string, senderTgId: number) => {
+    const key = `${roomId}:${senderTgId}`;
+    setProcessingJoinKeys(prev => new Set(prev).add(key));
+    rejectJoinRequest(roomId, senderTgId);
+    // Optimistically remove from list after a short delay
+    setTimeout(() => {
+      removeJoinRequest(roomId, senderTgId);
+      setProcessingJoinKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      toast.info('Request rejected');
+    }, 500);
+  }, [rejectJoinRequest, removeJoinRequest, toast]);
 
   // Handle CreateRoomView form submit
   const handleCreateRoomSubmit = useCallback((password: string, joinMode: RoomJoinMode) => {
@@ -417,9 +537,15 @@ function AppContent() {
     const token = startParam.slice('invite_'.length);
     if (!token) return;
 
+    resetJoinRoom();
     setInviteToken(token);
     setCurrentView('join-room');
-  }, [isReady, startParam]);
+    // Load invite info once connected; if not connected yet, loadInviteInfo
+    // will be called again when handleJoinByToken is re-triggered or user retries.
+    if (isConnected) {
+      loadInviteInfo(token);
+    }
+  }, [isReady, startParam, isConnected, resetJoinRoom, loadInviteInfo]);
 
   // Initialize Mini App
   useEffect(() => {
@@ -917,6 +1043,8 @@ function AppContent() {
             <RoomCreatedSuccess
               roomId={createRoomResult.roomId}
               inviteLink={createRoomResult.inviteUrl}
+              onViewRequests={handleViewRequests}
+              pendingRequestsCount={pendingJoinCount}
               onEnterRoom={() => {
                 resetCreateRoom();
                 setCurrentView('home');
@@ -939,24 +1067,51 @@ function AppContent() {
     );
   }
 
-  // Join room view (opened via Telegram invite deep link)
+  // Join room view (opened via Telegram invite deep link) — P2-2.2.4
   if (currentView === 'join-room' && inviteToken) {
     return (
       <>
         <Layout>
           <JoinRoomView
             token={inviteToken}
-            onJoin={(_token, _password) => {
-              // P2-2.2 will implement JOIN_BY_PASSWORD STOMP call
-              toast.info('Join by password — coming in P2-2.2');
-            }}
-            onRequestJoin={(_token, _password) => {
-              // P2-2.2 will implement REQUEST_JOIN_ROOM STOMP call
-              toast.info('Send join request — coming in P2-2.2');
-            }}
+            status={joinRoomResult.status}
+            joinMode={joinRoomResult.joinMode}
+            error={joinRoomResult.error}
+            onSubmit={(token, password) => submitJoin(token, password)}
             onCancel={() => {
+              resetJoinRoom();
               setInviteToken(null);
               setCurrentView('home');
+            }}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  // Room join requests view (owner manages pending requests) — P2-2.2.5
+  if (currentView === 'room-join-requests') {
+    // Show requests for the active room, or all requests if no specific room
+    const visibleRequests = activeRoomId
+      ? joinRequests.filter(r => r.roomId === activeRoomId)
+      : joinRequests;
+
+    return (
+      <>
+        <Layout>
+          <RoomJoinRequestsView
+            requests={visibleRequests}
+            processingKeys={processingJoinKeys}
+            onAccept={handleAcceptJoinRequest}
+            onReject={handleRejectJoinRequest}
+            onBack={() => {
+              setActiveRoomId(null);
+              if (createRoomResult.status === 'created') {
+                setCurrentView('create-room');
+              } else {
+                setCurrentView('home');
+              }
             }}
           />
         </Layout>

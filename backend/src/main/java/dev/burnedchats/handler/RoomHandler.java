@@ -4,8 +4,10 @@ import dev.burnedchats.dto.event.InviteLinkEvent;
 import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
+import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.request.CreateRoomRequest;
+import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
@@ -31,6 +33,7 @@ import java.security.Principal;
  * <ul>
  *   <li>{@code /app/room.create} — create a new room with a password</li>
  *   <li>{@code /app/room.getInviteLink} — generate or refresh an invite link (owner only)</li>
+ *   <li>{@code /app/room.getInviteInfo} — get KDF salt + join mode for a room by invite token</li>
  *   <li>{@code /app/room.requestJoin} — request to join a room via invite token + password proof</li>
  *   <li>{@code /app/room.acceptJoin} — owner accepts a pending join request</li>
  *   <li>{@code /app/room.rejectJoin} — owner rejects a pending join request</li>
@@ -40,6 +43,7 @@ import java.security.Principal;
  * <ul>
  *   <li>{@code /user/queue/room-created} — result of room creation (success or error)</li>
  *   <li>{@code /user/queue/invite-link} — generated invite URL or error</li>
+ *   <li>{@code /user/queue/room-invite-info} — KDF salt + join mode by invite token</li>
  *   <li>{@code /user/queue/room-join-result} — join approved or error (sent to requester)</li>
  *   <li>{@code /user/queue/room-join-requests} — incoming join request (sent to owner)</li>
  *   <li>{@code /user/queue/room-join-result} — join rejected (sent to requester)</li>
@@ -60,6 +64,7 @@ public class RoomHandler {
 
     private static final String ROOM_CREATED_DESTINATION = "/queue/room-created";
     private static final String INVITE_LINK_DESTINATION = "/queue/invite-link";
+    private static final String INVITE_INFO_DESTINATION = "/queue/room-invite-info";
     private static final String JOIN_RESULT_DESTINATION = "/queue/room-join-result";
     private static final String JOIN_REQUESTS_DESTINATION = "/queue/room-join-requests";
 
@@ -156,6 +161,46 @@ public class RoomHandler {
                                     String.valueOf(requesterTgId),
                                     INVITE_LINK_DESTINATION,
                                     InviteLinkEvent.error(errorCode)
+                            );
+                        }
+                );
+    }
+
+    /**
+     * Handle {@code GET_INVITE_INFO} — return the KDF salt and join mode for a room
+     * identified by its invite token.
+     *
+     * <p>The client calls this before {@code /app/room.requestJoin} to obtain the
+     * salt required to derive the PBKDF2 password proof with the same parameters
+     * used when the room was created.
+     *
+     * @param request   contains {@code inviteToken}
+     * @param principal the authenticated Telegram user
+     */
+    @MessageMapping("/room.getInviteInfo")
+    public void getInviteInfo(@Payload @Valid GetInviteInfoRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long requesterTgId = tp.getUserId();
+
+        log.info("GET_INVITE_INFO requested: tgId={}", requesterTgId);
+
+        inviteTokenService.resolveRoomByToken(request.getInviteToken())
+                .subscribe(
+                        room -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(requesterTgId),
+                                    INVITE_INFO_DESTINATION,
+                                    RoomInviteInfoEvent.success(room.getSalt(), room.getJoinMode().name())
+                            );
+                            log.info("ROOM_INVITE_INFO sent: roomId={}, tgId={}", room.getId(), requesterTgId);
+                        },
+                        error -> {
+                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage() : "INTERNAL_ERROR";
+                            log.warn("GET_INVITE_INFO failed: tgId={}, error={}", requesterTgId, code);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(requesterTgId),
+                                    INVITE_INFO_DESTINATION,
+                                    RoomInviteInfoEvent.error(code)
                             );
                         }
                 );

@@ -2,6 +2,7 @@
   "common": {
     "cancel": "Отмена",
     "back": "Назад",
+    "loading": "Загрузка...",
     "retry": "Попытка {{count}}",
     "copied": "{{label}} скопирован",
     "unknown": "Неизвестно"
@@ -160,6 +161,9 @@
       "errorInvalidPassword": "Неверный пароль",
       "errorExpiredToken": "Срок действия ссылки истёк",
       "errorInvalidToken": "Недействительная ссылка",
+      "errorAlreadyMember": "Вы уже являетесь участником этой комнаты",
+      "errorRequestPending": "Ваша заявка уже ожидает рассмотрения",
+      "errorRejected": "Владелец комнаты отклонил вашу заявку",
       "errorNetwork": "Ошибка сети. Попробуйте ещё раз"
     },
 

@@ -2,6 +2,7 @@ package dev.burnedchats.service;
 
 import dev.burnedchats.config.TelegramProperties;
 import dev.burnedchats.model.InviteToken;
+import dev.burnedchats.model.Room;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +76,22 @@ public class InviteTokenService {
     public String buildInviteUrl(String tokenValue) {
         String botUsername = telegramProperties.getBot().getUsername();
         return "https://t.me/" + botUsername + "/app?startapp=invite_" + tokenValue;
+    }
+
+    /**
+     * Resolve a room by its invite token.
+     *
+     * <p>Used by clients that need the room's KDF salt and join mode before
+     * deriving their password proof.
+     *
+     * @param inviteToken the invite token from the deep link
+     * @return Mono with the {@link Room}, or error for INVALID_TOKEN / ROOM_NOT_FOUND
+     */
+    public Mono<Room> resolveRoomByToken(String inviteToken) {
+        return inviteTokenRepository.findByToken(inviteToken)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN")))
+                .flatMap(token -> roomRepository.findById(token.getRoomId())
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND"))));
     }
 
     // -------------------------------------------------------------------------

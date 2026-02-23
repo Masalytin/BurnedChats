@@ -176,6 +176,15 @@ export interface Room {
   nameEncrypted?: string;
 }
 
+/** Pending join request visible to the room owner. */
+export interface RoomJoinRequest {
+  roomId: string;
+  senderTgId: number;
+  senderUsername: string | null;
+  senderFirstName: string;
+  requestedAt: number;
+}
+
 // ============================================
 // View Types
 // ============================================

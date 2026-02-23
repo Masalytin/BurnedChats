@@ -2,6 +2,7 @@
   "common": {
     "cancel": "Cancel",
     "back": "Back",
+    "loading": "Loading...",
     "retry": "Retry {{count}}",
     "copied": "{{label}} copied",
     "unknown": "Unknown"
@@ -160,6 +161,9 @@
       "errorInvalidPassword": "Incorrect password",
       "errorExpiredToken": "This invite link has expired",
       "errorInvalidToken": "Invalid invite link",
+      "errorAlreadyMember": "You are already a member of this room",
+      "errorRequestPending": "Your join request is already pending",
+      "errorRejected": "Your join request was declined by the owner",
       "errorNetwork": "Network error. Please try again"
     },
 

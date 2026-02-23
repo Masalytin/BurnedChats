@@ -33,6 +33,11 @@
   line-height: 1.4;
 }
 
+.join-room-view__subtitle--pending {
+  color: var(--tg-theme-accent-text-color, #2196f3);
+  font-weight: 500;
+}
+
 /* Token badge */
 .join-room-view__token {
   display: flex;

@@ -1,0 +1,1 @@
+export { RoomJoinRequestsView } from './RoomJoinRequestsView';

@@ -8,6 +8,10 @@ interface RoomCreatedSuccessProps {
   /** Deep-link to the room (e.g. Telegram startapp link). May be null before P2-2. */
   inviteLink?: string | null;
   onEnterRoom?: (roomId: string) => void;
+  /** If provided, shows a "Join Requests" button for rooms with BY_REQUEST mode. */
+  onViewRequests?: (roomId: string) => void;
+  /** Number of pending join requests (shows a badge on the button). */
+  pendingRequestsCount?: number;
 }
 
 /**
@@ -18,6 +22,8 @@ export function RoomCreatedSuccess({
   roomId,
   inviteLink,
   onEnterRoom,
+  onViewRequests,
+  pendingRequestsCount = 0,
 }: RoomCreatedSuccessProps) {
   const { t } = useTranslation();
 
@@ -39,6 +45,13 @@ export function RoomCreatedSuccess({
         {inviteLink && (
           <Button variant="secondary" onClick={handleCopyLink} fullWidth>
             {t('room.create.copyLinkButton')}
+          </Button>
+        )}
+
+        {onViewRequests && (
+          <Button variant="secondary" onClick={() => onViewRequests(roomId)} fullWidth>
+            {t('room.manage.requestsButton')}
+            {pendingRequestsCount > 0 && ` (${pendingRequestsCount})`}
           </Button>
         )}
 

@@ -1,0 +1,124 @@
+.room-join-requests-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 16px);
+  padding: var(--spacing-lg, 24px) var(--spacing-md, 16px);
+  min-height: 100%;
+}
+
+/* Header */
+.room-join-requests-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.room-join-requests-view__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--tg-theme-text-color, #000);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+}
+
+.room-join-requests-view__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--tg-theme-button-color, #2196f3);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-radius: 11px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* List */
+.room-join-requests-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+  flex: 1;
+}
+
+/* Empty state */
+.room-join-requests-view__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-xl, 48px) var(--spacing-md, 16px);
+  text-align: center;
+}
+
+.room-join-requests-view__empty-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.room-join-requests-view__empty-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--tg-theme-hint-color, #666);
+}
+
+/* Footer */
+.room-join-requests-view__footer {
+  margin-top: auto;
+  padding-top: var(--spacing-md, 16px);
+}
+
+/* Request card */
+.room-join-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-md, 16px);
+  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+  border-radius: 12px;
+}
+
+.room-join-request-card__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm, 8px);
+}
+
+.room-join-request-card__name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--tg-theme-text-color, #000);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-join-request-card__time {
+  font-size: 0.75rem;
+  color: var(--tg-theme-hint-color, #666);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.room-join-request-card__actions {
+  display: flex;
+  gap: var(--spacing-sm, 8px);
+}
+
+.room-join-request-card__btn {
+  flex: 1;
+}
+
+.room-join-request-card__btn--accept {
+  /* Inherits primary button styles */
+}
+
+.room-join-request-card__btn--reject {
+  /* Inherits secondary button styles */
+}
