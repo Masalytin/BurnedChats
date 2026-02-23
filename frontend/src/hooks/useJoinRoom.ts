@@ -171,7 +171,7 @@ export function useJoinRoom({
 
       const approved = data as ServerJoinApprovedEvent;
       if (approved.success && approved.roomId) {
-        setResult(prev => ({ ...prev, status: 'approved', roomId: approved.roomId, error: null }));
+        setResult(prev => ({ ...prev, status: 'approved', roomId: approved.roomId ?? null, error: null }));
         onApprovedRef.current?.(approved.roomId);
       } else {
         const code = (approved.error ?? 'INTERNAL_ERROR') as JoinRoomErrorCode;

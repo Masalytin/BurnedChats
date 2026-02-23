@@ -467,14 +467,6 @@ function AppContent() {
     onBack: handleBackButton,
   });
 
-  // Navigate to join-room when token arrives; immediately loads invite info
-  const handleJoinByToken = useCallback((token: string) => {
-    resetJoinRoom();
-    setInviteToken(token);
-    setCurrentView('join-room');
-    // Load invite info (salt + joinMode) so the form can show the correct button
-    loadInviteInfo(token);
-  }, [resetJoinRoom, loadInviteInfo]);
 
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {
