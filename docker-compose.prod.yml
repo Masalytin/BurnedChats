@@ -88,6 +88,21 @@ services:
     networks:
       - internal
 
+  # ===== Redis Insight (GUI) =====
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: burnedchats-redisinsight
+    restart: always
+    environment:
+      - RI_PROXY_PATH=/redisinsight
+    volumes:
+      - redisinsight-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
   # ===== Nginx (Reverse Proxy + SSL) =====
   nginx:
     image: nginx:alpine
@@ -132,6 +147,8 @@ volumes:
   redis-data:
     driver: local
   backend-logs:
+    driver: local
+  redisinsight-data:
     driver: local
 
 networks:
