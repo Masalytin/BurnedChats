@@ -10,6 +10,8 @@ import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions
 import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
 import { useJoinRoom } from './hooks/useJoinRoom';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
+import { useKeyBundle } from './hooks/useKeyBundle';
+import { useRekeyRoom } from './hooks/useRekeyRoom';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
@@ -17,6 +19,7 @@ import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
 import { ChatRoom } from './components/Chat';
+import { RoomChatRoom } from './components/Chat/RoomChatRoom';
 import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
 import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
@@ -39,7 +42,14 @@ type AppView =
   | 'chat'
   | 'create-room'
   | 'join-room'
-  | 'room-join-requests';
+  | 'room-join-requests'
+  | 'room-chat';
+
+/** Active room chat state */
+interface ActiveRoomChat {
+  roomId: string;
+  epoch: number;
+}
 
 /** Active chat state */
 interface ActiveChat {
@@ -249,9 +259,9 @@ function AppContent() {
     publish,
     onApproved: (roomId) => {
       notificationOccurred('success');
-      toast.success('Joined room successfully!');
-      console.log('[App] Joined room:', roomId);
-      // TODO P2-3: navigate to room chat after key exchange
+      toast.success('Joined room! Waiting for encryption key…');
+      console.log('[App] Joined room:', roomId, '— waiting for KEY_BUNDLE');
+      // Navigation to room-chat happens in useKeyBundle.onKeyReceived (P2-3.2.3)
     },
     onRejected: () => {
       notificationOccurred('error');
@@ -279,6 +289,49 @@ function AppContent() {
       notificationOccurred('success');
       const name = request.senderUsername ? `@${request.senderUsername}` : request.senderFirstName;
       toast.info(`${name} wants to join the room`, { title: 'Join Request', duration: 5000 });
+    },
+  });
+
+  // KEY_BUNDLE hook (P2-3.2.3): subscribe, decrypt, store group key → navigate to room-chat
+  useKeyBundle({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    onKeyReceived: (roomId, epoch) => {
+      debugLog('success', `[KeyBundle] Group key received for room ${roomId} epoch ${epoch}`);
+      notificationOccurred('success');
+      toast.success('Room key received!');
+      setActiveRoomChat({ roomId, epoch });
+      setCurrentView('room-chat');
+    },
+    onError: (roomId, error) => {
+      debugLog('error', `[KeyBundle] Failed to unwrap key for room ${roomId}: ${error}`);
+      if (error === 'NO_PRIVATE_KEY') {
+        toast.warning('Missing room key pair — cannot decrypt group key.');
+      } else {
+        toast.error('Failed to receive room encryption key.', { title: 'Key Error' });
+      }
+    },
+  });
+
+  // ROOM_REKEY hook (P2-3.2.3): owner rotates key; members receive new KEY_BUNDLE via useKeyBundle
+  const { rekeyRoom } = useRekeyRoom({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    myTgId: user?.id ?? null,
+    onRekeyCompleted: (roomId, newEpoch) => {
+      debugLog('success', `[Rekey] Rekey completed for room ${roomId} epoch ${newEpoch}`);
+      // Update epoch for the active room chat
+      setActiveRoomChat(prev =>
+        prev?.roomId === roomId ? { ...prev, epoch: newEpoch } : prev
+      );
+    },
+    onRekeyReceived: (roomId, newEpoch) => {
+      debugLog('info', `[Rekey] ROOM_REKEY received: room ${roomId} new epoch ${newEpoch}`);
+      // New KEY_BUNDLE is en route — useKeyBundle will handle the actual key update
+      toast.info('Room key is being rotated…', { duration: 2000 });
     },
   });
 
@@ -339,6 +392,9 @@ function AppContent() {
   // Active room ID for the requests view (P2-2.2.5)
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
+  // Active room chat state (P2-3.2.3)
+  const [activeRoomChat, setActiveRoomChat] = useState<ActiveRoomChat | null>(null);
+
   // Track which session is being resumed
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
@@ -395,6 +451,12 @@ function AppContent() {
       } else {
         setCurrentView('home');
       }
+      return;
+    }
+
+    if (currentView === 'room-chat') {
+      setActiveRoomChat(null);
+      setCurrentView('home');
       return;
     }
     
@@ -466,6 +528,11 @@ function AppContent() {
     visible: currentView !== 'home' || showChatRequestDialog,
     onBack: handleBackButton,
   });
+
+  // Expose rekeyRoom for future use (owner rekey after member leaves — P2-4.3.4)
+  // Ref ensures the callback is stable and doesn't cause re-renders
+  const rekeyRoomRef = useRef(rekeyRoom);
+  useEffect(() => { rekeyRoomRef.current = rekeyRoom; }, [rekeyRoom]);
 
 
   // Handle "Create Room" click from HomePage
@@ -1104,6 +1171,25 @@ function AppContent() {
               } else {
                 setCurrentView('home');
               }
+            }}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  // Room chat view (P2-3.2.3) — entered after KEY_BUNDLE received
+  if (currentView === 'room-chat' && activeRoomChat) {
+    return (
+      <>
+        <Layout>
+          <RoomChatRoom
+            roomId={activeRoomChat.roomId}
+            epoch={activeRoomChat.epoch}
+            onBack={() => {
+              setActiveRoomChat(null);
+              setCurrentView('home');
             }}
           />
         </Layout>
