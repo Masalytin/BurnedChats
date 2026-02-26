@@ -895,6 +895,8 @@ Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/ил�
 - При добавлении нового участника групповой ключ шифруется его публичным ключом и доставляется через сервер (relay). Сервер не расшифровывает и не хранит ключ в открытом виде.
 - При выходе участника выполняется rekey: генерируется новый групповой ключ, рассылается оставшимся; у вышедшего нет доступа к новому ключу (forward secrecy для группы).
 
+> Детальный протокол (выбор схемы, сравнение Sender Keys vs Tree-DH, wrap/unwrap алгоритмы, rekey): [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md)
+
 ### Инвайт-токены
 
 - Токен — криптостойкая случайная строка (например 32 байта hex). В Redis хранится только привязка к roomId и метаданные (createdBy, expiresAt, maxUses). Утечка токена даёт возможность отправить заявку на вход или (при режиме by_password) войти, зная пароль; не раскрывает состав комнаты без доступа к серверу.
@@ -907,4 +909,5 @@ Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/ил�
 - [API.md](./API.md) — формат сообщений
 - [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band обмен ключами
 - [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
+- [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
 

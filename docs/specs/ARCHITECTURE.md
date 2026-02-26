@@ -605,7 +605,7 @@ messages:{roomId}
 
 ### Групповой E2EE
 
-1. **Key Distribution** — Group Key Agreement (один групповой ключ в MVP или Sender Keys / Tree-DH), см. phase-2-rooms.
+1. **Key Distribution** — Group Key Agreement (один групповой ключ в MVP или Sender Keys / Tree-DH), см. [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md).
 2. **Выдача ключа новому участнику** — key bundle (групповой ключ, зашифрованный публичным ключом участника); relay через сервер.
 3. **Ротация ключей** — при выходе участника генерируется новый групповой ключ (rekey), рассылка оставшимся.
 
@@ -617,4 +617,5 @@ messages:{roomId}
 - [API.md](./API.md) — спецификация WebSocket событий
 - [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных (в т.ч. комнаты)
 - [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
+- [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
 
