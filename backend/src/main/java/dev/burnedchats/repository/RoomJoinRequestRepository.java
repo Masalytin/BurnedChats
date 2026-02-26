@@ -170,18 +170,21 @@ public class RoomJoinRequestRepository {
         map.put("username", request.getUsername() != null ? request.getUsername() : "");
         map.put("firstName", request.getFirstName() != null ? request.getFirstName() : "");
         map.put("createdAt", String.valueOf(request.getCreatedAt()));
+        map.put("publicKey", request.getPublicKey() != null ? request.getPublicKey() : "");
         return map;
     }
 
     private RoomJoinRequest fromHash(Map<String, String> hash) {
         String username = hash.getOrDefault("username", "");
         String firstName = hash.getOrDefault("firstName", "");
+        String publicKey = hash.getOrDefault("publicKey", "");
         return RoomJoinRequest.builder()
                 .roomId(hash.get("roomId"))
                 .senderTgId(Long.parseLong(hash.get("senderTgId")))
                 .username(username.isBlank() ? null : username)
                 .firstName(firstName.isBlank() ? null : firstName)
                 .createdAt(Long.parseLong(hash.get("createdAt")))
+                .publicKey(publicKey.isBlank() ? null : publicKey)
                 .build();
     }
 }

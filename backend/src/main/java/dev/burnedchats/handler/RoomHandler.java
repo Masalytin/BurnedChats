@@ -3,18 +3,29 @@ package dev.burnedchats.handler;
 import dev.burnedchats.dto.event.InviteLinkEvent;
 import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
+import dev.burnedchats.dto.event.KeyBundleEvent;
+import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
+import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
+import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
+import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
+import dev.burnedchats.dto.request.SendKeyBundleRequest;
+import dev.burnedchats.model.EncryptedKeyBundle;
+import dev.burnedchats.repository.RoomKeysRepository;
+import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
+import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.InviteTokenService;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
+import reactor.core.publisher.Flux;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +48,9 @@ import java.security.Principal;
  *   <li>{@code /app/room.requestJoin} — request to join a room via invite token + password proof</li>
  *   <li>{@code /app/room.acceptJoin} — owner accepts a pending join request</li>
  *   <li>{@code /app/room.rejectJoin} — owner rejects a pending join request</li>
+ *   <li>{@code /app/room.sendKeyBundle} — owner sends encrypted group-key bundle to new member</li>
+ *   <li>{@code /app/room.rekey} — owner sends new key bundles for all remaining members after a member leaves</li>
+ *   <li>{@code /app/room.getMemberPubkeys} — owner fetches all member ECDH public keys (for rekey preparation)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -47,6 +61,9 @@ import java.security.Principal;
  *   <li>{@code /user/queue/room-join-result} — join approved or error (sent to requester)</li>
  *   <li>{@code /user/queue/room-join-requests} — incoming join request (sent to owner)</li>
  *   <li>{@code /user/queue/room-join-result} — join rejected (sent to requester)</li>
+ *   <li>{@code /user/queue/key-bundle} — encrypted group-key bundle (sent to new member or on rekey)</li>
+ *   <li>{@code /user/queue/room-rekey} — rekey notification (sent to all remaining members)</li>
+ *   <li>{@code /user/queue/member-pubkeys} — member ECDH public keys (sent to owner)</li>
  * </ul>
  *
  * <p>Security contract:
@@ -67,11 +84,17 @@ public class RoomHandler {
     private static final String INVITE_INFO_DESTINATION = "/queue/room-invite-info";
     private static final String JOIN_RESULT_DESTINATION = "/queue/room-join-result";
     private static final String JOIN_REQUESTS_DESTINATION = "/queue/room-join-requests";
+    private static final String KEY_BUNDLE_DESTINATION = "/queue/key-bundle";
+    private static final String ROOM_REKEY_DESTINATION = "/queue/room-rekey";
+    private static final String MEMBER_PUBKEYS_DESTINATION = "/queue/member-pubkeys";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
     private final RoomJoinService roomJoinService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final RoomKeysRepository roomKeysRepository;
+    private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
+    private final RoomRepository roomRepository;
 
     /**
      * Handle {@code CREATE_ROOM} — create a room and respond with the new room ID + invite URL.
@@ -109,6 +132,9 @@ public class RoomHandler {
                                     log.warn("Invite token generation failed for room {}: {}", room.getId(), e.getMessage());
                                     return reactor.core.publisher.Mono.just(RoomCreatedEvent.success(room.getId()));
                                 })
+                                .flatMap(event -> memberPublicKeyRepository
+                                        .put(room.getId(), ownerTgId, request.getOwnerPublicKey())
+                                        .thenReturn(event))
                 )
                 .subscribe(
                         event -> {
@@ -238,7 +264,8 @@ public class RoomHandler {
                         tp.getUsername(),
                         tp.getFirstName(),
                         request.getInviteToken(),
-                        request.getPasswordProof()
+                        request.getPasswordProof(),
+                        request.getPublicKey()
                 )
                 .subscribe(
                         result -> {
@@ -260,7 +287,8 @@ public class RoomHandler {
                                                 pending.request().getSenderTgId(),
                                                 pending.request().getUsername(),
                                                 pending.request().getFirstName(),
-                                                pending.request().getCreatedAt()
+                                                pending.request().getCreatedAt(),
+                                                pending.request().getPublicKey()
                                         )
                                 );
                             }
@@ -354,6 +382,189 @@ public class RoomHandler {
                                     String.valueOf(ownerTgId),
                                     JOIN_RESULT_DESTINATION,
                                     JoinApprovedEvent.error(code)
+                            );
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // Key bundle delivery (P2-3.2.1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code SEND_KEY_BUNDLE} — the room owner delivers an encrypted group-key
+     * bundle to a newly accepted member.
+     *
+     * <p>The server stores the bundle in Redis ({@code room_keys:{roomId}:{epoch}})
+     * and immediately relays it to the recipient via {@code /user/queue/key-bundle}.
+     *
+     * @param request   bundle payload (roomId, recipientTgId, epoch, ephemeralPublicKey, encryptedKey, iv)
+     * @param principal the authenticated room owner
+     */
+    @MessageMapping("/room.sendKeyBundle")
+    public void sendKeyBundle(@Payload @Valid SendKeyBundleRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long ownerTgId = tp.getUserId();
+
+        log.info("SEND_KEY_BUNDLE: roomId={}, recipientTgId={}, epoch={}, ownerTgId={}",
+                request.getRoomId(), request.getRecipientTgId(), request.getEpoch(), ownerTgId);
+
+        roomRepository.findById(request.getRoomId())
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                        return reactor.core.publisher.Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    EncryptedKeyBundle bundle = EncryptedKeyBundle.builder()
+                            .roomId(request.getRoomId())
+                            .epoch(request.getEpoch())
+                            .recipientTgId(String.valueOf(request.getRecipientTgId()))
+                            .ephemeralPublicKey(request.getEphemeralPublicKey())
+                            .encryptedKey(request.getEncryptedKey())
+                            .iv(request.getIv())
+                            .build();
+                    return roomKeysRepository.putEncryptedKey(bundle)
+                            .thenReturn(bundle);
+                })
+                .subscribe(
+                        bundle -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(request.getRecipientTgId()),
+                                    KEY_BUNDLE_DESTINATION,
+                                    KeyBundleEvent.from(bundle)
+                            );
+                            log.info("KEY_BUNDLE relayed: roomId={}, recipientTgId={}, epoch={}",
+                                    bundle.getRoomId(), bundle.getRecipientTgId(), bundle.getEpoch());
+                        },
+                        error -> log.warn("SEND_KEY_BUNDLE failed: roomId={}, ownerTgId={}, error={}",
+                                request.getRoomId(), ownerTgId, error.getMessage())
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // Rekey after member leave (P2-3.2.2)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code REKEY} — the room owner rotates the group key after a member leaves.
+     *
+     * <p>The server:
+     * <ol>
+     *   <li>Validates that the caller is the room owner.</li>
+     *   <li>Stores all provided key bundles in Redis at the new epoch.</li>
+     *   <li>Updates the current epoch counter.</li>
+     *   <li>Delivers each bundle to the corresponding member via {@code /user/queue/key-bundle}.</li>
+     *   <li>Broadcasts {@code ROOM_REKEY} to all remaining members.</li>
+     *   <li>Deletes the previous epoch's bundles.</li>
+     * </ol>
+     *
+     * @param request   rekey payload (roomId, newEpoch, bundles per remaining member)
+     * @param principal the authenticated room owner
+     */
+    @MessageMapping("/room.rekey")
+    public void rekey(@Payload @Valid RekeyRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long ownerTgId = tp.getUserId();
+
+        log.info("REKEY: roomId={}, newEpoch={}, bundles={}, ownerTgId={}",
+                request.getRoomId(), request.getNewEpoch(), request.getBundles().size(), ownerTgId);
+
+        roomRepository.findById(request.getRoomId())
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                        return reactor.core.publisher.Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return reactor.core.publisher.Mono.just(room);
+                })
+                .flatMap(room -> {
+                    // Store all bundles at the new epoch
+                    Flux<EncryptedKeyBundle> storeBundles = Flux.fromIterable(request.getBundles())
+                            .flatMap(item -> {
+                                EncryptedKeyBundle bundle = EncryptedKeyBundle.builder()
+                                        .roomId(request.getRoomId())
+                                        .epoch(request.getNewEpoch())
+                                        .recipientTgId(String.valueOf(item.getRecipientTgId()))
+                                        .ephemeralPublicKey(item.getEphemeralPublicKey())
+                                        .encryptedKey(item.getEncryptedKey())
+                                        .iv(item.getIv())
+                                        .build();
+                                return roomKeysRepository.putEncryptedKey(bundle)
+                                        .thenReturn(bundle);
+                            });
+
+                    int oldEpoch = request.getNewEpoch() - 1;
+                    return storeBundles.collectList()
+                            .flatMap(bundles -> roomKeysRepository.setCurrentEpoch(
+                                            request.getRoomId(), request.getNewEpoch())
+                                    .then(roomKeysRepository.deleteEpoch(request.getRoomId(), oldEpoch))
+                                    .thenReturn(bundles));
+                })
+                .subscribe(
+                        bundles -> {
+                            // Deliver each bundle to its recipient and broadcast ROOM_REKEY
+                            bundles.forEach(bundle -> {
+                                messagingTemplate.convertAndSendToUser(
+                                        bundle.getRecipientTgId(),
+                                        KEY_BUNDLE_DESTINATION,
+                                        KeyBundleEvent.from(bundle)
+                                );
+                                messagingTemplate.convertAndSendToUser(
+                                        bundle.getRecipientTgId(),
+                                        ROOM_REKEY_DESTINATION,
+                                        RoomRekeyEvent.of(request.getRoomId(), request.getNewEpoch())
+                                );
+                            });
+                            log.info("REKEY completed: roomId={}, newEpoch={}, members={}",
+                                    request.getRoomId(), request.getNewEpoch(), bundles.size());
+                        },
+                        error -> log.warn("REKEY failed: roomId={}, ownerTgId={}, error={}",
+                                request.getRoomId(), ownerTgId, error.getMessage())
+                );
+    }
+
+    /**
+     * Handle {@code GET_MEMBER_PUBKEYS} — the room owner fetches all member ECDH public keys
+     * to prepare encrypted key bundles before initiating a rekey.
+     *
+     * @param request   contains {@code roomId}
+     * @param principal the authenticated room owner
+     */
+    @MessageMapping("/room.getMemberPubkeys")
+    public void getMemberPubkeys(@Payload @Valid GetMemberPubkeysRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long ownerTgId = tp.getUserId();
+
+        log.info("GET_MEMBER_PUBKEYS: roomId={}, ownerTgId={}", request.getRoomId(), ownerTgId);
+
+        roomRepository.findById(request.getRoomId())
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                        return reactor.core.publisher.Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return memberPublicKeyRepository.getAll(request.getRoomId());
+                })
+                .subscribe(
+                        pubkeys -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(ownerTgId),
+                                    MEMBER_PUBKEYS_DESTINATION,
+                                    MemberPublicKeysEvent.success(request.getRoomId(), pubkeys)
+                            );
+                            log.info("MEMBER_PUBKEYS sent: roomId={}, count={}",
+                                    request.getRoomId(), pubkeys.size());
+                        },
+                        error -> {
+                            String code = error instanceof SecurityException ? "NOT_OWNER"
+                                    : error instanceof IllegalArgumentException ? error.getMessage()
+                                    : "INTERNAL_ERROR";
+                            log.warn("GET_MEMBER_PUBKEYS failed: roomId={}, ownerTgId={}, error={}",
+                                    request.getRoomId(), ownerTgId, code);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(ownerTgId),
+                                    MEMBER_PUBKEYS_DESTINATION,
+                                    MemberPublicKeysEvent.error(request.getRoomId(), code)
                             );
                         }
                 );

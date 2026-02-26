@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { derivePasswordProof } from '../crypto/kdf';
 import { generateGroupKey } from '../crypto/groupKey';
-import { storeGroupKey } from '../crypto/keyStore';
+import { storeGroupKey, storeKeyPair } from '../crypto/keyStore';
+import { generateKeyPair, exportPublicKey } from '../crypto/ecdh';
 import type { Room } from '../types/index';
 
 const CREATE_ROOM_DESTINATION = '/app/room.create';
@@ -99,6 +100,18 @@ export function useCreateRoom({
       const groupKey = await generateGroupKey();
       storeGroupKey(data.roomId, 0, groupKey);
 
+      // Move the pending room keypair from the temp key to the canonical room-join:{roomId} key
+      if (pendingRoomKeypairRef.current) {
+        const { roomKeyId } = pendingRoomKeypairRef.current;
+        const { getSessionKeys, burn } = await import('../crypto/keyStore');
+        const existing = getSessionKeys(roomKeyId);
+        if (existing) {
+          storeKeyPair(`room-join:${data.roomId}`, existing.keyPair);
+          burn(roomKeyId);
+        }
+        pendingRoomKeypairRef.current = null;
+      }
+
       setResult({ status: 'created', roomId: data.roomId, inviteUrl: data.inviteUrl ?? null, error: null });
       onCreatedRef.current?.({ id: data.roomId } as Room);
     };
@@ -122,6 +135,9 @@ export function useCreateRoom({
     };
   }, [subscribe, unsubscribe, handleRoomCreated]);
 
+  // Ref to store the room keypair between createRoom() call and ROOM_CREATED response
+  const pendingRoomKeypairRef = useRef<{ roomKeyId: string } | null>(null);
+
   const createRoom = useCallback(
     async (password: string, joinMode: RoomJoinMode, nameEncrypted?: string) => {
       if (!isConnected) {
@@ -133,12 +149,23 @@ export function useCreateRoom({
       setResult({ status: 'creating', roomId: null, inviteUrl: null, error: null });
 
       try {
-        const { salt, proof } = await derivePasswordProof(password);
+        const [{ salt, proof }, ownerKeyPair] = await Promise.all([
+          derivePasswordProof(password),
+          generateKeyPair(),
+        ]);
+
+        // Store keypair under a temp key; moved to room-join:{roomId} in handleRoomCreated
+        const tempKeyId = `room-join-pending-${Date.now()}`;
+        storeKeyPair(tempKeyId, ownerKeyPair);
+        pendingRoomKeypairRef.current = { roomKeyId: tempKeyId };
+
+        const ownerPublicKey = await exportPublicKey(ownerKeyPair.publicKey);
 
         const payload: Record<string, unknown> = {
           salt,
           passwordProof: proof,
           joinMode,
+          ownerPublicKey,
         };
         if (nameEncrypted) {
           payload.nameEncrypted = nameEncrypted;

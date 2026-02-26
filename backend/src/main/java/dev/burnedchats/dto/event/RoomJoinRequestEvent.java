@@ -33,15 +33,23 @@ public class RoomJoinRequestEvent {
     /** Unix timestamp (ms) when the request was created. */
     private Long requestedAt;
 
+    /**
+     * ECDH P-256 public key of the sender — Base64 SPKI-encoded.
+     * Provided so the owner can immediately wrap the group key when accepting the request.
+     * May be null if the client did not send a public key.
+     */
+    private String senderPublicKey;
+
     public static RoomJoinRequestEvent of(String roomId, Long senderTgId,
                                           String senderUsername, String senderFirstName,
-                                          Long requestedAt) {
+                                          Long requestedAt, String senderPublicKey) {
         return RoomJoinRequestEvent.builder()
                 .roomId(roomId)
                 .senderTgId(senderTgId)
                 .senderUsername(senderUsername)
                 .senderFirstName(senderFirstName)
                 .requestedAt(requestedAt)
+                .senderPublicKey(senderPublicKey)
                 .build();
     }
 }

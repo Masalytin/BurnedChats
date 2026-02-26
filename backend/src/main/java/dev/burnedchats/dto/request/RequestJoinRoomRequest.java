@@ -38,4 +38,14 @@ public class RequestJoinRoomRequest {
     @Size(min = 43, max = 44)
     @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "passwordProof must be Base64")
     private String passwordProof;
+
+    /**
+     * ECDH P-256 public key of the requesting user — Base64 SPKI-encoded (~124 bytes ≈ 165 chars).
+     * Provided so that the room owner can wrap the group key for this member after accepting.
+     * Optional: if absent the owner cannot perform key exchange client-side until the member
+     * re-requests their key bundle via GET_KEY_BUNDLE (P2-3.2.3).
+     */
+    @Size(max = 256)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "publicKey must be Base64")
+    private String publicKey;
 }

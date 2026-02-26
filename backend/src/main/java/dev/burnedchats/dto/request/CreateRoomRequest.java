@@ -45,4 +45,13 @@ public class CreateRoomRequest {
      */
     @Size(max = 512)
     private String nameEncrypted;
+
+    /**
+     * ECDH P-256 public key of the room owner — Base64 SPKI-encoded (~124 bytes ≈ 165 chars).
+     * Stored so the owner's key is available when other members need to send them bundles,
+     * and for rekey scenarios (P2-3.2.2).
+     */
+    @Size(max = 256)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "ownerPublicKey must be Base64")
+    private String ownerPublicKey;
 }

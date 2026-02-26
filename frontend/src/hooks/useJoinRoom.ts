@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { derivePasswordProof } from '../crypto/kdf';
-import type { RoomJoinMode } from '../types';
+import { generateKeyPair, exportPublicKey } from '../crypto/ecdh';
+import { storeKeyPair } from '../crypto/keyStore';
+import type { KeyPair, RoomJoinMode } from '../types';
 
 // ============================================
 // STOMP destinations
@@ -117,6 +119,9 @@ export function useJoinRoom({
   // Pending salt while invite info is loading
   const pendingSaltRef = useRef<string | null>(null);
 
+  // Room keypair generated during submitJoin; moved to keyStore on approval
+  const pendingKeyPairRef = useRef<KeyPair | null>(null);
+
   // Stable refs for callbacks — avoids re-subscribing on every render
   const onApprovedRef = useRef(onApproved);
   const onRejectedRef = useRef(onRejected);
@@ -171,6 +176,11 @@ export function useJoinRoom({
 
       const approved = data as ServerJoinApprovedEvent;
       if (approved.success && approved.roomId) {
+        // Persist the room ECDH keypair so useKeyBundle can unwrap the incoming KEY_BUNDLE
+        if (pendingKeyPairRef.current) {
+          storeKeyPair(`room-join:${approved.roomId}`, pendingKeyPairRef.current);
+          pendingKeyPairRef.current = null;
+        }
         setResult(prev => ({ ...prev, status: 'approved', roomId: approved.roomId ?? null, error: null }));
         onApprovedRef.current?.(approved.roomId);
       } else {
@@ -235,11 +245,19 @@ export function useJoinRoom({
 
       try {
         const salt = pendingSaltRef.current ?? undefined;
-        const { proof } = await derivePasswordProof(password, salt);
+        const [{ proof }, keyPair] = await Promise.all([
+          derivePasswordProof(password, salt),
+          generateKeyPair(),
+        ]);
+        const publicKey = await exportPublicKey(keyPair.publicKey);
+
+        // Keep the keypair in memory until we learn our roomId (on approval)
+        pendingKeyPairRef.current = keyPair;
 
         publish(REQUEST_JOIN_DESTINATION, {
           inviteToken: token,
           passwordProof: proof,
+          publicKey,
         });
 
         // Transition to 'pending' — for BY_PASSWORD this gets quickly overwritten
@@ -255,6 +273,7 @@ export function useJoinRoom({
 
   const reset = useCallback(() => {
     pendingSaltRef.current = null;
+    pendingKeyPairRef.current = null;
     setResult(initialResult);
   }, []);
 

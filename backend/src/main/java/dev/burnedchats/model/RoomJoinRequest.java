@@ -41,4 +41,11 @@ public class RoomJoinRequest implements Serializable {
 
     /** Unix timestamp (ms) when the request was created. */
     private Long createdAt;
+
+    /**
+     * ECDH P-256 public key of the sender — Base64 SPKI-encoded.
+     * Used by the room owner to wrap the group key for this member after accepting the request.
+     * May be null if the client did not supply one (legacy or BY_PASSWORD flow).
+     */
+    private String publicKey;
 }

@@ -4,6 +4,7 @@ import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomJoinRequest;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
+import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class RoomJoinService {
     private final RoomJoinRequestRepository joinRequestRepository;
     private final InviteTokenRepository inviteTokenRepository;
     private final PasswordProofService passwordProofService;
+    private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
 
     // -------------------------------------------------------------------------
     // Sealed result types for requestJoin
@@ -67,18 +69,20 @@ public class RoomJoinService {
      *   <li>{@code BY_REQUEST}: create {@link RoomJoinRequest}, return {@link JoinResult.Pending}.</li>
      * </ol>
      *
-     * @param senderTgId    Telegram ID of the requesting user
-     * @param senderUsername Telegram username (may be null)
+     * @param senderTgId      Telegram ID of the requesting user
+     * @param senderUsername  Telegram username (may be null)
      * @param senderFirstName first name from initData
-     * @param inviteToken   token from the deep link
-     * @param passwordProof PBKDF2 proof derived client-side
+     * @param inviteToken     token from the deep link
+     * @param passwordProof   PBKDF2 proof derived client-side
+     * @param senderPublicKey Base64 SPKI ECDH public key of the sender (may be null)
      * @return Mono with {@link JoinResult}; errors signal with descriptive messages used as error codes
      */
     public Mono<JoinResult> requestJoin(Long senderTgId,
                                         String senderUsername,
                                         String senderFirstName,
                                         String inviteToken,
-                                        String passwordProof) {
+                                        String passwordProof,
+                                        String senderPublicKey) {
         return inviteTokenRepository.findByToken(inviteToken)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN")))
                 .flatMap(token -> roomRepository.findById(token.getRoomId())
@@ -93,9 +97,10 @@ public class RoomJoinService {
                                     return Mono.error(new IllegalStateException("ALREADY_MEMBER"));
                                 }
                                 if (room.getJoinMode() == Room.JoinMode.BY_PASSWORD) {
-                                    return joinByPassword(room, senderTgId);
+                                    return joinByPassword(room, senderTgId, senderPublicKey);
                                 } else {
-                                    return joinByRequest(room, senderTgId, senderUsername, senderFirstName);
+                                    return joinByRequest(room, senderTgId, senderUsername,
+                                            senderFirstName, senderPublicKey);
                                 }
                             });
                 });
@@ -104,7 +109,8 @@ public class RoomJoinService {
     /**
      * Accept a pending join request (owner only).
      *
-     * <p>Adds the requester to {@code room_members} and removes the request.
+     * <p>Adds the requester to {@code room_members}, stores their public key,
+     * and removes the join request.
      *
      * @param ownerTgId  Telegram ID of the room owner (must match room's ownerTgId)
      * @param roomId     UUID of the room
@@ -113,14 +119,12 @@ public class RoomJoinService {
      */
     public Mono<Void> acceptJoin(Long ownerTgId, String roomId, Long senderTgId) {
         return loadRoomAsOwner(ownerTgId, roomId)
-                .then(joinRequestRepository.exists(roomId, senderTgId))
-                .flatMap(exists -> {
-                    if (!exists) {
-                        return Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND"));
-                    }
-                    return roomMembersRepository.add(roomId, senderTgId)
-                            .then(joinRequestRepository.remove(roomId, senderTgId));
-                })
+                .then(joinRequestRepository.findByRoomAndSender(roomId, senderTgId))
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND")))
+                .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderTgId)
+                        .then(memberPublicKeyRepository.put(roomId, senderTgId, joinRequest.getPublicKey()))
+                        .then(joinRequestRepository.remove(roomId, senderTgId))
+                )
                 .doOnSuccess(v -> log.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
                         roomId, senderTgId, ownerTgId));
     }
@@ -152,15 +156,17 @@ public class RoomJoinService {
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private Mono<JoinResult> joinByPassword(Room room, Long senderTgId) {
+    private Mono<JoinResult> joinByPassword(Room room, Long senderTgId, String senderPublicKey) {
         return roomMembersRepository.add(room.getId(), senderTgId)
+                .then(memberPublicKeyRepository.put(room.getId(), senderTgId, senderPublicKey))
                 .thenReturn((JoinResult) new JoinResult.Approved(room.getId()))
                 .doOnSuccess(r -> log.info("User {} joined room {} directly (BY_PASSWORD)",
                         senderTgId, room.getId()));
     }
 
     private Mono<JoinResult> joinByRequest(Room room, Long senderTgId,
-                                            String senderUsername, String senderFirstName) {
+                                            String senderUsername, String senderFirstName,
+                                            String senderPublicKey) {
         return joinRequestRepository.exists(room.getId(), senderTgId)
                 .flatMap(alreadyRequested -> {
                     if (alreadyRequested) {
@@ -172,6 +178,7 @@ public class RoomJoinService {
                             .username(senderUsername)
                             .firstName(senderFirstName)
                             .createdAt(Instant.now().toEpochMilli())
+                            .publicKey(senderPublicKey)
                             .build();
                     return joinRequestRepository.save(request)
                             .thenReturn((JoinResult) new JoinResult.Pending(request, room.getOwnerTgId()))

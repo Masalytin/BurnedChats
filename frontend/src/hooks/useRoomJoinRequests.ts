@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import { wrapGroupKey } from '../crypto/groupKey';
+import { getGroupKeyEntry } from '../crypto/keyStore';
+import { importPublicKey } from '../crypto/ecdh';
 import type { RoomJoinRequest } from '../types';
 
 // ============================================
@@ -12,6 +15,8 @@ const JOIN_REQUESTS_DESTINATION = '/user/queue/room-join-requests';
 const ACCEPT_JOIN_DESTINATION = '/app/room.acceptJoin';
 /** Owner → server: reject a pending join request. */
 const REJECT_JOIN_DESTINATION = '/app/room.rejectJoin';
+/** Owner → server: send encrypted group-key bundle to new member. */
+const SEND_KEY_BUNDLE_DESTINATION = '/app/room.sendKeyBundle';
 
 // ============================================
 // Types
@@ -23,7 +28,11 @@ interface ServerJoinRequestEvent {
   senderUsername: string | null;
   senderFirstName: string;
   requestedAt: number;
+  senderPublicKey?: string | null;
 }
+
+/** In-memory map of senderTgId → senderPublicKey, keyed as "{roomId}:{senderTgId}". */
+const pendingPublicKeys = new Map<string, string>();
 
 interface UseRoomJoinRequestsOptions {
   isConnected: boolean;
@@ -82,6 +91,12 @@ export function useRoomJoinRequests({
         senderFirstName: data.senderFirstName,
         requestedAt: data.requestedAt,
       };
+
+      // Store sender's public key so we can wrap the group key when accepting
+      if (data.senderPublicKey) {
+        pendingPublicKeys.set(`${data.roomId}:${data.senderTgId}`, data.senderPublicKey);
+      }
+
       setRequests(prev => {
         // Deduplicate: replace existing request from same sender in same room
         const filtered = prev.filter(
@@ -119,7 +134,51 @@ export function useRoomJoinRequests({
   const acceptRequest = useCallback(
     (roomId: string, senderTgId: number) => {
       if (!isConnected) return;
+
+      // Send ACCEPT_ROOM_JOIN to the server
       publish(ACCEPT_JOIN_DESTINATION, { roomId, senderTgId });
+
+      // Wrap the current group key for the new member and send KEY_BUNDLE
+      const sendBundle = async () => {
+        const groupKeyEntry = getGroupKeyEntry(roomId);
+        if (!groupKeyEntry) {
+          console.warn('[useRoomJoinRequests] No group key for room', roomId);
+          return;
+        }
+
+        const senderPublicKeyBase64 = pendingPublicKeys.get(`${roomId}:${senderTgId}`);
+        if (!senderPublicKeyBase64) {
+          console.warn('[useRoomJoinRequests] No public key for sender', senderTgId);
+          return;
+        }
+
+        try {
+          const senderPubKey = await importPublicKey(senderPublicKeyBase64);
+          const bundle = await wrapGroupKey(
+            groupKeyEntry.key,
+            senderPubKey,
+            String(senderTgId),
+            roomId,
+            groupKeyEntry.epoch
+          );
+
+          publish(SEND_KEY_BUNDLE_DESTINATION, {
+            roomId: bundle.roomId,
+            recipientTgId: senderTgId,
+            epoch: bundle.epoch,
+            ephemeralPublicKey: bundle.ephemeralPublicKey,
+            encryptedKey: bundle.encryptedKey,
+            iv: bundle.iv,
+          });
+
+          // Clean up the stored public key
+          pendingPublicKeys.delete(`${roomId}:${senderTgId}`);
+        } catch (err) {
+          console.error('[useRoomJoinRequests] Failed to send key bundle:', err);
+        }
+      };
+
+      sendBundle();
     },
     [isConnected, publish]
   );
@@ -133,6 +192,7 @@ export function useRoomJoinRequests({
   );
 
   const removeRequest = useCallback((roomId: string, senderTgId: number) => {
+    pendingPublicKeys.delete(`${roomId}:${senderTgId}`);
     setRequests(prev =>
       prev.filter(r => !(r.roomId === roomId && r.senderTgId === senderTgId))
     );
