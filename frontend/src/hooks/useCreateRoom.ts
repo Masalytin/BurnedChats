@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { derivePasswordProof } from '../crypto/kdf';
+import { generateGroupKey } from '../crypto/groupKey';
+import { storeGroupKey } from '../crypto/keyStore';
 import type { Room } from '../types/index';
 
 const CREATE_ROOM_DESTINATION = '/app/room.create';
@@ -82,7 +84,7 @@ export function useCreateRoom({
   });
 
   const handleRoomCreated = useCallback((message: IMessage) => {
-    try {
+    const handleAsync = async () => {
       const data: ServerRoomCreatedEvent = JSON.parse(message.body);
 
       if (!data.success || !data.roomId) {
@@ -92,12 +94,19 @@ export function useCreateRoom({
         return;
       }
 
+      // Generate group key for the room (owner is the first and only member at this point).
+      // epoch=0 is the initial key; it will be incremented on rekey after member leaves.
+      const groupKey = await generateGroupKey();
+      storeGroupKey(data.roomId, 0, groupKey);
+
       setResult({ status: 'created', roomId: data.roomId, inviteUrl: data.inviteUrl ?? null, error: null });
       onCreatedRef.current?.({ id: data.roomId } as Room);
-    } catch {
-      setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CONNECTION_ERROR' });
-      onErrorRef.current?.('CONNECTION_ERROR');
-    }
+    };
+
+    handleAsync().catch(() => {
+      setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CRYPTO_ERROR' });
+      onErrorRef.current?.('CRYPTO_ERROR');
+    });
   }, []);
 
   useEffect(() => {

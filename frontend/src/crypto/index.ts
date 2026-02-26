@@ -57,6 +57,13 @@ export {
   hasSession,
   getActiveSessionIds,
   getSessionCount,
+  // Group key operations (Rooms E2EE)
+  storeGroupKey,
+  getGroupKey,
+  getGroupKeyEntry,
+  hasGroupKey,
+  burnGroupKey,
+  burnAllGroupKeys,
   // Burn operations
   burn,
   burnAll,
@@ -70,6 +77,14 @@ export {
   getDebugInfo,
   // Types
   type SessionKeys,
+  type RoomGroupKeyEntry,
   type KeyStoreEventCallback,
   type KeyStoreEventType,
 } from './keyStore';
+
+// Group key crypto (Rooms E2EE)
+export {
+  generateGroupKey,
+  wrapGroupKey,
+  unwrapGroupKey,
+} from './groupKey';

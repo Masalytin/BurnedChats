@@ -368,6 +368,9 @@ export function burnAll(): void {
 
   // Double-check the store is empty
   keyStore.clear();
+
+  // Also wipe all room group keys
+  burnAllGroupKeys();
   
   // Notify listeners (use empty string to indicate all sessions)
   notifyListeners('', 'burned_all');
@@ -527,6 +530,94 @@ function secureWipeArrayBuffer(buffer: ArrayBuffer): void {
 }
 
 // ============================================
+// Group Key Storage (Rooms E2EE)
+// ============================================
+
+/**
+ * Cryptographic state for a room's group key.
+ * Keyed by roomId; only the latest epoch per room is kept in memory.
+ */
+export interface RoomGroupKeyEntry {
+  roomId: string;
+  epoch: number;
+  key: CryptoKey;
+  createdAt: number;
+}
+
+/** In-memory group key store (roomId → entry). */
+const groupKeyStore = new Map<string, RoomGroupKeyEntry>();
+
+/**
+ * Stores the group key for a room.
+ *
+ * Replaces any previously stored key for the same roomId.
+ *
+ * @param roomId - Room identifier
+ * @param epoch - Key epoch (0 for initial key, incremented on rekey)
+ * @param key - AES-256-GCM CryptoKey
+ */
+export function storeGroupKey(roomId: string, epoch: number, key: CryptoKey): void {
+  validateSessionId(roomId);
+  groupKeyStore.set(roomId, { roomId, epoch, key, createdAt: Date.now() });
+}
+
+/**
+ * Retrieves the stored group key entry for a room.
+ *
+ * @param roomId - Room identifier
+ * @returns RoomGroupKeyEntry or undefined if not found
+ */
+export function getGroupKeyEntry(roomId: string): RoomGroupKeyEntry | undefined {
+  return groupKeyStore.get(roomId);
+}
+
+/**
+ * Retrieves only the AES CryptoKey for a room (convenience helper).
+ *
+ * @param roomId - Room identifier
+ * @returns CryptoKey or undefined if not found
+ */
+export function getGroupKey(roomId: string): CryptoKey | undefined {
+  return groupKeyStore.get(roomId)?.key;
+}
+
+/**
+ * Checks whether a group key is stored for the given room.
+ *
+ * @param roomId - Room identifier
+ */
+export function hasGroupKey(roomId: string): boolean {
+  return groupKeyStore.has(roomId);
+}
+
+/**
+ * Securely removes the group key for a room.
+ *
+ * @param roomId - Room identifier
+ * @returns true if a key was found and removed, false otherwise
+ */
+export function burnGroupKey(roomId: string): boolean {
+  const entry = groupKeyStore.get(roomId);
+  if (!entry) return false;
+
+  // Nullify references to help GC collect the CryptoKey
+  // @ts-expect-error - Intentional nullification for secure cleanup
+  entry.key = undefined;
+  groupKeyStore.delete(roomId);
+  return true;
+}
+
+/**
+ * Removes all stored group keys (called from burnAll).
+ */
+export function burnAllGroupKeys(): void {
+  for (const roomId of Array.from(groupKeyStore.keys())) {
+    burnGroupKey(roomId);
+  }
+  groupKeyStore.clear();
+}
+
+// ============================================
 // Debug Utilities (Development Only)
 // ============================================
 
@@ -539,12 +630,16 @@ function secureWipeArrayBuffer(buffer: ArrayBuffer): void {
 export function getDebugInfo(): {
   sessionCount: number;
   sessionIds: string[];
+  groupKeyCount: number;
+  groupKeyRoomIds: string[];
   unloadHandlerInstalled: boolean;
   listenerCount: number;
 } {
   return {
     sessionCount: keyStore.size,
     sessionIds: Array.from(keyStore.keys()),
+    groupKeyCount: groupKeyStore.size,
+    groupKeyRoomIds: Array.from(groupKeyStore.keys()),
     unloadHandlerInstalled,
     listenerCount: eventListeners.size,
   };

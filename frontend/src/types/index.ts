@@ -176,6 +176,25 @@ export interface Room {
   nameEncrypted?: string;
 }
 
+/**
+ * Encrypted group key bundle sent from owner to a new room member.
+ * The server relays this opaque blob — it cannot decrypt the group key.
+ *
+ * Reference: docs/phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md
+ */
+export interface KeyBundle {
+  roomId: string;
+  epoch: number;
+  /** Telegram ID of the intended recipient. */
+  recipientTgId: string;
+  /** Base64-encoded ephemeral ECDH P-256 public key (65 bytes, uncompressed). */
+  ephemeralPublicKey: string;
+  /** Base64-encoded AES-256-GCM ciphertext of the group key (32 bytes + 16-byte tag). */
+  encryptedKey: string;
+  /** Base64-encoded 12-byte AES-GCM IV. */
+  iv: string;
+}
+
 /** Pending join request visible to the room owner. */
 export interface RoomJoinRequest {
   roomId: string;
