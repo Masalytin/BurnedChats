@@ -2,8 +2,9 @@ import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react
 import { useTranslation } from 'react-i18next';
 import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
-import type { SearchResult, UserInfo } from '../types';
+import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
+import { RoomCard } from '../components/RoomCard';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon } from '../icons';
 import './HomePage.css';
 
@@ -42,6 +43,12 @@ interface HomePageProps {
   burningSessionId?: string | null;
   /** Callback when user clicks "Create Room" */
   onCreateRoom?: () => void;
+  /** List of rooms user participates in (P2-4.1.2) */
+  rooms?: RoomListEntry[];
+  /** Whether the rooms list is loading */
+  isLoadingRooms?: boolean;
+  /** Callback when user clicks a room card */
+  onRoomClick?: (roomId: string) => void;
 }
 
 /** Default search result state */
@@ -74,6 +81,9 @@ export function HomePage({
   onBurnSession,
   burningSessionId = null,
   onCreateRoom,
+  rooms = [],
+  isLoadingRooms = false,
+  onRoomClick,
 }: HomePageProps) {
   const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
@@ -249,7 +259,7 @@ export function HomePage({
         />
       </section>
 
-      {/* Rooms Section */}
+      {/* Rooms Section (P2-4.1.2) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
         <div className="home-section-header">
           <h3 className="home-section-title">{t('room.sectionMyRooms')}</h3>
@@ -262,9 +272,31 @@ export function HomePage({
             {t('room.createRoomButton')}
           </Button>
         </div>
-        <div className="home-empty-state">
-          <p>{t('room.emptyRooms')}</p>
-        </div>
+
+        {isLoadingRooms && (
+          <div className="session-list">
+            <RoomCardSkeleton />
+            <RoomCardSkeleton />
+          </div>
+        )}
+
+        {!isLoadingRooms && rooms.length > 0 && (
+          <div className="session-list">
+            {rooms.map((room) => (
+              <RoomCard
+                key={room.roomId}
+                room={room}
+                onClick={onRoomClick}
+              />
+            ))}
+          </div>
+        )}
+
+        {!isLoadingRooms && rooms.length === 0 && (
+          <div className="home-empty-state">
+            <p>{t('room.emptyRooms')}</p>
+          </div>
+        )}
       </section>
 
       {/* Features Section */}
@@ -356,6 +388,21 @@ function SessionCardSkeleton() {
       <div className="session-card-skeleton-content">
         <div className="session-card-skeleton-line session-card-skeleton-line--short" />
         <div className="session-card-skeleton-line session-card-skeleton-line--medium" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Skeleton loader for RoomCard (P2-4.1.2)
+ */
+function RoomCardSkeleton() {
+  return (
+    <div className="session-card-skeleton">
+      <div className="session-card-skeleton-avatar" />
+      <div className="session-card-skeleton-content">
+        <div className="session-card-skeleton-line session-card-skeleton-line--medium" />
+        <div className="session-card-skeleton-line session-card-skeleton-line--short" />
       </div>
     </div>
   );

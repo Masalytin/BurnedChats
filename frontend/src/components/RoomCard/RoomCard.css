@@ -1,0 +1,75 @@
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-md);
+  width: 100%;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--bc-radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.room-card:hover:not(:disabled) {
+  background: var(--bc-bg-elevated);
+  border-color: var(--bc-border-subtle);
+}
+
+.room-card:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.room-card-icon {
+  flex-shrink: 0;
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bc-bg-elevated);
+  border-radius: var(--bc-radius-md);
+}
+
+.room-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-card-id {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-card-date {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-tertiary);
+}
+
+.room-card-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: var(--bc-radius-sm);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.room-card-badge--owner {
+  background: color-mix(in srgb, var(--bc-brand-primary) 15%, transparent);
+  color: var(--bc-brand-primary);
+}
+
+.room-card-badge--member {
+  background: color-mix(in srgb, var(--bc-text-secondary) 15%, transparent);
+  color: var(--bc-text-secondary);
+}

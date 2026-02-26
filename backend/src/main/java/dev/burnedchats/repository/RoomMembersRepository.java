@@ -14,7 +14,14 @@ import reactor.core.publisher.Mono;
  * <p>Uses a Redis Set where each member is a Telegram user ID (as String).
  * No TTL is set on this key by default — it is deleted explicitly when a room is burned.
  *
- * <p>Key pattern: {@code room_members:{roomId}} — Set of tgId strings.
+ * <p>Also maintains a reverse index {@code member_rooms:{tgId}} — a Set of roomId strings —
+ * so that {@link #getRoomsForMember(Long)} can be answered in O(1) without scanning all rooms.
+ *
+ * <p>Key patterns:
+ * <ul>
+ *   <li>{@code room_members:{roomId}} — Set of tgId strings</li>
+ *   <li>{@code member_rooms:{tgId}} — Set of roomId strings (reverse index)</li>
+ * </ul>
  */
 @Slf4j
 @Repository
@@ -22,11 +29,12 @@ import reactor.core.publisher.Mono;
 public class RoomMembersRepository {
 
     private static final String KEY_PREFIX = "room_members:";
+    private static final String REVERSE_KEY_PREFIX = "member_rooms:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
     /**
-     * Add a member to the room.
+     * Add a member to the room and update the reverse index.
      *
      * @param roomId the room UUID
      * @param tgId   the Telegram user ID to add
@@ -35,11 +43,14 @@ public class RoomMembersRepository {
     public Mono<Long> add(String roomId, Long tgId) {
         return redisTemplate.opsForSet()
                 .add(keyFor(roomId), String.valueOf(tgId))
+                .flatMap(n -> redisTemplate.opsForSet()
+                        .add(reverseKeyFor(tgId), roomId)
+                        .thenReturn(n))
                 .doOnSuccess(n -> log.debug("Added member {} to room {} (added={})", tgId, roomId, n));
     }
 
     /**
-     * Remove a member from the room.
+     * Remove a member from the room and update the reverse index.
      *
      * @param roomId the room UUID
      * @param tgId   the Telegram user ID to remove
@@ -48,6 +59,9 @@ public class RoomMembersRepository {
     public Mono<Long> remove(String roomId, Long tgId) {
         return redisTemplate.opsForSet()
                 .remove(keyFor(roomId), String.valueOf(tgId))
+                .flatMap(n -> redisTemplate.opsForSet()
+                        .remove(reverseKeyFor(tgId), (Object) roomId)
+                        .thenReturn(n))
                 .doOnSuccess(n -> log.debug("Removed member {} from room {} (removed={})", tgId, roomId, n));
     }
 
@@ -61,6 +75,18 @@ public class RoomMembersRepository {
         return redisTemplate.opsForSet()
                 .members(keyFor(roomId))
                 .doOnComplete(() -> log.debug("Fetched members for room {}", roomId));
+    }
+
+    /**
+     * Get all room IDs where the given user is a member (reverse index lookup).
+     *
+     * @param tgId the Telegram user ID
+     * @return Flux of roomId strings
+     */
+    public Flux<String> getRoomsForMember(Long tgId) {
+        return redisTemplate.opsForSet()
+                .members(reverseKeyFor(tgId))
+                .doOnComplete(() -> log.debug("Fetched rooms for member {}", tgId));
     }
 
     /**
@@ -86,17 +112,29 @@ public class RoomMembersRepository {
     }
 
     /**
-     * Delete the entire members set for a room (called on BURN_ROOM).
+     * Delete the entire members set for a room and remove the room from every member's
+     * reverse index (called on BURN_ROOM).
      *
      * @param roomId the room UUID
-     * @return Mono with the number of keys deleted
+     * @return Mono completing when deletion is done
      */
-    public Mono<Long> deleteAll(String roomId) {
-        return redisTemplate.delete(keyFor(roomId))
-                .doOnSuccess(n -> log.debug("Deleted members set for room {}", roomId));
+    public Mono<Void> deleteAll(String roomId) {
+        return redisTemplate.opsForSet()
+                .members(keyFor(roomId))
+                .flatMap(tgIdStr -> {
+                    long tgId = Long.parseLong(tgIdStr);
+                    return redisTemplate.opsForSet().remove(reverseKeyFor(tgId), (Object) roomId);
+                })
+                .then(redisTemplate.delete(keyFor(roomId)))
+                .doOnSuccess(n -> log.debug("Deleted members set for room {}", roomId))
+                .then();
     }
 
     private String keyFor(String roomId) {
         return KEY_PREFIX + roomId;
+    }
+
+    private String reverseKeyFor(Long tgId) {
+        return REVERSE_KEY_PREFIX + tgId;
     }
 }

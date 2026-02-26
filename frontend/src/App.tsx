@@ -9,6 +9,7 @@ import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
 import { useJoinRoom } from './hooks/useJoinRoom';
+import { useMyRooms } from './hooks/useMyRooms';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { useKeyBundle } from './hooks/useKeyBundle';
 import { useRekeyRoom } from './hooks/useRekeyRoom';
@@ -338,6 +339,17 @@ function AppContent() {
   // Track which requests are being processed (for loading state)
   const [processingJoinKeys, setProcessingJoinKeys] = useState<Set<string>>(new Set());
 
+  // My rooms hook (P2-4.1.2)
+  const {
+    rooms: myRooms,
+    isLoading: isLoadingRooms,
+  } = useMyRooms({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
   // Active sessions hook (4.6.5 - 4.6.8)
   const {
     sessions: activeSessions,
@@ -540,6 +552,12 @@ function AppContent() {
     resetCreateRoom();
     setCurrentView('create-room');
   }, [resetCreateRoom]);
+
+  // Handle room card click from HomePage (P2-4.1.2)
+  const handleRoomClick = useCallback((roomId: string) => {
+    setActiveRoomChat({ roomId, epoch: 0 });
+    setCurrentView('room-chat');
+  }, []);
 
   // Handle "View Requests" from RoomCreatedSuccess
   const handleViewRequests = useCallback((roomId: string) => {
@@ -1222,6 +1240,9 @@ function AppContent() {
           onBurnSession={handleBurnSessionRequest}
           burningSessionId={burningSessionId}
           onCreateRoom={handleCreateRoom}
+          rooms={myRooms}
+          isLoadingRooms={isLoadingRooms}
+          onRoomClick={handleRoomClick}
         />
 
         {/* Chat request dialog */}

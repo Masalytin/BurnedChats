@@ -8,11 +8,13 @@ import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
+import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
+import dev.burnedchats.dto.request.GetMyRoomsRequest;
 import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
@@ -20,6 +22,7 @@ import dev.burnedchats.dto.request.SendKeyBundleRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
+import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.InviteTokenService;
@@ -36,6 +39,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
 
 import java.security.Principal;
+import java.util.Objects;
 
 /**
  * STOMP handler for room lifecycle operations.
@@ -51,6 +55,7 @@ import java.security.Principal;
  *   <li>{@code /app/room.sendKeyBundle} — owner sends encrypted group-key bundle to new member</li>
  *   <li>{@code /app/room.rekey} — owner sends new key bundles for all remaining members after a member leaves</li>
  *   <li>{@code /app/room.getMemberPubkeys} — owner fetches all member ECDH public keys (for rekey preparation)</li>
+ *   <li>{@code /app/room.getMyRooms} — returns all rooms where the user is a participant or owner</li>
  * </ul>
  *
  * <p>Events sent:
@@ -64,6 +69,7 @@ import java.security.Principal;
  *   <li>{@code /user/queue/key-bundle} — encrypted group-key bundle (sent to new member or on rekey)</li>
  *   <li>{@code /user/queue/room-rekey} — rekey notification (sent to all remaining members)</li>
  *   <li>{@code /user/queue/member-pubkeys} — member ECDH public keys (sent to owner)</li>
+ *   <li>{@code /user/queue/room-list} — list of rooms the user participates in</li>
  * </ul>
  *
  * <p>Security contract:
@@ -87,6 +93,7 @@ public class RoomHandler {
     private static final String KEY_BUNDLE_DESTINATION = "/queue/key-bundle";
     private static final String ROOM_REKEY_DESTINATION = "/queue/room-rekey";
     private static final String MEMBER_PUBKEYS_DESTINATION = "/queue/member-pubkeys";
+    private static final String ROOM_LIST_DESTINATION = "/queue/room-list";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -95,6 +102,7 @@ public class RoomHandler {
     private final RoomKeysRepository roomKeysRepository;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
     private final RoomRepository roomRepository;
+    private final RoomMembersRepository roomMembersRepository;
 
     /**
      * Handle {@code CREATE_ROOM} — create a room and respond with the new room ID + invite URL.
@@ -565,6 +573,63 @@ public class RoomHandler {
                                     String.valueOf(ownerTgId),
                                     MEMBER_PUBKEYS_DESTINATION,
                                     MemberPublicKeysEvent.error(request.getRoomId(), code)
+                            );
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // My rooms list (P2-4.1.1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code GET_MY_ROOMS} — return a list of all rooms where the authenticated user
+     * is either the owner or a member.
+     *
+     * <p>Uses the reverse index {@code member_rooms:{tgId}} to avoid a full scan.
+     * For each room, the user's role is determined by comparing the room's ownerTgId with the
+     * requesting user's ID.
+     *
+     * @param request   empty payload (user identified from principal)
+     * @param principal the authenticated Telegram user
+     */
+    @MessageMapping("/room.getMyRooms")
+    public void getMyRooms(@Payload GetMyRoomsRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long tgId = tp.getUserId();
+
+        log.info("GET_MY_ROOMS requested: tgId={}", tgId);
+
+        roomMembersRepository.getRoomsForMember(tgId)
+                .flatMap(roomId -> roomRepository.findById(roomId)
+                        .onErrorResume(e -> {
+                            log.warn("GET_MY_ROOMS: skipping roomId={} — {}", roomId, e.getMessage());
+                            return reactor.core.publisher.Mono.empty();
+                        })
+                        .onErrorComplete())
+                .filter(Objects::nonNull)
+                .map(room -> RoomListEvent.RoomInfo.builder()
+                        .roomId(room.getId())
+                        .role(room.getOwnerTgId().equals(tgId) ? "owner" : "member")
+                        .createdAt(room.getCreatedAt())
+                        .nameEncrypted(room.getNameEncrypted())
+                        .build())
+                .collectList()
+                .subscribe(
+                        rooms -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(tgId),
+                                    ROOM_LIST_DESTINATION,
+                                    RoomListEvent.success(rooms)
+                            );
+                            log.info("ROOM_LIST sent: tgId={}, count={}", tgId, rooms.size());
+                        },
+                        error -> {
+                            log.error("GET_MY_ROOMS failed: tgId={}, error={}", tgId, error.getMessage());
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(tgId),
+                                    ROOM_LIST_DESTINATION,
+                                    RoomListEvent.error("INTERNAL_ERROR")
                             );
                         }
                 );

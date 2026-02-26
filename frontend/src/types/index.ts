@@ -204,6 +204,15 @@ export interface RoomJoinRequest {
   requestedAt: number;
 }
 
+/** Single room entry returned by GET_MY_ROOMS / ROOM_LIST. */
+export interface RoomListEntry {
+  roomId: string;
+  /** "owner" | "member" */
+  role: 'owner' | 'member';
+  createdAt: number;
+  nameEncrypted?: string | null;
+}
+
 // ============================================
 // View Types
 // ============================================
