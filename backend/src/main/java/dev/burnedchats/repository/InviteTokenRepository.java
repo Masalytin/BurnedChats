@@ -17,7 +17,11 @@ import java.util.Map;
  *
  * <p>Uses a Redis Hash per token to allow atomic increment of {@code usedCount}.
  *
- * <p>Key pattern: {@code invite:{token}} — Hash, TTL derived from {@code expiresAt}.
+ * <p>Key patterns:
+ * <ul>
+ *   <li>{@code invite:{token}} — Hash, TTL derived from {@code expiresAt}</li>
+ *   <li>{@code room_invites:{roomId}} — Set of token strings for reverse lookup (BURN_ROOM)</li>
+ * </ul>
  */
 @Slf4j
 @Repository
@@ -25,6 +29,7 @@ import java.util.Map;
 public class InviteTokenRepository {
 
     private static final String KEY_PREFIX = "invite:";
+    private static final String ROOM_INVITES_PREFIX = "room_invites:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
@@ -45,6 +50,9 @@ public class InviteTokenRepository {
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
                 .then(redisTemplate.expire(key, ttl))
+                .then(redisTemplate.opsForSet()
+                        .add(roomInvitesKeyFor(token.getRoomId()), token.getToken()))
+                .thenReturn(true)
                 .doOnSuccess(ok -> log.debug("Saved invite token {} for room {}", token.getToken(), token.getRoomId()))
                 .onErrorResume(e -> {
                     log.error("Failed to save invite token {}: {}", token.getToken(), e.getMessage());
@@ -108,12 +116,49 @@ public class InviteTokenRepository {
                 .doOnSuccess(n -> log.debug("Deleted invite token {} (result={})", token, n));
     }
 
+    /**
+     * Delete all invite tokens for a room (called on BURN_ROOM).
+     *
+     * <p>Uses the reverse index {@code room_invites:{roomId}} to locate all token keys,
+     * deletes each token hash, then removes the reverse index set.
+     *
+     * @param roomId the room UUID
+     * @return Mono completing when all tokens are removed
+     */
+    public Mono<Void> deleteAllForRoom(String roomId) {
+        String roomInvitesKey = roomInvitesKeyFor(roomId);
+
+        return redisTemplate.opsForSet()
+                .members(roomInvitesKey)
+                .collectList()
+                .flatMap(tokens -> {
+                    if (tokens.isEmpty()) {
+                        return redisTemplate.delete(roomInvitesKey).then();
+                    }
+                    String[] tokenKeys = tokens.stream()
+                            .map(this::keyFor)
+                            .toArray(String[]::new);
+                    return redisTemplate.delete(tokenKeys)
+                            .then(redisTemplate.delete(roomInvitesKey))
+                            .then();
+                })
+                .doOnSuccess(v -> log.debug("Deleted all invite tokens for room {}", roomId))
+                .onErrorResume(e -> {
+                    log.error("Failed to delete invite tokens for room {}: {}", roomId, e.getMessage());
+                    return Mono.empty();
+                });
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
     private String keyFor(String token) {
         return KEY_PREFIX + token;
+    }
+
+    private String roomInvitesKeyFor(String roomId) {
+        return ROOM_INVITES_PREFIX + roomId;
     }
 
     private Map<String, String> toHash(InviteToken token) {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTelegram } from './hooks/useTelegram';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
@@ -32,7 +33,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
-import { burn as burnKeys } from './crypto/keyStore';
+import { burn as burnKeys, burnGroupKey } from './crypto/keyStore';
 import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -68,6 +69,7 @@ interface ActiveChat {
  */
 function AppContent() {
   const toast = useToast();
+  const { t } = useTranslation();
   const { 
     isReady, 
     isInTelegram,
@@ -602,13 +604,12 @@ function AppContent() {
     setCurrentView('room-manage');
   }, [resetInviteLink]);
 
-  // Handle burn room from manage view (P2-4.3.1 → P2-4.3.2)
+  // Handle burn room from manage view (P2-4.3.2 / P2-4.3.3)
   const handleBurnRoom = useCallback(() => {
     if (!activeRoomChat || !isConnected) return;
-    // BURN_ROOM backend is implemented in P2-4.3.2
-    // Sending the command here; once P2-4.3.2 is complete the server will respond
     publish('/app/room.burn', { roomId: activeRoomChat.roomId });
     debugLog('info', `[RoomManage] BURN_ROOM sent for ${activeRoomChat.roomId}`);
+    // ROOM_BURNED response handled in the subscription above (fires for all members)
   }, [activeRoomChat, isConnected, publish]);
 
   // Handle "View Requests" from RoomCreatedSuccess
@@ -1008,6 +1009,70 @@ function AppContent() {
       unsubscribe('/user/queue/burn-signal');
     };
   }, [isConnected, subscribe, unsubscribe]);
+
+  // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
+  const roomBurnedDepsRef = useRef({
+    currentView,
+    activeRoomChat,
+    notificationOccurred,
+    toast,
+  });
+  useEffect(() => {
+    roomBurnedDepsRef.current = {
+      currentView,
+      activeRoomChat,
+      notificationOccurred,
+      toast,
+    };
+  });
+
+  // Subscribe to ROOM_BURNED — handles server-side room destruction (P2-4.3.2 / P2-4.3.3)
+  // Triggered for all room members (including owner) when the owner calls BURN_ROOM
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRoomBurned = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body) as {
+          success: boolean;
+          roomId?: string;
+          error?: string;
+        };
+        const deps = roomBurnedDepsRef.current;
+
+        if (data.success && data.roomId) {
+          const roomId = data.roomId;
+
+          // Securely destroy the group key from memory
+          burnGroupKey(roomId);
+
+          // If currently in room-chat or room-manage for this room, navigate to home
+          const isViewingRoom =
+            (deps.currentView === 'room-chat' || deps.currentView === 'room-manage') &&
+            deps.activeRoomChat?.roomId === roomId;
+
+          if (isViewingRoom) {
+            setActiveRoomChat(null);
+            setCurrentView('home');
+          }
+
+          deps.notificationOccurred('success');
+          deps.toast.success(t('room.burned'));
+        } else if (!data.success && data.error) {
+          deps.notificationOccurred('error');
+          deps.toast.error(`Failed to burn room: ${data.error}`, { title: 'Error' });
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse ROOM_BURNED event:', err);
+      }
+    };
+
+    subscribe('/user/queue/room-burned', handleRoomBurned);
+
+    return () => {
+      unsubscribe('/user/queue/room-burned');
+    };
+  }, [isConnected, subscribe, unsubscribe, t]);
 
   // Handle key refresh notifications (peer reconnected and needs re-handshake)
   // When the peer sends a new key for an ACTIVE session, the server notifies us

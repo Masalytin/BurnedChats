@@ -5,12 +5,14 @@ import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
+import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
+import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
@@ -22,9 +24,11 @@ import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
+import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
+import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.InviteTokenService;
@@ -59,6 +63,7 @@ import java.util.Objects;
  *   <li>{@code /app/room.getMemberPubkeys} — owner fetches all member ECDH public keys (for rekey preparation)</li>
  *   <li>{@code /app/room.getMyRooms} — returns all rooms where the user is a participant or owner</li>
  *   <li>{@code /app/room.getMembers} — returns the list of member tgIds for a room (P2-4.3.1)</li>
+ *   <li>{@code /app/room.burn} — burn the room (owner only); deletes all room data and notifies members (P2-4.3.2)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -74,6 +79,7 @@ import java.util.Objects;
  *   <li>{@code /user/queue/member-pubkeys} — member ECDH public keys (sent to owner)</li>
  *   <li>{@code /user/queue/room-list} — list of rooms the user participates in</li>
  *   <li>{@code /user/queue/room-members} — list of member tgIds for a room (P2-4.3.1)</li>
+ *   <li>{@code /user/queue/room-burned} — ROOM_BURNED notification (sent to all members including owner) (P2-4.3.2)</li>
  * </ul>
  *
  * <p>Security contract:
@@ -99,6 +105,7 @@ public class RoomHandler {
     private static final String MEMBER_PUBKEYS_DESTINATION = "/queue/member-pubkeys";
     private static final String ROOM_LIST_DESTINATION = "/queue/room-list";
     private static final String ROOM_MEMBERS_LIST_DESTINATION = "/queue/room-members";
+    private static final String ROOM_BURNED_DESTINATION = "/queue/room-burned";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -108,6 +115,8 @@ public class RoomHandler {
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
     private final RoomRepository roomRepository;
     private final RoomMembersRepository roomMembersRepository;
+    private final InviteTokenRepository inviteTokenRepository;
+    private final RoomMessageRepository roomMessageRepository;
 
     /**
      * Handle {@code CREATE_ROOM} — create a room and respond with the new room ID + invite URL.
@@ -683,6 +692,83 @@ public class RoomHandler {
                                     String.valueOf(requesterTgId),
                                     ROOM_MEMBERS_LIST_DESTINATION,
                                     RoomMembersListEvent.error(code)
+                            );
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // Burn room (P2-4.3.2)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code BURN_ROOM} — the room owner permanently destroys the room.
+     *
+     * <p>Flow:
+     * <ol>
+     *   <li>Verify the caller is the room owner.</li>
+     *   <li>Collect all current member IDs (needed for notifications after deletion).</li>
+     *   <li>Delete all room data in parallel:
+     *       room record, member sets (incl. reverse index), invite tokens,
+     *       encrypted key bundles, member public keys, and room messages.</li>
+     *   <li>Send {@code ROOM_BURNED} to every member's private queue.</li>
+     * </ol>
+     *
+     * @param request   contains {@code roomId}
+     * @param principal the authenticated room owner
+     */
+    @MessageMapping("/room.burn")
+    public void burnRoom(@Payload @Valid BurnRoomRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long ownerTgId = tp.getUserId();
+        String roomId = request.getRoomId();
+
+        log.info("BURN_ROOM requested: roomId={}, ownerTgId={}", roomId, ownerTgId);
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                        return reactor.core.publisher.Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return reactor.core.publisher.Mono.just(room);
+                })
+                .flatMap(room ->
+                        roomMembersRepository.getMembers(roomId)
+                                .collectList()
+                                .flatMap(members -> reactor.core.publisher.Mono.when(
+                                                roomRepository.delete(roomId),
+                                                roomMembersRepository.deleteAll(roomId),
+                                                inviteTokenRepository.deleteAllForRoom(roomId),
+                                                roomKeysRepository.deleteRoom(roomId),
+                                                memberPublicKeyRepository.deleteRoom(roomId),
+                                                roomMessageRepository.deleteRoomMessages(roomId)
+                                        )
+                                        .thenReturn(members))
+                )
+                .subscribe(
+                        members -> {
+                            RoomBurnedEvent event = RoomBurnedEvent.success(roomId, ownerTgId);
+                            members.forEach(memberTgId ->
+                                    messagingTemplate.convertAndSendToUser(
+                                            memberTgId,
+                                            ROOM_BURNED_DESTINATION,
+                                            event
+                                    )
+                            );
+                            log.info("ROOM_BURNED sent: roomId={}, ownerTgId={}, memberCount={}",
+                                    roomId, ownerTgId, members.size());
+                        },
+                        error -> {
+                            String code = error instanceof SecurityException ? "NOT_OWNER"
+                                    : error instanceof IllegalArgumentException ? error.getMessage()
+                                    : "INTERNAL_ERROR";
+                            log.warn("BURN_ROOM failed: roomId={}, ownerTgId={}, error={}",
+                                    roomId, ownerTgId, code);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(ownerTgId),
+                                    ROOM_BURNED_DESTINATION,
+                                    RoomBurnedEvent.error(roomId, code)
                             );
                         }
                 );
