@@ -4,7 +4,8 @@
     "back": "Back",
     "loading": "Loading...",
     "retry": "Retry {{count}}",
-    "copied": "{{label}} copied",
+    "copy": "Copy",
+    "copied": "Copied!",
     "unknown": "Unknown"
   },
 
@@ -191,7 +192,10 @@
       "membersButton": "Members",
       "burnButton": "Burn Room",
       "leaveButton": "Leave Room",
-      "membersTitle": "Members"
+      "membersTitle": "Members",
+      "membersEmpty": "No members yet",
+      "burnConfirmTitle": "Burn this room?",
+      "burnConfirmText": "This will permanently destroy the room and all its messages for everyone. This cannot be undone."
     },
 
     "burn": {

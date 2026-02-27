@@ -13,6 +13,8 @@ import { useMyRooms } from './hooks/useMyRooms';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { useKeyBundle } from './hooks/useKeyBundle';
 import { useRekeyRoom } from './hooks/useRekeyRoom';
+import { useGetInviteLink } from './hooks/useGetInviteLink';
+import { useRoomMembers } from './hooks/useRoomMembers';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog } from './components/ChatRequestDialog';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
@@ -24,6 +26,7 @@ import { RoomChatRoom } from './components/Chat/RoomChatRoom';
 import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
 import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
+import { RoomManageView } from './components/RoomManageView';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
@@ -44,7 +47,8 @@ type AppView =
   | 'create-room'
   | 'join-room'
   | 'room-join-requests'
-  | 'room-chat';
+  | 'room-chat'
+  | 'room-manage';
 
 /** Active room chat state */
 interface ActiveRoomChat {
@@ -336,6 +340,32 @@ function AppContent() {
     },
   });
 
+  // Invite link hook (P2-4.3.1)
+  const {
+    inviteUrl,
+    isLoading: isInviteLoading,
+    error: inviteError,
+    getInviteLink,
+    reset: resetInviteLink,
+  } = useGetInviteLink({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
+  // Room members hook (P2-4.3.1)
+  const {
+    members: roomMembers,
+    isLoading: isMembersLoading,
+    fetchMembers,
+  } = useRoomMembers({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
   // Track which requests are being processed (for loading state)
   const [processingJoinKeys, setProcessingJoinKeys] = useState<Set<string>>(new Set());
 
@@ -404,6 +434,9 @@ function AppContent() {
   // Active room ID for the requests view (P2-2.2.5)
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
+  // Track which view to return to from room-join-requests (P2-4.3.1)
+  const [requestsReturnView, setRequestsReturnView] = useState<'home' | 'create-room' | 'room-manage'>('home');
+
   // Active room chat state (P2-3.2.3)
   const [activeRoomChat, setActiveRoomChat] = useState<ActiveRoomChat | null>(null);
 
@@ -457,12 +490,14 @@ function AppContent() {
 
     if (currentView === 'room-join-requests') {
       setActiveRoomId(null);
-      // Go back to create-room success if we came from there, otherwise home
-      if (createRoomResult.status === 'created') {
-        setCurrentView('create-room');
-      } else {
-        setCurrentView('home');
-      }
+      setCurrentView(requestsReturnView);
+      setRequestsReturnView('home');
+      return;
+    }
+
+    if (currentView === 'room-manage') {
+      resetInviteLink();
+      setCurrentView('room-chat');
       return;
     }
 
@@ -533,6 +568,8 @@ function AppContent() {
     resetHandshake,
     fetchSessions,
     createRoomResult.status,
+    resetInviteLink,
+    requestsReturnView,
   ]);
 
   // Show back button on all non-home views
@@ -559,9 +596,25 @@ function AppContent() {
     setCurrentView('room-chat');
   }, []);
 
+  // Handle opening room management (P2-4.3.1) — owner only
+  const handleOpenRoomManage = useCallback(() => {
+    resetInviteLink();
+    setCurrentView('room-manage');
+  }, [resetInviteLink]);
+
+  // Handle burn room from manage view (P2-4.3.1 → P2-4.3.2)
+  const handleBurnRoom = useCallback(() => {
+    if (!activeRoomChat || !isConnected) return;
+    // BURN_ROOM backend is implemented in P2-4.3.2
+    // Sending the command here; once P2-4.3.2 is complete the server will respond
+    publish('/app/room.burn', { roomId: activeRoomChat.roomId });
+    debugLog('info', `[RoomManage] BURN_ROOM sent for ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, publish]);
+
   // Handle "View Requests" from RoomCreatedSuccess
   const handleViewRequests = useCallback((roomId: string) => {
     setActiveRoomId(roomId);
+    setRequestsReturnView('create-room');
     setCurrentView('room-join-requests');
   }, []);
 
@@ -1184,11 +1237,8 @@ function AppContent() {
             onReject={handleRejectJoinRequest}
             onBack={() => {
               setActiveRoomId(null);
-              if (createRoomResult.status === 'created') {
-                setCurrentView('create-room');
-              } else {
-                setCurrentView('home');
-              }
+              setCurrentView(requestsReturnView);
+              setRequestsReturnView('home');
             }}
           />
         </Layout>
@@ -1199,6 +1249,9 @@ function AppContent() {
 
   // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
   if (currentView === 'room-chat' && activeRoomChat && user) {
+    const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+    const isRoomOwner = activeRoom?.role === 'owner';
+
     return (
       <>
         <Layout>
@@ -1207,10 +1260,45 @@ function AppContent() {
             epoch={activeRoomChat.epoch}
             userId={user.id}
             ws={{ isConnected, subscribe, unsubscribe, publish }}
+            isOwner={isRoomOwner}
             onBack={() => {
               setActiveRoomChat(null);
               setCurrentView('home');
             }}
+            onManage={isRoomOwner ? handleOpenRoomManage : undefined}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  // Room manage view (P2-4.3.1) — owner only
+  if (currentView === 'room-manage' && activeRoomChat) {
+    return (
+      <>
+        <Layout>
+          <RoomManageView
+            roomId={activeRoomChat.roomId}
+            isOwner
+            pendingRequestsCount={pendingJoinCount}
+            members={roomMembers}
+            isMembersLoading={isMembersLoading}
+            inviteUrl={inviteUrl}
+            isInviteLoading={isInviteLoading}
+            inviteError={inviteError}
+            onBack={() => {
+              resetInviteLink();
+              setCurrentView('room-chat');
+            }}
+            onGetInviteLink={() => getInviteLink(activeRoomChat.roomId)}
+            onViewRequests={() => {
+              setActiveRoomId(activeRoomChat.roomId);
+              setRequestsReturnView('room-manage');
+              setCurrentView('room-join-requests');
+            }}
+            onFetchMembers={() => fetchMembers(activeRoomChat.roomId)}
+            onBurnRoom={handleBurnRoom}
           />
         </Layout>
         {debugPanelElement}

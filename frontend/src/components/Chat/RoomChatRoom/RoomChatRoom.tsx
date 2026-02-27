@@ -26,6 +26,24 @@ function BackIcon() {
 }
 
 // ============================================
+// Settings icon (inline SVG)
+// ============================================
+
+function SettingsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M10 2v2m0 12v2M2 10h2m12 0h2m-3.172-4.828-1.414 1.414M4.586 15.414l1.414-1.414m0-8.414L4.586 4.586m11.828 11.828-1.414-1.414"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// ============================================
 // Component Props
 // ============================================
 
@@ -40,8 +58,12 @@ interface RoomChatRoomProps {
   ws: UseRoomMessagesWebSocket;
   /** Optional member count for display */
   memberCount?: number;
+  /** Whether the current user is the room owner */
+  isOwner?: boolean;
   /** Callback to go back */
   onBack?: () => void;
+  /** Callback to open room management (owner only) */
+  onManage?: () => void;
 }
 
 // ============================================
@@ -65,7 +87,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   userId,
   ws,
   memberCount,
+  isOwner = false,
   onBack,
+  onManage,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const hasKey = hasGroupKey(roomId);
@@ -96,7 +120,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     <div className="room-chat-room">
       {/* Header */}
       <div className="room-chat-room-header">
-        <div className="room-chat-room-header-left">
+          <div className="room-chat-room-header-left">
           {onBack && (
             <button
               type="button"
@@ -122,6 +146,16 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             <div className="room-chat-room-subtitle">{subtitle}</div>
           </div>
         </div>
+        {isOwner && onManage && (
+          <button
+            type="button"
+            className="room-chat-room-manage"
+            onClick={onManage}
+            aria-label={t('room.manage.title')}
+          >
+            <SettingsIcon />
+          </button>
+        )}
       </div>
 
       {/* Body */}

@@ -56,6 +56,31 @@
   transform: scale(0.95);
 }
 
+.room-chat-room-manage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-secondary);
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  transition: background var(--bc-transition-fast), color var(--bc-transition-fast);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.room-chat-room-manage:hover {
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-primary);
+}
+
+.room-chat-room-manage:active {
+  transform: scale(0.95);
+}
+
 .room-chat-room-info {
   display: flex;
   flex-direction: column;

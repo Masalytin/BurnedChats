@@ -9,12 +9,14 @@ import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
+import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
 import dev.burnedchats.dto.request.GetMyRoomsRequest;
+import dev.burnedchats.dto.request.GetRoomMembersRequest;
 import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
@@ -56,6 +58,7 @@ import java.util.Objects;
  *   <li>{@code /app/room.rekey} — owner sends new key bundles for all remaining members after a member leaves</li>
  *   <li>{@code /app/room.getMemberPubkeys} — owner fetches all member ECDH public keys (for rekey preparation)</li>
  *   <li>{@code /app/room.getMyRooms} — returns all rooms where the user is a participant or owner</li>
+ *   <li>{@code /app/room.getMembers} — returns the list of member tgIds for a room (P2-4.3.1)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -70,6 +73,7 @@ import java.util.Objects;
  *   <li>{@code /user/queue/room-rekey} — rekey notification (sent to all remaining members)</li>
  *   <li>{@code /user/queue/member-pubkeys} — member ECDH public keys (sent to owner)</li>
  *   <li>{@code /user/queue/room-list} — list of rooms the user participates in</li>
+ *   <li>{@code /user/queue/room-members} — list of member tgIds for a room (P2-4.3.1)</li>
  * </ul>
  *
  * <p>Security contract:
@@ -94,6 +98,7 @@ public class RoomHandler {
     private static final String ROOM_REKEY_DESTINATION = "/queue/room-rekey";
     private static final String MEMBER_PUBKEYS_DESTINATION = "/queue/member-pubkeys";
     private static final String ROOM_LIST_DESTINATION = "/queue/room-list";
+    private static final String ROOM_MEMBERS_LIST_DESTINATION = "/queue/room-members";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -630,6 +635,54 @@ public class RoomHandler {
                                     String.valueOf(tgId),
                                     ROOM_LIST_DESTINATION,
                                     RoomListEvent.error("INTERNAL_ERROR")
+                            );
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // Room members list (P2-4.3.1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code GET_ROOM_MEMBERS} — return the list of member tgIds for a room.
+     *
+     * <p>Any member of the room (including the owner) can call this to see who is in the room.
+     *
+     * @param request   contains {@code roomId}
+     * @param principal the authenticated Telegram user
+     */
+    @MessageMapping("/room.getMembers")
+    public void getRoomMembers(@Payload @Valid GetRoomMembersRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long requesterTgId = tp.getUserId();
+
+        log.info("GET_ROOM_MEMBERS requested: roomId={}, tgId={}", request.getRoomId(), requesterTgId);
+
+        roomMembersRepository.isMember(request.getRoomId(), requesterTgId)
+                .flatMap(isMember -> {
+                    if (!isMember) {
+                        return reactor.core.publisher.Mono.error(new SecurityException("NOT_MEMBER"));
+                    }
+                    return roomMembersRepository.getMembers(request.getRoomId()).collectList();
+                })
+                .subscribe(
+                        members -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(requesterTgId),
+                                    ROOM_MEMBERS_LIST_DESTINATION,
+                                    RoomMembersListEvent.success(request.getRoomId(), members)
+                            );
+                            log.info("ROOM_MEMBERS_LIST sent: roomId={}, count={}", request.getRoomId(), members.size());
+                        },
+                        error -> {
+                            String code = error instanceof SecurityException ? "NOT_MEMBER" : "INTERNAL_ERROR";
+                            log.warn("GET_ROOM_MEMBERS failed: roomId={}, tgId={}, error={}",
+                                    request.getRoomId(), requesterTgId, code);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(requesterTgId),
+                                    ROOM_MEMBERS_LIST_DESTINATION,
+                                    RoomMembersListEvent.error(code)
                             );
                         }
                 );

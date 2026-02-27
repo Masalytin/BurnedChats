@@ -1,0 +1,353 @@
+/* ============================================
+ * RoomManageView Component Styles (P2-4.3.1)
+ * ============================================ */
+
+.room-manage-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bc-bg-primary);
+}
+
+/* ============================================
+ * Header
+ * ============================================ */
+
+.room-manage-view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-bottom: 1px solid var(--bc-border-color);
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.room-manage-view__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  transition: background var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.room-manage-view__back:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.room-manage-view__back:active {
+  transform: scale(0.95);
+}
+
+.room-manage-view__header-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.room-manage-view__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+}
+
+.room-manage-view__title-icon {
+  font-size: var(--bc-text-base);
+}
+
+.room-manage-view__subtitle {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  font-family: var(--bc-font-mono, monospace);
+}
+
+/* ============================================
+ * Content
+ * ============================================ */
+
+.room-manage-view__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--bc-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+/* ============================================
+ * Sections
+ * ============================================ */
+
+.room-manage-section {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  overflow: hidden;
+}
+
+.room-manage-section--danger {
+  margin-top: var(--bc-spacing-md);
+}
+
+.room-manage-section__heading {
+  margin: 0;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.room-manage-section__body {
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+}
+
+.room-manage-section__error {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-error, #e53e3e);
+}
+
+/* ============================================
+ * Nav Items (Requests, Members)
+ * ============================================ */
+
+.room-manage-nav-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--bc-spacing-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-base);
+  text-align: left;
+  gap: var(--bc-spacing-sm);
+  transition: background var(--bc-transition-fast);
+}
+
+.room-manage-nav-item:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.room-manage-nav-item:active {
+  background: var(--bc-bg-elevated);
+  transform: scale(0.99);
+}
+
+.room-manage-nav-item__label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.room-manage-nav-item__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--tg-theme-button-color, #2196f3);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-radius: 10px;
+  font-size: var(--bc-text-xs);
+  font-weight: 700;
+}
+
+.room-manage-nav-item__arrow {
+  color: var(--bc-text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: transform var(--bc-transition-fast);
+}
+
+.room-manage-nav-item__arrow--open {
+  transform: rotate(90deg);
+}
+
+/* ============================================
+ * Invite Link
+ * ============================================ */
+
+.room-manage-invite {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  background: var(--bc-bg-elevated);
+  border-radius: var(--bc-radius-md);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+}
+
+.room-manage-invite__url {
+  flex: 1;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bc-font-mono, monospace);
+}
+
+.room-manage-invite__copy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  background: var(--tg-theme-button-color, #2196f3);
+  color: var(--tg-theme-button-text-color, #fff);
+  border: none;
+  border-radius: var(--bc-radius-sm);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity var(--bc-transition-fast), background var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.room-manage-invite__copy:hover {
+  opacity: 0.9;
+}
+
+.room-manage-invite__copy--copied {
+  background: var(--bc-success, #38a169);
+}
+
+/* ============================================
+ * Members List
+ * ============================================ */
+
+.room-manage-members {
+  border-top: 1px solid var(--bc-border-color);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+}
+
+.room-manage-members__loading,
+.room-manage-members__empty {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-muted);
+  padding: var(--bc-spacing-xs) 0;
+}
+
+.room-manage-members__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-manage-members__item {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xs) 0;
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.room-manage-members__item:last-child {
+  border-bottom: none;
+}
+
+.room-manage-members__avatar {
+  font-size: var(--bc-text-base);
+  flex-shrink: 0;
+}
+
+.room-manage-members__id {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  font-family: var(--bc-font-mono, monospace);
+}
+
+/* ============================================
+ * Burn Button
+ * ============================================ */
+
+.room-manage-burn-btn {
+  color: var(--bc-error, #e53e3e) !important;
+  border-color: var(--bc-error, #e53e3e) !important;
+}
+
+/* ============================================
+ * Burn Confirmation Dialog
+ * ============================================ */
+
+.room-manage-burn-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--bc-spacing-lg);
+}
+
+.room-manage-burn-dialog {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-xl);
+  padding: var(--bc-spacing-xl);
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+}
+
+.room-manage-burn-dialog__icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.room-manage-burn-dialog__title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+}
+
+.room-manage-burn-dialog__text {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  line-height: 1.5;
+}
+
+.room-manage-burn-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-burn-dialog__confirm-btn {
+  background: var(--bc-error, #e53e3e) !important;
+  border-color: var(--bc-error, #e53e3e) !important;
+}
+
+/* ============================================
+ * Mobile Safe Area
+ * ============================================ */
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  .room-manage-view__header {
+    padding-top: calc(var(--bc-spacing-sm) + env(safe-area-inset-top));
+  }
+}
