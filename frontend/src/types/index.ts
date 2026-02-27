@@ -90,6 +90,8 @@ export interface Message {
 export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv'> {
   content: string;
   isOwn: boolean;
+  /** Display name of the sender — set for room messages only; undefined for 1-to-1 chats. */
+  senderName?: string;
 }
 
 // ============================================

@@ -7,6 +7,7 @@ import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
 import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +94,7 @@ public class RoomMessageHandler {
 
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
+    private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
@@ -105,68 +107,83 @@ public class RoomMessageHandler {
      * @param principal authenticated user principal
      */
     @MessageMapping("/room.message.send")
-    public void sendRoomMessage(@Payload @Valid SendRoomMessageRequest request, Principal principal) {
+    public void sendRoomMessage(
+            @Payload @Valid SendRoomMessageRequest request, Principal principal) {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long senderTgId = tp.getUserId();
         String roomId = request.getRoomId();
         String messageId = request.getMessageId();
 
-        log.info("SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, messageId={}", roomId, senderTgId, messageId);
+        log.info("SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, messageId={}",
+                roomId, senderTgId, messageId);
 
         roomMembersRepository.isMember(roomId, senderTgId)
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        log.debug("SEND_ROOM_MESSAGE rejected: user {} is not a member of room {}", senderTgId, roomId);
+                        log.debug("SEND_ROOM_MESSAGE rejected: user {} not a member of room {}",
+                                senderTgId, roomId);
                         sendError(senderTgId, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
+                    return saveAndBroadcast(request, senderTgId, roomId, messageId);
+                })
+                .subscribe(
+                        result -> {},
+                        error -> {
+                            log.error("Error processing SEND_ROOM_MESSAGE: roomId={}, error={}",
+                                    roomId, error.getMessage());
+                            sendError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
+                        }
+                );
+    }
 
-                    Instant serverTimestamp = Instant.now();
+    private Mono<Void> saveAndBroadcast(
+            SendRoomMessageRequest request, Long senderTgId, String roomId, String messageId) {
+        Instant serverTimestamp = Instant.now();
+        RoomMessage message = RoomMessage.builder()
+                .messageId(messageId)
+                .roomId(roomId)
+                .senderTgId(senderTgId)
+                .encryptedContent(request.getEncryptedContent())
+                .iv(request.getIv())
+                .clientTimestamp(request.getTimestamp())
+                .serverTimestamp(serverTimestamp)
+                .build();
 
-                    RoomMessage message = RoomMessage.builder()
-                            .messageId(messageId)
+        return roomMessageRepository.saveMessage(message)
+                .flatMap(saved -> {
+                    if (!saved) {
+                        log.warn("Failed to save room message: roomId={}, messageId={}",
+                                roomId, messageId);
+                        sendError(senderTgId, roomId, messageId, "SAVE_FAILED");
+                        return Mono.<Void>empty();
+                    }
+                    return broadcastMessage(request, senderTgId, roomId, messageId, serverTimestamp);
+                });
+    }
+
+    private Mono<Void> broadcastMessage(
+            SendRoomMessageRequest request, Long senderTgId, String roomId,
+            String messageId, Instant serverTimestamp) {
+        return userRepository.getDisplayName(senderTgId)
+                .defaultIfEmpty("User " + senderTgId)
+                .flatMap(senderName -> {
+                    NewRoomMessageEvent event = NewRoomMessageEvent.builder()
+                            .success(true)
                             .roomId(roomId)
+                            .messageId(messageId)
                             .senderTgId(senderTgId)
+                            .senderName(senderName)
                             .encryptedContent(request.getEncryptedContent())
                             .iv(request.getIv())
                             .clientTimestamp(request.getTimestamp())
                             .serverTimestamp(serverTimestamp)
                             .build();
-
-                    return roomMessageRepository.saveMessage(message)
-                            .flatMap(saved -> {
-                                if (!saved) {
-                                    log.warn("Failed to save room message: roomId={}, messageId={}", roomId, messageId);
-                                    sendError(senderTgId, roomId, messageId, "SAVE_FAILED");
-                                    return Mono.empty();
-                                }
-
-                                NewRoomMessageEvent event = NewRoomMessageEvent.success(
-                                        roomId,
-                                        messageId,
-                                        senderTgId,
-                                        request.getEncryptedContent(),
-                                        request.getIv(),
-                                        request.getTimestamp(),
-                                        serverTimestamp
-                                );
-
-                                messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
-
-                                log.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
-                                        roomId, messageId, senderTgId);
-
-                                return Mono.empty();
-                            });
-                })
-                .subscribe(
-                        result -> {},
-                        error -> {
-                            log.error("Error processing SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, error={}",
-                                    roomId, senderTgId, error.getMessage());
-                            sendError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
-                        }
-                );
+                    messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+                    log.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
+                            roomId, messageId, senderTgId);
+                    return Mono.<Void>empty();
+                });
     }
 
     /**
@@ -195,14 +212,17 @@ public class RoomMessageHandler {
                     }
 
                     return roomMessageRepository.getRoomMessages(roomId)
-                            .map(msg -> SyncRoomMessagesEvent.SyncedRoomMessage.builder()
-                                    .messageId(msg.getMessageId())
-                                    .senderTgId(msg.getSenderTgId())
-                                    .encryptedContent(msg.getEncryptedContent())
-                                    .iv(msg.getIv())
-                                    .clientTimestamp(msg.getClientTimestamp())
-                                    .serverTimestamp(msg.getServerTimestamp())
-                                    .build())
+                            .flatMap(msg -> userRepository.getDisplayName(msg.getSenderTgId())
+                                    .defaultIfEmpty("User " + msg.getSenderTgId())
+                                    .map(senderName -> SyncRoomMessagesEvent.SyncedRoomMessage.builder()
+                                            .messageId(msg.getMessageId())
+                                            .senderTgId(msg.getSenderTgId())
+                                            .senderName(senderName)
+                                            .encryptedContent(msg.getEncryptedContent())
+                                            .iv(msg.getIv())
+                                            .clientTimestamp(msg.getClientTimestamp())
+                                            .serverTimestamp(msg.getServerTimestamp())
+                                            .build()))
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {
                                 SyncRoomMessagesEvent event = SyncRoomMessagesEvent.success(roomId, messages);

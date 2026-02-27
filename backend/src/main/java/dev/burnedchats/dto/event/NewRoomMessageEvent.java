@@ -64,6 +64,12 @@ public class NewRoomMessageEvent {
     private Long senderTgId;
 
     /**
+     * Display name of the sender (firstName or @username from server-side user cache).
+     * May be null if the user is not in cache.
+     */
+    private String senderName;
+
+    /**
      * The encrypted message content (Base64-encoded ciphertext).
      */
     private String encryptedContent;
@@ -87,24 +93,6 @@ public class NewRoomMessageEvent {
      * Error code if operation failed.
      */
     private String error;
-
-    /**
-     * Create a successful new room message event.
-     */
-    public static NewRoomMessageEvent success(String roomId, String messageId, Long senderTgId,
-                                               String encryptedContent, String iv,
-                                               Long clientTimestamp, Instant serverTimestamp) {
-        return NewRoomMessageEvent.builder()
-                .success(true)
-                .roomId(roomId)
-                .messageId(messageId)
-                .senderTgId(senderTgId)
-                .encryptedContent(encryptedContent)
-                .iv(iv)
-                .clientTimestamp(clientTimestamp)
-                .serverTimestamp(serverTimestamp)
-                .build();
-    }
 
     /**
      * Create an error event sent back to the sender.

@@ -25,7 +25,8 @@ function getRoomTopic(roomId: string): string {
 interface NewRoomMessageEvent {
   roomId: string;
   messageId: string;
-  senderId: number;
+  senderTgId: number;
+  senderName?: string | null;
   encryptedContent: string;
   iv: string;
   clientTimestamp?: number | null;
@@ -44,7 +45,8 @@ interface RoomMessageSentEvent {
 /** Synced room message */
 interface SyncedRoomMessage {
   messageId: string;
-  senderId: number;
+  senderTgId: number;
+  senderName?: string | null;
   encryptedContent: string;
   iv: string;
   clientTimestamp?: number | null;
@@ -186,6 +188,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         status: 'sending',
         isOwn: true,
       };
+      // senderName is intentionally omitted for own messages (own messages don't show sender label)
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
       publish(SEND_ROOM_MESSAGE_DESTINATION, {
@@ -227,11 +230,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         const decryptedMessage: DecryptedMessage = {
           id: event.messageId,
           sessionId: roomId,
-          fromUserId: event.senderId,
+          fromUserId: event.senderTgId,
+          senderName: event.senderName ?? undefined,
           content: plaintext,
           timestamp: ts,
           status: 'delivered',
-          isOwn: event.senderId === userId,
+          isOwn: event.senderTgId === userId,
         };
 
         setMessages(prev => {
@@ -306,11 +310,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           decryptedMessages.push({
             id: syncedMsg.messageId,
             sessionId: roomId,
-            fromUserId: syncedMsg.senderId,
+            fromUserId: syncedMsg.senderTgId,
+            senderName: syncedMsg.senderName ?? undefined,
             content: plaintext,
             timestamp: ts,
             status: 'delivered',
-            isOwn: syncedMsg.senderId === userId,
+            isOwn: syncedMsg.senderTgId === userId,
           });
         } catch (decryptErr) {
           console.error('[useRoomMessages] Failed to decrypt synced message:', decryptErr);

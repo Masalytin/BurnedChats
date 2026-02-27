@@ -15,6 +15,8 @@ interface MessageProps {
   showDateSeparator?: boolean;
   /** Optional CSS class name */
   className?: string;
+  /** Sender display name — shown above bubble for non-own room messages */
+  senderName?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export const Message = memo(function Message({
   status = 'sent',
   showDateSeparator = false,
   className = '',
+  senderName,
 }: MessageProps) {
   const validTs = typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0;
   const formattedTime = validTs ? formatTime(timestamp) : '--:--';
@@ -49,6 +52,9 @@ export const Message = memo(function Message({
         role="listitem"
       >
         <div className="message-bubble">
+          {!isOwn && senderName && (
+            <span className="message-sender-name">{senderName}</span>
+          )}
           <p className="message-content">{content}</p>
           <div className="message-meta">
             <span className="message-time">{formattedTime}</span>

@@ -67,6 +67,12 @@ public class SyncRoomMessagesEvent {
         private final Long senderTgId;
 
         /**
+         * Display name of the sender (firstName or @username from server-side user cache).
+         * May be null if the user is not in cache.
+         */
+        private final String senderName;
+
+        /**
          * Encrypted message content (Base64).
          */
         private final String encryptedContent;

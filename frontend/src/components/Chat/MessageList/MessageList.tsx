@@ -156,6 +156,7 @@ export const MessageList = memo(function MessageList({
           timestamp={message.timestamp}
           status={message.status}
           showDateSeparator={shouldShowDateSeparator(index)}
+          senderName={message.senderName}
         />
       ))}
 
