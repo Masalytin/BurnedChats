@@ -1197,14 +1197,16 @@ function AppContent() {
     );
   }
 
-  // Room chat view (P2-3.2.3) — entered after KEY_BUNDLE received
-  if (currentView === 'room-chat' && activeRoomChat) {
+  // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
+  if (currentView === 'room-chat' && activeRoomChat && user) {
     return (
       <>
         <Layout>
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}
+            userId={user.id}
+            ws={{ isConnected, subscribe, unsubscribe, publish }}
             onBack={() => {
               setActiveRoomChat(null);
               setCurrentView('home');
