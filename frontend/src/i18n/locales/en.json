@@ -6,7 +6,9 @@
     "retry": "Retry {{count}}",
     "copy": "Copy",
     "copied": "Copied!",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
 
   "status": {
@@ -153,6 +155,9 @@
       "successTitle": "Room created!",
       "copyLinkButton": "Copy Invite Link",
       "linkCopied": "Link copied",
+      "generatePassword": "Generate strong password",
+      "passwordGenerated": "Strong password generated and copied to clipboard!",
+      "passwordGeneratedNoCopy": "Strong password generated. Copy it manually.",
       "errorWeak": "Password is too weak",
       "errorNetwork": "Network error. Please try again"
     },

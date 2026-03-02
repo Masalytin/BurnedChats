@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { EyeIcon, EyeOffIcon } from '../../icons';
 import type { JoinRoomStatus, JoinRoomErrorCode } from '../../hooks/useJoinRoom';
 import type { RoomJoinMode } from '../../types';
 import './JoinRoomView.css';
@@ -45,10 +46,12 @@ export function JoinRoomView({
 }: JoinRoomViewProps) {
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Reset password when token changes (new invite link)
   useEffect(() => {
     setPassword('');
+    setShowPassword(false);
   }, [token]);
 
   const handleSubmit = useCallback(
@@ -169,13 +172,24 @@ export function JoinRoomView({
 
       <form className="join-room-view__form" onSubmit={handleSubmit} noValidate>
         <Input
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           label={t('room.join.passwordLabel')}
           placeholder={t('room.join.passwordPlaceholder')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
           autoComplete="current-password"
+          rightIcon={
+            <button
+              type="button"
+              className="input-icon-btn"
+              aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
+              onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+              disabled={isLoading}
+            >
+              {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+            </button>
+          }
         />
 
         {errorMessage && (

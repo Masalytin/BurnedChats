@@ -2,7 +2,9 @@ import { useState, useCallback, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { useToast } from '../Toast/ToastContext';
 import { validatePassword } from '../../crypto/kdf';
+import { EyeIcon, EyeOffIcon, SparklesIcon } from '../../icons';
 import type { RoomJoinMode } from '../../hooks/useCreateRoom';
 import './CreateRoomView.css';
 
@@ -27,6 +29,36 @@ interface CreateRoomViewProps {
  * - Client-side password validation before calling onSubmit
  * - All UI strings via react-i18next (room.create.*)
  */
+function generateSecurePassword(): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const special = '!@#$%^&*';
+  const all = upper + lower + digits + special;
+
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  const chars = Array.from(bytes).map((b) => all[b % all.length]);
+
+  // Ensure at least one char from each required category
+  const guaranteed = [
+    upper[crypto.getRandomValues(new Uint8Array(1))[0] % upper.length],
+    lower[crypto.getRandomValues(new Uint8Array(1))[0] % lower.length],
+    digits[crypto.getRandomValues(new Uint8Array(1))[0] % digits.length],
+    special[crypto.getRandomValues(new Uint8Array(1))[0] % special.length],
+  ];
+
+  // Splice guaranteed chars into random positions in the first 4 slots
+  guaranteed.forEach((ch, i) => { chars[i] = ch; });
+
+  // Fisher-Yates shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint8Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
+}
+
 export function CreateRoomView({
   isLoading = false,
   error,
@@ -35,11 +67,30 @@ export function CreateRoomView({
   className = '',
 }: CreateRoomViewProps) {
   const { t } = useTranslation();
+  const toast = useToast();
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [joinMode, setJoinMode] = useState<RoomJoinMode>('BY_PASSWORD');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleGeneratePassword = useCallback(async () => {
+    const generated = generateSecurePassword();
+    setPassword(generated);
+    setPasswordConfirm(generated);
+    setShowPassword(true);
+    setShowConfirm(true);
+    setValidationError(null);
+
+    try {
+      await navigator.clipboard.writeText(generated);
+      toast.success(t('room.create.passwordGenerated'));
+    } catch {
+      toast.info(t('room.create.passwordGeneratedNoCopy'));
+    }
+  }, [t, toast]);
 
   const validate = useCallback((): boolean => {
     const pwdError = validatePassword(password);
@@ -79,7 +130,7 @@ export function CreateRoomView({
       <form className="create-room-view__form" onSubmit={handleSubmit} noValidate>
         {/* Password */}
         <Input
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           label={t('room.create.passwordLabel')}
           placeholder={t('room.create.passwordPlaceholder')}
           value={password}
@@ -89,11 +140,22 @@ export function CreateRoomView({
           }}
           disabled={isLoading}
           autoComplete="new-password"
+          rightIcon={
+            <button
+              type="button"
+              className="input-icon-btn"
+              aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
+              onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+              disabled={isLoading}
+            >
+              {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+            </button>
+          }
         />
 
         {/* Confirm Password */}
         <Input
-          type="password"
+          type={showConfirm ? 'text' : 'password'}
           label={t('room.create.passwordConfirmLabel')}
           placeholder={t('room.create.passwordConfirmPlaceholder')}
           value={passwordConfirm}
@@ -103,7 +165,29 @@ export function CreateRoomView({
           }}
           disabled={isLoading}
           autoComplete="new-password"
+          rightIcon={
+            <button
+              type="button"
+              className="input-icon-btn"
+              aria-label={showConfirm ? t('common.hidePassword') : t('common.showPassword')}
+              onPointerDown={(e) => { e.preventDefault(); setShowConfirm((v) => !v); }}
+              disabled={isLoading}
+            >
+              {showConfirm ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+            </button>
+          }
         />
+
+        {/* Generate password */}
+        <button
+          type="button"
+          className="create-room-view__generate-btn"
+          onClick={handleGeneratePassword}
+          disabled={isLoading}
+        >
+          <SparklesIcon size={16} />
+          {t('room.create.generatePassword')}
+        </button>
 
         {/* Join mode */}
         <fieldset className="create-room-view__fieldset">

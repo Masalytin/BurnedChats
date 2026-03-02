@@ -33,6 +33,33 @@
   gap: var(--spacing-md, 16px);
 }
 
+/* Generate password button */
+.create-room-view__generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed var(--tg-theme-button-color, #2481cc);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tg-theme-button-color, #2481cc);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.create-room-view__generate-btn:hover {
+  opacity: 0.8;
+}
+
+.create-room-view__generate-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Join mode fieldset */
 .create-room-view__fieldset {
   border: 1px solid var(--tg-theme-hint-color, #ccc);

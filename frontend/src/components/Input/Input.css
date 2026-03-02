@@ -73,6 +73,44 @@
   height: 20px;
 }
 
+/* Interactive icon button inside input (e.g. eye toggle) */
+.input-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  /* 44×44 touch target for mobile */
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px -4px;
+  color: var(--bc-text-muted);
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--bc-transition-fast);
+}
+
+.input-icon-btn:hover {
+  color: var(--bc-text-secondary);
+}
+
+.input-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Suppress native browser password reveal buttons */
+.input-field[type="password"]::-ms-reveal,
+.input-field[type="password"]::-ms-clear {
+  display: none;
+}
+
+.input-field[type="password"]::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .input-error {
   font-size: var(--bc-text-sm);
   color: var(--bc-error);
