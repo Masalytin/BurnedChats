@@ -83,6 +83,8 @@ export interface SendRoomMessageResult {
 /** WebSocket interface (reused from useMessages pattern) */
 export interface UseRoomMessagesWebSocket {
   isConnected: boolean;
+  /** True when this is a reconnection (not the first connect) */
+  isReconnection?: boolean;
   subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
@@ -122,8 +124,10 @@ export interface UseRoomMessagesReturn {
  * consistent with how sessionId is used for 1-on-1 chats.
  */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, ws, isReconnection, onNewMessage, onError } = options;
-  const { isConnected, subscribe, unsubscribe, publish } = ws;
+  const { roomId, userId, ws, onNewMessage, onError } = options;
+  const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
+  // Accept isReconnection from top-level options (explicit) or from the ws object
+  const isReconnection = options.isReconnection ?? wsIsReconnection;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading] = useState(false);
@@ -409,10 +413,16 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     });
   }, [isConnected, roomId, isReconnection, messages, publish]);
 
-  // Reset sync flag when room changes
+  // Reset sync flag when room changes or when disconnected (so each reconnect can re-sync)
   useEffect(() => {
     syncTriggeredRef.current = false;
   }, [roomId]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      syncTriggeredRef.current = false;
+    }
+  }, [isConnected]);
 
   // Cleanup on room change
   useEffect(() => {

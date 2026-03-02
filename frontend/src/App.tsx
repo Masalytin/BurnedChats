@@ -82,7 +82,8 @@ function AppContent() {
   } = useTelegram();
   
   const { 
-    isConnected, 
+    isConnected,
+    isReconnection,
     isConnecting,
     error: wsError,
     reconnectAttempt,
@@ -1429,7 +1430,7 @@ function AppContent() {
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}
             userId={user.id}
-            ws={{ isConnected, subscribe, unsubscribe, publish }}
+            ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             isOwner={isRoomOwner}
             onBack={() => {
               setActiveRoomChat(null);
