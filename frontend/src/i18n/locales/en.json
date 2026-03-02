@@ -30,6 +30,12 @@
     "featureBurnDesc": "Destroy all traces of your conversation with one tap."
   },
 
+  "aria": {
+    "refreshRooms": "Refresh rooms",
+    "refreshSessions": "Refresh sessions",
+    "scrollToTopRefresh": "Scroll to top and refresh"
+  },
+
   "chat": {
     "verifiedTitle": "Encrypted & Verified",
     "burnButtonLabel": "Burn chat",

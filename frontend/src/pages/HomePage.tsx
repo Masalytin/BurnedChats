@@ -1,11 +1,11 @@
-import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TelegramUser } from '../hooks/useTelegram';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
 import { RoomCard } from '../components/RoomCard';
-import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon } from '../icons';
+import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon } from '../icons';
 import './HomePage.css';
 
 interface HomePageProps {
@@ -49,6 +49,10 @@ interface HomePageProps {
   isLoadingRooms?: boolean;
   /** Callback when user clicks a room card */
   onRoomClick?: (roomId: string) => void;
+  /** Callback to refresh rooms list */
+  onRefreshRooms?: () => void;
+  /** Callback to refresh all data (rooms + sessions) */
+  onRefreshAll?: () => void;
 }
 
 /** Default search result state */
@@ -84,9 +88,26 @@ export function HomePage({
   rooms = [],
   isLoadingRooms = false,
   onRoomClick,
+  onRefreshRooms,
+  onRefreshAll,
 }: HomePageProps) {
   const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
+  const [showFab, setShowFab] = useState(false);
+
+  // Show FAB after scrolling down 150px
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowFab(window.scrollY >= 150);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleScrollToTopRefresh = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    onRefreshAll?.();
+  }, [onRefreshAll]);
   
   // Use controlled or uncontrolled query
   const query = onSearchQueryChange ? searchQuery : localQuery;
@@ -263,14 +284,26 @@ export function HomePage({
       <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
         <div className="home-section-header">
           <h3 className="home-section-title">{t('room.sectionMyRooms')}</h3>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!isConnected}
-            onClick={onCreateRoom}
-          >
-            {t('room.createRoomButton')}
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--bc-spacing-xs)' }}>
+            <button
+              type="button"
+              className={`home-refresh-btn${isLoadingRooms ? ' home-refresh-btn--spinning' : ''}`}
+              onClick={onRefreshRooms}
+              disabled={!isConnected || isLoadingRooms}
+              aria-label={t('aria.refreshRooms')}
+              title={t('aria.refreshRooms')}
+            >
+              <RefreshIcon size={16} />
+            </button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!isConnected}
+              onClick={onCreateRoom}
+            >
+              {t('room.createRoomButton')}
+            </Button>
+          </div>
         </div>
 
         {isLoadingRooms && (
@@ -315,7 +348,19 @@ export function HomePage({
 
       {/* Active Sessions List (4.6.7) with Pull-to-Refresh (4.6.12) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '300ms' }}>
-        <h3 className="home-section-title">{t('home.sectionSessions')}</h3>
+        <div className="home-section-header">
+          <h3 className="home-section-title">{t('home.sectionSessions')}</h3>
+          <button
+            type="button"
+            className={`home-refresh-btn${isLoadingSessions ? ' home-refresh-btn--spinning' : ''}`}
+            onClick={() => onRefreshSessions?.()}
+            disabled={!isConnected || isLoadingSessions}
+            aria-label={t('aria.refreshSessions')}
+            title={t('aria.refreshSessions')}
+          >
+            <RefreshIcon size={16} />
+          </button>
+        </div>
         
         <PullToRefresh
           onRefresh={() => onRefreshSessions?.()}
@@ -356,6 +401,16 @@ export function HomePage({
           )}
         </PullToRefresh>
       </section>
+      {/* Scroll-to-top + refresh FAB */}
+      <button
+        type="button"
+        className={`home-scroll-top-fab${showFab ? '' : ' home-scroll-top-fab--hidden'}`}
+        onClick={handleScrollToTopRefresh}
+        aria-label={t('aria.scrollToTopRefresh')}
+        title={t('aria.scrollToTopRefresh')}
+      >
+        <ArrowUpIcon size={20} />
+      </button>
     </div>
   );
 }

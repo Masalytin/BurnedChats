@@ -30,6 +30,12 @@
     "featureBurnDesc": "Уничтожьте все следы переписки одним нажатием."
   },
 
+  "aria": {
+    "refreshRooms": "Обновить комнаты",
+    "refreshSessions": "Обновить сессии",
+    "scrollToTopRefresh": "Наверх и обновить"
+  },
+
   "chat": {
     "verifiedTitle": "Зашифровано и верифицировано",
     "burnButtonLabel": "Сжечь чат",

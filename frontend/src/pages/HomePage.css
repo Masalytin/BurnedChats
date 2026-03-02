@@ -345,4 +345,79 @@
   }
 }
 
+/* Refresh icon-button in section headers */
+.home-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-muted);
+  cursor: pointer;
+  border-radius: var(--bc-radius-sm);
+  transition: color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.home-refresh-btn:hover:not(:disabled) {
+  color: var(--bc-brand-primary);
+  background: var(--bc-bg-secondary);
+}
+
+.home-refresh-btn:active:not(:disabled) {
+  opacity: 0.7;
+}
+
+.home-refresh-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.home-refresh-btn--spinning svg {
+  animation: home-spin 0.8s linear infinite;
+}
+
+@keyframes home-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Floating action button — scroll to top + refresh */
+.home-scroll-top-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bc-brand-primary);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+}
+
+.home-scroll-top-fab:hover {
+  background: var(--bc-brand-secondary, var(--bc-brand-primary));
+  transform: scale(1.08);
+}
+
+.home-scroll-top-fab:active {
+  transform: scale(0.95);
+}
+
+.home-scroll-top-fab--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+}
+
 

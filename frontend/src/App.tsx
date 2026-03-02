@@ -376,6 +376,7 @@ function AppContent() {
   const {
     rooms: myRooms,
     isLoading: isLoadingRooms,
+    fetchRooms,
   } = useMyRooms({
     isConnected,
     subscribe,
@@ -914,6 +915,19 @@ function AppContent() {
       }
     }
   }, [currentView, activeIncomingRequest, incomingRequests, clearIncomingRequest]);
+
+  // Auto-refresh rooms and sessions on every navigation back to 'home'
+  // useRef(true) skips the initial mount so we don't fire an extra fetch on startup
+  const isFirstHomeRender = useRef(true);
+  useEffect(() => {
+    if (currentView !== 'home') return;
+    if (isFirstHomeRender.current) {
+      isFirstHomeRender.current = false;
+      return;
+    }
+    fetchRooms();
+    fetchSessions();
+  }, [currentView, fetchRooms, fetchSessions]);
 
   // Refs for burn-signal handler dependencies — avoids re-subscription on every state change
   const burnSignalDepsRef = useRef({
@@ -1505,6 +1519,8 @@ function AppContent() {
           rooms={myRooms}
           isLoadingRooms={isLoadingRooms}
           onRoomClick={handleRoomClick}
+          onRefreshRooms={fetchRooms}
+          onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
         />
 
         {/* Chat request dialog */}
