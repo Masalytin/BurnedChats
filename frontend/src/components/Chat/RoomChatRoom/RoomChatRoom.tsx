@@ -1,7 +1,8 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import { Button } from '../../Button';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import type { UseRoomMessagesWebSocket } from '@/hooks/useRoomMessages';
@@ -16,6 +17,31 @@ function BackIcon() {
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path
         d="M12.5 15L7.5 10L12.5 5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ============================================
+// Leave icon (inline SVG)
+// ============================================
+
+function LeaveIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M13 14l4-4-4-4M17 10H7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 3H5a1 1 0 00-1 1v12a1 1 0 001 1h5"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -64,6 +90,8 @@ interface RoomChatRoomProps {
   onBack?: () => void;
   /** Callback to open room management (owner only) */
   onManage?: () => void;
+  /** Callback to leave the room (member only, hidden for owner) */
+  onLeave?: () => void;
 }
 
 // ============================================
@@ -90,9 +118,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   isOwner = false,
   onBack,
   onManage,
+  onLeave,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const hasKey = hasGroupKey(roomId);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const { messages, sendMessage, isLoading, isSyncing } = useRoomMessages({
     roomId,
@@ -103,6 +133,19 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const handleSend = useCallback((text: string) => {
     sendMessage(text);
   }, [sendMessage]);
+
+  const handleLeaveClick = useCallback(() => {
+    setShowLeaveConfirm(true);
+  }, []);
+
+  const handleLeaveConfirm = useCallback(() => {
+    setShowLeaveConfirm(false);
+    onLeave?.();
+  }, [onLeave]);
+
+  const handleLeaveCancel = useCallback(() => {
+    setShowLeaveConfirm(false);
+  }, []);
 
   // ----------------------------------------
   // Header subtitle: member count or E2EE info
@@ -146,16 +189,28 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             <div className="room-chat-room-subtitle">{subtitle}</div>
           </div>
         </div>
-        {isOwner && onManage && (
-          <button
-            type="button"
-            className="room-chat-room-manage"
-            onClick={onManage}
-            aria-label={t('room.manage.title')}
-          >
-            <SettingsIcon />
-          </button>
-        )}
+        <div className="room-chat-room-header-right">
+          {isOwner && onManage && (
+            <button
+              type="button"
+              className="room-chat-room-manage"
+              onClick={onManage}
+              aria-label={t('room.manage.title')}
+            >
+              <SettingsIcon />
+            </button>
+          )}
+          {!isOwner && onLeave && (
+            <button
+              type="button"
+              className="room-chat-room-leave"
+              onClick={handleLeaveClick}
+              aria-label={t('room.manage.leaveButton')}
+            >
+              <LeaveIcon />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -180,6 +235,31 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             </div>
             <div className="room-chat-room-placeholder-hint">
               {t('room.chat.noAccessHint')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave room confirmation dialog */}
+      {showLeaveConfirm && (
+        <div className="room-chat-room-leave-overlay" role="dialog" aria-modal="true">
+          <div className="room-chat-room-leave-dialog">
+            <div className="room-chat-room-leave-dialog__icon">🚪</div>
+            <h3 className="room-chat-room-leave-dialog__title">{t('room.leave.title')}</h3>
+            <p className="room-chat-room-leave-dialog__text">{t('room.leave.description')}</p>
+            <p className="room-chat-room-leave-dialog__warning">{t('room.leave.warning')}</p>
+            <div className="room-chat-room-leave-dialog__actions">
+              <Button variant="secondary" onClick={handleLeaveCancel} fullWidth>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                className="room-chat-room-leave-dialog__confirm-btn"
+                onClick={handleLeaveConfirm}
+                fullWidth
+              >
+                {t('room.leave.confirmButton')}
+              </Button>
             </div>
           </div>
         </div>

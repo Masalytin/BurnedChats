@@ -1010,6 +1010,13 @@ function AppContent() {
     };
   }, [isConnected, subscribe, unsubscribe]);
 
+  // Handle leaving room (non-owner) (P2-4.3.4)
+  const handleLeaveRoom = useCallback(() => {
+    if (!activeRoomChat || !isConnected) return;
+    publish('/app/room.leave', { roomId: activeRoomChat.roomId });
+    debugLog('info', `[RoomChat] LEAVE_ROOM sent for ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, publish]);
+
   // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
   const roomBurnedDepsRef = useRef({
     currentView,
@@ -1073,6 +1080,104 @@ function AppContent() {
       unsubscribe('/user/queue/room-burned');
     };
   }, [isConnected, subscribe, unsubscribe, t]);
+
+  // Refs for ROOM_LEFT / ROOM_MEMBER_LEFT handler dependencies
+  const roomLeftDepsRef = useRef({
+    currentView,
+    activeRoomChat,
+    myRooms,
+    notificationOccurred,
+    toast,
+  });
+  useEffect(() => {
+    roomLeftDepsRef.current = {
+      currentView,
+      activeRoomChat,
+      myRooms,
+      notificationOccurred,
+      toast,
+    };
+  });
+
+  // Subscribe to ROOM_LEFT — leaver receives confirmation (P2-4.3.4)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRoomLeft = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body) as {
+          success: boolean;
+          roomId?: string;
+          error?: string;
+        };
+        const deps = roomLeftDepsRef.current;
+
+        if (data.success && data.roomId) {
+          const roomId = data.roomId;
+
+          burnGroupKey(roomId);
+
+          const isViewingRoom =
+            (deps.currentView === 'room-chat' || deps.currentView === 'room-manage') &&
+            deps.activeRoomChat?.roomId === roomId;
+
+          if (isViewingRoom) {
+            setActiveRoomChat(null);
+            setCurrentView('home');
+          }
+
+          deps.notificationOccurred('success');
+          deps.toast.success(t('room.left'));
+        } else if (!data.success && data.error) {
+          deps.notificationOccurred('error');
+          deps.toast.error(`Failed to leave room: ${data.error}`, { title: 'Error' });
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse ROOM_LEFT event:', err);
+      }
+    };
+
+    subscribe('/user/queue/room-left', handleRoomLeft);
+
+    return () => {
+      unsubscribe('/user/queue/room-left');
+    };
+  }, [isConnected, subscribe, unsubscribe, t]);
+
+  // Subscribe to ROOM_MEMBER_LEFT — remaining members (owner) receive this to trigger rekey (P2-4.3.4)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRoomMemberLeft = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body) as {
+          roomId?: string;
+          leftTgId?: number;
+        };
+        const deps = roomLeftDepsRef.current;
+
+        if (!data.roomId) return;
+
+        const roomId = data.roomId;
+        const isOwner = deps.myRooms.find(r => r.roomId === roomId)?.role === 'owner';
+
+        debugLog('info', `[RoomChat] ROOM_MEMBER_LEFT: room=${roomId}, leftTgId=${data.leftTgId}, isOwner=${isOwner}`);
+
+        if (isOwner) {
+          // Owner must rotate the group key so the departed member loses access
+          rekeyRoomRef.current(roomId);
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse ROOM_MEMBER_LEFT event:', err);
+      }
+    };
+
+    subscribe('/user/queue/room-member-left', handleRoomMemberLeft);
+
+    return () => {
+      unsubscribe('/user/queue/room-member-left');
+    };
+  }, [isConnected, subscribe, unsubscribe]);
 
   // Handle key refresh notifications (peer reconnected and needs re-handshake)
   // When the peer sends a new key for an ACTIVE session, the server notifies us
@@ -1331,6 +1436,7 @@ function AppContent() {
               setCurrentView('home');
             }}
             onManage={isRoomOwner ? handleOpenRoomManage : undefined}
+            onLeave={!isRoomOwner ? handleLeaveRoom : undefined}
           />
         </Layout>
         {debugPanelElement}

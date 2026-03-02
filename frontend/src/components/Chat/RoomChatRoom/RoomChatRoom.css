@@ -3,6 +3,7 @@
  * ============================================ */
 
 .room-chat-room {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -56,7 +57,15 @@
   transform: scale(0.95);
 }
 
-.room-chat-room-manage {
+.room-chat-room-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  flex-shrink: 0;
+}
+
+.room-chat-room-manage,
+.room-chat-room-leave {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -64,12 +73,14 @@
   height: 36px;
   border: none;
   background: transparent;
-  color: var(--bc-text-secondary);
   cursor: pointer;
   border-radius: var(--bc-radius-full);
   transition: background var(--bc-transition-fast), color var(--bc-transition-fast);
   flex-shrink: 0;
-  margin-left: auto;
+}
+
+.room-chat-room-manage {
+  color: var(--bc-text-secondary);
 }
 
 .room-chat-room-manage:hover {
@@ -77,8 +88,80 @@
   color: var(--bc-text-primary);
 }
 
-.room-chat-room-manage:active {
+.room-chat-room-manage:active,
+.room-chat-room-leave:active {
   transform: scale(0.95);
+}
+
+.room-chat-room-leave {
+  color: var(--bc-danger, #ef4444);
+}
+
+.room-chat-room-leave:hover {
+  background: color-mix(in srgb, var(--bc-danger, #ef4444) 12%, transparent);
+}
+
+/* ============================================
+ * Leave Confirmation Dialog
+ * ============================================ */
+
+.room-chat-room-leave-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--bc-spacing-md);
+}
+
+.room-chat-room-leave-dialog {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  padding: var(--bc-spacing-lg);
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.room-chat-room-leave-dialog__icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--bc-spacing-xs);
+}
+
+.room-chat-room-leave-dialog__title {
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+  margin: 0;
+}
+
+.room-chat-room-leave-dialog__text {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: 0;
+}
+
+.room-chat-room-leave-dialog__warning {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  margin: 0;
+}
+
+.room-chat-room-leave-dialog__actions {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+  margin-top: var(--bc-spacing-xs);
+}
+
+.room-chat-room-leave-dialog__confirm-btn {
+  background: var(--bc-danger, #ef4444) !important;
+  border-color: var(--bc-danger, #ef4444) !important;
 }
 
 .room-chat-room-info {

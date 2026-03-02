@@ -7,6 +7,8 @@ import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
+import dev.burnedchats.dto.event.RoomLeftEvent;
+import dev.burnedchats.dto.event.RoomMemberLeftEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
@@ -14,6 +16,7 @@ import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
+import dev.burnedchats.dto.request.LeaveRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
@@ -64,6 +67,7 @@ import java.util.Objects;
  *   <li>{@code /app/room.getMyRooms} — returns all rooms where the user is a participant or owner</li>
  *   <li>{@code /app/room.getMembers} — returns the list of member tgIds for a room (P2-4.3.1)</li>
  *   <li>{@code /app/room.burn} — burn the room (owner only); deletes all room data and notifies members (P2-4.3.2)</li>
+ *   <li>{@code /app/room.leave} — member (non-owner) leaves the room; triggers rekey notification (P2-4.3.4)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -80,6 +84,8 @@ import java.util.Objects;
  *   <li>{@code /user/queue/room-list} — list of rooms the user participates in</li>
  *   <li>{@code /user/queue/room-members} — list of member tgIds for a room (P2-4.3.1)</li>
  *   <li>{@code /user/queue/room-burned} — ROOM_BURNED notification (sent to all members including owner) (P2-4.3.2)</li>
+ *   <li>{@code /user/queue/room-left} — LEFT_ROOM confirmation (sent to the leaving member) (P2-4.3.4)</li>
+ *   <li>{@code /user/queue/room-member-left} — member-left notification (sent to remaining members; triggers owner rekey) (P2-4.3.4)</li>
  * </ul>
  *
  * <p>Security contract:
@@ -106,6 +112,8 @@ public class RoomHandler {
     private static final String ROOM_LIST_DESTINATION = "/queue/room-list";
     private static final String ROOM_MEMBERS_LIST_DESTINATION = "/queue/room-members";
     private static final String ROOM_BURNED_DESTINATION = "/queue/room-burned";
+    private static final String ROOM_LEFT_DESTINATION = "/queue/room-left";
+    private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -769,6 +777,86 @@ public class RoomHandler {
                                     String.valueOf(ownerTgId),
                                     ROOM_BURNED_DESTINATION,
                                     RoomBurnedEvent.error(roomId, code)
+                            );
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
+    // Leave room (P2-4.3.4)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code LEAVE_ROOM} — a non-owner member voluntarily leaves the room.
+     *
+     * <p>Flow:
+     * <ol>
+     *   <li>Verify the caller is NOT the room owner (owner must burn instead).</li>
+     *   <li>Verify the caller IS a current member.</li>
+     *   <li>Remove the caller from {@code room_members} and the reverse index.</li>
+     *   <li>Delete the caller's public key from {@code room_member_pubkey}.</li>
+     *   <li>Send {@code LEFT_ROOM} to the leaving member.</li>
+     *   <li>Send {@code ROOM_MEMBER_LEFT} to all remaining members so the owner can initiate rekey.</li>
+     * </ol>
+     *
+     * @param request   contains {@code roomId}
+     * @param principal the authenticated Telegram user (must be a non-owner member)
+     */
+    @MessageMapping("/room.leave")
+    public void leaveRoom(@Payload @Valid LeaveRoomRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long callerTgId = tp.getUserId();
+        String roomId = request.getRoomId();
+
+        log.info("LEAVE_ROOM requested: roomId={}, callerTgId={}", roomId, callerTgId);
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (room.getOwnerTgId().equals(callerTgId)) {
+                        return reactor.core.publisher.Mono.error(
+                                new IllegalStateException("OWNER_CANNOT_LEAVE"));
+                    }
+                    return roomMembersRepository.isMember(roomId, callerTgId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return reactor.core.publisher.Mono.error(
+                                            new SecurityException("NOT_MEMBER"));
+                                }
+                                return roomMembersRepository.remove(roomId, callerTgId)
+                                        .then(memberPublicKeyRepository.remove(roomId, callerTgId))
+                                        .then(roomMembersRepository.getMembers(roomId).collectList());
+                            });
+                })
+                .subscribe(
+                        remainingMembers -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(callerTgId),
+                                    ROOM_LEFT_DESTINATION,
+                                    RoomLeftEvent.success(roomId)
+                            );
+                            RoomMemberLeftEvent memberLeftEvent = RoomMemberLeftEvent.of(roomId, callerTgId);
+                            remainingMembers.forEach(memberTgIdStr ->
+                                    messagingTemplate.convertAndSendToUser(
+                                            memberTgIdStr,
+                                            ROOM_MEMBER_LEFT_DESTINATION,
+                                            memberLeftEvent
+                                    )
+                            );
+                            log.info("LEAVE_ROOM processed: roomId={}, leftTgId={}, remainingMembers={}",
+                                    roomId, callerTgId, remainingMembers.size());
+                        },
+                        error -> {
+                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage()
+                                    : error instanceof IllegalStateException ise ? ise.getMessage()
+                                    : error instanceof SecurityException ? "NOT_MEMBER"
+                                    : "INTERNAL_ERROR";
+                            log.warn("LEAVE_ROOM failed: roomId={}, callerTgId={}, error={}",
+                                    roomId, callerTgId, code);
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(callerTgId),
+                                    ROOM_LEFT_DESTINATION,
+                                    RoomLeftEvent.error(roomId, code)
                             );
                         }
                 );
