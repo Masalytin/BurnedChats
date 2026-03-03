@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
+import { useToast } from '../Toast';
 import './CreateRoomView.css';
 
 interface RoomCreatedSuccessProps {
@@ -26,11 +27,13 @@ export function RoomCreatedSuccess({
   pendingRequestsCount = 0,
 }: RoomCreatedSuccessProps) {
   const { t } = useTranslation();
+  const toast = useToast();
 
   const handleCopyLink = useCallback(async () => {
     if (!inviteLink) return;
     await navigator.clipboard.writeText(inviteLink);
-  }, [inviteLink]);
+    toast.success(t('room.create.linkCopied'));
+  }, [inviteLink, toast, t]);
 
   return (
     <div className="create-room-view create-room-view--success">
