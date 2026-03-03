@@ -55,6 +55,8 @@ type AppView =
 interface ActiveRoomChat {
   roomId: string;
   epoch: number;
+  /** Cached owner flag — used as fallback before myRooms is populated. */
+  isOwner?: boolean;
 }
 
 /** Active chat state */
@@ -1382,7 +1384,7 @@ function AppContent() {
               onEnterRoom={() => {
                 const roomId = createRoomResult.roomId!;
                 resetCreateRoom();
-                setActiveRoomChat({ roomId, epoch: 0 });
+                setActiveRoomChat({ roomId, epoch: 0, isOwner: true });
                 setCurrentView('room-chat');
               }}
             />
@@ -1456,7 +1458,9 @@ function AppContent() {
   // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
   if (currentView === 'room-chat' && activeRoomChat && user) {
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
-    const isRoomOwner = activeRoom?.role === 'owner';
+    // Fall back to the cached isOwner flag when myRooms hasn't loaded yet
+    // (e.g. immediately after room creation before fetchRooms completes).
+    const isRoomOwner = activeRoom ? activeRoom.role === 'owner' : (activeRoomChat.isOwner ?? false);
 
     return (
       <>
