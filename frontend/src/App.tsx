@@ -267,9 +267,14 @@ function AppContent() {
     publish,
     onApproved: (roomId) => {
       notificationOccurred('success');
-      toast.success('Joined room! Waiting for encryption key…');
-      console.log('[App] Joined room:', roomId, '— waiting for KEY_BUNDLE');
-      // Navigation to room-chat happens in useKeyBundle.onKeyReceived (P2-3.2.3)
+      toast.success('Joined room! Loading encryption key…');
+      console.log('[App] Joined room:', roomId, '— navigating to room-chat, KEY_BUNDLE incoming');
+      // Navigate immediately; RoomChatRoom shows a loading state until KEY_BUNDLE arrives.
+      // useKeyBundle.onKeyReceived will update the epoch once the key is delivered.
+      resetJoinRoom();
+      setInviteToken(null);
+      setActiveRoomChat({ roomId, epoch: 0 });
+      setCurrentView('room-chat');
     },
     onRejected: () => {
       notificationOccurred('error');
@@ -434,6 +439,10 @@ function AppContent() {
 
   // Invite token state (P2-2.1.3)
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+
+  // Tracks which invite token was already routed to join-room, preventing
+  // the deep-link effect from re-firing (and resetting state) on WS reconnect.
+  const inviteSetupTokenRef = useRef<string | null>(null);
 
   // Active room ID for the requests view (P2-2.2.5)
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -662,6 +671,11 @@ function AppContent() {
 
   // Handle invite deep link from startapp parameter (P2-2.1.3)
   // startParam format: "invite_{token}" → route to join-room view
+  //
+  // `isConnected` is kept in deps so loadInviteInfo is called as soon as the
+  // WebSocket is ready.  The inviteSetupTokenRef guard ensures the navigation /
+  // state-reset block only runs ONCE per token, preventing the effect from
+  // kicking the user out of room-chat on WS reconnect.
   useEffect(() => {
     if (!isReady) return;
     if (!startParam) return;
@@ -670,11 +684,16 @@ function AppContent() {
     const token = startParam.slice('invite_'.length);
     if (!token) return;
 
-    resetJoinRoom();
-    setInviteToken(token);
-    setCurrentView('join-room');
-    // Load invite info once connected; if not connected yet, loadInviteInfo
-    // will be called again when handleJoinByToken is re-triggered or user retries.
+    if (inviteSetupTokenRef.current !== token) {
+      // First time seeing this token — navigate to join-room and reset state.
+      inviteSetupTokenRef.current = token;
+      resetJoinRoom();
+      setInviteToken(token);
+      setCurrentView('join-room');
+    }
+
+    // Load invite info as soon as we are connected (safe to call idempotently;
+    // the hook ignores the response once the form has been submitted).
     if (isConnected) {
       loadInviteInfo(token);
     }
@@ -1361,8 +1380,10 @@ function AppContent() {
               onViewRequests={handleViewRequests}
               pendingRequestsCount={pendingJoinCount}
               onEnterRoom={() => {
+                const roomId = createRoomResult.roomId!;
                 resetCreateRoom();
-                setCurrentView('home');
+                setActiveRoomChat({ roomId, epoch: 0 });
+                setCurrentView('room-chat');
               }}
             />
           ) : (
