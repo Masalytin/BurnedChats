@@ -1,6 +1,7 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.NewRoomMessageEvent;
+import dev.burnedchats.dto.event.RoomMessageSentEvent;
 import dev.burnedchats.dto.event.SyncRoomMessagesEvent;
 import dev.burnedchats.dto.request.SendRoomMessageRequest;
 import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
@@ -81,6 +82,11 @@ public class RoomMessageHandler {
      * STOMP topic for broadcasting new messages to all room subscribers.
      */
     private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
+
+    /**
+     * STOMP destination for delivery acknowledgment sent back to the sender.
+     */
+    private static final String ROOM_MESSAGE_SENT_DESTINATION = "/queue/room-message-sent";
 
     /**
      * STOMP destination for error events sent back to the sender.
@@ -182,6 +188,13 @@ public class RoomMessageHandler {
                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
                     log.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
                             roomId, messageId, senderTgId);
+                    // Send delivery acknowledgment back to sender so the client can
+                    // transition the message status from 'sending' to 'sent'.
+                    messagingTemplate.convertAndSendToUser(
+                            String.valueOf(senderTgId),
+                            ROOM_MESSAGE_SENT_DESTINATION,
+                            RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
+                    );
                     return Mono.<Void>empty();
                 });
     }
@@ -247,11 +260,10 @@ public class RoomMessageHandler {
     }
 
     private void sendError(Long senderTgId, String roomId, String messageId, String errorCode) {
-        NewRoomMessageEvent event = NewRoomMessageEvent.error(roomId, messageId, errorCode);
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(senderTgId),
-                ROOM_MESSAGE_ERROR_DESTINATION,
-                event
+                ROOM_MESSAGE_SENT_DESTINATION,
+                RoomMessageSentEvent.error(roomId, messageId, errorCode)
         );
         log.trace("Sent room message error to sender {}: {}", senderTgId, errorCode);
     }

@@ -29,6 +29,8 @@ interface ServerJoinRequestEvent {
   senderFirstName: string;
   requestedAt: number;
   senderPublicKey?: string | null;
+  /** True when the server auto-approved a BY_PASSWORD join — owner must send KEY_BUNDLE immediately. */
+  autoApproved?: boolean;
 }
 
 /** In-memory map of senderTgId → senderPublicKey, keyed as "{roomId}:{senderTgId}". */
@@ -73,8 +75,10 @@ export function useRoomJoinRequests({
   const [requests, setRequests] = useState<RoomJoinRequest[]>([]);
   const isSubscribedRef = useRef(false);
   const onNewRequestRef = useRef(onNewRequest);
+  const publishRef = useRef(publish);
   useEffect(() => {
     onNewRequestRef.current = onNewRequest;
+    publishRef.current = publish;
   });
 
   // ----------------------------------------
@@ -84,6 +88,53 @@ export function useRoomJoinRequests({
   const handleJoinRequest = useCallback((message: IMessage) => {
     try {
       const data: ServerJoinRequestEvent = JSON.parse(message.body);
+
+      // Store sender's public key so we can wrap the group key when accepting
+      if (data.senderPublicKey) {
+        pendingPublicKeys.set(`${data.roomId}:${data.senderTgId}`, data.senderPublicKey);
+      }
+
+      if (data.autoApproved) {
+        // BY_PASSWORD: participant already joined — skip the UI dialog and immediately
+        // wrap + deliver the KEY_BUNDLE so the participant can decrypt messages.
+        const sendBundleAuto = async () => {
+          const groupKeyEntry = getGroupKeyEntry(data.roomId);
+          if (!groupKeyEntry) {
+            console.warn('[useRoomJoinRequests] autoApproved: no group key for room', data.roomId);
+            return;
+          }
+          const senderPublicKeyBase64 = pendingPublicKeys.get(`${data.roomId}:${data.senderTgId}`);
+          if (!senderPublicKeyBase64) {
+            console.warn('[useRoomJoinRequests] autoApproved: no public key for sender', data.senderTgId);
+            return;
+          }
+          try {
+            const senderPubKey = await importPublicKey(senderPublicKeyBase64);
+            const bundle = await wrapGroupKey(
+              groupKeyEntry.key,
+              senderPubKey,
+              String(data.senderTgId),
+              data.roomId,
+              groupKeyEntry.epoch,
+            );
+            publishRef.current(SEND_KEY_BUNDLE_DESTINATION, {
+              roomId: bundle.roomId,
+              recipientTgId: data.senderTgId,
+              epoch: bundle.epoch,
+              ephemeralPublicKey: bundle.ephemeralPublicKey,
+              encryptedKey: bundle.encryptedKey,
+              iv: bundle.iv,
+            });
+            pendingPublicKeys.delete(`${data.roomId}:${data.senderTgId}`);
+            console.info('[useRoomJoinRequests] KEY_BUNDLE sent to auto-approved member', data.senderTgId);
+          } catch (err) {
+            console.error('[useRoomJoinRequests] Failed to send KEY_BUNDLE for auto-approved member:', err);
+          }
+        };
+        sendBundleAuto();
+        return;
+      }
+
       const request: RoomJoinRequest = {
         roomId: data.roomId,
         senderTgId: data.senderTgId,
@@ -91,11 +142,6 @@ export function useRoomJoinRequests({
         senderFirstName: data.senderFirstName,
         requestedAt: data.requestedAt,
       };
-
-      // Store sender's public key so we can wrap the group key when accepting
-      if (data.senderPublicKey) {
-        pendingPublicKeys.set(`${data.roomId}:${data.senderTgId}`, data.senderPublicKey);
-      }
 
       setRequests(prev => {
         // Deduplicate: replace existing request from same sender in same room

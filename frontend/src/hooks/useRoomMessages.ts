@@ -11,7 +11,7 @@ import type { DecryptedMessage, MessageStatus } from '@/types';
 const SEND_ROOM_MESSAGE_DESTINATION = '/app/room.message.send';
 const ROOM_MESSAGE_SENT_DESTINATION = '/user/queue/room-message-sent';
 const SYNC_ROOM_MESSAGES_DESTINATION = '/app/room.message.sync';
-const SYNC_ROOM_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-room-messages';
+const SYNC_ROOM_MESSAGES_RESULT_DESTINATION = '/user/queue/room-sync-messages';
 
 function getRoomTopic(roomId: string): string {
   return `/topic/room/${roomId}`;
@@ -243,8 +243,18 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         };
 
         setMessages(prev => {
-          const exists = prev.some(m => m.id === event.messageId);
-          if (exists) return prev;
+          const existingIndex = prev.findIndex(m => m.id === event.messageId);
+          if (existingIndex !== -1) {
+            // Own message received back via broadcast — update status from 'sending' to 'sent'
+            // (acts as implicit ACK from the server that the message was stored and broadcast)
+            const existing = prev[existingIndex];
+            if (existing.status === 'sending') {
+              const updated = [...prev];
+              updated[existingIndex] = { ...existing, status: 'sent' as MessageStatus };
+              return updated;
+            }
+            return prev;
+          }
           return [...prev, decryptedMessage].sort((a, b) => a.timestamp - b.timestamp);
         });
 

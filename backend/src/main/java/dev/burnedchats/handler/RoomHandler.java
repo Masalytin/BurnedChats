@@ -300,11 +300,26 @@ public class RoomHandler {
                 .subscribe(
                         result -> {
                             if (result instanceof RoomJoinService.JoinResult.Approved approved) {
-                                log.info("User {} joined room {} directly", senderTgId, approved.roomId());
+                                log.info("User {} joined room {} directly (BY_PASSWORD)", senderTgId, approved.roomId());
                                 messagingTemplate.convertAndSendToUser(
                                         String.valueOf(senderTgId),
                                         JOIN_RESULT_DESTINATION,
                                         JoinApprovedEvent.success(approved.roomId())
+                                );
+                                // Notify owner to wrap and deliver the KEY_BUNDLE to the new member.
+                                // The owner's client handles autoApproved=true by sending KEY_BUNDLE
+                                // immediately without showing a confirmation dialog.
+                                messagingTemplate.convertAndSendToUser(
+                                        String.valueOf(approved.ownerTgId()),
+                                        JOIN_REQUESTS_DESTINATION,
+                                        RoomJoinRequestEvent.autoApproved(
+                                                approved.roomId(),
+                                                senderTgId,
+                                                tp.getUsername(),
+                                                tp.getFirstName(),
+                                                System.currentTimeMillis(),
+                                                request.getPublicKey()
+                                        )
                                 );
                             } else if (result instanceof RoomJoinService.JoinResult.Pending pending) {
                                 log.info("Join request pending: roomId={}, senderTgId={}, ownerTgId={}",

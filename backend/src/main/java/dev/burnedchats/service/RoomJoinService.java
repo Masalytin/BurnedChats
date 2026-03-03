@@ -49,7 +49,7 @@ public class RoomJoinService {
     public sealed interface JoinResult permits JoinResult.Approved, JoinResult.Pending {
 
         /** User was added to the room immediately (BY_PASSWORD mode). */
-        record Approved(String roomId) implements JoinResult {}
+        record Approved(String roomId, Long ownerTgId) implements JoinResult {}
 
         /**
          * A join request was created; the owner must accept it (BY_REQUEST mode).
@@ -159,7 +159,7 @@ public class RoomJoinService {
     private Mono<JoinResult> joinByPassword(Room room, Long senderTgId, String senderPublicKey) {
         return roomMembersRepository.add(room.getId(), senderTgId)
                 .then(memberPublicKeyRepository.put(room.getId(), senderTgId, senderPublicKey))
-                .thenReturn((JoinResult) new JoinResult.Approved(room.getId()))
+                .thenReturn((JoinResult) new JoinResult.Approved(room.getId(), room.getOwnerTgId()))
                 .doOnSuccess(r -> log.info("User {} joined room {} directly (BY_PASSWORD)",
                         senderTgId, room.getId()));
     }

@@ -40,6 +40,12 @@ public class RoomJoinRequestEvent {
      */
     private String senderPublicKey;
 
+    /**
+     * True when the join was auto-approved by the server (BY_PASSWORD mode).
+     * The owner's client should immediately wrap and send the KEY_BUNDLE without user interaction.
+     */
+    private boolean autoApproved;
+
     public static RoomJoinRequestEvent of(String roomId, Long senderTgId,
                                           String senderUsername, String senderFirstName,
                                           Long requestedAt, String senderPublicKey) {
@@ -50,6 +56,21 @@ public class RoomJoinRequestEvent {
                 .senderFirstName(senderFirstName)
                 .requestedAt(requestedAt)
                 .senderPublicKey(senderPublicKey)
+                .autoApproved(false)
+                .build();
+    }
+
+    public static RoomJoinRequestEvent autoApproved(String roomId, Long senderTgId,
+                                                     String senderUsername, String senderFirstName,
+                                                     Long requestedAt, String senderPublicKey) {
+        return RoomJoinRequestEvent.builder()
+                .roomId(roomId)
+                .senderTgId(senderTgId)
+                .senderUsername(senderUsername)
+                .senderFirstName(senderFirstName)
+                .requestedAt(requestedAt)
+                .senderPublicKey(senderPublicKey)
+                .autoApproved(true)
                 .build();
     }
 }
