@@ -85,8 +85,13 @@ public class RoomJoinService {
                                         String senderPublicKey) {
         return inviteTokenRepository.findByToken(inviteToken)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN")))
-                .flatMap(token -> roomRepository.findById(token.getRoomId())
-                        .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND"))))
+                .flatMap(token -> {
+                    if (token.getExpiresAt() < Instant.now().toEpochMilli()) {
+                        return Mono.error(new IllegalArgumentException("INVITE_EXPIRED"));
+                    }
+                    return roomRepository.findById(token.getRoomId())
+                            .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")));
+                })
                 .flatMap(room -> {
                     if (!passwordProofService.verifyProof(passwordProof, room.getPasswordProofHash())) {
                         return Mono.error(new SecurityException("WRONG_PASSWORD"));
@@ -124,6 +129,8 @@ public class RoomJoinService {
                 .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderTgId)
                         .then(memberPublicKeyRepository.put(roomId, senderTgId, joinRequest.getPublicKey()))
                         .then(joinRequestRepository.remove(roomId, senderTgId))
+                        .then(roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL))
+                        .then()
                 )
                 .doOnSuccess(v -> log.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
                         roomId, senderTgId, ownerTgId));
@@ -159,6 +166,7 @@ public class RoomJoinService {
     private Mono<JoinResult> joinByPassword(Room room, Long senderTgId, String senderPublicKey) {
         return roomMembersRepository.add(room.getId(), senderTgId)
                 .then(memberPublicKeyRepository.put(room.getId(), senderTgId, senderPublicKey))
+                .then(roomRepository.extendTtl(room.getId(), RoomRepository.DEFAULT_TTL))
                 .thenReturn((JoinResult) new JoinResult.Approved(room.getId(), room.getOwnerTgId()))
                 .doOnSuccess(r -> log.info("User {} joined room {} directly (BY_PASSWORD)",
                         senderTgId, room.getId()));

@@ -8,6 +8,7 @@ import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
 import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import jakarta.validation.Valid;
@@ -100,6 +101,7 @@ public class RoomMessageHandler {
 
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
+    private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -195,7 +197,7 @@ public class RoomMessageHandler {
                             ROOM_MESSAGE_SENT_DESTINATION,
                             RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
                     );
-                    return Mono.<Void>empty();
+                    return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL).then();
                 });
     }
 
