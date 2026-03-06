@@ -60,8 +60,15 @@ public class BotMessageService {
 
     private Locale resolveLocale(String languageCode) {
         if (languageCode == null) return Locale.ENGLISH;
-        return switch (languageCode) {
+        String normalized = languageCode.toLowerCase();
+        if (normalized.startsWith("zh")) return Locale.forLanguageTag("zh"); // messages_zh.properties
+        return switch (normalized) {
+            case "ar" -> Locale.forLanguageTag("ar");
+            case "de" -> Locale.GERMAN;
+            case "es" -> Locale.forLanguageTag("es");
+            case "fr" -> Locale.FRENCH;
             case "ru" -> Locale.forLanguageTag("ru");
+            case "uk" -> Locale.forLanguageTag("uk");
             default -> Locale.ENGLISH;
         };
     }

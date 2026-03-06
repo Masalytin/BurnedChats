@@ -1,23 +1,43 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
+import ar from './locales/ar.json';
+import de from './locales/de.json';
 import en from './locales/en.json';
+import es from './locales/es.json';
+import fr from './locales/fr.json';
 import ru from './locales/ru.json';
+import uk from './locales/uk.json';
+import zhCN from './locales/zh-CN.json';
 
-export const SUPPORTED_LANGS = ['en', 'ru'] as const;
+export const SUPPORTED_LANGS = ['ar', 'de', 'en', 'es', 'fr', 'ru', 'uk', 'zh-CN'] as const;
 export const STORAGE_KEY = 'preferred_language';
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGS)[number];
 
+/** Normalize Telegram language_code to a supported locale (e.g. zh, zh-hans → zh-CN). */
+function normalizeTelegramLang(code: string): string {
+  const lower = code.toLowerCase();
+  if (lower === 'zh' || lower.startsWith('zh-hans') || lower.startsWith('zh-cn')) return 'zh-CN';
+  return lower;
+}
+
 const telegramLang = WebApp.initDataUnsafe.user?.language_code ?? 'en';
-const initialLang = (SUPPORTED_LANGS as readonly string[]).includes(telegramLang) ? telegramLang : 'en';
+const normalized = normalizeTelegramLang(telegramLang);
+const initialLang = (SUPPORTED_LANGS as readonly string[]).includes(normalized) ? normalized : 'en';
 
 i18n
   .use(initReactI18next)
   .init({
     resources: {
+      ar: { translation: ar },
+      de: { translation: de },
       en: { translation: en },
+      es: { translation: es },
+      fr: { translation: fr },
       ru: { translation: ru },
+      uk: { translation: uk },
+      'zh-CN': { translation: zhCN },
     },
     lng: initialLang,
     fallbackLng: 'en',

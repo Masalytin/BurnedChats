@@ -1,0 +1,235 @@
+{
+  "common": {
+    "cancel": "إلغاء",
+    "back": "رجوع",
+    "loading": "جارٍ التحميل...",
+    "retry": "إعادة المحاولة {{count}}",
+    "copy": "نسخ",
+    "copied": "تم النسخ!",
+    "unknown": "غير معروف",
+    "showPassword": "إظهار كلمة المرور",
+    "hidePassword": "إخفاء كلمة المرور"
+  },
+
+  "status": {
+    "online": "متصل",
+    "offline": "غير متصل",
+    "typing": "يكتب...",
+    "connecting": "جارٍ الاتصال",
+    "reconnecting": "جارٍ إعادة الاتصال..."
+  },
+
+  "home": {
+    "sectionSearch": "ابدأ دردشة آمنة",
+    "searchPlaceholder": "البحث باستخدام @اسم المستخدم أو المعرف",
+    "searchButton": "البحث عن مستخدم",
+    "sectionSessions": "الجلسات النشطة",
+    "noSessions": "لا توجد جلسات نشطة",
+    "pullToRefresh": "اسحب للأسفل للتحديث",
+    "featureE2eeTitle": "تشفير من طرف إلى طرف",
+    "featureE2eeDesc": "يتم تشفير الرسائل على جهازك. حتى نحن لا نستطيع قراءتها.",
+    "featureBurnTitle": "الحذف التلقائي",
+    "featureBurnDesc": "دمر جميع آثار محادثتك بنقرة واحدة."
+  },
+
+  "aria": {
+    "refreshRooms": "تحديث الغرف",
+    "refreshSessions": "تحديث الجلسات",
+    "scrollToTopRefresh": "التمرير إلى الأعلى والتحديث"
+  },
+
+  "chat": {
+    "verifiedTitle": "مشفر وموثق",
+    "burnButtonLabel": "حذف الدردشة",
+    "burnButtonTitle": "حذف هذه الدردشة نهائيًا",
+    "messagePlaceholder": "رسالة إلى {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "حذف هذه الدردشة؟",
+    "description": "سيؤدي هذا إلى حذف دردشتك مع <1>{{name}}</1> نهائيًا.",
+    "warning": "سيتم حذف جميع الرسائل ومفاتيح التشفير على كلا الجهازين. لا يمكن التراجع عن هذا الإجراء.",
+    "listKeys": "مفاتيح التشفير (كلا الجهازين)",
+    "listHistory": "سجل جميع الرسائل",
+    "listSession": "اتصال الجلسة",
+    "confirmButton": "حذف الدردشة"
+  },
+
+  "incomingRequest": {
+    "title": "طلب دردشة وارد",
+    "titleExpired": "انتهت صلاحية الطلب",
+    "subtitle": "يريد شخص ما بدء محادثة آمنة معك",
+    "subtitleExpired": "انتهت صلاحية هذا الطلب. لم يعد متاحًا.",
+    "expiresIn": "تنتهي الصلاحية خلال {{time}}",
+    "secretQuestion": "السؤال السري",
+    "answerLabel": "إجابتك",
+    "answerPlaceholder": "أدخل إجابتك...",
+    "answerRequired": "الإجابة مطلوبة",
+    "declineButton": "رفض",
+    "acceptButton": "قبول",
+    "backButton": "العودة إلى الصفحة الرئيسية",
+    "securityNote": "تشفير من طرف إلى طرف. لا يمكن لأي شخص آخر قراءة الرسائل.",
+    "errors": {
+      "SESSION_NOT_FOUND": "هذا الطلب لم يعد موجودًا",
+      "NOT_RESPONDER": "لا يمكنك قبول هذا الطلب",
+      "ALREADY_ACCEPTED": "تم قبول هذا الطلب بالفعل",
+      "SESSION_EXPIRED": "انتهت صلاحية هذا الطلب",
+      "REQUEST_EXPIRED": "انتهت صلاحية هذا الطلب",
+      "ANSWER_REQUIRED": "يرجى الإجابة على السؤال السري",
+      "CONNECTION_ERROR": "خطأ في الاتصال. يرجى التحقق من شبكتك",
+      "INTERNAL_ERROR": "حدث خطأ ما. يرجى المحاولة مرة أخرى",
+      "DEFAULT": "حدث خطأ. يرجى المحاولة مرة أخرى"
+    }
+  },
+
+  "verification": {
+    "titlePending": "التحقق من الاتصال",
+    "titleWaiting": "التحقق من الاتصال",
+    "titleVerified": "تم التحقق من الاتصال",
+    "titleMismatch": "تنبيه أمني",
+    "subtitlePending": "قارن بصمة الإصبع هذه مع الطرف الآخر لضمان اتصال آمن.",
+    "subtitleVerified": "قام كلا الطرفين بالتحقق من بصمة الإصبع.",
+    "subtitleMismatch": "تم اكتشاف عدم تطابق في بصمة الإصبع. قد يكون هذا الاتصال معرضًا للخطر.",
+    "mismatchWarning": "بصمات الإصبع لا تتطابق. قد يشير هذا إلى هجوم وسيط. لا تشارك معلومات حساسة في هذه الدردشة.",
+    "yourVerification": "تحققك",
+    "peerVerification": "تحقق الطرف الآخر",
+    "statusVerified": "تم التحقق",
+    "statusPending": "معلق",
+    "statusNotVerified": "لم يتم التحقق",
+    "statusMismatch": "عدم تطابق",
+    "matchButton": "بصمة الإصبع متطابقة",
+    "mismatchButton": "لا تتطابق",
+    "skipButton": "تخطي والمتابعة",
+    "continueButton": "المتابعة إلى الدردشة",
+    "continueAnywayButton": "المتابعة على أي حال (غير موصى به)",
+    "waitingPeer": "في انتظار تحقق الطرف الآخر...",
+    "helpText": "اطلب من الطرف الآخر قراءة رموز بصمة الإصبع الخاصة بهم عبر مكالمة صوتية أو شخصيًا. إذا تطابقت، اضغط على \"بصمة الإصبع متطابقة\"."
+  },
+
+  "handshake": {
+    "title": "إنشاء اتصال آمن",
+    "subtitle": "جارٍ تبادل مفاتيح التشفير..."
+  },
+
+  "pendingRequest": {
+    "title": "في انتظار الرد",
+    "cancelButton": "إلغاء الطلب"
+  },
+
+  "userSearch": {
+    "searching": "جارٍ البحث...",
+    "startChat": "بدء دردشة آمنة",
+    "notFound": "لم يتم العثور على المستخدم",
+    "notFoundHint": "تأكد من صحة اسم المستخدم أو حاول البحث باستخدام معرف تليجرام",
+    "errorHint": "يرجى المحاولة مرة أخرى أو التحقق من اتصالك",
+    "errors": {
+      "SELF_SEARCH": "لا يمكنك بدء دردشة مع نفسك",
+      "INVALID_QUERY": "تنسيق اسم المستخدم أو المعرف غير صالح",
+      "RATE_LIMITED": "عمليات بحث كثيرة جدًا. يرجى الانتظار قليلاً",
+      "CONNECTION_ERROR": "خطأ في الاتصال. يرجى التحقق من شبكتك",
+      "DEFAULT": "حدث خطأ. يرجى المحاولة مرة أخرى"
+    }
+  },
+
+  "room": {
+    "sectionMyRooms": "غرفي",
+    "emptyRooms": "لا توجد غرف بعد",
+    "createRoomButton": "إنشاء غرفة",
+    "roleOwner": "المالك",
+    "roleMember": "عضو",
+    "burned": "محذوف",
+    "left": "غادر",
+
+    "create": {
+      "title": "إنشاء غرفة",
+      "passwordLabel": "كلمة المرور",
+      "passwordPlaceholder": "أدخل كلمة مرور الغرفة...",
+      "passwordConfirmLabel": "تأكيد كلمة المرور",
+      "passwordConfirmPlaceholder": "أعد كتابة كلمة المرور...",
+      "passwordMismatch": "كلمتا المرور غير متطابقتين",
+      "passwordTooShort": "يجب أن تكون كلمة المرور 8 أحرف على الأقل",
+      "joinModeLabel": "وضع الانضمام",
+      "joinModePassword": "بواسطة كلمة المرور — يمكن لأي شخص لديه الرابط وكلمة المرور الانضمام",
+      "joinModeRequest": "بواسطة الطلب — يجب الموافقة على المشاركين من قبل المالك",
+      "submitButton": "إنشاء",
+      "successTitle": "تم إنشاء الغرفة!",
+      "copyLinkButton": "نسخ رابط الدعوة",
+      "linkCopied": "تم نسخ الرابط",
+      "generatePassword": "إنشاء كلمة مرور قوية",
+      "passwordGenerated": "تم إنشاء كلمة مرور قوية ونسخها إلى الحافظة!",
+      "passwordGeneratedNoCopy": "تم إنشاء كلمة مرور قوية. انسخها يدويًا.",
+      "errorWeak": "كلمة المرور ضعيفة جدًا",
+      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى"
+    },
+
+    "join": {
+      "title": "الانضمام إلى الغرفة",
+      "subtitle": "أدخل كلمة مرور الغرفة للمتابعة",
+      "passwordLabel": "كلمة المرور",
+      "passwordPlaceholder": "أدخل كلمة المرور...",
+      "joinButton": "انضمام",
+      "requestButton": "إرسال طلب",
+      "requestSent": "تم إرسال طلبك. في انتظار الموافقة.",
+      "errorInvalidPassword": "كلمة المرور غير صحيحة",
+      "errorExpiredToken": "انتهت صلاحية رابط الدعوة هذا",
+      "errorInvalidToken": "رابط دعوة غير صالح",
+      "errorAlreadyMember": "أنت عضو بالفعل في هذه الغرفة",
+      "errorRequestPending": "طلب انضمامك معلق بالفعل",
+      "errorRejected": "تم رفض طلب انضمامك من قبل المالك",
+      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى"
+    },
+
+    "requests": {
+      "title": "طلبات الانضمام",
+      "empty": "لا توجد طلبات معلقة",
+      "acceptButton": "قبول",
+      "rejectButton": "رفض",
+      "approvedNotice": "تمت الموافقة على الطلب",
+      "rejectedNotice": "تم رفض الطلب"
+    },
+
+    "chat": {
+      "noAccess": "لا يوجد وصول",
+      "noAccessHint": "أنت لست عضوًا في هذه الغرفة",
+      "loadingKey": "جارٍ تحميل مفتاح التشفير...",
+      "memberCount": "{{count}} أعضاء",
+      "memberCount_one": "عضو واحد"
+    },
+
+    "manage": {
+      "title": "إعدادات الغرفة",
+      "inviteButton": "دعوة",
+      "requestsButton": "طلبات الانضمام",
+      "membersButton": "الأعضاء",
+      "burnButton": "حذف الغرفة",
+      "leaveButton": "مغادرة الغرفة",
+      "membersTitle": "الأعضاء",
+      "membersEmpty": "لا يوجد أعضاء بعد",
+      "burnConfirmTitle": "حذف هذه الغرفة؟",
+      "burnConfirmText": "سيؤدي هذا إلى حذف الغرفة وجميع رسائلها نهائيًا للجميع. لا يمكن التراجع عن هذا."
+    },
+
+    "burn": {
+      "title": "حذف هذه الغرفة؟",
+      "description": "سيؤدي هذا إلى حذف الغرفة وجميع رسائلها نهائيًا.",
+      "warning": "سيتم حذف جميع الرسائل ومفاتيح التشفير وقائمة الأعضاء للجميع. لا يمكن التراجع عن هذا الإجراء.",
+      "confirmButton": "حذف الغرفة"
+    },
+
+    "leave": {
+      "title": "مغادرة الغرفة؟",
+      "description": "لن تتمكن بعد ذلك من الوصول إلى رسائل هذه الغرفة.",
+      "warning": "سيتم تدوير مفتاح تشفير الغرفة بعد مغادرتك.",
+      "confirmButton": "مغادرة"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "معلق...",
+    "statusHandshake": "جارٍ الاتصال...",
+    "statusActive": "نشط",
+    "statusExpired": "منتهي الصلاحية",
+    "statusBurned": "محذوف",
+    "online": "متصل"
+  }
+}

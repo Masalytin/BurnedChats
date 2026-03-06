@@ -9,8 +9,14 @@ interface LangOption {
 }
 
 const LANG_OPTIONS: Record<SupportedLanguage, LangOption> = {
+  ar: { countryCode: 'ae', label: 'AR' },
+  de: { countryCode: 'de', label: 'DE' },
   en: { countryCode: 'gb', label: 'EN' },
+  es: { countryCode: 'es', label: 'ES' },
+  fr: { countryCode: 'fr', label: 'FR' },
   ru: { countryCode: 'ru', label: 'RU' },
+  uk: { countryCode: 'ua', label: 'UK' },
+  'zh-CN': { countryCode: 'cn', label: 'ZH' },
 };
 
 /**

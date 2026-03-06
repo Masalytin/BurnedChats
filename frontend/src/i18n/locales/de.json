@@ -1,0 +1,235 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "back": "Zurück",
+    "loading": "Wird geladen...",
+    "retry": "Wiederholen {{count}}",
+    "copy": "Kopieren",
+    "copied": "Kopiert!",
+    "unknown": "Unbekannt",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort ausblenden"
+  },
+
+  "status": {
+    "online": "online",
+    "offline": "offline",
+    "typing": "schreibt...",
+    "connecting": "verbindet",
+    "reconnecting": "Wiederverbindung..."
+  },
+
+  "home": {
+    "sectionSearch": "Sicheren Chat starten",
+    "searchPlaceholder": "Suche nach @Benutzername oder ID",
+    "searchButton": "Benutzer suchen",
+    "sectionSessions": "Aktive Sitzungen",
+    "noSessions": "Keine aktiven Sitzungen",
+    "pullToRefresh": "Zum Aktualisieren nach unten ziehen",
+    "featureE2eeTitle": "Ende-zu-Ende-Verschlüsselung",
+    "featureE2eeDesc": "Nachrichten werden auf Ihrem Gerät verschlüsselt. Selbst wir können sie nicht lesen.",
+    "featureBurnTitle": "Selbstzerstörung",
+    "featureBurnDesc": "Zerstören Sie alle Spuren Ihres Gesprächs mit einem Tippen."
+  },
+
+  "aria": {
+    "refreshRooms": "Räume aktualisieren",
+    "refreshSessions": "Sitzungen aktualisieren",
+    "scrollToTopRefresh": "Nach oben scrollen und aktualisieren"
+  },
+
+  "chat": {
+    "verifiedTitle": "Verschlüsselt & Verifiziert",
+    "burnButtonLabel": "Chat löschen",
+    "burnButtonTitle": "Diesen Chat dauerhaft löschen",
+    "messagePlaceholder": "Nachricht an {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "Diesen Chat löschen?",
+    "description": "Dies wird Ihren Chat mit <1>{{name}}</1> dauerhaft löschen.",
+    "warning": "Alle Nachrichten und Verschlüsselungsschlüssel werden auf beiden Geräten gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "listKeys": "Verschlüsselungsschlüssel (beide Geräte)",
+    "listHistory": "Gesamter Nachrichtenverlauf",
+    "listSession": "Sitzungsverbindung",
+    "confirmButton": "Chat löschen"
+  },
+
+  "incomingRequest": {
+    "title": "Eingehende Chat-Anfrage",
+    "titleExpired": "Anfrage Abgelaufen",
+    "subtitle": "Jemand möchte ein sicheres Gespräch mit Ihnen beginnen",
+    "subtitleExpired": "Diese Anfrage ist abgelaufen. Sie ist nicht mehr verfügbar.",
+    "expiresIn": "Läuft ab in {{time}}",
+    "secretQuestion": "Geheime Frage",
+    "answerLabel": "Ihre Antwort",
+    "answerPlaceholder": "Geben Sie Ihre Antwort ein...",
+    "answerRequired": "Antwort erforderlich",
+    "declineButton": "Ablehnen",
+    "acceptButton": "Akzeptieren",
+    "backButton": "Zurück zur Startseite",
+    "securityNote": "Ende-zu-Ende-verschlüsselt. Nachrichten können von niemandem sonst gelesen werden.",
+    "errors": {
+      "SESSION_NOT_FOUND": "Diese Anfrage existiert nicht mehr",
+      "NOT_RESPONDER": "Sie können diese Anfrage nicht akzeptieren",
+      "ALREADY_ACCEPTED": "Diese Anfrage wurde bereits akzeptiert",
+      "SESSION_EXPIRED": "Diese Anfrage ist abgelaufen",
+      "REQUEST_EXPIRED": "Diese Anfrage ist abgelaufen",
+      "ANSWER_REQUIRED": "Bitte beantworten Sie die geheime Frage",
+      "CONNECTION_ERROR": "Verbindungsfehler. Bitte überprüfen Sie Ihr Netzwerk",
+      "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut",
+      "DEFAULT": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut"
+    }
+  },
+
+  "verification": {
+    "titlePending": "Verbindung verifizieren",
+    "titleWaiting": "Verbindung verifizieren",
+    "titleVerified": "Verbindung verifiziert",
+    "titleMismatch": "Sicherheitswarnung",
+    "subtitlePending": "Vergleichen Sie diesen Fingerabdruck mit Ihrem Partner, um eine sichere Verbindung zu gewährleisten.",
+    "subtitleVerified": "Beide Parteien haben den Fingerabdruck verifiziert.",
+    "subtitleMismatch": "Fingerabdruck-Abweichung erkannt. Diese Verbindung könnte kompromittiert sein.",
+    "mismatchWarning": "Die Fingerabdrücke stimmen nicht überein. Dies könnte auf einen Man-in-the-Middle-Angriff hindeuten. Teilen Sie keine sensiblen Informationen in diesem Chat.",
+    "yourVerification": "Ihre Verifizierung",
+    "peerVerification": "Verifizierung des Partners",
+    "statusVerified": "Verifiziert",
+    "statusPending": "Ausstehend",
+    "statusNotVerified": "Nicht verifiziert",
+    "statusMismatch": "Abweichung",
+    "matchButton": "Fingerabdruck stimmt überein",
+    "mismatchButton": "Stimmt nicht überein",
+    "skipButton": "Überspringen und Fortfahren",
+    "continueButton": "Zum Chat fortfahren",
+    "continueAnywayButton": "Trotzdem fortfahren (Nicht empfohlen)",
+    "waitingPeer": "Warte auf Verifizierung des Partners...",
+    "helpText": "Bitten Sie Ihren Partner, seine Fingerabdruck-Symbole über einen Sprachanruf oder persönlich vorzulesen. Wenn sie übereinstimmen, drücken Sie \"Fingerabdruck stimmt überein\"."
+  },
+
+  "handshake": {
+    "title": "Sichere Verbindung wird hergestellt",
+    "subtitle": "Verschlüsselungsschlüssel werden ausgetauscht..."
+  },
+
+  "pendingRequest": {
+    "title": "Warte auf Antwort",
+    "cancelButton": "Anfrage abbrechen"
+  },
+
+  "userSearch": {
+    "searching": "Suche...",
+    "startChat": "Sicheren Chat starten",
+    "notFound": "Benutzer nicht gefunden",
+    "notFoundHint": "Stellen Sie sicher, dass der Benutzername korrekt ist, oder versuchen Sie die Suche per Telegram-ID",
+    "errorHint": "Bitte versuchen Sie es erneut oder überprüfen Sie Ihre Verbindung",
+    "errors": {
+      "SELF_SEARCH": "Sie können keinen Chat mit sich selbst starten",
+      "INVALID_QUERY": "Ungültiges Benutzername- oder ID-Format",
+      "RATE_LIMITED": "Zu viele Suchanfragen. Bitte warten Sie einen Moment",
+      "CONNECTION_ERROR": "Verbindungsfehler. Bitte überprüfen Sie Ihr Netzwerk",
+      "DEFAULT": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut"
+    }
+  },
+
+  "room": {
+    "sectionMyRooms": "Meine Räume",
+    "emptyRooms": "Noch keine Räume",
+    "createRoomButton": "Raum erstellen",
+    "roleOwner": "Besitzer",
+    "roleMember": "Mitglied",
+    "burned": "Gelöscht",
+    "left": "Verlassen",
+
+    "create": {
+      "title": "Raum erstellen",
+      "passwordLabel": "Passwort",
+      "passwordPlaceholder": "Raumpasswort eingeben...",
+      "passwordConfirmLabel": "Passwort bestätigen",
+      "passwordConfirmPlaceholder": "Passwort wiederholen...",
+      "passwordMismatch": "Passwörter stimmen nicht überein",
+      "passwordTooShort": "Passwort muss mindestens 8 Zeichen lang sein",
+      "joinModeLabel": "Beitrittsmodus",
+      "joinModePassword": "Per Passwort — jeder mit Link und Passwort kann beitreten",
+      "joinModeRequest": "Per Anfrage — Teilnehmer müssen vom Besitzer genehmigt werden",
+      "submitButton": "Erstellen",
+      "successTitle": "Raum erstellt!",
+      "copyLinkButton": "Einladungslink kopieren",
+      "linkCopied": "Link kopiert",
+      "generatePassword": "Sicheres Passwort generieren",
+      "passwordGenerated": "Sicheres Passwort generiert und in die Zwischenablage kopiert!",
+      "passwordGeneratedNoCopy": "Sicheres Passwort generiert. Bitte manuell kopieren.",
+      "errorWeak": "Passwort ist zu schwach",
+      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut"
+    },
+
+    "join": {
+      "title": "Raum beitreten",
+      "subtitle": "Geben Sie das Raumpasswort ein, um fortzufahren",
+      "passwordLabel": "Passwort",
+      "passwordPlaceholder": "Passwort eingeben...",
+      "joinButton": "Beitreten",
+      "requestButton": "Anfrage senden",
+      "requestSent": "Ihre Anfrage wurde gesendet. Warte auf Genehmigung.",
+      "errorInvalidPassword": "Falsches Passwort",
+      "errorExpiredToken": "Dieser Einladungslink ist abgelaufen",
+      "errorInvalidToken": "Ungültiger Einladungslink",
+      "errorAlreadyMember": "Sie sind bereits Mitglied dieses Raums",
+      "errorRequestPending": "Ihre Beitrittsanfrage ist bereits ausstehend",
+      "errorRejected": "Ihre Beitrittsanfrage wurde vom Besitzer abgelehnt",
+      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut"
+    },
+
+    "requests": {
+      "title": "Beitrittsanfragen",
+      "empty": "Keine ausstehenden Anfragen",
+      "acceptButton": "Akzeptieren",
+      "rejectButton": "Ablehnen",
+      "approvedNotice": "Anfrage genehmigt",
+      "rejectedNotice": "Anfrage abgelehnt"
+    },
+
+    "chat": {
+      "noAccess": "Kein Zugriff",
+      "noAccessHint": "Sie sind kein Mitglied dieses Raums",
+      "loadingKey": "Verschlüsselungsschlüssel wird geladen...",
+      "memberCount": "{{count}} Mitglieder",
+      "memberCount_one": "1 Mitglied"
+    },
+
+    "manage": {
+      "title": "Raumeinstellungen",
+      "inviteButton": "Einladen",
+      "requestsButton": "Beitrittsanfragen",
+      "membersButton": "Mitglieder",
+      "burnButton": "Raum löschen",
+      "leaveButton": "Raum verlassen",
+      "membersTitle": "Mitglieder",
+      "membersEmpty": "Noch keine Mitglieder",
+      "burnConfirmTitle": "Diesen Raum löschen?",
+      "burnConfirmText": "Dies wird den Raum und alle seine Nachrichten für alle dauerhaft löschen. Dies kann nicht rückgängig gemacht werden."
+    },
+
+    "burn": {
+      "title": "Diesen Raum löschen?",
+      "description": "Dies wird den Raum und alle seine Nachrichten dauerhaft löschen.",
+      "warning": "Alle Nachrichten, Verschlüsselungsschlüssel und die Mitgliederliste werden für alle gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmButton": "Raum löschen"
+    },
+
+    "leave": {
+      "title": "Raum verlassen?",
+      "description": "Sie haben dann keinen Zugriff mehr auf die Nachrichten dieses Raums.",
+      "warning": "Der Raum-Verschlüsselungsschlüssel wird nach Ihrem Austritt erneuert.",
+      "confirmButton": "Verlassen"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "Ausstehend...",
+    "statusHandshake": "Verbindet...",
+    "statusActive": "Aktiv",
+    "statusExpired": "Abgelaufen",
+    "statusBurned": "Gelöscht",
+    "online": "online"
+  }
+}

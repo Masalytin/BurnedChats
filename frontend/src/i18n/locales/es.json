@@ -1,0 +1,235 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "back": "Atrás",
+    "loading": "Cargando...",
+    "retry": "Reintentar {{count}}",
+    "copy": "Copiar",
+    "copied": "¡Copiado!",
+    "unknown": "Desconocido",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña"
+  },
+
+  "status": {
+    "online": "en línea",
+    "offline": "desconectado",
+    "typing": "escribiendo...",
+    "connecting": "conectando",
+    "reconnecting": "Reconectando..."
+  },
+
+  "home": {
+    "sectionSearch": "Iniciar un Chat Seguro",
+    "searchPlaceholder": "Buscar por @nombre de usuario o ID",
+    "searchButton": "Buscar Usuario",
+    "sectionSessions": "Sesiones Activas",
+    "noSessions": "No hay sesiones activas",
+    "pullToRefresh": "Desliza hacia abajo para actualizar",
+    "featureE2eeTitle": "Cifrado de Extremo a Extremo",
+    "featureE2eeDesc": "Los mensajes están cifrados en tu dispositivo. Ni siquiera nosotros podemos leerlos.",
+    "featureBurnTitle": "Autodestrucción",
+    "featureBurnDesc": "Destruye todos los rastros de tu conversación con un toque."
+  },
+
+  "aria": {
+    "refreshRooms": "Actualizar salas",
+    "refreshSessions": "Actualizar sesiones",
+    "scrollToTopRefresh": "Desplazarse arriba y actualizar"
+  },
+
+  "chat": {
+    "verifiedTitle": "Cifrado y Verificado",
+    "burnButtonLabel": "Destruir chat",
+    "burnButtonTitle": "Destruir este chat permanentemente",
+    "messagePlaceholder": "Mensaje para {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "¿Destruir este chat?",
+    "description": "Esto destruirá permanentemente tu chat con <1>{{name}}</1>.",
+    "warning": "Todos los mensajes y claves de cifrado se borrarán en ambos dispositivos. Esta acción no se puede deshacer.",
+    "listKeys": "Claves de cifrado (ambos dispositivos)",
+    "listHistory": "Todo el historial de mensajes",
+    "listSession": "Conexión de sesión",
+    "confirmButton": "Destruir Chat"
+  },
+
+  "incomingRequest": {
+    "title": "Solicitud de Chat Entrante",
+    "titleExpired": "Solicitud Expirada",
+    "subtitle": "Alguien quiere iniciar una conversación segura contigo",
+    "subtitleExpired": "Esta solicitud ha expirado. Ya no está disponible.",
+    "expiresIn": "Expira en {{time}}",
+    "secretQuestion": "Pregunta Secreta",
+    "answerLabel": "Tu Respuesta",
+    "answerPlaceholder": "Introduce tu respuesta...",
+    "answerRequired": "Se requiere respuesta",
+    "declineButton": "Rechazar",
+    "acceptButton": "Aceptar",
+    "backButton": "Volver al Inicio",
+    "securityNote": "Cifrado de extremo a extremo. Los mensajes no pueden ser leídos por nadie más.",
+    "errors": {
+      "SESSION_NOT_FOUND": "Esta solicitud ya no existe",
+      "NOT_RESPONDER": "No puedes aceptar esta solicitud",
+      "ALREADY_ACCEPTED": "Esta solicitud ya ha sido aceptada",
+      "SESSION_EXPIRED": "Esta solicitud ha expirado",
+      "REQUEST_EXPIRED": "Esta solicitud ha expirado",
+      "ANSWER_REQUIRED": "Por favor responde la pregunta secreta",
+      "CONNECTION_ERROR": "Error de conexión. Por favor verifica tu red",
+      "INTERNAL_ERROR": "Algo salió mal. Por favor intenta de nuevo",
+      "DEFAULT": "Ocurrió un error. Por favor intenta de nuevo"
+    }
+  },
+
+  "verification": {
+    "titlePending": "Verificar Conexión",
+    "titleWaiting": "Verificar Conexión",
+    "titleVerified": "Conexión Verificada",
+    "titleMismatch": "Alerta de Seguridad",
+    "subtitlePending": "Compara esta huella digital con tu par para asegurar la conexión segura.",
+    "subtitleVerified": "Ambas partes han verificado la huella digital.",
+    "subtitleMismatch": "Se detectó una discrepancia en la huella digital. Esta conexión puede estar comprometida.",
+    "mismatchWarning": "Las huellas digitales no coinciden. Esto podría indicar un ataque de intermediario. No compartas información sensible en este chat.",
+    "yourVerification": "Tu verificación",
+    "peerVerification": "Verificación del par",
+    "statusVerified": "Verificado",
+    "statusPending": "Pendiente",
+    "statusNotVerified": "No verificado",
+    "statusMismatch": "Discrepancia",
+    "matchButton": "La Huella Coincide",
+    "mismatchButton": "No Coincide",
+    "skipButton": "Omitir y Continuar",
+    "continueButton": "Continuar al Chat",
+    "continueAnywayButton": "Continuar de Todos Modos (No Recomendado)",
+    "waitingPeer": "Esperando que el par verifique...",
+    "helpText": "Pide a tu par que lea sus símbolos de huella digital por llamada de voz o en persona. Si coinciden, presiona \"La Huella Coincide\"."
+  },
+
+  "handshake": {
+    "title": "Estableciendo Conexión Segura",
+    "subtitle": "Intercambiando claves de cifrado..."
+  },
+
+  "pendingRequest": {
+    "title": "Esperando respuesta",
+    "cancelButton": "Cancelar Solicitud"
+  },
+
+  "userSearch": {
+    "searching": "Buscando...",
+    "startChat": "Iniciar Chat Seguro",
+    "notFound": "Usuario no encontrado",
+    "notFoundHint": "Asegúrate de que el nombre de usuario sea correcto o intenta buscar por ID de Telegram",
+    "errorHint": "Por favor intenta de nuevo o verifica tu conexión",
+    "errors": {
+      "SELF_SEARCH": "No puedes iniciar un chat contigo mismo",
+      "INVALID_QUERY": "Formato de nombre de usuario o ID inválido",
+      "RATE_LIMITED": "Demasiadas búsquedas. Por favor espera un momento",
+      "CONNECTION_ERROR": "Error de conexión. Por favor verifica tu red",
+      "DEFAULT": "Ocurrió un error. Por favor intenta de nuevo"
+    }
+  },
+
+  "room": {
+    "sectionMyRooms": "Mis Salas",
+    "emptyRooms": "Aún no hay salas",
+    "createRoomButton": "Crear Sala",
+    "roleOwner": "Propietario",
+    "roleMember": "Miembro",
+    "burned": "Destruido",
+    "left": "Abandonado",
+
+    "create": {
+      "title": "Crear Sala",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Introduce la contraseña de la sala...",
+      "passwordConfirmLabel": "Confirmar Contraseña",
+      "passwordConfirmPlaceholder": "Repetir contraseña...",
+      "passwordMismatch": "Las contraseñas no coinciden",
+      "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+      "joinModeLabel": "Modo de Unión",
+      "joinModePassword": "Por contraseña — cualquiera con el enlace y contraseña puede unirse",
+      "joinModeRequest": "Por solicitud — los participantes deben ser aprobados por el propietario",
+      "submitButton": "Crear",
+      "successTitle": "¡Sala creada!",
+      "copyLinkButton": "Copiar Enlace de Invitación",
+      "linkCopied": "Enlace copiado",
+      "generatePassword": "Generar contraseña segura",
+      "passwordGenerated": "¡Contraseña segura generada y copiada al portapapeles!",
+      "passwordGeneratedNoCopy": "Contraseña segura generada. Cópiala manualmente.",
+      "errorWeak": "La contraseña es demasiado débil",
+      "errorNetwork": "Error de red. Por favor intenta de nuevo"
+    },
+
+    "join": {
+      "title": "Unirse a la Sala",
+      "subtitle": "Introduce la contraseña de la sala para continuar",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Introduce la contraseña...",
+      "joinButton": "Unirse",
+      "requestButton": "Enviar Solicitud",
+      "requestSent": "Tu solicitud ha sido enviada. Esperando aprobación.",
+      "errorInvalidPassword": "Contraseña incorrecta",
+      "errorExpiredToken": "Este enlace de invitación ha expirado",
+      "errorInvalidToken": "Enlace de invitación inválido",
+      "errorAlreadyMember": "Ya eres miembro de esta sala",
+      "errorRequestPending": "Tu solicitud de unión ya está pendiente",
+      "errorRejected": "Tu solicitud de unión fue rechazada por el propietario",
+      "errorNetwork": "Error de red. Por favor intenta de nuevo"
+    },
+
+    "requests": {
+      "title": "Solicitudes de Unión",
+      "empty": "No hay solicitudes pendientes",
+      "acceptButton": "Aceptar",
+      "rejectButton": "Rechazar",
+      "approvedNotice": "Solicitud aprobada",
+      "rejectedNotice": "Solicitud rechazada"
+    },
+
+    "chat": {
+      "noAccess": "Sin acceso",
+      "noAccessHint": "No eres miembro de esta sala",
+      "loadingKey": "Cargando clave de cifrado...",
+      "memberCount": "{{count}} miembros",
+      "memberCount_one": "1 miembro"
+    },
+
+    "manage": {
+      "title": "Configuración de la Sala",
+      "inviteButton": "Invitar",
+      "requestsButton": "Solicitudes de Unión",
+      "membersButton": "Miembros",
+      "burnButton": "Destruir Sala",
+      "leaveButton": "Abandonar Sala",
+      "membersTitle": "Miembros",
+      "membersEmpty": "Aún no hay miembros",
+      "burnConfirmTitle": "¿Destruir esta sala?",
+      "burnConfirmText": "Esto destruirá permanentemente la sala y todos sus mensajes para todos. Esto no se puede deshacer."
+    },
+
+    "burn": {
+      "title": "¿Destruir esta sala?",
+      "description": "Esto destruirá permanentemente la sala y todos sus mensajes.",
+      "warning": "Todos los mensajes, claves de cifrado y la lista de miembros se borrarán para todos. Esta acción no se puede deshacer.",
+      "confirmButton": "Destruir Sala"
+    },
+
+    "leave": {
+      "title": "¿Abandonar sala?",
+      "description": "Ya no tendrás acceso a los mensajes de esta sala.",
+      "warning": "La clave de cifrado de la sala se rotará después de que abandones.",
+      "confirmButton": "Abandonar"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "Pendiente...",
+    "statusHandshake": "Conectando...",
+    "statusActive": "Activo",
+    "statusExpired": "Expirado",
+    "statusBurned": "Destruido",
+    "online": "en línea"
+  }
+}

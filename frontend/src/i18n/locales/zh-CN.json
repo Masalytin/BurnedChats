@@ -1,0 +1,235 @@
+{
+  "common": {
+    "cancel": "取消",
+    "back": "返回",
+    "loading": "加载中...",
+    "retry": "重试 {{count}}",
+    "copy": "复制",
+    "copied": "已复制!",
+    "unknown": "未知",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码"
+  },
+
+  "status": {
+    "online": "在线",
+    "offline": "离线",
+    "typing": "正在输入...",
+    "connecting": "连接中",
+    "reconnecting": "重新连接中..."
+  },
+
+  "home": {
+    "sectionSearch": "开始安全聊天",
+    "searchPlaceholder": "通过 @用户名 或 ID 搜索",
+    "searchButton": "搜索用户",
+    "sectionSessions": "活跃会话",
+    "noSessions": "暂无活跃会话",
+    "pullToRefresh": "下拉刷新",
+    "featureE2eeTitle": "端到端加密",
+    "featureE2eeDesc": "消息在您的设备上加密。即使是我们也无法读取。",
+    "featureBurnTitle": "阅后即焚",
+    "featureBurnDesc": "一键销毁所有对话痕迹。"
+  },
+
+  "aria": {
+    "refreshRooms": "刷新房间",
+    "refreshSessions": "刷新会话",
+    "scrollToTopRefresh": "滚动到顶部并刷新"
+  },
+
+  "chat": {
+    "verifiedTitle": "已加密并验证",
+    "burnButtonLabel": "销毁聊天",
+    "burnButtonTitle": "永久销毁此聊天",
+    "messagePlaceholder": "发送消息给 {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "销毁此聊天?",
+    "description": "这将永久销毁您与 <1>{{name}}</1> 的聊天。",
+    "warning": "所有消息和加密密钥将在两台设备上被清除。此操作无法撤销。",
+    "listKeys": "加密密钥（两台设备）",
+    "listHistory": "所有消息历史",
+    "listSession": "会话连接",
+    "confirmButton": "销毁聊天"
+  },
+
+  "incomingRequest": {
+    "title": "收到聊天请求",
+    "titleExpired": "请求已过期",
+    "subtitle": "有人想要与您开始安全对话",
+    "subtitleExpired": "此请求已过期。不再可用。",
+    "expiresIn": "{{time}} 后过期",
+    "secretQuestion": "安全问题",
+    "answerLabel": "您的答案",
+    "answerPlaceholder": "输入您的答案...",
+    "answerRequired": "需要答案",
+    "declineButton": "拒绝",
+    "acceptButton": "接受",
+    "backButton": "返回首页",
+    "securityNote": "端到端加密。消息无法被其他人读取。",
+    "errors": {
+      "SESSION_NOT_FOUND": "此请求已不存在",
+      "NOT_RESPONDER": "您无法接受此请求",
+      "ALREADY_ACCEPTED": "此请求已被接受",
+      "SESSION_EXPIRED": "此请求已过期",
+      "REQUEST_EXPIRED": "此请求已过期",
+      "ANSWER_REQUIRED": "请回答安全问题",
+      "CONNECTION_ERROR": "连接错误。请检查您的网络",
+      "INTERNAL_ERROR": "出错了。请重试",
+      "DEFAULT": "发生错误。请重试"
+    }
+  },
+
+  "verification": {
+    "titlePending": "验证连接",
+    "titleWaiting": "验证连接",
+    "titleVerified": "连接已验证",
+    "titleMismatch": "安全警报",
+    "subtitlePending": "将此指纹与您的对方比较以确保安全连接。",
+    "subtitleVerified": "双方已验证指纹。",
+    "subtitleMismatch": "检测到指纹不匹配。此连接可能已被入侵。",
+    "mismatchWarning": "指纹不匹配。这可能表示存在中间人攻击。请勿在此聊天中分享敏感信息。",
+    "yourVerification": "您的验证",
+    "peerVerification": "对方的验证",
+    "statusVerified": "已验证",
+    "statusPending": "待处理",
+    "statusNotVerified": "未验证",
+    "statusMismatch": "不匹配",
+    "matchButton": "指纹匹配",
+    "mismatchButton": "不匹配",
+    "skipButton": "跳过并继续",
+    "continueButton": "继续聊天",
+    "continueAnywayButton": "仍然继续（不推荐）",
+    "waitingPeer": "等待对方验证...",
+    "helpText": "请对方通过电话或当面读出他们的指纹符号。如果匹配，请点击「指纹匹配」。"
+  },
+
+  "handshake": {
+    "title": "建立安全连接",
+    "subtitle": "正在交换加密密钥..."
+  },
+
+  "pendingRequest": {
+    "title": "等待回复",
+    "cancelButton": "取消请求"
+  },
+
+  "userSearch": {
+    "searching": "搜索中...",
+    "startChat": "开始安全聊天",
+    "notFound": "未找到用户",
+    "notFoundHint": "请确保用户名正确或尝试通过 Telegram ID 搜索",
+    "errorHint": "请重试或检查您的连接",
+    "errors": {
+      "SELF_SEARCH": "您无法与自己开始聊天",
+      "INVALID_QUERY": "用户名或 ID 格式无效",
+      "RATE_LIMITED": "搜索次数过多。请稍等片刻",
+      "CONNECTION_ERROR": "连接错误。请检查您的网络",
+      "DEFAULT": "发生错误。请重试"
+    }
+  },
+
+  "room": {
+    "sectionMyRooms": "我的房间",
+    "emptyRooms": "暂无房间",
+    "createRoomButton": "创建房间",
+    "roleOwner": "所有者",
+    "roleMember": "成员",
+    "burned": "已销毁",
+    "left": "已离开",
+
+    "create": {
+      "title": "创建房间",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "输入房间密码...",
+      "passwordConfirmLabel": "确认密码",
+      "passwordConfirmPlaceholder": "重复密码...",
+      "passwordMismatch": "密码不匹配",
+      "passwordTooShort": "密码至少需要 8 个字符",
+      "joinModeLabel": "加入模式",
+      "joinModePassword": "密码加入 — 任何拥有链接和密码的人都可以加入",
+      "joinModeRequest": "请求加入 — 参与者必须经所有者批准",
+      "submitButton": "创建",
+      "successTitle": "房间已创建!",
+      "copyLinkButton": "复制邀请链接",
+      "linkCopied": "链接已复制",
+      "generatePassword": "生成强密码",
+      "passwordGenerated": "强密码已生成并复制到剪贴板!",
+      "passwordGeneratedNoCopy": "强密码已生成。请手动复制。",
+      "errorWeak": "密码太弱",
+      "errorNetwork": "网络错误。请重试"
+    },
+
+    "join": {
+      "title": "加入房间",
+      "subtitle": "输入房间密码以继续",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "输入密码...",
+      "joinButton": "加入",
+      "requestButton": "发送请求",
+      "requestSent": "您的请求已发送。等待批准。",
+      "errorInvalidPassword": "密码错误",
+      "errorExpiredToken": "此邀请链接已过期",
+      "errorInvalidToken": "无效的邀请链接",
+      "errorAlreadyMember": "您已经是此房间的成员",
+      "errorRequestPending": "您的加入请求正在等待处理",
+      "errorRejected": "您的加入请求被所有者拒绝",
+      "errorNetwork": "网络错误。请重试"
+    },
+
+    "requests": {
+      "title": "加入请求",
+      "empty": "暂无待处理请求",
+      "acceptButton": "接受",
+      "rejectButton": "拒绝",
+      "approvedNotice": "请求已批准",
+      "rejectedNotice": "请求已拒绝"
+    },
+
+    "chat": {
+      "noAccess": "无访问权限",
+      "noAccessHint": "您不是此房间的成员",
+      "loadingKey": "正在加载加密密钥...",
+      "memberCount": "{{count}} 位成员",
+      "memberCount_one": "1 位成员"
+    },
+
+    "manage": {
+      "title": "房间设置",
+      "inviteButton": "邀请",
+      "requestsButton": "加入请求",
+      "membersButton": "成员",
+      "burnButton": "销毁房间",
+      "leaveButton": "离开房间",
+      "membersTitle": "成员",
+      "membersEmpty": "暂无成员",
+      "burnConfirmTitle": "销毁此房间?",
+      "burnConfirmText": "这将永久销毁房间及其所有消息。此操作无法撤销。"
+    },
+
+    "burn": {
+      "title": "销毁此房间?",
+      "description": "这将永久销毁房间及其所有消息。",
+      "warning": "所有消息、加密密钥和成员列表将为所有人清除。此操作无法撤销。",
+      "confirmButton": "销毁房间"
+    },
+
+    "leave": {
+      "title": "离开房间?",
+      "description": "您将无法再访问此房间的消息。",
+      "warning": "您离开后房间加密密钥将轮换。",
+      "confirmButton": "离开"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "待处理...",
+    "statusHandshake": "连接中...",
+    "statusActive": "活跃",
+    "statusExpired": "已过期",
+    "statusBurned": "已销毁",
+    "online": "在线"
+  }
+}

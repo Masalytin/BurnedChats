@@ -1,0 +1,235 @@
+{
+  "common": {
+    "cancel": "Annuler",
+    "back": "Retour",
+    "loading": "Chargement...",
+    "retry": "Réessayer {{count}}",
+    "copy": "Copier",
+    "copied": "Copié !",
+    "unknown": "Inconnu",
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe"
+  },
+
+  "status": {
+    "online": "en ligne",
+    "offline": "hors ligne",
+    "typing": "écrit...",
+    "connecting": "connexion",
+    "reconnecting": "Reconnexion..."
+  },
+
+  "home": {
+    "sectionSearch": "Démarrer une Discussion Sécurisée",
+    "searchPlaceholder": "Rechercher par @nom d'utilisateur ou ID",
+    "searchButton": "Rechercher un Utilisateur",
+    "sectionSessions": "Sessions Actives",
+    "noSessions": "Aucune session active",
+    "pullToRefresh": "Tirez vers le bas pour actualiser",
+    "featureE2eeTitle": "Chiffrement de Bout en Bout",
+    "featureE2eeDesc": "Les messages sont chiffrés sur votre appareil. Même nous ne pouvons pas les lire.",
+    "featureBurnTitle": "Auto-Destruction",
+    "featureBurnDesc": "Détruisez toutes les traces de votre conversation en un seul geste."
+  },
+
+  "aria": {
+    "refreshRooms": "Actualiser les salons",
+    "refreshSessions": "Actualiser les sessions",
+    "scrollToTopRefresh": "Faire défiler vers le haut et actualiser"
+  },
+
+  "chat": {
+    "verifiedTitle": "Chiffré et Vérifié",
+    "burnButtonLabel": "Détruire la discussion",
+    "burnButtonTitle": "Détruire cette discussion définitivement",
+    "messagePlaceholder": "Message pour {{name}}..."
+  },
+
+  "burnDialog": {
+    "title": "Détruire cette discussion ?",
+    "description": "Cela détruira définitivement votre discussion avec <1>{{name}}</1>.",
+    "warning": "Tous les messages et clés de chiffrement seront effacés sur les deux appareils. Cette action est irréversible.",
+    "listKeys": "Clés de chiffrement (les deux appareils)",
+    "listHistory": "Tout l'historique des messages",
+    "listSession": "Connexion de session",
+    "confirmButton": "Détruire la Discussion"
+  },
+
+  "incomingRequest": {
+    "title": "Demande de Discussion Entrante",
+    "titleExpired": "Demande Expirée",
+    "subtitle": "Quelqu'un souhaite démarrer une conversation sécurisée avec vous",
+    "subtitleExpired": "Cette demande a expiré. Elle n'est plus disponible.",
+    "expiresIn": "Expire dans {{time}}",
+    "secretQuestion": "Question Secrète",
+    "answerLabel": "Votre Réponse",
+    "answerPlaceholder": "Entrez votre réponse...",
+    "answerRequired": "Une réponse est requise",
+    "declineButton": "Refuser",
+    "acceptButton": "Accepter",
+    "backButton": "Retour à l'Accueil",
+    "securityNote": "Chiffrement de bout en bout. Les messages ne peuvent être lus par personne d'autre.",
+    "errors": {
+      "SESSION_NOT_FOUND": "Cette demande n'existe plus",
+      "NOT_RESPONDER": "Vous ne pouvez pas accepter cette demande",
+      "ALREADY_ACCEPTED": "Cette demande a déjà été acceptée",
+      "SESSION_EXPIRED": "Cette demande a expiré",
+      "REQUEST_EXPIRED": "Cette demande a expiré",
+      "ANSWER_REQUIRED": "Veuillez répondre à la question secrète",
+      "CONNECTION_ERROR": "Erreur de connexion. Veuillez vérifier votre réseau",
+      "INTERNAL_ERROR": "Quelque chose s'est mal passé. Veuillez réessayer",
+      "DEFAULT": "Une erreur s'est produite. Veuillez réessayer"
+    }
+  },
+
+  "verification": {
+    "titlePending": "Vérifier la Connexion",
+    "titleWaiting": "Vérifier la Connexion",
+    "titleVerified": "Connexion Vérifiée",
+    "titleMismatch": "Alerte de Sécurité",
+    "subtitlePending": "Comparez cette empreinte avec votre pair pour assurer une connexion sécurisée.",
+    "subtitleVerified": "Les deux parties ont vérifié l'empreinte.",
+    "subtitleMismatch": "Incompatibilité d'empreinte détectée. Cette connexion peut être compromise.",
+    "mismatchWarning": "Les empreintes ne correspondent pas. Cela pourrait indiquer une attaque de l'homme du milieu. Ne partagez pas d'informations sensibles dans cette discussion.",
+    "yourVerification": "Votre vérification",
+    "peerVerification": "Vérification du pair",
+    "statusVerified": "Vérifié",
+    "statusPending": "En attente",
+    "statusNotVerified": "Non vérifié",
+    "statusMismatch": "Incompatibilité",
+    "matchButton": "L'Empreinte Correspond",
+    "mismatchButton": "Ne Correspond Pas",
+    "skipButton": "Ignorer et Continuer",
+    "continueButton": "Continuer vers la Discussion",
+    "continueAnywayButton": "Continuer Quand Même (Non Recommandé)",
+    "waitingPeer": "En attente de la vérification du pair...",
+    "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\"."
+  },
+
+  "handshake": {
+    "title": "Établissement d'une Connexion Sécurisée",
+    "subtitle": "Échange des clés de chiffrement..."
+  },
+
+  "pendingRequest": {
+    "title": "En attente de réponse",
+    "cancelButton": "Annuler la Demande"
+  },
+
+  "userSearch": {
+    "searching": "Recherche...",
+    "startChat": "Démarrer une Discussion Sécurisée",
+    "notFound": "Utilisateur non trouvé",
+    "notFoundHint": "Assurez-vous que le nom d'utilisateur est correct ou essayez de rechercher par ID Telegram",
+    "errorHint": "Veuillez réessayer ou vérifier votre connexion",
+    "errors": {
+      "SELF_SEARCH": "Vous ne pouvez pas démarrer une discussion avec vous-même",
+      "INVALID_QUERY": "Format de nom d'utilisateur ou d'ID invalide",
+      "RATE_LIMITED": "Trop de recherches. Veuillez patienter un moment",
+      "CONNECTION_ERROR": "Erreur de connexion. Veuillez vérifier votre réseau",
+      "DEFAULT": "Une erreur s'est produite. Veuillez réessayer"
+    }
+  },
+
+  "room": {
+    "sectionMyRooms": "Mes Salons",
+    "emptyRooms": "Aucun salon pour l'instant",
+    "createRoomButton": "Créer un Salon",
+    "roleOwner": "Propriétaire",
+    "roleMember": "Membre",
+    "burned": "Détruit",
+    "left": "Parti",
+
+    "create": {
+      "title": "Créer un Salon",
+      "passwordLabel": "Mot de passe",
+      "passwordPlaceholder": "Entrez le mot de passe du salon...",
+      "passwordConfirmLabel": "Confirmer le Mot de passe",
+      "passwordConfirmPlaceholder": "Répétez le mot de passe...",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères",
+      "joinModeLabel": "Mode de Rejoindre",
+      "joinModePassword": "Par mot de passe — toute personne ayant le lien et le mot de passe peut rejoindre",
+      "joinModeRequest": "Par demande — les participants doivent être approuvés par le propriétaire",
+      "submitButton": "Créer",
+      "successTitle": "Salon créé !",
+      "copyLinkButton": "Copier le Lien d'Invitation",
+      "linkCopied": "Lien copié",
+      "generatePassword": "Générer un mot de passe fort",
+      "passwordGenerated": "Mot de passe fort généré et copié dans le presse-papiers !",
+      "passwordGeneratedNoCopy": "Mot de passe fort généré. Copiez-le manuellement.",
+      "errorWeak": "Le mot de passe est trop faible",
+      "errorNetwork": "Erreur réseau. Veuillez réessayer"
+    },
+
+    "join": {
+      "title": "Rejoindre le Salon",
+      "subtitle": "Entrez le mot de passe du salon pour continuer",
+      "passwordLabel": "Mot de passe",
+      "passwordPlaceholder": "Entrez le mot de passe...",
+      "joinButton": "Rejoindre",
+      "requestButton": "Envoyer une Demande",
+      "requestSent": "Votre demande a été envoyée. En attente d'approbation.",
+      "errorInvalidPassword": "Mot de passe incorrect",
+      "errorExpiredToken": "Ce lien d'invitation a expiré",
+      "errorInvalidToken": "Lien d'invitation invalide",
+      "errorAlreadyMember": "Vous êtes déjà membre de ce salon",
+      "errorRequestPending": "Votre demande de rejoindre est déjà en attente",
+      "errorRejected": "Votre demande de rejoindre a été refusée par le propriétaire",
+      "errorNetwork": "Erreur réseau. Veuillez réessayer"
+    },
+
+    "requests": {
+      "title": "Demandes de Rejoindre",
+      "empty": "Aucune demande en attente",
+      "acceptButton": "Accepter",
+      "rejectButton": "Refuser",
+      "approvedNotice": "Demande approuvée",
+      "rejectedNotice": "Demande refusée"
+    },
+
+    "chat": {
+      "noAccess": "Pas d'accès",
+      "noAccessHint": "Vous n'êtes pas membre de ce salon",
+      "loadingKey": "Chargement de la clé de chiffrement...",
+      "memberCount": "{{count}} membres",
+      "memberCount_one": "1 membre"
+    },
+
+    "manage": {
+      "title": "Paramètres du Salon",
+      "inviteButton": "Inviter",
+      "requestsButton": "Demandes de Rejoindre",
+      "membersButton": "Membres",
+      "burnButton": "Détruire le Salon",
+      "leaveButton": "Quitter le Salon",
+      "membersTitle": "Membres",
+      "membersEmpty": "Aucun membre pour l'instant",
+      "burnConfirmTitle": "Détruire ce salon ?",
+      "burnConfirmText": "Cela détruira définitivement le salon et tous ses messages pour tout le monde. Cela est irréversible."
+    },
+
+    "burn": {
+      "title": "Détruire ce salon ?",
+      "description": "Cela détruira définitivement le salon et tous ses messages.",
+      "warning": "Tous les messages, clés de chiffrement et liste des membres seront effacés pour tout le monde. Cette action est irréversible.",
+      "confirmButton": "Détruire le Salon"
+    },
+
+    "leave": {
+      "title": "Quitter le salon ?",
+      "description": "Vous n'aurez plus accès aux messages de ce salon.",
+      "warning": "La clé de chiffrement du salon sera changée après votre départ.",
+      "confirmButton": "Quitter"
+    }
+  },
+
+  "sessionCard": {
+    "statusPending": "En attente...",
+    "statusHandshake": "Connexion...",
+    "statusActive": "Actif",
+    "statusExpired": "Expiré",
+    "statusBurned": "Détruit",
+    "online": "en ligne"
+  }
+}
