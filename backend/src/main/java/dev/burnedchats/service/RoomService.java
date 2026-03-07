@@ -32,14 +32,14 @@ public class RoomService {
      *
      * <ol>
      *   <li>Generate a UUID v4 for the room.</li>
-     *   <li>Hash the client-supplied proof and store it alongside the salt.</li>
+     *   <li>If password proof is supplied: hash it and store with salt; otherwise store empty (BY_REQUEST without password).</li>
      *   <li>Persist the room in Redis with a 30-day TTL.</li>
      *   <li>Add the owner as the first member of {@code room_members:{roomId}}.</li>
      * </ol>
      *
      * @param ownerTgId      Telegram ID of the room owner
-     * @param salt           KDF salt (Base64, client-generated)
-     * @param passwordProof  PBKDF2 proof (Base64, client-derived)
+     * @param salt           KDF salt (Base64), or null when creating a room without password (BY_REQUEST)
+     * @param passwordProof  PBKDF2 proof (Base64), or null when room has no password
      * @param joinMode       how participants enter the room
      * @param nameEncrypted  optional encrypted room name (may be null)
      * @return Mono with the newly created {@link Room}
@@ -50,12 +50,14 @@ public class RoomService {
                                  Room.JoinMode joinMode,
                                  String nameEncrypted) {
         String roomId = UUID.randomUUID().toString();
-        String proofHash = passwordProofService.hashProof(passwordProof);
+        boolean hasPassword = passwordProof != null && !passwordProof.isBlank();
+        String proofHash = hasPassword ? passwordProofService.hashProof(passwordProof) : "";
+        String saltStored = (salt != null && !salt.isBlank()) ? salt : "";
 
         Room room = Room.builder()
                 .id(roomId)
                 .ownerTgId(ownerTgId)
-                .salt(salt)
+                .salt(saltStored)
                 .passwordProofHash(proofHash)
                 .joinMode(joinMode)
                 .createdAt(Instant.now().toEpochMilli())

@@ -14,10 +14,12 @@ interface JoinRoomViewProps {
   status: JoinRoomStatus;
   /** Join mode resolved from the server; null while loading. */
   joinMode: RoomJoinMode | null;
+  /** True if the room requires a password; when false, no password field is shown. */
+  hasPassword: boolean;
   /** Error code from the server or crypto layer. */
   error?: JoinRoomErrorCode | string | null;
-  /** Called when the user submits the password form. */
-  onSubmit?: (token: string, password: string) => void;
+  /** Called when the user submits. When hasPassword is false, password is omitted. */
+  onSubmit?: (token: string, password?: string) => void;
   /** Called when the user presses back / cancel. */
   onCancel?: () => void;
 }
@@ -40,6 +42,7 @@ export function JoinRoomView({
   token,
   status,
   joinMode,
+  hasPassword,
   error,
   onSubmit,
   onCancel,
@@ -57,10 +60,11 @@ export function JoinRoomView({
   const handleSubmit = useCallback(
     (e: FormEvent) => {
       e.preventDefault();
-      if (status === 'submitting' || status === 'loading-info' || !password) return;
-      onSubmit?.(token, password);
+      if (status === 'submitting' || status === 'loading-info') return;
+      if (hasPassword && !password) return;
+      onSubmit?.(token, hasPassword ? password : undefined);
     },
-    [status, password, token, onSubmit]
+    [status, hasPassword, password, token, onSubmit]
   );
 
   const isLoading = status === 'loading-info' || status === 'submitting';
@@ -157,13 +161,16 @@ export function JoinRoomView({
   // ----------------------------------------
   const errorMessage = mapErrorMessage(error, t);
   const isRequest = joinMode === 'BY_REQUEST';
+  const submitDisabled = hasPassword && !password;
 
   return (
     <div className="join-room-view">
       <div className="join-room-view__header">
         <div className="join-room-view__icon" aria-hidden="true">🔑</div>
         <h2 className="join-room-view__title">{t('room.join.title')}</h2>
-        <p className="join-room-view__subtitle">{t('room.join.subtitle')}</p>
+        <p className="join-room-view__subtitle">
+          {hasPassword ? t('room.join.subtitle') : t('room.join.subtitleNoPassword')}
+        </p>
       </div>
 
       <div className="join-room-view__token" title={token}>
@@ -171,26 +178,28 @@ export function JoinRoomView({
       </div>
 
       <form className="join-room-view__form" onSubmit={handleSubmit} noValidate>
-        <Input
-          type={showPassword ? 'text' : 'password'}
-          label={t('room.join.passwordLabel')}
-          placeholder={t('room.join.passwordPlaceholder')}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={isLoading}
-          autoComplete="current-password"
-          rightIcon={
-            <button
-              type="button"
-              className="input-icon-btn"
-              aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
-              onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
-              disabled={isLoading}
-            >
-              {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
-            </button>
-          }
-        />
+        {hasPassword && (
+          <Input
+            type={showPassword ? 'text' : 'password'}
+            label={t('room.join.passwordLabel')}
+            placeholder={t('room.join.passwordPlaceholder')}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+            autoComplete="current-password"
+            rightIcon={
+              <button
+                type="button"
+                className="input-icon-btn"
+                aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
+                onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+                disabled={isLoading}
+              >
+                {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+              </button>
+            }
+          />
+        )}
 
         {errorMessage && (
           <p className="join-room-view__error" role="alert">
@@ -203,7 +212,7 @@ export function JoinRoomView({
             type="submit"
             isLoading={isLoading}
             fullWidth
-            disabled={!password}
+            disabled={submitDisabled}
           >
             {isRequest ? t('room.join.requestButton') : t('room.join.joinButton')}
           </Button>

@@ -73,7 +73,7 @@ public class RoomJoinService {
      * @param senderUsername  Telegram username (may be null)
      * @param senderFirstName first name from initData
      * @param inviteToken     token from the deep link
-     * @param passwordProof   PBKDF2 proof derived client-side
+     * @param passwordProof   PBKDF2 proof derived client-side; may be null when the room has no password (BY_REQUEST)
      * @param senderPublicKey Base64 SPKI ECDH public key of the sender (may be null)
      * @return Mono with {@link JoinResult}; errors signal with descriptive messages used as error codes
      */
@@ -93,8 +93,15 @@ public class RoomJoinService {
                             .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")));
                 })
                 .flatMap(room -> {
-                    if (!passwordProofService.verifyProof(passwordProof, room.getPasswordProofHash())) {
-                        return Mono.error(new SecurityException("WRONG_PASSWORD"));
+                    boolean roomHasPassword = room.getPasswordProofHash() != null
+                            && !room.getPasswordProofHash().isBlank();
+                    if (roomHasPassword) {
+                        if (passwordProof == null || passwordProof.isBlank()) {
+                            return Mono.error(new SecurityException("WRONG_PASSWORD"));
+                        }
+                        if (!passwordProofService.verifyProof(passwordProof, room.getPasswordProofHash())) {
+                            return Mono.error(new SecurityException("WRONG_PASSWORD"));
+                        }
                     }
                     return roomMembersRepository.isMember(room.getId(), senderTgId)
                             .flatMap(alreadyMember -> {

@@ -13,8 +13,8 @@ interface CreateRoomViewProps {
   isLoading?: boolean;
   /** Error code from the server or crypto layer */
   error?: string | null;
-  /** Called when the user submits the form */
-  onSubmit: (password: string, joinMode: RoomJoinMode) => void;
+  /** Called when the user submits the form. When joinMode is BY_REQUEST, password may be null (room without password). */
+  onSubmit: (password: string | null, joinMode: RoomJoinMode) => void;
   /** Called when the user cancels */
   onCancel?: () => void;
   /** CSS class override */
@@ -72,6 +72,7 @@ export function CreateRoomView({
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [joinMode, setJoinMode] = useState<RoomJoinMode>('BY_PASSWORD');
+  const [noPassword, setNoPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -93,6 +94,10 @@ export function CreateRoomView({
   }, [t, toast]);
 
   const validate = useCallback((): boolean => {
+    if (joinMode === 'BY_REQUEST' && noPassword) {
+      setValidationError(null);
+      return true;
+    }
     const pwdError = validatePassword(password);
     if (pwdError) {
       setValidationError(t(pwdError));
@@ -104,16 +109,17 @@ export function CreateRoomView({
     }
     setValidationError(null);
     return true;
-  }, [password, passwordConfirm, t]);
+  }, [joinMode, noPassword, password, passwordConfirm, t]);
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {
       e.preventDefault();
       if (isLoading) return;
       if (!validate()) return;
-      onSubmit(password, joinMode);
+      const submitPassword = joinMode === 'BY_REQUEST' && noPassword ? null : password;
+      onSubmit(submitPassword, joinMode);
     },
-    [isLoading, validate, onSubmit, password, joinMode]
+    [isLoading, validate, onSubmit, joinMode, noPassword, password]
   );
 
   const displayError = validationError ?? (error ? t(`room.create.${mapErrorCode(error)}`) : null);
@@ -128,68 +134,7 @@ export function CreateRoomView({
       </div>
 
       <form className="create-room-view__form" onSubmit={handleSubmit} noValidate>
-        {/* Password */}
-        <Input
-          type={showPassword ? 'text' : 'password'}
-          label={t('room.create.passwordLabel')}
-          placeholder={t('room.create.passwordPlaceholder')}
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            setValidationError(null);
-          }}
-          disabled={isLoading}
-          autoComplete="new-password"
-          rightIcon={
-            <button
-              type="button"
-              className="input-icon-btn"
-              aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
-              onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
-              disabled={isLoading}
-            >
-              {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
-            </button>
-          }
-        />
-
-        {/* Confirm Password */}
-        <Input
-          type={showConfirm ? 'text' : 'password'}
-          label={t('room.create.passwordConfirmLabel')}
-          placeholder={t('room.create.passwordConfirmPlaceholder')}
-          value={passwordConfirm}
-          onChange={(e) => {
-            setPasswordConfirm(e.target.value);
-            setValidationError(null);
-          }}
-          disabled={isLoading}
-          autoComplete="new-password"
-          rightIcon={
-            <button
-              type="button"
-              className="input-icon-btn"
-              aria-label={showConfirm ? t('common.hidePassword') : t('common.showPassword')}
-              onPointerDown={(e) => { e.preventDefault(); setShowConfirm((v) => !v); }}
-              disabled={isLoading}
-            >
-              {showConfirm ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
-            </button>
-          }
-        />
-
-        {/* Generate password */}
-        <button
-          type="button"
-          className="create-room-view__generate-btn"
-          onClick={handleGeneratePassword}
-          disabled={isLoading}
-        >
-          <SparklesIcon size={16} />
-          {t('room.create.generatePassword')}
-        </button>
-
-        {/* Join mode */}
+        {/* Join mode first so "no password" option is contextual */}
         <fieldset className="create-room-view__fieldset">
           <legend className="create-room-view__fieldset-legend">
             {t('room.create.joinModeLabel')}
@@ -201,7 +146,7 @@ export function CreateRoomView({
               name="joinMode"
               value="BY_PASSWORD"
               checked={joinMode === 'BY_PASSWORD'}
-              onChange={() => setJoinMode('BY_PASSWORD')}
+              onChange={() => { setJoinMode('BY_PASSWORD'); setNoPassword(false); }}
               disabled={isLoading}
               className="create-room-view__radio"
             />
@@ -224,7 +169,85 @@ export function CreateRoomView({
               {t('room.create.joinModeRequest')}
             </span>
           </label>
+
+          {joinMode === 'BY_REQUEST' && (
+            <label className="create-room-view__radio-label create-room-view__checkbox-label">
+              <input
+                type="checkbox"
+                checked={noPassword}
+                onChange={(e) => setNoPassword(e.target.checked)}
+                disabled={isLoading}
+                className="create-room-view__radio"
+              />
+              <span className="create-room-view__radio-text">
+                {t('room.create.noPasswordOption')}
+              </span>
+            </label>
+          )}
         </fieldset>
+
+        {/* Password fields — hidden when BY_REQUEST and no password */}
+        {!(joinMode === 'BY_REQUEST' && noPassword) && (
+          <>
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              label={t('room.create.passwordLabel')}
+              placeholder={t('room.create.passwordPlaceholder')}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setValidationError(null);
+              }}
+              disabled={isLoading}
+              autoComplete="new-password"
+              rightIcon={
+                <button
+                  type="button"
+                  className="input-icon-btn"
+                  aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
+                  onPointerDown={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                </button>
+              }
+            />
+
+            <Input
+              type={showConfirm ? 'text' : 'password'}
+              label={t('room.create.passwordConfirmLabel')}
+              placeholder={t('room.create.passwordConfirmPlaceholder')}
+              value={passwordConfirm}
+              onChange={(e) => {
+                setPasswordConfirm(e.target.value);
+                setValidationError(null);
+              }}
+              disabled={isLoading}
+              autoComplete="new-password"
+              rightIcon={
+                <button
+                  type="button"
+                  className="input-icon-btn"
+                  aria-label={showConfirm ? t('common.hidePassword') : t('common.showPassword')}
+                  onPointerDown={(e) => { e.preventDefault(); setShowConfirm((v) => !v); }}
+                  disabled={isLoading}
+                >
+                  {showConfirm ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                </button>
+              }
+            />
+
+            <button
+              type="button"
+              className="create-room-view__generate-btn"
+              onClick={handleGeneratePassword}
+              disabled={isLoading}
+            >
+              <SparklesIcon size={16} />
+              {t('room.create.generatePassword')}
+            </button>
+          </>
+        )}
 
         {/* Error */}
         {displayError && (

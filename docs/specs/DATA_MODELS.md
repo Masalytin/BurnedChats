@@ -185,8 +185,8 @@ SADD blocked:111222333 "444555666" "777888999"
 ```redis
 HSET room:uuid-room-1
   ownerTgId       "111222333"
-  salt            "base64..."
-  passwordProofHash "base64..."
+  salt            "base64..."     # пустая строка, если комната без пароля (BY_REQUEST)
+  passwordProofHash "base64..."   # пустая строка, если комната без пароля
   joinMode        "by_password"   # или "by_request"
   createdAt       "1704067200000"
 
@@ -196,8 +196,8 @@ EXPIRE room:uuid-room-1 2592000
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `ownerTgId` | string | Telegram ID владельца |
-| `salt` | string | Salt для KDF (Base64) |
-| `passwordProofHash` | string | Производная пароля (proof), не plaintext |
+| `salt` | string | Salt для KDF (Base64). Пустая строка, если комната без пароля (BY_REQUEST) |
+| `passwordProofHash` | string | Хеш proof. Пустая строка, если комната без пароля |
 | `joinMode` | enum | `by_password` \| `by_request` |
 | `createdAt` | number | Unix timestamp в мс |
 

@@ -973,19 +973,44 @@ client.activate();
 
 ```json
 {
-  "salt": "base64...",
-  "passwordProof": "base64...",
+  "salt": "base64... (optional when BY_REQUEST)",
+  "passwordProof": "base64... (optional when BY_REQUEST)",
   "joinMode": "BY_PASSWORD | BY_REQUEST",
+  "ownerPublicKey": "base64... (optional)",
   "nameEncrypted": "base64... (optional)"
 }
 ```
 
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
-| `salt` | string (Base64, 16–48 bytes) | Да | KDF salt, client-generated |
-| `passwordProof` | string (Base64, 32 bytes) | Да | PBKDF2 proof (never the password) |
-| `joinMode` | enum | Да | `BY_PASSWORD` — вход сразу; `BY_REQUEST` — по одобрению |
+| `salt` | string (Base64, 16–48 bytes) | При BY_PASSWORD | KDF salt, client-generated. При BY_REQUEST без пароля — не передавать |
+| `passwordProof` | string (Base64, 32 bytes) | При BY_PASSWORD | PBKDF2 proof. При BY_REQUEST без пароля — не передавать |
+| `joinMode` | enum | Да | `BY_PASSWORD` — вход сразу; `BY_REQUEST` — по одобрению (пароль опционален) |
+| `ownerPublicKey` | string (Base64) | Нет | Публичный ключ владельца (ECDH) |
 | `nameEncrypted` | string (Base64) | Нет | Зашифрованное имя комнаты |
+
+---
+
+### GET_INVITE_INFO / room-invite-info
+
+**Запрос:** Client → Server, destination `/app/room.getInviteInfo`, body `{ "inviteToken": "string" }`.
+
+**Ответ:** Server → Client, destination `/user/queue/room-invite-info`.
+
+При успехе клиент получает `salt`, `joinMode` и **`hasPassword`** (boolean). Если `hasPassword === false`, комната без пароля (BY_REQUEST): на экране «Войти по ссылке» не показывать поле пароля, только кнопку «Отправить заявку».
+
+---
+
+### REQUEST_JOIN_ROOM
+
+**Направление:** Client → Server  
+**Destination:** `/app/room.requestJoin`
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `inviteToken` | string | Да | Токен из deep link |
+| `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
+| `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
 
 ---
 

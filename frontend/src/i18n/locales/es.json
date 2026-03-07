@@ -151,6 +151,7 @@
       "joinModeLabel": "Modo de Unión",
       "joinModePassword": "Por contraseña — cualquiera con el enlace y contraseña puede unirse",
       "joinModeRequest": "Por solicitud — los participantes deben ser aprobados por el propietario",
+      "noPasswordOption": "Sin contraseña — cualquiera con el enlace puede enviar una solicitud",
       "submitButton": "Crear",
       "successTitle": "¡Sala creada!",
       "copyLinkButton": "Copiar Enlace de Invitación",
@@ -165,6 +166,7 @@
     "join": {
       "title": "Unirse a la Sala",
       "subtitle": "Introduce la contraseña de la sala para continuar",
+      "subtitleNoPassword": "Envía una solicitud para unirte a esta sala",
       "passwordLabel": "Contraseña",
       "passwordPlaceholder": "Introduce la contraseña...",
       "joinButton": "Unirse",

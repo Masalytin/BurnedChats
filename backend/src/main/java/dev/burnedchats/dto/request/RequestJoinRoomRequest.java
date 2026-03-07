@@ -32,9 +32,9 @@ public class RequestJoinRoomRequest {
 
     /**
      * PBKDF2 proof derived by the client: PBKDF2WithHmacSHA256(password, roomSalt, 200_000, 256 bits).
-     * Base64-encoded, 32 bytes.
+     * Base64-encoded, 32 bytes. Required when the room has a password; optional (may be null) when
+     * the room has no password (BY_REQUEST without password).
      */
-    @NotBlank
     @Size(min = 43, max = 44)
     @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "passwordProof must be Base64")
     private String passwordProof;

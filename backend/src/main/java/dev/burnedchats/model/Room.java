@@ -49,6 +49,7 @@ public class Room implements Serializable {
     /**
      * KDF salt (Base64, 16+ bytes), generated on the client.
      * Stored so that joining users can re-derive the proof with the same parameters.
+     * May be null or empty when the room has no password (BY_REQUEST without password).
      */
     private String salt;
 
@@ -56,6 +57,7 @@ public class Room implements Serializable {
      * Hash of the PBKDF2 proof (Base64).
      * The proof itself is derived client-side: PBKDF2(password, salt) → proof.
      * The server stores hash(proof) and performs constant-time comparison on entry.
+     * May be null or empty when the room has no password (BY_REQUEST, join by request only).
      */
     private String passwordProofHash;
 

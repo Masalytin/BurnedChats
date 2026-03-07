@@ -41,6 +41,8 @@ export type JoinRoomErrorCode =
 export interface JoinRoomResult {
   status: JoinRoomStatus;
   joinMode: RoomJoinMode | null;
+  /** True if the room requires a password; false for BY_REQUEST without password. */
+  hasPassword: boolean;
   roomId: string | null;
   error: JoinRoomErrorCode | null;
 }
@@ -53,6 +55,7 @@ interface ServerInviteInfoEvent {
   success: boolean;
   salt?: string;
   joinMode?: string;
+  hasPassword?: boolean;
   error?: string;
 }
 
@@ -82,16 +85,17 @@ interface UseJoinRoomOptions {
 
 export interface UseJoinRoomReturn {
   result: JoinRoomResult;
-  /** Step 1: fetch invite info (salt + joinMode) for this token. */
+  /** Step 1: fetch invite info (salt + joinMode + hasPassword) for this token. */
   loadInviteInfo: (token: string) => void;
-  /** Step 2: submit password after invite info has loaded. */
-  submitJoin: (token: string, password: string) => Promise<void>;
+  /** Step 2: submit join. When room has no password, password can be omitted. */
+  submitJoin: (token: string, password?: string) => Promise<void>;
   reset: () => void;
 }
 
 const initialResult: JoinRoomResult = {
   status: 'idle',
   joinMode: null,
+  hasPassword: true,
   roomId: null,
   error: null,
 };
@@ -139,21 +143,22 @@ export function useJoinRoom({
   const handleInviteInfo = useCallback((message: IMessage) => {
     try {
       const data: ServerInviteInfoEvent = JSON.parse(message.body);
-      if (data.success && data.salt && data.joinMode) {
-        pendingSaltRef.current = data.salt;
+      if (data.success && data.joinMode) {
+        pendingSaltRef.current = data.salt ?? null;
         setResult(prev => ({
           ...prev,
           status: 'ready',
           joinMode: data.joinMode as RoomJoinMode,
+          hasPassword: data.hasPassword ?? true,
           error: null,
         }));
       } else {
         const code = (data.error ?? 'INTERNAL_ERROR') as JoinRoomErrorCode;
-        setResult({ status: 'error', joinMode: null, roomId: null, error: code });
+        setResult({ status: 'error', joinMode: null, hasPassword: true, roomId: null, error: code });
         onErrorRef.current?.(code);
       }
     } catch {
-      setResult({ status: 'error', joinMode: null, roomId: null, error: 'CONNECTION_ERROR' });
+      setResult({ status: 'error', joinMode: null, hasPassword: true, roomId: null, error: 'CONNECTION_ERROR' });
       onErrorRef.current?.('CONNECTION_ERROR');
     }
   }, []);
@@ -194,6 +199,11 @@ export function useJoinRoom({
     }
   }, []);
 
+  const hasPasswordRef = useRef(true);
+  useEffect(() => {
+    hasPasswordRef.current = result.hasPassword;
+  }, [result.hasPassword]);
+
   // ----------------------------------------
   // Subscriptions
   // ----------------------------------------
@@ -222,46 +232,54 @@ export function useJoinRoom({
   const loadInviteInfo = useCallback(
     (token: string) => {
       if (!isConnected) {
-        setResult({ status: 'error', joinMode: null, roomId: null, error: 'CONNECTION_ERROR' });
+        setResult({ status: 'error', joinMode: null, hasPassword: true, roomId: null, error: 'CONNECTION_ERROR' });
         onErrorRef.current?.('CONNECTION_ERROR');
         return;
       }
       pendingSaltRef.current = null;
-      setResult({ status: 'loading-info', joinMode: null, roomId: null, error: null });
+      setResult({ status: 'loading-info', joinMode: null, hasPassword: true, roomId: null, error: null });
       publish(GET_INVITE_INFO_DESTINATION, { inviteToken: token });
     },
     [isConnected, publish]
   );
 
   const submitJoin = useCallback(
-    async (token: string, password: string) => {
+    async (token: string, password?: string) => {
       if (!isConnected) {
         setResult(prev => ({ ...prev, status: 'error', error: 'CONNECTION_ERROR' }));
         onErrorRef.current?.('CONNECTION_ERROR');
         return;
       }
 
+      const needsPassword = hasPasswordRef.current;
+      if (needsPassword && (password == null || password === '')) {
+        setResult(prev => ({ ...prev, status: 'error', error: 'WRONG_PASSWORD' }));
+        onErrorRef.current?.('WRONG_PASSWORD');
+        return;
+      }
+
       setResult(prev => ({ ...prev, status: 'submitting', error: null }));
 
       try {
-        const salt = pendingSaltRef.current ?? undefined;
-        const [{ proof }, keyPair] = await Promise.all([
-          derivePasswordProof(password, salt),
-          generateKeyPair(),
-        ]);
+        const keyPair = await generateKeyPair();
         const publicKey = await exportPublicKey(keyPair.publicKey);
-
-        // Keep the keypair in memory until we learn our roomId (on approval)
         pendingKeyPairRef.current = keyPair;
 
-        publish(REQUEST_JOIN_DESTINATION, {
-          inviteToken: token,
-          passwordProof: proof,
-          publicKey,
-        });
+        if (needsPassword && password) {
+          const salt = pendingSaltRef.current ?? undefined;
+          const { proof } = await derivePasswordProof(password, salt);
+          publish(REQUEST_JOIN_DESTINATION, {
+            inviteToken: token,
+            passwordProof: proof,
+            publicKey,
+          });
+        } else {
+          publish(REQUEST_JOIN_DESTINATION, {
+            inviteToken: token,
+            publicKey,
+          });
+        }
 
-        // Transition to 'pending' — for BY_PASSWORD this gets quickly overwritten
-        // by 'approved'; for BY_REQUEST it stays until the owner decides.
         setResult(prev => ({ ...prev, status: 'pending' }));
       } catch {
         setResult(prev => ({ ...prev, status: 'error', error: 'CRYPTO_ERROR' }));

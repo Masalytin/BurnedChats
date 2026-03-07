@@ -150,7 +150,7 @@ public class RoomHandler {
 
         roomService.createRoom(
                         ownerTgId,
-                        request.getSalt(),
+                        request.getSalt() != null ? request.getSalt() : "",
                         request.getPasswordProof(),
                         request.getJoinMode(),
                         request.getNameEncrypted()
@@ -243,12 +243,16 @@ public class RoomHandler {
         inviteTokenService.resolveRoomByToken(request.getInviteToken())
                 .subscribe(
                         room -> {
+                            boolean hasPassword = room.getPasswordProofHash() != null
+                                    && !room.getPasswordProofHash().isBlank();
+                            String salt = room.getSalt() != null ? room.getSalt() : "";
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(requesterTgId),
                                     INVITE_INFO_DESTINATION,
-                                    RoomInviteInfoEvent.success(room.getSalt(), room.getJoinMode().name())
+                                    RoomInviteInfoEvent.success(salt, room.getJoinMode().name(), hasPassword)
                             );
-                            log.info("ROOM_INVITE_INFO sent: roomId={}, tgId={}", room.getId(), requesterTgId);
+                            log.info("ROOM_INVITE_INFO sent: roomId={}, tgId={}, hasPassword={}",
+                                    room.getId(), requesterTgId, hasPassword);
                         },
                         error -> {
                             String code = error instanceof IllegalArgumentException iae ? iae.getMessage() : "INTERNAL_ERROR";

@@ -151,6 +151,7 @@
       "joinModeLabel": "Mode de Rejoindre",
       "joinModePassword": "Par mot de passe — toute personne ayant le lien et le mot de passe peut rejoindre",
       "joinModeRequest": "Par demande — les participants doivent être approuvés par le propriétaire",
+      "noPasswordOption": "Sans mot de passe — toute personne avec le lien peut envoyer une demande",
       "submitButton": "Créer",
       "successTitle": "Salon créé !",
       "copyLinkButton": "Copier le Lien d'Invitation",
@@ -165,6 +166,7 @@
     "join": {
       "title": "Rejoindre le Salon",
       "subtitle": "Entrez le mot de passe du salon pour continuer",
+      "subtitleNoPassword": "Envoyez une demande pour rejoindre ce salon",
       "passwordLabel": "Mot de passe",
       "passwordPlaceholder": "Entrez le mot de passe...",
       "joinButton": "Rejoindre",

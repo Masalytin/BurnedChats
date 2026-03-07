@@ -110,8 +110,8 @@ public class RoomRepository {
         Map<String, String> map = new HashMap<>();
         map.put("id", room.getId());
         map.put("ownerTgId", String.valueOf(room.getOwnerTgId()));
-        map.put("salt", room.getSalt());
-        map.put("passwordProofHash", room.getPasswordProofHash());
+        map.put("salt", room.getSalt() != null ? room.getSalt() : "");
+        map.put("passwordProofHash", room.getPasswordProofHash() != null ? room.getPasswordProofHash() : "");
         map.put("joinMode", room.getJoinMode().name());
         map.put("createdAt", String.valueOf(room.getCreatedAt()));
         map.put("nameEncrypted", room.getNameEncrypted() != null ? room.getNameEncrypted() : "");
@@ -120,11 +120,13 @@ public class RoomRepository {
 
     private Room fromHash(Map<String, String> hash) {
         String nameEncrypted = hash.getOrDefault("nameEncrypted", "");
+        String salt = hash.getOrDefault("salt", "");
+        String passwordProofHash = hash.getOrDefault("passwordProofHash", "");
         return Room.builder()
                 .id(hash.get("id"))
                 .ownerTgId(Long.parseLong(hash.get("ownerTgId")))
-                .salt(hash.get("salt"))
-                .passwordProofHash(hash.get("passwordProofHash"))
+                .salt(salt.isEmpty() ? null : salt)
+                .passwordProofHash(passwordProofHash.isEmpty() ? null : passwordProofHash)
                 .joinMode(Room.JoinMode.valueOf(hash.get("joinMode")))
                 .createdAt(Long.parseLong(hash.get("createdAt")))
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)

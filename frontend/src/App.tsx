@@ -666,8 +666,8 @@ function AppContent() {
     }, 500);
   }, [rejectJoinRequest, removeJoinRequest, toast]);
 
-  // Handle CreateRoomView form submit
-  const handleCreateRoomSubmit = useCallback((password: string, joinMode: RoomJoinMode) => {
+  // Handle CreateRoomView form submit (password may be null for BY_REQUEST without password)
+  const handleCreateRoomSubmit = useCallback((password: string | null, joinMode: RoomJoinMode) => {
     createRoom(password, joinMode);
   }, [createRoom]);
 
@@ -1414,6 +1414,7 @@ function AppContent() {
             token={inviteToken}
             status={joinRoomResult.status}
             joinMode={joinRoomResult.joinMode}
+            hasPassword={joinRoomResult.hasPassword}
             error={joinRoomResult.error}
             onSubmit={(token, password) => submitJoin(token, password)}
             onCancel={() => {

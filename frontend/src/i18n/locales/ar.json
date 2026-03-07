@@ -151,6 +151,7 @@
       "joinModeLabel": "وضع الانضمام",
       "joinModePassword": "بواسطة كلمة المرور — يمكن لأي شخص لديه الرابط وكلمة المرور الانضمام",
       "joinModeRequest": "بواسطة الطلب — يجب الموافقة على المشاركين من قبل المالك",
+      "noPasswordOption": "بدون كلمة مرور — أي شخص لديه الرابط يمكنه إرسال طلب",
       "submitButton": "إنشاء",
       "successTitle": "تم إنشاء الغرفة!",
       "copyLinkButton": "نسخ رابط الدعوة",
@@ -165,6 +166,7 @@
     "join": {
       "title": "الانضمام إلى الغرفة",
       "subtitle": "أدخل كلمة مرور الغرفة للمتابعة",
+      "subtitleNoPassword": "أرسل طلبًا للانضمام إلى هذه الغرفة",
       "passwordLabel": "كلمة المرور",
       "passwordPlaceholder": "أدخل كلمة المرور...",
       "joinButton": "انضمام",

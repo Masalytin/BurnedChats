@@ -151,6 +151,7 @@
       "joinModeLabel": "Join Mode",
       "joinModePassword": "By password — anyone with the link and password can join",
       "joinModeRequest": "By request — participants must be approved by the owner",
+      "noPasswordOption": "No password — anyone with the link can send a request",
       "submitButton": "Create",
       "successTitle": "Room created!",
       "copyLinkButton": "Copy Invite Link",
@@ -165,6 +166,7 @@
     "join": {
       "title": "Join Room",
       "subtitle": "Enter the room password to continue",
+      "subtitleNoPassword": "Send a request to join this room",
       "passwordLabel": "Password",
       "passwordPlaceholder": "Enter password...",
       "joinButton": "Join",

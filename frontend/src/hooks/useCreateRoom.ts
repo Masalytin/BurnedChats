@@ -46,7 +46,8 @@ interface UseCreateRoomOptions {
 
 interface UseCreateRoomReturn {
   result: CreateRoomResult;
-  createRoom: (password: string, joinMode: RoomJoinMode, nameEncrypted?: string) => Promise<void>;
+  /** When joinMode is BY_REQUEST, password may be null (room without password). */
+  createRoom: (password: string | null, joinMode: RoomJoinMode, nameEncrypted?: string) => Promise<void>;
   reset: () => void;
   isCreating: boolean;
 }
@@ -139,7 +140,7 @@ export function useCreateRoom({
   const pendingRoomKeypairRef = useRef<{ roomKeyId: string } | null>(null);
 
   const createRoom = useCallback(
-    async (password: string, joinMode: RoomJoinMode, nameEncrypted?: string) => {
+    async (password: string | null, joinMode: RoomJoinMode, nameEncrypted?: string) => {
       if (!isConnected) {
         setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CONNECTION_ERROR' });
         onErrorRef.current?.('CONNECTION_ERROR');
@@ -148,11 +149,18 @@ export function useCreateRoom({
 
       setResult({ status: 'creating', roomId: null, inviteUrl: null, error: null });
 
+      const hasPassword = password != null && password.length > 0;
+
       try {
-        const [{ salt, proof }, ownerKeyPair] = await Promise.all([
-          derivePasswordProof(password),
-          generateKeyPair(),
-        ]);
+        let salt: string | null = null;
+        let proof: string | null = null;
+        if (hasPassword) {
+          const derived = await derivePasswordProof(password);
+          salt = derived.salt;
+          proof = derived.proof;
+        }
+
+        const ownerKeyPair = await generateKeyPair();
 
         // Store keypair under a temp key; moved to room-join:{roomId} in handleRoomCreated
         const tempKeyId = `room-join-pending-${Date.now()}`;
@@ -162,11 +170,13 @@ export function useCreateRoom({
         const ownerPublicKey = await exportPublicKey(ownerKeyPair.publicKey);
 
         const payload: Record<string, unknown> = {
-          salt,
-          passwordProof: proof,
           joinMode,
           ownerPublicKey,
         };
+        if (salt != null && proof != null) {
+          payload.salt = salt;
+          payload.passwordProof = proof;
+        }
         if (nameEncrypted) {
           payload.nameEncrypted = nameEncrypted;
         }

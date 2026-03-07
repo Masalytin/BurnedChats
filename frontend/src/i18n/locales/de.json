@@ -151,6 +151,7 @@
       "joinModeLabel": "Beitrittsmodus",
       "joinModePassword": "Per Passwort — jeder mit Link und Passwort kann beitreten",
       "joinModeRequest": "Per Anfrage — Teilnehmer müssen vom Besitzer genehmigt werden",
+      "noPasswordOption": "Kein Passwort — jeder mit dem Link kann eine Anfrage senden",
       "submitButton": "Erstellen",
       "successTitle": "Raum erstellt!",
       "copyLinkButton": "Einladungslink kopieren",
@@ -165,6 +166,7 @@
     "join": {
       "title": "Raum beitreten",
       "subtitle": "Geben Sie das Raumpasswort ein, um fortzufahren",
+      "subtitleNoPassword": "Senden Sie eine Anfrage, um diesem Raum beizutreten",
       "passwordLabel": "Passwort",
       "passwordPlaceholder": "Passwort eingeben...",
       "joinButton": "Beitreten",
