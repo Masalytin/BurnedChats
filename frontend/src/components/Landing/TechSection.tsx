@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 
-const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/nicenemo/burned-chats';
+const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/Masalytin/BurnedChats';
 
 const badges = ['ECDH P-256', 'AES-256-GCM', 'Web Crypto API', 'React', 'Spring Boot', 'Redis', 'TypeScript', 'Java 21'];
 
