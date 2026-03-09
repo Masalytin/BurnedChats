@@ -1588,7 +1588,7 @@ interface ChatViewContentProps {
 }
 
 function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatViewContentProps) {
-  // Memoize onError callback to prevent unnecessary re-renders
+  const { t } = useTranslation();
   const handleMessageError = useCallback((err: string, details?: string) => {
     console.error('[ChatViewContent] Message error:', err, details);
   }, []);
@@ -1615,6 +1615,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatVi
       onBack={onBack}
       onBurn={onBurn}
       disabled={!!error}
+      errorMessage={error ? t('chat.temporarilyUnavailable') : undefined}
     />
   );
 }

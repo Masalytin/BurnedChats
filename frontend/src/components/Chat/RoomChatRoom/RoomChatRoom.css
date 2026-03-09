@@ -1,70 +1,13 @@
 /* ============================================
- * RoomChatRoom Component Styles (P2-3.2.3)
+ * RoomChatRoom — specific styles only
+ * Shared layout: @/styles/ChatScreen.css
  * ============================================ */
 
 .room-chat-room {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--bc-bg-primary);
 }
 
-/* ============================================
- * Header
- * ============================================ */
-
-.room-chat-room-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
-  background: var(--bc-bg-secondary);
-  border-bottom: 1px solid var(--bc-border-color);
-  flex-shrink: 0;
-  min-height: 56px;
-}
-
-.room-chat-room-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--bc-spacing-sm);
-  flex: 1;
-  min-width: 0;
-}
-
-.room-chat-room-back {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  color: var(--bc-text-primary);
-  cursor: pointer;
-  border-radius: var(--bc-radius-full);
-  transition: background var(--bc-transition-fast);
-  flex-shrink: 0;
-}
-
-.room-chat-room-back:hover {
-  background: var(--bc-bg-elevated);
-}
-
-.room-chat-room-back:active {
-  transform: scale(0.95);
-}
-
-.room-chat-room-header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--bc-spacing-xs);
-  flex-shrink: 0;
-}
-
+/* Header right area (manage / leave buttons) */
 .room-chat-room-manage,
 .room-chat-room-leave {
   display: flex;
@@ -95,76 +38,14 @@
 }
 
 .room-chat-room-leave {
-  color: var(--bc-danger, #ef4444);
+  color: var(--bc-destructive);
 }
 
 .room-chat-room-leave:hover {
-  background: color-mix(in srgb, var(--bc-danger, #ef4444) 12%, transparent);
+  background: color-mix(in srgb, var(--bc-destructive) 12%, transparent);
 }
 
-/* ============================================
- * Leave Confirmation Dialog
- * ============================================ */
-
-.room-chat-room-leave-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: var(--bc-spacing-md);
-}
-
-.room-chat-room-leave-dialog {
-  background: var(--bc-bg-secondary);
-  border-radius: var(--bc-radius-lg);
-  padding: var(--bc-spacing-lg);
-  width: 100%;
-  max-width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--bc-spacing-sm);
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.room-chat-room-leave-dialog__icon {
-  font-size: 2.5rem;
-  margin-bottom: var(--bc-spacing-xs);
-}
-
-.room-chat-room-leave-dialog__title {
-  font-size: var(--bc-text-lg);
-  font-weight: 700;
-  color: var(--bc-text-primary);
-  margin: 0;
-}
-
-.room-chat-room-leave-dialog__text {
-  font-size: var(--bc-text-sm);
-  color: var(--bc-text-secondary);
-  margin: 0;
-}
-
-.room-chat-room-leave-dialog__warning {
-  font-size: var(--bc-text-xs);
-  color: var(--bc-text-muted);
-  margin: 0;
-}
-
-.room-chat-room-leave-dialog__actions {
-  display: flex;
-  gap: var(--bc-spacing-sm);
-  margin-top: var(--bc-spacing-xs);
-}
-
-.room-chat-room-leave-dialog__confirm-btn {
-  background: var(--bc-danger, #ef4444) !important;
-  border-color: var(--bc-danger, #ef4444) !important;
-}
-
+/* Room info (title, subtitle) */
 .room-chat-room-info {
   display: flex;
   flex-direction: column;
@@ -205,19 +86,7 @@
   color: var(--bc-text-muted);
 }
 
-/* ============================================
- * Messages Area
- * ============================================ */
-
-.room-chat-room-messages {
-  flex: 1;
-  min-height: 0;
-}
-
-/* ============================================
- * Body / Placeholder
- * ============================================ */
-
+/* Body / Placeholder (no key yet) */
 .room-chat-room-body {
   flex: 1;
   display: flex;
@@ -250,14 +119,4 @@
 .room-chat-room-placeholder-hint {
   font-size: var(--bc-text-sm);
   color: var(--bc-text-muted);
-}
-
-/* ============================================
- * Mobile Safe Area
- * ============================================ */
-
-@supports (padding-top: env(safe-area-inset-top)) {
-  .room-chat-room-header {
-    padding-top: calc(var(--bc-spacing-sm) + env(safe-area-inset-top));
-  }
 }

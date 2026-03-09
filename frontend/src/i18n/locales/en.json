@@ -42,7 +42,11 @@
     "verifiedTitle": "Encrypted & Verified",
     "burnButtonLabel": "Burn chat",
     "burnButtonTitle": "Destroy this chat permanently",
-    "messagePlaceholder": "Message {{name}}..."
+    "messagePlaceholder": "Message {{name}}...",
+    "loadingMessages": "Loading messages...",
+    "emptyMessages": "No messages yet",
+    "emptyHint": "Send a message to start the conversation",
+    "temporarilyUnavailable": "Chat temporarily unavailable"
   },
 
   "burnDialog": {
@@ -195,7 +199,9 @@
       "noAccessHint": "You are not a member of this room",
       "loadingKey": "Loading encryption key...",
       "memberCount": "{{count}} members",
-      "memberCount_one": "1 member"
+      "memberCount_one": "1 member",
+      "sendError": "Failed to send message",
+      "keyLoadError": "Failed to load encryption key"
     },
 
     "manage": {

@@ -42,7 +42,11 @@
     "verifiedTitle": "Зашифровано и верифицировано",
     "burnButtonLabel": "Сжечь чат",
     "burnButtonTitle": "Уничтожить этот чат навсегда",
-    "messagePlaceholder": "Сообщение {{name}}..."
+    "messagePlaceholder": "Сообщение {{name}}...",
+    "loadingMessages": "Загрузка сообщений...",
+    "emptyMessages": "Пока нет сообщений",
+    "emptyHint": "Напишите сообщение, чтобы начать разговор",
+    "temporarilyUnavailable": "Чат временно недоступен"
   },
 
   "burnDialog": {
@@ -195,7 +199,9 @@
       "noAccessHint": "Вы не являетесь участником этой комнаты",
       "loadingKey": "Загрузка ключа шифрования...",
       "memberCount": "{{count}} участников",
-      "memberCount_one": "1 участник"
+      "memberCount_one": "1 участник",
+      "sendError": "Не удалось отправить сообщение",
+      "keyLoadError": "Не удалось загрузить ключ шифрования"
     },
 
     "manage": {

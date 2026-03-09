@@ -71,13 +71,13 @@
 }
 
 .button--destructive {
-  background: var(--bc-error);
+  background: var(--bc-destructive);
   color: white;
 }
 
 .button--destructive:hover:not(:disabled) {
-  background: #ff5555;
-  box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--bc-destructive) 85%, white);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--bc-destructive) 30%, transparent);
 }
 
 .button--ghost {

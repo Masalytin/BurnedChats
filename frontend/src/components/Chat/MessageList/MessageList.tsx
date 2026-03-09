@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Message } from '../Message';
 import { TypingIndicator } from '../TypingIndicator';
 import type { DecryptedMessage } from '@/types';
@@ -36,6 +37,7 @@ export const MessageList = memo(function MessageList({
   onLoadMore,
   className = '',
 }: MessageListProps) {
+  const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -112,7 +114,7 @@ export const MessageList = memo(function MessageList({
       <div className={`message-list message-list--loading ${className}`}>
         <div className="message-list-loader">
           <div className="message-list-spinner" />
-          <p>Loading messages...</p>
+          <p>{t('chat.loadingMessages')}</p>
         </div>
       </div>
     );
@@ -123,9 +125,9 @@ export const MessageList = memo(function MessageList({
       <div className={`message-list message-list--empty ${className}`}>
         <div className="message-list-empty">
           <span className="message-list-empty-icon">💬</span>
-          <p>No messages yet</p>
+          <p>{t('chat.emptyMessages')}</p>
           <p className="message-list-empty-hint">
-            Send a message to start the conversation
+            {t('chat.emptyHint')}
           </p>
         </div>
       </div>

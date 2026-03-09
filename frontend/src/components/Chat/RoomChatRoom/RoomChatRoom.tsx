@@ -1,33 +1,19 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
-import { Button } from '../../Button';
+import { ChatScreenHeader } from '../ChatScreenHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import type { UseRoomMessagesWebSocket } from '@/hooks/useRoomMessages';
+import { useHaptics } from '@/hooks/useHaptics';
+import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
 
 // ============================================
-// Back icon (inline SVG)
-// ============================================
-
-function BackIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M12.5 15L7.5 10L12.5 5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// ============================================
-// Leave icon (inline SVG)
+// Icons (room-specific, not in header)
 // ============================================
 
 function LeaveIcon() {
@@ -51,10 +37,6 @@ function LeaveIcon() {
   );
 }
 
-// ============================================
-// Settings icon (inline SVG)
-// ============================================
-
 function SettingsIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -74,23 +56,14 @@ function SettingsIcon() {
 // ============================================
 
 interface RoomChatRoomProps {
-  /** Room identifier */
   roomId: string;
-  /** Current key epoch */
   epoch?: number;
-  /** Current user's Telegram ID */
   userId: number;
-  /** WebSocket connection */
   ws: UseRoomMessagesWebSocket;
-  /** Optional member count for display */
   memberCount?: number;
-  /** Whether the current user is the room owner */
   isOwner?: boolean;
-  /** Callback to go back */
   onBack?: () => void;
-  /** Callback to open room management (owner only) */
   onManage?: () => void;
-  /** Callback to leave the room (member only, hidden for owner) */
   onLeave?: () => void;
 }
 
@@ -100,14 +73,6 @@ interface RoomChatRoomProps {
 
 /**
  * RoomChatRoom — full chat UI for encrypted group rooms (P2-4.2.2).
- *
- * Subscribes to /topic/room/{roomId}, retrieves the group key from keyStore,
- * and renders MessageList + MessageInput with AES-GCM encryption.
- *
- * States:
- * - Loading key: group key not yet in keyStore
- * - No access: group key absent after load (fallback)
- * - Active chat: group key present, full messaging UI
  */
 export const RoomChatRoom = memo(function RoomChatRoom({
   roomId,
@@ -121,22 +86,32 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onLeave,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
+  const toast = useToast();
+  const haptics = useHaptics();
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
-  const { messages, sendMessage, isLoading, isSyncing } = useRoomMessages({
+  const { messages, sendMessage, isLoading, isSyncing, error } = useRoomMessages({
     roomId,
     userId,
     ws,
   });
 
+  useEffect(() => {
+    if (error) {
+      toast.error(t('room.chat.sendError'), { duration: 4000 });
+    }
+  }, [error, t, toast]);
+
   const handleSend = useCallback((text: string) => {
+    haptics.success();
     sendMessage(text);
-  }, [sendMessage]);
+  }, [sendMessage, haptics]);
 
   const handleLeaveClick = useCallback(() => {
+    haptics.destructive();
     setShowLeaveConfirm(true);
-  }, []);
+  }, [haptics]);
 
   const handleLeaveConfirm = useCallback(() => {
     setShowLeaveConfirm(false);
@@ -147,79 +122,69 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setShowLeaveConfirm(false);
   }, []);
 
-  // ----------------------------------------
-  // Header subtitle: member count or E2EE info
-  // ----------------------------------------
   const subtitle = hasKey
     ? memberCount != null
       ? t('room.chat.memberCount', { count: memberCount })
       : `E2EE · epoch ${epoch}`
     : t('room.chat.loadingKey');
 
-  // ----------------------------------------
-  // Render
-  // ----------------------------------------
-  return (
-    <div className="room-chat-room">
-      {/* Header */}
-      <div className="room-chat-room-header">
-          <div className="room-chat-room-header-left">
-          {onBack && (
-            <button
-              type="button"
-              className="room-chat-room-back"
-              onClick={onBack}
-              aria-label={t('common.back')}
-            >
-              <BackIcon />
-            </button>
-          )}
-          <div className="room-chat-room-info">
-            <div className="room-chat-room-title">
-              <span className="room-chat-room-icon">🏠</span>
-              <span className="room-chat-room-id">
-                {roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId}
-              </span>
-              {hasKey && (
-                <span className="room-chat-room-encrypted" title="End-to-End Encrypted">
-                  🔒
-                </span>
-              )}
-            </div>
-            <div className="room-chat-room-subtitle">{subtitle}</div>
-          </div>
-        </div>
-        <div className="room-chat-room-header-right">
-          {isOwner && onManage && (
-            <button
-              type="button"
-              className="room-chat-room-manage"
-              onClick={onManage}
-              aria-label={t('room.manage.title')}
-            >
-              <SettingsIcon />
-            </button>
-          )}
-          {!isOwner && onLeave && (
-            <button
-              type="button"
-              className="room-chat-room-leave"
-              onClick={handleLeaveClick}
-              aria-label={t('room.manage.leaveButton')}
-            >
-              <LeaveIcon />
-            </button>
-          )}
-        </div>
+  const headerLeft = (
+    <div className="room-chat-room-info">
+      <div className="room-chat-room-title">
+        <span className="room-chat-room-icon">🏠</span>
+        <span className="room-chat-room-id">
+          {roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId}
+        </span>
+        {hasKey && (
+          <span className="room-chat-room-encrypted" title="End-to-End Encrypted">
+            🔒
+          </span>
+        )}
       </div>
+      <div className="room-chat-room-subtitle">{subtitle}</div>
+    </div>
+  );
 
-      {/* Body */}
+  const headerRight = (
+    <>
+      {isOwner && onManage && (
+        <button
+          type="button"
+          className="room-chat-room-manage"
+          onClick={onManage}
+          aria-label={t('room.manage.title')}
+        >
+          <SettingsIcon />
+        </button>
+      )}
+      {!isOwner && onLeave && (
+        <button
+          type="button"
+          className="room-chat-room-leave"
+          onClick={handleLeaveClick}
+          aria-label={t('room.manage.leaveButton')}
+        >
+          <LeaveIcon />
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <div className="chat-screen room-chat-room">
+      <ChatScreenHeader
+        onBack={onBack}
+        backAriaLabel={t('common.back')}
+        left={headerLeft}
+        right={headerRight}
+      />
+
       {hasKey ? (
         <>
           <MessageList
             messages={messages}
             isLoading={isLoading || isSyncing}
-            className="room-chat-room-messages"
+            className="room-chat-room-messages chat-screen-messages"
           />
           <MessageInput
             onSend={handleSend}
@@ -240,30 +205,18 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         </div>
       )}
 
-      {/* Leave room confirmation dialog */}
-      {showLeaveConfirm && (
-        <div className="room-chat-room-leave-overlay" role="dialog" aria-modal="true">
-          <div className="room-chat-room-leave-dialog">
-            <div className="room-chat-room-leave-dialog__icon">🚪</div>
-            <h3 className="room-chat-room-leave-dialog__title">{t('room.leave.title')}</h3>
-            <p className="room-chat-room-leave-dialog__text">{t('room.leave.description')}</p>
-            <p className="room-chat-room-leave-dialog__warning">{t('room.leave.warning')}</p>
-            <div className="room-chat-room-leave-dialog__actions">
-              <Button variant="secondary" onClick={handleLeaveCancel} fullWidth>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                variant="primary"
-                className="room-chat-room-leave-dialog__confirm-btn"
-                onClick={handleLeaveConfirm}
-                fullWidth
-              >
-                {t('room.leave.confirmButton')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={showLeaveConfirm}
+        onClose={handleLeaveCancel}
+        onConfirm={handleLeaveConfirm}
+        title={t('room.leave.title')}
+        description={t('room.leave.description')}
+        warning={t('room.leave.warning')}
+        confirmLabel={t('room.leave.confirmButton')}
+        cancelLabel={t('common.cancel')}
+        variant="destructive"
+        icon={<span role="img" aria-hidden>🚪</span>}
+      />
     </div>
   );
 });

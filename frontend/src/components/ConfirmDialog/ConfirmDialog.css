@@ -1,0 +1,62 @@
+/* ============================================
+ * ConfirmDialog — shared confirmation dialog (BEM: confirm-dialog)
+ * ============================================ */
+
+.confirm-dialog-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--bc-z-modal);
+  padding: var(--bc-spacing-md);
+  animation: fadeIn var(--bc-transition-fast) ease-out;
+}
+
+.confirm-dialog {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  padding: var(--bc-spacing-lg);
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.confirm-dialog__icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--bc-spacing-xs);
+}
+
+.confirm-dialog__title {
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+  margin: 0;
+}
+
+.confirm-dialog__text {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: 0;
+}
+
+.confirm-dialog__warning {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  margin: 0;
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+  margin-top: var(--bc-spacing-xs);
+}
+
+.confirm-dialog__actions > * {
+  flex: 1;
+}

@@ -2,8 +2,11 @@ import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import { ChatScreenHeader } from '../ChatScreenHeader';
 import { Avatar } from '@/components/Avatar';
+import { useHaptics } from '@/hooks/useHaptics';
 import type { DecryptedMessage, UserInfo } from '@/types';
+import '@/styles/ChatScreen.css';
 import './ChatRoom.css';
 
 interface ChatRoomProps {
@@ -29,13 +32,15 @@ interface ChatRoomProps {
   onBack?: () => void;
   /** Whether the chat is disabled (e.g., during burn) */
   disabled?: boolean;
+  /** Optional error message to show when disabled (e.g. "Chat temporarily unavailable") */
+  errorMessage?: string;
   /** Optional CSS class name */
   className?: string;
 }
 
 /**
  * ChatRoom component (4.3.1)
- * 
+ *
  * Main chat container that combines:
  * - Chat header with peer info
  * - Message list with auto-scroll
@@ -54,98 +59,98 @@ export const ChatRoom = memo(function ChatRoom({
   onBurn,
   onBack,
   disabled = false,
+  errorMessage,
   className = '',
 }: ChatRoomProps) {
   const { t } = useTranslation();
+  const haptics = useHaptics();
   /** Display name for header/placeholder (backend may omit) */
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
 
-  /**
-   * Handle message send
-   */
   const handleSend = useCallback((text: string) => {
+    haptics.success();
     onSendMessage(text);
-  }, [onSendMessage]);
+  }, [onSendMessage, haptics]);
 
-  /**
-   * Handle typing status change
-   */
   const handleTypingChange = useCallback((isTyping: boolean) => {
     onTypingChange?.(isTyping);
   }, [onTypingChange]);
 
-  return (
-    <div className={`chat-room ${className}`}>
-      {/* Chat Header */}
-      <div className="chat-room-header">
-        <div className="chat-room-header-left">
-          {onBack && (
-            <button
-              type="button"
-              className="chat-room-back"
-              onClick={onBack}
-              aria-label="Go back"
+  const handleBurnClick = useCallback(() => {
+    haptics.destructive();
+    onBurn?.();
+  }, [onBurn, haptics]);
+
+  const headerLeft = (
+    <>
+      <Avatar
+        name={displayName}
+        src={peer.photoUrl}
+        size="sm"
+      />
+      <div className="chat-room-peer-info">
+        <div className="chat-room-peer-name">
+          {displayName}
+          {peer.premium && <span className="chat-room-premium">⭐</span>}
+          {isVerified && (
+            <span
+              className="chat-room-verified"
+              title={t('chat.verifiedTitle')}
+              aria-label={t('chat.verifiedTitle')}
             >
-              <BackIcon />
-            </button>
+              🔒
+            </span>
           )}
-          <Avatar
-            name={displayName}
-            src={peer.photoUrl}
-            size="sm"
-          />
-          <div className="chat-room-peer-info">
-            <div className="chat-room-peer-name">
-              {displayName}
-              {peer.premium && <span className="chat-room-premium">⭐</span>}
-              {isVerified && (
-                <span 
-                  className="chat-room-verified" 
-                  title={t('chat.verifiedTitle')}
-                  aria-label={t('chat.verifiedTitle')}
-                >
-                  🔒
-                </span>
-              )}
-            </div>
-            <div className="chat-room-peer-status">
-              {isPeerTyping ? (
-                <span className="chat-room-typing">{t('status.typing')}</span>
-              ) : peer.online ? (
-                <span className="chat-room-online">{t('status.online')}</span>
-              ) : (
-                <span className="chat-room-offline">{t('status.offline')}</span>
-              )}
-            </div>
-          </div>
         </div>
-        
-        <div className="chat-room-header-right">
-          {onBurn && (
-            <button
-              type="button"
-              className="chat-room-burn"
-              onClick={onBurn}
-              disabled={disabled}
-              aria-label={t('chat.burnButtonLabel')}
-              title={t('chat.burnButtonTitle')}
-            >
-              🔥
-            </button>
+        <div className="chat-room-peer-status">
+          {isPeerTyping ? (
+            <span className="chat-room-typing">{t('status.typing')}</span>
+          ) : peer.online ? (
+            <span className="chat-room-online">{t('status.online')}</span>
+          ) : (
+            <span className="chat-room-offline">{t('status.offline')}</span>
           )}
         </div>
       </div>
+    </>
+  );
 
-      {/* Message List */}
+  const headerRight = onBurn ? (
+    <button
+      type="button"
+      className="chat-room-burn"
+      onClick={handleBurnClick}
+      disabled={disabled}
+      aria-label={t('chat.burnButtonLabel')}
+      title={t('chat.burnButtonTitle')}
+    >
+      🔥
+    </button>
+  ) : undefined;
+
+  return (
+    <div className={`chat-screen chat-room ${className}`}>
+      <ChatScreenHeader
+        onBack={onBack}
+        backAriaLabel={t('common.back')}
+        left={headerLeft}
+        right={headerRight}
+      />
+
+      {errorMessage && disabled && (
+        <div className="chat-room-error-banner" role="alert">
+          {errorMessage}
+        </div>
+      )}
+
       <MessageList
         messages={messages}
         isPeerTyping={isPeerTyping}
         peerName={peer.displayName}
         isLoading={isLoading}
-        className="chat-room-messages"
+        className="chat-room-messages chat-screen-messages"
       />
 
-      {/* Message Input */}
       <MessageInput
         onSend={handleSend}
         onTypingChange={handleTypingChange}
@@ -155,26 +160,3 @@ export const ChatRoom = memo(function ChatRoom({
     </div>
   );
 });
-
-/**
- * Back arrow icon SVG
- */
-function BackIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M15 18l-6-6 6-6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

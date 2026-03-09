@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { CloseIcon, FlameIcon, AlertIcon } from '../../icons';
+import { useHaptics } from '@/hooks/useHaptics';
 import './BurnConfirmDialog.css';
 
 interface BurnConfirmDialogProps {
@@ -48,6 +49,11 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
   className = '',
 }: BurnConfirmDialogProps) {
   const { t } = useTranslation();
+  const haptics = useHaptics();
+
+  useEffect(() => {
+    haptics.impact('medium');
+  }, [haptics]);
 
   /**
    * Handle escape key to close dialog.

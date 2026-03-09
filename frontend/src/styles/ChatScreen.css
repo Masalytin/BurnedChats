@@ -1,0 +1,74 @@
+/* ============================================
+ * ChatScreen — shared layout for ChatRoom and RoomChatRoom
+ * BEM-like prefix: chat-screen
+ * ============================================ */
+
+.chat-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bc-bg-primary);
+}
+
+.chat-screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-bottom: 1px solid var(--bc-border-color);
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.chat-screen-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-screen-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex-shrink: 0;
+}
+
+.chat-screen-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  transition: background var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.chat-screen-back:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.chat-screen-back:active {
+  transform: scale(0.95);
+}
+
+.chat-screen-messages {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Mobile Safe Area */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .chat-screen-header {
+    padding-top: calc(var(--bc-spacing-sm) + env(safe-area-inset-top));
+  }
+}
