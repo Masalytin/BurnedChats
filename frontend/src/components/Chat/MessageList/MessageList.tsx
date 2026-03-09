@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, memo } from 'react';
+import { useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Message } from '../Message';
 import { TypingIndicator } from '../TypingIndicator';
@@ -41,6 +41,23 @@ export const MessageList = memo(function MessageList({
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const prevIdsRef = useRef<Set<string>>(new Set());
+  const firstRenderRef = useRef(true);
+
+  /** IDs of messages that just appeared (for entrance animation); skip on initial load */
+  const newMessageIds = useMemo(() => {
+    if (firstRenderRef.current) return new Set<string>();
+    const added = new Set<string>();
+    messages.forEach((m) => {
+      if (!prevIdsRef.current.has(m.id)) added.add(m.id);
+    });
+    return added;
+  }, [messages]);
+
+  useEffect(() => {
+    prevIdsRef.current = new Set(messages.map((m) => m.id));
+    firstRenderRef.current = false;
+  });
 
   /**
    * Check if scroll is near bottom
@@ -159,6 +176,7 @@ export const MessageList = memo(function MessageList({
           status={message.status}
           showDateSeparator={shouldShowDateSeparator(index)}
           senderName={message.senderName}
+          isNew={newMessageIds.has(message.id)}
         />
       ))}
 

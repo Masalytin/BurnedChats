@@ -151,12 +151,14 @@ export const ChatRoom = memo(function ChatRoom({
         className="chat-room-messages chat-screen-messages"
       />
 
-      <MessageInput
-        onSend={handleSend}
-        onTypingChange={handleTypingChange}
-        disabled={disabled}
-        placeholder={t('chat.messagePlaceholder', { name: displayName })}
-      />
+      <div className="chat-screen-input">
+        <MessageInput
+          onSend={handleSend}
+          onTypingChange={handleTypingChange}
+          disabled={disabled}
+          placeholder={t('chat.messagePlaceholder', { name: displayName })}
+        />
+      </div>
     </div>
   );
 });

@@ -186,10 +186,12 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             isLoading={isLoading || isSyncing}
             className="room-chat-room-messages chat-screen-messages"
           />
-          <MessageInput
-            onSend={handleSend}
-            placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
-          />
+          <div className="chat-screen-input">
+            <MessageInput
+              onSend={handleSend}
+              placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
+            />
+          </div>
         </>
       ) : (
         <div className="room-chat-room-body">

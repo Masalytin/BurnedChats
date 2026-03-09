@@ -17,6 +17,8 @@ interface MessageProps {
   className?: string;
   /** Sender display name — shown above bubble for non-own room messages */
   senderName?: string;
+  /** Whether to play the "new message" entrance animation */
+  isNew?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export const Message = memo(function Message({
   showDateSeparator = false,
   className = '',
   senderName,
+  isNew = false,
 }: MessageProps) {
   const validTs = typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0;
   const formattedTime = validTs ? formatTime(timestamp) : '--:--';
@@ -48,7 +51,7 @@ export const Message = memo(function Message({
         </div>
       )}
       <div
-        className={`message ${isOwn ? 'message--own' : 'message--peer'} ${className}`}
+        className={`message ${isOwn ? 'message--own' : 'message--peer'} ${isNew ? 'message--new' : ''} ${className}`.trim()}
         role="listitem"
       >
         <div className="message-bubble">
