@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import { ChatScreenHeader } from '../ChatScreenHeader';
@@ -91,14 +92,22 @@ export const ChatRoom = memo(function ChatRoom({
       <div className="chat-room-peer-info">
         <div className="chat-room-peer-name">
           {displayName}
-          {peer.premium && <span className="chat-room-premium">⭐</span>}
+          {peer.premium && (
+            <span
+              className="chat-room-premium"
+              title={t('chat.premiumTitle')}
+              aria-label={t('chat.premiumTitle')}
+            >
+              <Star size={16} aria-hidden />
+            </span>
+          )}
           {isVerified && (
             <span
               className="chat-room-verified"
               title={t('chat.verifiedTitle')}
               aria-label={t('chat.verifiedTitle')}
             >
-              🔒
+              <Lock size={16} aria-hidden />
             </span>
           )}
         </div>
@@ -124,7 +133,7 @@ export const ChatRoom = memo(function ChatRoom({
       aria-label={t('chat.burnButtonLabel')}
       title={t('chat.burnButtonTitle')}
     >
-      🔥
+      <Flame size={22} aria-hidden />
     </button>
   ) : undefined;
 
@@ -138,8 +147,13 @@ export const ChatRoom = memo(function ChatRoom({
       />
 
       {errorMessage && disabled && (
-        <div className="chat-room-error-banner" role="alert">
-          {errorMessage}
+        <div
+          className="chat-room-error-banner"
+          role="alert"
+          aria-label={t('chat.errorBannerLabel')}
+        >
+          <AlertCircle size={18} className="chat-room-error-banner-icon" aria-hidden />
+          <span>{errorMessage}</span>
         </div>
       )}
 

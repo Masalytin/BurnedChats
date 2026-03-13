@@ -40,8 +40,10 @@
 
   "chat": {
     "verifiedTitle": "Зашифровано и верифицировано",
+    "premiumTitle": "Премиум пользователь",
     "burnButtonLabel": "Сжечь чат",
     "burnButtonTitle": "Уничтожить этот чат навсегда",
+    "errorBannerLabel": "Ошибка чата",
     "messagePlaceholder": "Сообщение {{name}}...",
     "loadingMessages": "Загрузка сообщений...",
     "emptyMessages": "Пока нет сообщений",

@@ -40,8 +40,10 @@
 
   "chat": {
     "verifiedTitle": "Encrypted & Verified",
+    "premiumTitle": "Premium user",
     "burnButtonLabel": "Burn chat",
     "burnButtonTitle": "Destroy this chat permanently",
+    "errorBannerLabel": "Chat error",
     "messagePlaceholder": "Message {{name}}...",
     "loadingMessages": "Loading messages...",
     "emptyMessages": "No messages yet",

@@ -13,7 +13,7 @@
   background: var(--bc-bg-primary);
 }
 
-/* Fixed header at top (like Daily UI Direct Messaging) */
+/* Fixed header at top — Telegram-style (~56px, 8–16px padding) */
 .chat-screen-header {
   display: flex;
   align-items: center;
