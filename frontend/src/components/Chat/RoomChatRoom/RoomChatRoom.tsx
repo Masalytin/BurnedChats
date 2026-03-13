@@ -145,7 +145,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     </div>
   );
 
-  const headerRight = (
+  const hasHeaderRight = (isOwner && onManage) || (!isOwner && onLeave);
+  const headerRight = hasHeaderRight ? (
     <>
       {isOwner && onManage && (
         <button
@@ -168,7 +169,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         </button>
       )}
     </>
-  );
+  ) : undefined;
 
   return (
     <div className="chat-screen room-chat-room">

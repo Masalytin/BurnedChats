@@ -146,7 +146,7 @@ export const ChatRoom = memo(function ChatRoom({
       <MessageList
         messages={messages}
         isPeerTyping={isPeerTyping}
-        peerName={peer.displayName}
+        peerName={displayName}
         isLoading={isLoading}
         className="chat-room-messages chat-screen-messages"
       />
