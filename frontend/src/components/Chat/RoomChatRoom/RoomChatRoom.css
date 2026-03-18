@@ -120,3 +120,25 @@
   font-size: var(--bc-text-sm);
   color: var(--bc-text-muted);
 }
+
+.room-chat-room-retry-btn {
+  margin-top: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-md);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--bc-transition-fast), opacity var(--bc-transition-fast);
+}
+
+.room-chat-room-retry-btn:hover {
+  background: var(--bc-bg-hover);
+}
+
+.room-chat-room-retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

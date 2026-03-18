@@ -62,6 +62,10 @@ interface RoomChatRoomProps {
   ws: UseRoomMessagesWebSocket;
   memberCount?: number;
   isOwner?: boolean;
+  /** Whether a key re-request is currently in flight (P2-3.2.3). */
+  isRequestingKey?: boolean;
+  /** Retry callback for manual key re-request (P2-3.2.3). */
+  onRequestKey?: () => void;
   onBack?: () => void;
   onManage?: () => void;
   onLeave?: () => void;
@@ -81,6 +85,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   ws,
   memberCount,
   isOwner = false,
+  isRequestingKey = false,
+  onRequestKey,
   onBack,
   onManage,
   onLeave,
@@ -197,13 +203,31 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       ) : (
         <div className="room-chat-room-body">
           <div className="room-chat-room-placeholder">
-            <div className="room-chat-room-placeholder-icon">⏳</div>
+            <div className="room-chat-room-placeholder-icon">
+              {isRequestingKey ? '🔑' : isOwner ? '🔄' : '⏳'}
+            </div>
             <div className="room-chat-room-placeholder-text">
-              {t('room.chat.loadingKey')}
+              {isOwner
+                ? t('room.chat.ownerRekeying')
+                : isRequestingKey
+                  ? t('room.chat.requestingKey')
+                  : t('room.chat.loadingKey')}
             </div>
             <div className="room-chat-room-placeholder-hint">
-              {t('room.chat.noAccessHint')}
+              {isOwner
+                ? t('room.chat.ownerRekeyingHint')
+                : t('room.chat.ownerOfflineHint')}
             </div>
+            {!isOwner && onRequestKey && (
+              <button
+                type="button"
+                className="room-chat-room-retry-btn"
+                onClick={onRequestKey}
+                disabled={isRequestingKey}
+              >
+                {t('room.chat.retryKey')}
+              </button>
+            )}
           </div>
         </div>
       )}

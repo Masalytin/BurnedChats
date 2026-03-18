@@ -24,6 +24,7 @@ import dev.burnedchats.dto.request.GetMyRoomsRequest;
 import dev.burnedchats.dto.request.GetRoomMembersRequest;
 import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
+import dev.burnedchats.dto.request.RequestKeyBundleRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
@@ -68,6 +69,7 @@ import java.util.Objects;
  *   <li>{@code /app/room.getMembers} — returns the list of member tgIds for a room (P2-4.3.1)</li>
  *   <li>{@code /app/room.burn} — burn the room (owner only); deletes all room data and notifies members (P2-4.3.2)</li>
  *   <li>{@code /app/room.leave} — member (non-owner) leaves the room; triggers rekey notification (P2-4.3.4)</li>
+ *   <li>{@code /app/room.requestKeyBundle} — existing member requests re-delivery of group key after app restart (P2-3.2.3)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -491,6 +493,78 @@ public class RoomHandler {
     }
 
     // -------------------------------------------------------------------------
+    // Key bundle re-request (P2-3.2.3)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Handle {@code REQUEST_KEY_BUNDLE} — an existing room member requests re-delivery of
+     * the group key after losing in-memory crypto state (e.g. app restart in Telegram Mini App).
+     *
+     * <p>Flow:
+     * <ol>
+     *   <li>Verify the caller is a room member (but not the owner — owners should rekey).</li>
+     *   <li>Update the member's ECDH public key in {@code room_member_pubkey}.</li>
+     *   <li>Send an {@code autoApproved} join-request event to the owner so the owner's client
+     *       wraps and delivers the KEY_BUNDLE automatically.</li>
+     * </ol>
+     *
+     * @param request   contains {@code roomId} and a fresh {@code publicKey}
+     * @param principal the authenticated Telegram user (must be a non-owner member)
+     */
+    @MessageMapping("/room.requestKeyBundle")
+    public void requestKeyBundle(@Payload @Valid RequestKeyBundleRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long callerTgId = tp.getUserId();
+
+        log.info("REQUEST_KEY_BUNDLE: roomId={}, callerTgId={}", request.getRoomId(), callerTgId);
+
+        roomRepository.findById(request.getRoomId())
+                .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (room.getOwnerTgId().equals(callerTgId)) {
+                        return reactor.core.publisher.Mono.error(
+                                new IllegalStateException("OWNER_SHOULD_REKEY"));
+                    }
+                    return roomMembersRepository.isMember(request.getRoomId(), callerTgId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return reactor.core.publisher.Mono.error(
+                                            new SecurityException("NOT_MEMBER"));
+                                }
+                                return memberPublicKeyRepository
+                                        .put(request.getRoomId(), callerTgId, request.getPublicKey())
+                                        .thenReturn(room);
+                            });
+                })
+                .subscribe(
+                        room -> {
+                            messagingTemplate.convertAndSendToUser(
+                                    String.valueOf(room.getOwnerTgId()),
+                                    JOIN_REQUESTS_DESTINATION,
+                                    RoomJoinRequestEvent.autoApproved(
+                                            request.getRoomId(),
+                                            callerTgId,
+                                            tp.getUsername(),
+                                            tp.getFirstName(),
+                                            System.currentTimeMillis(),
+                                            request.getPublicKey()
+                                    )
+                            );
+                            log.info("REQUEST_KEY_BUNDLE: notified owner {} to send KEY_BUNDLE for member {} in room {}",
+                                    room.getOwnerTgId(), callerTgId, request.getRoomId());
+                        },
+                        error -> {
+                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage()
+                                    : error instanceof IllegalStateException ise ? ise.getMessage()
+                                    : error instanceof SecurityException ? "NOT_MEMBER"
+                                    : "INTERNAL_ERROR";
+                            log.warn("REQUEST_KEY_BUNDLE failed: roomId={}, callerTgId={}, error={}",
+                                    request.getRoomId(), callerTgId, code);
+                        }
+                );
+    }
+
+    // -------------------------------------------------------------------------
     // Rekey after member leave (P2-3.2.2)
     // -------------------------------------------------------------------------
 
@@ -592,17 +666,23 @@ public class RoomHandler {
                     if (!room.getOwnerTgId().equals(ownerTgId)) {
                         return reactor.core.publisher.Mono.error(new SecurityException("NOT_OWNER"));
                     }
-                    return memberPublicKeyRepository.getAll(request.getRoomId());
+                    return memberPublicKeyRepository.getAll(request.getRoomId())
+                            .flatMap(pubkeys -> roomKeysRepository.getCurrentEpoch(request.getRoomId())
+                                    .defaultIfEmpty(0)
+                                    .map(epoch -> MemberPublicKeysEvent.success(
+                                            request.getRoomId(), pubkeys, epoch)));
                 })
                 .subscribe(
-                        pubkeys -> {
+                        event -> {
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(ownerTgId),
                                     MEMBER_PUBKEYS_DESTINATION,
-                                    MemberPublicKeysEvent.success(request.getRoomId(), pubkeys)
+                                    event
                             );
-                            log.info("MEMBER_PUBKEYS sent: roomId={}, count={}",
-                                    request.getRoomId(), pubkeys.size());
+                            log.info("MEMBER_PUBKEYS sent: roomId={}, count={}, epoch={}",
+                                    request.getRoomId(),
+                                    event.getPublicKeys() != null ? event.getPublicKeys().size() : 0,
+                                    event.getCurrentEpoch());
                         },
                         error -> {
                             String code = error instanceof SecurityException ? "NOT_OWNER"

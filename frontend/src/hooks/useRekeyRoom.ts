@@ -32,6 +32,7 @@ interface ServerMemberPublicKeysEvent {
   success: boolean;
   roomId: string;
   publicKeys?: Record<string, string>;
+  currentEpoch?: number | null;
   error?: string;
 }
 
@@ -129,18 +130,21 @@ export function useRekeyRoom({
       }
 
       const currentEntry = getGroupKeyEntry(roomId);
-      if (!currentEntry) {
-        console.error('[useRekeyRoom] No group key for room', roomId);
-        setStatus('error');
-        return;
-      }
 
       setStatus('rekeying');
 
       try {
-        // Generate new group key
         const newGroupKey = await generateGroupKey();
-        const newEpoch = currentEntry.epoch + 1;
+        let newEpoch: number;
+        if (currentEntry) {
+          newEpoch = currentEntry.epoch + 1;
+        } else {
+          // Owner lost in-memory key (app restart) — bootstrap from server epoch
+          const serverEpoch = data.currentEpoch ?? 0;
+          newEpoch = serverEpoch + 1;
+          console.info('[useRekeyRoom] No local key — bootstrapping from server epoch %d → %d',
+            serverEpoch, newEpoch);
+        }
 
         // Update owner's key immediately (no wrapping needed for self)
         storeGroupKey(roomId, newEpoch, newGroupKey);

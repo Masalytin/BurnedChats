@@ -14,6 +14,7 @@ import { useMyRooms } from './hooks/useMyRooms';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { useKeyBundle } from './hooks/useKeyBundle';
 import { useRekeyRoom } from './hooks/useRekeyRoom';
+import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { Layout } from './components/Layout/Layout';
@@ -33,7 +34,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
-import { burn as burnKeys, burnGroupKey } from './crypto/keyStore';
+import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -598,6 +599,39 @@ function AppContent() {
   const rekeyRoomRef = useRef(rekeyRoom);
   useEffect(() => { rekeyRoomRef.current = rekeyRoom; }, [rekeyRoom]);
 
+  // -----------------------------------------------------------------------
+  // Key re-distribution on re-entry (P2-3.2.3)
+  // -----------------------------------------------------------------------
+
+  // Determine whether the active room needs a key and whether current user is owner
+  const activeRoomNeedsKey = activeRoomChat != null && !hasGroupKey(activeRoomChat.roomId);
+  const activeRoomIsOwner = (() => {
+    if (!activeRoomChat) return false;
+    const room = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+    return room ? room.role === 'owner' : (activeRoomChat.isOwner ?? false);
+  })();
+
+  // Member flow: request KEY_BUNDLE from owner when key is missing
+  const { isRequesting: isRequestingKey, retry: retryKeyRequest } = useRequestKeyBundle({
+    roomId: activeRoomChat?.roomId ?? null,
+    isConnected,
+    publish,
+    enabled: activeRoomNeedsKey && !activeRoomIsOwner,
+  });
+
+  // Owner flow: auto-rekey when entering room without key
+  const ownerRekeyTriggeredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeRoomNeedsKey || !activeRoomIsOwner || !isConnected) {
+      ownerRekeyTriggeredRef.current = null;
+      return;
+    }
+    const roomId = activeRoomChat!.roomId;
+    if (ownerRekeyTriggeredRef.current === roomId) return;
+    ownerRekeyTriggeredRef.current = roomId;
+    debugLog('info', `[App] Owner entering room ${roomId} without key — triggering rekey`);
+    rekeyRoomRef.current(roomId);
+  }, [activeRoomNeedsKey, activeRoomIsOwner, isConnected, activeRoomChat]);
 
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {
@@ -1472,6 +1506,8 @@ function AppContent() {
             userId={user.id}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             isOwner={isRoomOwner}
+            isRequestingKey={isRequestingKey}
+            onRequestKey={retryKeyRequest}
             onBack={() => {
               setActiveRoomChat(null);
               setCurrentView('home');

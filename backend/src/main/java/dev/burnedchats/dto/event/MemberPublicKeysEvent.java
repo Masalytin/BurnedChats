@@ -36,13 +36,22 @@ public class MemberPublicKeysEvent {
      */
     private Map<String, String> publicKeys;
 
+    /**
+     * Current key epoch for the room (from {@code room_key_epoch:{roomId}}).
+     * Allows the owner to determine the next epoch even without a local key entry
+     * (e.g. after app restart). May be null if no epoch has been set yet.
+     */
+    private Integer currentEpoch;
+
     private String error;
 
-    public static MemberPublicKeysEvent success(String roomId, Map<String, String> publicKeys) {
+    public static MemberPublicKeysEvent success(String roomId, Map<String, String> publicKeys,
+                                                Integer currentEpoch) {
         return MemberPublicKeysEvent.builder()
                 .success(true)
                 .roomId(roomId)
                 .publicKeys(publicKeys)
+                .currentEpoch(currentEpoch)
                 .build();
     }
 
