@@ -95,17 +95,20 @@ export function HomePage({
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
 
-  // Show FAB after scrolling down 150px
+  // Show FAB after scrolling down 150px (scroll container is .layout-main)
   useEffect(() => {
+    const container = document.querySelector('.layout-main');
+    if (!container) return;
     const handleScroll = () => {
-      setShowFab(window.scrollY >= 150);
+      setShowFab(container.scrollTop >= 150);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleScrollToTopRefresh = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const container = document.querySelector('.layout-main');
+    container?.scrollTo({ top: 0, behavior: 'smooth' });
     onRefreshAll?.();
   }, [onRefreshAll]);
   
