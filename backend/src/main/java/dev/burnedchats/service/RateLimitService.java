@@ -60,6 +60,11 @@ public class RateLimitService {
         HANDSHAKE(10, Duration.ofMinutes(1)),
 
         /**
+         * File upload requests.
+         */
+        FILE_UPLOAD(10, Duration.ofMinutes(1)),
+
+        /**
          * General rate limit.
          */
         GENERAL(100, Duration.ofMinutes(1));
