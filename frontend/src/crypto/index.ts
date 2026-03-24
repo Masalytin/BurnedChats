@@ -88,3 +88,12 @@ export {
   wrapGroupKey,
   unwrapGroupKey,
 } from './groupKey';
+
+// File encryption (AES-256-GCM for files)
+export {
+  encryptFile,
+  decryptFile,
+  FILE_CHUNK_SIZE,
+  FILE_CHUNKED_THRESHOLD,
+  type EncryptedBlob,
+} from './fileEncryption';
