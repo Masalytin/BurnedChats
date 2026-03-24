@@ -134,6 +134,15 @@ management:
     env:
       enabled: true
 
+# File storage configuration (Phase 4: Media)
+app:
+  files:
+    storage-path: ${FILE_STORAGE_PATH:/data/files/}
+    max-file-size: ${FILE_MAX_SIZE:26214400}  # 25 MB
+    metadata-ttl: ${FILE_METADATA_TTL:PT24H}  # 24 hours (ISO-8601)
+    cleanup-interval: ${FILE_CLEANUP_INTERVAL:PT15M}  # 15 minutes
+    cleanup-enabled: ${FILE_CLEANUP_ENABLED:true}
+
 # Application info
 info:
   app:

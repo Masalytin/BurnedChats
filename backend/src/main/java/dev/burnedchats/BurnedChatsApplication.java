@@ -3,6 +3,7 @@ package dev.burnedchats;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Main entry point for BurnedChats backend application.
@@ -13,6 +14,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan("dev.burnedchats.config")
+@EnableScheduling
 public class BurnedChatsApplication {
 
     /**
