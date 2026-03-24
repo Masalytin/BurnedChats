@@ -1,6 +1,5 @@
 package dev.burnedchats.service;
 
-import dev.burnedchats.config.FileStorageProperties;
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.exception.BurnedChatsException;
 import dev.burnedchats.model.FileMetadata;
@@ -19,13 +18,14 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Business logic for file upload operations.
+ * Business logic for file upload and download operations.
  *
- * <p>Orchestrates authentication, authorization, rate limiting,
- * file storage, and metadata persistence for encrypted file uploads.
+ * <p>Orchestrates authentication, authorization, validation,
+ * file storage, and metadata persistence for encrypted file transfers.
  *
  * @see FileStorageService
  * @see FileMetadataRepository
+ * @see FileValidationService
  */
 @Slf4j
 @Service
@@ -36,23 +36,20 @@ public class FileService {
     private final FileMetadataRepository fileMetadataRepository;
     private final SessionRepository sessionRepository;
     private final RoomMembersRepository roomMembersRepository;
-    private final RateLimitService rateLimitService;
-    private final FileStorageProperties fileStorageProperties;
+    private final FileValidationService fileValidationService;
 
     public FileService(TelegramAuthService telegramAuthService,
                        FileStorageService fileStorageService,
                        FileMetadataRepository fileMetadataRepository,
                        SessionRepository sessionRepository,
                        RoomMembersRepository roomMembersRepository,
-                       RateLimitService rateLimitService,
-                       FileStorageProperties fileStorageProperties) {
+                       FileValidationService fileValidationService) {
         this.telegramAuthService = telegramAuthService;
         this.fileStorageService = fileStorageService;
         this.fileMetadataRepository = fileMetadataRepository;
         this.sessionRepository = sessionRepository;
         this.roomMembersRepository = roomMembersRepository;
-        this.rateLimitService = rateLimitService;
-        this.fileStorageProperties = fileStorageProperties;
+        this.fileValidationService = fileValidationService;
     }
 
     /**
@@ -64,10 +61,18 @@ public class FileService {
     public record UploadResult(String fileId, long size) {}
 
     /**
+     * Result of a successful file download preparation.
+     *
+     * @param data reactive stream of encrypted binary data
+     * @param size size of the file in bytes
+     */
+    public record DownloadResult(Flux<DataBuffer> data, long size) {}
+
+    /**
      * Upload an encrypted file blob.
      *
-     * <p>Pipeline: authenticate → rate-limit → validate size → validate membership
-     * → save blob → save metadata → return result.
+     * <p>Pipeline: authenticate → validate (size + rate limit + context type)
+     * → validate membership → save blob → save metadata → return result.
      *
      * @param initData      Telegram Mini App initData for authentication
      * @param contextType   "session" or "room"
@@ -84,21 +89,9 @@ public class FileService {
             return Mono.error(AuthenticationException.missingField("user.id"));
         }
 
-        if (contentLength <= 0 || contentLength > fileStorageProperties.getMaxFileSize()) {
-            return Mono.error(new BurnedChatsException(
-                    "File size must be between 1 and " + fileStorageProperties.getMaxFileSize() + " bytes",
-                    "FILE_SIZE_INVALID"));
-        }
-
-        if (!"session".equals(contextType) && !"room".equals(contextType)) {
-            return Mono.error(new BurnedChatsException(
-                    "Invalid context type: " + contextType + ". Must be 'session' or 'room'",
-                    "INVALID_CONTEXT_TYPE"));
-        }
-
         String fileId = UUID.randomUUID().toString();
 
-        return rateLimitService.checkRateLimit(tgId, RateLimitService.RateLimitType.FILE_UPLOAD)
+        return fileValidationService.validateUpload(contentLength, contextType, String.valueOf(tgId))
                 .then(validateMembership(tgId, contextType, contextId))
                 .then(fileStorageService.save(fileId, data))
                 .then(Mono.defer(() -> {
@@ -120,6 +113,46 @@ public class FileService {
                     log.error("File upload failed: tgId={}, context={}:{}",
                             tgId, contextType, contextId, e);
                 });
+    }
+
+    /**
+     * Download an encrypted file blob.
+     *
+     * <p>Pipeline: authenticate → find metadata → validate membership
+     * → verify file exists on storage → return streaming data.
+     *
+     * @param initData Telegram Mini App initData for authentication
+     * @param fileId   unique file identifier
+     * @return download result with streaming data and file size
+     */
+    public Mono<DownloadResult> download(String initData, String fileId) {
+        TelegramInitData authData = telegramAuthService.validateInitData(initData);
+        Long tgId = authData.getUserId();
+        if (tgId == null) {
+            return Mono.error(AuthenticationException.missingField("user.id"));
+        }
+
+        return fileMetadataRepository.findById(fileId)
+                .switchIfEmpty(Mono.error(new BurnedChatsException(
+                        "File not found: " + fileId, "FILE_NOT_FOUND")))
+                .flatMap(metadata ->
+                        validateMembership(tgId, metadata.getContextType(), metadata.getContextId())
+                                .thenReturn(metadata))
+                .flatMap(metadata ->
+                        fileStorageService.exists(fileId)
+                                .flatMap(exists -> {
+                                    if (!exists) {
+                                        return fileMetadataRepository.delete(fileId)
+                                                .then(Mono.error(new BurnedChatsException(
+                                                        "File not found: " + fileId,
+                                                        "FILE_NOT_FOUND")));
+                                    }
+                                    Flux<DataBuffer> data = fileStorageService.get(fileId);
+                                    long size = metadata.getSize() != null ? metadata.getSize() : 0;
+                                    return Mono.just(new DownloadResult(data, size));
+                                }))
+                .doOnSuccess(r -> log.info("File download started: fileId={}, tgId={}", fileId, tgId))
+                .doOnError(e -> log.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
     }
 
     private Mono<Void> validateMembership(Long tgId, String contextType, String contextId) {

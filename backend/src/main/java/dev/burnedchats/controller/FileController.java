@@ -5,22 +5,22 @@ import dev.burnedchats.exception.BurnedChatsException;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.FileService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.InputStream;
 import java.util.Map;
 
 /**
- * REST controller for encrypted file upload.
+ * REST controller for encrypted file upload and download.
  *
  * <p>Accepts binary encrypted blobs via streaming and delegates
  * to {@link FileService} for authentication, authorization, and storage.
@@ -88,6 +88,43 @@ public class FileController {
                 });
     }
 
+    /**
+     * Download an encrypted file blob by file ID.
+     *
+     * <p>Streams the encrypted binary data directly to the client without
+     * buffering. Access is restricted to participants of the file's context
+     * (session or room).
+     *
+     * @param fileId   unique file identifier (UUID)
+     * @param initData Telegram Mini App initData for authentication
+     * @return streaming binary response with the encrypted file data
+     */
+    @GetMapping("/{fileId}")
+    public Mono<ResponseEntity<Flux<DataBuffer>>> download(
+            @PathVariable String fileId,
+            @RequestHeader("X-Telegram-Init-Data") String initData) {
+
+        return fileService.download(initData, fileId)
+                .map(result -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.size()))
+                        .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                        .body(result.data()))
+                .onErrorResume(AuthenticationException.class, e ->
+                        Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(Flux.empty())))
+                .onErrorResume(BurnedChatsException.class, e -> {
+                    HttpStatus status = mapErrorCode(e.getErrorCode());
+                    return Mono.just(ResponseEntity.status(status)
+                            .body(Flux.empty()));
+                })
+                .onErrorResume(e -> {
+                    log.error("Unexpected error during file download: fileId={}", fileId, e);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(Flux.empty()));
+                });
+    }
+
     private static ResponseEntity<Map<String, Object>> errorResponse(
             HttpStatus status, String code, String message) {
         return ResponseEntity.status(status).body(Map.of(
@@ -99,8 +136,8 @@ public class FileController {
     private static HttpStatus mapErrorCode(String errorCode) {
         return switch (errorCode) {
             case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
-            case "CONTEXT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            case "FILE_SIZE_INVALID", "INVALID_CONTEXT_TYPE" -> HttpStatus.BAD_REQUEST;
+            case "CONTEXT_NOT_FOUND", "FILE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "FILE_SIZE_INVALID", "FILE_TOO_LARGE", "INVALID_CONTEXT_TYPE" -> HttpStatus.BAD_REQUEST;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
