@@ -12,6 +12,8 @@ import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileMessageRelayValidator;
+import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
 import lombok.RequiredArgsConstructor;
@@ -95,6 +97,7 @@ public class MessageHandler {
     private final SimpMessagingTemplate messagingTemplate;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
+    private final FileMessageRelayValidator fileMessageRelayValidator;
 
     /**
      * Relay an encrypted message to the peer.
@@ -185,6 +188,11 @@ public class MessageHandler {
                                                 .iv(msg.getIv())
                                                 .clientTimestamp(msg.getClientTimestamp())
                                                 .serverTimestamp(msg.getServerTimestamp())
+                                                .type(msg.getType())
+                                                .fileId(msg.getFileId())
+                                                .thumbnailFileId(msg.getThumbnailFileId())
+                                                .encryptedMeta(msg.getEncryptedMeta())
+                                                .fileSize(msg.getFileSize())
                                                 .build())
                                         .toList();
 
@@ -267,21 +275,33 @@ public class MessageHandler {
             return Mono.empty();
         }
 
+        // File validation for non-text messages
+        Mono<Void> fileValidation = Mono.empty();
+        if (FileMessageRelayValidator.isFileMessage(request.getType())) {
+            fileValidation = fileMessageRelayValidator.validateFileMessage(
+                    request.getFileId(), request.getThumbnailFileId(), senderId, sessionId);
+        }
+
         // Update session last activity
         session.touch();
 
-        return sessionRepository.save(session)
+        return fileValidation
+                .then(sessionRepository.save(session))
                 .then(onlineStatusRepository.isOnline(recipientId))
                 .flatMap(isRecipientOnline -> {
                     Instant serverTimestamp = Instant.now();
 
                     if (isRecipientOnline) {
-                        // Recipient online - deliver immediately
                         return deliverMessageImmediately(session, senderId, recipientId, request, serverTimestamp);
                     } else {
-                        // Recipient offline - queue message and notify
                         return queueMessageForOfflineDelivery(session, senderId, recipientId, request, serverTimestamp);
                     }
+                })
+                .onErrorResume(FileValidationException.class, ex -> {
+                    log.debug("File validation failed for message {} in session {}: {}",
+                            messageId, sessionId, ex.getErrorCode());
+                    sendError(senderId, sessionId, messageId, ex.getErrorCode());
+                    return Mono.empty();
                 });
     }
 
@@ -292,22 +312,32 @@ public class MessageHandler {
                                                    SendMessageRequest request, Instant serverTimestamp) {
         String sessionId = session.getId();
         String messageId = request.getMessageId();
+        String type = request.getType() != null ? request.getType() : "text";
 
-        // Send NEW_MESSAGE event to recipient
-        NewMessageEvent messageEvent = NewMessageEvent.success(
-                sessionId,
-                messageId,
-                senderId,
-                request.getEncryptedContent(),
-                request.getIv(),
-                request.getTimestamp(),
-                serverTimestamp
-        );
+        // Build NEW_MESSAGE event with file fields when applicable
+        NewMessageEvent.NewMessageEventBuilder eventBuilder = NewMessageEvent.builder()
+                .success(true)
+                .sessionId(sessionId)
+                .messageId(messageId)
+                .senderId(senderId)
+                .encryptedContent(request.getEncryptedContent())
+                .iv(request.getIv())
+                .clientTimestamp(request.getTimestamp())
+                .serverTimestamp(serverTimestamp)
+                .type(type);
+
+        if (FileMessageRelayValidator.isFileMessage(type)) {
+            eventBuilder
+                    .fileId(request.getFileId())
+                    .thumbnailFileId(request.getThumbnailFileId())
+                    .encryptedMeta(request.getEncryptedMeta())
+                    .fileSize(request.getFileSize());
+        }
 
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(recipientId),
                 NEW_MESSAGE_DESTINATION,
-                messageEvent
+                eventBuilder.build()
         );
 
         // Send acknowledgment to sender
@@ -318,8 +348,8 @@ public class MessageHandler {
                 sentEvent
         );
 
-        log.info("Message delivered immediately: sessionId={}, messageId={}, from={}, to={}",
-                sessionId, messageId, senderId, recipientId);
+        log.info("Message delivered immediately: sessionId={}, messageId={}, type={}, from={}, to={}",
+                sessionId, messageId, type, senderId, recipientId);
 
         return Mono.empty();
     }
@@ -332,16 +362,19 @@ public class MessageHandler {
         String sessionId = session.getId();
         String messageId = request.getMessageId();
 
-        // Create message for queue
-        Message message = Message.fromRequest(
-                sessionId,
-                senderId,
-                recipientId,
-                messageId,
-                request.getEncryptedContent(),
-                request.getIv(),
-                request.getTimestamp()
-        );
+        // Create message for queue — use file-aware factory for non-text types
+        Message message;
+        if (FileMessageRelayValidator.isFileMessage(request.getType())) {
+            message = Message.fromFileRequest(
+                    sessionId, senderId, recipientId, messageId,
+                    request.getEncryptedContent(), request.getIv(), request.getTimestamp(),
+                    request.getType(), request.getFileId(), request.getThumbnailFileId(),
+                    request.getEncryptedMeta(), request.getFileSize());
+        } else {
+            message = Message.fromRequest(
+                    sessionId, senderId, recipientId, messageId,
+                    request.getEncryptedContent(), request.getIv(), request.getTimestamp());
+        }
 
         return messageRepository.queueMessage(message)
                 .flatMap(queued -> {

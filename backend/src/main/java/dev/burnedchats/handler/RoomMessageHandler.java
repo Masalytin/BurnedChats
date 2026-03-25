@@ -11,6 +11,8 @@ import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileMessageRelayValidator;
+import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -104,6 +106,7 @@ public class RoomMessageHandler {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final FileMessageRelayValidator fileMessageRelayValidator;
 
     /**
      * Handle {@code SEND_ROOM_MESSAGE} — relay an encrypted message to all room subscribers.
@@ -133,7 +136,23 @@ public class RoomMessageHandler {
                         sendError(senderTgId, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
-                    return saveAndBroadcast(request, senderTgId, roomId, messageId);
+
+                    // Validate file ownership and context for non-text messages
+                    Mono<Void> fileValidation = Mono.empty();
+                    if (FileMessageRelayValidator.isFileMessage(request.getType())) {
+                        fileValidation = fileMessageRelayValidator.validateFileMessage(
+                                request.getFileId(), request.getThumbnailFileId(),
+                                senderTgId, roomId);
+                    }
+
+                    return fileValidation
+                            .then(Mono.defer(() -> saveAndBroadcast(request, senderTgId, roomId, messageId)));
+                })
+                .onErrorResume(FileValidationException.class, ex -> {
+                    log.debug("File validation failed for room message {} in room {}: {}",
+                            messageId, roomId, ex.getErrorCode());
+                    sendError(senderTgId, roomId, messageId, ex.getErrorCode());
+                    return Mono.empty();
                 })
                 .subscribe(
                         result -> {},
@@ -148,7 +167,9 @@ public class RoomMessageHandler {
     private Mono<Void> saveAndBroadcast(
             SendRoomMessageRequest request, Long senderTgId, String roomId, String messageId) {
         Instant serverTimestamp = Instant.now();
-        RoomMessage message = RoomMessage.builder()
+        String type = request.getType() != null ? request.getType() : "text";
+
+        RoomMessage.RoomMessageBuilder msgBuilder = RoomMessage.builder()
                 .messageId(messageId)
                 .roomId(roomId)
                 .senderTgId(senderTgId)
@@ -156,7 +177,17 @@ public class RoomMessageHandler {
                 .iv(request.getIv())
                 .clientTimestamp(request.getTimestamp())
                 .serverTimestamp(serverTimestamp)
-                .build();
+                .type(type);
+
+        if (FileMessageRelayValidator.isFileMessage(type)) {
+            msgBuilder
+                    .fileId(request.getFileId())
+                    .thumbnailFileId(request.getThumbnailFileId())
+                    .encryptedMeta(request.getEncryptedMeta())
+                    .fileSize(request.getFileSize());
+        }
+
+        RoomMessage message = msgBuilder.build();
 
         return roomMessageRepository.saveMessage(message)
                 .flatMap(saved -> {
@@ -173,20 +204,33 @@ public class RoomMessageHandler {
     private Mono<Void> broadcastMessage(
             SendRoomMessageRequest request, Long senderTgId, String roomId,
             String messageId, Instant serverTimestamp) {
+        String type = request.getType() != null ? request.getType() : "text";
+
         return userRepository.getDisplayName(senderTgId)
                 .defaultIfEmpty("User " + senderTgId)
                 .flatMap(senderName -> {
-                    NewRoomMessageEvent event = NewRoomMessageEvent.builder()
-                            .success(true)
-                            .roomId(roomId)
-                            .messageId(messageId)
-                            .senderTgId(senderTgId)
-                            .senderName(senderName)
-                            .encryptedContent(request.getEncryptedContent())
-                            .iv(request.getIv())
-                            .clientTimestamp(request.getTimestamp())
-                            .serverTimestamp(serverTimestamp)
-                            .build();
+                    NewRoomMessageEvent.NewRoomMessageEventBuilder eventBuilder =
+                            NewRoomMessageEvent.builder()
+                                    .success(true)
+                                    .roomId(roomId)
+                                    .messageId(messageId)
+                                    .senderTgId(senderTgId)
+                                    .senderName(senderName)
+                                    .encryptedContent(request.getEncryptedContent())
+                                    .iv(request.getIv())
+                                    .clientTimestamp(request.getTimestamp())
+                                    .serverTimestamp(serverTimestamp)
+                                    .type(type);
+
+                    if (FileMessageRelayValidator.isFileMessage(type)) {
+                        eventBuilder
+                                .fileId(request.getFileId())
+                                .thumbnailFileId(request.getThumbnailFileId())
+                                .encryptedMeta(request.getEncryptedMeta())
+                                .fileSize(request.getFileSize());
+                    }
+
+                    NewRoomMessageEvent event = eventBuilder.build();
                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
                     log.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
                             roomId, messageId, senderTgId);
@@ -237,6 +281,11 @@ public class RoomMessageHandler {
                                             .iv(msg.getIv())
                                             .clientTimestamp(msg.getClientTimestamp())
                                             .serverTimestamp(msg.getServerTimestamp())
+                                            .type(msg.getType())
+                                            .fileId(msg.getFileId())
+                                            .thumbnailFileId(msg.getThumbnailFileId())
+                                            .encryptedMeta(msg.getEncryptedMeta())
+                                            .fileSize(msg.getFileSize())
                                             .build()))
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {
