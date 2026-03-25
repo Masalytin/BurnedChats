@@ -74,6 +74,35 @@ public class Message implements Serializable {
     private Instant serverTimestamp = Instant.now();
 
     /**
+     * Message type: {@code "text"}, {@code "image"}, {@code "video"}, or {@code "file"}.
+     * Defaults to {@code "text"} for backward compatibility.
+     */
+    @Builder.Default
+    private String type = "text";
+
+    // ---- File-specific fields (present when type != "text") ----
+
+    /**
+     * ID of the uploaded encrypted file.
+     */
+    private String fileId;
+
+    /**
+     * ID of the uploaded encrypted thumbnail.
+     */
+    private String thumbnailFileId;
+
+    /**
+     * Base64-encoded encrypted file metadata (fileName, mimeType).
+     */
+    private String encryptedMeta;
+
+    /**
+     * Original file size in bytes.
+     */
+    private Long fileSize;
+
+    /**
      * Create a Message from a send request.
      *
      * @param sessionId        the session ID
@@ -97,6 +126,45 @@ public class Message implements Serializable {
                 .iv(iv)
                 .clientTimestamp(clientTimestamp)
                 .serverTimestamp(Instant.now())
+                .build();
+    }
+
+    /**
+     * Create a file Message from a send request.
+     *
+     * @param sessionId        the session ID
+     * @param senderId         the sender's user ID
+     * @param recipientId      the recipient's user ID
+     * @param messageId        the client-generated message ID
+     * @param encryptedContent the encrypted content (caption or empty)
+     * @param iv               the initialization vector
+     * @param clientTimestamp   the client timestamp
+     * @param type             the message type (image, video, file)
+     * @param fileId           the uploaded file ID
+     * @param thumbnailFileId  the thumbnail file ID (nullable)
+     * @param encryptedMeta    encrypted file metadata (nullable)
+     * @param fileSize         original file size in bytes (nullable)
+     * @return the constructed Message
+     */
+    public static Message fromFileRequest(String sessionId, Long senderId, Long recipientId,
+                                           String messageId, String encryptedContent,
+                                           String iv, Long clientTimestamp,
+                                           String type, String fileId, String thumbnailFileId,
+                                           String encryptedMeta, Long fileSize) {
+        return Message.builder()
+                .messageId(messageId)
+                .sessionId(sessionId)
+                .senderId(senderId)
+                .recipientId(recipientId)
+                .encryptedContent(encryptedContent)
+                .iv(iv)
+                .clientTimestamp(clientTimestamp)
+                .serverTimestamp(Instant.now())
+                .type(type)
+                .fileId(fileId)
+                .thumbnailFileId(thumbnailFileId)
+                .encryptedMeta(encryptedMeta)
+                .fileSize(fileSize)
                 .build();
     }
 }

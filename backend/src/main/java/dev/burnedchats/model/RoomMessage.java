@@ -72,4 +72,33 @@ public class RoomMessage implements Serializable {
      */
     @Builder.Default
     private Instant serverTimestamp = Instant.now();
+
+    /**
+     * Message type: {@code "text"}, {@code "image"}, {@code "video"}, or {@code "file"}.
+     * Defaults to {@code "text"} for backward compatibility.
+     */
+    @Builder.Default
+    private String type = "text";
+
+    // ---- File-specific fields (present when type != "text") ----
+
+    /**
+     * ID of the uploaded encrypted file.
+     */
+    private String fileId;
+
+    /**
+     * ID of the uploaded encrypted thumbnail.
+     */
+    private String thumbnailFileId;
+
+    /**
+     * Base64-encoded encrypted file metadata (fileName, mimeType).
+     */
+    private String encryptedMeta;
+
+    /**
+     * Original file size in bytes.
+     */
+    private Long fileSize;
 }

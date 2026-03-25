@@ -91,6 +91,31 @@ public class SyncRoomMessagesEvent {
          * Server-side timestamp when message was received.
          */
         private final Instant serverTimestamp;
+
+        /**
+         * Message type: "text", "image", "video", or "file".
+         */
+        private final String type;
+
+        /**
+         * ID of the uploaded encrypted file.
+         */
+        private final String fileId;
+
+        /**
+         * ID of the uploaded encrypted thumbnail.
+         */
+        private final String thumbnailFileId;
+
+        /**
+         * Base64-encoded encrypted file metadata (fileName, mimeType).
+         */
+        private final String encryptedMeta;
+
+        /**
+         * Original file size in bytes.
+         */
+        private final Long fileSize;
     }
 
     /**

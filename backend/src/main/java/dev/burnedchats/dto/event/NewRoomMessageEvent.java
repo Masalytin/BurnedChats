@@ -90,6 +90,34 @@ public class NewRoomMessageEvent {
     private Instant serverTimestamp;
 
     /**
+     * Message type: {@code "text"}, {@code "image"}, {@code "video"}, or {@code "file"}.
+     * Defaults to {@code "text"} for backward compatibility.
+     */
+    private String type;
+
+    // ---- File-specific fields (present when type != "text") ----
+
+    /**
+     * ID of the uploaded encrypted file.
+     */
+    private String fileId;
+
+    /**
+     * ID of the uploaded encrypted thumbnail.
+     */
+    private String thumbnailFileId;
+
+    /**
+     * Base64-encoded encrypted file metadata (fileName, mimeType).
+     */
+    private String encryptedMeta;
+
+    /**
+     * Original file size in bytes.
+     */
+    private Long fileSize;
+
+    /**
      * Error code if operation failed.
      */
     private String error;

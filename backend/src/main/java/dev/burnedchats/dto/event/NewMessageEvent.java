@@ -90,6 +90,34 @@ public class NewMessageEvent {
     private Instant serverTimestamp;
 
     /**
+     * Message type: {@code "text"}, {@code "image"}, {@code "video"}, or {@code "file"}.
+     * Defaults to {@code "text"} for backward compatibility.
+     */
+    private String type;
+
+    // ---- File-specific fields (present when type != "text") ----
+
+    /**
+     * ID of the uploaded encrypted file.
+     */
+    private String fileId;
+
+    /**
+     * ID of the uploaded encrypted thumbnail.
+     */
+    private String thumbnailFileId;
+
+    /**
+     * Base64-encoded encrypted file metadata (fileName, mimeType).
+     */
+    private String encryptedMeta;
+
+    /**
+     * Original file size in bytes.
+     */
+    private Long fileSize;
+
+    /**
      * Error code if message delivery failed.
      *
      * <p>Possible values:
@@ -105,7 +133,7 @@ public class NewMessageEvent {
     private String error;
 
     /**
-     * Create a successful new message event.
+     * Create a successful new text message event.
      *
      * @param sessionId        the session ID
      * @param messageId        the client-generated message ID
@@ -128,6 +156,7 @@ public class NewMessageEvent {
                 .iv(iv)
                 .clientTimestamp(clientTimestamp)
                 .serverTimestamp(serverTimestamp)
+                .type("text")
                 .build();
     }
 

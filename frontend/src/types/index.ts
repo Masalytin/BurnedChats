@@ -70,6 +70,8 @@ export interface ChatRequest {
 // Message Types
 // ============================================
 
+export type MessageType = 'text' | 'image' | 'video' | 'file';
+
 export type MessageStatus = 
   | 'sending'    // Message is being sent
   | 'sent'       // Message sent to server
@@ -85,13 +87,41 @@ export interface Message {
   iv: string;                  // Base64 encoded initialization vector
   timestamp: number;
   status: MessageStatus;
+  type: MessageType;
+
+  // File-specific fields (present when type !== 'text')
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;      // Base64: encrypted {fileName, mimeType}
+  fileSize?: number;           // Original file size in bytes
 }
 
-export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv'> {
+export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv' | 'encryptedMeta'> {
   content: string;
   isOwn: boolean;
   /** Display name of the sender — set for room messages only; undefined for 1-to-1 chats. */
   senderName?: string;
+}
+
+/**
+ * Decrypted file metadata extracted from encryptedMeta.
+ */
+export interface FileMetadata {
+  fileName: string;
+  mimeType: string;
+}
+
+/**
+ * Extended decrypted message for file types (image, video, file).
+ * Contains resolved file metadata after client-side decryption.
+ */
+export interface DecryptedFileMessage extends DecryptedMessage {
+  type: 'image' | 'video' | 'file';
+  fileId: string;
+  fileSize: number;
+  fileMeta: FileMetadata;
+  thumbnailFileId?: string;
+  thumbnailUrl?: string;
 }
 
 // ============================================

@@ -284,6 +284,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         timestamp,
         status: 'sending',
         isOwn: true,
+        type: 'text',
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
@@ -357,6 +358,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           timestamp: ts,
           status: 'delivered',
           isOwn: event.senderId === userId,
+          type: 'text',
         };
 
         // Add to messages (avoid duplicates), keep sorted by timestamp
@@ -433,6 +435,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             timestamp: ts,
             status: 'delivered',
             isOwn: syncedMsg.senderId === userId,
+            type: 'text',
           });
         } catch (decryptErr) {
           console.error('[useMessages] Failed to decrypt synced message:', decryptErr);

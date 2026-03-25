@@ -191,6 +191,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         timestamp,
         status: 'sending',
         isOwn: true,
+        type: 'text',
       };
       // senderName is intentionally omitted for own messages (own messages don't show sender label)
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
@@ -240,6 +241,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           timestamp: ts,
           status: 'delivered',
           isOwn: event.senderTgId === userId,
+          type: 'text',
         };
 
         setMessages(prev => {
@@ -330,6 +332,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             timestamp: ts,
             status: 'delivered',
             isOwn: syncedMsg.senderTgId === userId,
+            type: 'text',
           });
         } catch (decryptErr) {
           console.error('[useRoomMessages] Failed to decrypt synced message:', decryptErr);
