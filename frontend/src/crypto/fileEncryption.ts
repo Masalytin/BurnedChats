@@ -25,6 +25,7 @@ const AES_ALGORITHM = 'AES-GCM';
 const IV_LENGTH_BYTES = 12;
 const TAG_LENGTH_BITS = 128;
 const GCM_TAG_BYTES = TAG_LENGTH_BITS / 8; // 16
+const MAX_FILE_NAME_LENGTH = 255;
 
 /** Plaintext chunk size for chunked encryption. */
 const CHUNK_SIZE = 64 * 1024; // 64 KB
@@ -49,6 +50,15 @@ export interface EncryptedBlob {
   data: ArrayBuffer;
   /** True when chunked encryption was used (file > 5 MB). */
   isChunked: boolean;
+}
+
+/**
+ * Plaintext file metadata that the server must never see.
+ * Encrypted client-side and sent inline in STOMP messages.
+ */
+export interface FileMetaPlain {
+  fileName: string;
+  mimeType: string;
 }
 
 // ============================================
@@ -264,6 +274,116 @@ async function decryptChunked(
   }
 
   return new Blob(decryptedParts);
+}
+
+// ============================================
+// File Metadata Encryption
+// ============================================
+
+/**
+ * Encrypts file metadata (fileName, mimeType) into a single Base64 string.
+ *
+ * Format: Base64( [IV (12 bytes)] [ciphertext + GCM tag] )
+ *
+ * The result is small enough to be sent inline in a STOMP message's
+ * `encryptedMeta` field. The server only sees the opaque Base64 blob.
+ *
+ * @param meta - Plaintext metadata to encrypt
+ * @param key  - AES-256-GCM CryptoKey (shared secret or room group key)
+ * @returns Base64-encoded encrypted metadata
+ */
+export async function encryptFileMetadata(
+  meta: FileMetaPlain,
+  key: CryptoKey,
+): Promise<string> {
+  if (meta.fileName.length > MAX_FILE_NAME_LENGTH) {
+    throw new Error(
+      `fileName exceeds maximum length of ${MAX_FILE_NAME_LENGTH} characters`,
+    );
+  }
+
+  const json = JSON.stringify(meta);
+  const plaintext = new TextEncoder().encode(json);
+
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: AES_ALGORITHM, iv, tagLength: TAG_LENGTH_BITS },
+    key,
+    plaintext,
+  );
+
+  const ctBytes = new Uint8Array(ciphertext);
+  const combined = new Uint8Array(IV_LENGTH_BYTES + ctBytes.byteLength);
+  combined.set(iv, 0);
+  combined.set(ctBytes, IV_LENGTH_BYTES);
+
+  return uint8ToBase64(combined);
+}
+
+/**
+ * Decrypts a Base64-encoded encrypted metadata string back to FileMetaPlain.
+ *
+ * @param encrypted - Base64 string produced by encryptFileMetadata
+ * @param key       - The same AES-256-GCM CryptoKey used for encryption
+ * @returns Decrypted file metadata
+ * @throws Error if decryption fails or data is malformed
+ */
+export async function decryptFileMetadata(
+  encrypted: string,
+  key: CryptoKey,
+): Promise<FileMetaPlain> {
+  const combined = base64ToUint8(encrypted);
+
+  const minSize = IV_LENGTH_BYTES + GCM_TAG_BYTES;
+  if (combined.byteLength < minSize) {
+    throw new Error(
+      `Invalid encrypted metadata: expected at least ${minSize} bytes, got ${combined.byteLength}`,
+    );
+  }
+
+  const iv = combined.slice(0, IV_LENGTH_BYTES);
+  const ciphertext = combined.slice(IV_LENGTH_BYTES);
+
+  const plaintext = await crypto.subtle.decrypt(
+    { name: AES_ALGORITHM, iv, tagLength: TAG_LENGTH_BITS },
+    key,
+    ciphertext,
+  );
+
+  const json = new TextDecoder().decode(plaintext);
+  const parsed: unknown = JSON.parse(json);
+
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as FileMetaPlain).fileName !== 'string' ||
+    typeof (parsed as FileMetaPlain).mimeType !== 'string'
+  ) {
+    throw new Error('Invalid file metadata structure');
+  }
+
+  return parsed as FileMetaPlain;
+}
+
+// ============================================
+// Base64 helpers (binary-safe)
+// ============================================
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 // ============================================

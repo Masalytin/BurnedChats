@@ -93,7 +93,10 @@ export {
 export {
   encryptFile,
   decryptFile,
+  encryptFileMetadata,
+  decryptFileMetadata,
   FILE_CHUNK_SIZE,
   FILE_CHUNKED_THRESHOLD,
   type EncryptedBlob,
+  type FileMetaPlain,
 } from './fileEncryption';
