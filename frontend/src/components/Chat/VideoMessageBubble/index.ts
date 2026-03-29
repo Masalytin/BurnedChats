@@ -1,0 +1,1 @@
+export { VideoMessageBubble } from './VideoMessageBubble';
