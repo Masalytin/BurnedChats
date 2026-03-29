@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Message } from '../Message';
 import { ImageMessageBubble } from '../ImageMessageBubble';
 import { VideoMessageBubble } from '../VideoMessageBubble';
+import { DocumentMessageBubble } from '../DocumentMessageBubble';
 import { TypingIndicator } from '../TypingIndicator';
 import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import type { UploadStage } from '../UploadProgressOverlay';
@@ -220,6 +221,19 @@ export const MessageList = memo(function MessageList({
                 message={message}
                 onOpenViewer={onOpenViewer}
               />
+            </div>
+          );
+        }
+
+        if (message.type === 'file' && isFileMessage(message)) {
+          return (
+            <div key={message.id}>
+              {dateSep && (
+                <div className="message-date-separator">
+                  <span>{formatDateForSeparator(message.timestamp)}</span>
+                </div>
+              )}
+              <DocumentMessageBubble message={message} />
             </div>
           );
         }

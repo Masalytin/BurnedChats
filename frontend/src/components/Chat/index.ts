@@ -8,3 +8,4 @@ export { TypingIndicator } from './TypingIndicator';
 export { FilePreview } from './FilePreview';
 export { UploadProgressOverlay } from './UploadProgressOverlay';
 export type { UploadStage } from './UploadProgressOverlay';
+export { DocumentMessageBubble } from './DocumentMessageBubble';

@@ -1,0 +1,1 @@
+export { DocumentMessageBubble } from './DocumentMessageBubble';
