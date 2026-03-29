@@ -41,7 +41,7 @@ function formatDuration(seconds: number): string {
  */
 export const VideoMessageBubble = memo(function VideoMessageBubble({
   message,
-  onOpenViewer: _onOpenViewer,
+  onOpenViewer,
 }: VideoMessageBubbleProps) {
   const { t } = useTranslation();
 
@@ -93,6 +93,24 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   const handlePlay = useCallback(async () => {
     if (videoState === 'downloading' || videoState === 'playing') return;
 
+    if (onOpenViewer) {
+      setVideoState('downloading');
+      setDownloadProgress(0);
+      try {
+        const key = getAESKey(message.sessionId);
+        if (!key) { setVideoState('error'); return; }
+        await downloadFile(message.fileId, key, {
+          onProgress: (percent) => setDownloadProgress(percent),
+        });
+        setVideoState('idle');
+        setDownloadProgress(0);
+        onOpenViewer(message);
+      } catch {
+        setVideoState('error');
+      }
+      return;
+    }
+
     setVideoState('downloading');
     setDownloadProgress(0);
 
@@ -115,7 +133,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     } catch {
       setVideoState('error');
     }
-  }, [message.fileId, message.sessionId, videoState]);
+  }, [message, onOpenViewer, videoState]);
 
   const handleVideoLoadedMetadata = useCallback(() => {
     const video = videoRef.current;

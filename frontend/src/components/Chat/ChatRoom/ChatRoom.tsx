@@ -5,11 +5,12 @@ import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
+import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { Avatar } from '@/components/Avatar';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { UploadStage } from '../UploadProgressOverlay';
-import type { DecryptedMessage, UserInfo } from '@/types';
+import type { DecryptedMessage, DecryptedFileMessage, UserInfo } from '@/types';
 import '@/styles/ChatScreen.css';
 import './ChatRoom.css';
 
@@ -92,6 +93,17 @@ export const ChatRoom = memo(function ChatRoom({
   // P4-4-1-2: File selected but not yet confirmed
   const [pendingFile, setPendingFile] = useState<SelectedFileInfo | null>(null);
   const pendingCaptionRef = useRef<string | undefined>(undefined);
+
+  // P4-4-2-4: Full-screen media viewer
+  const [viewerMessage, setViewerMessage] = useState<DecryptedFileMessage | null>(null);
+
+  const handleOpenViewer = useCallback((msg: DecryptedFileMessage) => {
+    setViewerMessage(msg);
+  }, []);
+
+  const handleCloseViewer = useCallback(() => {
+    setViewerMessage(null);
+  }, []);
 
   const handleSend = useCallback((text: string) => {
     haptics.success();
@@ -208,6 +220,7 @@ export const ChatRoom = memo(function ChatRoom({
         uploadState={uploadState ?? undefined}
         onCancelUpload={onCancelUpload}
         onRetryUpload={onRetryUpload}
+        onOpenViewer={handleOpenViewer}
         className="chat-room-messages chat-screen-messages"
       />
 
@@ -230,6 +243,11 @@ export const ChatRoom = memo(function ChatRoom({
           onSend={handlePreviewSend}
           onCancel={handlePreviewCancel}
         />
+      )}
+
+      {/* P4-4-2-4: Full-screen media viewer */}
+      {viewerMessage && (
+        <MediaViewer message={viewerMessage} onClose={handleCloseViewer} />
       )}
     </div>
   );

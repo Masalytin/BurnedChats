@@ -42,7 +42,12 @@
     "verifiedTitle": "Зашифровано та підтверджено",
     "burnButtonLabel": "Спалити чат",
     "burnButtonTitle": "Назавжди знищити цей чат",
-    "messagePlaceholder": "Повідомлення {{name}}..."
+    "messagePlaceholder": "Повідомлення {{name}}...",
+    "mediaViewer": {
+      "close": "Закрити",
+      "save": "Зберегти",
+      "error": "Не вдалося завантажити"
+    }
   },
 
   "burnDialog": {

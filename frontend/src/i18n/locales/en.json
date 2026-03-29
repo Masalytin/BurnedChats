@@ -59,6 +59,11 @@
       "uploading": "Uploading…",
       "sending": "Sending…",
       "failed": "Upload failed"
+    },
+    "mediaViewer": {
+      "close": "Close",
+      "save": "Save",
+      "error": "Failed to load"
     }
   },
 

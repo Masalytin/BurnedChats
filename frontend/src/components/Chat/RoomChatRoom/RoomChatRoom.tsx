@@ -3,12 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import { ChatScreenHeader } from '../ChatScreenHeader';
+import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import type { UseRoomMessagesWebSocket } from '@/hooks/useRoomMessages';
 import { useHaptics } from '@/hooks/useHaptics';
+import type { DecryptedFileMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
 
@@ -96,6 +98,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const haptics = useHaptics();
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  // P4-4-2-4: Full-screen media viewer
+  const [viewerMessage, setViewerMessage] = useState<DecryptedFileMessage | null>(null);
+
+  const handleOpenViewer = useCallback((msg: DecryptedFileMessage) => {
+    setViewerMessage(msg);
+  }, []);
+
+  const handleCloseViewer = useCallback(() => {
+    setViewerMessage(null);
+  }, []);
 
   const { messages, sendMessage, isLoading, isSyncing, error } = useRoomMessages({
     roomId,
@@ -191,6 +204,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           <MessageList
             messages={messages}
             isLoading={isLoading || isSyncing}
+            onOpenViewer={handleOpenViewer}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">
@@ -230,6 +244,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             )}
           </div>
         </div>
+      )}
+
+      {/* P4-4-2-4: Full-screen media viewer */}
+      {viewerMessage && (
+        <MediaViewer message={viewerMessage} onClose={handleCloseViewer} />
       )}
 
       <ConfirmDialog

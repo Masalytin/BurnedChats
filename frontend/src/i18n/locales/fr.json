@@ -42,7 +42,12 @@
     "verifiedTitle": "Chiffré et Vérifié",
     "burnButtonLabel": "Détruire la discussion",
     "burnButtonTitle": "Détruire cette discussion définitivement",
-    "messagePlaceholder": "Message pour {{name}}..."
+    "messagePlaceholder": "Message pour {{name}}...",
+    "mediaViewer": {
+      "close": "Fermer",
+      "save": "Enregistrer",
+      "error": "Échec du chargement"
+    }
   },
 
   "burnDialog": {

@@ -42,7 +42,12 @@
     "verifiedTitle": "مشفر وموثق",
     "burnButtonLabel": "حذف الدردشة",
     "burnButtonTitle": "حذف هذه الدردشة نهائيًا",
-    "messagePlaceholder": "رسالة إلى {{name}}..."
+    "messagePlaceholder": "رسالة إلى {{name}}...",
+    "mediaViewer": {
+      "close": "إغلاق",
+      "save": "حفظ",
+      "error": "فشل التحميل"
+    }
   },
 
   "burnDialog": {

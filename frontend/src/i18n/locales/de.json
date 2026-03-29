@@ -42,7 +42,12 @@
     "verifiedTitle": "Verschlüsselt & Verifiziert",
     "burnButtonLabel": "Chat löschen",
     "burnButtonTitle": "Diesen Chat dauerhaft löschen",
-    "messagePlaceholder": "Nachricht an {{name}}..."
+    "messagePlaceholder": "Nachricht an {{name}}...",
+    "mediaViewer": {
+      "close": "Schließen",
+      "save": "Speichern",
+      "error": "Laden fehlgeschlagen"
+    }
   },
 
   "burnDialog": {

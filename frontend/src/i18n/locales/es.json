@@ -42,7 +42,12 @@
     "verifiedTitle": "Cifrado y Verificado",
     "burnButtonLabel": "Destruir chat",
     "burnButtonTitle": "Destruir este chat permanentemente",
-    "messagePlaceholder": "Mensaje para {{name}}..."
+    "messagePlaceholder": "Mensaje para {{name}}...",
+    "mediaViewer": {
+      "close": "Cerrar",
+      "save": "Guardar",
+      "error": "Error al cargar"
+    }
   },
 
   "burnDialog": {

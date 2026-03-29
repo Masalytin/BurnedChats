@@ -42,7 +42,12 @@
     "verifiedTitle": "已加密并验证",
     "burnButtonLabel": "销毁聊天",
     "burnButtonTitle": "永久销毁此聊天",
-    "messagePlaceholder": "发送消息给 {{name}}..."
+    "messagePlaceholder": "发送消息给 {{name}}...",
+    "mediaViewer": {
+      "close": "关闭",
+      "save": "保存",
+      "error": "加载失败"
+    }
   },
 
   "burnDialog": {
