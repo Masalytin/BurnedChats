@@ -125,6 +125,20 @@ public class FileMetadataRepository {
     }
 
     /**
+     * Delete the context index key ({@code file_context:{contextId}}).
+     * Used by burn cascade after all individual file entries have been removed.
+     *
+     * @param contextId session ID or room ID
+     * @return true if the key existed and was deleted
+     */
+    public Mono<Boolean> deleteContextKey(String contextId) {
+        String key = contextKeyFor(contextId);
+        return redisTemplate.delete(key)
+                .map(count -> count > 0)
+                .doOnSuccess(deleted -> log.debug("Deleted context key {}: {}", key, deleted));
+    }
+
+    /**
      * Check whether metadata exists for a file (i.e. TTL has not expired).
      *
      * @param fileId unique file identifier

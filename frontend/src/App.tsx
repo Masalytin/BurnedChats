@@ -35,6 +35,7 @@ import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
+import { clearDownloadCache } from './services/fileDownloadService';
 import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -1014,8 +1015,9 @@ function AppContent() {
           // Session was burned successfully
           console.log('[App] Session burned:', data.sessionId);
           
-          // Clean up local crypto keys
+          // Clean up local crypto keys and cached files
           burnKeys(data.sessionId);
+          clearDownloadCache();
           
           // Reset burn state
           setBurningSessionId(null);
@@ -1120,8 +1122,9 @@ function AppContent() {
         if (data.success && data.roomId) {
           const roomId = data.roomId;
 
-          // Securely destroy the group key from memory
+          // Securely destroy the group key and cached files from memory
           burnGroupKey(roomId);
+          clearDownloadCache();
 
           // If currently in room-chat or room-manage for this room, navigate to home
           const isViewingRoom =

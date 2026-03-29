@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { useWebSocket } from './useWebSocket';
 import { burn as burnKeys } from '@/crypto/keyStore';
+import { clearDownloadCache } from '@/services/fileDownloadService';
 import WebApp from '@twa-dev/sdk';
 
 // ============================================
@@ -231,8 +232,9 @@ export function useBurn(options: UseBurnOptions): UseBurnReturn {
       setStatus('burned');
       setError(null);
 
-      // Destroy local cryptographic keys
+      // Destroy local cryptographic keys and cached files
       burnKeys(sessionId);
+      clearDownloadCache();
 
       // Strong haptic feedback for burn
       try {

@@ -35,6 +35,7 @@ import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
@@ -120,6 +121,7 @@ public class RoomHandler {
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
     private final RoomJoinService roomJoinService;
+    private final FileBurnService fileBurnService;
     private final SimpMessagingTemplate messagingTemplate;
     private final RoomKeysRepository roomKeysRepository;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
@@ -843,15 +845,18 @@ public class RoomHandler {
                 .flatMap(room ->
                         roomMembersRepository.getMembers(roomId)
                                 .collectList()
-                                .flatMap(members -> reactor.core.publisher.Mono.when(
-                                                roomRepository.delete(roomId),
-                                                roomMembersRepository.deleteAll(roomId),
-                                                inviteTokenRepository.deleteAllForRoom(roomId),
-                                                roomKeysRepository.deleteRoom(roomId),
-                                                memberPublicKeyRepository.deleteRoom(roomId),
-                                                roomMessageRepository.deleteRoomMessages(roomId)
-                                        )
-                                        .thenReturn(members))
+                                .flatMap(members ->
+                                        // Delete associated files from storage first (burn cascade P4-3-1-3)
+                                        fileBurnService.deleteFilesForContext(roomId)
+                                                .then(reactor.core.publisher.Mono.when(
+                                                        roomRepository.delete(roomId),
+                                                        roomMembersRepository.deleteAll(roomId),
+                                                        inviteTokenRepository.deleteAllForRoom(roomId),
+                                                        roomKeysRepository.deleteRoom(roomId),
+                                                        memberPublicKeyRepository.deleteRoom(roomId),
+                                                        roomMessageRepository.deleteRoomMessages(roomId)
+                                                ))
+                                                .thenReturn(members))
                 )
                 .subscribe(
                         members -> {

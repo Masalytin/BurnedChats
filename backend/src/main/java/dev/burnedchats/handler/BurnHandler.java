@@ -8,6 +8,7 @@ import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileBurnService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -72,6 +73,7 @@ public class BurnHandler {
     private final MessageRepository messageRepository;
     private final RequestRepository requestRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final FileBurnService fileBurnService;
 
     /**
      * Burn (destroy) a chat session.
@@ -167,6 +169,8 @@ public class BurnHandler {
 
         // First update status to BURNED (prevents race conditions)
         return sessionRepository.updateStatus(sessionId, SessionStatus.BURNED)
+                // Delete associated files from storage first (burn cascade P4-3-1-3)
+                .then(fileBurnService.deleteFilesForContext(sessionId))
                 // Then delete all related data in parallel
                 .then(cleanupRedisData(sessionId, initiatorId, responderId))
                 // Finally delete the session itself
