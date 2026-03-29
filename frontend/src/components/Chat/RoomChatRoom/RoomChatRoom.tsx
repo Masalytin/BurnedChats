@@ -1,15 +1,18 @@
-import { memo, useCallback, useState, useEffect } from 'react';
+import { memo, useCallback, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import type { SelectedFileInfo } from '../MessageInput';
+import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
-import type { UseRoomMessagesWebSocket } from '@/hooks/useRoomMessages';
+import type { UseRoomMessagesWebSocket, SendRoomFileOptions } from '@/hooks/useRoomMessages';
 import { useHaptics } from '@/hooks/useHaptics';
+import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedFileMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
@@ -110,7 +113,19 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setViewerMessage(null);
   }, []);
 
-  const { messages, sendMessage, isLoading, isSyncing, error } = useRoomMessages({
+  // File selection / preview state
+  const [pendingFile, setPendingFile] = useState<SelectedFileInfo | null>(null);
+  const pendingCaptionRef = useRef<string | undefined>(undefined);
+
+  // Upload progress tracking
+  const [uploadState, setUploadState] = useState<{
+    progress: number;
+    stage: UploadStage;
+    fileName: string;
+  } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, error } = useRoomMessages({
     roomId,
     userId,
     ws,
@@ -126,6 +141,52 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     haptics.success();
     sendMessage(text);
   }, [sendMessage, haptics]);
+
+  const handleFileSelected = useCallback((info: SelectedFileInfo) => {
+    setPendingFile(info);
+  }, []);
+
+  const handlePreviewSend = useCallback(async (file: File, caption?: string) => {
+    pendingCaptionRef.current = caption;
+    setPendingFile(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setUploadState({ progress: 0, stage: 'encrypting', fileName: file.name });
+
+    const options: SendRoomFileOptions = {
+      onProgress: (percent) => {
+        setUploadState(prev => prev ? { ...prev, progress: percent, stage: 'uploading' } : null);
+      },
+      signal: controller.signal,
+    };
+
+    const result = await sendFileMessage(file, caption, options);
+    abortRef.current = null;
+
+    if (result.success) {
+      setUploadState(null);
+    } else {
+      setUploadState(prev => prev ? { ...prev, stage: 'failed' } : null);
+    }
+  }, [sendFileMessage]);
+
+  const handlePreviewCancel = useCallback(() => {
+    setPendingFile(null);
+  }, []);
+
+  const handleCancelUpload = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setUploadState(null);
+  }, []);
+
+  const handleRetryUpload = useCallback(() => {
+    setUploadState(null);
+  }, []);
+
+  const isUploading = !!uploadState && uploadState.stage !== 'failed';
 
   const handleLeaveClick = useCallback(() => {
     haptics.destructive();
@@ -204,12 +265,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           <MessageList
             messages={messages}
             isLoading={isLoading || isSyncing}
+            uploadState={uploadState ?? undefined}
+            onCancelUpload={handleCancelUpload}
+            onRetryUpload={handleRetryUpload}
             onOpenViewer={handleOpenViewer}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">
             <MessageInput
               onSend={handleSend}
+              onFileSelected={handleFileSelected}
+              isUploading={isUploading}
               placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
             />
           </div>
@@ -244,6 +310,16 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             )}
           </div>
         </div>
+      )}
+
+      {/* Pre-send file preview overlay */}
+      {pendingFile && (
+        <FilePreview
+          file={pendingFile.file}
+          messageType={pendingFile.messageType}
+          onSend={handlePreviewSend}
+          onCancel={handlePreviewCancel}
+        />
       )}
 
       {/* P4-4-2-4: Full-screen media viewer */}
