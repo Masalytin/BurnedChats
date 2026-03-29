@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
+import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
 import { getGroupKey } from '@/crypto/keyStore';
-import type { DecryptedMessage, MessageStatus } from '@/types';
+import { uploadFile } from '@/services/fileUploadService';
+import { downloadThumbnail } from '@/services/fileDownloadService';
+import type {
+  DecryptedMessage,
+  DecryptedFileMessage,
+  FileMetadata,
+  MessageStatus,
+  MessageType,
+} from '@/types';
 
 // ============================================
 // STOMP destinations
@@ -31,6 +40,11 @@ interface NewRoomMessageEvent {
   iv: string;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
+  type?: string;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
 /** Room message sent acknowledgment from server */
@@ -51,6 +65,11 @@ interface SyncedRoomMessage {
   iv: string;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
+  type?: string;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
 /** Sync room messages response */
@@ -80,6 +99,12 @@ export interface SendRoomMessageResult {
   error: RoomMessageErrorCode | null;
 }
 
+/** Options for file message sending */
+export interface SendRoomFileOptions {
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}
+
 /** WebSocket interface (reused from useMessages pattern) */
 export interface UseRoomMessagesWebSocket {
   isConnected: boolean;
@@ -106,6 +131,7 @@ export interface UseRoomMessagesReturn {
   isLoading: boolean;
   isSyncing: boolean;
   sendMessage: (text: string) => Promise<SendRoomMessageResult>;
+  sendFileMessage: (file: File, caption?: string, options?: SendRoomFileOptions) => Promise<SendRoomMessageResult>;
   clearMessages: () => void;
   error: RoomMessageErrorCode | null;
 }
@@ -213,6 +239,94 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   }, [isConnected, roomId, userId, publish, handleError]);
 
   // ============================================
+  // File Message Sending (P4-3-2-2)
+  // ============================================
+
+  const sendFileMessage = useCallback(async (
+    file: File,
+    caption?: string,
+    options?: SendRoomFileOptions,
+  ): Promise<SendRoomMessageResult> => {
+    setError(null);
+
+    if (!isConnected) {
+      handleError('NOT_CONNECTED');
+      return { success: false, messageId: null, error: 'NOT_CONNECTED' };
+    }
+
+    if (!roomId) {
+      handleError('NO_ROOM');
+      return { success: false, messageId: null, error: 'NO_ROOM' };
+    }
+
+    const groupKey = getGroupKey(roomId);
+    if (!groupKey) {
+      handleError('NO_GROUP_KEY');
+      return { success: false, messageId: null, error: 'NO_GROUP_KEY' };
+    }
+
+    const messageId = generateMessageId();
+    const timestamp = Date.now();
+    const messageType = getMessageTypeFromMime(file.type);
+
+    try {
+      const uploadResult = await uploadFile(
+        file,
+        groupKey,
+        { type: 'room', id: roomId },
+        { onProgress: options?.onProgress, signal: options?.signal },
+      );
+
+      const encryptedMeta = await encryptFileMetadata(
+        { fileName: file.name, mimeType: file.type },
+        groupKey,
+      );
+
+      const encrypted = await encryptMessage(groupKey, caption || '', roomId);
+
+      pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
+
+      const localMessage: DecryptedMessage = {
+        id: messageId,
+        sessionId: roomId,
+        fromUserId: userId,
+        content: caption || fileContentPlaceholder(messageType, file.name),
+        timestamp,
+        status: 'sending',
+        isOwn: true,
+        type: messageType,
+        fileId: uploadResult.fileId,
+        thumbnailFileId: uploadResult.thumbnailFileId,
+        fileSize: uploadResult.size,
+      };
+      setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
+
+      publish(SEND_ROOM_MESSAGE_DESTINATION, {
+        roomId,
+        messageId,
+        encryptedContent: encrypted.ciphertext,
+        iv: encrypted.iv,
+        timestamp,
+        type: messageType,
+        fileId: uploadResult.fileId,
+        thumbnailFileId: uploadResult.thumbnailFileId,
+        encryptedMeta,
+        fileSize: uploadResult.size,
+      });
+
+      return { success: true, messageId, error: null };
+
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      handleError('SEND_FAILED', errMsg);
+      return { success: false, messageId: null, error: 'SEND_FAILED' };
+    }
+  }, [isConnected, roomId, userId, publish, handleError]);
+
+  // ============================================
   // Receive Message Handler
   // ============================================
 
@@ -229,26 +343,34 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       }
 
       try {
-        const plaintext = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
         const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+        const eventType = toMessageType(event.type);
+        const isFileMsg = eventType !== 'text' && !!event.fileId;
 
-        const decryptedMessage: DecryptedMessage = {
-          id: event.messageId,
-          sessionId: roomId,
-          fromUserId: event.senderTgId,
-          senderName: event.senderName ?? undefined,
-          content: plaintext,
-          timestamp: ts,
-          status: 'delivered',
-          isOwn: event.senderTgId === userId,
-          type: 'text',
-        };
+        let decryptedMsg: DecryptedMessage;
+
+        if (isFileMsg) {
+          decryptedMsg = await decryptRoomFileEvent(
+            event, groupKey, roomId, userId, ts, eventType,
+          );
+        } else {
+          const plaintext = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
+          decryptedMsg = {
+            id: event.messageId,
+            sessionId: roomId,
+            fromUserId: event.senderTgId,
+            senderName: event.senderName ?? undefined,
+            content: plaintext,
+            timestamp: ts,
+            status: 'delivered',
+            isOwn: event.senderTgId === userId,
+            type: 'text',
+          };
+        }
 
         setMessages(prev => {
           const existingIndex = prev.findIndex(m => m.id === event.messageId);
           if (existingIndex !== -1) {
-            // Own message received back via broadcast — update status from 'sending' to 'sent'
-            // (acts as implicit ACK from the server that the message was stored and broadcast)
             const existing = prev[existingIndex];
             if (existing.status === 'sending') {
               const updated = [...prev];
@@ -257,10 +379,10 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             }
             return prev;
           }
-          return [...prev, decryptedMessage].sort((a, b) => a.timestamp - b.timestamp);
+          return [...prev, decryptedMsg].sort((a, b) => a.timestamp - b.timestamp);
         });
 
-        onNewMessage?.(decryptedMessage);
+        onNewMessage?.(decryptedMsg);
       } catch (decryptErr) {
         console.error('[useRoomMessages] Decryption failed:', decryptErr);
         handleError('DECRYPTION_FAILED', decryptErr instanceof Error ? decryptErr.message : 'Unknown error');
@@ -321,19 +443,29 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       const decryptedMessages: DecryptedMessage[] = [];
       for (const syncedMsg of event.messages) {
         try {
-          const plaintext = await decryptMessage(groupKey, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
-          decryptedMessages.push({
-            id: syncedMsg.messageId,
-            sessionId: roomId,
-            fromUserId: syncedMsg.senderTgId,
-            senderName: syncedMsg.senderName ?? undefined,
-            content: plaintext,
-            timestamp: ts,
-            status: 'delivered',
-            isOwn: syncedMsg.senderTgId === userId,
-            type: 'text',
-          });
+          const msgType = toMessageType(syncedMsg.type);
+          const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
+
+          if (isFileMsg) {
+            const fileMsg = await decryptSyncedRoomFileMessage(
+              syncedMsg, groupKey, roomId, userId, ts, msgType,
+            );
+            decryptedMessages.push(fileMsg);
+          } else {
+            const plaintext = await decryptMessage(groupKey, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
+            decryptedMessages.push({
+              id: syncedMsg.messageId,
+              sessionId: roomId,
+              fromUserId: syncedMsg.senderTgId,
+              senderName: syncedMsg.senderName ?? undefined,
+              content: plaintext,
+              timestamp: ts,
+              status: 'delivered',
+              isOwn: syncedMsg.senderTgId === userId,
+              type: 'text',
+            });
+          }
         } catch (decryptErr) {
           console.error('[useRoomMessages] Failed to decrypt synced message:', decryptErr);
         }
@@ -444,7 +576,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     };
   }, [roomId, clearMessages]);
 
-  return { messages, isLoading, isSyncing, sendMessage, clearMessages, error };
+  return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, error };
 }
 
 // ============================================
@@ -466,4 +598,142 @@ function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): n
     if (Number.isFinite(ms)) return ms;
   }
   return Date.now();
+}
+
+// ============================================
+// File Message Helpers (P4-3-2-2 / P4-3-2-3)
+// ============================================
+
+const IMAGE_MIME_PREFIX = 'image/';
+const VIDEO_MIME_PREFIX = 'video/';
+
+function getMessageTypeFromMime(mimeType: string): MessageType {
+  if (mimeType.startsWith(IMAGE_MIME_PREFIX)) return 'image';
+  if (mimeType.startsWith(VIDEO_MIME_PREFIX)) return 'video';
+  return 'file';
+}
+
+function toMessageType(raw?: string): MessageType {
+  if (raw === 'image' || raw === 'video' || raw === 'file') return raw;
+  return 'text';
+}
+
+function fileContentPlaceholder(type: MessageType, fileName?: string): string {
+  const name = fileName || 'file';
+  switch (type) {
+    case 'image': return `📷 ${name}`;
+    case 'video': return `🎬 ${name}`;
+    case 'file':  return `📎 ${name}`;
+    default:      return name;
+  }
+}
+
+async function decryptRoomFileEvent(
+  event: NewRoomMessageEvent,
+  groupKey: CryptoKey,
+  roomId: string,
+  userId: number,
+  timestamp: number,
+  messageType: MessageType,
+): Promise<DecryptedMessage> {
+  let caption = '';
+  try {
+    caption = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
+  } catch {
+    // Caption may be empty-encrypted
+  }
+
+  let fileMeta: FileMetadata | undefined;
+  if (event.encryptedMeta) {
+    try {
+      fileMeta = await decryptFileMetadata(event.encryptedMeta, groupKey);
+    } catch (err) {
+      console.error('[useRoomMessages] Failed to decrypt file metadata:', err);
+    }
+  }
+
+  let thumbnailUrl: string | undefined;
+  if (event.thumbnailFileId) {
+    try {
+      thumbnailUrl = await downloadThumbnail(event.thumbnailFileId, groupKey);
+    } catch (err) {
+      console.error('[useRoomMessages] Failed to download thumbnail:', err);
+    }
+  }
+
+  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
+
+  const msg: DecryptedFileMessage = {
+    id: event.messageId,
+    sessionId: roomId,
+    fromUserId: event.senderTgId,
+    senderName: event.senderName ?? undefined,
+    content,
+    timestamp,
+    status: 'delivered',
+    isOwn: event.senderTgId === userId,
+    type: messageType as 'image' | 'video' | 'file',
+    fileId: event.fileId!,
+    fileSize: event.fileSize ?? 0,
+    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
+    thumbnailFileId: event.thumbnailFileId,
+    thumbnailUrl,
+  };
+
+  return msg;
+}
+
+async function decryptSyncedRoomFileMessage(
+  syncedMsg: SyncedRoomMessage,
+  groupKey: CryptoKey,
+  roomId: string,
+  userId: number,
+  timestamp: number,
+  messageType: MessageType,
+): Promise<DecryptedMessage> {
+  let caption = '';
+  try {
+    caption = await decryptMessage(groupKey, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
+  } catch {
+    // No caption
+  }
+
+  let fileMeta: FileMetadata | undefined;
+  if (syncedMsg.encryptedMeta) {
+    try {
+      fileMeta = await decryptFileMetadata(syncedMsg.encryptedMeta, groupKey);
+    } catch (err) {
+      console.error('[useRoomMessages] Failed to decrypt synced file metadata:', err);
+    }
+  }
+
+  let thumbnailUrl: string | undefined;
+  if (syncedMsg.thumbnailFileId) {
+    try {
+      thumbnailUrl = await downloadThumbnail(syncedMsg.thumbnailFileId, groupKey);
+    } catch (err) {
+      console.error('[useRoomMessages] Failed to download synced thumbnail:', err);
+    }
+  }
+
+  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
+
+  const msg: DecryptedFileMessage = {
+    id: syncedMsg.messageId,
+    sessionId: roomId,
+    fromUserId: syncedMsg.senderTgId,
+    senderName: syncedMsg.senderName ?? undefined,
+    content,
+    timestamp,
+    status: 'delivered',
+    isOwn: syncedMsg.senderTgId === userId,
+    type: messageType as 'image' | 'video' | 'file',
+    fileId: syncedMsg.fileId!,
+    fileSize: syncedMsg.fileSize ?? 0,
+    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
+    thumbnailFileId: syncedMsg.thumbnailFileId,
+    thumbnailUrl,
+  };
+
+  return msg;
 }
