@@ -1,14 +1,23 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import type { SelectedFileInfo } from '../MessageInput';
+import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { Avatar } from '@/components/Avatar';
 import { useHaptics } from '@/hooks/useHaptics';
+import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedMessage, UserInfo } from '@/types';
 import '@/styles/ChatScreen.css';
 import './ChatRoom.css';
+
+export interface FileUploadState {
+  progress: number;
+  stage: UploadStage;
+  fileName: string;
+}
 
 interface ChatRoomProps {
   /** Session ID for the chat */
@@ -37,6 +46,12 @@ interface ChatRoomProps {
   disabled?: boolean;
   /** Optional error message to show when disabled (e.g. "Chat temporarily unavailable") */
   errorMessage?: string;
+  /** External upload state (driven by parent or hook) */
+  uploadState?: FileUploadState | null;
+  /** Cancel current upload */
+  onCancelUpload?: () => void;
+  /** Retry failed upload */
+  onRetryUpload?: () => void;
   /** Optional CSS class name */
   className?: string;
 }
@@ -49,6 +64,7 @@ interface ChatRoomProps {
  * - Message list with auto-scroll
  * - Message input with typing indicator
  * - Burn button for destroying the session
+ * - File picker + preview + upload progress (P4-4-1-1 / P4-4-1-2 / P4-4-1-3)
  */
 export const ChatRoom = memo(function ChatRoom({
   sessionId: _sessionId,
@@ -58,18 +74,24 @@ export const ChatRoom = memo(function ChatRoom({
   isLoading = false,
   isVerified = false,
   onSendMessage,
-  onSendFile: _onSendFile,
+  onSendFile,
   onTypingChange,
   onBurn,
   onBack,
   disabled = false,
   errorMessage,
+  uploadState,
+  onCancelUpload,
+  onRetryUpload,
   className = '',
 }: ChatRoomProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
-  /** Display name for header/placeholder (backend may omit) */
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
+
+  // P4-4-1-2: File selected but not yet confirmed
+  const [pendingFile, setPendingFile] = useState<SelectedFileInfo | null>(null);
+  const pendingCaptionRef = useRef<string | undefined>(undefined);
 
   const handleSend = useCallback((text: string) => {
     haptics.success();
@@ -84,6 +106,24 @@ export const ChatRoom = memo(function ChatRoom({
     haptics.destructive();
     onBurn?.();
   }, [onBurn, haptics]);
+
+  // P4-4-1-1: File selected from picker → show preview
+  const handleFileSelected = useCallback((info: SelectedFileInfo) => {
+    setPendingFile(info);
+  }, []);
+
+  // P4-4-1-2: Confirmed send from preview
+  const handlePreviewSend = useCallback((file: File, caption?: string) => {
+    pendingCaptionRef.current = caption;
+    setPendingFile(null);
+    onSendFile?.(file, caption);
+  }, [onSendFile]);
+
+  const handlePreviewCancel = useCallback(() => {
+    setPendingFile(null);
+  }, []);
+
+  const isUploading = !!uploadState && uploadState.stage !== 'failed';
 
   const headerLeft = (
     <>
@@ -165,17 +205,32 @@ export const ChatRoom = memo(function ChatRoom({
         isPeerTyping={isPeerTyping}
         peerName={displayName}
         isLoading={isLoading}
+        uploadState={uploadState ?? undefined}
+        onCancelUpload={onCancelUpload}
+        onRetryUpload={onRetryUpload}
         className="chat-room-messages chat-screen-messages"
       />
 
       <div className="chat-screen-input">
         <MessageInput
           onSend={handleSend}
+          onFileSelected={onSendFile ? handleFileSelected : undefined}
           onTypingChange={handleTypingChange}
           disabled={disabled}
+          isUploading={isUploading}
           placeholder={t('chat.messagePlaceholder', { name: displayName })}
         />
       </div>
+
+      {/* P4-4-1-2: Pre-send preview overlay */}
+      {pendingFile && (
+        <FilePreview
+          file={pendingFile.file}
+          messageType={pendingFile.messageType}
+          onSend={handlePreviewSend}
+          onCancel={handlePreviewCancel}
+        />
+      )}
     </div>
   );
 });

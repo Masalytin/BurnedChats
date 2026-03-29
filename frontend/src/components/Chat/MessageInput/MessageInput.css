@@ -18,6 +18,46 @@
   padding: var(--bc-spacing-xs) var(--bc-spacing-xs) var(--bc-spacing-xs) var(--bc-spacing-md);
 }
 
+/* Hidden file input */
+.message-input-file-hidden {
+  display: none;
+}
+
+/* Attachment Button (P4-4-1-1) */
+.message-input-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bc-text-muted);
+  cursor: pointer;
+  transition: color var(--bc-transition-fast), transform var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.message-input-attach:hover {
+  color: var(--bc-text-primary);
+}
+
+.message-input-attach:active {
+  transform: scale(0.9);
+}
+
+.message-input-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.message-input-attach-icon {
+  width: 22px;
+  height: 22px;
+}
+
 /* Textarea */
 .message-input-field {
   flex: 1;

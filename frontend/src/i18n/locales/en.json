@@ -48,7 +48,18 @@
     "loadingMessages": "Loading messages...",
     "emptyMessages": "No messages yet",
     "emptyHint": "Send a message to start the conversation",
-    "temporarilyUnavailable": "Chat temporarily unavailable"
+    "temporarilyUnavailable": "Chat temporarily unavailable",
+    "attachFile": "Attach file",
+    "filePreviewTitle": "File preview",
+    "captionPlaceholder": "Add a caption...",
+    "sendFile": "Send",
+    "uploadRetry": "Retry upload",
+    "uploadStage": {
+      "encrypting": "Encrypting…",
+      "uploading": "Uploading…",
+      "sending": "Sending…",
+      "failed": "Upload failed"
+    }
   },
 
   "burnDialog": {

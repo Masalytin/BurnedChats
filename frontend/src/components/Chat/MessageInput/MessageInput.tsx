@@ -1,13 +1,43 @@
 import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHaptics } from '@/hooks/useHaptics';
 import './MessageInput.css';
+
+// ============================================
+// File validation constants
+// ============================================
+
+const ACCEPTED_TYPES = 'image/*,video/mp4,video/webm,application/pdf,text/plain,application/zip';
+
+const IMAGE_MIME_RE = /^image\/(jpeg|png|gif|webp)$/;
+const VIDEO_MIME_RE = /^video\/(mp4|webm)$/;
+const DOC_MIME_SET = new Set(['application/pdf', 'text/plain', 'application/zip']);
+
+const IMAGE_MAX_SIZE = 10 * 1024 * 1024;   // 10 MB
+const OTHER_MAX_SIZE = 25 * 1024 * 1024;    // 25 MB
+
+export type FileMessageType = 'image' | 'video' | 'file';
+
+export interface SelectedFileInfo {
+  file: File;
+  messageType: FileMessageType;
+}
+
+// ============================================
+// Props
+// ============================================
 
 interface MessageInputProps {
   /** Callback when message is submitted */
   onSend: (text: string) => void;
+  /** Callback when a valid file is selected */
+  onFileSelected?: (info: SelectedFileInfo) => void;
   /** Callback when user starts/stops typing (for typing indicator) */
   onTypingChange?: (isTyping: boolean) => void;
   /** Whether sending is disabled */
   disabled?: boolean;
+  /** Whether a file upload is in progress (disables attachment button) */
+  isUploading?: boolean;
   /** Placeholder text */
   placeholder?: string;
   /** Whether a message is currently being sent */
@@ -30,48 +60,46 @@ const TYPING_DEBOUNCE = 2000;
  * - Send on Enter (Shift+Enter for new line)
  * - Typing indicator support
  * - Character limit
+ * - Attachment button with file picker (P4-4-1-1)
  */
 export const MessageInput = memo(function MessageInput({
   onSend,
+  onFileSelected,
   onTypingChange,
   disabled = false,
+  isUploading = false,
   placeholder = 'Message...',
   isSending = false,
   maxLength = 4096,
   className = '',
 }: MessageInputProps) {
+  const { t } = useTranslation();
+  const haptics = useHaptics();
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasTypingRef = useRef(false);
 
-  /**
-   * Handle textarea value change
-   */
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     
-    // Enforce max length
     if (newText.length > maxLength) {
       return;
     }
 
     setText(newText);
 
-    // Typing indicator logic
     if (onTypingChange && newText.length > 0) {
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
 
-      // Notify that user is typing
       if (!wasTypingRef.current) {
         wasTypingRef.current = true;
         onTypingChange(true);
       }
 
-      // Set timeout to stop typing indicator
       typingTimeoutRef.current = setTimeout(() => {
         wasTypingRef.current = false;
         onTypingChange(false);
@@ -79,9 +107,6 @@ export const MessageInput = memo(function MessageInput({
     }
   }, [maxLength, onTypingChange]);
 
-  /**
-   * Submit the message
-   */
   const handleSubmit = useCallback(() => {
     const trimmedText = text.trim();
     
@@ -89,7 +114,6 @@ export const MessageInput = memo(function MessageInput({
       return;
     }
 
-    // Clear typing indicator
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -98,45 +122,58 @@ export const MessageInput = memo(function MessageInput({
       onTypingChange?.(false);
     }
 
-    // Send message
     onSend(trimmedText);
     setText('');
 
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
   }, [text, disabled, isSending, onSend, onTypingChange]);
 
-  /**
-   * Handle key press
-   */
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Send on Enter (without Shift)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
   }, [handleSubmit]);
 
-  /**
-   * Auto-resize textarea based on content
-   */
+  // P4-4-1-1: Open file picker
+  const handleAttachClick = useCallback(() => {
+    if (disabled || isUploading) return;
+    haptics.impact('light');
+    fileInputRef.current?.click();
+  }, [disabled, isUploading, haptics]);
+
+  // P4-4-1-1: Validate and forward selected file
+  const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file || !onFileSelected) return;
+
+    const messageType = resolveFileMessageType(file.type);
+    if (!messageType) {
+      haptics.error();
+      return;
+    }
+
+    const maxBytes = messageType === 'image' ? IMAGE_MAX_SIZE : OTHER_MAX_SIZE;
+    if (file.size > maxBytes) {
+      haptics.error();
+      return;
+    }
+
+    onFileSelected({ file, messageType });
+  }, [onFileSelected, haptics]);
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
-    // Reset height to auto to get the correct scrollHeight
     textarea.style.height = 'auto';
-    
-    // Set new height (max 150px)
     const newHeight = Math.min(textarea.scrollHeight, 150);
     textarea.style.height = `${newHeight}px`;
   }, [text]);
 
-  /**
-   * Cleanup typing timeout on unmount
-   */
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
@@ -149,10 +186,35 @@ export const MessageInput = memo(function MessageInput({
   }, [onTypingChange]);
 
   const canSend = text.trim().length > 0 && !disabled && !isSending;
+  const canAttach = !disabled && !isUploading && !!onFileSelected;
 
   return (
     <div className={`message-input ${className}`}>
       <div className="message-input-container">
+        {/* P4-4-1-1: Attachment button */}
+        {onFileSelected && (
+          <>
+            <button
+              type="button"
+              className="message-input-attach"
+              onClick={handleAttachClick}
+              disabled={!canAttach}
+              aria-label={t('chat.attachFile')}
+            >
+              <AttachIcon />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_TYPES}
+              className="message-input-file-hidden"
+              onChange={handleFileChange}
+              tabIndex={-1}
+              aria-hidden="true"
+            />
+          </>
+        )}
+
         <textarea
           ref={textareaRef}
           className="message-input-field"
@@ -180,7 +242,6 @@ export const MessageInput = memo(function MessageInput({
         </button>
       </div>
       
-      {/* Character counter (show when approaching limit) */}
       {text.length > maxLength * 0.8 && (
         <div className="message-input-counter">
           {text.length} / {maxLength}
@@ -190,9 +251,21 @@ export const MessageInput = memo(function MessageInput({
   );
 });
 
-/**
- * Send icon SVG
- */
+// ============================================
+// Helpers
+// ============================================
+
+function resolveFileMessageType(mimeType: string): FileMessageType | null {
+  if (IMAGE_MIME_RE.test(mimeType)) return 'image';
+  if (VIDEO_MIME_RE.test(mimeType)) return 'video';
+  if (DOC_MIME_SET.has(mimeType)) return 'file';
+  return null;
+}
+
+// ============================================
+// Icons
+// ============================================
+
 function SendIcon() {
   return (
     <svg
@@ -206,6 +279,27 @@ function SendIcon() {
       <path
         d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
         fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function AttachIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="message-input-attach-icon"
+    >
+      <path
+        d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

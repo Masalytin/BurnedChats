@@ -48,7 +48,18 @@
     "loadingMessages": "Загрузка сообщений...",
     "emptyMessages": "Пока нет сообщений",
     "emptyHint": "Напишите сообщение, чтобы начать разговор",
-    "temporarilyUnavailable": "Чат временно недоступен"
+    "temporarilyUnavailable": "Чат временно недоступен",
+    "attachFile": "Прикрепить файл",
+    "filePreviewTitle": "Предпросмотр файла",
+    "captionPlaceholder": "Добавить подпись...",
+    "sendFile": "Отправить",
+    "uploadRetry": "Повторить загрузку",
+    "uploadStage": {
+      "encrypting": "Шифрование…",
+      "uploading": "Загрузка…",
+      "sending": "Отправка…",
+      "failed": "Ошибка загрузки"
+    }
   },
 
   "burnDialog": {

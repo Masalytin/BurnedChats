@@ -1,0 +1,189 @@
+/* ============================================
+ * FilePreview — Pre-send preview overlay (P4-4-1-2)
+ * ============================================ */
+
+.file-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: var(--bc-spacing-md);
+  animation: file-preview-fade-in 0.2s ease-out;
+}
+
+@keyframes file-preview-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.file-preview-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 360px;
+  max-height: 80vh;
+  background: var(--bc-bg-primary);
+  border-radius: var(--bc-radius-xl);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: file-preview-slide-up 0.25s ease-out;
+}
+
+@keyframes file-preview-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Preview content area */
+.file-preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: 300px;
+  overflow: hidden;
+  background: var(--bc-bg-secondary);
+}
+
+.file-preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+}
+
+.file-preview-video-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.file-preview-video {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+}
+
+.file-preview-video-duration {
+  position: absolute;
+  bottom: var(--bc-spacing-sm);
+  right: var(--bc-spacing-sm);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: var(--bc-text-xs);
+  padding: 2px var(--bc-spacing-xs);
+  border-radius: var(--bc-radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Document preview */
+.file-preview-doc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xl) var(--bc-spacing-md);
+}
+
+.file-preview-doc-icon {
+  font-size: 3rem;
+}
+
+.file-preview-doc-name {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* File info bar */
+.file-preview-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  gap: var(--bc-spacing-sm);
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.file-preview-filename {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-preview-size {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  flex-shrink: 0;
+}
+
+/* Caption input */
+.file-preview-caption {
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border: none;
+  border-bottom: 1px solid var(--bc-border-color);
+  background: transparent;
+  color: var(--bc-text-primary);
+  font-family: var(--bc-font-family);
+  font-size: var(--bc-text-sm);
+  outline: none;
+}
+
+.file-preview-caption::placeholder {
+  color: var(--bc-text-muted);
+}
+
+/* Action buttons */
+.file-preview-actions {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+}
+
+.file-preview-btn {
+  flex: 1;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border: none;
+  border-radius: var(--bc-radius-lg);
+  font-family: var(--bc-font-family);
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--bc-transition-fast), transform var(--bc-transition-fast);
+}
+
+.file-preview-btn:active {
+  transform: scale(0.97);
+}
+
+.file-preview-btn--cancel {
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-secondary);
+}
+
+.file-preview-btn--cancel:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.file-preview-btn--send {
+  background: var(--bc-brand-primary);
+  color: #fff;
+}
+
+.file-preview-btn--send:hover {
+  background: var(--bc-brand-primary-hover);
+}

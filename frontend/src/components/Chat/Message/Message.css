@@ -167,6 +167,29 @@
   }
 }
 
+/* ============================================
+ * Upload Placeholder Bubble (P4-4-1-3)
+ * ============================================ */
+
+.message--uploading .message-bubble--uploading {
+  position: relative;
+  min-width: 160px;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.message-upload-filename {
+  display: block;
+  font-size: var(--bc-text-xs);
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: var(--bc-spacing-xs);
+  position: relative;
+  z-index: 3;
+}
+
 /* Mobile adjustments */
 @media (max-width: 400px) {
   .message-bubble {

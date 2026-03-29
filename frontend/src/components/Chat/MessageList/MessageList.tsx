@@ -2,8 +2,16 @@ import { useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Message } from '../Message';
 import { TypingIndicator } from '../TypingIndicator';
+import { UploadProgressOverlay } from '../UploadProgressOverlay';
+import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedMessage } from '@/types';
 import './MessageList.css';
+
+interface UploadStateInfo {
+  progress: number;
+  stage: UploadStage;
+  fileName: string;
+}
 
 interface MessageListProps {
   /** Array of decrypted messages to display */
@@ -16,6 +24,12 @@ interface MessageListProps {
   isLoading?: boolean;
   /** Callback when user scrolls to top (for loading older messages) */
   onLoadMore?: () => void;
+  /** Active upload state for showing a placeholder bubble (P4-4-1-3) */
+  uploadState?: UploadStateInfo;
+  /** Cancel current upload */
+  onCancelUpload?: () => void;
+  /** Retry failed upload */
+  onRetryUpload?: () => void;
   /** Optional CSS class name */
   className?: string;
 }
@@ -35,6 +49,9 @@ export const MessageList = memo(function MessageList({
   peerName,
   isLoading = false,
   onLoadMore,
+  uploadState,
+  onCancelUpload,
+  onRetryUpload,
   className = '',
 }: MessageListProps) {
   const { t } = useTranslation();
@@ -179,6 +196,21 @@ export const MessageList = memo(function MessageList({
           isNew={newMessageIds.has(message.id)}
         />
       ))}
+
+      {/* P4-4-1-3: Upload placeholder bubble */}
+      {uploadState && (
+        <div className="message message--own message--uploading" role="listitem">
+          <div className="message-bubble message-bubble--uploading">
+            <span className="message-upload-filename">{uploadState.fileName}</span>
+            <UploadProgressOverlay
+              progress={uploadState.progress}
+              stage={uploadState.stage}
+              onCancel={onCancelUpload ?? (() => {})}
+              onRetry={onRetryUpload}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Typing indicator */}
       {isPeerTyping && <TypingIndicator userName={peerName} />}
