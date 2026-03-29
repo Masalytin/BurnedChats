@@ -1,10 +1,11 @@
 import { useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Message } from '../Message';
+import { ImageMessageBubble } from '../ImageMessageBubble';
 import { TypingIndicator } from '../TypingIndicator';
 import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import type { UploadStage } from '../UploadProgressOverlay';
-import type { DecryptedMessage } from '@/types';
+import type { DecryptedMessage, DecryptedFileMessage } from '@/types';
 import './MessageList.css';
 
 interface UploadStateInfo {
@@ -30,6 +31,8 @@ interface MessageListProps {
   onCancelUpload?: () => void;
   /** Retry failed upload */
   onRetryUpload?: () => void;
+  /** Open full-screen media viewer for an image message (P4-4-2-1 → P4-4-2-4) */
+  onOpenViewer?: (message: DecryptedFileMessage) => void;
   /** Optional CSS class name */
   className?: string;
 }
@@ -52,6 +55,7 @@ export const MessageList = memo(function MessageList({
   uploadState,
   onCancelUpload,
   onRetryUpload,
+  onOpenViewer,
   className = '',
 }: MessageListProps) {
   const { t } = useTranslation();
@@ -184,18 +188,38 @@ export const MessageList = memo(function MessageList({
       )}
 
       {/* Messages */}
-      {messages.map((message, index) => (
-        <Message
-          key={message.id}
-          content={message.content}
-          isOwn={message.isOwn}
-          timestamp={message.timestamp}
-          status={message.status}
-          showDateSeparator={shouldShowDateSeparator(index)}
-          senderName={message.senderName}
-          isNew={newMessageIds.has(message.id)}
-        />
-      ))}
+      {messages.map((message, index) => {
+        const dateSep = shouldShowDateSeparator(index);
+
+        if (message.type === 'image' && isFileMessage(message)) {
+          return (
+            <div key={message.id}>
+              {dateSep && (
+                <div className="message-date-separator">
+                  <span>{formatDateForSeparator(message.timestamp)}</span>
+                </div>
+              )}
+              <ImageMessageBubble
+                message={message}
+                onOpenViewer={onOpenViewer}
+              />
+            </div>
+          );
+        }
+
+        return (
+          <Message
+            key={message.id}
+            content={message.content}
+            isOwn={message.isOwn}
+            timestamp={message.timestamp}
+            status={message.status}
+            showDateSeparator={dateSep}
+            senderName={message.senderName}
+            isNew={newMessageIds.has(message.id)}
+          />
+        );
+      })}
 
       {/* P4-4-1-3: Upload placeholder bubble */}
       {uploadState && (
@@ -230,4 +254,29 @@ function isSameDay(date1: Date, date2: Date): boolean {
     date1.getMonth() === date2.getMonth() &&
     date1.getDate() === date2.getDate()
   );
+}
+
+/**
+ * Type guard: checks whether a DecryptedMessage is a DecryptedFileMessage.
+ */
+function isFileMessage(msg: DecryptedMessage): msg is DecryptedFileMessage {
+  return msg.type !== 'text' && 'fileId' in msg && typeof (msg as DecryptedFileMessage).fileId === 'string';
+}
+
+/**
+ * Format timestamp to date string for separator (mirrored from Message component).
+ */
+function formatDateForSeparator(timestamp: number): string {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (isSameDay(date, today)) return 'Today';
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+  });
 }

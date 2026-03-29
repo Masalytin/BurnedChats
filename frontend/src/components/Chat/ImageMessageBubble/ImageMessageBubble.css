@@ -1,0 +1,189 @@
+/* ============================================
+ * ImageMessageBubble Styles (P4-4-2-1)
+ * ============================================ */
+
+.image-bubble {
+  max-width: 70%;
+  min-width: 140px;
+  border-radius: var(--bc-radius-lg);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: var(--bc-shadow-sm);
+}
+
+.message--own .image-bubble {
+  background: var(--bc-message-outgoing-bg);
+  color: var(--bc-message-outgoing-text);
+  border-bottom-right-radius: var(--bc-radius-sm);
+}
+
+.message--peer .image-bubble {
+  background: var(--bc-message-incoming-bg);
+  color: var(--bc-message-incoming-text);
+  border-bottom-left-radius: var(--bc-radius-sm);
+}
+
+/* Sender name (rooms) */
+.image-bubble .message-sender-name {
+  display: block;
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  color: var(--bc-accent, var(--bc-text-accent));
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm) 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+ * Thumbnail
+ * ============================================ */
+
+.image-bubble__thumbnail-wrap {
+  position: relative;
+  width: 100%;
+  min-height: 100px;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.image-bubble__thumbnail {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+}
+
+/* ============================================
+ * Placeholder (loading / error)
+ * ============================================ */
+
+.image-bubble__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.image-bubble__placeholder--error {
+  background: rgba(255, 68, 68, 0.08);
+}
+
+.image-bubble__placeholder-icon {
+  font-size: 2rem;
+  opacity: 0.4;
+}
+
+.image-bubble__placeholder:not(.image-bubble__placeholder--error) .image-bubble__placeholder-icon {
+  animation: image-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes image-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+.image-bubble__retry-btn {
+  margin-top: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-md);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--bc-radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.image-bubble__retry-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+ * Download progress overlay
+ * ============================================ */
+
+.image-bubble__download-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.image-bubble__download-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--bc-brand-primary);
+  transition: width 0.2s ease-out;
+}
+
+.image-bubble__download-text {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================
+ * Caption
+ * ============================================ */
+
+.image-bubble__caption {
+  margin: 0;
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  font-size: var(--bc-text-base);
+  line-height: var(--bc-leading-normal);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ============================================
+ * Meta (size + time + status)
+ * ============================================ */
+
+.image-bubble__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bc-spacing-xs);
+  padding: 2px var(--bc-spacing-sm) var(--bc-spacing-xs);
+  font-size: var(--bc-text-xs);
+}
+
+.message--own .image-bubble__meta {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.message--peer .image-bubble__meta {
+  color: var(--bc-text-muted);
+}
+
+.image-bubble__size {
+  margin-right: auto;
+  opacity: 0.7;
+}
+
+.image-bubble__time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+ * Mobile adjustments
+ * ============================================ */
+
+@media (max-width: 400px) {
+  .image-bubble {
+    max-width: 80%;
+  }
+}
