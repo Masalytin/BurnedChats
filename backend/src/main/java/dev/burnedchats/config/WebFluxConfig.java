@@ -30,6 +30,8 @@ public class WebFluxConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOriginPatterns(
+                        "https://burnedchats.net",
+                        "https://*.burnedchats.net",
                         "https://*.telegram.org",
                         "https://web.telegram.org",
                         "http://localhost:*",

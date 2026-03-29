@@ -17,6 +17,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
   tomcat:
     max-connections: 5000
     threads:
