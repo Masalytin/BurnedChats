@@ -1632,7 +1632,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatVi
     console.error('[ChatViewContent] Message error:', err, details);
   }, []);
 
-  const { messages, sendMessage, isLoading, error } = useMessages({
+  const { messages, sendMessage, sendFileMessage, isLoading, error } = useMessages({
     sessionId,
     userId,
     ws,
@@ -1643,6 +1643,10 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatVi
     sendMessage(text);
   }, [sendMessage]);
 
+  const handleSendFile = useCallback((file: File, caption?: string) => {
+    sendFileMessage(file, caption);
+  }, [sendFileMessage]);
+
   return (
     <ChatRoom
       sessionId={sessionId}
@@ -1651,6 +1655,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatVi
       isLoading={isLoading}
       isVerified={true}
       onSendMessage={handleSendMessage}
+      onSendFile={handleSendFile}
       onBack={onBack}
       onBurn={onBurn}
       disabled={!!error}

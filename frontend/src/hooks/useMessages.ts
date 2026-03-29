@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
+import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
 import { getAESKey, isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
-import type { DecryptedMessage, MessageStatus } from '@/types';
+import { uploadFile } from '@/services/fileUploadService';
+import { downloadThumbnail } from '@/services/fileDownloadService';
+import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 
 // ============================================
@@ -41,6 +44,12 @@ interface NewMessageEvent {
   /** Server time ISO-8601 string */
   serverTimestamp?: string;
   error?: string;
+  /** Message type: text, image, video, or file */
+  type?: string;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
 /** Message sent acknowledgment from server */
@@ -62,6 +71,11 @@ interface SyncedMessage {
   iv: string;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
+  type?: string;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
 /** Sync messages event from server (5.1.2) */
@@ -80,6 +94,12 @@ export interface UseMessagesWebSocket {
   subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
+}
+
+/** Options for file message sending */
+export interface SendFileOptions {
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
 }
 
 /** Hook options */
@@ -110,8 +130,10 @@ interface UseMessagesReturn {
   isLoading: boolean;
   /** Whether sync is in progress (5.1.2) */
   isSyncing: boolean;
-  /** Send a new message */
+  /** Send a new text message */
   sendMessage: (text: string) => Promise<SendMessageResult>;
+  /** Send a file message (image, video, or document) with optional caption */
+  sendFileMessage: (file: File, caption?: string, options?: SendFileOptions) => Promise<SendMessageResult>;
   /** Clear all messages (local only) */
   clearMessages: () => void;
   /** Retry failed message */
@@ -312,6 +334,104 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, [isConnected, sessionId, userId, publish, handleError]);
 
   // ============================================
+  // File Message Sending (P4-3-2-1)
+  // ============================================
+
+  /**
+   * Encrypt and send a file message (image, video, or document).
+   */
+  const sendFileMessage = useCallback(async (
+    file: File,
+    caption?: string,
+    options?: SendFileOptions,
+  ): Promise<SendMessageResult> => {
+    setError(null);
+
+    if (!isConnected) {
+      handleError('NOT_CONNECTED');
+      return { success: false, messageId: null, error: 'NOT_CONNECTED' };
+    }
+
+    if (!sessionId) {
+      handleError('NO_SESSION');
+      return { success: false, messageId: null, error: 'NO_SESSION' };
+    }
+
+    if (!isHandshakeComplete(sessionId)) {
+      handleError('NO_ENCRYPTION_KEY');
+      return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
+    }
+
+    const aesKey = getAESKey(sessionId);
+    if (!aesKey) {
+      handleError('NO_ENCRYPTION_KEY');
+      return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
+    }
+
+    const messageId = generateMessageId();
+    const timestamp = Date.now();
+    const messageType = getMessageTypeFromMime(file.type);
+
+    try {
+      const uploadResult = await uploadFile(
+        file,
+        aesKey,
+        { type: 'session', id: sessionId },
+        { onProgress: options?.onProgress, signal: options?.signal },
+      );
+
+      const encryptedMeta = await encryptFileMetadata(
+        { fileName: file.name, mimeType: file.type },
+        aesKey,
+      );
+
+      const encrypted = await encryptMessage(aesKey, caption || '', sessionId);
+
+      pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
+
+      const localMessage: DecryptedMessage = {
+        id: messageId,
+        sessionId,
+        fromUserId: userId,
+        content: caption || fileContentPlaceholder(messageType, file.name),
+        timestamp,
+        status: 'sending',
+        isOwn: true,
+        type: messageType,
+        fileId: uploadResult.fileId,
+        thumbnailFileId: uploadResult.thumbnailFileId,
+        fileSize: uploadResult.size,
+      };
+      setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
+
+      publish(SEND_MESSAGE_DESTINATION, {
+        sessionId,
+        messageId,
+        encryptedContent: encrypted.ciphertext,
+        iv: encrypted.iv,
+        timestamp,
+        type: messageType,
+        fileId: uploadResult.fileId,
+        thumbnailFileId: uploadResult.thumbnailFileId,
+        encryptedMeta,
+        fileSize: uploadResult.size,
+      });
+
+      debugLog('success', 'File message sent', { messageId, sessionId, type: messageType });
+      return { success: true, messageId, error: null };
+
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      debugLog('error', 'File message send failed', { error: errMsg });
+      handleError('SEND_FAILED', errMsg);
+      return { success: false, messageId: null, error: 'SEND_FAILED' };
+    }
+  }, [isConnected, sessionId, userId, publish, handleError]);
+
+  // ============================================
   // Decryption (4.2.6)
   // ============================================
 
@@ -340,37 +460,43 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       }
 
       try {
-        // Decrypt message with session binding
-        const plaintext = await decryptMessage(
-          aesKey,
-          event.encryptedContent,
-          event.iv,
-          sessionId
-        );
-
-        // Create decrypted message object (timestamp: prefer client, fallback server, then now)
         const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
-        const decryptedMessage: DecryptedMessage = {
-          id: event.messageId,
-          sessionId: event.sessionId,
-          fromUserId: event.senderId,
-          content: plaintext,
-          timestamp: ts,
-          status: 'delivered',
-          isOwn: event.senderId === userId,
-          type: 'text',
-        };
+        const eventType = toMessageType(event.type);
+        const isFileMsg = eventType !== 'text' && !!event.fileId;
 
-        // Add to messages (avoid duplicates), keep sorted by timestamp
+        let decryptedMsg: DecryptedMessage;
+
+        if (isFileMsg) {
+          decryptedMsg = await decryptFileEvent(
+            event, aesKey, sessionId, userId, ts, eventType,
+          );
+        } else {
+          const plaintext = await decryptMessage(
+            aesKey,
+            event.encryptedContent,
+            event.iv,
+            sessionId,
+          );
+
+          decryptedMsg = {
+            id: event.messageId,
+            sessionId: event.sessionId,
+            fromUserId: event.senderId,
+            content: plaintext,
+            timestamp: ts,
+            status: 'delivered',
+            isOwn: event.senderId === userId,
+            type: 'text',
+          };
+        }
+
         setMessages(prev => {
           const exists = prev.some(m => m.id === event.messageId);
           if (exists) return prev;
-          const next = [...prev, decryptedMessage].sort((a, b) => a.timestamp - b.timestamp);
-          return next;
+          return [...prev, decryptedMsg].sort((a, b) => a.timestamp - b.timestamp);
         });
 
-        // Notify callback
-        onNewMessage?.(decryptedMessage);
+        onNewMessage?.(decryptedMsg);
 
       } catch (decryptErr) {
         console.error('[useMessages] Decryption failed:', decryptErr);
@@ -419,24 +545,34 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       
       for (const syncedMsg of event.messages) {
         try {
-          const plaintext = await decryptMessage(
-            aesKey,
-            syncedMsg.encryptedContent,
-            syncedMsg.iv,
-            sessionId
-          );
-
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
-          decryptedMessages.push({
-            id: syncedMsg.messageId,
-            sessionId,
-            fromUserId: syncedMsg.senderId,
-            content: plaintext,
-            timestamp: ts,
-            status: 'delivered',
-            isOwn: syncedMsg.senderId === userId,
-            type: 'text',
-          });
+          const msgType = toMessageType(syncedMsg.type);
+          const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
+
+          if (isFileMsg) {
+            const fileMsg = await decryptSyncedFileMessage(
+              syncedMsg, aesKey, sessionId, userId, ts, msgType,
+            );
+            decryptedMessages.push(fileMsg);
+          } else {
+            const plaintext = await decryptMessage(
+              aesKey,
+              syncedMsg.encryptedContent,
+              syncedMsg.iv,
+              sessionId,
+            );
+
+            decryptedMessages.push({
+              id: syncedMsg.messageId,
+              sessionId,
+              fromUserId: syncedMsg.senderId,
+              content: plaintext,
+              timestamp: ts,
+              status: 'delivered',
+              isOwn: syncedMsg.senderId === userId,
+              type: 'text',
+            });
+          }
         } catch (decryptErr) {
           console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
         }
@@ -654,6 +790,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     isLoading,
     isSyncing,
     sendMessage,
+    sendFileMessage,
     clearMessages,
     retryMessage,
     syncMessages,
@@ -686,6 +823,157 @@ function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): n
     if (Number.isFinite(ms)) return ms;
   }
   return Date.now();
+}
+
+// ============================================
+// File Message Helpers (P4-3-2-1)
+// ============================================
+
+const IMAGE_MIME_PREFIX = 'image/';
+const VIDEO_MIME_PREFIX = 'video/';
+
+/**
+ * Determine message type from MIME type.
+ */
+function getMessageTypeFromMime(mimeType: string): MessageType {
+  if (mimeType.startsWith(IMAGE_MIME_PREFIX)) return 'image';
+  if (mimeType.startsWith(VIDEO_MIME_PREFIX)) return 'video';
+  return 'file';
+}
+
+/**
+ * Safely cast server type string to MessageType.
+ */
+function toMessageType(raw?: string): MessageType {
+  if (raw === 'image' || raw === 'video' || raw === 'file') return raw;
+  return 'text';
+}
+
+/**
+ * Generate a placeholder content string for file messages without a caption.
+ */
+function fileContentPlaceholder(type: MessageType, fileName?: string): string {
+  const name = fileName || 'file';
+  switch (type) {
+    case 'image': return `📷 ${name}`;
+    case 'video': return `🎬 ${name}`;
+    case 'file':  return `📎 ${name}`;
+    default:      return name;
+  }
+}
+
+/**
+ * Decrypt a file-type NewMessageEvent into a DecryptedMessage (with file metadata).
+ */
+async function decryptFileEvent(
+  event: NewMessageEvent,
+  aesKey: CryptoKey,
+  sessionId: string,
+  userId: number,
+  timestamp: number,
+  messageType: MessageType,
+): Promise<DecryptedMessage> {
+  let caption = '';
+  try {
+    caption = await decryptMessage(aesKey, event.encryptedContent, event.iv, sessionId);
+  } catch {
+    // Caption may be empty-encrypted — this is expected for no-caption files
+  }
+
+  let fileMeta: FileMetadata | undefined;
+  if (event.encryptedMeta) {
+    try {
+      fileMeta = await decryptFileMetadata(event.encryptedMeta, aesKey);
+    } catch (err) {
+      console.error('[useMessages] Failed to decrypt file metadata:', err);
+    }
+  }
+
+  let thumbnailUrl: string | undefined;
+  if (event.thumbnailFileId) {
+    try {
+      thumbnailUrl = await downloadThumbnail(event.thumbnailFileId, aesKey);
+    } catch (err) {
+      console.error('[useMessages] Failed to download thumbnail:', err);
+    }
+  }
+
+  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
+
+  const msg: DecryptedFileMessage = {
+    id: event.messageId,
+    sessionId: event.sessionId,
+    fromUserId: event.senderId,
+    content,
+    timestamp,
+    status: 'delivered',
+    isOwn: event.senderId === userId,
+    type: messageType as 'image' | 'video' | 'file',
+    fileId: event.fileId!,
+    fileSize: event.fileSize ?? 0,
+    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
+    thumbnailFileId: event.thumbnailFileId,
+    thumbnailUrl,
+  };
+
+  return msg;
+}
+
+/**
+ * Decrypt a synced file message.
+ */
+async function decryptSyncedFileMessage(
+  syncedMsg: SyncedMessage,
+  aesKey: CryptoKey,
+  sessionId: string,
+  userId: number,
+  timestamp: number,
+  messageType: MessageType,
+): Promise<DecryptedMessage> {
+  let caption = '';
+  try {
+    caption = await decryptMessage(aesKey, syncedMsg.encryptedContent, syncedMsg.iv, sessionId);
+  } catch {
+    // No caption
+  }
+
+  let fileMeta: FileMetadata | undefined;
+  if (syncedMsg.encryptedMeta) {
+    try {
+      fileMeta = await decryptFileMetadata(syncedMsg.encryptedMeta, aesKey);
+    } catch (err) {
+      console.error('[useMessages] Failed to decrypt synced file metadata:', err);
+    }
+  }
+
+  let thumbnailUrl: string | undefined;
+  if (syncedMsg.thumbnailFileId) {
+    try {
+      thumbnailUrl = await downloadThumbnail(syncedMsg.thumbnailFileId, aesKey);
+    } catch (err) {
+      console.error('[useMessages] Failed to download synced thumbnail:', err);
+    }
+  }
+
+  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
+
+  const msg: DecryptedFileMessage = {
+    id: syncedMsg.messageId,
+    sessionId,
+    fromUserId: syncedMsg.senderId,
+    content,
+    timestamp,
+    status: 'delivered',
+    isOwn: syncedMsg.senderId === userId,
+    type: messageType as 'image' | 'video' | 'file',
+    fileId: syncedMsg.fileId!,
+    fileSize: syncedMsg.fileSize ?? 0,
+    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
+    thumbnailFileId: syncedMsg.thumbnailFileId,
+    thumbnailUrl,
+  };
+
+  return msg;
 }
 
 /**

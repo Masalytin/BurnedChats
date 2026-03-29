@@ -25,6 +25,8 @@ interface ChatRoomProps {
   isVerified?: boolean;
   /** Callback when message is sent */
   onSendMessage: (text: string) => void;
+  /** Callback when file is sent (P4-3-2-1) */
+  onSendFile?: (file: File, caption?: string) => void;
   /** Callback when user typing status changes */
   onTypingChange?: (isTyping: boolean) => void;
   /** Callback when burn button is clicked */
@@ -56,6 +58,7 @@ export const ChatRoom = memo(function ChatRoom({
   isLoading = false,
   isVerified = false,
   onSendMessage,
+  onSendFile: _onSendFile,
   onTypingChange,
   onBurn,
   onBack,

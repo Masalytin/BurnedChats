@@ -12,7 +12,7 @@ export type { HandshakeStage, HandshakeErrorCode, HandshakeResult } from './useH
 export { useVerification } from './useVerification';
 export type { VerificationErrorCode, VerificationStatus } from './useVerification';
 export { useMessages } from './useMessages';
-export type { MessageErrorCode, SendMessageResult } from './useMessages';
+export type { MessageErrorCode, SendMessageResult, SendFileOptions } from './useMessages';
 export { useRoomMessages } from './useRoomMessages';
 export type { RoomMessageErrorCode, SendRoomMessageResult, UseRoomMessagesWebSocket } from './useRoomMessages';
 export { useBurn } from './useBurn';
