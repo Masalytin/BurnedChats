@@ -34,8 +34,9 @@ RUN addgroup -g 1001 -S appgroup && \
 # Copy the built JAR from builder stage
 COPY --from=builder /app/backend/build/libs/burned-chats-backend.jar app.jar
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+# Create logs and file storage directories
+RUN mkdir -p /app/logs /data/files && \
+    chown -R appuser:appgroup /app /data/files
 
 # Switch to non-root user
 USER appuser
