@@ -5,7 +5,6 @@ import dev.burnedchats.exception.BurnedChatsException;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.FileService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
@@ -13,7 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.InputStream;
@@ -91,37 +89,41 @@ public class FileController {
     /**
      * Download an encrypted file blob by file ID.
      *
-     * <p>Streams the encrypted binary data directly to the client without
-     * buffering. Access is restricted to participants of the file's context
-     * (session or room).
+     * <p>Collects the file into a byte array and returns it with
+     * {@code application/octet-stream} content type. Spring MVC (servlet)
+     * cannot stream {@code Flux<DataBuffer>} as raw bytes — it would
+     * serialize them via Jackson, corrupting the binary data.
      *
      * @param fileId   unique file identifier (UUID)
      * @param initData Telegram Mini App initData for authentication
-     * @return streaming binary response with the encrypted file data
+     * @return binary response with the encrypted file data
      */
     @GetMapping("/{fileId}")
-    public Mono<ResponseEntity<Flux<DataBuffer>>> download(
+    public Mono<ResponseEntity<byte[]>> download(
             @PathVariable String fileId,
             @RequestHeader("X-Telegram-Init-Data") String initData) {
 
         return fileService.download(initData, fileId)
-                .map(result -> ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.size()))
-                        .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                        .body(result.data()))
+                .flatMap(result -> DataBufferUtils.join(result.data())
+                        .map(buffer -> {
+                            byte[] bytes = new byte[buffer.readableByteCount()];
+                            buffer.read(bytes);
+                            DataBufferUtils.release(buffer);
+                            return ResponseEntity.ok()
+                                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(bytes.length))
+                                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                                    .body(bytes);
+                        }))
                 .onErrorResume(AuthenticationException.class, e ->
-                        Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                .body(Flux.empty())))
+                        Mono.just(new ResponseEntity<>(HttpStatus.UNAUTHORIZED)))
                 .onErrorResume(BurnedChatsException.class, e -> {
                     HttpStatus status = mapErrorCode(e.getErrorCode());
-                    return Mono.just(ResponseEntity.status(status)
-                            .body(Flux.empty()));
+                    return Mono.just(new ResponseEntity<>(status));
                 })
                 .onErrorResume(e -> {
                     log.error("Unexpected error during file download: fileId={}", fileId, e);
-                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                            .body(Flux.empty()));
+                    return Mono.just(new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
