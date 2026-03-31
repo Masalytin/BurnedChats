@@ -85,6 +85,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         }
         await downloadFile(message.fileId, key, {
           onProgress: (percent) => setDownloadProgress(percent),
+          mimeType: message.fileMeta?.mimeType,
         });
         setDownloadProgress(null);
         onOpenViewer(message);

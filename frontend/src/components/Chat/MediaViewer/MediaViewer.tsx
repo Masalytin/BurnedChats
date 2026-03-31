@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { downloadFile, saveDecryptedFile, type DecryptedFile } from '@/services/fileDownloadService';
 import { getAESKey } from '@/crypto/keyStore';
 import { useBackButton } from '@/hooks/useBackButton';
 import './MediaViewer.css';
@@ -67,6 +67,7 @@ export const MediaViewer = memo(function MediaViewer({
 
         const result = await downloadFile(message.fileId, key, {
           onProgress: (p) => { if (!cancelled) setProgress(p); },
+          mimeType: message.fileMeta?.mimeType,
         });
         if (!cancelled) {
           setFile(result);
@@ -92,12 +93,8 @@ export const MediaViewer = memo(function MediaViewer({
   // --- Save / download ---
   const handleSave = useCallback(() => {
     if (!file) return;
-    const a = document.createElement('a');
-    a.href = file.objectUrl;
-    a.download = message.fileMeta?.fileName || 'file';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const name = message.fileMeta?.fileName || 'file';
+    void saveDecryptedFile(file.blob, name);
   }, [file, message.fileMeta]);
 
   // --- Double tap to zoom ---

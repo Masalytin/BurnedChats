@@ -21,6 +21,8 @@ export interface DecryptedFile {
 export interface DownloadOptions {
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
+  /** MIME type to set on the decrypted Blob (e.g. 'image/jpeg'). */
+  mimeType?: string;
 }
 
 // ============================================
@@ -60,10 +62,14 @@ export async function downloadFile(
   if (cached) return cached;
 
   const encryptedData = await fetchBlob(fileId, options);
-  const decryptedBlob = await decryptFile(encryptedData, key);
-  const objectUrl = URL.createObjectURL(decryptedBlob);
+  const rawBlob = await decryptFile(encryptedData, key);
 
-  const result: DecryptedFile = { blob: decryptedBlob, objectUrl };
+  const blob = options?.mimeType
+    ? new Blob([rawBlob], { type: options.mimeType })
+    : rawBlob;
+  const objectUrl = URL.createObjectURL(blob);
+
+  const result: DecryptedFile = { blob, objectUrl };
   cache.set(fileId, result);
   return result;
 }
@@ -82,8 +88,41 @@ export async function downloadThumbnail(
   fileId: string,
   key: CryptoKey,
 ): Promise<string> {
-  const result = await downloadFile(fileId, key);
+  const result = await downloadFile(fileId, key, { mimeType: 'image/jpeg' });
   return result.objectUrl;
+}
+
+/**
+ * Saves a decrypted file to the user's device.
+ *
+ * Tries Web Share API first (works in Telegram WebView on mobile),
+ * then falls back to the `<a download>` trick (desktop browsers).
+ */
+export async function saveDecryptedFile(
+  blob: Blob,
+  fileName: string,
+): Promise<void> {
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: blob.type });
+      const shareData = { files: [file] };
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch {
+      // User cancelled or API unavailable — fall through
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /**

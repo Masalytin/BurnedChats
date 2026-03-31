@@ -1,7 +1,7 @@
 import { memo, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile } from '@/services/fileDownloadService';
+import { downloadFile, saveDecryptedFile } from '@/services/fileDownloadService';
 import { getAESKey } from '@/crypto/keyStore';
 import { getFileIcon, formatFileSize } from '@/utils/fileIcons';
 import './DocumentMessageBubble.css';
@@ -33,7 +33,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
   const [docState, setDocState] = useState<DocState>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const downloadUrlRef = useRef<string | null>(null);
+  const downloadedBlobRef = useRef<Blob | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const fileName = message.fileMeta?.fileName || t('chat.docUnknownFile', 'File');
@@ -46,8 +46,8 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   const handleDownload = useCallback(async () => {
     if (docState === 'downloading') return;
 
-    if (docState === 'downloaded' && downloadUrlRef.current) {
-      triggerSave(downloadUrlRef.current, fileName);
+    if (docState === 'downloaded' && downloadedBlobRef.current) {
+      void saveDecryptedFile(downloadedBlobRef.current, fileName);
       return;
     }
 
@@ -67,12 +67,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       const result = await downloadFile(message.fileId, key, {
         onProgress: (percent) => setDownloadProgress(percent),
         signal: controller.signal,
+        mimeType,
       });
 
-      if (downloadUrlRef.current) {
-        URL.revokeObjectURL(downloadUrlRef.current);
-      }
-      downloadUrlRef.current = result.objectUrl;
+      downloadedBlobRef.current = result.blob;
       setDocState('downloaded');
     } catch {
       if (!controller.signal.aborted) {
@@ -81,15 +79,15 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     } finally {
       abortRef.current = null;
     }
-  }, [docState, message.fileId, message.sessionId, fileName]);
+  }, [docState, message.fileId, message.sessionId, fileName, mimeType]);
 
   const handleRetry = useCallback(() => {
     setDocState('idle');
   }, []);
 
   const handleSave = useCallback(() => {
-    if (downloadUrlRef.current) {
-      triggerSave(downloadUrlRef.current, fileName);
+    if (downloadedBlobRef.current) {
+      void saveDecryptedFile(downloadedBlobRef.current, fileName);
     }
   }, [fileName]);
 
@@ -191,15 +189,6 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     </div>
   );
 });
-
-function triggerSave(objectUrl: string, fileName: string) {
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
 
 function StatusIcon({ status }: { status: MessageStatus }) {
   switch (status) {
