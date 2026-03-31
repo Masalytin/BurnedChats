@@ -83,36 +83,38 @@ public class FileService {
      */
     public Mono<UploadResult> upload(String initData, String contextType, String contextId,
                                      long contentLength, Flux<DataBuffer> data) {
-        TelegramInitData authData = telegramAuthService.validateInitData(initData);
-        Long tgId = authData.getUserId();
-        if (tgId == null) {
-            return Mono.error(AuthenticationException.missingField("user.id"));
-        }
+        return Mono.defer(() -> {
+            TelegramInitData authData = telegramAuthService.validateInitData(initData);
+            Long tgId = authData.getUserId();
+            if (tgId == null) {
+                return Mono.error(AuthenticationException.missingField("user.id"));
+            }
 
-        String fileId = UUID.randomUUID().toString();
+            String fileId = UUID.randomUUID().toString();
 
-        return fileValidationService.validateUpload(contentLength, contextType, String.valueOf(tgId))
-                .then(validateMembership(tgId, contextType, contextId))
-                .then(fileStorageService.save(fileId, data))
-                .then(Mono.defer(() -> {
-                    FileMetadata metadata = FileMetadata.builder()
-                            .fileId(fileId)
-                            .uploaderTgId(String.valueOf(tgId))
-                            .contextType(contextType)
-                            .contextId(contextId)
-                            .size(contentLength)
-                            .createdAt(Instant.now().toEpochMilli())
-                            .build();
-                    return fileMetadataRepository.save(metadata);
-                }))
-                .thenReturn(new UploadResult(fileId, contentLength))
-                .doOnSuccess(r -> log.info("File uploaded: fileId={}, tgId={}, context={}:{}, size={}",
-                        fileId, tgId, contextType, contextId, contentLength))
-                .doOnError(e -> {
-                    fileStorageService.delete(fileId).subscribe();
-                    log.error("File upload failed: tgId={}, context={}:{}",
-                            tgId, contextType, contextId, e);
-                });
+            return fileValidationService.validateUpload(contentLength, contextType, String.valueOf(tgId))
+                    .then(validateMembership(tgId, contextType, contextId))
+                    .then(fileStorageService.save(fileId, data))
+                    .then(Mono.defer(() -> {
+                        FileMetadata metadata = FileMetadata.builder()
+                                .fileId(fileId)
+                                .uploaderTgId(String.valueOf(tgId))
+                                .contextType(contextType)
+                                .contextId(contextId)
+                                .size(contentLength)
+                                .createdAt(Instant.now().toEpochMilli())
+                                .build();
+                        return fileMetadataRepository.save(metadata);
+                    }))
+                    .thenReturn(new UploadResult(fileId, contentLength))
+                    .doOnSuccess(r -> log.info("File uploaded: fileId={}, tgId={}, context={}:{}, size={}",
+                            fileId, tgId, contextType, contextId, contentLength))
+                    .doOnError(e -> {
+                        fileStorageService.delete(fileId).subscribe();
+                        log.error("File upload failed: tgId={}, context={}:{}",
+                                tgId, contextType, contextId, e);
+                    });
+        });
     }
 
     /**
@@ -126,33 +128,35 @@ public class FileService {
      * @return download result with streaming data and file size
      */
     public Mono<DownloadResult> download(String initData, String fileId) {
-        TelegramInitData authData = telegramAuthService.validateInitData(initData);
-        Long tgId = authData.getUserId();
-        if (tgId == null) {
-            return Mono.error(AuthenticationException.missingField("user.id"));
-        }
+        return Mono.defer(() -> {
+            TelegramInitData authData = telegramAuthService.validateInitData(initData);
+            Long tgId = authData.getUserId();
+            if (tgId == null) {
+                return Mono.error(AuthenticationException.missingField("user.id"));
+            }
 
-        return fileMetadataRepository.findById(fileId)
-                .switchIfEmpty(Mono.error(new BurnedChatsException(
-                        "File not found: " + fileId, "FILE_NOT_FOUND")))
-                .flatMap(metadata ->
-                        validateMembership(tgId, metadata.getContextType(), metadata.getContextId())
-                                .thenReturn(metadata))
-                .flatMap(metadata ->
-                        fileStorageService.exists(fileId)
-                                .flatMap(exists -> {
-                                    if (!exists) {
-                                        return fileMetadataRepository.delete(fileId)
-                                                .then(Mono.error(new BurnedChatsException(
-                                                        "File not found: " + fileId,
-                                                        "FILE_NOT_FOUND")));
-                                    }
-                                    Flux<DataBuffer> data = fileStorageService.get(fileId);
-                                    long size = metadata.getSize() != null ? metadata.getSize() : 0;
-                                    return Mono.just(new DownloadResult(data, size));
-                                }))
-                .doOnSuccess(r -> log.info("File download started: fileId={}, tgId={}", fileId, tgId))
-                .doOnError(e -> log.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
+            return fileMetadataRepository.findById(fileId)
+                    .switchIfEmpty(Mono.error(new BurnedChatsException(
+                            "File not found: " + fileId, "FILE_NOT_FOUND")))
+                    .flatMap(metadata ->
+                            validateMembership(tgId, metadata.getContextType(), metadata.getContextId())
+                                    .thenReturn(metadata))
+                    .flatMap(metadata ->
+                            fileStorageService.exists(fileId)
+                                    .flatMap(exists -> {
+                                        if (!exists) {
+                                            return fileMetadataRepository.delete(fileId)
+                                                    .then(Mono.error(new BurnedChatsException(
+                                                            "File not found: " + fileId,
+                                                            "FILE_NOT_FOUND")));
+                                        }
+                                        Flux<DataBuffer> data = fileStorageService.get(fileId);
+                                        long size = metadata.getSize() != null ? metadata.getSize() : 0;
+                                        return Mono.just(new DownloadResult(data, size));
+                                    }))
+                    .doOnSuccess(r -> log.info("File download started: fileId={}, tgId={}", fileId, tgId))
+                    .doOnError(e -> log.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
+        });
     }
 
     private Mono<Void> validateMembership(Long tgId, String contextType, String contextId) {

@@ -79,8 +79,12 @@ telegram:
     url: ${TELEGRAM_MINI_APP_URL:}
     # initData validation
     auth:
-      # Max age of initData in seconds (5 minutes)
-      max-age: 300
+      # Max age of initData in seconds (24 hours).
+      # WebApp.initData is issued once when the Mini App opens and cannot
+      # be refreshed without reopening.  A short TTL would break HTTP
+      # endpoints (e.g. file upload) while the user is still chatting
+      # over an already-authenticated WebSocket session.
+      max-age: ${TELEGRAM_AUTH_MAX_AGE:86400}
 
 # Session and request settings
 session:
