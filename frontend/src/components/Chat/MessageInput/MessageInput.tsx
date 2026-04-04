@@ -1,22 +1,17 @@
 import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
+import { ALLOWED_FILE_MIME_TYPES } from '@/config/fileConfig';
+import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import './MessageInput.css';
 
-// ============================================
-// File validation constants
-// ============================================
+export type { FileMessageType };
 
-const ACCEPTED_TYPES = 'image/*,video/mp4,video/webm,application/pdf,text/plain,application/zip';
-
-const IMAGE_MIME_RE = /^image\/(jpeg|png|gif|webp)$/;
-const VIDEO_MIME_RE = /^video\/(mp4|webm)$/;
-const DOC_MIME_SET = new Set(['application/pdf', 'text/plain', 'application/zip']);
-
-const IMAGE_MAX_SIZE = 10 * 1024 * 1024;   // 10 MB
-const OTHER_MAX_SIZE = 25 * 1024 * 1024;    // 25 MB
-
-export type FileMessageType = 'image' | 'video' | 'file';
+/** HTML `accept` attribute: keep `image/*` for better OS pickers. */
+const ACCEPTED_TYPES = [
+  'image/*',
+  ...ALLOWED_FILE_MIME_TYPES.filter((m) => !m.startsWith('image/')),
+].join(',');
 
 export interface SelectedFileInfo {
   file: File;
@@ -80,6 +75,8 @@ export const MessageInput = memo(function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasTypingRef = useRef(false);
+  const fileErrorClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [filePickErrorKey, setFilePickErrorKey] = useState<string | null>(null);
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
@@ -144,26 +141,26 @@ export const MessageInput = memo(function MessageInput({
     fileInputRef.current?.click();
   }, [disabled, isUploading, haptics]);
 
-  // P4-4-1-1: Validate and forward selected file
+  // P4-4-1-1 / P4-5-1-2: Validate and forward selected file
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // Reset input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file || !onFileSelected) return;
 
-    const messageType = resolveFileMessageType(file.type);
-    if (!messageType) {
+    const result = validateFileForUpload(file);
+    if (!result.ok) {
       haptics.error();
+      if (fileErrorClearRef.current) clearTimeout(fileErrorClearRef.current);
+      setFilePickErrorKey(result.errorKey);
+      fileErrorClearRef.current = setTimeout(() => {
+        setFilePickErrorKey(null);
+        fileErrorClearRef.current = null;
+      }, 5000);
       return;
     }
 
-    const maxBytes = messageType === 'image' ? IMAGE_MAX_SIZE : OTHER_MAX_SIZE;
-    if (file.size > maxBytes) {
-      haptics.error();
-      return;
-    }
-
-    onFileSelected({ file, messageType });
+    onFileSelected({ file, messageType: result.messageType });
   }, [onFileSelected, haptics]);
 
   useEffect(() => {
@@ -178,6 +175,9 @@ export const MessageInput = memo(function MessageInput({
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
+      }
+      if (fileErrorClearRef.current) {
+        clearTimeout(fileErrorClearRef.current);
       }
       if (wasTypingRef.current) {
         onTypingChange?.(false);
@@ -247,20 +247,15 @@ export const MessageInput = memo(function MessageInput({
           {text.length} / {maxLength}
         </div>
       )}
+
+      {filePickErrorKey && (
+        <div className="message-input-file-error" role="alert">
+          {t(filePickErrorKey)}
+        </div>
+      )}
     </div>
   );
 });
-
-// ============================================
-// Helpers
-// ============================================
-
-function resolveFileMessageType(mimeType: string): FileMessageType | null {
-  if (IMAGE_MIME_RE.test(mimeType)) return 'image';
-  if (VIDEO_MIME_RE.test(mimeType)) return 'video';
-  if (DOC_MIME_SET.has(mimeType)) return 'file';
-  return null;
-}
 
 // ============================================
 // Icons

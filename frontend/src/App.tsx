@@ -33,7 +33,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
-import { useMessages, type UseMessagesWebSocket } from './hooks/useMessages';
+import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { LandingPage } from './pages/LandingPage';
@@ -1628,9 +1628,13 @@ interface ChatViewContentProps {
 
 function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatViewContentProps) {
   const { t } = useTranslation();
-  const handleMessageError = useCallback((err: string, details?: string) => {
-    console.error('[ChatViewContent] Message error:', err, details);
-  }, []);
+  const toast = useToast();
+  const handleMessageError = useCallback((code: MessageErrorCode, details?: string) => {
+    console.error('[ChatViewContent] Message error:', code, details);
+    if (details?.startsWith('chat.fileErrors.')) {
+      toast.error(t(details), { duration: 5000 });
+    }
+  }, [t, toast]);
 
   const { messages, sendMessage, sendFileMessage, isLoading, error } = useMessages({
     sessionId,

@@ -49,6 +49,14 @@ public interface FileStorageService {
     Mono<Boolean> exists(String fileId);
 
     /**
+     * Size of the stored blob in bytes, if the file exists.
+     *
+     * @param fileId unique file identifier
+     * @return byte size, or empty if the file does not exist
+     */
+    Mono<Long> fileSize(String fileId);
+
+    /**
      * List all file IDs currently in storage.
      * Used by the cleanup job to reconcile filesystem state with Redis metadata.
      *

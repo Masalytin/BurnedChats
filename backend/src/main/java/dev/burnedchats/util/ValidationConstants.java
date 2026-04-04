@@ -11,10 +11,11 @@ public final class ValidationConstants {
     private ValidationConstants() {}
 
     /**
-     * Maximum encrypted file size in bytes (25 MB + AES-GCM overhead).
-     * IV (12 bytes) + tag (16 bytes) = 28 bytes overhead, negligible.
+     * Maximum encrypted blob size in bytes accepted by the server.
+     * Plaintext may be up to 25 MB; chunked AES-GCM adds IV+tag per chunk and a small header,
+     * so the encrypted blob ceiling is set slightly above 25 MB.
      */
-    public static final long MAX_ENCRYPTED_FILE_SIZE = 25 * 1024 * 1024 + 28;
+    public static final long MAX_ENCRYPTED_FILE_SIZE = 26 * 1024 * 1024;
 
     /** Maximum file uploads per user per minute. */
     public static final int FILE_UPLOAD_RATE_LIMIT = 10;

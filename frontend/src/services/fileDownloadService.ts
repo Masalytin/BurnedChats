@@ -8,6 +8,12 @@
 
 import WebApp from '@twa-dev/sdk';
 import { decryptFile } from '@/crypto/fileEncryption';
+import {
+  decryptFailedError,
+  fileTransferErrorFromDownloadResponse,
+  FileTransferError,
+  isFileTransferError,
+} from '@/services/fileTransferErrors';
 
 // ============================================
 // Types
@@ -61,8 +67,27 @@ export async function downloadFile(
   const cached = cache.get(fileId);
   if (cached) return cached;
 
-  const encryptedData = await fetchBlob(fileId, options);
-  const rawBlob = await decryptFile(encryptedData, key);
+  let encryptedData: ArrayBuffer;
+  try {
+    encryptedData = await fetchBlob(fileId, options);
+  } catch (e) {
+    if (isFileTransferError(e)) {
+      console.warn('[fileTransfer:download]', e.kind, e.serverErrorCode ?? '', {
+        httpStatus: e.httpStatus,
+      });
+    }
+    throw e;
+  }
+
+  let rawBlob: Blob;
+  try {
+    rawBlob = await decryptFile(encryptedData, key);
+  } catch (e) {
+    evictCachedFile(fileId);
+    const err = decryptFailedError(e);
+    console.warn('[fileTransfer:download]', err.kind);
+    throw err;
+  }
 
   const blob = options?.mimeType
     ? new Blob([rawBlob], { type: options.mimeType })
@@ -164,14 +189,33 @@ async function fetchBlob(
     headers['X-Telegram-Init-Data'] = initData;
   }
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers,
-    signal: options?.signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers,
+      signal: options?.signal,
+    });
+  } catch {
+    throw new FileTransferError('Network error during file download', 'network', {
+      retryable: true,
+    });
+  }
 
   if (!response.ok) {
-    throw new Error(`File download failed: ${response.status} ${response.statusText}`);
+    let serverCode: string | undefined;
+    let serverMessage: string | undefined;
+    const ct = response.headers.get('Content-Type') || '';
+    if (ct.includes('application/json')) {
+      try {
+        const j = await response.json() as { error?: string; message?: string };
+        serverCode = j.error;
+        serverMessage = j.message;
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    throw fileTransferErrorFromDownloadResponse(response.status, serverCode, serverMessage);
   }
 
   if (!options?.onProgress || !response.body) {
@@ -203,6 +247,14 @@ async function readStreamWithProgress(
     }
   }
 
+  if (contentLength > 0 && received !== contentLength) {
+    throw new FileTransferError(
+      'Downloaded size does not match Content-Length',
+      'bad_request',
+      { retryable: true, serverErrorCode: 'SIZE_MISMATCH' },
+    );
+  }
+
   const result = new Uint8Array(received);
   let offset = 0;
   for (const chunk of chunks) {
@@ -212,3 +264,5 @@ async function readStreamWithProgress(
 
   return result.buffer as ArrayBuffer;
 }
+
+export { isFileTransferError };

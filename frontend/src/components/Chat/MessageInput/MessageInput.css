@@ -9,6 +9,14 @@
   flex-shrink: 0;
 }
 
+.message-input-file-error {
+  margin-top: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  font-size: 0.85rem;
+  color: var(--bc-danger, #e74c3c);
+  line-height: 1.35;
+}
+
 .message-input-container {
   display: flex;
   align-items: flex-end;

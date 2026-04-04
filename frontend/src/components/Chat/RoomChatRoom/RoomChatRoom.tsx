@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useEffect, useRef } from 'react';
+import { memo, useCallback, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
@@ -10,7 +10,11 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
-import type { UseRoomMessagesWebSocket, SendRoomFileOptions } from '@/hooks/useRoomMessages';
+import type {
+  UseRoomMessagesWebSocket,
+  SendRoomFileOptions,
+  RoomMessageErrorCode,
+} from '@/hooks/useRoomMessages';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedFileMessage } from '@/types';
@@ -125,17 +129,22 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, error } = useRoomMessages({
+  const handleRoomMessageError = useCallback(
+    (_code: RoomMessageErrorCode, details?: string) => {
+      const msg = details?.startsWith('chat.fileErrors.')
+        ? t(details)
+        : t('room.chat.sendError');
+      toast.error(msg, { duration: 4000 });
+    },
+    [t, toast],
+  );
+
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing } = useRoomMessages({
     roomId,
     userId,
     ws,
+    onError: handleRoomMessageError,
   });
-
-  useEffect(() => {
-    if (error) {
-      toast.error(t('room.chat.sendError'), { duration: 4000 });
-    }
-  }, [error, t, toast]);
 
   const handleSend = useCallback((text: string) => {
     haptics.success();

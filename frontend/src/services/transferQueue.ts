@@ -10,6 +10,7 @@
 import { uploadFile, type FileContext, type UploadResult } from '@/services/fileUploadService';
 import { downloadFile, downloadThumbnail } from '@/services/fileDownloadService';
 import type { DecryptedFile } from '@/services/fileDownloadService';
+import { FileTransferError } from '@/services/fileTransferErrors';
 
 // ============================================
 // Types
@@ -367,10 +368,14 @@ function isCancelled<T>(entry: QueueEntry<T>): boolean {
 }
 
 function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === 'AbortError';
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  return err instanceof FileTransferError && err.kind === 'aborted';
 }
 
 function isClientError(err: unknown): boolean {
+  if (err instanceof FileTransferError) {
+    return !err.retryable;
+  }
   if (!(err instanceof Error)) return false;
   const match = err.message.match(/(\d{3})/);
   if (!match) return false;

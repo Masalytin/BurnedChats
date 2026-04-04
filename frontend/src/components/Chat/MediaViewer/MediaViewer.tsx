@@ -2,7 +2,8 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, saveDecryptedFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { downloadFile, saveDecryptedFile, evictCachedFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
 import { useBackButton } from '@/hooks/useBackButton';
 import './MediaViewer.css';
@@ -32,6 +33,7 @@ export const MediaViewer = memo(function MediaViewer({
   const [state, setState] = useState<ViewerState>('loading');
   const [file, setFile] = useState<DecryptedFile | null>(null);
   const [progress, setProgress] = useState(0);
+  const [loadErrorKey, setLoadErrorKey] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
   // Image zoom/pan state
@@ -63,7 +65,13 @@ export const MediaViewer = memo(function MediaViewer({
     const load = async () => {
       try {
         const key = getAESKey(message.sessionId);
-        if (!key) { setState('error'); return; }
+        if (!key) {
+          if (!cancelled) {
+            setLoadErrorKey('chat.fileErrors.decryptFailed');
+            setState('error');
+          }
+          return;
+        }
 
         const result = await downloadFile(message.fileId, key, {
           onProgress: (p) => { if (!cancelled) setProgress(p); },
@@ -73,8 +81,16 @@ export const MediaViewer = memo(function MediaViewer({
           setFile(result);
           setState('ready');
         }
-      } catch {
-        if (!cancelled) setState('error');
+      } catch (err) {
+        if (!cancelled) {
+          evictCachedFile(message.fileId);
+          if (err instanceof FileTransferError) {
+            setLoadErrorKey(fileTransferErrorI18nKey(err));
+          } else {
+            setLoadErrorKey('chat.fileErrors.serverError');
+          }
+          setState('error');
+        }
       }
     };
     load();
@@ -252,7 +268,7 @@ export const MediaViewer = memo(function MediaViewer({
         {state === 'error' && (
           <div className="media-viewer__error">
             <span className="media-viewer__error-icon">⚠️</span>
-            <span>{t('chat.mediaViewer.error', 'Failed to load')}</span>
+            <span>{loadErrorKey ? t(loadErrorKey) : t('chat.mediaViewer.error', 'Failed to load')}</span>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 package dev.burnedchats.config;
 
+import dev.burnedchats.util.ValidationConstants;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -24,9 +25,9 @@ public class FileStorageProperties {
 
     /**
      * Maximum allowed file size in bytes (encrypted blob).
-     * Default: 25 MB.
+     * Default: {@link ValidationConstants#MAX_ENCRYPTED_FILE_SIZE}.
      */
-    private long maxFileSize = 25 * 1024 * 1024;
+    private long maxFileSize = ValidationConstants.MAX_ENCRYPTED_FILE_SIZE;
 
     /**
      * TTL for file metadata in Redis.

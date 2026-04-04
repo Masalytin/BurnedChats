@@ -9,6 +9,8 @@
 import WebApp from '@twa-dev/sdk';
 import { encryptFile } from '@/crypto/fileEncryption';
 import { generateImageThumbnail, generateVideoThumbnail } from '@/utils/thumbnail';
+import { resolveFileMime } from '@/utils/fileValidation';
+import { FileTransferError, fileTransferErrorFromUploadXHR } from '@/services/fileTransferErrors';
 
 // ============================================
 // Types
@@ -142,10 +144,11 @@ export async function uploadFile(
 // ============================================
 
 async function generateThumbnail(file: File): Promise<Blob | null> {
-  if (IMAGE_MIME_TYPES.has(file.type)) {
+  const mime = resolveFileMime(file);
+  if (IMAGE_MIME_TYPES.has(mime)) {
     return generateImageThumbnail(file);
   }
-  if (VIDEO_MIME_TYPES.has(file.type)) {
+  if (VIDEO_MIME_TYPES.has(mime)) {
     return generateVideoThumbnail(file);
   }
   return null;
@@ -189,29 +192,44 @@ function uploadBlob(
       if (xhr.status >= 200 && xhr.status < 300) {
         const body = xhr.response as UploadResponse;
         resolve(body);
-      } else {
-        const errorBody = xhr.response as { error?: string; message?: string } | null;
-        reject(
-          new Error(
-            errorBody?.message ??
-              `Upload failed with status ${xhr.status}`,
-          ),
-        );
+        return;
       }
+
+      if (xhr.status === 0) {
+        const err = new FileTransferError('Network error during file upload', 'network', {
+          retryable: true,
+        });
+        logTransferFailure('upload', err);
+        reject(err);
+        return;
+      }
+
+      const parsed = parseXhrJsonBody(xhr);
+      const err = fileTransferErrorFromUploadXHR(
+        xhr.status,
+        parsed.error,
+        parsed.message ?? undefined,
+      );
+      logTransferFailure('upload', err);
+      reject(err);
     });
 
     xhr.addEventListener('error', () => {
-      reject(new Error('Network error during file upload'));
+      const err = new FileTransferError('Network error during file upload', 'network', {
+        retryable: true,
+      });
+      logTransferFailure('upload', err);
+      reject(err);
     });
 
     xhr.addEventListener('abort', () => {
-      reject(new DOMException('Upload aborted', 'AbortError'));
+      reject(new FileTransferError('Upload aborted', 'aborted', { retryable: false }));
     });
 
     if (signal) {
       if (signal.aborted) {
         xhr.abort();
-        reject(new DOMException('Upload aborted', 'AbortError'));
+        reject(new FileTransferError('Upload aborted', 'aborted', { retryable: false }));
         return;
       }
       signal.addEventListener('abort', () => xhr.abort(), { once: true });
@@ -225,12 +243,28 @@ function uploadBlob(
 // Helpers
 // ============================================
 
+function logTransferFailure(op: 'upload' | 'download', err: FileTransferError): void {
+  console.warn(`[fileTransfer:${op}]`, err.kind, err.serverErrorCode ?? '', {
+    httpStatus: err.httpStatus,
+  });
+}
+
+function parseXhrJsonBody(xhr: XMLHttpRequest): { error?: string; message?: string } {
+  try {
+    const raw = xhr.responseText;
+    if (!raw) return {};
+    return JSON.parse(raw) as { error?: string; message?: string };
+  } catch {
+    return {};
+  }
+}
+
 function getInitData(): string {
   return WebApp.initData || '';
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
-    throw new DOMException('Upload aborted', 'AbortError');
+    throw new FileTransferError('Upload aborted', 'aborted', { retryable: false });
   }
 }

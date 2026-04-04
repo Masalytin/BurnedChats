@@ -179,13 +179,29 @@
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-sm);
   background: rgba(255, 68, 68, 0.15);
 }
 
+.video-bubble__error-hint {
+  display: block;
+  max-width: 220px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--bc-text-muted, rgba(255, 255, 255, 0.85));
+}
+
+.video-bubble__error-overlay .video-bubble__error-hint {
+  margin: 0;
+}
+
 .video-bubble__retry-btn {
-  margin-top: var(--bc-spacing-sm);
+  margin-top: 0;
   padding: var(--bc-spacing-xs) var(--bc-spacing-md);
   font-size: var(--bc-text-xs);
   color: var(--bc-text-primary);

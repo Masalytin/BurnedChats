@@ -5,6 +5,8 @@ import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryptio
 import { getGroupKey } from '@/crypto/keyStore';
 import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
+import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
+import { validateFileForUpload } from '@/utils/fileValidation';
 import type {
   DecryptedMessage,
   DecryptedFileMessage,
@@ -265,9 +267,15 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       return { success: false, messageId: null, error: 'NO_GROUP_KEY' };
     }
 
+    const validated = validateFileForUpload(file);
+    if (!validated.ok) {
+      handleError('SEND_FAILED', validated.errorKey);
+      return { success: false, messageId: null, error: 'SEND_FAILED' };
+    }
+
     const messageId = generateMessageId();
     const timestamp = Date.now();
-    const messageType = getMessageTypeFromMime(file.type);
+    const messageType = validated.messageType;
 
     try {
       const uploadResult = await uploadFile(
@@ -278,7 +286,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       );
 
       const encryptedMeta = await encryptFileMetadata(
-        { fileName: file.name, mimeType: file.type },
+        { fileName: file.name, mimeType: validated.resolvedMime },
         groupKey,
       );
 
@@ -318,6 +326,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      if (err instanceof FileTransferError && err.kind === 'aborted') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      if (err instanceof FileTransferError) {
+        handleError('SEND_FAILED', fileTransferErrorI18nKey(err));
         return { success: false, messageId: null, error: 'SEND_FAILED' };
       }
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -603,15 +618,6 @@ function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): n
 // ============================================
 // File Message Helpers (P4-3-2-2 / P4-3-2-3)
 // ============================================
-
-const IMAGE_MIME_PREFIX = 'image/';
-const VIDEO_MIME_PREFIX = 'video/';
-
-function getMessageTypeFromMime(mimeType: string): MessageType {
-  if (mimeType.startsWith(IMAGE_MIME_PREFIX)) return 'image';
-  if (mimeType.startsWith(VIDEO_MIME_PREFIX)) return 'video';
-  return 'file';
-}
 
 function toMessageType(raw?: string): MessageType {
   if (raw === 'image' || raw === 'video' || raw === 'file') return raw;

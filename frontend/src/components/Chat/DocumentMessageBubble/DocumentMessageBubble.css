@@ -122,6 +122,15 @@
   height: 36px;
 }
 
+.doc-bubble__error-text {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0.92;
+  padding: 0 var(--bc-spacing-sm) var(--bc-spacing-xs);
+  margin: 0;
+  color: var(--bc-danger, #ff6b6b);
+}
+
 .doc-bubble__download-btn,
 .doc-bubble__save-btn,
 .doc-bubble__retry-btn {

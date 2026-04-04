@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, downloadThumbnail } from '@/services/fileDownloadService';
+import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
+import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
 import './VideoMessageBubble.css';
 
@@ -52,9 +53,11 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     message.thumbnailUrl ? 'loaded' : message.thumbnailFileId ? 'loading' : 'error',
   );
   const [thumbnailSrc, setThumbnailSrc] = useState<string | undefined>(message.thumbnailUrl);
+  const [thumbnailErrorKey, setThumbnailErrorKey] = useState<string | null>(null);
   const [videoState, setVideoState] = useState<VideoState>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
+  const [videoErrorKey, setVideoErrorKey] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -76,16 +79,24 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   const handleRetryThumbnail = useCallback(async () => {
     if (!message.thumbnailFileId) return;
     setThumbnailState('loading');
+    setThumbnailErrorKey(null);
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
+        setThumbnailErrorKey('chat.fileErrors.decryptFailed');
         setThumbnailState('error');
         return;
       }
       const url = await downloadThumbnail(message.thumbnailFileId, key);
       setThumbnailSrc(url);
       setThumbnailState('loaded');
-    } catch {
+    } catch (err) {
+      if (err instanceof FileTransferError) {
+        setThumbnailErrorKey(fileTransferErrorI18nKey(err));
+      } else {
+        setThumbnailErrorKey('chat.fileErrors.serverError');
+      }
+      evictCachedFile(message.thumbnailFileId);
       setThumbnailState('error');
     }
   }, [message.thumbnailFileId, message.sessionId]);
@@ -96,16 +107,27 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     if (onOpenViewer) {
       setVideoState('downloading');
       setDownloadProgress(0);
+      setVideoErrorKey(null);
       try {
         const key = getAESKey(message.sessionId);
-        if (!key) { setVideoState('error'); return; }
+        if (!key) {
+          setVideoErrorKey('chat.fileErrors.decryptFailed');
+          setVideoState('error');
+          return;
+        }
         await downloadFile(message.fileId, key, {
           onProgress: (percent) => setDownloadProgress(percent),
         });
         setVideoState('idle');
         setDownloadProgress(0);
         onOpenViewer(message);
-      } catch {
+      } catch (err) {
+        if (err instanceof FileTransferError) {
+          setVideoErrorKey(fileTransferErrorI18nKey(err));
+        } else {
+          setVideoErrorKey('chat.fileErrors.serverError');
+        }
+        evictCachedFile(message.fileId);
         setVideoState('error');
       }
       return;
@@ -113,10 +135,12 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
 
     setVideoState('downloading');
     setDownloadProgress(0);
+    setVideoErrorKey(null);
 
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
+        setVideoErrorKey('chat.fileErrors.decryptFailed');
         setVideoState('error');
         return;
       }
@@ -130,7 +154,13 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       }
       videoUrlRef.current = result.objectUrl;
       setVideoState('playing');
-    } catch {
+    } catch (err) {
+      if (err instanceof FileTransferError) {
+        setVideoErrorKey(fileTransferErrorI18nKey(err));
+      } else {
+        setVideoErrorKey('chat.fileErrors.serverError');
+      }
+      evictCachedFile(message.fileId);
       setVideoState('error');
     }
   }, [message, onOpenViewer, videoState]);
@@ -148,8 +178,12 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
 
   const handleRetry = useCallback(() => {
     setVideoState('idle');
-    handlePlay();
-  }, [handlePlay]);
+    setVideoErrorKey(null);
+    evictCachedFile(message.fileId);
+    window.setTimeout(() => {
+      void handlePlay();
+    }, 0);
+  }, [handlePlay, message.fileId]);
 
   const hasCaption = message.content && !message.content.startsWith('🎬');
   const formattedTime = formatTime(message.timestamp);
@@ -188,6 +222,9 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
               {thumbnailState === 'error' && (
                 <div className="video-bubble__placeholder video-bubble__placeholder--error">
                   <span className="video-bubble__placeholder-icon">🎬</span>
+                  {thumbnailErrorKey && (
+                    <span className="video-bubble__error-hint">{t(thumbnailErrorKey)}</span>
+                  )}
                   <button
                     className="video-bubble__retry-btn"
                     onClick={(e) => { e.stopPropagation(); handleRetryThumbnail(); }}
@@ -229,7 +266,10 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
 
               {videoState === 'error' && (
                 <div className="video-bubble__error-overlay">
-                  <button className="video-bubble__retry-btn" onClick={handleRetry}>
+                  {videoErrorKey && (
+                    <span className="video-bubble__error-hint">{t(videoErrorKey)}</span>
+                  )}
+                  <button type="button" className="video-bubble__retry-btn" onClick={handleRetry}>
                     {t('chat.videoRetry', 'Retry')}
                   </button>
                 </div>

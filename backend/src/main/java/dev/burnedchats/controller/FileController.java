@@ -99,7 +99,7 @@ public class FileController {
      * @return binary response with the encrypted file data
      */
     @GetMapping("/{fileId}")
-    public Mono<ResponseEntity<byte[]>> download(
+    public Mono<ResponseEntity<Object>> download(
             @PathVariable String fileId,
             @RequestHeader("X-Telegram-Init-Data") String initData) {
 
@@ -113,17 +113,18 @@ public class FileController {
                                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
                                     .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(bytes.length))
                                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                                    .body(bytes);
+                                    .body((Object) bytes);
                         }))
                 .onErrorResume(AuthenticationException.class, e ->
-                        Mono.just(new ResponseEntity<>(HttpStatus.UNAUTHORIZED)))
+                        Mono.just(jsonErrorResponse(HttpStatus.UNAUTHORIZED, e.getErrorCode(), e.getMessage())))
                 .onErrorResume(BurnedChatsException.class, e -> {
                     HttpStatus status = mapErrorCode(e.getErrorCode());
-                    return Mono.just(new ResponseEntity<>(status));
+                    return Mono.just(jsonErrorResponse(status, e.getErrorCode(), e.getMessage()));
                 })
                 .onErrorResume(e -> {
                     log.error("Unexpected error during file download: fileId={}", fileId, e);
-                    return Mono.just(new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR));
+                    return Mono.just(jsonErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "INTERNAL_ERROR", "An unexpected error occurred"));
                 });
     }
 
@@ -135,11 +136,21 @@ public class FileController {
         ));
     }
 
+    private static ResponseEntity<Object> jsonErrorResponse(HttpStatus status, String code, String message) {
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "error", code,
+                        "message", message
+                ));
+    }
+
     private static HttpStatus mapErrorCode(String errorCode) {
         return switch (errorCode) {
             case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
             case "CONTEXT_NOT_FOUND", "FILE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            case "FILE_SIZE_INVALID", "FILE_TOO_LARGE", "INVALID_CONTEXT_TYPE" -> HttpStatus.BAD_REQUEST;
+            case "FILE_TOO_LARGE" -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case "FILE_SIZE_INVALID", "INVALID_CONTEXT_TYPE" -> HttpStatus.BAD_REQUEST;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }

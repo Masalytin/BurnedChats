@@ -95,6 +95,7 @@ public class FileService {
             return fileValidationService.validateUpload(contentLength, contextType, String.valueOf(tgId))
                     .then(validateMembership(tgId, contextType, contextId))
                     .then(fileStorageService.save(fileId, data))
+                    .then(verifyStoredSizeMatchesContentLength(fileId, contentLength))
                     .then(Mono.defer(() -> {
                         FileMetadata metadata = FileMetadata.builder()
                                 .fileId(fileId)
@@ -157,6 +158,31 @@ public class FileService {
                     .doOnSuccess(r -> log.info("File download started: fileId={}, tgId={}", fileId, tgId))
                     .doOnError(e -> log.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
         });
+    }
+
+    /**
+     * Ensures the bytes written to storage match {@code Content-Length} so truncated
+     * uploads (connection drop) do not produce valid metadata + orphaned partial files
+     * that look complete.
+     */
+    private Mono<Void> verifyStoredSizeMatchesContentLength(String fileId, long expectedBytes) {
+        return fileStorageService.fileSize(fileId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("Upload size check: file missing on disk after save, fileId={}", fileId);
+                    return Mono.error(new BurnedChatsException(
+                            "Stored file missing after upload", "FILE_SIZE_INVALID"));
+                }))
+                .flatMap(actual -> {
+                    if (!actual.equals(expectedBytes)) {
+                        log.warn("Upload size mismatch: fileId={}, expected={}, actual={}",
+                                fileId, expectedBytes, actual);
+                        return fileStorageService.delete(fileId)
+                                .then(Mono.error(new BurnedChatsException(
+                                        "Uploaded size does not match Content-Length",
+                                        "FILE_SIZE_INVALID")));
+                    }
+                    return Mono.<Void>empty();
+                });
     }
 
     private Mono<Void> validateMembership(Long tgId, String contextType, String contextId) {

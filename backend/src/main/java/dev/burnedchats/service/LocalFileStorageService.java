@@ -108,6 +108,20 @@ public class LocalFileStorageService implements FileStorageService {
     }
 
     @Override
+    public Mono<Long> fileSize(String fileId) {
+        Path filePath = resolve(fileId);
+
+        return Mono.fromCallable(() -> {
+                    if (!Files.exists(filePath)) {
+                        return -1L;
+                    }
+                    return Files.size(filePath);
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(size -> size < 0 ? Mono.empty() : Mono.just(size));
+    }
+
+    @Override
     public Flux<String> listAll() {
         return Mono.fromCallable(() -> {
                     try (Stream<Path> paths = Files.list(storagePath)) {

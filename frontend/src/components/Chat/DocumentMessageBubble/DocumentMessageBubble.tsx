@@ -1,7 +1,8 @@
-import { memo, useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, saveDecryptedFile } from '@/services/fileDownloadService';
+import { downloadFile, saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
+import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
 import { getFileIcon, formatFileSize } from '@/utils/fileIcons';
 import './DocumentMessageBubble.css';
@@ -33,6 +34,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
   const [docState, setDocState] = useState<DocState>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [errorHintKey, setErrorHintKey] = useState<string | null>(null);
   const downloadedBlobRef = useRef<Blob | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -53,6 +55,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
     setDocState('downloading');
     setDownloadProgress(0);
+    setErrorHintKey(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -60,6 +63,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
+        setErrorHintKey('chat.fileErrors.decryptFailed');
         setDocState('error');
         return;
       }
@@ -72,8 +76,14 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
       downloadedBlobRef.current = result.blob;
       setDocState('downloaded');
-    } catch {
+    } catch (err) {
       if (!controller.signal.aborted) {
+        if (err instanceof FileTransferError) {
+          setErrorHintKey(fileTransferErrorI18nKey(err));
+        } else {
+          setErrorHintKey('chat.fileErrors.serverError');
+        }
+        evictCachedFile(message.fileId);
         setDocState('error');
       }
     } finally {
@@ -81,9 +91,18 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     }
   }, [docState, message.fileId, message.sessionId, fileName, mimeType]);
 
-  const handleRetry = useCallback(() => {
-    setDocState('idle');
-  }, []);
+  const handleRetry = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      setDocState('idle');
+      setErrorHintKey(null);
+      downloadedBlobRef.current = null;
+      window.setTimeout(() => {
+        void handleDownload();
+      }, 0);
+    },
+    [handleDownload],
+  );
 
   const handleSave = useCallback(() => {
     if (downloadedBlobRef.current) {
@@ -162,7 +181,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
               <button
                 className="doc-bubble__retry-btn"
                 aria-label={t('chat.docRetry', 'Retry')}
-                onClick={(e) => { e.stopPropagation(); handleRetry(); }}
+                onClick={handleRetry}
               >
                 <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
                   <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -172,6 +191,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
             )}
           </div>
         </div>
+
+        {docState === 'error' && errorHintKey && (
+          <p className="doc-bubble__error-text">{t(errorHintKey)}</p>
+        )}
 
         {hasCaption && (
           <p className="doc-bubble__caption">{message.content}</p>

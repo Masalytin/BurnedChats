@@ -5,6 +5,8 @@ import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryptio
 import { getAESKey, isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
 import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
+import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
+import { validateFileForUpload } from '@/utils/fileValidation';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 
@@ -368,9 +370,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
     }
 
+    const validated = validateFileForUpload(file);
+    if (!validated.ok) {
+      handleError('SEND_FAILED', validated.errorKey);
+      return { success: false, messageId: null, error: 'SEND_FAILED' };
+    }
+
     const messageId = generateMessageId();
     const timestamp = Date.now();
-    const messageType = getMessageTypeFromMime(file.type);
+    const messageType = validated.messageType;
 
     try {
       const uploadResult = await uploadFile(
@@ -381,7 +389,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       );
 
       const encryptedMeta = await encryptFileMetadata(
-        { fileName: file.name, mimeType: file.type },
+        { fileName: file.name, mimeType: validated.resolvedMime },
         aesKey,
       );
 
@@ -422,6 +430,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      if (err instanceof FileTransferError && err.kind === 'aborted') {
+        return { success: false, messageId: null, error: 'SEND_FAILED' };
+      }
+      if (err instanceof FileTransferError) {
+        const key = fileTransferErrorI18nKey(err);
+        debugLog('error', 'File message send failed', { kind: err.kind, key });
+        handleError('SEND_FAILED', key);
         return { success: false, messageId: null, error: 'SEND_FAILED' };
       }
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -828,18 +845,6 @@ function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): n
 // ============================================
 // File Message Helpers (P4-3-2-1)
 // ============================================
-
-const IMAGE_MIME_PREFIX = 'image/';
-const VIDEO_MIME_PREFIX = 'video/';
-
-/**
- * Determine message type from MIME type.
- */
-function getMessageTypeFromMime(mimeType: string): MessageType {
-  if (mimeType.startsWith(IMAGE_MIME_PREFIX)) return 'image';
-  if (mimeType.startsWith(VIDEO_MIME_PREFIX)) return 'video';
-  return 'file';
-}
 
 /**
  * Safely cast server type string to MessageType.

@@ -105,6 +105,17 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+.image-bubble__error-hint {
+  display: block;
+  max-width: 180px;
+  margin-top: var(--bc-spacing-xs);
+  padding: 0 var(--bc-spacing-sm);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--bc-text-muted, rgba(255, 255, 255, 0.75));
+}
+
 /* ============================================
  * Download progress overlay
  * ============================================ */
@@ -132,6 +143,23 @@
   font-weight: 600;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.image-bubble__error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-sm);
+  background: rgba(0, 0, 0, 0.5);
+  padding: var(--bc-spacing-sm);
+  z-index: 2;
+}
+
+.image-bubble__error-overlay .image-bubble__error-hint {
+  color: #fff;
 }
 
 /* ============================================
