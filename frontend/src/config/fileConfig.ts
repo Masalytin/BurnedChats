@@ -21,19 +21,3 @@ export const FILE_OTHER_MAX_BYTES = envBytes('VITE_FILE_OTHER_MAX_BYTES', 25 * 1
 /** Max file name length (Unicode code units), aligned with crypto metadata limits. */
 export const FILE_MAX_NAME_LENGTH = envBytes('VITE_FILE_MAX_NAME_LENGTH', 255);
 
-/**
- * MIME types allowed for attachments (plaintext hints; server stores opaque ciphertext).
- */
-export const ALLOWED_FILE_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'video/mp4',
-  'video/webm',
-  'application/pdf',
-  'text/plain',
-  'application/zip',
-] as const;
-
-export type AllowedFileMime = (typeof ALLOWED_FILE_MIME_TYPES)[number];

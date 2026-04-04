@@ -37,11 +37,31 @@ export interface DownloadOptions {
 
 const DOWNLOAD_PATH = '/api/files';
 
+/** Map MIME → preferred extension when {@code fileName} has none (saves / share sheet). */
+const MIME_TO_EXT: Readonly<Record<string, string>> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'application/zip': '.zip',
+  'application/x-zip-compressed': '.zip',
+  'application/vnd.rar': '.rar',
+  'application/x-rar-compressed': '.rar',
+};
+
 // ============================================
 // In-memory cache
 // ============================================
 
 const cache = new Map<string, DecryptedFile>();
+
+/** Thumbnail previews use data URLs so strict CSP (`img-src` without `blob:`) still works. */
+const thumbnailDataUrlCache = new Map<string, string>();
 
 // ============================================
 // Public API
@@ -100,21 +120,41 @@ export async function downloadFile(
 }
 
 /**
- * Downloads and decrypts a thumbnail, returning an Object URL
- * suitable for `<img src>` or CSS `background-image`.
+ * Downloads and decrypts a thumbnail, returning a `data:` URL
+ * suitable for `<img src>` under CSP that allows `data:` but not `blob:`.
  *
- * Thumbnails are cached the same way as full files.
+ * Thumbnails are cached in memory by fileId.
  *
  * @param fileId - Server-assigned file identifier for the thumbnail
  * @param key    - AES-256-GCM CryptoKey
- * @returns Object URL pointing to the decrypted thumbnail
+ * @returns Data URL of the decrypted thumbnail (JPEG)
  */
 export async function downloadThumbnail(
   fileId: string,
   key: CryptoKey,
 ): Promise<string> {
-  const result = await downloadFile(fileId, key, { mimeType: 'image/jpeg' });
-  return result.objectUrl;
+  const hit = thumbnailDataUrlCache.get(fileId);
+  if (hit) return hit;
+
+  let encryptedData: ArrayBuffer;
+  try {
+    encryptedData = await fetchBlob(fileId, undefined);
+  } catch (e) {
+    throw e;
+  }
+
+  let rawBlob: Blob;
+  try {
+    rawBlob = await decryptFile(encryptedData, key);
+  } catch (e) {
+    thumbnailDataUrlCache.delete(fileId);
+    throw decryptFailedError(e);
+  }
+
+  const blob = new Blob([rawBlob], { type: 'image/jpeg' });
+  const dataUrl = await blobToDataURL(blob);
+  thumbnailDataUrlCache.set(fileId, dataUrl);
+  return dataUrl;
 }
 
 /**
@@ -127,9 +167,11 @@ export async function saveDecryptedFile(
   blob: Blob,
   fileName: string,
 ): Promise<void> {
+  const name = ensureDownloadFileName(fileName, blob.type);
+
   if (navigator.share && navigator.canShare) {
     try {
-      const file = new File([blob], fileName, { type: blob.type });
+      const file = new File([blob], name, { type: blob.type });
       const shareData = { files: [file] };
       if (navigator.canShare(shareData)) {
         await navigator.share(shareData);
@@ -143,7 +185,7 @@ export async function saveDecryptedFile(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = fileName;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -151,7 +193,7 @@ export async function saveDecryptedFile(
 }
 
 /**
- * Evicts a single file from the cache and revokes its Object URL.
+ * Evicts a single file from the cache and revokes its Object URL when applicable.
  */
 export function evictCachedFile(fileId: string): void {
   const entry = cache.get(fileId);
@@ -159,6 +201,7 @@ export function evictCachedFile(fileId: string): void {
     URL.revokeObjectURL(entry.objectUrl);
     cache.delete(fileId);
   }
+  thumbnailDataUrlCache.delete(fileId);
 }
 
 /**
@@ -170,6 +213,7 @@ export function clearDownloadCache(): void {
     URL.revokeObjectURL(entry.objectUrl);
   }
   cache.clear();
+  thumbnailDataUrlCache.clear();
 }
 
 // ============================================
@@ -263,6 +307,29 @@ async function readStreamWithProgress(
   }
 
   return result.buffer as ArrayBuffer;
+}
+
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * If {@code fileName} has no extension, append one from {@code mimeType} when known.
+ */
+function ensureDownloadFileName(fileName: string, mimeType: string): string {
+  const trimmed = (fileName || 'file').trim() || 'file';
+  const mime = (mimeType || '').trim().toLowerCase();
+  const dot = trimmed.lastIndexOf('.');
+  if (dot > 0 && dot < trimmed.length - 1) {
+    return trimmed;
+  }
+  const ext = MIME_TO_EXT[mime];
+  return ext ? `${trimmed}${ext}` : trimmed;
 }
 
 export { isFileTransferError };

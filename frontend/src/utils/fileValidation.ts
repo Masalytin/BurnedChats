@@ -1,17 +1,13 @@
 import {
-  ALLOWED_FILE_MIME_TYPES,
   FILE_IMAGE_MAX_BYTES,
   FILE_MAX_NAME_LENGTH,
   FILE_OTHER_MAX_BYTES,
-  type AllowedFileMime,
 } from '@/config/fileConfig';
 
 export type FileMessageType = 'image' | 'video' | 'file';
 
-const ALLOWED_SET = new Set<string>(ALLOWED_FILE_MIME_TYPES);
-
-/** Extension → MIME guess when `File.type` is empty (browser-dependent). */
-const EXT_TO_MIME: Readonly<Record<string, AllowedFileMime>> = {
+/** Extension → MIME hint when `File.type` is empty (browser/OS dependent). */
+const EXT_TO_MIME: Readonly<Record<string, string>> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
@@ -22,6 +18,12 @@ const EXT_TO_MIME: Readonly<Record<string, AllowedFileMime>> = {
   pdf: 'application/pdf',
   txt: 'text/plain',
   zip: 'application/zip',
+  rar: 'application/vnd.rar',
+  '7z': 'application/x-7z-compressed',
+  tar: 'application/x-tar',
+  gz: 'application/gzip',
+  bz2: 'application/x-bzip2',
+  xz: 'application/x-xz',
 };
 
 export interface FileValidationOk {
@@ -48,22 +50,18 @@ export function resolveFileMime(file: File): string {
 
   const name = file.name || '';
   const dot = name.lastIndexOf('.');
-  if (dot === -1 || dot === name.length - 1) return '';
+  if (dot === -1 || dot === name.length - 1) {
+    return 'application/octet-stream';
+  }
   const ext = name.slice(dot + 1).toLowerCase();
-  return EXT_TO_MIME[ext] ?? '';
+  return EXT_TO_MIME[ext] ?? 'application/octet-stream';
 }
 
-export function getMessageTypeFromResolvedMime(mime: string): FileMessageType | null {
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('video/')) return 'video';
-  if (
-    mime === 'application/pdf' ||
-    mime === 'text/plain' ||
-    mime === 'application/zip'
-  ) {
-    return 'file';
-  }
-  return null;
+export function getMessageTypeFromResolvedMime(mime: string): FileMessageType {
+  const m = mime.toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 /**
@@ -76,14 +74,7 @@ export function validateFileForUpload(file: File): FileValidationResult {
   }
 
   const resolvedMime = resolveFileMime(file);
-  if (!resolvedMime || !ALLOWED_SET.has(resolvedMime)) {
-    return { ok: false, errorKey: 'chat.fileErrors.unsupportedType' };
-  }
-
   const messageType = getMessageTypeFromResolvedMime(resolvedMime);
-  if (!messageType) {
-    return { ok: false, errorKey: 'chat.fileErrors.unsupportedType' };
-  }
 
   const maxBytes = messageType === 'image' ? FILE_IMAGE_MAX_BYTES : FILE_OTHER_MAX_BYTES;
   if (file.size > maxBytes) {

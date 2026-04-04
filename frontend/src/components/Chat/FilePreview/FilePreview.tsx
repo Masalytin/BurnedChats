@@ -24,20 +24,43 @@ export const FilePreview = memo(function FilePreview({
 }: FilePreviewProps) {
   const { t } = useTranslation();
   const [caption, setCaption] = useState('');
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  /** Video preview only (blob URLs). Images use a data URL so strict CSP can allow `data:` without `blob:`. */
+  const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (messageType === 'image' || messageType === 'video') {
-      const url = URL.createObjectURL(file);
-      setObjectUrl(url);
-      return () => URL.revokeObjectURL(url);
+    if (messageType === 'image') {
+      let cancelled = false;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (!cancelled) setImageDataUrl(reader.result as string);
+      };
+      reader.onerror = () => {
+        if (!cancelled) setImageDataUrl(null);
+      };
+      reader.readAsDataURL(file);
+      return () => {
+        cancelled = true;
+      };
     }
+    setImageDataUrl(null);
+    return undefined;
   }, [file, messageType]);
 
   useEffect(() => {
-    if (messageType !== 'video' || !objectUrl) return;
+    if (messageType !== 'video') {
+      setVideoObjectUrl(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setVideoObjectUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, messageType]);
+
+  useEffect(() => {
+    if (messageType !== 'video' || !videoObjectUrl) return;
 
     const video = videoRef.current;
     if (!video) return;
@@ -49,7 +72,7 @@ export const FilePreview = memo(function FilePreview({
     };
     video.addEventListener('loadedmetadata', handleMetadata);
     return () => video.removeEventListener('loadedmetadata', handleMetadata);
-  }, [messageType, objectUrl]);
+  }, [messageType, videoObjectUrl]);
 
   const handleSend = useCallback(() => {
     onSend(file, caption.trim() || undefined);
@@ -71,20 +94,20 @@ export const FilePreview = memo(function FilePreview({
       <div className="file-preview-card" onClick={(e) => e.stopPropagation()}>
         {/* Preview area */}
         <div className="file-preview-content">
-          {messageType === 'image' && objectUrl && (
+          {messageType === 'image' && imageDataUrl && (
             <img
               className="file-preview-image"
-              src={objectUrl}
+              src={imageDataUrl}
               alt={file.name}
             />
           )}
 
-          {messageType === 'video' && objectUrl && (
+          {messageType === 'video' && videoObjectUrl && (
             <div className="file-preview-video-wrapper">
               <video
                 ref={videoRef}
                 className="file-preview-video"
-                src={objectUrl}
+                src={videoObjectUrl}
                 preload="metadata"
                 playsInline
                 muted

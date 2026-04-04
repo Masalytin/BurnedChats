@@ -1,17 +1,10 @@
 import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
-import { ALLOWED_FILE_MIME_TYPES } from '@/config/fileConfig';
 import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import './MessageInput.css';
 
 export type { FileMessageType };
-
-/** HTML `accept` attribute: keep `image/*` for better OS pickers. */
-const ACCEPTED_TYPES = [
-  'image/*',
-  ...ALLOWED_FILE_MIME_TYPES.filter((m) => !m.startsWith('image/')),
-].join(',');
 
 export interface SelectedFileInfo {
   file: File;
@@ -206,7 +199,6 @@ export const MessageInput = memo(function MessageInput({
             <input
               ref={fileInputRef}
               type="file"
-              accept={ACCEPTED_TYPES}
               className="message-input-file-hidden"
               onChange={handleFileChange}
               tabIndex={-1}
