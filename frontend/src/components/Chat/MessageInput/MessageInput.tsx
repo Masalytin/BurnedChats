@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, typ
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
 import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
+import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './MessageInput.css';
 
 export type { FileMessageType };
@@ -69,7 +70,10 @@ export const MessageInput = memo(function MessageInput({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasTypingRef = useRef(false);
   const fileErrorClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [filePickErrorKey, setFilePickErrorKey] = useState<string | null>(null);
+  const [filePickError, setFilePickError] = useState<{
+    key: string;
+    params?: Record<string, string | number>;
+  } | null>(null);
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
@@ -145,16 +149,20 @@ export const MessageInput = memo(function MessageInput({
     if (!result.ok) {
       haptics.error();
       if (fileErrorClearRef.current) clearTimeout(fileErrorClearRef.current);
-      setFilePickErrorKey(result.errorKey);
+      let params = result.errorParams;
+      if (result.errorKey === 'files.error.tooLarge' && result.errorParams?.maxBytes != null) {
+        params = { size: formatLocalizedFileSize(Number(result.errorParams.maxBytes), t) };
+      }
+      setFilePickError({ key: result.errorKey, params });
       fileErrorClearRef.current = setTimeout(() => {
-        setFilePickErrorKey(null);
+        setFilePickError(null);
         fileErrorClearRef.current = null;
       }, 5000);
       return;
     }
 
     onFileSelected({ file, messageType: result.messageType });
-  }, [onFileSelected, haptics]);
+  }, [onFileSelected, haptics, t]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -192,7 +200,7 @@ export const MessageInput = memo(function MessageInput({
               className="message-input-attach"
               onClick={handleAttachClick}
               disabled={!canAttach}
-              aria-label={t('chat.attachFile')}
+              aria-label={t('files.preview.attach')}
             >
               <AttachIcon />
             </button>
@@ -240,9 +248,9 @@ export const MessageInput = memo(function MessageInput({
         </div>
       )}
 
-      {filePickErrorKey && (
+      {filePickError && (
         <div className="message-input-file-error" role="alert">
-          {t(filePickErrorKey)}
+          {t(filePickError.key, filePickError.params)}
         </div>
       )}
     </div>

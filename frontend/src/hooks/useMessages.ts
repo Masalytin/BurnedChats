@@ -7,6 +7,7 @@ import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
+import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 
@@ -119,7 +120,7 @@ interface UseMessagesOptions {
   /** Callback when message status changes */
   onStatusChange?: (messageId: string, status: MessageStatus) => void;
   /** Callback when error occurs */
-  onError?: (error: MessageErrorCode, details?: string) => void;
+  onError?: (error: MessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   /** Callback when messages are synced after reconnection (5.1.2) */
   onSyncComplete?: (count: number) => void;
 }
@@ -217,9 +218,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   // Error Handling
   // ============================================
 
-  const handleError = useCallback((code: MessageErrorCode, details?: string) => {
+  const handleError = useCallback((code: MessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
     setError(code);
-    onError?.(code, details);
+    onError?.(code, details, i18nValues);
     console.error(`[useMessages] Error: ${code}`, details);
   }, [onError]);
 
@@ -372,7 +373,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     const validated = validateFileForUpload(file);
     if (!validated.ok) {
-      handleError('SEND_FAILED', validated.errorKey);
+      handleError('SEND_FAILED', validated.errorKey, fileValidationToastParams(validated));
       return { success: false, messageId: null, error: 'SEND_FAILED' };
     }
 

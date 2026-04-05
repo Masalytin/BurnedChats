@@ -67,7 +67,7 @@ export const MediaViewer = memo(function MediaViewer({
         const key = getAESKey(message.sessionId);
         if (!key) {
           if (!cancelled) {
-            setLoadErrorKey('chat.fileErrors.decryptFailed');
+            setLoadErrorKey('files.error.decryptFailed');
             setState('error');
           }
           return;
@@ -87,7 +87,7 @@ export const MediaViewer = memo(function MediaViewer({
           if (err instanceof FileTransferError) {
             setLoadErrorKey(fileTransferErrorI18nKey(err));
           } else {
-            setLoadErrorKey('chat.fileErrors.serverError');
+            setLoadErrorKey('files.error.serverError');
           }
           setState('error');
         }
@@ -233,7 +233,7 @@ export const MediaViewer = memo(function MediaViewer({
         <button
           className="media-viewer__btn media-viewer__btn--close"
           onClick={handleClose}
-          aria-label={t('chat.mediaViewer.close', 'Close')}
+          aria-label={t('files.viewer.close')}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -245,7 +245,7 @@ export const MediaViewer = memo(function MediaViewer({
           <button
             className="media-viewer__btn media-viewer__btn--save"
             onClick={handleSave}
-            aria-label={t('chat.mediaViewer.save', 'Save')}
+            aria-label={t('files.viewer.saveToDevice')}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -268,7 +268,7 @@ export const MediaViewer = memo(function MediaViewer({
         {state === 'error' && (
           <div className="media-viewer__error">
             <span className="media-viewer__error-icon">⚠️</span>
-            <span>{loadErrorKey ? t(loadErrorKey) : t('chat.mediaViewer.error', 'Failed to load')}</span>
+            <span>{loadErrorKey ? t(loadErrorKey) : t('files.download.failed')}</span>
           </div>
         )}
 
@@ -282,7 +282,7 @@ export const MediaViewer = memo(function MediaViewer({
             <img
               className="media-viewer__image"
               src={file.objectUrl}
-              alt={message.fileMeta?.fileName || 'Image'}
+              alt={message.fileMeta?.fileName || t('files.bubble.photo')}
               draggable={false}
               style={{
                 transform: `translate(${translate.x}px, ${translate.y + swipeY}px) scale(${scale})`,

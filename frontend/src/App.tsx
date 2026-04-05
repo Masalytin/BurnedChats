@@ -36,6 +36,7 @@ import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { clearDownloadCache } from './services/fileDownloadService';
+import { isFilesErrorI18nKey } from './services/fileTransferErrors';
 import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
@@ -1629,10 +1630,14 @@ interface ChatViewContentProps {
 function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatViewContentProps) {
   const { t } = useTranslation();
   const toast = useToast();
-  const handleMessageError = useCallback((code: MessageErrorCode, details?: string) => {
+  const handleMessageError = useCallback((
+    code: MessageErrorCode,
+    details?: string,
+    i18nValues?: Record<string, string | number>,
+  ) => {
     console.error('[ChatViewContent] Message error:', code, details);
-    if (details?.startsWith('chat.fileErrors.')) {
-      toast.error(t(details), { duration: 5000 });
+    if (isFilesErrorI18nKey(details)) {
+      toast.error(t(details!, i18nValues), { duration: 5000 });
     }
   }, [t, toast]);
 

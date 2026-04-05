@@ -35,7 +35,7 @@ export const UploadProgressOverlay = memo(function UploadProgressOverlay({
     }
   }, [isFailed, onRetry, onCancel]);
 
-  const stageLabel = t(`chat.uploadStage.${stage}`);
+  const stageLabel = t(`files.upload.${stage}`);
   const pct = Math.min(100, Math.max(0, Math.round(progress)));
 
   const RADIUS = 20;
@@ -49,7 +49,7 @@ export const UploadProgressOverlay = memo(function UploadProgressOverlay({
           type="button"
           className="upload-overlay-circle-btn"
           onClick={onCancel}
-          aria-label={t('common.cancel')}
+          aria-label={t('files.preview.cancel')}
         >
           <svg className="upload-overlay-svg" viewBox="0 0 48 48">
             {/* Track */}
@@ -82,7 +82,7 @@ export const UploadProgressOverlay = memo(function UploadProgressOverlay({
           type="button"
           className="upload-overlay-retry-btn"
           onClick={handleAction}
-          aria-label={t('chat.uploadRetry')}
+          aria-label={t('files.upload.retry')}
         >
           ↻
         </button>

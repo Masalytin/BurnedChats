@@ -1,7 +1,14 @@
 /**
  * Typed transfer errors for file upload/download (P4-5-1-1).
- * Maps to i18n keys under `chat.fileErrors.*` via {@link fileTransferErrorI18nKey}.
+ * Maps to i18n keys under `files.error.*` via {@link fileTransferErrorI18nKey}.
  */
+
+/** Prefix for file error keys passed as `details` to message send error handlers. */
+export const FILES_ERROR_I18N_PREFIX = 'files.error.' as const;
+
+export function isFilesErrorI18nKey(details: string | undefined): boolean {
+  return !!details?.startsWith(FILES_ERROR_I18N_PREFIX);
+}
 
 export type FileTransferErrorKind =
   | 'network'
@@ -44,30 +51,30 @@ function defaultRetryable(kind: FileTransferErrorKind): boolean {
 /** i18n key for UI (react-i18next). */
 export function fileTransferErrorI18nKey(err: FileTransferError): string {
   if (err.kind === 'bad_request' && err.serverErrorCode === 'FILE_SIZE_INVALID') {
-    return 'chat.fileErrors.uploadIncomplete';
+    return 'files.error.uploadIncomplete';
   }
   switch (err.kind) {
     case 'aborted':
-      return 'chat.fileErrors.aborted';
+      return 'files.error.aborted';
     case 'payload_too_large':
-      return 'chat.fileErrors.payloadTooLarge';
+      return 'files.error.payloadTooLarge';
     case 'rate_limited':
-      return 'chat.fileErrors.rateLimited';
+      return 'files.error.rateLimited';
     case 'unauthorized':
-      return 'chat.fileErrors.unauthorized';
+      return 'files.error.unauthorized';
     case 'forbidden':
-      return 'chat.fileErrors.forbidden';
+      return 'files.error.forbidden';
     case 'not_found':
-      return 'chat.fileErrors.expired';
+      return 'files.error.expired';
     case 'decrypt_failed':
-      return 'chat.fileErrors.decryptFailed';
+      return 'files.error.decryptFailed';
     case 'network':
-      return 'chat.fileErrors.network';
+      return 'files.error.network';
     case 'server_error':
     case 'bad_request':
     case 'unknown':
     default:
-      return 'chat.fileErrors.serverError';
+      return 'files.error.serverError';
   }
 }
 

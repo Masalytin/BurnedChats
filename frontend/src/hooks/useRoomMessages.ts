@@ -7,6 +7,7 @@ import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
+import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import type {
   DecryptedMessage,
   DecryptedFileMessage,
@@ -124,7 +125,7 @@ interface UseRoomMessagesOptions {
   ws: UseRoomMessagesWebSocket;
   isReconnection?: boolean;
   onNewMessage?: (message: DecryptedMessage) => void;
-  onError?: (error: RoomMessageErrorCode, details?: string) => void;
+  onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
 }
 
 /** Hook return value */
@@ -174,9 +175,9 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   // Error Handling
   // ============================================
 
-  const handleError = useCallback((code: RoomMessageErrorCode, details?: string) => {
+  const handleError = useCallback((code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
     setError(code);
-    onError?.(code, details);
+    onError?.(code, details, i18nValues);
     console.error(`[useRoomMessages] Error: ${code}`, details);
   }, [onError]);
 
@@ -269,7 +270,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
     const validated = validateFileForUpload(file);
     if (!validated.ok) {
-      handleError('SEND_FAILED', validated.errorKey);
+      handleError('SEND_FAILED', validated.errorKey, fileValidationToastParams(validated));
       return { success: false, messageId: null, error: 'SEND_FAILED' };
     }
 

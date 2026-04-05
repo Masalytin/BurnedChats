@@ -6,6 +6,19 @@ import {
 
 export type FileMessageType = 'image' | 'video' | 'file';
 
+/** Allowed upload MIME types (aligned with server / product spec). */
+export const ALLOWED_UPLOAD_MIMES: ReadonlySet<string> = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'application/pdf',
+  'text/plain',
+  'application/zip',
+]);
+
 /** Extension → MIME hint when `File.type` is empty (browser/OS dependent). */
 const EXT_TO_MIME: Readonly<Record<string, string>> = {
   jpg: 'image/jpeg',
@@ -35,8 +48,10 @@ export interface FileValidationOk {
 
 export interface FileValidationErr {
   ok: false;
-  /** i18n key under chat.fileErrors */
+  /** i18n key under files.error.* */
   errorKey: string;
+  /** Optional interpolation values for react-i18next */
+  errorParams?: Record<string, string | number>;
 }
 
 export type FileValidationResult = FileValidationOk | FileValidationErr;
@@ -70,19 +85,31 @@ export function getMessageTypeFromResolvedMime(mime: string): FileMessageType {
 export function validateFileForUpload(file: File): FileValidationResult {
   const name = file.name || '';
   if ([...name].length > FILE_MAX_NAME_LENGTH) {
-    return { ok: false, errorKey: 'chat.fileErrors.nameTooLong' };
+    return {
+      ok: false,
+      errorKey: 'files.error.nameTooLong',
+      errorParams: { max: FILE_MAX_NAME_LENGTH },
+    };
   }
 
   const resolvedMime = resolveFileMime(file);
+  if (!ALLOWED_UPLOAD_MIMES.has(resolvedMime)) {
+    return { ok: false, errorKey: 'files.error.unsupportedType' };
+  }
+
   const messageType = getMessageTypeFromResolvedMime(resolvedMime);
 
   const maxBytes = messageType === 'image' ? FILE_IMAGE_MAX_BYTES : FILE_OTHER_MAX_BYTES;
   if (file.size > maxBytes) {
-    return { ok: false, errorKey: 'chat.fileErrors.tooLarge' };
+    return {
+      ok: false,
+      errorKey: 'files.error.tooLarge',
+      errorParams: { maxBytes },
+    };
   }
 
   if (file.size <= 0) {
-    return { ok: false, errorKey: 'chat.fileErrors.empty' };
+    return { ok: false, errorKey: 'files.error.empty' };
   }
 
   return { ok: true, messageType, resolvedMime };

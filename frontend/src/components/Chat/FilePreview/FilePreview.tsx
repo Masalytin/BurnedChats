@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileMessageType } from '../MessageInput';
+import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './FilePreview.css';
 
 interface FilePreviewProps {
@@ -89,7 +90,7 @@ export const FilePreview = memo(function FilePreview({
       onKeyDown={handleKeyDown}
       role="dialog"
       aria-modal="true"
-      aria-label={t('chat.filePreviewTitle')}
+      aria-label={t('files.preview.title')}
     >
       <div className="file-preview-card" onClick={(e) => e.stopPropagation()}>
         {/* Preview area */}
@@ -129,7 +130,7 @@ export const FilePreview = memo(function FilePreview({
         {/* File info */}
         <div className="file-preview-info">
           <span className="file-preview-filename" title={file.name}>{file.name}</span>
-          <span className="file-preview-size">{formatFileSize(file.size)}</span>
+          <span className="file-preview-size">{formatLocalizedFileSize(file.size, t)}</span>
         </div>
 
         {/* Caption input */}
@@ -138,7 +139,7 @@ export const FilePreview = memo(function FilePreview({
           type="text"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
-          placeholder={t('chat.captionPlaceholder')}
+          placeholder={t('files.preview.captionPlaceholder')}
           maxLength={200}
           autoFocus
           onKeyDown={(e) => {
@@ -156,14 +157,14 @@ export const FilePreview = memo(function FilePreview({
             className="file-preview-btn file-preview-btn--cancel"
             onClick={onCancel}
           >
-            {t('common.cancel')}
+            {t('files.preview.cancel')}
           </button>
           <button
             type="button"
             className="file-preview-btn file-preview-btn--send"
             onClick={handleSend}
           >
-            {t('chat.sendFile')}
+            {t('files.preview.send')}
           </button>
         </div>
       </div>
@@ -174,12 +175,6 @@ export const FilePreview = memo(function FilePreview({
 // ============================================
 // Helpers
 // ============================================
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);

@@ -16,6 +16,7 @@ import type {
   RoomMessageErrorCode,
 } from '@/hooks/useRoomMessages';
 import { useHaptics } from '@/hooks/useHaptics';
+import { isFilesErrorI18nKey } from '@/services/fileTransferErrors';
 import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedFileMessage } from '@/types';
 import '@/styles/ChatScreen.css';
@@ -130,9 +131,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const abortRef = useRef<AbortController | null>(null);
 
   const handleRoomMessageError = useCallback(
-    (_code: RoomMessageErrorCode, details?: string) => {
-      const msg = details?.startsWith('chat.fileErrors.')
-        ? t(details)
+    (_code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
+      const msg = isFilesErrorI18nKey(details)
+        ? t(details!, i18nValues)
         : t('room.chat.sendError');
       toast.error(msg, { duration: 4000 });
     },

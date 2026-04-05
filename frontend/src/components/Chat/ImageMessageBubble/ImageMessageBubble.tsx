@@ -4,6 +4,7 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
+import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './ImageMessageBubble.css';
 
 type MessageStatus = DecryptedFileMessage['status'];
@@ -11,12 +12,6 @@ type MessageStatus = DecryptedFileMessage['status'];
 interface ImageMessageBubbleProps {
   message: DecryptedFileMessage;
   onOpenViewer?: (message: DecryptedFileMessage) => void;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatTime(timestamp: number): string {
@@ -48,7 +43,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
 
   const hasCaption = message.content && !message.content.startsWith('📷');
   const formattedTime = formatTime(message.timestamp);
-  const formattedSize = formatFileSize(message.fileSize);
+  const formattedSize = formatLocalizedFileSize(message.fileSize, t);
 
   const handleThumbnailError = useCallback(() => {
     setThumbnailState('error');
@@ -65,7 +60,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
-        setThumbnailErrorKey('chat.fileErrors.decryptFailed');
+        setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
         return;
       }
@@ -76,7 +71,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       if (err instanceof FileTransferError) {
         setThumbnailErrorKey(fileTransferErrorI18nKey(err));
       } else {
-        setThumbnailErrorKey('chat.fileErrors.serverError');
+        setThumbnailErrorKey('files.error.serverError');
       }
       evictCachedFile(message.thumbnailFileId);
       setThumbnailState('error');
@@ -102,7 +97,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         const key = getAESKey(message.sessionId);
         if (!key) {
           setDownloadProgress(null);
-          setFullDownloadErrorKey('chat.fileErrors.decryptFailed');
+          setFullDownloadErrorKey('files.error.decryptFailed');
           return;
         }
         await downloadFile(message.fileId, key, {
@@ -116,7 +111,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         if (err instanceof FileTransferError) {
           setFullDownloadErrorKey(fileTransferErrorI18nKey(err));
         } else {
-          setFullDownloadErrorKey('chat.fileErrors.serverError');
+          setFullDownloadErrorKey('files.error.serverError');
         }
         evictCachedFile(message.fileId);
       }
@@ -150,7 +145,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
                 className="image-bubble__retry-btn"
                 onClick={(e) => { e.stopPropagation(); handleRetryThumbnail(); }}
               >
-                {t('chat.imageRetry', 'Retry')}
+                {t('files.bubble.retry')}
               </button>
             </div>
           )}
@@ -159,7 +154,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
             <img
               className="image-bubble__thumbnail"
               src={thumbnailSrc}
-              alt={message.fileMeta?.fileName || 'Image'}
+              alt={message.fileMeta?.fileName || t('files.bubble.photo')}
               onError={handleThumbnailError}
               onLoad={handleThumbnailLoad}
               draggable={false}
@@ -184,7 +179,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
                 className="image-bubble__retry-btn"
                 onClick={handleRetryFullImage}
               >
-                {t('chat.imageRetry', 'Retry')}
+                {t('files.bubble.retry')}
               </button>
             </div>
           )}

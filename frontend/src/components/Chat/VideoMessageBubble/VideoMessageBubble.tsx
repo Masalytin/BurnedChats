@@ -4,6 +4,7 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
+import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './VideoMessageBubble.css';
 
 type MessageStatus = DecryptedFileMessage['status'];
@@ -13,12 +14,6 @@ type VideoState = 'idle' | 'downloading' | 'playing' | 'error';
 interface VideoMessageBubbleProps {
   message: DecryptedFileMessage;
   onOpenViewer?: (message: DecryptedFileMessage) => void;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatTime(timestamp: number): string {
@@ -83,7 +78,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
-        setThumbnailErrorKey('chat.fileErrors.decryptFailed');
+        setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
         return;
       }
@@ -94,7 +89,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       if (err instanceof FileTransferError) {
         setThumbnailErrorKey(fileTransferErrorI18nKey(err));
       } else {
-        setThumbnailErrorKey('chat.fileErrors.serverError');
+        setThumbnailErrorKey('files.error.serverError');
       }
       evictCachedFile(message.thumbnailFileId);
       setThumbnailState('error');
@@ -111,7 +106,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       try {
         const key = getAESKey(message.sessionId);
         if (!key) {
-          setVideoErrorKey('chat.fileErrors.decryptFailed');
+          setVideoErrorKey('files.error.decryptFailed');
           setVideoState('error');
           return;
         }
@@ -125,7 +120,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
         if (err instanceof FileTransferError) {
           setVideoErrorKey(fileTransferErrorI18nKey(err));
         } else {
-          setVideoErrorKey('chat.fileErrors.serverError');
+          setVideoErrorKey('files.error.serverError');
         }
         evictCachedFile(message.fileId);
         setVideoState('error');
@@ -140,7 +135,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
-        setVideoErrorKey('chat.fileErrors.decryptFailed');
+        setVideoErrorKey('files.error.decryptFailed');
         setVideoState('error');
         return;
       }
@@ -158,7 +153,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       if (err instanceof FileTransferError) {
         setVideoErrorKey(fileTransferErrorI18nKey(err));
       } else {
-        setVideoErrorKey('chat.fileErrors.serverError');
+        setVideoErrorKey('files.error.serverError');
       }
       evictCachedFile(message.fileId);
       setVideoState('error');
@@ -187,7 +182,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
 
   const hasCaption = message.content && !message.content.startsWith('🎬');
   const formattedTime = formatTime(message.timestamp);
-  const formattedSize = formatFileSize(message.fileSize);
+  const formattedSize = formatLocalizedFileSize(message.fileSize, t);
 
   return (
     <div
@@ -229,7 +224,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
                     className="video-bubble__retry-btn"
                     onClick={(e) => { e.stopPropagation(); handleRetryThumbnail(); }}
                   >
-                    {t('chat.videoRetryThumb', 'Retry')}
+                    {t('files.bubble.retry')}
                   </button>
                 </div>
               )}
@@ -238,7 +233,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
                 <img
                   className="video-bubble__poster"
                   src={thumbnailSrc}
-                  alt={message.fileMeta?.fileName || 'Video'}
+                  alt={message.fileMeta?.fileName || t('files.bubble.video')}
                   onError={handleThumbnailError}
                   onLoad={handleThumbnailLoad}
                   draggable={false}
@@ -246,7 +241,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
               )}
 
               {videoState === 'idle' && (
-                <button className="video-bubble__play-btn" aria-label="Play video">
+                <button className="video-bubble__play-btn" aria-label={t('files.download.open')}>
                   <svg className="video-bubble__play-icon" viewBox="0 0 48 48" fill="none">
                     <circle cx="24" cy="24" r="23" fill="rgba(0,0,0,0.5)" stroke="white" strokeWidth="2" />
                     <path d="M19 15L35 24L19 33V15Z" fill="white" />
@@ -270,7 +265,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
                     <span className="video-bubble__error-hint">{t(videoErrorKey)}</span>
                   )}
                   <button type="button" className="video-bubble__retry-btn" onClick={handleRetry}>
-                    {t('chat.videoRetry', 'Retry')}
+                    {t('files.bubble.retry')}
                   </button>
                 </div>
               )}

@@ -4,7 +4,8 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { getAESKey } from '@/crypto/keyStore';
-import { getFileIcon, formatFileSize } from '@/utils/fileIcons';
+import { getFileIcon } from '@/utils/fileIcons';
+import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './DocumentMessageBubble.css';
 
 type MessageStatus = DecryptedFileMessage['status'];
@@ -38,10 +39,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   const downloadedBlobRef = useRef<Blob | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const fileName = message.fileMeta?.fileName || t('chat.docUnknownFile', 'File');
+  const fileName = message.fileMeta?.fileName || t('files.bubble.document');
   const mimeType = message.fileMeta?.mimeType || 'application/octet-stream';
   const iconInfo = getFileIcon(mimeType);
-  const formattedSize = formatFileSize(message.fileSize);
+  const formattedSize = formatLocalizedFileSize(message.fileSize, t);
   const formattedTime = formatTime(message.timestamp);
   const hasCaption = message.content && !message.content.startsWith('📎');
 
@@ -63,7 +64,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     try {
       const key = getAESKey(message.sessionId);
       if (!key) {
-        setErrorHintKey('chat.fileErrors.decryptFailed');
+        setErrorHintKey('files.error.decryptFailed');
         setDocState('error');
         return;
       }
@@ -81,7 +82,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
         if (err instanceof FileTransferError) {
           setErrorHintKey(fileTransferErrorI18nKey(err));
         } else {
-          setErrorHintKey('chat.fileErrors.serverError');
+          setErrorHintKey('files.error.serverError');
         }
         evictCachedFile(message.fileId);
         setDocState('error');
@@ -137,7 +138,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
             {docState === 'idle' && (
               <button
                 className="doc-bubble__download-btn"
-                aria-label={t('chat.docDownload', 'Download')}
+                aria-label={t('files.download.fetch')}
                 onClick={(e) => { e.stopPropagation(); handleDownload(); }}
               >
                 <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
@@ -168,7 +169,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
             {docState === 'downloaded' && (
               <button
                 className="doc-bubble__save-btn"
-                aria-label={t('chat.docSave', 'Save')}
+                aria-label={t('files.download.save')}
                 onClick={(e) => { e.stopPropagation(); handleSave(); }}
               >
                 <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
@@ -180,7 +181,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
             {docState === 'error' && (
               <button
                 className="doc-bubble__retry-btn"
-                aria-label={t('chat.docRetry', 'Retry')}
+                aria-label={t('files.bubble.retry')}
                 onClick={handleRetry}
               >
                 <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
