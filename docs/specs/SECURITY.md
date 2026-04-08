@@ -8,6 +8,7 @@
 - [Криптографические примитивы](#криптографические-примитивы)
 - [Протокол обмена ключами](#протокол-обмена-ключами)
 - [Шифрование сообщений](#шифрование-сообщений)
+- [Файлы: шифрование и хранение (Phase 4)](#файлы-шифрование-и-хранение-phase-4)
 - [Visual Fingerprint](#visual-fingerprint)
 - [Модель угроз](#модель-угроз)
 - [Защитные механизмы](#защитные-механизмы)
@@ -212,7 +213,7 @@ interface EncryptedMessage {
   ciphertext: string;   // Base64
   tag: string;          // Base64, 16 bytes (часть GCM output)
   timestamp: number;    // Unix timestamp (не зашифрован)
-  type: 'text' | 'file';
+  type: 'text' | 'image' | 'video' | 'file'; // медиа: см. Phase 4 и API.md (fileId, encryptedMeta)
 }
 ```
 
@@ -291,46 +292,52 @@ async function decryptMessage(
 }
 ```
 
-### Шифрование файлов
+---
 
-Для файлов используется chunked encryption:
+## Файлы: шифрование и хранение (Phase 4)
 
-```typescript
-const CHUNK_SIZE = 64 * 1024; // 64 KB chunks
+Реализация на клиенте: `frontend/src/crypto/fileEncryption.ts` (тот же симметричный ключ AES-256-GCM, что и для текстовых сообщений после ECDH / группового ключа комнаты).
 
-async function encryptFile(
-  file: File,
-  aesKey: CryptoKey
-): Promise<EncryptedFile> {
-  const chunks: EncryptedChunk[] = [];
-  
-  for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
-    const chunk = file.slice(offset, offset + CHUNK_SIZE);
-    const buffer = await chunk.arrayBuffer();
-    
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      aesKey,
-      buffer
-    );
-    
-    chunks.push({
-      index: chunks.length,
-      iv: toBase64(iv),
-      data: toBase64(new Uint8Array(encrypted))
-    });
-  }
-  
-  return {
-    id: crypto.randomUUID(),
-    fileName: encryptString(file.name, aesKey), // Имя тоже шифруем
-    mimeType: file.type,
-    size: file.size,
-    chunks
-  };
-}
-```
+### File Encryption (Phase 4) — поток данных
+
+1. Клиент шифрует файл (и при необходимости отдельный thumbnail) **до** отправки.
+2. `POST /api/files/upload` передаёт **один** непрерывный зашифрованный blob (`application/octet-stream`); сервер сохраняет его как `{fileId}.enc` и пишет метаданные в Redis (`file_meta:{fileId}`).
+3. В STOMP-сообщении (`type`: `image` \| `video` \| `file`) клиент указывает `fileId`, опционально `thumbnailFileId`, `encryptedMeta` (зашифрованные имя и MIME) и `fileSize` (размер **исходного** plaintext).
+4. Получатель вызывает `GET /api/files/{fileId}`, получает тот же blob и расшифровывает его локально.
+
+### Формат зашифрованного blob'а (upload body)
+
+Младший байт задаёт вариант упаковки:
+
+- **Один проход** (файлы ≤ 5 MiB):  
+  `[0x00][IV — 12 байт][ciphertext ‖ GCM tag]`  
+  где `ciphertext ‖ tag` — непосредственный вывод `crypto.subtle.encrypt` (Web Crypto AES-GCM, tag 128 bit).
+
+- **По чанкам** (файлы > 5 MiB, plaintext чанки по 64 KiB):  
+  `[0x01][chunk_count — 4 байта big-endian][повтор: IV 12 байт ‖ encrypt(chunk)]`.
+
+Таким образом на диске и по сети везде лежит только opaque-бинарник; сервер не выполняет дешифрование.
+
+**Thumbnail:** генерируется на клиенте, шифруется **тем же** `CryptoKey` и загружается вторым `fileId` (отдельный upload).
+
+**Метаданные (имя файла, MIME):** JSON `FileMetaPlain` шифруется через `encryptFileMetadata` → одна Base64-строка в поле `encryptedMeta` STOMP-сообщения. Сервер видит только непрозрачный blob и число `fileSize` для UX/лимитов.
+
+### File Storage Security (сервер)
+
+| Аспект | Поведение |
+|--------|-----------|
+| Zero-knowledge | На сервере хранятся только зашифрованные blob'ы и минимальные метаданные (tgId загрузившего, контекст, размер blob'а, время). |
+| Filesystem | Файлы без исходного расширения: `{uuid}.enc`. Утечка диска не раскрывает тип содержимого. |
+| TTL | Метаданные Redis и политика жизни файлов — **24 часа** (см. `FileStorageProperties`); автоочистка орфанов на диске. |
+| Burn cascade | При уничтожении сессии/комнаты набор `fileId` из `file_context:{contextId}` удаляется с диска и из Redis. |
+| Access control | Upload и download разрешены только если initData валиден и пользователь — участник указанной сессии или комнаты; ретрансляция STOMP проверяет владельца и контекст файла. |
+
+### Validation (продукт и сервер)
+
+| Уровень | Правило |
+|---------|---------|
+| Клиент | Whitelist MIME по категориям продукта (см. план Phase 4): изображения (`image/jpeg`, `image/png`, `image/gif`, `image/webp`), видео (`video/mp4`, `video/webm`), документы (`application/pdf`, `text/plain`, `application/zip`). Рекомендуемые **оригинальные** размеры: до 10 MB (изображения), до 25 MB (видео/документы) — до упаковки в AES-GCM. |
+| Сервер | Верхняя граница принимаемого **зашифрованного** тела: `MAX_ENCRYPTED_FILE_SIZE` (26 MiB); проверка `Content-Length > 0`; rate limit `POST /api/files/upload`: 10 запросов / минуту на пользователя (`FILE_UPLOAD_RATE_LIMIT`). Тип MIME на REST не проверяется (файл нечитаем). |
 
 ---
 
@@ -457,6 +464,8 @@ const aesKey = await crypto.subtle.deriveKey(
 | **Identity Spoofing** | Угон аккаунта | Секретный вопрос |
 | **Replay Attack** | Повтор сообщений | Уникальный IV + timestamp |
 | **Modification** | Изменение сообщений | GCM auth tag |
+| **Утечка filesystem / бэкапа файлов** | Физический доступ к диску сервера | Только файлы `.enc` без ключей; отдельно нужен доступ к целевому устройству пользователя |
+| **Утечка «метаданных» файла** | Анализ трафика или Redis | Имя и MIME передаются только в `encryptedMeta`; сервер не может их прочитать |
 
 ### Что видит атакующий
 
@@ -487,6 +496,7 @@ public class RateLimitService {
     
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     
+    // Upload: отдельно RateLimitType.FILE_UPLOAD — 10 запросов / 1 мин (см. ValidationConstants.FILE_UPLOAD_RATE_LIMIT)
     private static final Map<String, RateLimit> LIMITS = Map.of(
         "search", new RateLimit(Duration.ofMinutes(1), 10),
         "message", new RateLimit(Duration.ofMinutes(1), 30),
@@ -533,10 +543,11 @@ public final class ValidationConstants {
     public static final int TAG_LENGTH = 16;
     public static final int PUBLIC_KEY_LENGTH = 65; // P-256 uncompressed
     
+    /** Ориентир для клиентской валидации (Phase 4); сервер не инспектирует MIME upload. */
     public static final Set<String> ALLOWED_MIME_TYPES = Set.of(
         "image/jpeg", "image/png", "image/gif", "image/webp",
-        "application/pdf",
-        "text/plain"
+        "video/mp4", "video/webm",
+        "application/pdf", "text/plain", "application/zip"
     );
     
     private ValidationConstants() {}

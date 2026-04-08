@@ -27,6 +27,8 @@
 │  user:{tgId}                  → Hash    │ TTL: 7 days           │
 │  rate:{type}:{tgId}           → String  │ TTL: varies           │
 │  blocked:{tgId}               → Set     │ No TTL                │
+│  file_meta:{fileId}           → Hash    │ TTL: 24h (Phase 4)    │
+│  file_context:{contextId}     → Set     │ fileIds, TTL: 24h     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -254,6 +256,43 @@ EXPIRE room_join_request:uuid-room-1 86400
 
 ---
 
+## Phase 4: Files (Redis)
+
+> План: [DEVELOPMENT_PLAN_MEDIA.md](../phases/phase-4-media/DEVELOPMENT_PLAN_MEDIA.md). Реализация: `FileMetadataRepository`, `FileMetadata`.
+
+### `file_meta:{fileId}`
+
+Hash с метаданными **одного** загруженного зашифрованного blob'а (основной файл или thumbnail). `fileId` — UUID, совпадает с именем файла на диске без расширения (`{fileId}.enc`).
+
+```redis
+HSET file_meta:550e8400-e29b-41d4-a716-446655440000
+  uploaderTgId   "123456789"
+  contextType    "session"
+  contextId      "session-uuid-or-room-uuid"
+  size           "1048576"
+  createdAt      "1705312200000"
+
+EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `uploaderTgId` | string | Telegram ID пользователя, выполнившего upload |
+| `contextType` | string | `session` или `room` |
+| `contextId` | string | ID сессии или комнаты |
+| `size` | long (строка) | Размер сохранённого **зашифрованного** blob'а в байтах |
+| `createdAt` | long (строка) | Unix time (мс) |
+
+**TTL:** по умолчанию 24 часа (`FileStorageProperties.metadataTtl`), синхронизирован с очисткой и burn cascade.
+
+### `file_context:{contextId}`
+
+**Set** из `fileId`, привязанных к одной сессии или комнате. Используется для каскадного удаления файлов при burn сессии/комнаты (`FileBurnService`): по списку `fileId` удаляются записи в `file_meta:*`, объекты на filesystem и члены множества.
+
+**TTL:** продлевается при каждом добавлении файла (как у `file_meta`), чтобы индекс не переживал метаданные.
+
+---
+
 ## Java DTOs
 
 ### Session Entity
@@ -321,24 +360,53 @@ public class ChatRequest {
 }
 ```
 
-### Encrypted Message
+### File metadata (Java)
 
 ```java
-// model/EncryptedMessage.java
+// model/FileMetadata.java — см. репозиторий FileMetadataRepository (Redis Hash file_meta:{fileId})
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class EncryptedMessage {
-    private String id;
-    private String iv;
-    private String ciphertext;
-    private String tag;
-    private Long timestamp;
-    private String type;
-    private String senderTgId; // Добавляется сервером для routing
+public class FileMetadata {
+    private String fileId;
+    private String uploaderTgId;
+    private String contextType;   // "session" | "room"
+    private String contextId;
+    private Long size;            // encrypted blob size in bytes
+    private Long createdAt;       // epoch millis
 }
 ```
+
+### Message (1-to-1, очередь + STOMP)
+
+Очередь offline и событие нового сообщения используют модель **`Message`** с файловыми полями для типов `image`, `video`, `file`:
+
+```java
+// model/Message.java (фрагмент)
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Message implements Serializable {
+    private String messageId;
+    private String sessionId;
+    private Long senderId;
+    private Long recipientId;
+    private String encryptedContent;
+    private String iv;
+    private Long clientTimestamp;
+    private Instant serverTimestamp;
+    @Builder.Default
+    private String type = "text";
+    private String fileId;
+    private String thumbnailFileId;
+    private String encryptedMeta;  // Base64 opaque: encryptFileMetadata на клиенте
+    private Long fileSize;         // исходный размер файла (plaintext), байты
+}
+```
+
+**Тип сообщения:** `text` \| `image` \| `video` \| `file`. Для не-text поле `fileId` обязательно (валидация `FileMessageValidator`).
 
 ### Telegram User
 
@@ -448,46 +516,21 @@ public class PublicKeyDto {
     private String publicKey;
 }
 
-// dto/request/SendMessageRequest.java
+
+// dto/request/SendMessageRequest.java — STOMP /app/message.send (см. API.md)
+// Для type ∈ { image, video, file } обязателен fileId (@ValidFileMessage)
 @Data
 public class SendMessageRequest {
-    @NotBlank
-    private String sessionId;
-    
-    @NotNull
-    @Valid
-    private EncryptedMessageDto message;
-}
-
-// dto/request/EncryptedMessageDto.java
-@Data
-public class EncryptedMessageDto {
-    @NotBlank
-    @Pattern(regexp = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-    private String id;
-    
-    @NotBlank
-    @Size(min = 16, max = 24)
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String iv;
-    
-    @NotBlank
-    @Size(max = 8000)
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String ciphertext;
-    
-    @NotBlank
-    @Size(min = 22, max = 24)
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String tag;
-    
-    @NotNull
-    @Positive
-    private Long timestamp;
-    
-    @NotBlank
-    @Pattern(regexp = "^text$")
-    private String type;
+    @NotBlank private String sessionId;
+    @NotBlank @Size(max = 64) private String messageId;
+    @NotBlank @Size(max = 65536) private String encryptedContent;
+    @NotBlank @Size(min = 16, max = 24) private String iv;
+    @NotNull private Long timestamp;
+    @Pattern(regexp = "^(text|image|video|file)$") private String type;
+    @Size(max = 128) private String fileId;
+    @Size(max = 128) private String thumbnailFileId;
+    @Size(max = 4096) private String encryptedMeta;
+    @Positive private Long fileSize;
 }
 
 // dto/request/BurnSessionDto.java
@@ -643,10 +686,12 @@ public enum ErrorCode {
     USER_BLOCKED,
     SELF_CHAT,
     
-    // Message
+    // Message / files
     MESSAGE_TOO_LARGE,
     INVALID_FORMAT,
-    FILE_TOO_LARGE
+    FILE_TOO_LARGE,
+    FILE_NOT_FOUND,
+    ACCESS_DENIED
 }
 ```
 
@@ -670,46 +715,49 @@ interface ExportedKeyPair {
 }
 
 // === MESSAGES ===
+// См. frontend/src/types/index.ts и crypto/fileEncryption.ts
 
-interface EncryptedMessage {
+type MessageType = 'text' | 'image' | 'video' | 'file';
+
+type MessageStatus =
+  | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+/** Сообщение в UI / STOMP (фрагмент; полный тип — Message в index.ts) */
+interface Message {
   id: string;
-  iv: string;           // Base64, 12 bytes
-  ciphertext: string;   // Base64
-  tag: string;          // Base64, 16 bytes
-  timestamp: number;
-  type: 'text';
-}
-
-interface DecryptedMessage {
-  id: string;
-  text: string;
-  timestamp: number;
-  sender: 'self' | 'peer';
-}
-
-interface EncryptedFile {
-  id: string;
-  fileName: string;     // Encrypted Base64
-  mimeType: string;
-  size: number;
-  chunks: EncryptedChunk[];
-  timestamp: number;
-}
-
-interface EncryptedChunk {
-  index: number;
+  sessionId: string;
+  fromUserId: number;
+  encryptedContent: string;
   iv: string;
-  data: string;
+  timestamp: number;
+  status: MessageStatus;
+  type: MessageType;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
-interface DecryptedFile {
-  id: string;
+interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv' | 'encryptedMeta'> {
+  content: string;
+  isOwn: boolean;
+  senderName?: string;
+}
+
+/** Plaintext метаданные до encryptFileMetadata (fileEncryption.ts) */
+interface FileMetaPlain {
   fileName: string;
   mimeType: string;
-  size: number;
-  blob: Blob;
-  timestamp: number;
-  sender: 'self' | 'peer';
+}
+
+/** Расшифрованное медиасообщение */
+interface DecryptedFileMessage extends DecryptedMessage {
+  type: 'image' | 'video' | 'file';
+  fileId: string;
+  fileSize: number;
+  fileMeta: { fileName: string; mimeType: string };
+  thumbnailFileId?: string;
+  thumbnailUrl?: string;
 }
 
 // === SESSION ===
@@ -773,7 +821,6 @@ interface IncomingRequest {
 interface ChatState {
   session: Session | null;
   messages: DecryptedMessage[];
-  files: DecryptedFile[];
   isTyping: boolean;
   connectionStatus: ConnectionStatus;
 }
@@ -848,7 +895,16 @@ interface PeerPublicKeyEvent {
 
 interface NewMessageEvent {
   sessionId: string;
-  message: EncryptedMessage;
+  messageId: string;
+  senderId: number;
+  encryptedContent: string;
+  iv: string;
+  clientTimestamp: number;
+  type?: MessageType;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
 }
 
 interface MessageSentEvent {
@@ -881,15 +937,21 @@ interface ErrorEvent {
 ### Java Bean Validation
 
 ```java
-// validation/ValidationConstants.java
+// validation/ValidationConstants.java (фрагмент)
 public final class ValidationConstants {
-    
+
+    /** Максимальный размер принимаемого зашифрованного blob'а (байты).
+     *  Plaintext до ~25 MB + заголовок AES-GCM/chunked → потолок 26 MB. */
+    public static final long MAX_ENCRYPTED_FILE_SIZE = 26 * 1024 * 1024;
+
+    /** Лимит POST /api/files/upload на пользователя (см. RateLimitService.RateLimitType.FILE_UPLOAD). */
+    public static final int FILE_UPLOAD_RATE_LIMIT = 10;
+
     // Message limits
     public static final int MAX_TEXT_LENGTH = 4096;
-    public static final long MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
     public static final int MAX_FILE_NAME_LENGTH = 255;
-    public static final int MAX_CHUNKS = 500; // 25MB / 64KB
-    
+    public static final int MAX_CHUNKS = 500; // legacy / client UX
+
     // Crypto sizes
     public static final int IV_LENGTH = 12;
     public static final int TAG_LENGTH = 16;
@@ -950,15 +1012,15 @@ public @interface Base64 {
 
 ### Limits Summary
 
-| Поле | Лимит | Причина |
-|------|-------|---------|
+| Поле / правило | Лимит | Причина |
+|----------------|-------|---------|
 | `text` | 4096 chars | Оптимально для чата |
-| `file` | 25 MB | Telegram limit |
-| `fileName` | 255 chars | Filesystem limit |
-| `chunks` | 500 max | 25MB / 64KB |
+| Зашифрованный blob upload | ≤ `MAX_ENCRYPTED_FILE_SIZE` (26 MB) | Потолок на сервере; plaintext и MIME — ориентиры продукта (см. SECURITY.md) |
+| `POST /api/files/upload` | `FILE_UPLOAD_RATE_LIMIT` (10) / 1 min | Redis rate limit per user |
+| `fileName` | 255 chars | Клиент + `encryptFileMetadata` |
 | `sessionId` | UUID v4 | Collision resistance |
 | `IV` | 12 bytes | AES-GCM standard |
-| `tag` | 16 bytes | GCM auth tag |
+| GCM `tag` | 16 bytes | Входит в ciphertext Web Crypto output |
 
 ---
 

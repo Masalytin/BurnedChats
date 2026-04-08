@@ -45,9 +45,18 @@ TelegramUser user = authService.validateInitData(initData);
 | Эндпоинт/событие | Лимит | Окно |
 |------------------|-------|------|
 | REST endpoints | 100 req | 1 min |
+| `POST /api/files/upload` | 10 req | 1 min |
 | `SEARCH_USER` | 10 req | 1 min |
 | `SEND_MESSAGE` | 30 msg | 1 min |
 | `CREATE_SESSION` | 3 req | 5 min |
+
+### REST (файлы): аутентификация
+
+Эндпоинты файлов передают Telegram Mini App initData в заголовке (как при STOMP CONNECT):
+
+```http
+X-Telegram-Init-Data: <query string from Telegram.WebApp.initData>
+```
 
 ---
 
@@ -89,6 +98,85 @@ GET /actuator/info
   }
 }
 ```
+
+---
+
+### REST API: Files (Phase 4)
+
+Загрузка и скачивание **зашифрованных на клиенте** blob'ов. Тело запроса/ответа — сырая бинарная последовательность (`application/octet-stream`), не JSON.
+
+#### `POST /api/files/upload`
+
+Сохраняет один зашифрованный файл (основной медиафайл или thumbnail) и создаёт метаданные в Redis (`file_meta:{fileId}`, TTL 24 ч).
+
+**Headers:**
+
+| Заголовок | Обязательно | Описание |
+|-----------|-------------|----------|
+| `X-Telegram-Init-Data` | Да | Валидный initData (как в STOMP) |
+| `X-Context-Type` | Да | `session` \| `room` |
+| `X-Context-Id` | Да | UUID сессии или комнаты |
+| `Content-Type` | Да | `application/octet-stream` |
+| `Content-Length` | Да | Размер загружаемого **зашифрованного** blob'а в байтах (≥ 1) |
+
+**Body:** поток байт зашифрованных данных (см. [SECURITY.md](./SECURITY.md) — формат blob'а на клиенте).
+
+**Response `200 OK`:**
+
+```json
+{
+  "fileId": "550e8400-e29b-41d4-a716-446655440000",
+  "size": 1048576
+}
+```
+
+**Errors (JSON body, кроме 429 где указано):**
+
+| HTTP | Поле `error` | Когда |
+|------|--------------|--------|
+| 401 | `UNAUTHORIZED` / код из `AuthenticationException` | Невалидный или просроченный initData |
+| 400 | `INVALID_CONTEXT_TYPE` | `X-Context-Type` не `session` и не `room` |
+| 400 | `FILE_SIZE_INVALID` | Несоответствие размера на диске и `Content-Length` после загрузки |
+| 403 | `ACCESS_DENIED` | Пользователь не участник сессии / не член комнаты |
+| 404 | `CONTEXT_NOT_FOUND` | Сессия не найдена (для `session`) |
+| 413 | `FILE_TOO_LARGE` | Размер вне допустимого диапазона (см. `ValidationConstants.MAX_ENCRYPTED_FILE_SIZE`) |
+| 429 | `RATE_LIMITED` | Превышен лимит загрузок; возможны заголовки `Retry-After` и поле `retryAfter` в JSON |
+
+Пример тела при 429:
+
+```json
+{
+  "error": "RATE_LIMITED",
+  "message": "...",
+  "retryAfter": 45
+}
+```
+
+#### `GET /api/files/{fileId}`
+
+Возвращает **тот же** зашифрованный blob, если вызывающий — участник контекста (session/room), к которому привязан файл.
+
+**Headers:**
+
+| Заголовок | Обязательно | Описание |
+|-----------|-------------|----------|
+| `X-Telegram-Init-Data` | Да | Валидный initData |
+
+**Response `200 OK`:**
+
+- `Content-Type: application/octet-stream`
+- `Cache-Control: no-store`
+- Тело: байты зашифрованного файла
+
+**Errors (JSON):**
+
+| HTTP | Поле `error` | Когда |
+|------|--------------|--------|
+| 401 | — | Невалидная аутентификация |
+| 403 | `ACCESS_DENIED` | Нет прав на контекст файла |
+| 404 | `FILE_NOT_FOUND` | Нет метаданных, истёк TTL, или файл отсутствует на диске |
+
+> Семантика «нет доступа к файлу» в обсуждениях иногда обозначается как `FILE_ACCESS_DENIED`; в JSON ответов REST используется код **`ACCESS_DENIED`**.
 
 ---
 
@@ -358,72 +446,64 @@ public void sendPublicKey(@Payload PublicKeyDto request,
 
 ---
 
-### `SEND_MESSAGE`
+### `SEND_MESSAGE` (`/app/message.send`)
 
-Отправка зашифрованного сообщения.
+Отправка зашифрованного сообщения (текст или файл: изображение, видео, документ).
 
-**Frontend:**
+**Текстовое сообщение (Frontend):**
 ```typescript
 client.publish({
-  destination: '/app/message/send',
+  destination: '/app/message.send',
   body: JSON.stringify({
-    sessionId: 'abc123',
-    message: {
-      id: 'uuid-v4',
-      iv: 'Base64...',
-      ciphertext: 'Base64...',
-      tag: 'Base64...',
-      timestamp: Date.now(),
-      type: 'text'
-    }
+    sessionId: '550e8400-e29b-41d4-a716-446655440000',
+    messageId: 'client-generated-id',
+    encryptedContent: 'base64...', // AES-GCM ciphertext (текст)
+    iv: 'base64...',
+    timestamp: Date.now(),
+    type: 'text'
   })
 });
+```
 
-// Peer получает
-client.subscribe('/user/queue/messages', (message) => {
-  const data = JSON.parse(message.body);
-  // { sessionId: string, message: EncryptedMessage }
-});
+**Файловое сообщение** — после `POST /api/files/upload` для основного blob'а и при необходимости для thumbnail клиент передаёт `fileId` и опционально `thumbnailFileId`, а также зашифрованные метаданные и размер **исходного** файла:
 
-// Подтверждение отправителю
-client.subscribe('/user/queue/message-sent', (message) => {
-  const data = JSON.parse(message.body);
-  // { messageId: string, delivered: boolean }
+```typescript
+// type: "image" | "video" | "file"
+client.publish({
+  destination: '/app/message.send',
+  body: JSON.stringify({
+    sessionId: '550e8400-e29b-41d4-a716-446655440000',
+    messageId: 'client-generated-id',
+    encryptedContent: 'base64...', // опциональная подпись к медиа; может быть пустой заглушкой
+    iv: 'base64...',
+    timestamp: Date.now(),
+    type: 'image',
+    fileId: 'uuid-of-main-upload',
+    thumbnailFileId: 'uuid-of-thumb-upload', // опционально
+    encryptedMeta: 'base64...', // см. encryptFileMetadata: { fileName, mimeType }
+    fileSize: 1048576
+  })
 });
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/message/send")
-public void sendMessage(@Payload SendMessageRequest request,
-                        Principal principal) {
-    String senderTgId = principal.getName();
-    
-    messageService.relayMessage(request.getSessionId(), request.getMessage(), senderTgId)
-        .subscribe(result -> {
-            if (result.isRecipientOnline()) {
-                // Отправляем сразу
-                messagingTemplate.convertAndSendToUser(
-                    result.getRecipientTgId(),
-                    "/queue/messages",
-                    new NewMessageEvent(request.getSessionId(), request.getMessage())
-                );
-            } else {
-                // Сохраняем и уведомляем через Telegram
-                messageRepository.save(request.getSessionId(), request.getMessage())
-                    .then(notificationService.notifyNewMessage(result.getRecipientTgId()))
-                    .subscribe();
-            }
-            
-            // Подтверждаем отправителю
-            messagingTemplate.convertAndSendToUser(
-                senderTgId,
-                "/queue/message-sent",
-                new MessageSentEvent(request.getMessage().getId(), result.isRecipientOnline())
-            );
-        });
-}
+Сервер перед ретрансляцией проверяет, что `fileId` (и `thumbnailFileId`, если есть) существуют в `file_meta:*`, загружены отправителем и привязаны к той же `sessionId`. При ошибке валидации возможны коды: `FILE_NOT_FOUND`, `FILE_NOT_OWNED`, `FILE_CONTEXT_MISMATCH`.
+
+**События:**
+
+- Получатель: `/user/queue/new-message` — тело в формате `NewMessageEvent` (включая `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` для медиа).
+- Отправитель: `/user/queue/message-sent` — подтверждение доставки.
+
+```typescript
+client.subscribe('/user/queue/new-message', (message) => {
+  const data = JSON.parse(message.body);
+  // success, sessionId, messageId, senderId, encryptedContent, iv,
+  // clientTimestamp, serverTimestamp, type, fileId?, thumbnailFileId?, encryptedMeta?, fileSize?
+});
 ```
+
+**Backend:** `MessageHandler` — `@MessageMapping("/message.send")`, см. `SendMessageRequest`, `NewMessageEvent`.
+
+> Для **комнат** используется отдельный handler и `SendRoomMessageRequest` с теми же файловыми полями; destination см. в коде (`RoomMessageHandler`).
 
 ---
 
@@ -650,34 +730,26 @@ private void relayTypingStatus(String sessionId, String senderTgId, boolean isTy
 
 ## Типы данных
 
-### EncryptedMessage
+### Полезная нагрузка сообщения (STOMP / offline queue)
 
-```java
-// Java DTO
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class EncryptedMessage {
-    private String id;           // UUID v4
-    private String iv;           // Base64, 12 bytes
-    private String ciphertext;   // Base64
-    private String tag;          // Base64, 16 bytes
-    private Long timestamp;      // Unix timestamp ms
-    private String type;         // "text"
-}
-```
+В протоколе используются **`SendMessageRequest`** (клиент → сервер) и **`Message`** / **`NewMessageEvent`** (сервер → клиент), а не отдельный класс с полями `ciphertext`/`tag`.
 
-```typescript
-// TypeScript
-interface EncryptedMessage {
-  id: string;
-  iv: string;
-  ciphertext: string;
-  tag: string;
-  timestamp: number;
-  type: 'text';
-}
-```
+Общие поля:
+
+| Поле | Описание |
+|------|----------|
+| `type` | `text` \| `image` \| `video` \| `file` |
+| `encryptedContent`, `iv` | Зашифрованный текст или подпись к медиа (opaque Base64) |
+| `messageId`, `timestamp` / `clientTimestamp` | Идемпотентность и порядок |
+
+Для `image` / `video` / `file` дополнительно:
+
+| Поле | Описание |
+|------|----------|
+| `fileId` | ID основного файла после `POST /api/files/upload` |
+| `thumbnailFileId` | ID зашифрованного thumbnail (опционально) |
+| `encryptedMeta` | Base64: зашифрованный JSON `{ fileName, mimeType }` |
+| `fileSize` | Размер **исходного** файла в байтах (plaintext size) |
 
 ### Session
 
@@ -753,13 +825,20 @@ public class PeerInfo {
 | `USER_BLOCKED` | Пользователь заблокировал вас |
 | `SELF_CHAT` | Нельзя создать чат с собой |
 
-### Ошибки сообщений
+### Ошибки сообщений и файлов
 
 | Код | Описание |
 |-----|----------|
 | `MESSAGE_TOO_LARGE` | Превышен лимит размера |
 | `INVALID_FORMAT` | Неверный формат данных |
-| `FILE_TOO_LARGE` | Файл превышает 25 MB |
+| `FILE_TOO_LARGE` | Зашифрованный blob превышает серверный потолок (`MAX_ENCRYPTED_FILE_SIZE`) |
+| `FILE_NOT_FOUND` | Файл не найден в Redis или истёк TTL (REST download / валидация ретрансляции) |
+| `ACCESS_DENIED` | Нет доступа к файлу или контексту (REST); в документации также: «file access denied» |
+| `FILE_NOT_OWNED` | Отправитель не совпадает с `uploaderTgId` в метаданных файла |
+| `FILE_CONTEXT_MISMATCH` | Файл привязан к другому session/room, чем сообщение |
+| `CONTEXT_NOT_FOUND` | Сессия для загрузки не найдена |
+| `FILE_SIZE_INVALID` | Размер после загрузки не совпал с `Content-Length` |
+| `INVALID_CONTEXT_TYPE` | Неверный `X-Context-Type` |
 
 ### Java Exception Handler
 
