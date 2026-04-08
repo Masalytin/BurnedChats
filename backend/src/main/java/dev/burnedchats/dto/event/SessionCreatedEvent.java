@@ -94,6 +94,8 @@ public class SessionCreatedEvent {
      *   <li>{@code ALREADY_HAS_SESSION} - user already has an active session</li>
      *   <li>{@code RECIPIENT_HAS_SESSION} - recipient already has an active session</li>
      *   <li>{@code PENDING_REQUEST_EXISTS} - there's already a pending request to this recipient</li>
+     *   <li>{@code EXPECTED_ANSWER_REQUIRED} - secret question set but expected answer missing or blank</li>
+     *   <li>{@code EXPECTED_ANSWER_TOO_LONG} - expected answer exceeds max length</li>
      *   <li>{@code RECIPIENT_NOT_FOUND} - recipient user not found in cache</li>
      *   <li>{@code RATE_LIMITED} - too many requests</li>
      * </ul>

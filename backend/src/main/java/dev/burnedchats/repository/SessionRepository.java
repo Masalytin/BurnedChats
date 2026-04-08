@@ -30,7 +30,7 @@ import java.util.Map;
  *   <li>initiatorVerified - whether initiator verified fingerprint</li>
  *   <li>responderVerified - whether responder verified fingerprint</li>
  *   <li>secretQuestion - optional secret question</li>
- *   <li>secretAnswerHash - hash of secret answer</li>
+ *   <li>secretAnswerHash - Base64 SHA-256 of normalized expected answer (if question set)</li>
  * </ul>
  *
  * <p>Default TTL: 1 hour (auto-cleanup of inactive sessions).

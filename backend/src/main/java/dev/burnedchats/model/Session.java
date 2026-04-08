@@ -93,7 +93,9 @@ public class Session implements Serializable {
     private String secretQuestion;
 
     /**
-     * Hash of the secret answer (for verification).
+     * Base64-encoded SHA-256 of the normalized expected answer (initiator),
+     * set when a secret question is used. Compared on accept with the
+     * responder's answer; plaintext is never stored.
      */
     private String secretAnswerHash;
 

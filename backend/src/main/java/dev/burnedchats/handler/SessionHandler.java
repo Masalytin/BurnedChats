@@ -29,6 +29,7 @@ import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
+import dev.burnedchats.util.SecretAnswerHasher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -38,13 +39,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -163,7 +160,8 @@ public class SessionHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long initiatorId = telegramPrincipal.getUserId();
         Long recipientId = request.getRecipientId();
-        String secretQuestion = request.getSecretQuestion();
+        String secretQuestion = normalizeOptionalText(request.getSecretQuestion());
+        String secretExpectedAnswer = normalizeOptionalText(request.getSecretExpectedAnswer());
 
         log.info("Session creation requested: initiator={}, recipient={}, hasQuestion={}",
                 initiatorId, recipientId, secretQuestion != null);
@@ -175,14 +173,38 @@ public class SessionHandler {
             return;
         }
 
+        if (secretQuestion != null) {
+            if (secretExpectedAnswer == null) {
+                log.debug("Secret question present without expected answer: initiator={}", initiatorId);
+                sendToInitiator(initiatorId, SessionCreatedEvent.error("EXPECTED_ANSWER_REQUIRED"));
+                return;
+            }
+            if (secretExpectedAnswer.length() > 256) {
+                sendToInitiator(initiatorId, SessionCreatedEvent.error("EXPECTED_ANSWER_TOO_LONG"));
+                return;
+            }
+        }
+
         // Validate and create session
-        validateAndCreateSession(initiatorId, recipientId, secretQuestion);
+        validateAndCreateSession(initiatorId, recipientId, secretQuestion, secretExpectedAnswer);
+    }
+
+    /**
+     * Trim and treat empty string as absent.
+     */
+    private static String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**
      * Validate constraints and create session if all checks pass.
      */
-    private void validateAndCreateSession(Long initiatorId, Long recipientId, String secretQuestion) {
+    private void validateAndCreateSession(Long initiatorId, Long recipientId, String secretQuestion,
+                                          String secretExpectedAnswer) {
         // Check if initiator already has an active session
         sessionRepository.findActiveByParticipant(initiatorId)
                 .flatMap(existingSession -> {
@@ -209,7 +231,8 @@ public class SessionHandler {
                                                                 "PENDING_REQUEST_EXISTS"));
                                                     }
                                                     // All validations passed - create session
-                                                    return doCreateSession(initiatorId, recipientId, secretQuestion);
+                                                    return doCreateSession(initiatorId, recipientId, secretQuestion,
+                                                            secretExpectedAnswer);
                                                 })
                                 )
                 )
@@ -227,7 +250,7 @@ public class SessionHandler {
      * Create the session and related entities after all validations pass.
      */
     private Mono<SessionCreatedEvent> doCreateSession(Long initiatorId, Long recipientId,
-                                                       String secretQuestion) {
+                                                      String secretQuestion, String secretExpectedAnswer) {
         // Get both users from cache
         return Mono.zip(
                 userRepository.findById(initiatorId)
@@ -251,6 +274,9 @@ public class SessionHandler {
                     .createdAt(now)
                     .lastActivityAt(now)
                     .secretQuestion(secretQuestion)
+                    .secretAnswerHash(secretQuestion != null
+                            ? SecretAnswerHasher.hash(secretExpectedAnswer)
+                            : null)
                     .build();
 
             // Create chat request for recipient's queue
@@ -521,19 +547,28 @@ public class SessionHandler {
                             sendAcceptError(responderId, sessionId, "ANSWER_REQUIRED");
                             return Mono.empty();
                         }
-                        // Store hashed answer for future verification
-                        String answerHash = hashAnswer(providedAnswer);
-                        return doAcceptSession(session, chatRequest, responderId, answerHash);
+                        String expectedHash = session.getSecretAnswerHash();
+                        if (expectedHash == null || expectedHash.isBlank()) {
+                            log.warn("Session {} has secret question but missing expected answer hash", sessionId);
+                            sendAcceptError(responderId, sessionId, "INTERNAL_ERROR");
+                            return Mono.empty();
+                        }
+                        String providedHash = SecretAnswerHasher.hash(providedAnswer);
+                        if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
+                            log.debug("Wrong secret answer for session {}", sessionId);
+                            sendAcceptError(responderId, sessionId, "WRONG_ANSWER");
+                            return Mono.empty();
+                        }
+                        return doAcceptSession(session, chatRequest, responderId);
                     }
-                    return doAcceptSession(session, chatRequest, responderId, null);
+                    return doAcceptSession(session, chatRequest, responderId);
                 });
     }
 
     /**
      * Process the acceptance after all validations pass.
      */
-    private Mono<Void> doAcceptSession(Session session, ChatRequest chatRequest,
-                                        Long responderId, String answerHash) {
+    private Mono<Void> doAcceptSession(Session session, ChatRequest chatRequest, Long responderId) {
         String sessionId = session.getId();
         Long initiatorId = session.getInitiatorId();
         Instant acceptedAt = Instant.now();
@@ -541,9 +576,6 @@ public class SessionHandler {
         // Update session status
         session.setStatus(SessionStatus.HANDSHAKE);
         session.setLastActivityAt(acceptedAt);
-        if (answerHash != null) {
-            session.setSecretAnswerHash(answerHash);
-        }
 
         return sessionRepository.save(session)
                 .then(requestRepository.delete(responderId, sessionId))
@@ -604,20 +636,6 @@ public class SessionHandler {
                 event
         );
         log.trace("Sent accept error to responder {}: {}", responderId, errorCode);
-    }
-
-    /**
-     * Hash a secret answer using SHA-256.
-     */
-    private String hashAnswer(String answer) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(answer.toLowerCase().trim().getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is always available
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 
     // ==================== Session Status (5.1.4) ====================

@@ -88,7 +88,9 @@ public class SessionAcceptedEvent {
      *   <li>{@code NOT_RESPONDER} - user is not the responder for this session</li>
      *   <li>{@code ALREADY_ACCEPTED} - session was already accepted</li>
      *   <li>{@code REQUEST_EXPIRED} - the chat request has expired</li>
-     *   <li>{@code WRONG_ANSWER} - secret answer doesn't match</li>
+     *   <li>{@code ANSWER_REQUIRED} - secret question requires a non-empty answer</li>
+     *   <li>{@code WRONG_ANSWER} - secret answer does not match expected hash</li>
+     *   <li>{@code SESSION_EXPIRED} - session is no longer pending</li>
      *   <li>{@code INTERNAL_ERROR} - unexpected server error</li>
      * </ul>
      */

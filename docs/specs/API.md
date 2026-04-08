@@ -221,103 +221,62 @@ public void searchUser(@Payload SearchRequest request,
 
 ---
 
-### `CREATE_SESSION`
+### `CREATE_SESSION` (`/app/session.create`)
 
 Создание нового чата и отправка запроса собеседнику.
+
+**Нормализация секретного ответа** (инициатор и получатель должны совпадать по смыслу): `trim` → `toLowerCase()` на строке → UTF-8 → SHA-256 → Base64 (см. `SecretAnswerHasher` на сервере).
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/session/create',
+  destination: '/app/session.create',
   body: JSON.stringify({
-    recipientTgId: '444555666',
-    secretQuestion: 'Как звали моего кота?' // опционально
+    recipientId: 444555666,
+    secretQuestion: 'Как звали моего кота?', // опционально; если задан — нужен secretExpectedAnswer
+    secretExpectedAnswer: 'Барсик' // обязателен, если secretQuestion непустой; не логировать
   })
 });
 
-// Результат
+// Результат — `/user/queue/session-created` (SessionCreatedEvent)
 client.subscribe('/user/queue/session-created', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, status: 'waiting' }
+  // success, sessionId, recipient, hasSecretQuestion, createdAt, expiresAt | error
 });
 
-// Ошибка
-client.subscribe('/user/queue/error', (message) => {
-  const error = JSON.parse(message.body);
-  // { code: string, message: string }
-});
+// Коды ошибок создания (поле error при success: false), в т.ч.:
+// EXPECTED_ANSWER_REQUIRED — вопрос задан без ожидаемого ответа или пустой ответ
+// EXPECTED_ANSWER_TOO_LONG — ответ длиннее 256 символов
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/session/create")
-public void createSession(@Payload CreateSessionRequest request,
-                          Principal principal) {
-    String senderTgId = principal.getName();
-    
-    sessionService.createSession(senderTgId, request)
-        .flatMap(session -> 
-            notificationService.notifyChatRequest(
-                request.getRecipientTgId(), 
-                session.getId()
-            ).thenReturn(session)
-        )
-        .subscribe(session -> {
-            messagingTemplate.convertAndSendToUser(
-                senderTgId,
-                "/queue/session-created",
-                new SessionCreatedEvent(session.getId(), "waiting")
-            );
-        });
-}
-```
+**Backend:** `SessionHandler` — `@MessageMapping("/session.create")`, ответы на `/user/queue/session-created` (`SessionCreatedEvent`).
 
 ---
 
-### `ACCEPT_REQUEST`
+### `ACCEPT_REQUEST` (`/app/session.accept`)
 
 Принятие входящего запроса на чат.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/session/accept',
+  destination: '/app/session.accept',
   body: JSON.stringify({
     sessionId: 'abc123',
-    secretAnswer: 'Барсик' // если был вопрос
+    secretAnswer: 'Барсик' // если был секретный вопрос; нормализация та же, что при создании
   })
 });
 
-// Оба участника получают
-client.subscribe('/user/queue/session-started', (message) => {
+// Оба участника получают успех на `/user/queue/session-accepted`
+client.subscribe('/user/queue/session-accepted', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, peer: PeerInfo }
+  // success, sessionId, peer, acceptedAt, expiresAt | error
 });
+
+// Ошибки принятия (только получатель), в т.ч. WRONG_ANSWER — ответ не совпал с ожидаемым хэшем
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/session/accept")
-public void acceptRequest(@Payload AcceptRequestDto request,
-                          Principal principal) {
-    String acceptorTgId = principal.getName();
-    
-    sessionService.acceptRequest(request.getSessionId(), acceptorTgId, request)
-        .subscribe(session -> {
-            // Уведомляем обоих участников
-            session.getParticipants().forEach(participantId -> {
-                String peerId = session.getOtherParticipant(participantId);
-                PeerInfo peer = userService.getPeerInfo(peerId).block();
-                
-                messagingTemplate.convertAndSendToUser(
-                    participantId,
-                    "/queue/session-started",
-                    new SessionStartedEvent(session.getId(), peer)
-                );
-            });
-        });
-}
-```
+**Backend:** `SessionHandler` — `@MessageMapping("/session.accept")`, событие `SessionAcceptedEvent`.
 
 ---
 

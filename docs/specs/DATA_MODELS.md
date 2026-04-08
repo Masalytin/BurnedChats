@@ -62,6 +62,8 @@ EXPIRE session:abc123 3600
 | `verified1` | boolean | Подтвердил ли participant1 fingerprint |
 | `verified2` | boolean | Подтвердил ли participant2 fingerprint |
 
+**Соответствие коду (`SessionRepository` / `Session`):** фактический hash-ключ `session:{uuid}` хранит `id`, `initiatorId`, `responderId`, `status`, `createdAt`, `lastActivityAt`, при необходимости `secretQuestion` и `secretAnswerHash`. Поле `secretAnswerHash` — Base64(SHA-256) от **нормализованного ожидаемого ответа** инициатора (`trim`, затем `toLowerCase`, UTF-8); задаётся при создании заявки с секретным вопросом, открытый текст не сохраняется. Ответ получателя при accept хэшируется тем же алгоритмом и сравнивается с сохранённым значением (constant-time).
+
 **TTL:** 1 час (автоочистка неактивных сессий)
 
 ---
@@ -412,12 +414,16 @@ public class SearchRequest {
 // dto/request/CreateSessionRequest.java
 @Data
 public class CreateSessionRequest {
-    @NotBlank
-    @Pattern(regexp = "^\\d{1,20}$")
-    private String recipientTgId;
-    
-    @Size(max = 500)
+    @NotNull
+    @Positive
+    private Long recipientId;
+
+    @Size(max = 256)
     private String secretQuestion;
+
+    /** Обязателен, если secretQuestion непустой после trim; max 256 */
+    @Size(max = 256)
+    private String secretExpectedAnswer;
 }
 
 // dto/request/AcceptRequestDto.java

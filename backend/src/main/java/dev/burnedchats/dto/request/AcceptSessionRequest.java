@@ -49,7 +49,8 @@ public class AcceptSessionRequest {
      * Optional answer to the secret question.
      *
      * <p>Required if the session request included a secret question.
-     * The answer is hashed server-side for future verification.
+     * The server compares a hash of this answer with the expected hash
+     * stored at session creation (never stores plaintext).
      *
      * <p>Maximum length: 256 characters.
      */
