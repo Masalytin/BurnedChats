@@ -22,6 +22,7 @@ export type AcceptErrorCode =
   | 'SESSION_EXPIRED'       // Session has expired
   | 'REQUEST_EXPIRED'       // Request has expired
   | 'ANSWER_REQUIRED'       // Secret answer is required
+  | 'WRONG_ANSWER'         // Secret answer does not match
   | 'INTERNAL_ERROR'        // Server error
   | 'CONNECTION_ERROR';     // WebSocket not connected
 

@@ -208,6 +208,12 @@
   padding-top: var(--bc-spacing-xs);
 }
 
+.chat-request-dialog__secret-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+}
+
 /* Error message */
 .chat-request-dialog__error {
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);

@@ -75,11 +75,16 @@ interface UseSessionOptions {
   onError?: (error: SessionErrorCode) => void;
 }
 
+export interface CreateSessionSecretOptions {
+  secretQuestion: string;
+  secretExpectedAnswer: string;
+}
+
 interface UseSessionReturn {
   /** Current creation result */
   result: CreateSessionResult;
   /** Create a new session */
-  createSession: (recipientId: number, secretQuestion?: string) => void;
+  createSession: (recipientId: number, secret?: CreateSessionSecretOptions) => void;
   /** Reset state */
   reset: () => void;
   /** Whether creation is in progress */
@@ -121,7 +126,12 @@ const initialResult: CreateSessionResult = {
  *
  *   return (
  *     <button
- *       onClick={() => createSession(123456789, 'What is our secret?')}
+ *       onClick={() =>
+ *         createSession(123456789, {
+ *           secretQuestion: 'What is our secret?',
+ *           secretExpectedAnswer: 'Blue boat',
+ *         })
+ *       }
  *       disabled={isCreating}
  *     >
  *       Start Chat
@@ -228,7 +238,7 @@ export function useSession({
   /**
    * Create a new session request
    */
-  const createSession = useCallback((recipientId: number, secretQuestion?: string) => {
+  const createSession = useCallback((recipientId: number, secret?: CreateSessionSecretOptions) => {
     if (!isConnected) {
       setResult({
         status: 'error',
@@ -245,12 +255,19 @@ export function useSession({
       error: null,
     });
 
-    const payload: { recipientId: number; secretQuestion?: string } = {
+    const payload: {
+      recipientId: number;
+      secretQuestion?: string;
+      secretExpectedAnswer?: string;
+    } = {
       recipientId,
     };
 
-    if (secretQuestion?.trim()) {
-      payload.secretQuestion = secretQuestion.trim();
+    const q = secret?.secretQuestion?.trim();
+    const a = secret?.secretExpectedAnswer?.trim();
+    if (q && a) {
+      payload.secretQuestion = q;
+      payload.secretExpectedAnswer = a;
     }
 
     publish(SESSION_CREATE_DESTINATION, payload);

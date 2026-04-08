@@ -81,6 +81,7 @@
       "SESSION_EXPIRED": "此请求已过期",
       "REQUEST_EXPIRED": "此请求已过期",
       "ANSWER_REQUIRED": "请回答安全问题",
+      "WRONG_ANSWER": "答案错误。请重试或拒绝请求。",
       "CONNECTION_ERROR": "连接错误。请检查您的网络",
       "INTERNAL_ERROR": "出错了。请重试",
       "DEFAULT": "发生错误。请重试"

@@ -81,6 +81,7 @@
       "SESSION_EXPIRED": "Diese Anfrage ist abgelaufen",
       "REQUEST_EXPIRED": "Diese Anfrage ist abgelaufen",
       "ANSWER_REQUIRED": "Bitte beantworten Sie die geheime Frage",
+      "WRONG_ANSWER": "Falsche Antwort. Versuchen Sie es erneut oder lehnen Sie die Anfrage ab.",
       "CONNECTION_ERROR": "Verbindungsfehler. Bitte überprüfen Sie Ihr Netzwerk",
       "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut",
       "DEFAULT": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut"

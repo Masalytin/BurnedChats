@@ -35,7 +35,38 @@
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",
-    "scrollToTopRefresh": "Scroll to top and refresh"
+    "scrollToTopRefresh": "Scroll to top and refresh",
+    "closeDialog": "Close dialog"
+  },
+
+  "chatRequest": {
+    "title": "Start Secure Chat",
+    "subtitle": "Send an encrypted chat request",
+    "secretToggle": "Add secret question",
+    "secretHint": "Recipient must answer to accept the request. If you enable this, both the question and the expected answer are required — they must match what only your contact knows (max {{max}} characters each).",
+    "secretQuestionLabel": "Secret question",
+    "secretQuestionPlaceholder": "e.g. What's our shared memory?",
+    "expectedAnswerLabel": "Expected answer",
+    "expectedAnswerPlaceholder": "Answer your contact should give",
+    "expectedAnswerHint": "Only the recipient types this when accepting; you set the answer the server will check against (plain text in the app for v1).",
+    "charCount": "{{count}}/{{max}} characters",
+    "sendButton": "Send Request",
+    "securityNote": "End-to-end encrypted. We can't read your messages.",
+    "validation": {
+      "questionRequired": "Enter a secret question",
+      "answerRequired": "Enter the expected answer"
+    },
+    "errors": {
+      "SELF_REQUEST": "You can't start a chat with yourself",
+      "ALREADY_HAS_SESSION": "You already have an active chat session",
+      "RECIPIENT_HAS_SESSION": "This user already has an active chat session",
+      "PENDING_REQUEST_EXISTS": "You already sent a request to this user",
+      "RECIPIENT_NOT_FOUND": "User not found",
+      "RATE_LIMITED": "Too many requests. Please wait a moment",
+      "CONNECTION_ERROR": "Connection error. Please check your network",
+      "INTERNAL_ERROR": "Something went wrong. Please try again",
+      "DEFAULT": "An error occurred. Please try again"
+    }
   },
 
   "chat": {
@@ -136,6 +167,7 @@
       "SESSION_EXPIRED": "This request has expired",
       "REQUEST_EXPIRED": "This request has expired",
       "ANSWER_REQUIRED": "Please answer the secret question",
+      "WRONG_ANSWER": "Wrong answer. Try again or decline the request.",
       "CONNECTION_ERROR": "Connection error. Please check your network",
       "INTERNAL_ERROR": "Something went wrong. Please try again",
       "DEFAULT": "An error occurred. Please try again"

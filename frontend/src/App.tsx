@@ -18,7 +18,7 @@ import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { Layout } from './components/Layout/Layout';
-import { ChatRequestDialog } from './components/ChatRequestDialog';
+import { ChatRequestDialog, type ChatRequestSecretPayload } from './components/ChatRequestDialog';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
@@ -785,10 +785,13 @@ function AppContent() {
   }, [resetSession]);
 
   // Handle submitting the chat request
-  const handleSubmitChatRequest = useCallback((secretQuestion?: string) => {
-    if (!selectedUser) return;
-    createSession(selectedUser.id, secretQuestion);
-  }, [selectedUser, createSession]);
+  const handleSubmitChatRequest = useCallback(
+    (secret?: ChatRequestSecretPayload) => {
+      if (!selectedUser) return;
+      createSession(selectedUser.id, secret);
+    },
+    [selectedUser, createSession]
+  );
 
   // Handle canceling the pending request
   const handleCancelPendingRequest = useCallback(() => {

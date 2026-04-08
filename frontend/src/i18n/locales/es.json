@@ -81,6 +81,7 @@
       "SESSION_EXPIRED": "Esta solicitud ha expirado",
       "REQUEST_EXPIRED": "Esta solicitud ha expirado",
       "ANSWER_REQUIRED": "Por favor responde la pregunta secreta",
+      "WRONG_ANSWER": "Respuesta incorrecta. Inténtalo de nuevo o rechaza la solicitud.",
       "CONNECTION_ERROR": "Error de conexión. Por favor verifica tu red",
       "INTERNAL_ERROR": "Algo salió mal. Por favor intenta de nuevo",
       "DEFAULT": "Ocurrió un error. Por favor intenta de nuevo"
