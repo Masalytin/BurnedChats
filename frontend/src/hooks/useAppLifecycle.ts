@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { burnAll, getActiveSessionIds } from '@/crypto/keyStore';
+import { cancelAll } from '@/services/transferQueue';
 
 /**
  * Hook options for app lifecycle management (5.1.5).
@@ -80,6 +81,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
       }
     }
 
+    cancelAll();
     // Burn all cryptographic keys (this is the critical security step)
     burnAll();
     console.log('[AppLifecycle] All keys burned');

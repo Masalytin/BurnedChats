@@ -3,6 +3,7 @@ import type { IMessage } from '@stomp/stompjs';
 import { useWebSocket } from './useWebSocket';
 import { burn as burnKeys } from '@/crypto/keyStore';
 import { clearDownloadCache } from '@/services/fileDownloadService';
+import { cancelAll } from '@/services/transferQueue';
 import WebApp from '@twa-dev/sdk';
 
 // ============================================
@@ -232,6 +233,7 @@ export function useBurn(options: UseBurnOptions): UseBurnReturn {
       setStatus('burned');
       setError(null);
 
+      cancelAll();
       // Destroy local cryptographic keys and cached files
       burnKeys(sessionId);
       clearDownloadCache();

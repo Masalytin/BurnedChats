@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
+import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
+import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
@@ -102,10 +103,10 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
           setFullDownloadErrorKey('files.error.decryptFailed');
           return;
         }
-        await downloadFile(message.fileId, decryptionKey, {
+        await enqueueDownload(message.fileId, decryptionKey, {
           onProgress: (percent) => setDownloadProgress(percent),
           mimeType: message.fileMeta?.mimeType,
-        });
+        }).result;
         setDownloadProgress(null);
         onOpenViewer(message);
       } catch (err) {

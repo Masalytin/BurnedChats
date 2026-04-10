@@ -36,6 +36,7 @@ import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { clearDownloadCache } from './services/fileDownloadService';
+import { cancelAll } from './services/transferQueue';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
 import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
@@ -555,6 +556,7 @@ function AppContent() {
       // Burn the session on backend to allow creating new sessions
       if (sessionId && isConnected) {
         console.log('[App] Burning session after handshake cancel (back button):', sessionId);
+        cancelAll();
         publish('/app/session.burn', { sessionId });
         burnKeys(sessionId);
       }
@@ -805,6 +807,7 @@ function AppContent() {
     // This fixes the bug where the recipient still sees the request after initiator cancels
     if (sessionId && isConnected) {
       console.log('[App] Burning session after pending request cancel:', sessionId);
+      cancelAll();
       publish('/app/session.burn', { sessionId });
       burnKeys(sessionId);
     }
@@ -853,6 +856,7 @@ function AppContent() {
     // This is important because the backend still has the session in HANDSHAKE status
     if (sessionId && isConnected) {
       console.log('[App] Burning session after handshake cancel:', sessionId);
+      cancelAll();
       publish('/app/session.burn', { sessionId });
       burnKeys(sessionId);
     }
@@ -1019,6 +1023,7 @@ function AppContent() {
           // Session was burned successfully
           console.log('[App] Session burned:', data.sessionId);
           
+          cancelAll();
           // Clean up local crypto keys and cached files
           burnKeys(data.sessionId);
           clearDownloadCache();
@@ -1089,6 +1094,7 @@ function AppContent() {
   // Handle leaving room (non-owner) (P2-4.3.4)
   const handleLeaveRoom = useCallback(() => {
     if (!activeRoomChat || !isConnected) return;
+    cancelAll();
     publish('/app/room.leave', { roomId: activeRoomChat.roomId });
     debugLog('info', `[RoomChat] LEAVE_ROOM sent for ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, publish]);
@@ -1126,6 +1132,7 @@ function AppContent() {
         if (data.success && data.roomId) {
           const roomId = data.roomId;
 
+          cancelAll();
           // Securely destroy the group key and cached files from memory
           burnGroupKey(roomId);
           clearDownloadCache();
@@ -1192,6 +1199,7 @@ function AppContent() {
         if (data.success && data.roomId) {
           const roomId = data.roomId;
 
+          cancelAll();
           burnGroupKey(roomId);
 
           const isViewingRoom =

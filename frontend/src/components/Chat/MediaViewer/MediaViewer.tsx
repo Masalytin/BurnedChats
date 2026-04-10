@@ -2,7 +2,8 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, saveDecryptedFile, evictCachedFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { saveDecryptedFile, evictCachedFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useBackButton } from '@/hooks/useBackButton';
@@ -75,35 +76,34 @@ export const MediaViewer = memo(function MediaViewer({
       return;
     }
 
-    let cancelled = false;
+    const abort = new AbortController();
     setState('loading');
     setLoadErrorKey(null);
     setProgress(0);
 
     const load = async () => {
       try {
-        const result = await downloadFile(message.fileId, decryptionKey, {
-          onProgress: (p) => { if (!cancelled) setProgress(p); },
+        const result = await enqueueDownload(message.fileId, decryptionKey, {
+          signal: abort.signal,
+          onProgress: (p) => setProgress(p),
           mimeType: message.fileMeta?.mimeType,
-        });
-        if (!cancelled) {
-          setFile(result);
-          setState('ready');
-        }
+        }).result;
+        if (abort.signal.aborted) return;
+        setFile(result);
+        setState('ready');
       } catch (err) {
-        if (!cancelled) {
-          evictCachedFile(message.fileId);
-          if (err instanceof FileTransferError) {
-            setLoadErrorKey(fileTransferErrorI18nKey(err));
-          } else {
-            setLoadErrorKey('files.error.serverError');
-          }
-          setState('error');
+        if (abort.signal.aborted) return;
+        evictCachedFile(message.fileId);
+        if (err instanceof FileTransferError) {
+          setLoadErrorKey(fileTransferErrorI18nKey(err));
+        } else {
+          setLoadErrorKey('files.error.serverError');
         }
+        setState('error');
       }
     };
     void load();
-    return () => { cancelled = true; };
+    return () => abort.abort();
   }, [message.fileId, message.sessionId, message.fileMeta?.mimeType, decryptionKey]);
 
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {

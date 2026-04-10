@@ -3,8 +3,8 @@ import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
 import { getGroupKey } from '@/crypto/keyStore';
-import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
+import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
@@ -279,12 +279,14 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     const messageType = validated.messageType;
 
     try {
-      const uploadResult = await uploadFile(
+      const uploadHandle = enqueueUpload({
         file,
-        groupKey,
-        { type: 'room', id: roomId },
-        { onProgress: options?.onProgress, signal: options?.signal },
-      );
+        key: groupKey,
+        context: { type: 'room', id: roomId },
+        onProgress: options?.onProgress,
+        signal: options?.signal,
+      });
+      const uploadResult = await uploadHandle.result;
 
       const encryptedMeta = await encryptFileMetadata(
         { fileName: file.name, mimeType: validated.resolvedMime },
@@ -515,6 +517,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   // ============================================
 
   const clearMessages = useCallback(() => {
+    cancelAll();
     setMessages([]);
     pendingMessagesRef.current.clear();
     setError(null);

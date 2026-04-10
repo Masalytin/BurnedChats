@@ -9,7 +9,7 @@
 
 import { uploadFile, type FileContext, type UploadResult } from '@/services/fileUploadService';
 import { downloadFile, downloadThumbnail } from '@/services/fileDownloadService';
-import type { DecryptedFile } from '@/services/fileDownloadService';
+import type { DecryptedFile, DownloadOptions } from '@/services/fileDownloadService';
 import { FileTransferError } from '@/services/fileTransferErrors';
 
 // ============================================
@@ -85,16 +85,22 @@ export function onTransferUpdate(cb: StatusListener): void {
   listener = cb;
 }
 
+/** Options for enqueueing an encrypted file upload (mirrors {@link uploadFile} extras). */
+export interface EnqueueUploadOptions {
+  file: File;
+  key: CryptoKey;
+  context: FileContext;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}
+
 /**
  * Enqueue a file upload.
  *
  * @returns TransferHandle with a `result` promise that resolves to UploadResult
  */
-export function enqueueUpload(
-  file: File,
-  key: CryptoKey,
-  context: FileContext,
-): TransferHandle<UploadResult> {
+export function enqueueUpload(options: EnqueueUploadOptions): TransferHandle<UploadResult> {
+  const { file, key, context, onProgress: userOnProgress, signal: userSignal } = options;
   const id = `upload-${nextId++}`;
 
   let resolve!: (v: UploadResult) => void;
@@ -111,7 +117,14 @@ export function enqueueUpload(
     status: 'queued',
     progress: 0,
     abortController: new AbortController(),
-    execute: (signal, onProgress) => uploadFile(file, key, context, { signal, onProgress }),
+    execute: (signal, onProgress) =>
+      uploadFile(file, key, context, {
+        signal: mergeAbortSignals(signal, userSignal),
+        onProgress: (p) => {
+          onProgress(p);
+          userOnProgress?.(p);
+        },
+      }),
     resolve,
     reject,
   };
@@ -128,13 +141,24 @@ export function enqueueUpload(
  *
  * @returns TransferHandle with a `result` promise that resolves to DecryptedFile
  */
+export type EnqueueDownloadExtras = Pick<DownloadOptions, 'onProgress' | 'signal' | 'mimeType'>;
+
 export function enqueueDownload(
   fileId: string,
   key: CryptoKey,
+  extras?: EnqueueDownloadExtras,
 ): TransferHandle<DecryptedFile> {
   return enqueueDownloadInternal<DecryptedFile>(
     PRIORITY_NORMAL,
-    (signal, onProgress) => downloadFile(fileId, key, { signal, onProgress }),
+    (signal, onProgress) =>
+      downloadFile(fileId, key, {
+        signal: mergeAbortSignals(signal, extras?.signal),
+        mimeType: extras?.mimeType,
+        onProgress: (p) => {
+          onProgress(p);
+          extras?.onProgress?.(p);
+        },
+      }),
   );
 }
 
@@ -385,4 +409,27 @@ function isClientError(err: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Combines the queue's abort signal with an optional caller signal (either may abort the transfer). */
+function mergeAbortSignals(
+  queueSignal: AbortSignal,
+  userSignal?: AbortSignal,
+): AbortSignal {
+  if (!userSignal) return queueSignal;
+  if (userSignal === queueSignal) return queueSignal;
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any([queueSignal, userSignal]);
+  }
+  const ac = new AbortController();
+  const forward = (source: AbortSignal) => {
+    if (source.aborted) {
+      ac.abort(source.reason);
+      return;
+    }
+    source.addEventListener('abort', () => ac.abort(source.reason), { once: true });
+  };
+  forward(queueSignal);
+  forward(userSignal);
+  return ac.signal;
 }

@@ -3,8 +3,8 @@ import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
 import { getAESKey, isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
-import { uploadFile } from '@/services/fileUploadService';
 import { downloadThumbnail } from '@/services/fileDownloadService';
+import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
@@ -382,12 +382,14 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     const messageType = validated.messageType;
 
     try {
-      const uploadResult = await uploadFile(
+      const uploadHandle = enqueueUpload({
         file,
-        aesKey,
-        { type: 'session', id: sessionId },
-        { onProgress: options?.onProgress, signal: options?.signal },
-      );
+        key: aesKey,
+        context: { type: 'session', id: sessionId },
+        onProgress: options?.onProgress,
+        signal: options?.signal,
+      });
+      const uploadResult = await uploadHandle.result;
 
       const encryptedMeta = await encryptFileMetadata(
         { fileName: file.name, mimeType: validated.resolvedMime },
@@ -734,6 +736,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    * Clear all local messages.
    */
   const clearMessages = useCallback(() => {
+    cancelAll();
     setMessages([]);
     pendingMessagesRef.current.clear();
     setError(null);

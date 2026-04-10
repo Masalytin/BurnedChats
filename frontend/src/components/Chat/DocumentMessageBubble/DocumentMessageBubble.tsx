@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { downloadFile, saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
+import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
+import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
@@ -71,11 +72,11 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
         return;
       }
 
-      const result = await downloadFile(message.fileId, decryptionKey, {
+      const result = await enqueueDownload(message.fileId, decryptionKey, {
         onProgress: (percent) => setDownloadProgress(percent),
         signal: controller.signal,
         mimeType,
-      });
+      }).result;
 
       downloadedBlobRef.current = result.blob;
       setDocState('downloaded');
