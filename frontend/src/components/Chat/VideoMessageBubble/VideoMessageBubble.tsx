@@ -4,6 +4,7 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
+import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './VideoMessageBubble.css';
 
@@ -40,6 +41,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   onOpenViewer,
 }: VideoMessageBubbleProps) {
   const { t } = useTranslation();
+  const decryptionKey = useDecryptionKey(message.sessionId);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);
@@ -76,13 +78,13 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     setThumbnailState('loading');
     setThumbnailErrorKey(null);
     try {
-      const key = resolveDecryptionKey(message.sessionId);
-      if (!key) {
+      if (!decryptionKey) {
+        resolveDecryptionKey(message.sessionId);
         setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
         return;
       }
-      const url = await downloadThumbnail(message.thumbnailFileId, key);
+      const url = await downloadThumbnail(message.thumbnailFileId, decryptionKey);
       setThumbnailSrc(url);
       setThumbnailState('loaded');
     } catch (err) {
@@ -94,7 +96,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       evictCachedFile(message.thumbnailFileId);
       setThumbnailState('error');
     }
-  }, [message.thumbnailFileId, message.sessionId]);
+  }, [message.thumbnailFileId, message.sessionId, decryptionKey]);
 
   const handlePlay = useCallback(async () => {
     if (videoState === 'downloading' || videoState === 'playing') return;
@@ -104,13 +106,13 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       setDownloadProgress(0);
       setVideoErrorKey(null);
       try {
-        const key = resolveDecryptionKey(message.sessionId);
-        if (!key) {
+        if (!decryptionKey) {
+          resolveDecryptionKey(message.sessionId);
           setVideoErrorKey('files.error.decryptFailed');
           setVideoState('error');
           return;
         }
-        await downloadFile(message.fileId, key, {
+        await downloadFile(message.fileId, decryptionKey, {
           onProgress: (percent) => setDownloadProgress(percent),
           mimeType: message.fileMeta?.mimeType,
         });
@@ -134,14 +136,14 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     setVideoErrorKey(null);
 
     try {
-      const key = resolveDecryptionKey(message.sessionId);
-      if (!key) {
+      if (!decryptionKey) {
+        resolveDecryptionKey(message.sessionId);
         setVideoErrorKey('files.error.decryptFailed');
         setVideoState('error');
         return;
       }
 
-      const result = await downloadFile(message.fileId, key, {
+      const result = await downloadFile(message.fileId, decryptionKey, {
         onProgress: (percent) => setDownloadProgress(percent),
         mimeType: message.fileMeta?.mimeType,
       });
@@ -160,7 +162,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       evictCachedFile(message.fileId);
       setVideoState('error');
     }
-  }, [message, onOpenViewer, videoState]);
+  }, [message, onOpenViewer, videoState, decryptionKey]);
 
   const handleVideoLoadedMetadata = useCallback(() => {
     const video = videoRef.current;

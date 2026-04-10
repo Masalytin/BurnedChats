@@ -4,6 +4,7 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
+import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './ImageMessageBubble.css';
 
@@ -32,6 +33,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   onOpenViewer,
 }: ImageMessageBubbleProps) {
   const { t } = useTranslation();
+  const decryptionKey = useDecryptionKey(message.sessionId);
 
   const [thumbnailState, setThumbnailState] = useState<'loading' | 'loaded' | 'error'>(
     message.thumbnailUrl ? 'loaded' : message.thumbnailFileId ? 'loading' : 'error',
@@ -58,13 +60,13 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
     setThumbnailState('loading');
     setThumbnailErrorKey(null);
     try {
-      const key = resolveDecryptionKey(message.sessionId);
-      if (!key) {
+      if (!decryptionKey) {
+        resolveDecryptionKey(message.sessionId);
         setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
         return;
       }
-      const url = await downloadThumbnail(message.thumbnailFileId, key);
+      const url = await downloadThumbnail(message.thumbnailFileId, decryptionKey);
       setThumbnailSrc(url);
       setThumbnailState('loaded');
     } catch (err) {
@@ -76,7 +78,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       evictCachedFile(message.thumbnailFileId);
       setThumbnailState('error');
     }
-  }, [message.thumbnailFileId, message.sessionId]);
+  }, [message.thumbnailFileId, message.sessionId, decryptionKey]);
 
   const handleRetryFullImage = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {
@@ -94,13 +96,13 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       setDownloadProgress(0);
       setFullDownloadErrorKey(null);
       try {
-        const key = resolveDecryptionKey(message.sessionId);
-        if (!key) {
+        if (!decryptionKey) {
+          resolveDecryptionKey(message.sessionId);
           setDownloadProgress(null);
           setFullDownloadErrorKey('files.error.decryptFailed');
           return;
         }
-        await downloadFile(message.fileId, key, {
+        await downloadFile(message.fileId, decryptionKey, {
           onProgress: (percent) => setDownloadProgress(percent),
           mimeType: message.fileMeta?.mimeType,
         });
@@ -116,7 +118,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         evictCachedFile(message.fileId);
       }
     }
-  }, [message, onOpenViewer, downloadProgress]);
+  }, [message, onOpenViewer, downloadProgress, decryptionKey]);
 
   return (
     <div

@@ -559,6 +559,7 @@ const groupKeyStore = new Map<string, RoomGroupKeyEntry>();
 export function storeGroupKey(roomId: string, epoch: number, key: CryptoKey): void {
   validateSessionId(roomId);
   groupKeyStore.set(roomId, { roomId, epoch, key, createdAt: Date.now() });
+  notifyListeners(roomId, 'updated');
 }
 
 /**
@@ -582,16 +583,46 @@ export function getGroupKey(roomId: string): CryptoKey | undefined {
 }
 
 /**
+ * Result of resolving which AES key to use for a chat context (DM session vs room).
+ */
+export interface ResolvedKey {
+  key: CryptoKey;
+  context: 'session' | 'room';
+  contextId: string;
+}
+
+/**
  * Resolves the AES key for decrypting messages in either a 1-on-1 session or a room.
  *
  * Room hooks set `sessionId` to `roomId` while the key lives in {@link getGroupKey};
  * DM sessions use {@link getAESKey}. Tries session store first, then group key store.
  *
  * @param contextId - Session ID (DM) or room ID (room messages)
- * @returns CryptoKey or undefined if neither store has a key
+ * @param options - Pass `{ silent: true }` to skip console warning (e.g. polling from React hooks)
+ * @returns Resolved key with context metadata, or undefined if neither store has a key
  */
-export function resolveDecryptionKey(contextId: string): CryptoKey | undefined {
-  return getAESKey(contextId) ?? getGroupKey(contextId);
+export function resolveDecryptionKey(
+  contextId: string,
+  options?: { silent?: boolean },
+): ResolvedKey | undefined {
+  const sessionKey = getAESKey(contextId);
+  if (sessionKey) {
+    return { key: sessionKey, context: 'session', contextId };
+  }
+
+  const groupKey = getGroupKey(contextId);
+  if (groupKey) {
+    return { key: groupKey, context: 'room', contextId };
+  }
+
+  if (contextId && !options?.silent) {
+    console.warn(
+      '[keyStore] No decryption key for contextId=%s (no session AES key, no room group key)',
+      contextId,
+    );
+  }
+
+  return undefined;
 }
 
 /**
@@ -617,6 +648,7 @@ export function burnGroupKey(roomId: string): boolean {
   // @ts-expect-error - Intentional nullification for secure cleanup
   entry.key = undefined;
   groupKeyStore.delete(roomId);
+  notifyListeners(roomId, 'burned');
   return true;
 }
 

@@ -4,6 +4,7 @@ import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
+import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import { getFileIcon } from '@/utils/fileIcons';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './DocumentMessageBubble.css';
@@ -32,6 +33,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   message,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
+  const decryptionKey = useDecryptionKey(message.sessionId);
 
   const [docState, setDocState] = useState<DocState>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -62,14 +64,14 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     abortRef.current = controller;
 
     try {
-      const key = resolveDecryptionKey(message.sessionId);
-      if (!key) {
+      if (!decryptionKey) {
+        resolveDecryptionKey(message.sessionId);
         setErrorHintKey('files.error.decryptFailed');
         setDocState('error');
         return;
       }
 
-      const result = await downloadFile(message.fileId, key, {
+      const result = await downloadFile(message.fileId, decryptionKey, {
         onProgress: (percent) => setDownloadProgress(percent),
         signal: controller.signal,
         mimeType,
@@ -90,7 +92,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     } finally {
       abortRef.current = null;
     }
-  }, [docState, message.fileId, message.sessionId, fileName, mimeType]);
+  }, [docState, message.fileId, message.sessionId, fileName, mimeType, decryptionKey]);
 
   const handleRetry = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {

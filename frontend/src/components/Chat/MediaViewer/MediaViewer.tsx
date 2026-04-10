@@ -6,6 +6,7 @@ import { downloadFile, saveDecryptedFile, evictCachedFile, type DecryptedFile } 
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useBackButton } from '@/hooks/useBackButton';
+import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import './MediaViewer.css';
 
 interface MediaViewerProps {
@@ -29,6 +30,7 @@ export const MediaViewer = memo(function MediaViewer({
   onClose,
 }: MediaViewerProps) {
   const { t } = useTranslation();
+  const decryptionKey = useDecryptionKey(message.sessionId);
 
   const [state, setState] = useState<ViewerState>('loading');
   const [file, setFile] = useState<DecryptedFile | null>(null);
@@ -61,19 +63,21 @@ export const MediaViewer = memo(function MediaViewer({
   }, []);
 
   useEffect(() => {
+    if (!decryptionKey) {
+      resolveDecryptionKey(message.sessionId);
+      setLoadErrorKey('files.error.decryptFailed');
+      setState('error');
+      return;
+    }
+
     let cancelled = false;
+    setState('loading');
+    setLoadErrorKey(null);
+    setProgress(0);
+
     const load = async () => {
       try {
-        const key = resolveDecryptionKey(message.sessionId);
-        if (!key) {
-          if (!cancelled) {
-            setLoadErrorKey('files.error.decryptFailed');
-            setState('error');
-          }
-          return;
-        }
-
-        const result = await downloadFile(message.fileId, key, {
+        const result = await downloadFile(message.fileId, decryptionKey, {
           onProgress: (p) => { if (!cancelled) setProgress(p); },
           mimeType: message.fileMeta?.mimeType,
         });
@@ -93,9 +97,9 @@ export const MediaViewer = memo(function MediaViewer({
         }
       }
     };
-    load();
+    void load();
     return () => { cancelled = true; };
-  }, [message.fileId, message.sessionId]);
+  }, [message.fileId, message.sessionId, message.fileMeta?.mimeType, decryptionKey]);
 
   function handleClose() {
     setIsClosing(true);

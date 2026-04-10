@@ -308,7 +308,27 @@ describe('Key Storage', () => {
 
     describe('resolveDecryptionKey()', () => {
       it('should return undefined when no session or group key exists', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         expect(resolveDecryptionKey('unknown-context')).toBeUndefined();
+        expect(warn).toHaveBeenCalledWith(
+          '[keyStore] No decryption key for contextId=%s (no session AES key, no room group key)',
+          'unknown-context',
+        );
+        warn.mockRestore();
+      });
+
+      it('should not warn when missing key and silent option is set', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(resolveDecryptionKey('missing', { silent: true })).toBeUndefined();
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
+      });
+
+      it('should not warn for empty contextId', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(resolveDecryptionKey('')).toBeUndefined();
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
       });
 
       it('should return AES session key for 1-on-1 handshake', async () => {
@@ -322,7 +342,10 @@ describe('Key Storage', () => {
         const fingerprint = await generateFingerprint(rawSecret);
         storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
 
-        expect(resolveDecryptionKey(sessionId)).toBe(aesKey);
+        const resolved = resolveDecryptionKey(sessionId);
+        expect(resolved?.key).toBe(aesKey);
+        expect(resolved?.context).toBe('session');
+        expect(resolved?.contextId).toBe(sessionId);
       });
 
       it('should return group key when only room key is stored', async () => {
@@ -333,7 +356,10 @@ describe('Key Storage', () => {
         ]);
         storeGroupKey(roomId, 0, groupKey);
 
-        expect(resolveDecryptionKey(roomId)).toBe(groupKey);
+        const resolved = resolveDecryptionKey(roomId);
+        expect(resolved?.key).toBe(groupKey);
+        expect(resolved?.context).toBe('room');
+        expect(resolved?.contextId).toBe(roomId);
       });
 
       it('should prefer session AES key when both stores have an entry for the same id', async () => {
@@ -352,7 +378,22 @@ describe('Key Storage', () => {
         ]);
         storeGroupKey(id, 0, groupKey);
 
-        expect(resolveDecryptionKey(id)).toBe(sessionAes);
+        const resolved = resolveDecryptionKey(id);
+        expect(resolved?.key).toBe(sessionAes);
+        expect(resolved?.context).toBe('session');
+      });
+
+      it('should notify listeners when group key is stored', async () => {
+        const listener = vi.fn();
+        addKeyStoreListener(listener);
+        const roomId = 'room-listener';
+        const groupKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        storeGroupKey(roomId, 0, groupKey);
+        expect(listener).toHaveBeenCalledWith(roomId, 'updated');
+        removeKeyStoreListener(listener);
       });
     });
   });

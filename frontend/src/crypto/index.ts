@@ -79,6 +79,7 @@ export {
   // Types
   type SessionKeys,
   type RoomGroupKeyEntry,
+  type ResolvedKey,
   type KeyStoreEventCallback,
   type KeyStoreEventType,
 } from './keyStore';
