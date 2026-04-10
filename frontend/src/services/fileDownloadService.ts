@@ -85,7 +85,17 @@ export async function downloadFile(
   options?: DownloadOptions,
 ): Promise<DecryptedFile> {
   const cached = cache.get(fileId);
-  if (cached) return cached;
+  if (cached) {
+    if (options?.mimeType && cached.blob.type !== options.mimeType) {
+      const retyped = new Blob([cached.blob], { type: options.mimeType });
+      const objectUrl = URL.createObjectURL(retyped);
+      URL.revokeObjectURL(cached.objectUrl);
+      const updated: DecryptedFile = { blob: retyped, objectUrl };
+      cache.set(fileId, updated);
+      return updated;
+    }
+    return cached;
+  }
 
   let encryptedData: ArrayBuffer;
   try {

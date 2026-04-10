@@ -112,6 +112,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
         }
         await downloadFile(message.fileId, key, {
           onProgress: (percent) => setDownloadProgress(percent),
+          mimeType: message.fileMeta?.mimeType,
         });
         setVideoState('idle');
         setDownloadProgress(0);
@@ -142,6 +143,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
 
       const result = await downloadFile(message.fileId, key, {
         onProgress: (percent) => setDownloadProgress(percent),
+        mimeType: message.fileMeta?.mimeType,
       });
 
       if (videoUrlRef.current) {
