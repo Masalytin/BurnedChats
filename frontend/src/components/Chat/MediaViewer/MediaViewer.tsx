@@ -53,6 +53,11 @@ export const MediaViewer = memo(function MediaViewer({
   const isImage = message.type === 'image';
   const isVideo = message.type === 'video';
 
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(onClose, 200);
+  }, [onClose]);
+
   useBackButton({ visible: true, onBack: handleClose });
 
   useEffect(() => {
@@ -101,14 +106,9 @@ export const MediaViewer = memo(function MediaViewer({
     return () => { cancelled = true; };
   }, [message.fileId, message.sessionId, message.fileMeta?.mimeType, decryptionKey]);
 
-  function handleClose() {
-    setIsClosing(true);
-    setTimeout(onClose, 200);
-  }
-
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     if (e.target === overlayRef.current) handleClose();
-  }, []);
+  }, [handleClose]);
 
   // --- Save / download ---
   const handleSave = useCallback(() => {
@@ -215,7 +215,7 @@ export const MediaViewer = memo(function MediaViewer({
       handleClose();
     }
     setSwipeY(0);
-  }, [isImage, swipeY]);
+  }, [isImage, swipeY, handleClose]);
 
   // Dismiss opacity based on swipe progress
   const swipeOpacity = swipeY > 0 ? Math.max(0.2, 1 - swipeY / (SWIPE_DISMISS_THRESHOLD * 2)) : 1;

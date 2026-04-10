@@ -24,6 +24,8 @@ export interface FileContext {
 export interface UploadResult {
   fileId: string;
   thumbnailFileId?: string;
+  /** Local data URL for immediate preview (sender); no extra download. */
+  thumbnailDataUrl?: string;
   size: number;
 }
 
@@ -70,7 +72,8 @@ const UPLOAD_PATH = '/api/files/upload';
  * @param key     - AES-256-GCM CryptoKey (shared session or room key)
  * @param context - Upload context (session or room with its ID)
  * @param options - Optional progress callback and AbortSignal
- * @returns Upload result containing fileId, optional thumbnailFileId, and size
+ * @returns Upload result containing fileId, optional thumbnailFileId,
+ *   optional thumbnailDataUrl for local preview, and size
  */
 export async function uploadFile(
   file: File,
@@ -86,8 +89,14 @@ export async function uploadFile(
 
   const thumbnail = await generateThumbnail(file);
   let encryptedThumbnail: ArrayBuffer | null = null;
+  let thumbnailDataUrl: string | undefined;
 
   if (thumbnail) {
+    try {
+      thumbnailDataUrl = await blobToDataUrl(thumbnail);
+    } catch {
+      // Sender preview is optional
+    }
     const result = await encryptFile(thumbnail, key);
     encryptedThumbnail = result.data;
     throwIfAborted(signal);
@@ -122,6 +131,7 @@ export async function uploadFile(
     return {
       fileId: mainResponse.fileId,
       thumbnailFileId: thumbResponse.fileId,
+      thumbnailDataUrl,
       size: mainResponse.size,
     };
   }
@@ -142,6 +152,18 @@ export async function uploadFile(
 // ============================================
 // Thumbnail generation
 // ============================================
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('FileReader result is not a string'));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 async function generateThumbnail(file: File): Promise<Blob | null> {
   const mime = resolveFileMime(file);

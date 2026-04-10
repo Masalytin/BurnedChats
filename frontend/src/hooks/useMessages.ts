@@ -409,6 +409,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         type: messageType,
         fileId: uploadResult.fileId,
         thumbnailFileId: uploadResult.thumbnailFileId,
+        thumbnailUrl: uploadResult.thumbnailDataUrl,
         fileSize: uploadResult.size,
         fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
       };
