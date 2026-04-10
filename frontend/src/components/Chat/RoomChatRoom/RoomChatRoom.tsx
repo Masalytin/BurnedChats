@@ -166,6 +166,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setUploadState({ progress: 0, stage: 'encrypting', fileName: file.name });
 
     const options: SendRoomFileOptions = {
+      onEncryptProgress: (percent) => {
+        setUploadState(prev =>
+          prev ? { ...prev, progress: percent, stage: 'encrypting' } : null,
+        );
+      },
       onProgress: (percent) => {
         setUploadState(prev => prev ? { ...prev, progress: percent, stage: 'uploading' } : null);
       },

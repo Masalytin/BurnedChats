@@ -102,6 +102,7 @@ export interface UseMessagesWebSocket {
 /** Options for file message sending */
 export interface SendFileOptions {
   onProgress?: (percent: number) => void;
+  onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
 }
 
@@ -387,6 +388,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         key: aesKey,
         context: { type: 'session', id: sessionId },
         onProgress: options?.onProgress,
+        onEncryptProgress: options?.onEncryptProgress,
         signal: options?.signal,
       });
       const uploadResult = await uploadHandle.result;

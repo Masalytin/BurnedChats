@@ -76,7 +76,8 @@ const thumbnailDataUrlCache = new Map<string, string>();
  *
  * @param fileId  - Server-assigned file identifier
  * @param key     - AES-256-GCM CryptoKey used to encrypt the file
- * @param options - Optional progress callback and AbortSignal
+ * @param options - Optional progress (0–100: ~0–50 while downloading, ~50–100 while decrypting),
+ *   AbortSignal, and MIME override for the decrypted Blob
  * @returns Decrypted file with Blob and Object URL
  */
 export async function downloadFile(
@@ -99,7 +100,16 @@ export async function downloadFile(
 
   let encryptedData: ArrayBuffer;
   try {
-    encryptedData = await fetchBlob(fileId, options);
+    const fetchOptions =
+      options?.onProgress != null
+        ? {
+            ...options,
+            onProgress: (p: number) => {
+              options.onProgress!(Math.round((p / 100) * 50));
+            },
+          }
+        : options;
+    encryptedData = await fetchBlob(fileId, fetchOptions);
   } catch (e) {
     if (isFileTransferError(e)) {
       console.warn('[fileTransfer:download]', e.kind, e.serverErrorCode ?? '', {
@@ -111,7 +121,12 @@ export async function downloadFile(
 
   let rawBlob: Blob;
   try {
-    rawBlob = await decryptFile(encryptedData, key);
+    rawBlob = await decryptFile(encryptedData, key, {
+      onProgress:
+        options?.onProgress != null
+          ? (p) => options.onProgress!(50 + Math.round((p / 100) * 50))
+          : undefined,
+    });
   } catch (e) {
     evictCachedFile(fileId);
     const err = decryptFailedError(e);

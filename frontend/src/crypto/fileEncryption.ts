@@ -52,6 +52,17 @@ export interface EncryptedBlob {
   isChunked: boolean;
 }
 
+/** Optional callbacks for long-running encrypt/decrypt operations. */
+export interface EncryptOptions {
+  /** Chunked encryption reports 0–100 per chunk; single-shot fires 100% when done. */
+  onProgress?: (percent: number) => void;
+}
+
+export interface DecryptOptions {
+  /** Chunked decryption reports 0–100 per chunk; single-shot fires 100% when done. */
+  onProgress?: (percent: number) => void;
+}
+
 /**
  * Plaintext file metadata that the server must never see.
  * Encrypted client-side and sent inline in STOMP messages.
@@ -74,19 +85,23 @@ export interface FileMetaPlain {
  *
  * @param file - File or Blob to encrypt
  * @param key  - AES-256-GCM CryptoKey (shared secret or room group key)
+ * @param options - Optional {@link EncryptOptions} (chunked mode reports per-chunk progress)
  * @returns EncryptedBlob with binary data and format flag
  * @throws Error if encryption fails
  */
 export async function encryptFile(
   file: File | Blob,
   key: CryptoKey,
+  options?: EncryptOptions,
 ): Promise<EncryptedBlob> {
   const plaintext = await file.arrayBuffer();
 
   if (plaintext.byteLength <= CHUNKED_THRESHOLD) {
-    return encryptSingle(new Uint8Array(plaintext), key);
+    const result = await encryptSingle(new Uint8Array(plaintext), key);
+    options?.onProgress?.(100);
+    return result;
   }
-  return encryptChunked(new Uint8Array(plaintext), key);
+  return encryptChunked(new Uint8Array(plaintext), key, options?.onProgress);
 }
 
 /**
@@ -96,12 +111,14 @@ export async function encryptFile(
  *
  * @param encryptedData - Raw encrypted bytes produced by encryptFile
  * @param key           - The same AES-256-GCM CryptoKey used for encryption
+ * @param options       - Optional {@link DecryptOptions} (chunked mode reports per-chunk progress)
  * @returns Decrypted Blob
  * @throws Error if format is unknown or decryption/authentication fails
  */
 export async function decryptFile(
   encryptedData: ArrayBuffer,
   key: CryptoKey,
+  options?: DecryptOptions,
 ): Promise<Blob> {
   const bytes = new Uint8Array(encryptedData);
 
@@ -112,10 +129,10 @@ export async function decryptFile(
   const format = bytes[0];
 
   if (format === FORMAT_SINGLE) {
-    return decryptSingle(bytes, key);
+    return decryptSingle(bytes, key, options?.onProgress);
   }
   if (format === FORMAT_CHUNKED) {
-    return decryptChunked(bytes, new DataView(encryptedData), key);
+    return decryptChunked(bytes, new DataView(encryptedData), key, options?.onProgress);
   }
 
   throw new Error(
@@ -157,6 +174,7 @@ async function encryptSingle(
 async function encryptChunked(
   plaintext: Uint8Array<ArrayBuffer>,
   key: CryptoKey,
+  onProgress?: (percent: number) => void,
 ): Promise<EncryptedBlob> {
   const chunkCount = Math.ceil(plaintext.byteLength / CHUNK_SIZE);
 
@@ -178,6 +196,7 @@ async function encryptChunked(
     const encData = new Uint8Array(encrypted);
     encryptedChunks.push({ iv, data: encData });
     totalPayloadSize += IV_LENGTH_BYTES + encData.byteLength;
+    onProgress?.(Math.round(((i + 1) / chunkCount) * 100));
   }
 
   // [FORMAT_CHUNKED (1)] [chunk_count (4)] [IV₁ (12)] [chunk₁] ...
@@ -204,6 +223,7 @@ async function encryptChunked(
 async function decryptSingle(
   bytes: Uint8Array,
   key: CryptoKey,
+  onProgress?: (percent: number) => void,
 ): Promise<Blob> {
   const minSize = 1 + IV_LENGTH_BYTES + GCM_TAG_BYTES;
   if (bytes.byteLength < minSize) {
@@ -221,6 +241,7 @@ async function decryptSingle(
     ciphertext,
   );
 
+  onProgress?.(100);
   return new Blob([plaintext]);
 }
 
@@ -232,6 +253,7 @@ async function decryptChunked(
   bytes: Uint8Array,
   view: DataView,
   key: CryptoKey,
+  onProgress?: (percent: number) => void,
 ): Promise<Blob> {
   const chunkCount = view.getUint32(1, false);
 
@@ -271,6 +293,7 @@ async function decryptChunked(
     );
 
     decryptedParts.push(decrypted);
+    onProgress?.(Math.round(((i + 1) / chunkCount) * 100));
   }
 
   return new Blob(decryptedParts);

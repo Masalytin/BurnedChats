@@ -30,7 +30,10 @@ export interface UploadResult {
 }
 
 export interface UploadOptions {
+  /** XHR upload progress 0–100 (main file, or weighted main+thumbnail). */
   onProgress?: (percent: number) => void;
+  /** Main file encryption progress 0–100 (chunked for large files). */
+  onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
 }
 
@@ -71,7 +74,7 @@ const UPLOAD_PATH = '/api/files/upload';
  * @param file    - Source file to upload
  * @param key     - AES-256-GCM CryptoKey (shared session or room key)
  * @param context - Upload context (session or room with its ID)
- * @param options - Optional progress callback and AbortSignal
+ * @param options - Optional upload progress, encrypt progress (large files), and AbortSignal
  * @returns Upload result containing fileId, optional thumbnailFileId,
  *   optional thumbnailDataUrl for local preview, and size
  */
@@ -84,7 +87,9 @@ export async function uploadFile(
   const signal = options?.signal;
   throwIfAborted(signal);
 
-  const encryptedBlob = await encryptFile(file, key);
+  const encryptedBlob = await encryptFile(file, key, {
+    onProgress: (percent) => options?.onEncryptProgress?.(percent),
+  });
   throwIfAborted(signal);
 
   const thumbnail = await generateThumbnail(file);

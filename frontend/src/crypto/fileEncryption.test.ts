@@ -77,6 +77,16 @@ describe('File Encryption — single-shot', () => {
     expect(await blobToBytes(decrypted)).toEqual(await blobToBytes(original));
   });
 
+  it('should report 100% onProgress after single-shot encryption', async () => {
+    let last = -1;
+    await encryptFile(makeBlob(1024), key, {
+      onProgress: (p) => {
+        last = p;
+      },
+    });
+    expect(last).toBe(100);
+  });
+
   it('should roundtrip an empty file (0 bytes)', async () => {
     const original = new Blob([]);
     const encrypted = await encryptFile(original, key);
@@ -161,6 +171,34 @@ describe('File Encryption — chunked', () => {
 
     expect(view.getUint8(0)).toBe(0x01);
     expect(view.getUint32(1, false)).toBe(expectedChunks);
+  });
+
+  it('should report monotonic encrypt/decrypt progress for chunked files', { timeout: 60_000 }, async () => {
+    const size = FILE_CHUNKED_THRESHOLD + FILE_CHUNK_SIZE * 3;
+    const original = makeRandomBlob(size);
+    const expectedChunks = Math.ceil(size / FILE_CHUNK_SIZE);
+
+    const encProgress: number[] = [];
+    const encrypted = await encryptFile(original, key, {
+      onProgress: (p) => encProgress.push(p),
+    });
+
+    expect(encrypted.isChunked).toBe(true);
+    expect(encProgress.length).toBe(expectedChunks);
+    expect(encProgress[0]).toBeGreaterThan(0);
+    expect(encProgress[encProgress.length - 1]).toBe(100);
+    for (let i = 1; i < encProgress.length; i++) {
+      expect(encProgress[i]).toBeGreaterThanOrEqual(encProgress[i - 1]);
+    }
+
+    const decProgress: number[] = [];
+    const decrypted = await decryptFile(encrypted.data, key, {
+      onProgress: (p) => decProgress.push(p),
+    });
+
+    expect(decProgress.length).toBe(expectedChunks);
+    expect(decProgress[decProgress.length - 1]).toBe(100);
+    expect(await blobToBytes(decrypted)).toEqual(await blobToBytes(original));
   });
 });
 

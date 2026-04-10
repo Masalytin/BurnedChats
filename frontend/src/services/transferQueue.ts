@@ -91,6 +91,7 @@ export interface EnqueueUploadOptions {
   key: CryptoKey;
   context: FileContext;
   onProgress?: (percent: number) => void;
+  onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
 }
 
@@ -100,7 +101,14 @@ export interface EnqueueUploadOptions {
  * @returns TransferHandle with a `result` promise that resolves to UploadResult
  */
 export function enqueueUpload(options: EnqueueUploadOptions): TransferHandle<UploadResult> {
-  const { file, key, context, onProgress: userOnProgress, signal: userSignal } = options;
+  const {
+    file,
+    key,
+    context,
+    onProgress: userOnProgress,
+    onEncryptProgress: userOnEncryptProgress,
+    signal: userSignal,
+  } = options;
   const id = `upload-${nextId++}`;
 
   let resolve!: (v: UploadResult) => void;
@@ -120,6 +128,7 @@ export function enqueueUpload(options: EnqueueUploadOptions): TransferHandle<Upl
     execute: (signal, onProgress) =>
       uploadFile(file, key, context, {
         signal: mergeAbortSignals(signal, userSignal),
+        onEncryptProgress: userOnEncryptProgress,
         onProgress: (p) => {
           onProgress(p);
           userOnProgress?.(p);

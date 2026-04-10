@@ -105,6 +105,7 @@ export interface SendRoomMessageResult {
 /** Options for file message sending */
 export interface SendRoomFileOptions {
   onProgress?: (percent: number) => void;
+  onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
 }
 
@@ -284,6 +285,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         key: groupKey,
         context: { type: 'room', id: roomId },
         onProgress: options?.onProgress,
+        onEncryptProgress: options?.onEncryptProgress,
         signal: options?.signal,
       });
       const uploadResult = await uploadHandle.result;
