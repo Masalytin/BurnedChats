@@ -295,7 +295,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
 
-      const localMessage: DecryptedMessage = {
+      const localMessage: DecryptedFileMessage = {
         id: messageId,
         sessionId: roomId,
         fromUserId: userId,
@@ -307,6 +307,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         fileId: uploadResult.fileId,
         thumbnailFileId: uploadResult.thumbnailFileId,
         fileSize: uploadResult.size,
+        fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 

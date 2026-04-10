@@ -398,7 +398,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
       pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
 
-      const localMessage: DecryptedMessage = {
+      const localMessage: DecryptedFileMessage = {
         id: messageId,
         sessionId,
         fromUserId: userId,
@@ -410,6 +410,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         fileId: uploadResult.fileId,
         thumbnailFileId: uploadResult.thumbnailFileId,
         fileSize: uploadResult.size,
+        fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
