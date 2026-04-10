@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
-import { getAESKey } from '@/crypto/keyStore';
+import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './ImageMessageBubble.css';
 
@@ -58,7 +58,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
     setThumbnailState('loading');
     setThumbnailErrorKey(null);
     try {
-      const key = getAESKey(message.sessionId);
+      const key = resolveDecryptionKey(message.sessionId);
       if (!key) {
         setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
@@ -94,7 +94,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       setDownloadProgress(0);
       setFullDownloadErrorKey(null);
       try {
-        const key = getAESKey(message.sessionId);
+        const key = resolveDecryptionKey(message.sessionId);
         if (!key) {
           setDownloadProgress(null);
           setFullDownloadErrorKey('files.error.decryptFailed');

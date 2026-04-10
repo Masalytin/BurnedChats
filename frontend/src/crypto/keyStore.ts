@@ -582,6 +582,19 @@ export function getGroupKey(roomId: string): CryptoKey | undefined {
 }
 
 /**
+ * Resolves the AES key for decrypting messages in either a 1-on-1 session or a room.
+ *
+ * Room hooks set `sessionId` to `roomId` while the key lives in {@link getGroupKey};
+ * DM sessions use {@link getAESKey}. Tries session store first, then group key store.
+ *
+ * @param contextId - Session ID (DM) or room ID (room messages)
+ * @returns CryptoKey or undefined if neither store has a key
+ */
+export function resolveDecryptionKey(contextId: string): CryptoKey | undefined {
+  return getAESKey(contextId) ?? getGroupKey(contextId);
+}
+
+/**
  * Checks whether a group key is stored for the given room.
  *
  * @param roomId - Room identifier

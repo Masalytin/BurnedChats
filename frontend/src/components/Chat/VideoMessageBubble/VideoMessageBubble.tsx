@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
-import { getAESKey } from '@/crypto/keyStore';
+import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './VideoMessageBubble.css';
 
@@ -76,7 +76,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     setThumbnailState('loading');
     setThumbnailErrorKey(null);
     try {
-      const key = getAESKey(message.sessionId);
+      const key = resolveDecryptionKey(message.sessionId);
       if (!key) {
         setThumbnailErrorKey('files.error.decryptFailed');
         setThumbnailState('error');
@@ -104,7 +104,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       setDownloadProgress(0);
       setVideoErrorKey(null);
       try {
-        const key = getAESKey(message.sessionId);
+        const key = resolveDecryptionKey(message.sessionId);
         if (!key) {
           setVideoErrorKey('files.error.decryptFailed');
           setVideoState('error');
@@ -133,7 +133,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     setVideoErrorKey(null);
 
     try {
-      const key = getAESKey(message.sessionId);
+      const key = resolveDecryptionKey(message.sessionId);
       if (!key) {
         setVideoErrorKey('files.error.decryptFailed');
         setVideoState('error');

@@ -52,6 +52,7 @@ export {
   getPeerPublicKey,
   getSharedSecret,
   getAESKey,
+  resolveDecryptionKey,
   getFingerprint,
   isHandshakeComplete,
   hasSession,

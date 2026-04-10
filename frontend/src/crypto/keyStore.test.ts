@@ -19,6 +19,8 @@ import {
   getPeerPublicKey,
   getSharedSecret,
   getAESKey,
+  resolveDecryptionKey,
+  storeGroupKey,
   getFingerprint,
   isHandshakeComplete,
   hasSession,
@@ -301,6 +303,56 @@ describe('Key Storage', () => {
 
         storeKeyPair('session-2', await generateKeyPair());
         expect(getSessionCount()).toBe(2);
+      });
+    });
+
+    describe('resolveDecryptionKey()', () => {
+      it('should return undefined when no session or group key exists', () => {
+        expect(resolveDecryptionKey('unknown-context')).toBeUndefined();
+      });
+
+      it('should return AES session key for 1-on-1 handshake', async () => {
+        const aliceKeyPair = await generateKeyPair();
+        const bobKeyPair = await generateKeyPair();
+        const sessionId = 'session-dm';
+
+        storeKeyPair(sessionId, aliceKeyPair);
+        const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
+        const aesKey = await deriveAESKey(rawSecret, sessionId);
+        const fingerprint = await generateFingerprint(rawSecret);
+        storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
+
+        expect(resolveDecryptionKey(sessionId)).toBe(aesKey);
+      });
+
+      it('should return group key when only room key is stored', async () => {
+        const roomId = 'room-abc';
+        const groupKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        storeGroupKey(roomId, 0, groupKey);
+
+        expect(resolveDecryptionKey(roomId)).toBe(groupKey);
+      });
+
+      it('should prefer session AES key when both stores have an entry for the same id', async () => {
+        const id = 'collision-id';
+        const aliceKeyPair = await generateKeyPair();
+        const bobKeyPair = await generateKeyPair();
+        storeKeyPair(id, aliceKeyPair);
+        const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
+        const sessionAes = await deriveAESKey(rawSecret, id);
+        const fingerprint = await generateFingerprint(rawSecret);
+        storeSharedSecret(id, { sessionId: id, key: sessionAes, fingerprint, visualFingerprint: [] }, rawSecret);
+
+        const groupKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        storeGroupKey(id, 0, groupKey);
+
+        expect(resolveDecryptionKey(id)).toBe(sessionAes);
       });
     });
   });

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
 import { downloadFile, saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
-import { getAESKey } from '@/crypto/keyStore';
+import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { getFileIcon } from '@/utils/fileIcons';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './DocumentMessageBubble.css';
@@ -62,7 +62,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     abortRef.current = controller;
 
     try {
-      const key = getAESKey(message.sessionId);
+      const key = resolveDecryptionKey(message.sessionId);
       if (!key) {
         setErrorHintKey('files.error.decryptFailed');
         setDocState('error');
