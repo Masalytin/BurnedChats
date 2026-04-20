@@ -137,6 +137,8 @@ export interface UseRoomMessagesReturn {
   sendMessage: (text: string) => Promise<SendRoomMessageResult>;
   sendFileMessage: (file: File, caption?: string, options?: SendRoomFileOptions) => Promise<SendRoomMessageResult>;
   clearMessages: () => void;
+  /** Manually trigger sync of offline/missed room messages (FIX-SYNC-3). */
+  syncMessages: () => void;
   error: RoomMessageErrorCode | null;
 }
 
@@ -599,7 +601,30 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     };
   }, [roomId, clearMessages]);
 
-  return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, error };
+  // ============================================
+  // Manual sync (FIX-SYNC-3)
+  // ============================================
+
+  /**
+   * Request offline/missed room messages from the server.
+   *
+   * Used by AppContent to re-sync when the Mini App returns from background.
+   * Safe to call multiple times — server returns an empty list once the queue
+   * is drained (queue is deleted on sync).
+   */
+  const syncMessages = useCallback(() => {
+    if (!isConnected || !roomId) return;
+    if (!getGroupKey(roomId)) return;
+
+    setIsSyncing(true);
+    const lastMessage = messages[messages.length - 1];
+    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
+      roomId,
+      lastMessageTimestamp: lastMessage?.timestamp ?? null,
+    });
+  }, [isConnected, roomId, messages, publish]);
+
+  return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, syncMessages, error };
 }
 
 // ============================================

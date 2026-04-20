@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTelegram } from './hooks/useTelegram';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -34,6 +35,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
+import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
@@ -1264,6 +1266,72 @@ function AppContent() {
     };
   }, [isConnected, subscribe, unsubscribe]);
 
+  // -----------------------------------------------------------------------
+  // FIX-SYNC-3: Re-sync offline messages when Mini App returns from background
+  // -----------------------------------------------------------------------
+  //
+  // When the Mini App is backgrounded (Telegram switched to another tab, OS
+  // suspends the webview, etc.), the STOMP connection may stay alive but the
+  // server-side `online:{tgId}` TTL (30 s) will lapse. The peer then queues
+  // messages into Redis. On return-from-background the WebSocket reports no
+  // reconnection, so neither the initial-sync-on-open effect (FIX-SYNC-1) nor
+  // the reconnection-based auto-sync (FIX-SYNC-2) fires. We explicitly trigger
+  // a sync for the currently active chat / room instead.
+  //
+  // Sync callbacks are registered via refs by the child views (ChatViewContent /
+  // RoomChatRoom) so the logic stays colocated with the hook that owns it.
+  const dmSyncMessagesRef = useRef<(() => void) | null>(null);
+  const roomSyncMessagesRef = useRef<(() => void) | null>(null);
+
+  // Debounce: do not trigger sync more than once per 5 seconds. Prevents
+  // spurious floods when users rapidly toggle between tabs.
+  const lastVisibilitySyncAtRef = useRef(0);
+  const MIN_VISIBILITY_SYNC_INTERVAL_MS = 5_000;
+
+  // Keep the latest view/chat state in a ref so the visibility callback can
+  // read fresh values without being re-created on every state change.
+  const visibilitySyncDepsRef = useRef({
+    currentView,
+    hasActiveChat: activeChat != null,
+    hasActiveRoom: activeRoomChat != null,
+    isConnected,
+  });
+  useEffect(() => {
+    visibilitySyncDepsRef.current = {
+      currentView,
+      hasActiveChat: activeChat != null,
+      hasActiveRoom: activeRoomChat != null,
+      isConnected,
+    };
+  });
+
+  const handleVisibilityRestored = useCallback(() => {
+    const deps = visibilitySyncDepsRef.current;
+    if (!deps.isConnected) return;
+
+    const now = Date.now();
+    if (now - lastVisibilitySyncAtRef.current < MIN_VISIBILITY_SYNC_INTERVAL_MS) {
+      debugLog('info', '[App] Visibility restored — sync skipped (debounced)');
+      return;
+    }
+
+    if (deps.currentView === 'chat' && deps.hasActiveChat && dmSyncMessagesRef.current) {
+      lastVisibilitySyncAtRef.current = now;
+      debugLog('info', '[App] Visibility restored — triggering DM sync');
+      dmSyncMessagesRef.current();
+    } else if (deps.currentView === 'room-chat' && deps.hasActiveRoom && roomSyncMessagesRef.current) {
+      lastVisibilitySyncAtRef.current = now;
+      debugLog('info', '[App] Visibility restored — triggering room sync');
+      roomSyncMessagesRef.current();
+    }
+  }, []);
+
+  useAppLifecycle({
+    isConnected,
+    publish,
+    onVisibilityRestored: handleVisibilityRestored,
+  });
+
   // Handle key refresh notifications (peer reconnected and needs re-handshake)
   // When the peer sends a new key for an ACTIVE session, the server notifies us
   // that we need to participate in the key refresh by also generating and sending new keys.
@@ -1402,6 +1470,7 @@ function AppContent() {
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
+            syncMessagesRef={dmSyncMessagesRef}
           />
         </Layout>
         {debugPanelElement}
@@ -1529,6 +1598,7 @@ function AppContent() {
             }}
             onManage={isRoomOwner ? handleOpenRoomManage : undefined}
             onLeave={!isRoomOwner ? handleLeaveRoom : undefined}
+            syncMessagesRef={roomSyncMessagesRef}
           />
         </Layout>
         {debugPanelElement}
@@ -1636,9 +1706,15 @@ interface ChatViewContentProps {
   ws: UseMessagesWebSocket;
   onBack: () => void;
   onBurn: () => void;
+  /**
+   * Out-ref populated with the hook's `syncMessages` function so parents
+   * (AppContent) can trigger an offline-queue sync from outside this component,
+   * e.g. when the Mini App returns from background (FIX-SYNC-3).
+   */
+  syncMessagesRef?: MutableRefObject<(() => void) | null>;
 }
 
-function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatViewContentProps) {
+function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMessagesRef }: ChatViewContentProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const handleMessageError = useCallback((
@@ -1652,12 +1728,24 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn }: ChatVi
     }
   }, [t, toast]);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, error } = useMessages({
+  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages } = useMessages({
     sessionId,
     userId,
     ws,
     onError: handleMessageError,
   });
+
+  // Publish the hook's syncMessages up to AppContent via the ref so the
+  // visibility-restore handler can invoke it (FIX-SYNC-3).
+  useEffect(() => {
+    if (!syncMessagesRef) return;
+    syncMessagesRef.current = syncMessages;
+    return () => {
+      if (syncMessagesRef.current === syncMessages) {
+        syncMessagesRef.current = null;
+      }
+    };
+  }, [syncMessagesRef, syncMessages]);
 
   const handleSendMessage = useCallback((text: string) => {
     sendMessage(text);

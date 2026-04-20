@@ -1,4 +1,5 @@
-import { memo, useCallback, useState, useRef } from 'react';
+import { memo, useCallback, useEffect, useState, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
@@ -79,6 +80,12 @@ interface RoomChatRoomProps {
   onBack?: () => void;
   onManage?: () => void;
   onLeave?: () => void;
+  /**
+   * Out-ref populated with the hook's `syncMessages` function so parents
+   * (AppContent) can trigger an offline-queue sync from outside the component,
+   * e.g. when the Mini App returns from background (FIX-SYNC-3).
+   */
+  syncMessagesRef?: MutableRefObject<(() => void) | null>;
 }
 
 // ============================================
@@ -100,6 +107,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onBack,
   onManage,
   onLeave,
+  syncMessagesRef,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -140,12 +148,24 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     [t, toast],
   );
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing } = useRoomMessages({
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages } = useRoomMessages({
     roomId,
     userId,
     ws,
     onError: handleRoomMessageError,
   });
+
+  // Publish the hook's syncMessages up to AppContent via the ref so the
+  // visibility-restore handler can invoke it (FIX-SYNC-3).
+  useEffect(() => {
+    if (!syncMessagesRef) return;
+    syncMessagesRef.current = syncMessages;
+    return () => {
+      if (syncMessagesRef.current === syncMessages) {
+        syncMessagesRef.current = null;
+      }
+    };
+  }, [syncMessagesRef, syncMessages]);
 
   const handleSend = useCallback((text: string) => {
     haptics.success();

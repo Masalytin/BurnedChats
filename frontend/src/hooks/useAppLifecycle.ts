@@ -14,6 +14,14 @@ interface UseAppLifecycleOptions {
   onBeforeClose?: () => void;
   /** Callback when visibility changes */
   onVisibilityChange?: (visible: boolean) => void;
+  /**
+   * Called when the document becomes visible after being hidden (FIX-SYNC-3).
+   *
+   * Does NOT fire on the initial mount — only on an actual `hidden → visible`
+   * transition. Useful for re-syncing state when the Mini App returns from
+   * background.
+   */
+  onVisibilityRestored?: () => void;
 }
 
 /** STOMP destination for peer disconnect notification */
@@ -47,10 +55,19 @@ const PEER_DISCONNECT_DESTINATION = '/app/peer.disconnect';
  * ```
  */
 export function useAppLifecycle(options: UseAppLifecycleOptions): void {
-  const { isConnected, publish, onBeforeClose, onVisibilityChange } = options;
+  const { isConnected, publish, onBeforeClose, onVisibilityChange, onVisibilityRestored } = options;
 
   // Track if cleanup has been performed
   const cleanupPerformedRef = useRef(false);
+  // Track whether the document was hidden, so we fire onVisibilityRestored only
+  // on an actual hidden → visible transition (not on the initial mount).
+  const wasHiddenRef = useRef(false);
+
+  // Keep the latest onVisibilityRestored reference without re-subscribing handlers
+  const onVisibilityRestoredRef = useRef(onVisibilityRestored);
+  useEffect(() => {
+    onVisibilityRestoredRef.current = onVisibilityRestored;
+  }, [onVisibilityRestored]);
 
   /**
    * Notify peers about disconnect and burn all keys.
@@ -124,6 +141,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
     // On mobile, when app is backgrounded, we should consider it as potentially closing
     // because the OS might kill the app at any time
     if (!isVisible) {
+      wasHiddenRef.current = true;
       // For maximum security, you could call performCleanup() here
       // However, this would end sessions every time user switches apps
       // So we only log for now - actual cleanup happens on unload
@@ -131,6 +149,18 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
     } else {
       // Reset cleanup flag when app becomes visible again
       cleanupPerformedRef.current = false;
+
+      // Fire onVisibilityRestored only on an actual hidden → visible transition
+      // (FIX-SYNC-3): avoids firing on initial mount and on spurious 'visible'
+      // events (e.g. DevTools open) without a preceding 'hidden'.
+      if (wasHiddenRef.current) {
+        wasHiddenRef.current = false;
+        try {
+          onVisibilityRestoredRef.current?.();
+        } catch (err) {
+          console.warn('[AppLifecycle] onVisibilityRestored threw:', err);
+        }
+      }
     }
   }, [onVisibilityChange]);
 
