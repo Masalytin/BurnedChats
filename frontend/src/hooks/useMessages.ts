@@ -745,7 +745,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, []);
 
   // ============================================
-  // Subscriptions
+  // Subscriptions + Initial Sync (FIX-SYNC-1)
   // ============================================
 
   useEffect(() => {
@@ -762,12 +762,75 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     subscribe(MESSAGE_SENT_DESTINATION, onMessageSent);
     subscribe(SYNC_MESSAGES_RESULT_DESTINATION, onSyncResult);
 
+    // Initial offline-messages sync on chat open (mirrors useRoomMessages pattern).
+    // Covers the common cold-start flow: Mini App open → handshake ready → open chat.
+    // Subscription to SYNC_MESSAGES_RESULT_DESTINATION above runs before this publish,
+    // so the first response is guaranteed to be delivered.
+    if (isHandshakeComplete(sessionId) && !syncTriggeredRef.current) {
+      syncTriggeredRef.current = true;
+      setIsSyncing(true);
+      publish(SYNC_MESSAGES_DESTINATION, {
+        sessionId,
+        lastMessageTimestamp: null,
+      });
+      debugLog('info', 'Initial sync on chat open', { sessionId });
+    }
+
     return () => {
       unsubscribe(NEW_MESSAGE_DESTINATION);
       unsubscribe(MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_MESSAGES_RESULT_DESTINATION);
     };
-  }, [isConnected, sessionId, subscribe, unsubscribe]);
+  // Intentionally exclude subscribe/unsubscribe/publish so effect only re-runs when
+  // connection state or session identity actually changes (avoids duplicate syncs).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, sessionId]);
+
+  // ============================================
+  // Late-handshake fallback (FIX-SYNC-1)
+  // ============================================
+
+  // Handshake may still be in progress when useMessages mounts (e.g. re-handshake
+  // after cold start or key restoration from IndexedDB finishing asynchronously).
+  // isHandshakeComplete is a pure keyStore read, not React state, so we poll briefly
+  // until it becomes true and then trigger the initial sync once.
+  useEffect(() => {
+    if (!isConnected || !sessionId) return;
+    if (syncTriggeredRef.current) return;
+    if (isHandshakeComplete(sessionId)) return; // already handled by subscription effect
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 60; // ~30s at 500ms
+
+    const intervalId = window.setInterval(() => {
+      if (cancelled) return;
+      attempts += 1;
+
+      if (syncTriggeredRef.current) {
+        window.clearInterval(intervalId);
+        return;
+      }
+
+      if (isHandshakeComplete(sessionId)) {
+        syncTriggeredRef.current = true;
+        setIsSyncing(true);
+        publish(SYNC_MESSAGES_DESTINATION, {
+          sessionId,
+          lastMessageTimestamp: null,
+        });
+        debugLog('info', 'Initial sync triggered after late handshake completion', { sessionId });
+        window.clearInterval(intervalId);
+      } else if (attempts >= maxAttempts) {
+        window.clearInterval(intervalId);
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isConnected, sessionId, publish]);
 
   // ============================================
   // Auto-sync on Reconnection (5.1.2)
@@ -798,6 +861,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   useEffect(() => {
     syncTriggeredRef.current = false;
   }, [sessionId]);
+
+  // Reset sync flag on disconnect so that each reconnect re-runs the initial sync
+  useEffect(() => {
+    if (!isConnected) {
+      syncTriggeredRef.current = false;
+    }
+  }, [isConnected]);
 
   // ============================================
   // Cleanup on Session Change
