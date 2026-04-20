@@ -94,6 +94,8 @@ interface SyncMessagesEvent {
 /** WebSocket API passed from parent (must use same connection as app) */
 export interface UseMessagesWebSocket {
   isConnected: boolean;
+  /** True when this is a reconnection (not the first connect). Mirrors `useWebSocket.isReconnection`. */
+  isReconnection?: boolean;
   subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
@@ -198,8 +200,12 @@ const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userId, ws, isReconnection, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
-  const { isConnected, subscribe, unsubscribe, publish } = ws;
+  const { sessionId, userId, ws, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
+  const { isConnected, subscribe, unsubscribe, publish, isReconnection: wsIsReconnection } = ws;
+  // Accept isReconnection from top-level options (explicit) or from the ws object
+  // (mirrors useRoomMessages). Fallback to `false` so the auto-sync effect only
+  // runs when a reconnect is actually detected.
+  const effectiveIsReconnection = options.isReconnection ?? wsIsReconnection ?? false;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading, _setIsLoading] = useState(false);
@@ -837,7 +843,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   // ============================================
 
   useEffect(() => {
-    if (!isConnected || !sessionId || !isReconnection) {
+    if (!isConnected || !sessionId || !effectiveIsReconnection) {
       return;
     }
 
@@ -855,7 +861,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     console.log('[useMessages] Auto-syncing messages after reconnection');
     syncTriggeredRef.current = true;
     syncMessages();
-  }, [isConnected, sessionId, isReconnection, syncMessages]);
+  }, [isConnected, sessionId, effectiveIsReconnection, syncMessages]);
 
   // Reset sync flag when session changes
   useEffect(() => {

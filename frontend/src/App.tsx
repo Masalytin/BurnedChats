@@ -1399,7 +1399,7 @@ function AppContent() {
             sessionId={activeChat.sessionId}
             peer={activeChat.peer}
             userId={user.id}
-            ws={{ isConnected, subscribe, unsubscribe, publish }}
+            ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
           />
