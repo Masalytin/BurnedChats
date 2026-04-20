@@ -179,21 +179,8 @@ public class MessageHandler {
                     return messageRepository.getPendingMessages(userId, sessionId)
                             .collectList()
                             .flatMap(messages -> {
-                                // Convert to sync event messages
                                 List<SyncMessagesEvent.SyncedMessage> syncedMessages = messages.stream()
-                                        .map(msg -> SyncMessagesEvent.SyncedMessage.builder()
-                                                .messageId(msg.getMessageId())
-                                                .senderId(msg.getSenderId())
-                                                .encryptedContent(msg.getEncryptedContent())
-                                                .iv(msg.getIv())
-                                                .clientTimestamp(msg.getClientTimestamp())
-                                                .serverTimestamp(msg.getServerTimestamp())
-                                                .type(msg.getType())
-                                                .fileId(msg.getFileId())
-                                                .thumbnailFileId(msg.getThumbnailFileId())
-                                                .encryptedMeta(msg.getEncryptedMeta())
-                                                .fileSize(msg.getFileSize())
-                                                .build())
+                                        .map(SyncMessagesEvent.SyncedMessage::fromMessage)
                                         .toList();
 
                                 // Send sync event to user

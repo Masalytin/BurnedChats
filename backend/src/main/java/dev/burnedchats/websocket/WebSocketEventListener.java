@@ -1,10 +1,14 @@
 package dev.burnedchats.websocket;
 
+import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.dto.event.IncomingRequestEvent;
+import dev.burnedchats.dto.event.SyncMessagesEvent;
+import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedMessage;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.TelegramUser;
+import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.UserRepository;
@@ -17,8 +21,11 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket event listener for handling connection lifecycle events.
@@ -45,11 +52,18 @@ public class WebSocketEventListener {
      */
     private static final String INCOMING_REQUEST_DESTINATION = "/queue/incoming-request";
 
+    /**
+     * STOMP destination for synced messages (server-initiated fan-out).
+     */
+    private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
+
     private final OnlineStatusRepository onlineStatusRepository;
     private final RequestRepository requestRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
     private final UserMapper userMapper;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MessagesProperties messagesProperties;
 
     /**
      * Handle WebSocket session connected event.
@@ -90,6 +104,13 @@ public class WebSocketEventListener {
 
             // Send pending requests to the user (Task 3.4.1)
             sendPendingRequests(userId);
+
+            // Server-initiated fan-out sync of pending offline messages
+            // (FIX-SYNC-4) — guards against clients that fail to request
+            // /app/message.sync themselves.
+            if (messagesProperties.getServerPushSync().isEnabled()) {
+                pushPendingMessagesFanOut(userId);
+            }
         }
     }
 
@@ -209,5 +230,102 @@ public class WebSocketEventListener {
                 .online(true)
                 .premium(false)
                 .build();
+    }
+
+    /**
+     * Fan out pending offline messages to the freshly-connected user.
+     *
+     * <p>Locates all sessions with pending messages via
+     * {@link MessageRepository#findSessionsWithPendingMessages(Long)}
+     * and, for each one, emits a {@link SyncMessagesEvent} over
+     * {@code /user/queue/sync-messages}. The Redis queue is cleared only
+     * after the event is handed off to the messaging template, so that a
+     * race with a client-initiated {@code /app/message.sync} is safe
+     * (the second response will simply contain {@code count: 0}).
+     *
+     * @param userId the Telegram user ID that just connected
+     */
+    private void pushPendingMessagesFanOut(Long userId) {
+        int concurrency = Math.max(1, messagesProperties.getServerPushSync().getConcurrency());
+
+        AtomicInteger sessionCount = new AtomicInteger(0);
+        AtomicInteger messageCount = new AtomicInteger(0);
+
+        messageRepository.findSessionsWithPendingMessages(userId)
+                .flatMap(sessionId -> pushPendingMessagesForSession(userId, sessionId)
+                        .doOnNext(delivered -> {
+                            if (delivered > 0) {
+                                sessionCount.incrementAndGet();
+                                messageCount.addAndGet(delivered);
+                            }
+                        }), concurrency)
+                .then()
+                .subscribe(
+                        v -> {},
+                        error -> log.error(
+                                "Error during server-push sync fan-out for user {}: {}",
+                                userId, error.getMessage()),
+                        () -> {
+                            int sessions = sessionCount.get();
+                            int messages = messageCount.get();
+                            if (sessions > 0) {
+                                log.info(
+                                        "Server-push sync: userId={}, sessions={}, messages={}",
+                                        userId, sessions, messages);
+                            } else {
+                                log.debug(
+                                        "Server-push sync: userId={}, no pending messages",
+                                        userId);
+                            }
+                        }
+                );
+    }
+
+    /**
+     * Send a {@link SyncMessagesEvent} for a single session and clear its
+     * queue on success.
+     *
+     * <p>Emits no STOMP message when the queue turns out to be empty
+     * (e.g. another fan-out or an explicit client sync drained it), to
+     * avoid a pointless {@code count: 0} event.
+     *
+     * @param userId    the recipient's Telegram user ID
+     * @param sessionId the session whose queue should be drained
+     * @return mono of the number of messages delivered (0 if none)
+     */
+    private Mono<Integer> pushPendingMessagesForSession(Long userId, String sessionId) {
+        return messageRepository.getPendingMessages(userId, sessionId)
+                .collectList()
+                .flatMap(messages -> {
+                    if (messages.isEmpty()) {
+                        return Mono.just(0);
+                    }
+
+                    List<SyncedMessage> syncedMessages = messages.stream()
+                            .map(SyncedMessage::fromMessage)
+                            .toList();
+
+                    SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages);
+
+                    // convertAndSendToUser is synchronous w.r.t. broker hand-off —
+                    // only then clear the Redis queue so that a crash before
+                    // hand-off preserves the messages for the next sync attempt.
+                    messagingTemplate.convertAndSendToUser(
+                            String.valueOf(userId),
+                            SYNC_MESSAGES_DESTINATION,
+                            event
+                    );
+
+                    log.debug("Server-push sync: delivered {} messages to user {} for session {}",
+                            messages.size(), userId, sessionId);
+
+                    return messageRepository.deleteMessages(userId, sessionId)
+                            .thenReturn(messages.size());
+                })
+                .onErrorResume(error -> {
+                    log.error("Server-push sync failed for user {} session {}: {}",
+                            userId, sessionId, error.getMessage());
+                    return Mono.just(0);
+                });
     }
 }

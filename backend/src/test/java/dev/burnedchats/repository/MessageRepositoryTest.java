@@ -16,6 +16,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.ReactiveListOperations;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
+import org.springframework.data.redis.core.ScanOptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -277,6 +278,41 @@ class MessageRepositoryTest {
 
             // When & Then
             StepVerifier.create(messageRepository.getAllPendingMessages(RECIPIENT_ID))
+                    .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("findSessionsWithPendingMessages")
+    class FindSessionsWithPendingMessages {
+
+        @Test
+        @DisplayName("should return distinct session IDs from SCAN results")
+        void shouldReturnDistinctSessionIds() {
+            // Given — SCAN returns keys, possibly with duplicates (cursor edge case)
+            String key1 = "messages:" + RECIPIENT_ID + ":session-A";
+            String key2 = "messages:" + RECIPIENT_ID + ":session-B";
+            String key3 = "messages:" + RECIPIENT_ID + ":session-A"; // duplicate
+
+            when(redisTemplate.scan(any(ScanOptions.class)))
+                    .thenReturn(Flux.just(key1, key2, key3));
+
+            // When & Then
+            StepVerifier.create(messageRepository.findSessionsWithPendingMessages(RECIPIENT_ID))
+                    .expectNext("session-A")
+                    .expectNext("session-B")
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("should return empty when no pending messages")
+        void shouldReturnEmptyWhenNoPending() {
+            // Given
+            when(redisTemplate.scan(any(ScanOptions.class)))
+                    .thenReturn(Flux.empty());
+
+            // When & Then
+            StepVerifier.create(messageRepository.findSessionsWithPendingMessages(RECIPIENT_ID))
                     .verifyComplete();
         }
     }

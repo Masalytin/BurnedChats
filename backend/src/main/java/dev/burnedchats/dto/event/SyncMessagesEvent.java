@@ -1,5 +1,6 @@
 package dev.burnedchats.dto.event;
 
+import dev.burnedchats.model.Message;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -108,6 +109,32 @@ public class SyncMessagesEvent {
          * Original file size in bytes.
          */
         private final Long fileSize;
+
+        /**
+         * Convert a domain {@link Message} into a {@code SyncedMessage} DTO.
+         *
+         * <p>Centralised mapping used by both the client-initiated sync
+         * ({@code MessageHandler.syncMessages}) and the server-initiated
+         * fan-out sync on STOMP CONNECT.
+         *
+         * @param msg the source message
+         * @return the mapped synced message DTO
+         */
+        public static SyncedMessage fromMessage(Message msg) {
+            return SyncedMessage.builder()
+                    .messageId(msg.getMessageId())
+                    .senderId(msg.getSenderId())
+                    .encryptedContent(msg.getEncryptedContent())
+                    .iv(msg.getIv())
+                    .clientTimestamp(msg.getClientTimestamp())
+                    .serverTimestamp(msg.getServerTimestamp())
+                    .type(msg.getType())
+                    .fileId(msg.getFileId())
+                    .thumbnailFileId(msg.getThumbnailFileId())
+                    .encryptedMeta(msg.getEncryptedMeta())
+                    .fileSize(msg.getFileSize())
+                    .build();
+        }
     }
 
     /**

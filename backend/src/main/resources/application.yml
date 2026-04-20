@@ -86,6 +86,18 @@ telegram:
       # over an already-authenticated WebSocket session.
       max-age: ${TELEGRAM_AUTH_MAX_AGE:86400}
 
+# BurnedChats application-specific settings
+burnedchats:
+  messages:
+    # Server-initiated sync on STOMP CONNECT (FIX-SYNC-4).
+    # When enabled, on each WebSocket connect the backend fans out any
+    # pending offline messages for the user without waiting for the
+    # client to request /app/message.sync. Disable to fall back to the
+    # client-driven sync path.
+    server-push-sync:
+      enabled: ${BURNEDCHATS_SERVER_PUSH_SYNC_ENABLED:true}
+      concurrency: ${BURNEDCHATS_SERVER_PUSH_SYNC_CONCURRENCY:4}
+
 # Session and request settings
 session:
   # Chat request expiration (5 minutes)

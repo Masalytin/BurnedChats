@@ -6,6 +6,7 @@ import dev.burnedchats.model.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -149,6 +150,36 @@ public class MessageRepository {
                         .range(key, 0, -1)
                         .flatMap(this::deserializeMessage))
                 .doOnComplete(() -> log.debug("Retrieved all pending messages for user {}", recipientId));
+    }
+
+    /**
+     * Find all session IDs that have at least one pending message for the given user.
+     *
+     * <p>Uses a Redis {@code SCAN} over keys matching
+     * {@code messages:{userId}:*} and extracts the session-ID suffix.
+     * Duplicates that may arise from {@code SCAN} cursor semantics are
+     * de-duplicated via {@link Flux#distinct()}.
+     *
+     * <p>This method is used by {@code WebSocketEventListener} to drive
+     * server-initiated sync fan-out on STOMP CONNECT.
+     *
+     * @param userId the recipient's Telegram user ID
+     * @return flux of session IDs (distinct), empty if no pending messages
+     */
+    public Flux<String> findSessionsWithPendingMessages(Long userId) {
+        String match = KEY_PREFIX + userId + ":*";
+        String keyPrefix = KEY_PREFIX + userId + ":";
+
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(match)
+                .count(100)
+                .build();
+
+        return redisTemplate.scan(options)
+                .map(key -> key.substring(keyPrefix.length()))
+                .distinct()
+                .doOnComplete(() -> log.debug(
+                        "Scanned sessions with pending messages for user {}", userId));
     }
 
     /**
