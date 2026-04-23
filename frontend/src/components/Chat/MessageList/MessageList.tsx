@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckSquare, Copy, Pencil, Reply, Trash2, UserX } from 'lucide-react';
+import { CheckSquare, Copy, Pencil, Reply, Trash2 } from 'lucide-react';
 import { Message } from '../Message';
 import { ImageMessageBubble } from '../ImageMessageBubble';
 import { VideoMessageBubble } from '../VideoMessageBubble';
@@ -11,6 +11,10 @@ import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import type { UploadStage } from '../UploadProgressOverlay';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import type { DecryptedMessage, DecryptedFileMessage } from '@/types';
+import { useToast } from '@/components/Toast';
+import { useHaptics } from '@/hooks/useHaptics';
+import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
+import { writeTextToClipboard } from '@/utils/clipboard';
 import './MessageList.css';
 
 interface UploadStateInfo {
@@ -44,6 +48,8 @@ interface MessageListProps {
   selection?: UseMessageSelectionReturn;
   /** Fired after long-press / context menu opens (optional analytics / side effects) */
   onMessageLongPress?: (message: DecryptedMessage, anchor: DOMRect) => void;
+  /** Parent shows delete-for-me confirmation (IMP-MA-05) */
+  onRequestDeleteForMe?: (messageIds: string[]) => void;
 }
 
 /**
@@ -68,8 +74,11 @@ export const MessageList = memo(function MessageList({
   className = '',
   selection,
   onMessageLongPress,
+  onRequestDeleteForMe,
 }: MessageListProps) {
   const { t } = useTranslation();
+  const toast = useToast();
+  const haptics = useHaptics();
   const listRef = useRef<HTMLDivElement>(null);
   const [actionMenu, setActionMenu] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -174,13 +183,28 @@ export const MessageList = memo(function MessageList({
     setActionMenu(null);
   }, []);
 
+  const copyFromMenu = useCallback(
+    async (msg: DecryptedMessage) => {
+      const text = buildCopyText([msg]);
+      const ok = await writeTextToClipboard(text);
+      if (ok) {
+        toast.success(t('chat.actions.copyToast'));
+        haptics.success();
+      } else {
+        toast.error(t('chat.actions.copyFailed'));
+      }
+    },
+    [toast, t, haptics],
+  );
+
   const menuActions: MessageAction[] = useMemo(() => {
     if (!actionMenu) {
       return [];
     }
     const { messageId } = actionMenu;
+    const msg = messages.find((m) => m.id === messageId);
     const noOp = () => {
-      // Placeholders for IMP-MA-02…06
+      // Placeholders for IMP-MA-03…06
     };
     return [
       {
@@ -192,10 +216,14 @@ export const MessageList = memo(function MessageList({
       },
       {
         id: 'copy',
-        label: t('chat.messageActions.copy'),
+        label: t('chat.actions.copy'),
         icon: <Copy size={18} />,
-        disabled: true,
-        onClick: noOp,
+        disabled: !msg,
+        onClick: () => {
+          if (msg) {
+            void copyFromMenu(msg);
+          }
+        },
       },
       {
         id: 'edit',
@@ -205,19 +233,14 @@ export const MessageList = memo(function MessageList({
         onClick: noOp,
       },
       {
-        id: 'delete',
-        label: t('chat.messageActions.delete'),
-        icon: <Trash2 size={18} />,
-        disabled: true,
-        variant: 'destructive',
-        onClick: noOp,
-      },
-      {
         id: 'deleteForMe',
-        label: t('chat.messageActions.deleteForMe'),
-        icon: <UserX size={18} />,
-        disabled: true,
-        onClick: noOp,
+        label: t('chat.actions.deleteForMe'),
+        icon: <Trash2 size={18} />,
+        disabled: !onRequestDeleteForMe,
+        variant: 'destructive',
+        onClick: () => {
+          onRequestDeleteForMe?.([messageId]);
+        },
       },
       {
         id: 'select',
@@ -230,7 +253,15 @@ export const MessageList = memo(function MessageList({
         },
       },
     ];
-  }, [actionMenu, closeActionMenu, selection, t]);
+  }, [
+    actionMenu,
+    messages,
+    closeActionMenu,
+    selection,
+    t,
+    copyFromMenu,
+    onRequestDeleteForMe,
+  ]);
 
   const openMenuHandler = selection ? handleOpenActionMenu : undefined;
 

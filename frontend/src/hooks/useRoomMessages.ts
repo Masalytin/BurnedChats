@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
@@ -16,6 +16,7 @@ import type {
   MessageType,
 } from '@/types';
 import { useMessageSync } from '@/hooks/useMessageSync';
+import { useHiddenMessages } from '@/hooks/useHiddenMessages';
 import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
 
 // ============================================
@@ -132,6 +133,7 @@ export interface UseRoomMessagesReturn {
   sendMessage: (text: string) => Promise<SendRoomMessageResult>;
   sendFileMessage: (file: File, caption?: string, options?: SendRoomFileOptions) => Promise<SendRoomMessageResult>;
   clearMessages: () => void;
+  hideMessages: (ids: string | string[]) => void;
   /** Manually trigger sync of offline/missed room messages (FIX-SYNC-3). */
   syncMessages: () => void;
   error: RoomMessageErrorCode | null;
@@ -152,11 +154,16 @@ export interface UseRoomMessagesReturn {
  */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
   const { roomId, userId, ws, onNewMessage, onError } = options;
+  const { hiddenIds, hide: hideMessages } = useHiddenMessages('room', roomId);
   const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
   const effectiveIsReconnection = options.isReconnection ?? wsIsReconnection ?? false;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !hiddenIds.has(m.id)),
+    [messages, hiddenIds],
+  );
   const [isLoading] = useState(false);
   const [error, setError] = useState<RoomMessageErrorCode | null>(null);
 
@@ -611,7 +618,17 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     });
   }, [isConnected, roomId, publish, setSyncing]);
 
-  return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, syncMessages, error };
+  return {
+    messages: visibleMessages,
+    isLoading,
+    isSyncing,
+    sendMessage,
+    sendFileMessage,
+    clearMessages,
+    hideMessages,
+    syncMessages,
+    error,
+  };
 }
 
 // ============================================

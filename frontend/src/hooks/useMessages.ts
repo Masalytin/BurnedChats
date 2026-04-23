@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
@@ -11,6 +11,7 @@ import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 import { useMessageSync } from '@/hooks/useMessageSync';
+import { useHiddenMessages } from '@/hooks/useHiddenMessages';
 import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
 
 // ============================================
@@ -137,6 +138,8 @@ interface UseMessagesReturn {
   sendFileMessage: (file: File, caption?: string, options?: SendFileOptions) => Promise<SendMessageResult>;
   /** Clear all messages (local only) */
   clearMessages: () => void;
+  /** Hide message(s) locally (delete for me) */
+  hideMessages: (ids: string | string[]) => void;
   /** Retry failed message */
   retryMessage: (messageId: string) => Promise<SendMessageResult>;
   /** Manually trigger message sync (5.1.2) */
@@ -196,6 +199,7 @@ const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const { sessionId, userId, ws, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
+  const { hiddenIds, hide: hideMessages } = useHiddenMessages('dm', sessionId);
   const { isConnected, subscribe, unsubscribe, publish, isReconnection: wsIsReconnection } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
   // (mirrors useRoomMessages). Fallback to `false` so the auto-sync effect only
@@ -203,6 +207,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const effectiveIsReconnection = options.isReconnection ?? wsIsReconnection ?? false;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !hiddenIds.has(m.id)),
+    [messages, hiddenIds],
+  );
   const [isLoading, _setIsLoading] = useState(false);
   const [error, setError] = useState<MessageErrorCode | null>(null);
 
@@ -749,7 +757,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    * Retry sending a failed message.
    */
   const retryMessage = useCallback(async (messageId: string): Promise<SendMessageResult> => {
-    const message = messages.find(m => m.id === messageId);
+    const message = visibleMessages.find(m => m.id === messageId);
     if (!message || message.status !== 'failed') {
       return { success: false, messageId, error: 'INTERNAL_ERROR' };
     }
@@ -759,7 +767,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     // Resend
     return sendMessage(message.content);
-  }, [messages, sendMessage]);
+  }, [visibleMessages, sendMessage]);
 
   // ============================================
   // Clear Messages
@@ -833,12 +841,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, [sessionId, clearMessages]);
 
   return {
-    messages,
+    messages: visibleMessages,
     isLoading,
     isSyncing,
     sendMessage,
     sendFileMessage,
     clearMessages,
+    hideMessages,
     retryMessage,
     syncMessages,
     error,

@@ -83,6 +83,22 @@
     "selectionModeToolbar": "Message selection",
     "selectionCount": "{{count}} selected",
     "selectionCount_one": "1 selected",
+    "actions": {
+      "copy": "Copy",
+      "copyToast": "Copied",
+      "copyFailed": "Could not copy",
+      "deleteForMe": "Delete for me"
+    },
+    "delete": {
+      "confirmTitleForMe": "Delete messages?",
+      "confirmDescriptionForMe": "This will only remove the message from your device. The other {{context}} will still see it.",
+      "deleteForMeLabel": "Delete for me",
+      "deleteForEveryoneLabel": "Delete for everyone",
+      "deleteForEveryoneDisabledHint": "Coming soon",
+      "hidden": "Hidden on this device",
+      "contextPeer": "participant",
+      "contextRoom": "room members"
+    },
     "messageActions": {
       "reply": "Reply",
       "copy": "Copy",

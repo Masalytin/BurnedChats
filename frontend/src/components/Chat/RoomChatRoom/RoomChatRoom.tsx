@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useState, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
+import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import type { SelectedFileInfo } from '../MessageInput';
@@ -117,6 +119,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const messageSelection = useMessageSelection();
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -164,12 +167,13 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     [t, toast],
   );
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages } = useRoomMessages({
-    roomId,
-    userId,
-    ws,
-    onError: handleRoomMessageError,
-  });
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages } =
+    useRoomMessages({
+      roomId,
+      userId,
+      ws,
+      onError: handleRoomMessageError,
+    });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
   // visibility-restore handler can invoke it (FIX-SYNC-3).
@@ -238,6 +242,40 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   }, []);
 
   const isUploading = !!uploadState && uploadState.stage !== 'failed';
+
+  const requestDeleteForMe = useCallback((ids: string[]) => {
+    setDeleteConfirmIds(ids);
+  }, []);
+
+  const handleBulkCopy = useCallback(async () => {
+    const selected = messages
+      .filter((m) => messageSelection.selectedIds.has(m.id))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    if (selected.length === 0) return;
+    const includeSenderName = selected.length > 1;
+    const text = buildCopyText(selected, { includeSenderName });
+    const ok = await writeTextToClipboard(text);
+    if (ok) {
+      toast.success(t('chat.actions.copyToast'));
+      haptics.success();
+    } else {
+      toast.error(t('chat.actions.copyFailed'));
+    }
+  }, [messages, messageSelection.selectedIds, toast, t, haptics]);
+
+  const handleConfirmDeleteForMe = useCallback(() => {
+    if (deleteConfirmIds?.length) {
+      hideMessages(deleteConfirmIds);
+      toast.success(t('chat.delete.hidden'));
+      haptics.destructive();
+      messageSelection.clear();
+    }
+    setDeleteConfirmIds(null);
+  }, [deleteConfirmIds, hideMessages, toast, t, haptics, messageSelection]);
+
+  const handleCancelDeleteForMe = useCallback(() => {
+    setDeleteConfirmIds(null);
+  }, []);
 
   const handleLeaveClick = useCallback(() => {
     haptics.destructive();
@@ -308,7 +346,10 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         <ChatSelectionBar
           count={messageSelection.count}
           onClose={messageSelection.clear}
-          actions={[]}
+          onCopy={handleBulkCopy}
+          onRequestDeleteForMe={() => {
+            requestDeleteForMe(Array.from(messageSelection.selectedIds));
+          }}
         />
       ) : (
         <ChatScreenHeader
@@ -329,6 +370,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onRetryUpload={handleRetryUpload}
             onOpenViewer={handleOpenViewer}
             selection={messageSelection}
+            onRequestDeleteForMe={requestDeleteForMe}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">
@@ -398,6 +440,20 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         cancelLabel={t('common.cancel')}
         variant="destructive"
         icon={<span role="img" aria-hidden>🚪</span>}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmIds?.length}
+        onClose={handleCancelDeleteForMe}
+        onConfirm={handleConfirmDeleteForMe}
+        title={t('chat.delete.confirmTitleForMe')}
+        description={t('chat.delete.confirmDescriptionForMe', {
+          context: t('chat.delete.contextRoom'),
+        })}
+        confirmLabel={t('chat.delete.deleteForMeLabel')}
+        cancelLabel={t('common.cancel')}
+        variant="destructive"
+        icon={<span role="img" aria-hidden>🗑️</span>}
       />
     </div>
   );

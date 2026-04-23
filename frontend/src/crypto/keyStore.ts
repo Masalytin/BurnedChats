@@ -15,6 +15,7 @@
  */
 
 import type { KeyPair, SharedSecret } from '@/types';
+import { clearHiddenMessagesStorage } from '@/utils/hiddenMessagesStorage';
 
 // ============================================
 // Types
@@ -341,6 +342,8 @@ export function burn(sessionId: string): boolean {
 
   // Remove from store
   keyStore.delete(sessionId);
+
+  clearHiddenMessagesStorage('dm', sessionId);
   
   notifyListeners(sessionId, 'burned');
   
@@ -648,6 +651,8 @@ export function burnGroupKey(roomId: string): boolean {
   // @ts-expect-error - Intentional nullification for secure cleanup
   entry.key = undefined;
   groupKeyStore.delete(roomId);
+
+  clearHiddenMessagesStorage('room', roomId);
   notifyListeners(roomId, 'burned');
   return true;
 }

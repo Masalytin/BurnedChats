@@ -83,6 +83,22 @@
     "selectionModeToolbar": "Выбор сообщений",
     "selectionCount": "Выбрано: {{count}}",
     "selectionCount_one": "Выбрано: 1",
+    "actions": {
+      "copy": "Копировать",
+      "copyToast": "Скопировано",
+      "copyFailed": "Не удалось скопировать",
+      "deleteForMe": "Удалить у меня"
+    },
+    "delete": {
+      "confirmTitleForMe": "Удалить сообщения?",
+      "confirmDescriptionForMe": "Сообщения исчезнут только у вас на устройстве. {{context}} по-прежнему их увидит.",
+      "deleteForMeLabel": "Удалить у меня",
+      "deleteForEveryoneLabel": "Удалить у всех",
+      "deleteForEveryoneDisabledHint": "Скоро",
+      "hidden": "Скрыто на этом устройстве",
+      "contextPeer": "собеседник",
+      "contextRoom": "участники комнаты"
+    },
     "messageActions": {
       "reply": "Ответить",
       "copy": "Копировать",

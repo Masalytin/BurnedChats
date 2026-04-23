@@ -1,6 +1,10 @@
 import { memo, useCallback, useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useToast } from '@/components/Toast';
+import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
+import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
 import type { SelectedFileInfo } from '../MessageInput';
@@ -57,6 +61,8 @@ interface ChatRoomProps {
   onRetryUpload?: () => void;
   /** Optional CSS class name */
   className?: string;
+  /** Locally hide messages (delete for me) */
+  hideMessages?: (ids: string | string[]) => void;
 }
 
 /**
@@ -87,10 +93,13 @@ export const ChatRoom = memo(function ChatRoom({
   onCancelUpload,
   onRetryUpload,
   className = '',
+  hideMessages,
 }: ChatRoomProps) {
   const { t } = useTranslation();
+  const toast = useToast();
   const haptics = useHaptics();
   const messageSelection = useMessageSelection();
+  const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
 
   useEffect(() => {
@@ -153,6 +162,39 @@ export const ChatRoom = memo(function ChatRoom({
 
   const isUploading = !!uploadState && uploadState.stage !== 'failed';
 
+  const requestDeleteForMe = useCallback((ids: string[]) => {
+    setDeleteConfirmIds(ids);
+  }, []);
+
+  const handleBulkCopy = useCallback(async () => {
+    const selected = messages
+      .filter((m) => messageSelection.selectedIds.has(m.id))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    if (selected.length === 0) return;
+    const text = buildCopyText(selected, { includeSenderName: false });
+    const ok = await writeTextToClipboard(text);
+    if (ok) {
+      toast.success(t('chat.actions.copyToast'));
+      haptics.success();
+    } else {
+      toast.error(t('chat.actions.copyFailed'));
+    }
+  }, [messages, messageSelection.selectedIds, toast, t, haptics]);
+
+  const handleConfirmDeleteForMe = useCallback(() => {
+    if (deleteConfirmIds?.length && hideMessages) {
+      hideMessages(deleteConfirmIds);
+      toast.success(t('chat.delete.hidden'));
+      haptics.destructive();
+      messageSelection.clear();
+    }
+    setDeleteConfirmIds(null);
+  }, [deleteConfirmIds, hideMessages, toast, t, haptics, messageSelection]);
+
+  const handleCancelDeleteForMe = useCallback(() => {
+    setDeleteConfirmIds(null);
+  }, []);
+
   const headerLeft = (
     <>
       <Avatar
@@ -214,7 +256,10 @@ export const ChatRoom = memo(function ChatRoom({
         <ChatSelectionBar
           count={messageSelection.count}
           onClose={messageSelection.clear}
-          actions={[]}
+          onCopy={handleBulkCopy}
+          onRequestDeleteForMe={() => {
+            requestDeleteForMe(Array.from(messageSelection.selectedIds));
+          }}
         />
       ) : (
         <ChatScreenHeader
@@ -246,6 +291,7 @@ export const ChatRoom = memo(function ChatRoom({
         onRetryUpload={onRetryUpload}
         onOpenViewer={handleOpenViewer}
         selection={messageSelection}
+        onRequestDeleteForMe={requestDeleteForMe}
         className="chat-room-messages chat-screen-messages"
       />
 
@@ -274,6 +320,20 @@ export const ChatRoom = memo(function ChatRoom({
       {viewerMessage && (
         <MediaViewer message={viewerMessage} onClose={handleCloseViewer} />
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmIds?.length}
+        onClose={handleCancelDeleteForMe}
+        onConfirm={handleConfirmDeleteForMe}
+        title={t('chat.delete.confirmTitleForMe')}
+        description={t('chat.delete.confirmDescriptionForMe', {
+          context: t('chat.delete.contextPeer'),
+        })}
+        confirmLabel={t('chat.delete.deleteForMeLabel')}
+        cancelLabel={t('common.cancel')}
+        variant="destructive"
+        icon={<span role="img" aria-hidden>🗑️</span>}
+      />
     </div>
   );
 });
