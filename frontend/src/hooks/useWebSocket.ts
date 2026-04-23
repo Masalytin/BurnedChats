@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
+
+/**
+ * STOMP client surface passed into chat message hooks (same shape for DM and rooms).
+ * Keeps `isReconnection` in sync with {@link useWebSocket}.
+ */
+export interface ChatWebSocketApi {
+  isConnected: boolean;
+  /** True when this is a reconnection (not the first connect). Same as `useWebSocket.isReconnection`. */
+  isReconnection?: boolean;
+  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
+  unsubscribe: (destination: string) => void;
+  publish: (destination: string, body: unknown) => void;
+}
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
 import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMessage } from '../components/DebugPanel';

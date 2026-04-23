@@ -10,6 +10,8 @@ import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
+import { useMessageSync } from '@/hooks/useMessageSync';
+import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
 
 // ============================================
 // Types
@@ -92,14 +94,7 @@ interface SyncMessagesEvent {
 }
 
 /** WebSocket API passed from parent (must use same connection as app) */
-export interface UseMessagesWebSocket {
-  isConnected: boolean;
-  /** True when this is a reconnection (not the first connect). Mirrors `useWebSocket.isReconnection`. */
-  isReconnection?: boolean;
-  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
-  unsubscribe: (destination: string) => void;
-  publish: (destination: string, body: unknown) => void;
-}
+export type UseMessagesWebSocket = ChatWebSocketApi;
 
 /** Options for file message sending */
 export interface SendFileOptions {
@@ -209,13 +204,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading, _setIsLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<MessageErrorCode | null>(null);
 
   // Pending messages waiting for acknowledgment
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
-  // Track if sync has been triggered for this session/reconnection
-  const syncTriggeredRef = useRef(false);
   // Refs for handlers so subscription effect doesn't re-run on handler identity change (avoids missing messages)
   const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
@@ -230,6 +222,45 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     onError?.(code, details, i18nValues);
     console.error(`[useMessages] Error: ${code}`, details);
   }, [onError]);
+
+  const canSyncDm = useCallback(() => isHandshakeComplete(sessionId), [sessionId]);
+
+  const doPublishInitialSync = useCallback(() => {
+    publish(SYNC_MESSAGES_DESTINATION, {
+      sessionId,
+      lastMessageTimestamp: null,
+    });
+  }, [sessionId, publish]);
+
+  const doPublishReconnectSync = useCallback(() => {
+    const lastMessage = messages[messages.length - 1];
+    publish(SYNC_MESSAGES_DESTINATION, {
+      sessionId,
+      lastMessageTimestamp: lastMessage?.timestamp || null,
+    });
+  }, [sessionId, messages, publish]);
+
+  const onInitialSyncRequest = useCallback(
+    (source: 'subscription' | 'late-handshake') => {
+      if (source === 'subscription') {
+        debugLog('info', 'Initial sync on chat open', { sessionId });
+      } else {
+        debugLog('info', 'Initial sync triggered after late handshake completion', { sessionId });
+      }
+    },
+    [sessionId],
+  );
+
+  const messageSync = useMessageSync({
+    scopeId: sessionId,
+    isConnected,
+    isReconnection: effectiveIsReconnection,
+    canSync: canSyncDm,
+    doPublishInitialSync,
+    doPublishReconnectSync,
+    onInitialSyncRequest,
+  });
+  const { isSyncing, setSyncing, triggerSyncIfReady, runReconnectIfNeeded } = messageSync;
 
   // ============================================
   // Encryption (4.2.5)
@@ -550,7 +581,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         return;
       }
 
-      setIsSyncing(false);
+      setSyncing(false);
 
       if (!event.success) {
         console.warn('[useMessages] Sync failed:', event.error);
@@ -630,9 +661,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse sync event:', parseErr);
-      setIsSyncing(false);
+      setSyncing(false);
     }
-  }, [sessionId, userId, onNewMessage, onSyncComplete, handleError]);
+  }, [sessionId, userId, onNewMessage, onSyncComplete, handleError, setSyncing]);
 
   /**
    * Trigger message sync (5.1.2).
@@ -648,8 +679,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return;
     }
 
-    setIsSyncing(true);
-    
+    setSyncing(true);
+
     // Get timestamp of last message for incremental sync
     const lastMessage = messages[messages.length - 1];
     
@@ -659,7 +690,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     });
 
     console.log('[useMessages] Sync request sent');
-  }, [isConnected, sessionId, messages, publish]);
+  }, [isConnected, sessionId, messages, publish, setSyncing]);
 
   /**
    * Handle message sent acknowledgment.
@@ -768,19 +799,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     subscribe(MESSAGE_SENT_DESTINATION, onMessageSent);
     subscribe(SYNC_MESSAGES_RESULT_DESTINATION, onSyncResult);
 
-    // Initial offline-messages sync on chat open (mirrors useRoomMessages pattern).
-    // Covers the common cold-start flow: Mini App open → handshake ready → open chat.
-    // Subscription to SYNC_MESSAGES_RESULT_DESTINATION above runs before this publish,
-    // so the first response is guaranteed to be delivered.
-    if (isHandshakeComplete(sessionId) && !syncTriggeredRef.current) {
-      syncTriggeredRef.current = true;
-      setIsSyncing(true);
-      publish(SYNC_MESSAGES_DESTINATION, {
-        sessionId,
-        lastMessageTimestamp: null,
-      });
-      debugLog('info', 'Initial sync on chat open', { sessionId });
-    }
+    // Initial offline-messages sync on chat open (shared with useRoomMessages via useMessageSync).
+    // Subscription to SYNC_MESSAGES_RESULT_DESTINATION above runs before this publish.
+    triggerSyncIfReady('subscription');
 
     return () => {
       unsubscribe(NEW_MESSAGE_DESTINATION);
@@ -790,90 +811,21 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   // Intentionally exclude subscribe/unsubscribe/publish so effect only re-runs when
   // connection state or session identity actually changes (avoids duplicate syncs).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, sessionId]);
+  }, [isConnected, sessionId, triggerSyncIfReady]);
 
-  // ============================================
-  // Late-handshake fallback (FIX-SYNC-1)
-  // ============================================
-
-  // Handshake may still be in progress when useMessages mounts (e.g. re-handshake
-  // after cold start or key restoration from IndexedDB finishing asynchronously).
-  // isHandshakeComplete is a pure keyStore read, not React state, so we poll briefly
-  // until it becomes true and then trigger the initial sync once.
-  useEffect(() => {
-    if (!isConnected || !sessionId) return;
-    if (syncTriggeredRef.current) return;
-    if (isHandshakeComplete(sessionId)) return; // already handled by subscription effect
-
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 60; // ~30s at 500ms
-
-    const intervalId = window.setInterval(() => {
-      if (cancelled) return;
-      attempts += 1;
-
-      if (syncTriggeredRef.current) {
-        window.clearInterval(intervalId);
-        return;
-      }
-
-      if (isHandshakeComplete(sessionId)) {
-        syncTriggeredRef.current = true;
-        setIsSyncing(true);
-        publish(SYNC_MESSAGES_DESTINATION, {
-          sessionId,
-          lastMessageTimestamp: null,
-        });
-        debugLog('info', 'Initial sync triggered after late handshake completion', { sessionId });
-        window.clearInterval(intervalId);
-      } else if (attempts >= maxAttempts) {
-        window.clearInterval(intervalId);
-      }
-    }, 500);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [isConnected, sessionId, publish]);
-
-  // ============================================
-  // Auto-sync on Reconnection (5.1.2)
-  // ============================================
-
+  // Auto-sync on reconnection (5.1.2). Declared after the subscription effect so STOMP
+  // handlers are ready before any publish, matching FIX-SYNC-1 ordering.
   useEffect(() => {
     if (!isConnected || !sessionId || !effectiveIsReconnection) {
       return;
     }
-
-    // Only sync once per reconnection
-    if (syncTriggeredRef.current) {
-      return;
-    }
-
-    // Check if handshake is complete before syncing
     if (!isHandshakeComplete(sessionId)) {
       console.log('[useMessages] Skipping auto-sync - handshake not complete');
       return;
     }
-
     console.log('[useMessages] Auto-syncing messages after reconnection');
-    syncTriggeredRef.current = true;
-    syncMessages();
-  }, [isConnected, sessionId, effectiveIsReconnection, syncMessages]);
-
-  // Reset sync flag when session changes
-  useEffect(() => {
-    syncTriggeredRef.current = false;
-  }, [sessionId]);
-
-  // Reset sync flag on disconnect so that each reconnect re-runs the initial sync
-  useEffect(() => {
-    if (!isConnected) {
-      syncTriggeredRef.current = false;
-    }
-  }, [isConnected]);
+    runReconnectIfNeeded();
+  }, [isConnected, sessionId, effectiveIsReconnection, runReconnectIfNeeded]);
 
   // ============================================
   // Cleanup on Session Change

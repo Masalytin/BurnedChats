@@ -15,6 +15,8 @@ import type {
   MessageStatus,
   MessageType,
 } from '@/types';
+import { useMessageSync } from '@/hooks/useMessageSync';
+import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
 
 // ============================================
 // STOMP destinations
@@ -109,15 +111,8 @@ export interface SendRoomFileOptions {
   signal?: AbortSignal;
 }
 
-/** WebSocket interface (reused from useMessages pattern) */
-export interface UseRoomMessagesWebSocket {
-  isConnected: boolean;
-  /** True when this is a reconnection (not the first connect) */
-  isReconnection?: boolean;
-  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
-  unsubscribe: (destination: string) => void;
-  publish: (destination: string, body: unknown) => void;
-}
+/** WebSocket interface (same shape as DM — see {@link ChatWebSocketApi}) */
+export type UseRoomMessagesWebSocket = ChatWebSocketApi;
 
 /** Hook options */
 interface UseRoomMessagesOptions {
@@ -159,15 +154,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   const { roomId, userId, ws, onNewMessage, onError } = options;
   const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
-  const isReconnection = options.isReconnection ?? wsIsReconnection;
+  const effectiveIsReconnection = options.isReconnection ?? wsIsReconnection ?? false;
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<RoomMessageErrorCode | null>(null);
 
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
-  const syncTriggeredRef = useRef(false);
 
   // Stable handler refs to avoid re-subscriptions on callback identity changes
   const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
@@ -183,6 +176,33 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     onError?.(code, details, i18nValues);
     console.error(`[useRoomMessages] Error: ${code}`, details);
   }, [onError]);
+
+  const canSyncRoom = useCallback(() => Boolean(getGroupKey(roomId)), [roomId]);
+
+  const doPublishInitialSync = useCallback(() => {
+    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
+      roomId,
+      lastMessageTimestamp: null,
+    });
+  }, [roomId, publish]);
+
+  const doPublishReconnectSync = useCallback(() => {
+    const lastMessage = messages[messages.length - 1];
+    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
+      roomId,
+      lastMessageTimestamp: lastMessage?.timestamp ?? null,
+    });
+  }, [roomId, messages, publish]);
+
+  const messageSync = useMessageSync({
+    scopeId: roomId,
+    isConnected,
+    isReconnection: effectiveIsReconnection,
+    canSync: canSyncRoom,
+    doPublishInitialSync,
+    doPublishReconnectSync,
+  });
+  const { isSyncing, setSyncing, triggerSyncIfReady, runReconnectIfNeeded } = messageSync;
 
   // ============================================
   // Send Message
@@ -454,7 +474,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       if (event.roomId !== roomId) return;
 
-      setIsSyncing(false);
+      setSyncing(false);
 
       if (!event.success || event.count === 0) return;
 
@@ -505,9 +525,9 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       }
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse sync event:', parseErr);
-      setIsSyncing(false);
+      setSyncing(false);
     }
-  }, [roomId, userId, handleError]);
+  }, [roomId, userId, handleError, setSyncing]);
 
   // Keep handler refs up to date
   useEffect(() => {
@@ -544,55 +564,26 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     subscribe(ROOM_MESSAGE_SENT_DESTINATION, onMsgSent);
     subscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION, onSyncResult);
 
-    // Request offline messages on subscribe
-    const groupKey = getGroupKey(roomId);
-    if (groupKey) {
-      setIsSyncing(true);
-      publish(SYNC_ROOM_MESSAGES_DESTINATION, {
-        roomId,
-        lastMessageTimestamp: null,
-      });
-    }
+    triggerSyncIfReady('subscription');
 
     return () => {
       unsubscribe(roomTopic);
       unsubscribe(ROOM_MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION);
     };
+  // Intentionally exclude subscribe/unsubscribe/publish (stable from parent); re-run on room connection.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, roomId]);
-
-  // ============================================
-  // Auto-sync on Reconnection
-  // ============================================
+  }, [isConnected, roomId, triggerSyncIfReady]);
 
   useEffect(() => {
-    if (!isConnected || !roomId || !isReconnection) return;
-    if (syncTriggeredRef.current) return;
-
-    const groupKey = getGroupKey(roomId);
-    if (!groupKey) return;
-
-    syncTriggeredRef.current = true;
-    setIsSyncing(true);
-
-    const lastMessage = messages[messages.length - 1];
-    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
-      roomId,
-      lastMessageTimestamp: lastMessage?.timestamp ?? null,
-    });
-  }, [isConnected, roomId, isReconnection, messages, publish]);
-
-  // Reset sync flag when room changes or when disconnected (so each reconnect can re-sync)
-  useEffect(() => {
-    syncTriggeredRef.current = false;
-  }, [roomId]);
-
-  useEffect(() => {
-    if (!isConnected) {
-      syncTriggeredRef.current = false;
+    if (!isConnected || !roomId || !effectiveIsReconnection) {
+      return;
     }
-  }, [isConnected]);
+    if (!getGroupKey(roomId)) {
+      return;
+    }
+    runReconnectIfNeeded();
+  }, [isConnected, roomId, effectiveIsReconnection, runReconnectIfNeeded]);
 
   // Cleanup on room change
   useEffect(() => {
@@ -616,13 +607,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     if (!isConnected || !roomId) return;
     if (!getGroupKey(roomId)) return;
 
-    setIsSyncing(true);
+    setSyncing(true);
     const lastMessage = messages[messages.length - 1];
     publish(SYNC_ROOM_MESSAGES_DESTINATION, {
       roomId,
       lastMessageTimestamp: lastMessage?.timestamp ?? null,
     });
-  }, [isConnected, roomId, messages, publish]);
+  }, [isConnected, roomId, messages, publish, setSyncing]);
 
   return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, syncMessages, error };
 }

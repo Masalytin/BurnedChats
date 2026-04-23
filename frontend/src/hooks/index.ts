@@ -1,7 +1,7 @@
 export { useTelegram } from './useTelegram';
 export type { TelegramUser, TelegramChat } from './useTelegram';
 export { useWebSocket } from './useWebSocket';
-export type { WebSocketErrorType } from './useWebSocket';
+export type { WebSocketErrorType, ChatWebSocketApi } from './useWebSocket';
 export { useSearch } from './useSearch';
 export { useSession } from './useSession';
 export type { SessionErrorCode, CreateSessionStatus, CreateSessionResult, PendingSession } from './useSession';
@@ -25,6 +25,8 @@ export { useBackButton, useAutoBackButton } from './useBackButton';
 
 // Lifecycle hooks (Sprint 5.1)
 export { useAppLifecycle } from './useAppLifecycle';
+export { useMessageSync } from './useMessageSync';
+export type { UseMessageSyncOptions, UseMessageSyncReturn, MessageSyncRequestSource } from './useMessageSync';
 
 // Active Sessions hooks (Sprint 4.6)
 export { useActiveSessions } from './useActiveSessions';
