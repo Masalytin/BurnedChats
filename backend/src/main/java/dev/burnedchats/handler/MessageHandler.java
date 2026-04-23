@@ -8,6 +8,8 @@ import dev.burnedchats.dto.request.SyncMessagesRequest;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
@@ -61,7 +63,7 @@ import java.util.List;
  * <ul>
  *   <li>Messages are encrypted end-to-end with AES-256-GCM</li>
  *   <li>Server only validates session membership, not content</li>
- *   <li>Offline messages are stored encrypted, auto-expire in 1 hour</li>
+ *   <li>Offline messages are stored encrypted, TTL from {@code burnedchats.messages.offline-queue}</li>
  *   <li>Messages are deleted immediately after delivery</li>
  * </ul>
  *
@@ -98,6 +100,7 @@ public class MessageHandler {
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
     private final FileMessageRelayValidator fileMessageRelayValidator;
+    private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
      * Relay an encrypted message to the peer.
@@ -196,6 +199,7 @@ public class MessageHandler {
 
                                 // Delete delivered messages from queue
                                 if (!messages.isEmpty()) {
+                                    offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
                                     return messageRepository.deleteMessages(userId, sessionId)
                                             .then(Mono.empty());
                                 }

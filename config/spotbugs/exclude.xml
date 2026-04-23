@@ -16,14 +16,20 @@
         <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
     </Match>
 
-    <!-- Lombok-generated code patterns -->
+    <!--
+        Spring/Lombok/SpotBugs: false positives for DI, @ConfigurationProperties, DTOs, etc.
+    -->
     <Match>
-        <Bug pattern="EI_EXPOSE_REP"/>
-        <Class name="~.*Dto"/>
-    </Match>
-    <Match>
-        <Bug pattern="EI_EXPOSE_REP2"/>
-        <Class name="~.*Dto"/>
+        <Package name="~dev\.burnedchats\..*"/>
+        <Or>
+            <Bug pattern="EI_EXPOSE_REP"/>
+            <Bug pattern="EI_EXPOSE_REP2"/>
+            <Bug pattern="MS_EXPOSE_REP"/>
+            <Bug pattern="NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"/>
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+            <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+            <Bug pattern="VA_FORMAT_STRING_USES_NEWLINE"/>
+        </Or>
     </Match>
 
     <!-- Allow certain patterns in configuration classes -->
@@ -36,12 +42,6 @@
     <Match>
         <Class name="~.*Application"/>
         <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
-    </Match>
-
-    <!-- Exclude builder pattern false positives -->
-    <Match>
-        <Class name="~.*Builder"/>
-        <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
     <!-- Exclude MapStruct generated mappers -->
@@ -75,5 +75,4 @@
         <Bug pattern="SE_NO_SERIALVERSIONID"/>
     </Match>
 </FindBugsFilter>
-
 

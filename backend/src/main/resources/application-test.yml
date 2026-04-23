@@ -40,5 +40,8 @@ security:
   cors:
     allowed-origins: "*"
 
-
+burnedchats:
+  messages:
+    offline-queue:
+      keyspace-listener-enabled: false
 

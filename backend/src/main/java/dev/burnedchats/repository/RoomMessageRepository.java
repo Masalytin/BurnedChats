@@ -2,6 +2,9 @@ package dev.burnedchats.repository;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.burnedchats.config.MessagesProperties;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.RoomMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -39,23 +42,20 @@ public class RoomMessageRepository {
 
     private static final String KEY_PREFIX = "messages:";
 
-    /**
-     * TTL for room message lists (24 hours).
-     */
-    static final Duration MESSAGE_TTL = Duration.ofHours(24);
-
-    /**
-     * Maximum messages stored per room to prevent unbounded growth.
-     */
-    private static final long MAX_MESSAGES_PER_ROOM = 500;
-
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final MessagesProperties messagesProperties;
+    private final OfflineQueueMetrics offlineQueueMetrics;
 
-    public RoomMessageRepository(ReactiveRedisTemplate<String, String> redisTemplate,
-                                  ObjectMapper objectMapper) {
+    public RoomMessageRepository(
+            ReactiveRedisTemplate<String, String> redisTemplate,
+            ObjectMapper objectMapper,
+            MessagesProperties messagesProperties,
+            OfflineQueueMetrics offlineQueueMetrics) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.messagesProperties = messagesProperties;
+        this.offlineQueueMetrics = offlineQueueMetrics;
     }
 
     /**
@@ -69,24 +69,35 @@ public class RoomMessageRepository {
      * @return true if saved successfully
      */
     public Mono<Boolean> saveMessage(RoomMessage message) {
+        int maxRoom = messagesProperties.getOfflineQueue().getMaxSizePerRoom();
+        Duration ttl = messagesProperties.getOfflineQueue().getTtl();
         String key = keyFor(message.getRoomId());
 
         return serializeMessage(message)
                 .flatMap(json -> redisTemplate.opsForList()
                         .rightPush(key, json)
                         .flatMap(size -> {
-                            if (size > MAX_MESSAGES_PER_ROOM) {
+                            if (size > maxRoom) {
+                                long dropped = size - maxRoom;
+                                offlineQueueMetrics.recordDroppedOverflow(OfflineSessionType.room, dropped);
                                 return redisTemplate.opsForList()
-                                        .trim(key, -MAX_MESSAGES_PER_ROOM, -1)
-                                        .thenReturn(size);
+                                        .trim(key, -maxRoom, -1)
+                                        .thenReturn((long) maxRoom);
                             }
                             return Mono.just(size);
                         })
-                        .flatMap(size -> redisTemplate.expire(key, MESSAGE_TTL)
-                                .thenReturn(true))
+                        .flatMap(size -> {
+                            offlineQueueMetrics.setTrackedListSize(key, size);
+                            return redisTemplate.expire(key, ttl).thenReturn(true);
+                        })
                 )
-                .doOnSuccess(r -> log.debug("Saved room message {} for room {}",
-                        message.getMessageId(), message.getRoomId()))
+                .doOnSuccess(r -> {
+                    if (Boolean.TRUE.equals(r)) {
+                        offlineQueueMetrics.recordEnqueued(OfflineSessionType.room);
+                        log.debug("Saved room message {} for room {}",
+                                message.getMessageId(), message.getRoomId());
+                    }
+                })
                 .onErrorResume(e -> {
                     log.error("Failed to save room message: roomId={}, error={}",
                             message.getRoomId(), e.getMessage());
@@ -120,6 +131,7 @@ public class RoomMessageRepository {
      */
     public Mono<Long> deleteRoomMessages(String roomId) {
         String key = keyFor(roomId);
+        offlineQueueMetrics.removeTrackedListKey(key);
 
         return redisTemplate.delete(key)
                 .doOnSuccess(n -> log.debug("Deleted message list for room {}: {} keys", roomId, n));

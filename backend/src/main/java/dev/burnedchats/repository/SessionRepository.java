@@ -1,5 +1,6 @@
 package dev.burnedchats.repository;
 
+import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import org.slf4j.Logger;
@@ -33,7 +34,7 @@ import java.util.Map;
  *   <li>secretAnswerHash - Base64 SHA-256 of normalized expected answer (if question set)</li>
  * </ul>
  *
- * <p>Default TTL: 1 hour (auto-cleanup of inactive sessions).
+ * <p>Session key TTL: {@code session.active.ttl} in {@code application.yml} (default 24h).
  *
  * @see Session
  */
@@ -43,12 +44,15 @@ public class SessionRepository {
     private static final Logger log = LoggerFactory.getLogger(SessionRepository.class);
 
     private static final String KEY_PREFIX = "session:";
-    private static final Duration DEFAULT_TTL = Duration.ofHours(1);
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
+    private final Duration sessionTtl;
 
-    public SessionRepository(ReactiveRedisTemplate<String, String> redisTemplate) {
+    public SessionRepository(
+            ReactiveRedisTemplate<String, String> redisTemplate,
+            SessionProperties sessionProperties) {
         this.redisTemplate = redisTemplate;
+        this.sessionTtl = Duration.ofSeconds(sessionProperties.getActive().getTtl());
     }
 
     /**
@@ -89,7 +93,7 @@ public class SessionRepository {
 
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
-                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(redisTemplate.expire(key, sessionTtl))
                 .doOnSuccess(result -> log.debug("Saved session: {}, status: {}",
                         session.getId(), session.getStatus()));
     }
@@ -249,7 +253,7 @@ public class SessionRepository {
      * @return true if TTL was set
      */
     public Mono<Boolean> refreshTtl(String sessionId) {
-        return redisTemplate.expire(keyFor(sessionId), DEFAULT_TTL);
+        return redisTemplate.expire(keyFor(sessionId), sessionTtl);
     }
 
     /**

@@ -2,6 +2,8 @@ package dev.burnedchats.websocket;
 
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.dto.event.IncomingRequestEvent;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.dto.event.SyncMessagesEvent;
 import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedMessage;
 import dev.burnedchats.dto.mapper.UserMapper;
@@ -64,6 +66,7 @@ public class WebSocketEventListener {
     private final UserMapper userMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final MessagesProperties messagesProperties;
+    private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
      * Handle WebSocket session connected event.
@@ -319,6 +322,7 @@ public class WebSocketEventListener {
                     log.debug("Server-push sync: delivered {} messages to user {} for session {}",
                             messages.size(), userId, sessionId);
 
+                    offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
                     return messageRepository.deleteMessages(userId, sessionId)
                             .thenReturn(messages.size());
                 })

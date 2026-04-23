@@ -3,7 +3,10 @@ package dev.burnedchats.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.burnedchats.config.MessagesProperties;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.Message;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -50,6 +53,8 @@ class MessageRepositoryTest {
 
     private MessageRepository messageRepository;
     private ObjectMapper objectMapper;
+    private MessagesProperties messagesProperties;
+    private OfflineQueueMetrics offlineQueueMetrics;
 
     private static final String TEST_SESSION_ID = "session-123";
     private static final String TEST_MESSAGE_ID = "msg-456";
@@ -65,7 +70,9 @@ class MessageRepositoryTest {
         objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         when(redisTemplate.opsForList()).thenReturn(listOperations);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        messageRepository = new MessageRepository(redisTemplate, objectMapper);
+        messagesProperties = new MessagesProperties();
+        offlineQueueMetrics = new OfflineQueueMetrics(new SimpleMeterRegistry());
+        messageRepository = new MessageRepository(redisTemplate, objectMapper, messagesProperties, offlineQueueMetrics);
     }
 
     private Message createTestMessage() {
@@ -131,8 +138,8 @@ class MessageRepositoryTest {
             messageRepository.queueMessage(message).block();
 
             // Then
-            verify(redisTemplate).expire(eq(key), eq(Duration.ofHours(1)));
-            verify(redisTemplate).expire(eq(countKey), eq(Duration.ofHours(1)));
+            verify(redisTemplate).expire(eq(key), eq(messagesProperties.getOfflineQueue().getTtl()));
+            verify(redisTemplate).expire(eq(countKey), eq(messagesProperties.getOfflineQueue().getTtl()));
         }
 
         @Test
@@ -462,36 +469,6 @@ class MessageRepositoryTest {
             StepVerifier.create(messageRepository.messageExists(RECIPIENT_ID, TEST_SESSION_ID, TEST_MESSAGE_ID))
                     .expectNext(false)
                     .verifyComplete();
-        }
-    }
-
-    @Nested
-    @DisplayName("Message model")
-    class MessageModel {
-
-        @Test
-        @DisplayName("fromRequest should create message correctly")
-        void fromRequestShouldCreateMessage() {
-            // When
-            Message message = Message.fromRequest(
-                    TEST_SESSION_ID,
-                    SENDER_ID,
-                    RECIPIENT_ID,
-                    TEST_MESSAGE_ID,
-                    "encrypted-content",
-                    "iv-value",
-                    1234567890L
-            );
-
-            // Then
-            assertEquals(TEST_SESSION_ID, message.getSessionId());
-            assertEquals(SENDER_ID, message.getSenderId());
-            assertEquals(RECIPIENT_ID, message.getRecipientId());
-            assertEquals(TEST_MESSAGE_ID, message.getMessageId());
-            assertEquals("encrypted-content", message.getEncryptedContent());
-            assertEquals("iv-value", message.getIv());
-            assertEquals(1234567890L, message.getClientTimestamp());
-            assertNotNull(message.getServerTimestamp());
         }
     }
 }

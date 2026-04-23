@@ -1,5 +1,6 @@
 package dev.burnedchats.repository;
 
+import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,7 @@ class SessionRepositoryTest {
     private ReactiveHashOperations<String, Object, Object> hashOperations;
 
     private SessionRepository sessionRepository;
+    private final SessionProperties sessionProperties = new SessionProperties();
 
     private static final String TEST_SESSION_ID = "test-session-123";
     private static final Long INITIATOR_ID = 111111111L;
@@ -52,7 +54,8 @@ class SessionRepositoryTest {
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-        sessionRepository = new SessionRepository(redisTemplate);
+        sessionProperties.getActive().setTtl(3600);
+        sessionRepository = new SessionRepository(redisTemplate, sessionProperties);
     }
 
     private Session createTestSession() {
@@ -170,7 +173,7 @@ class SessionRepositoryTest {
                     .verifyComplete();
 
             verify(hashOperations).putAll(eq(key), anyMap());
-            verify(redisTemplate).expire(eq(key), eq(Duration.ofHours(1)));
+            verify(redisTemplate).expire(eq(key), eq(Duration.ofSeconds(3600)));
         }
 
         @Test
@@ -378,14 +381,14 @@ class SessionRepositoryTest {
         void shouldRefreshTtl() {
             // Given
             String key = "session:" + TEST_SESSION_ID;
-            when(redisTemplate.expire(key, Duration.ofHours(1))).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(key, Duration.ofSeconds(3600))).thenReturn(Mono.just(true));
 
             // When & Then
             StepVerifier.create(sessionRepository.refreshTtl(TEST_SESSION_ID))
                     .expectNext(true)
                     .verifyComplete();
 
-            verify(redisTemplate).expire(key, Duration.ofHours(1));
+            verify(redisTemplate).expire(key, Duration.ofSeconds(3600));
         }
     }
 

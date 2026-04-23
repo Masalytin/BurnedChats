@@ -2,6 +2,9 @@ package dev.burnedchats.repository;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.burnedchats.config.MessagesProperties;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +30,8 @@ import java.util.List;
  *   <li>{@code messages:count:{recipientId}} - Total pending message count for user</li>
  * </ul>
  *
- * <p>Default TTL: 1 hour (matches session TTL).
+ * <p>TTL and max list size: {@code burnedchats.messages.offline-queue} (default 24h, cap 100);
+ * must not exceed the active session TTL (see {@code session.active.ttl}).
  *
  * <p>Security notes:
  * <ul>
@@ -46,33 +50,36 @@ public class MessageRepository {
 
     private static final String KEY_PREFIX = "messages:";
     private static final String COUNT_PREFIX = "messages:count:";
-    private static final Duration DEFAULT_TTL = Duration.ofHours(1);
-
-    /**
-     * Maximum messages to queue per session (prevents abuse).
-     */
-    private static final long MAX_MESSAGES_PER_SESSION = 100;
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final MessagesProperties messagesProperties;
+    private final OfflineQueueMetrics offlineQueueMetrics;
 
-    public MessageRepository(ReactiveRedisTemplate<String, String> redisTemplate,
-                              ObjectMapper objectMapper) {
+    public MessageRepository(
+            ReactiveRedisTemplate<String, String> redisTemplate,
+            ObjectMapper objectMapper,
+            MessagesProperties messagesProperties,
+            OfflineQueueMetrics offlineQueueMetrics) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.messagesProperties = messagesProperties;
+        this.offlineQueueMetrics = offlineQueueMetrics;
     }
 
     /**
      * Queue a message for offline delivery.
      *
      * <p>The message is added to a per-session queue for the recipient.
-     * If the queue exceeds MAX_MESSAGES_PER_SESSION, oldest messages
+     * If the queue exceeds the configured max size, oldest messages
      * are dropped.
      *
      * @param message the message to queue
      * @return true if message was queued successfully
      */
     public Mono<Boolean> queueMessage(Message message) {
+        int maxList = messagesProperties.getOfflineQueue().getMaxSizePerSession();
+        Duration listTtl = messagesProperties.getOfflineQueue().getTtl();
         String key = keyFor(message.getRecipientId(), message.getSessionId());
         String countKey = countKeyFor(message.getRecipientId());
 
@@ -82,18 +89,20 @@ public class MessageRepository {
                     return redisTemplate.opsForList()
                             .rightPush(key, json)
                             .flatMap(size -> {
-                                // Trim if exceeds max
-                                if (size > MAX_MESSAGES_PER_SESSION) {
+                                if (size > maxList) {
+                                    long dropped = size - maxList;
+                                    offlineQueueMetrics.recordDroppedOverflow(OfflineSessionType.dm, dropped);
                                     return redisTemplate.opsForList()
-                                            .trim(key, -MAX_MESSAGES_PER_SESSION, -1)
-                                            .thenReturn(size);
+                                            .trim(key, -maxList, -1L)
+                                            .thenReturn((long) maxList);
                                 }
                                 return Mono.just(size);
                             })
                             .flatMap(size -> {
+                                offlineQueueMetrics.setTrackedListSize(key, size);
                                 // Set TTL on first message
                                 if (size == 1) {
-                                    return redisTemplate.expire(key, DEFAULT_TTL)
+                                    return redisTemplate.expire(key, listTtl)
                                             .thenReturn(true);
                                 }
                                 return Mono.just(true);
@@ -104,15 +113,20 @@ public class MessageRepository {
                                         .increment(countKey)
                                         .flatMap(count -> {
                                             if (count == 1) {
-                                                return redisTemplate.expire(countKey, DEFAULT_TTL)
+                                                return redisTemplate.expire(countKey, listTtl)
                                                         .thenReturn(true);
                                             }
                                             return Mono.just(true);
                                         });
                             });
                 })
-                .doOnSuccess(result -> log.debug("Queued message {} for user {} in session {}",
-                        message.getMessageId(), message.getRecipientId(), message.getSessionId()))
+                .doOnSuccess(ok -> {
+                    if (Boolean.TRUE.equals(ok)) {
+                        offlineQueueMetrics.recordEnqueued(OfflineSessionType.dm);
+                        log.debug("Queued message {} for user {} in session {}",
+                                message.getMessageId(), message.getRecipientId(), message.getSessionId());
+                    }
+                })
                 .onErrorResume(e -> {
                     log.error("Failed to queue message: {}", e.getMessage());
                     return Mono.just(false);
@@ -194,6 +208,7 @@ public class MessageRepository {
     public Mono<Long> deleteMessages(Long recipientId, String sessionId) {
         String key = keyFor(recipientId, sessionId);
         String countKey = countKeyFor(recipientId);
+        offlineQueueMetrics.removeTrackedListKey(key);
 
         return redisTemplate.opsForList()
                 .size(key)

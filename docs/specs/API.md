@@ -604,51 +604,27 @@ public void burnSession(@Payload BurnSessionDto request,
 
 ---
 
-### `SYNC_MESSAGES`
+### `SYNC_MESSAGES` (`/app/message.sync`)
 
-Запрос пропущенных сообщений (при reconnect).
+Запрос пропущенных DM-сообщений из Redis-очереди (reconnect, cold start, серверный push; см. offline sync). Тело: `SyncMessagesRequest` с полем `sessionId`.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/message/sync',
+  destination: '/app/message.sync',
   body: JSON.stringify({
-    sessionId: 'abc123',
-    lastMessageId: 'uuid-last-received' // опционально
+    sessionId: '550e8400-e29b-41d4-a716-446655440000',
   })
 });
 
-// Результат
-client.subscribe('/user/queue/sync-result', (message) => {
+// Результат: SyncMessagesEvent
+client.subscribe('/user/queue/sync-messages', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, messages: EncryptedMessage[] }
+  // success, sessionId, error?, messages
 });
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/message/sync")
-public void syncMessages(@Payload SyncMessagesDto request,
-                         Principal principal) {
-    String tgId = principal.getName();
-    
-    messageRepository.getMessages(request.getSessionId(), request.getLastMessageId())
-        .collectList()
-        .subscribe(messages -> {
-            messagingTemplate.convertAndSendToUser(
-                tgId,
-                "/queue/sync-result",
-                new SyncMessagesResult(request.getSessionId(), messages)
-            );
-            
-            // Удаляем доставленные сообщения из очереди
-            if (!messages.isEmpty()) {
-                messageRepository.deleteDelivered(request.getSessionId(), messages)
-                    .subscribe();
-            }
-        });
-}
-```
+**Backend:** `MessageHandler` — `@MessageMapping("/message.sync")`, `SyncMessagesRequest`, `SyncMessagesEvent` на `/user/queue/sync-messages`, после отправки — удаление ключа `messages:{userId}:{sessionId}`. Параметры списка: `burnedchats.messages.offline-queue` (см. `DATA_MODELS.md`).
 
 ---
 

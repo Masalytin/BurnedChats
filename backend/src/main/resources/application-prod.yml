@@ -66,5 +66,13 @@ management:
     health:
       show-details: when_authorized
 
+# DM/room message list limits (default from application.yml; override in env if needed)
+burnedchats:
+  messages:
+    offline-queue:
+      ttl: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_TTL:PT24H}
+      max-size-per-session: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_SESSION:100}
+      max-size-per-room: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_ROOM:500}
+      keyspace-listener-enabled: ${BURNEDCHATS_OFFLINE_MSG_KEYSPACE_LISTENER:true}
 
 

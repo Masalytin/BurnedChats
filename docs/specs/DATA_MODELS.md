@@ -20,9 +20,10 @@
 │                       REDIS KEY PATTERNS                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  session:{sessionId}          → Hash    │ TTL: 1 hour           │
+│  session:{sessionId}          → Hash    │ TTL: 24h (конфиг)     │
 │  request:{recipientTgId}      → List    │ TTL: 5 minutes        │
-│  messages:{sessionId}         → List    │ TTL: 24 hours         │
+│  messages:{tgId}:{sessionId}  → List    │ TTL: 24h (конфиг)     │
+│  messages:count:{tgId}        → String  │ счётчик pending (DM)  │
 │  online:{tgId}                → String  │ TTL: 30 seconds       │
 │  user:{tgId}                  → Hash    │ TTL: 7 days           │
 │  rate:{type}:{tgId}           → String  │ TTL: varies           │
@@ -66,7 +67,20 @@ EXPIRE session:abc123 3600
 
 **Соответствие коду (`SessionRepository` / `Session`):** фактический hash-ключ `session:{uuid}` хранит `id`, `initiatorId`, `responderId`, `status`, `createdAt`, `lastActivityAt`, при необходимости `secretQuestion` и `secretAnswerHash`. Поле `secretAnswerHash` — Base64(SHA-256) от **нормализованного ожидаемого ответа** инициатора (`trim`, затем `toLowerCase`, UTF-8); задаётся при создании заявки с секретным вопросом, открытый текст не сохраняется. Ответ получателя при accept хэшируется тем же алгоритмом и сравнивается с сохранённым значением (constant-time).
 
-**TTL:** 1 час (автоочистка неактивных сессий)
+**TTL:** по умолчанию 24 часа (`session.active.ttl` в `application.yml`), автоочистка неактивных сессий.
+
+---
+
+### Offline message queue (DM)
+
+Очередь зашифрованных сообщений для получателя, если он офлайн в момент доставки.
+
+| Ключ | Тип | Описание |
+|------|-----|----------|
+| `messages:{recipientTgId}:{sessionId}` | List | JSON сериализованных `Message` (E2EE blob), порядок FIFO |
+| `messages:count:{recipientTgId}` | String | Суммарный счётчик не доставленных сообщений по всем сессиям пользователя |
+
+**TTL и cap:** задаются в `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Значения не должны превышать TTL метаданных сессии (`session.active.ttl`). При переполнении список обрезается с головы (старые сообщения отбрасываются); сервер ведёт метрики Micrometer `burnedchats.offline_queue.*` (без идентификаторов пользователей в тегах).
 
 ---
 
@@ -89,30 +103,6 @@ EXPIRE request:444555666 300
 ```
 
 **TTL:** 5 минут (запрос истекает)
-
----
-
-### `messages:{sessionId}`
-
-Очередь зашифрованных сообщений для offline доставки.
-
-```redis
-RPUSH messages:abc123 '{
-  "id": "msg-uuid-1",
-  "iv": "base64...",
-  "ciphertext": "base64...",
-  "tag": "base64...",
-  "timestamp": 1704067200000,
-  "type": "text",
-  "senderTgId": "111222333"
-}'
-
-EXPIRE messages:abc123 86400
-```
-
-**Важно:** Сервер добавляет `senderTgId` для routing, но это НЕ нарушает E2EE — содержимое всё равно зашифровано.
-
-**TTL:** 24 часа (баланс между UX и приватностью)
 
 ---
 
@@ -250,9 +240,7 @@ EXPIRE room_join_request:uuid-room-1 86400
 
 ### `messages:{roomId}`
 
-Очередь зашифрованных сообщений комнаты (аналог `messages:{sessionId}`). Формат сообщения — как в 1-to-1, с полем `senderTgId` для отображения отправителя.
-
-**TTL:** 24 часа
+Очередь зашифрованных сообщений комнаты. Формат — `RoomMessage` (E2EE), с `senderTgId` в метаданных для отображения. Переполнение: `max-size-per-room` в `burnedchats.messages.offline-queue` (по умолчанию 500, trim с головы). **TTL:** тот же `burnedchats.messages.offline-queue.ttl` (по умолчанию 24 ч).
 
 ---
 

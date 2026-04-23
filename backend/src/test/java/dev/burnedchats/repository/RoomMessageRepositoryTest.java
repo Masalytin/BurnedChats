@@ -3,7 +3,10 @@ package dev.burnedchats.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.burnedchats.config.MessagesProperties;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.RoomMessage;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +47,8 @@ class RoomMessageRepositoryTest {
 
     private RoomMessageRepository repository;
     private ObjectMapper objectMapper;
+    private MessagesProperties messagesProperties;
+    private OfflineQueueMetrics offlineQueueMetrics;
 
     private static final String TEST_ROOM_ID = "room-abc-123";
     private static final String TEST_MESSAGE_ID = "msg-456";
@@ -56,7 +61,9 @@ class RoomMessageRepositoryTest {
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         when(redisTemplate.opsForList()).thenReturn(listOperations);
-        repository = new RoomMessageRepository(redisTemplate, objectMapper);
+        messagesProperties = new MessagesProperties();
+        offlineQueueMetrics = new OfflineQueueMetrics(new SimpleMeterRegistry());
+        repository = new RoomMessageRepository(redisTemplate, objectMapper, messagesProperties, offlineQueueMetrics);
     }
 
     private RoomMessage createTestMessage() {
@@ -97,7 +104,7 @@ class RoomMessageRepositoryTest {
                     .verifyComplete();
 
             verify(listOperations).rightPush(eq(key), anyString());
-            verify(redisTemplate).expire(eq(key), eq(RoomMessageRepository.MESSAGE_TTL));
+            verify(redisTemplate).expire(eq(key), eq(messagesProperties.getOfflineQueue().getTtl()));
         }
 
         @Test
@@ -126,7 +133,7 @@ class RoomMessageRepositoryTest {
 
             repository.saveMessage(message).block();
 
-            verify(redisTemplate).expire(eq(key), eq(RoomMessageRepository.MESSAGE_TTL));
+            verify(redisTemplate).expire(eq(key), eq(messagesProperties.getOfflineQueue().getTtl()));
         }
 
         @Test

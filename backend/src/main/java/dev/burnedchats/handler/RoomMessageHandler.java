@@ -5,6 +5,8 @@ import dev.burnedchats.dto.event.RoomMessageSentEvent;
 import dev.burnedchats.dto.event.SyncRoomMessagesEvent;
 import dev.burnedchats.dto.request.SendRoomMessageRequest;
 import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
+import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
@@ -107,6 +109,7 @@ public class RoomMessageHandler {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final FileMessageRelayValidator fileMessageRelayValidator;
+    private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
      * Handle {@code SEND_ROOM_MESSAGE} — relay an encrypted message to all room subscribers.
@@ -297,6 +300,7 @@ public class RoomMessageHandler {
                                 );
                                 log.info("SYNC_ROOM_MESSAGES sent: roomId={}, userId={}, count={}",
                                         roomId, userId, messages.size());
+                                offlineQueueMetrics.recordDelivered(OfflineSessionType.room, messages.size());
                                 return Mono.empty();
                             });
                 })

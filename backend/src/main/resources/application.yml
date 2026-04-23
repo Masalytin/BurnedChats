@@ -97,15 +97,26 @@ burnedchats:
     server-push-sync:
       enabled: ${BURNEDCHATS_SERVER_PUSH_SYNC_ENABLED:true}
       concurrency: ${BURNEDCHATS_SERVER_PUSH_SYNC_CONCURRENCY:4}
+    # DM + room list TTL/cap; must be <= session.active.ttl for 1:1
+    # (aligned below at 24h for offline list + session)
+    offline-queue:
+      ttl: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_TTL:PT24H}
+      max-size-per-session: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_SESSION:100}
+      max-size-per-room: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_ROOM:500}
+      keyspace-listener-enabled: ${BURNEDCHATS_OFFLINE_MSG_KEYSPACE_LISTENER:true}
+  # Periodic SCAN+LLEN sum for Micrometer size gauges
+  metrics:
+    offline-queue:
+      scan-interval-ms: ${BURNEDCHATS_OFFLINE_QUEUE_SCAN_MS:60000}
 
 # Session and request settings
 session:
   # Chat request expiration (5 minutes)
   request:
     ttl: 300
-  # Active session expiration (1 hour of inactivity)
+  # Active session expiration (24 hours of inactivity; must be >= messages.offline-queue.ttl)
   active:
-    ttl: 3600
+    ttl: ${SESSION_ACTIVE_TTL:86400}
   # Pending handshake timeout (30 seconds)
   handshake:
     timeout: 30
@@ -136,7 +147,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
       base-path: /actuator
   endpoint:
     health:
