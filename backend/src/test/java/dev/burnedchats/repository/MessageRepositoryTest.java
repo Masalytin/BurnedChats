@@ -396,10 +396,16 @@ class MessageRepositoryTest {
             when(redisTemplate.delete(key2)).thenReturn(Mono.just(1L));
             when(valueOperations.decrement(countKey2, 2L)).thenReturn(Mono.just(0L));
 
+            String editsKey1 = "message-edits:" + SENDER_ID + ":" + TEST_SESSION_ID;
+            String editsKey2 = "message-edits:" + RECIPIENT_ID + ":" + TEST_SESSION_ID;
+            when(redisTemplate.delete(editsKey1)).thenReturn(Mono.just(0L));
+            when(redisTemplate.delete(editsKey2)).thenReturn(Mono.just(0L));
+            when(redisTemplate.scan(any(ScanOptions.class))).thenReturn(Flux.empty());
+
             // When & Then
             StepVerifier.create(messageRepository.deleteAllForSession(
                             TEST_SESSION_ID, List.of(SENDER_ID, RECIPIENT_ID)))
-                    .expectNext(5L) // 3 + 2
+                    .expectNext(5L) // 3 + 2 + 0 (edit queues) + 0 (editable meta keys)
                     .verifyComplete();
         }
     }

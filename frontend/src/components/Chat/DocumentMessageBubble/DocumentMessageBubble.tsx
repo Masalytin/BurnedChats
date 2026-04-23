@@ -275,6 +275,9 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
         <div className="doc-bubble__meta">
           <span className="doc-bubble__time">{formattedTime}</span>
+          {message.editedAt != null && (
+            <span className="doc-bubble__edited">{t('chat.edit.editedLabel')}</span>
+          )}
           {message.isOwn && (
             <span className="message-status" aria-label={getStatusLabel(message.status)}>
               <StatusIcon status={message.status} />

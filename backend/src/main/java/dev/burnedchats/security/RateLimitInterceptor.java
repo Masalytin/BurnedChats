@@ -50,6 +50,8 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             "/app/session.reject", RateLimitType.SESSION_ACTION,
             "/app/message.send", RateLimitType.MESSAGE,
             "/app/message.sync", RateLimitType.MESSAGE,
+            "/app/message.edit", RateLimitType.MESSAGE_EDIT,
+            "/app/room.message.edit", RateLimitType.MESSAGE_EDIT,
             "/app/handshake.key", RateLimitType.HANDSHAKE,
             "/app/verification.confirm", RateLimitType.SESSION_ACTION
     );

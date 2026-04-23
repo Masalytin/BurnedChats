@@ -159,6 +159,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.message-edited {
+  opacity: 0.85;
+  font-style: italic;
+  margin-left: 2px;
+}
+
 /* Message Status Icons (4.3.5) */
 .message-status {
   display: inline-flex;

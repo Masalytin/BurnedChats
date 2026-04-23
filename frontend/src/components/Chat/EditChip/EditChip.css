@@ -1,0 +1,30 @@
+.edit-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.08));
+  border-radius: 0.4rem;
+}
+
+.edit-chip__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.edit-chip__close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}

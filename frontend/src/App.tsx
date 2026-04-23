@@ -1728,11 +1728,25 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
     }
   }, [t, toast]);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages } = useMessages({
+  const handleDmEditError = useCallback(
+    (code: string) => {
+      if (code === 'WINDOW_EXPIRED') {
+        toast.error(t('chat.edit.windowExpired'));
+      } else if (code === 'NOT_EDITABLE' || code === 'NOT_OWNER' || code === 'NOT_PARTICIPANT') {
+        toast.error(t('chat.edit.notEditable'));
+      } else {
+        toast.error(t('chat.edit.failed'));
+      }
+    },
+    [t, toast],
+  );
+
+  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage } = useMessages({
     sessionId,
     userId,
     ws,
     onError: handleMessageError,
+    onEditError: handleDmEditError,
   });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
@@ -1752,6 +1766,12 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
       void sendMessage(text, options);
     },
     [sendMessage],
+  );
+
+  const handleEditDm = useCallback(
+    (messageId: string, newText: string, originalClientTimestamp: number) =>
+      editMessage(messageId, newText, originalClientTimestamp),
+    [editMessage],
   );
 
   const handleSendFile = useCallback(
@@ -1776,6 +1796,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
       disabled={!!error}
       errorMessage={error ? t('chat.temporarilyUnavailable') : undefined}
       hideMessages={hideMessages}
+      onEditMessage={handleEditDm}
     />
   );
 }

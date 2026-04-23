@@ -1,4 +1,5 @@
 import { memo, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MessageStatus, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
@@ -38,6 +39,8 @@ interface MessageProps {
   onReplyQuoteClick?: (messageId: string) => void;
   /** Swipe right → quick reply (IMP-MA-03) */
   onSwipeReply?: () => void;
+  /** When set, show a subtle “edited” label next to the time. */
+  isEdited?: boolean;
 }
 
 /**
@@ -64,7 +67,9 @@ export const Message = memo(function Message({
   replySenderLabel,
   onReplyQuoteClick,
   onSwipeReply,
+  isEdited = false,
 }: MessageProps) {
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
   const haptics = useHaptics();
   const menuEnabled = Boolean(onOpenActionMenu);
@@ -143,6 +148,11 @@ export const Message = memo(function Message({
           <p className="message-content">{content}</p>
           <div className="message-meta">
             <span className="message-time">{formattedTime}</span>
+            {isEdited && (
+              <span className="message-edited" aria-label={t('chat.edit.editedLabel')}>
+                {t('chat.edit.editedLabel')}
+              </span>
+            )}
             {isOwn && (
               <span className="message-status" aria-label={getStatusLabel(status)}>
                 <MessageStatusIcon status={status} />

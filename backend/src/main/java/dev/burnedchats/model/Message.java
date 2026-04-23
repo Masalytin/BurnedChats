@@ -25,7 +25,7 @@ import java.time.Instant;
  * </ul>
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Message implements Serializable {
@@ -106,6 +106,11 @@ public class Message implements Serializable {
      * Optional client message ID this message replies to (plaintext relay metadata).
      */
     private String replyToMessageId;
+
+    /**
+     * Server time of the last successful edit, if any.
+     */
+    private Instant editedAt;
 
     /**
      * Create a Message from a send request.

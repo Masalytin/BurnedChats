@@ -13,6 +13,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Redis repository for room message storage.
@@ -135,6 +137,70 @@ public class RoomMessageRepository {
 
         return redisTemplate.delete(key)
                 .doOnSuccess(n -> LOG.debug("Deleted message list for room {}: {} keys", roomId, n));
+    }
+
+    /**
+     * Replace ciphertext for an existing room message (same id); attachment fields unchanged.
+     */
+    public Mono<RoomMessage> updateMessage(
+            String roomId,
+            String messageId,
+            Long senderTgId,
+            String newEncryptedContent,
+            String newIv,
+            Instant editedAt) {
+        String key = keyFor(roomId);
+        Duration ttl = messagesProperties.getOfflineQueue().getTtl();
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    if (jsonList.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    int index = -1;
+                    RoomMessage target = null;
+                    for (int i = 0; i < jsonList.size(); i++) {
+                        try {
+                            RoomMessage m = objectMapper.readValue(jsonList.get(i), RoomMessage.class);
+                            if (messageId.equals(m.getMessageId())) {
+                                index = i;
+                                target = m;
+                                break;
+                            }
+                        } catch (JsonProcessingException e) {
+                            LOG.warn("Skipping bad room list entry: {}", e.getMessage());
+                        }
+                    }
+                    if (index < 0 || target == null) {
+                        return Mono.empty();
+                    }
+                    if (!senderTgId.equals(target.getSenderTgId())) {
+                        return Mono.empty();
+                    }
+                    if (target.getServerTimestamp() == null
+                            || target.getServerTimestamp().plus(15, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                        return Mono.empty();
+                    }
+                    RoomMessage updated = target.toBuilder()
+                            .encryptedContent(newEncryptedContent)
+                            .iv(newIv)
+                            .editedAt(editedAt)
+                            .build();
+                    int finalIndex = index;
+                    return serializeMessage(updated)
+                            .flatMap(json -> redisTemplate.opsForList().set(key, finalIndex, json)
+                                    .flatMap(b -> {
+                                        if (Boolean.TRUE.equals(b)) {
+                                            return redisTemplate.expire(key, ttl).thenReturn(updated);
+                                        }
+                                        return Mono.empty();
+                                    }));
+                })
+                .onErrorResume(e -> {
+                    LOG.error("updateMessage failed: {}", e.getMessage());
+                    return Mono.empty();
+                });
     }
 
     private String keyFor(String roomId) {

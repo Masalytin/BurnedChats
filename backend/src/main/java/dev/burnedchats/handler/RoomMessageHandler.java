@@ -1,8 +1,10 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.NewRoomMessageEvent;
+import dev.burnedchats.dto.event.RoomMessageEditedEvent;
 import dev.burnedchats.dto.event.RoomMessageSentEvent;
 import dev.burnedchats.dto.event.SyncRoomMessagesEvent;
+import dev.burnedchats.dto.request.EditRoomMessageRequest;
 import dev.burnedchats.dto.request.SendRoomMessageRequest;
 import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
@@ -27,6 +29,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -103,6 +106,11 @@ public class RoomMessageHandler {
      */
     private static final String ROOM_SYNC_DESTINATION = "/queue/room-sync-messages";
 
+    /**
+     * User-scoped room edit errors (and optional UI feedback); success is broadcast on the room topic.
+     */
+    private static final String ROOM_MESSAGE_EDITED_USER_DESTINATION = "/queue/room-message-edited";
+
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomRepository roomRepository;
@@ -120,6 +128,70 @@ public class RoomMessageHandler {
      * @param request   the send message request containing encrypted content
      * @param principal authenticated user principal
      */
+    @MessageMapping("/room.message.edit")
+    public void editRoomMessage(
+            @Payload @Valid EditRoomMessageRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long senderTgId = tp.getUserId();
+        String roomId = request.getRoomId();
+        String messageId = request.getMessageId();
+
+        LOG.info("ROOM_MESSAGE_EDIT: roomId={}, messageId={}, senderTgId={}", roomId, messageId, senderTgId);
+
+        if (isRoomEditWindowExpired(request.getOriginalClientTimestamp(), request.getEditedAt())) {
+            sendRoomMessageEditError(senderTgId, roomId, messageId, "WINDOW_EXPIRED");
+            return;
+        }
+
+        roomMembersRepository.isMember(roomId, senderTgId)
+                .flatMap(isMember -> {
+                    if (!isMember) {
+                        sendRoomMessageEditError(senderTgId, roomId, messageId, "NOT_MEMBER");
+                        return Mono.empty();
+                    }
+                    Instant editedAt = Instant.ofEpochMilli(request.getEditedAt());
+                    return roomMessageRepository.updateMessage(
+                                    roomId,
+                                    messageId,
+                                    senderTgId,
+                                    request.getEncryptedContent(),
+                                    request.getIv(),
+                                    editedAt)
+                            .flatMap(rm -> userRepository.getDisplayName(senderTgId)
+                                    .defaultIfEmpty("User " + senderTgId)
+                                    .flatMap(senderName -> {
+                                        RoomMessageEditedEvent ev = RoomMessageEditedEvent.builder()
+                                                .success(true)
+                                                .roomId(roomId)
+                                                .messageId(rm.getMessageId())
+                                                .senderTgId(rm.getSenderTgId())
+                                                .senderName(senderName)
+                                                .encryptedContent(rm.getEncryptedContent())
+                                                .iv(rm.getIv())
+                                                .editedAt(rm.getEditedAt())
+                                                .type(rm.getType())
+                                                .fileId(rm.getFileId())
+                                                .thumbnailFileId(rm.getThumbnailFileId())
+                                                .encryptedMeta(rm.getEncryptedMeta())
+                                                .fileSize(rm.getFileSize())
+                                                .build();
+                                        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
+                                        return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL).then();
+                                    }))
+                            .switchIfEmpty(Mono.defer(() -> {
+                                sendRoomMessageEditError(senderTgId, roomId, messageId, "NOT_EDITABLE");
+                                return Mono.empty();
+                            }));
+                })
+                .subscribe(
+                        v -> { },
+                        error -> {
+                            LOG.error("ROOM_MESSAGE_EDIT failed: roomId={}, error={}", roomId, error.getMessage());
+                            sendRoomMessageEditError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
+                        }
+            );
+    }
+
     @MessageMapping("/room.message.send")
     public void sendRoomMessage(
             @Payload @Valid SendRoomMessageRequest request, Principal principal) {
@@ -239,6 +311,7 @@ public class RoomMessageHandler {
                         eventBuilder.replyToMessageId(request.getReplyToMessageId());
                     }
 
+                    eventBuilder.editedAt(null);
                     NewRoomMessageEvent event = eventBuilder.build();
                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
                     LOG.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
@@ -296,6 +369,7 @@ public class RoomMessageHandler {
                                             .encryptedMeta(msg.getEncryptedMeta())
                                             .fileSize(msg.getFileSize())
                                             .replyToMessageId(msg.getReplyToMessageId())
+                                            .editedAt(msg.getEditedAt())
                                             .build()))
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {
@@ -338,5 +412,28 @@ public class RoomMessageHandler {
                 event
         );
         LOG.trace("Sent sync error to user {}: {}", userId, errorCode);
+    }
+
+    private void sendRoomMessageEditError(Long userId, String roomId, String messageId, String errorCode) {
+        RoomMessageEditedEvent event = RoomMessageEditedEvent.builder()
+                .success(false)
+                .roomId(roomId)
+                .messageId(messageId)
+                .errorCode(errorCode)
+                .build();
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                ROOM_MESSAGE_EDITED_USER_DESTINATION,
+                event
+        );
+    }
+
+    private static boolean isRoomEditWindowExpired(long originalClientTimestamp, long editedAtMs) {
+        Instant o = Instant.ofEpochMilli(originalClientTimestamp);
+        Instant e = Instant.ofEpochMilli(editedAtMs);
+        if (e.isBefore(o)) {
+            return true;
+        }
+        return o.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
     }
 }

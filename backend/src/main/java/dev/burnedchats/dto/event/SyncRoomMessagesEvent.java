@@ -121,6 +121,11 @@ public class SyncRoomMessagesEvent {
          * Optional ID of the message this one replies to (plaintext metadata).
          */
         private final String replyToMessageId;
+
+        /**
+         * Time of last edit, if any.
+         */
+        private final Instant editedAt;
     }
 
     /**

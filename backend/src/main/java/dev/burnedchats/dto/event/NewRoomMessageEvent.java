@@ -123,6 +123,11 @@ public class NewRoomMessageEvent {
     private String replyToMessageId;
 
     /**
+     * Time of last edit, if any (usually null on new messages).
+     */
+    private Instant editedAt;
+
+    /**
      * Error code if operation failed.
      */
     private String error;

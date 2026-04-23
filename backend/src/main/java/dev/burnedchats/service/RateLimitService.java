@@ -67,7 +67,12 @@ public class RateLimitService {
         /**
          * General rate limit.
          */
-        GENERAL(100, Duration.ofMinutes(1));
+        GENERAL(100, Duration.ofMinutes(1)),
+
+        /**
+         * Message edit (DM and room) — lower cap than new sends.
+         */
+        MESSAGE_EDIT(10, Duration.ofMinutes(1));
 
         private final int maxRequests;
         private final Duration window;

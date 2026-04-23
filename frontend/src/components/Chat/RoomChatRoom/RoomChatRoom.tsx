@@ -123,6 +123,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
   const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<DecryptedMessage | null>(null);
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const roomPeerDisplayName = t('room.chat.fallbackPeer');
 
@@ -172,6 +173,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     [t, toast],
   );
 
+  const handleRoomEditError = useCallback(
+    (code: string) => {
+      if (code === 'WINDOW_EXPIRED') {
+        toast.error(t('chat.edit.windowExpired'));
+      } else {
+        toast.error(t('chat.edit.failed'));
+      }
+    },
+    [t, toast],
+  );
+
   const replyChip: ReplyChipModel | null = useMemo(() => {
     if (!replyTarget) {
       return null;
@@ -189,12 +201,13 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     }
   }, [replyTarget]);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages } =
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage } =
     useRoomMessages({
       roomId,
       userId,
       ws,
       onError: handleRoomMessageError,
+      onEditError: handleRoomEditError,
     });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
@@ -217,14 +230,41 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setReplyTarget(message);
   }, []);
 
+  const handleStartEdit = useCallback((message: DecryptedMessage) => {
+    setReplyTarget(null);
+    setEditingMessage(message);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
   const handleSend = useCallback(
-    (text: string) => {
+    async (text: string) => {
       haptics.success();
+      if (editingMessage) {
+        const result = await editMessage(
+          editingMessage.id,
+          text,
+          editingMessage.timestamp,
+        );
+        if (!result.success) {
+          if (result.errorCode === 'WINDOW_EXPIRED') {
+            toast.error(t('chat.edit.windowExpired'));
+          } else {
+            toast.error(t('chat.edit.failed'));
+          }
+          return;
+        }
+        setEditingMessage(null);
+        messageInputTextAreaRef.current?.focus();
+        return;
+      }
       void sendMessage(text, { replyToMessageId: replyTarget?.id });
       setReplyTarget(null);
       messageInputTextAreaRef.current?.focus();
     },
-    [sendMessage, haptics, replyTarget],
+    [sendMessage, haptics, replyTarget, editingMessage, editMessage, toast, t],
   );
 
   const handleFileSelected = useCallback((info: SelectedFileInfo) => {
@@ -412,6 +452,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             userId={userId}
             peerDisplayName={roomPeerDisplayName}
             onReplyToMessage={handleReplyToMessage}
+            onEditMessage={handleStartEdit}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">
@@ -420,8 +461,13 @@ export const RoomChatRoom = memo(function RoomChatRoom({
               onFileSelected={handleFileSelected}
               isUploading={isUploading}
               placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
-              replyTo={replyChip}
-              onReplyCancel={handleCancelReply}
+              replyTo={editingMessage ? null : replyChip}
+              onReplyCancel={editingMessage ? undefined : handleCancelReply}
+              editMode={
+                editingMessage
+                  ? { initialText: editingMessage.content, onCancel: handleCancelEdit }
+                  : null
+              }
               textAreaRef={messageInputTextAreaRef}
             />
           </div>

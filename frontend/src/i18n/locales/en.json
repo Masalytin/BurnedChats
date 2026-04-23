@@ -88,7 +88,17 @@
       "copyToast": "Copied",
       "copyFailed": "Could not copy",
       "deleteForMe": "Delete for me",
-      "reply": "Reply"
+      "reply": "Reply",
+      "edit": "Edit"
+    },
+    "edit": {
+      "editedLabel": "edited",
+      "editChipLabel": "Editing message",
+      "save": "Save",
+      "cancel": "Cancel",
+      "windowExpired": "Edit window has expired (15 min limit)",
+      "failed": "Failed to edit message",
+      "notEditable": "This message cannot be edited"
     },
     "reply": {
       "you": "You",

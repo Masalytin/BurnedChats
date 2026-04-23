@@ -67,6 +67,12 @@ interface ChatRoomProps {
   className?: string;
   /** Locally hide messages (delete for me) */
   hideMessages?: (ids: string | string[]) => void;
+  /** Edit own message (IMP-MA-04) */
+  onEditMessage?: (
+    messageId: string,
+    newText: string,
+    originalClientTimestamp: number,
+  ) => Promise<{ success: boolean; errorCode?: string }>;
 }
 
 /**
@@ -99,6 +105,7 @@ export const ChatRoom = memo(function ChatRoom({
   onRetryUpload,
   className = '',
   hideMessages,
+  onEditMessage,
 }: ChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -106,6 +113,7 @@ export const ChatRoom = memo(function ChatRoom({
   const messageSelection = useMessageSelection();
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
   const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<DecryptedMessage | null>(null);
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
 
@@ -155,13 +163,35 @@ export const ChatRoom = memo(function ChatRoom({
   }, []);
 
   const handleSend = useCallback(
-    (text: string) => {
+    async (text: string) => {
       haptics.success();
+      if (editingMessage) {
+        if (!onEditMessage) {
+          setEditingMessage(null);
+          return;
+        }
+        const result = await onEditMessage(
+          editingMessage.id,
+          text,
+          editingMessage.timestamp,
+        );
+        if (!result.success) {
+          if (result.errorCode === 'WINDOW_EXPIRED') {
+            toast.error(t('chat.edit.windowExpired'));
+          } else {
+            toast.error(t('chat.edit.failed'));
+          }
+          return;
+        }
+        setEditingMessage(null);
+        messageInputTextAreaRef.current?.focus();
+        return;
+      }
       onSendMessage(text, { replyToMessageId: replyTarget?.id });
       setReplyTarget(null);
       messageInputTextAreaRef.current?.focus();
     },
-    [onSendMessage, haptics, replyTarget],
+    [onSendMessage, haptics, replyTarget, editingMessage, onEditMessage, toast, t],
   );
 
   const handleCancelReply = useCallback(() => {
@@ -174,6 +204,15 @@ export const ChatRoom = memo(function ChatRoom({
     },
     [],
   );
+
+  const handleStartEdit = useCallback((message: DecryptedMessage) => {
+    setReplyTarget(null);
+    setEditingMessage(message);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
 
   const handleTypingChange = useCallback((isTyping: boolean) => {
     onTypingChange?.(isTyping);
@@ -340,6 +379,7 @@ export const ChatRoom = memo(function ChatRoom({
         userId={userId}
         peerDisplayName={displayName}
         onReplyToMessage={handleReplyToMessage}
+        onEditMessage={onEditMessage ? handleStartEdit : undefined}
         className="chat-room-messages chat-screen-messages"
       />
 
@@ -351,8 +391,13 @@ export const ChatRoom = memo(function ChatRoom({
           disabled={disabled}
           isUploading={isUploading}
           placeholder={t('chat.messagePlaceholder', { name: displayName })}
-          replyTo={replyChip}
-          onReplyCancel={handleCancelReply}
+          replyTo={editingMessage ? null : replyChip}
+          onReplyCancel={editingMessage ? undefined : handleCancelReply}
+          editMode={
+            editingMessage
+              ? { initialText: editingMessage.content, onCancel: handleCancelEdit }
+              : null
+          }
           textAreaRef={messageInputTextAreaRef}
         />
       </div>

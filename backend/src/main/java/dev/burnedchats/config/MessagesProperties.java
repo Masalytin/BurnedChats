@@ -30,6 +30,11 @@ public class MessagesProperties {
     private OfflineQueue offlineQueue = new OfflineQueue();
 
     /**
+     * Tombstone queue for DM edits after the message left the offline list, plus edit metadata TTL.
+     */
+    private MessageEdits messageEdits = new MessageEdits();
+
+    /**
      * Server-push sync configuration.
      *
      * <p>When enabled, the backend fans out {@code SyncMessagesEvent} to the
@@ -81,5 +86,26 @@ public class MessagesProperties {
          * Disable in tests to avoid a second connection.
          */
         private boolean keyspaceListenerEnabled = true;
+    }
+
+    /**
+     * {@code message-edits:{recipient}:{session}} list and short-lived {@code dm-editable} keys.
+     */
+    @Data
+    public static class MessageEdits {
+        /**
+         * TTL for the per-recipient edit backlog list.
+         */
+        private Duration ttl = Duration.ofHours(1);
+
+        /**
+         * Max pending edits per session for a recipient.
+         */
+        private int maxSize = 50;
+
+        /**
+         * TTL for {@code dm-editable:{sessionId}:{messageId}} (ownership + 15m window anchor).
+         */
+        private Duration editableMetaTtl = Duration.ofMinutes(20);
     }
 }

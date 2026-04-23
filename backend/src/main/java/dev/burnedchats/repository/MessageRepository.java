@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
+import dev.burnedchats.model.DmMessageEditableMeta;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageEdit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -15,6 +17,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -50,6 +54,8 @@ public class MessageRepository {
 
     private static final String KEY_PREFIX = "messages:";
     private static final String COUNT_PREFIX = "messages:count:";
+    private static final String EDIT_QUEUE_PREFIX = "message-edits:";
+    private static final String EDITABLE_META_PREFIX = "dm-editable:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
@@ -237,10 +243,234 @@ public class MessageRepository {
      */
     public Mono<Long> deleteAllForSession(String sessionId, List<Long> participantIds) {
         return Flux.fromIterable(participantIds)
-                .flatMap(userId -> deleteMessages(userId, sessionId))
-                .reduce(0L, (a, b) -> a + b)
-                .doOnSuccess(count -> LOG.debug("Deleted {} total messages for session {}",
-                        count, sessionId));
+                .flatMap(userId -> deleteMessages(userId, sessionId)
+                        .flatMap(dmCount -> deleteEdits(userId, sessionId)
+                                .defaultIfEmpty(0L)
+                                .map(edCount -> dmCount + edCount)))
+                .reduce(0L, Long::sum)
+                .flatMap(total -> deleteAllEditableMetaForSession(sessionId)
+                        .map(metaDeleted -> total + metaDeleted))
+                .doOnSuccess(count -> LOG.debug("Deleted {} total keys for session {}", count, sessionId));
+    }
+
+    /**
+     * Remember who sent a DM message and when, for edit validation after the message
+     * left the offline queue. Short TTL.
+     */
+    public Mono<Boolean> putDmMessageEditableMeta(
+            String sessionId, String messageId, Long senderId, Instant serverTimestamp) {
+        String key = editableMetaKey(sessionId, messageId);
+        Duration ttl = messagesProperties.getMessageEdits().getEditableMetaTtl();
+        DmMessageEditableMeta meta = DmMessageEditableMeta.builder()
+                .senderId(senderId)
+                .serverTimestamp(serverTimestamp)
+                .build();
+        return serializeEditableMeta(meta)
+                .flatMap(json -> redisTemplate.opsForValue()
+                        .set(key, json)
+                        .flatMap(ok -> Boolean.TRUE.equals(ok)
+                                ? redisTemplate.expire(key, ttl).thenReturn(true)
+                                : Mono.just(false)))
+                .onErrorResume(e -> {
+                    LOG.warn("putDmMessageEditableMeta failed: {}", e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    /**
+     * Look up edit validation metadata for a delivered DM message.
+     */
+    public Mono<DmMessageEditableMeta> getDmMessageEditableMeta(String sessionId, String messageId) {
+        String key = editableMetaKey(sessionId, messageId);
+        return redisTemplate.opsForValue()
+                .get(key)
+                .flatMap(this::deserializeEditableMeta);
+    }
+
+    /**
+     * Remove all {@code dm-editable:{sessionId}:*} keys (session burn).
+     */
+    public Mono<Long> deleteAllEditableMetaForSession(String sessionId) {
+        String match = EDITABLE_META_PREFIX + sessionId + ":*";
+        ScanOptions options = ScanOptions.scanOptions().match(match).count(100).build();
+        return redisTemplate.scan(options)
+                .flatMap(redisTemplate::delete)
+                .reduce(0L, Long::sum)
+                .defaultIfEmpty(0L);
+    }
+
+    /**
+     * Update a pending offline message in-place (same messageId, new ciphertext).
+     *
+     * @return true if an entry was updated
+     */
+    @SuppressWarnings("checkstyle:BooleanExpressionComplexity")
+    public Mono<Boolean> updateMessageInQueue(
+            Long recipientId,
+            String sessionId,
+            String messageId,
+            Long senderId,
+            String newEncryptedContent,
+            String newIv,
+            Instant editedAt) {
+        String key = keyFor(recipientId, sessionId);
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    if (jsonList.isEmpty()) {
+                        return Mono.just(false);
+                    }
+                    int index = -1;
+                    Message target = null;
+                    for (int i = 0; i < jsonList.size(); i++) {
+                        try {
+                            Message m = objectMapper.readValue(jsonList.get(i), Message.class);
+                            if (messageId.equals(m.getMessageId())) {
+                                index = i;
+                                target = m;
+                                break;
+                            }
+                        } catch (JsonProcessingException e) {
+                            LOG.warn("Skipping bad queue entry: {}", e.getMessage());
+                        }
+                    }
+                    if (index < 0 || target == null) {
+                        return Mono.just(false);
+                    }
+                    if (!senderId.equals(target.getSenderId())) {
+                        return Mono.just(false);
+                    }
+                    if (isOutsideEditWindow(target.getServerTimestamp())) {
+                        return Mono.just(false);
+                    }
+                    Message.MessageBuilder b = target.toBuilder()
+                            .encryptedContent(newEncryptedContent)
+                            .iv(newIv)
+                            .editedAt(editedAt);
+                    Message updated = b.build();
+                    int finalIndex = index;
+                    return serializeMessage(updated)
+                            .flatMap(json -> redisTemplate.opsForList().set(key, finalIndex, json))
+                            .thenReturn(true);
+                })
+                .defaultIfEmpty(false)
+                .onErrorResume(e -> {
+                    LOG.error("updateMessageInQueue failed: {}", e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    /**
+     * Queue an edit for later delivery (recipient was offline and message not in main list).
+     */
+    public Mono<Boolean> queueEdit(Long recipientId, String sessionId, MessageEdit edit) {
+        int maxList = messagesProperties.getMessageEdits().getMaxSize();
+        Duration listTtl = messagesProperties.getMessageEdits().getTtl();
+        String key = editsKeyFor(recipientId, sessionId);
+
+        return serializeMessageEdit(edit)
+                .flatMap(json -> redisTemplate.opsForList()
+                        .rightPush(key, json)
+                        .flatMap(size -> {
+                            if (size > maxList) {
+                                long dropped = size - maxList;
+                                offlineQueueMetrics.recordDroppedOverflow(OfflineSessionType.dm, dropped);
+                                return redisTemplate.opsForList()
+                                        .trim(key, -maxList, -1L)
+                                        .thenReturn((long) maxList);
+                            }
+                            return Mono.just(size);
+                        })
+                        .flatMap(size -> {
+                            if (size == 1) {
+                                return redisTemplate.expire(key, listTtl).thenReturn(true);
+                            }
+                            return redisTemplate.expire(key, listTtl).thenReturn(true);
+                        }))
+                .doOnSuccess(ok -> {
+                    if (Boolean.TRUE.equals(ok)) {
+                        LOG.debug("Queued edit for message {} session {} recipient {}",
+                                edit.getMessageId(), sessionId, recipientId);
+                    }
+                })
+                .onErrorResume(e -> {
+                    LOG.error("queueEdit failed: {}", e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    /**
+     * Drain pending tombstone edits for a session.
+     */
+    public Flux<MessageEdit> getPendingEdits(Long recipientId, String sessionId) {
+        String key = editsKeyFor(recipientId, sessionId);
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .flatMap(this::deserializeMessageEdit);
+    }
+
+    /**
+     * Delete all pending tombstone edits after delivery.
+     */
+    public Mono<Long> deleteEdits(Long recipientId, String sessionId) {
+        String key = editsKeyFor(recipientId, sessionId);
+        return redisTemplate.delete(key);
+    }
+
+    /**
+     * Find session IDs that have at least one pending tombstone edit for the user.
+     */
+    public Flux<String> findSessionsWithPendingEdits(Long userId) {
+        String match = EDIT_QUEUE_PREFIX + userId + ":*";
+        String keyPrefix = EDIT_QUEUE_PREFIX + userId + ":";
+        ScanOptions options = ScanOptions.scanOptions().match(match).count(100).build();
+        return redisTemplate.scan(options)
+                .map(k -> k.substring(keyPrefix.length()))
+                .distinct();
+    }
+
+    private static boolean isOutsideEditWindow(Instant serverTimestamp) {
+        if (serverTimestamp == null) {
+            return true;
+        }
+        return serverTimestamp.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
+    }
+
+    private String editableMetaKey(String sessionId, String messageId) {
+        return EDITABLE_META_PREFIX + sessionId + ":" + messageId;
+    }
+
+    private String editsKeyFor(Long recipientId, String sessionId) {
+        return EDIT_QUEUE_PREFIX + recipientId + ":" + sessionId;
+    }
+
+    private Mono<String> serializeEditableMeta(DmMessageEditableMeta meta) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(meta))
+                .onErrorMap(JsonProcessingException.class, e ->
+                        new RuntimeException("Failed to serialize editable meta", e));
+    }
+
+    private Mono<DmMessageEditableMeta> deserializeEditableMeta(String json) {
+        return Mono.fromCallable(() -> objectMapper.readValue(json, DmMessageEditableMeta.class))
+                .onErrorResume(e -> {
+                    LOG.warn("deserializeEditableMeta: {}", e.getMessage());
+                    return Mono.empty();
+                });
+    }
+
+    private Mono<String> serializeMessageEdit(MessageEdit edit) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(edit))
+                .onErrorMap(JsonProcessingException.class, e ->
+                        new RuntimeException("Failed to serialize message edit", e));
+    }
+
+    private Mono<MessageEdit> deserializeMessageEdit(String json) {
+        return Mono.fromCallable(() -> objectMapper.readValue(json, MessageEdit.class))
+                .onErrorResume(e -> {
+                    LOG.warn("Failed to deserialize message edit: {}", e.getMessage());
+                    return Mono.empty();
+                });
     }
 
     /**

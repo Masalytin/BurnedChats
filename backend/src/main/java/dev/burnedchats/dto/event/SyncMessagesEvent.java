@@ -116,6 +116,11 @@ public class SyncMessagesEvent {
         private final String replyToMessageId;
 
         /**
+         * Time of last edit, if any.
+         */
+        private final Instant editedAt;
+
+        /**
          * Convert a domain {@link Message} into a {@code SyncedMessage} DTO.
          *
          * <p>Centralised mapping used by both the client-initiated sync
@@ -139,6 +144,7 @@ public class SyncMessagesEvent {
                     .encryptedMeta(msg.getEncryptedMeta())
                     .fileSize(msg.getFileSize())
                     .replyToMessageId(msg.getReplyToMessageId())
+                    .editedAt(msg.getEditedAt())
                     .build();
         }
     }

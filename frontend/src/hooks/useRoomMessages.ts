@@ -9,6 +9,7 @@ import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTran
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import { enrichReplyTo } from '@/utils/replyPreview';
+import { isWithinEditWindow } from '@/utils/editWindow';
 import i18n from '@/i18n';
 import type {
   DecryptedMessage,
@@ -29,6 +30,8 @@ const SEND_ROOM_MESSAGE_DESTINATION = '/app/room.message.send';
 const ROOM_MESSAGE_SENT_DESTINATION = '/user/queue/room-message-sent';
 const SYNC_ROOM_MESSAGES_DESTINATION = '/app/room.message.sync';
 const SYNC_ROOM_MESSAGES_RESULT_DESTINATION = '/user/queue/room-sync-messages';
+const ROOM_MESSAGE_EDITED_USER_DESTINATION = '/user/queue/room-message-edited';
+const EDIT_ROOM_MESSAGE_DESTINATION = '/app/room.message.edit';
 
 function getRoomTopic(roomId: string): string {
   return `/topic/room/${roomId}`;
@@ -54,6 +57,7 @@ interface NewRoomMessageEvent {
   encryptedMeta?: string;
   fileSize?: number;
   replyToMessageId?: string;
+  eventType?: string;
 }
 
 /** Room message sent acknowledgment from server */
@@ -63,6 +67,25 @@ interface RoomMessageSentEvent {
   messageId: string;
   serverTimestamp: string;
   error?: string;
+}
+
+/** Room message edit broadcast / user-queue error */
+interface RoomMessageEditedEventPayload {
+  eventType?: string;
+  success: boolean;
+  roomId: string;
+  messageId: string;
+  senderTgId?: number;
+  senderName?: string | null;
+  encryptedContent?: string;
+  iv?: string;
+  editedAt?: string;
+  type?: string;
+  fileId?: string;
+  thumbnailFileId?: string;
+  encryptedMeta?: string;
+  fileSize?: number;
+  errorCode?: string;
 }
 
 /** Synced room message */
@@ -80,6 +103,7 @@ interface SyncedRoomMessage {
   encryptedMeta?: string;
   fileSize?: number;
   replyToMessageId?: string;
+  editedAt?: string | null;
 }
 
 /** Sync room messages response */
@@ -128,6 +152,7 @@ interface UseRoomMessagesOptions {
   isReconnection?: boolean;
   onNewMessage?: (message: DecryptedMessage) => void;
   onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
+  onEditError?: (errorCode: string) => void;
 }
 
 /** Hook return value */
@@ -142,6 +167,11 @@ export interface UseRoomMessagesReturn {
   /** Manually trigger sync of offline/missed room messages (FIX-SYNC-3). */
   syncMessages: () => void;
   error: RoomMessageErrorCode | null;
+  editMessage: (
+    messageId: string,
+    newText: string,
+    originalClientTimestamp: number,
+  ) => Promise<{ success: boolean; errorCode?: string }>;
 }
 
 // ============================================
@@ -158,7 +188,7 @@ export interface UseRoomMessagesReturn {
  * consistent with how sessionId is used for 1-on-1 chats.
  */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, ws, onNewMessage, onError } = options;
+  const { roomId, userId, ws, onNewMessage, onError, onEditError } = options;
   const { hiddenIds, hide: hideMessages } = useHiddenMessages('room', roomId);
   const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
@@ -181,6 +211,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
   const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
+  const handleRoomMessageEditedUserRef = useRef<(message: IMessage) => void>(() => {});
 
   // ============================================
   // Error Handling
@@ -391,15 +422,127 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     }
   }, [isConnected, roomId, userId, publish, handleError]);
 
+  const editMessage = useCallback(
+    async (
+      messageId: string,
+      newText: string,
+      originalClientTimestamp: number,
+    ): Promise<{ success: boolean; errorCode?: string }> => {
+      setError(null);
+      if (!isConnected) {
+        return { success: false, errorCode: 'NOT_CONNECTED' };
+      }
+      if (!roomId) {
+        return { success: false, errorCode: 'NO_ROOM' };
+      }
+      const groupKey = getGroupKey(roomId);
+      if (!groupKey) {
+        return { success: false, errorCode: 'NO_GROUP_KEY' };
+      }
+      if (!isWithinEditWindow(originalClientTimestamp)) {
+        return { success: false, errorCode: 'WINDOW_EXPIRED' };
+      }
+      try {
+        const encrypted = await encryptMessage(groupKey, newText, roomId);
+        publish(EDIT_ROOM_MESSAGE_DESTINATION, {
+          roomId,
+          messageId,
+          encryptedContent: encrypted.ciphertext,
+          iv: encrypted.iv,
+          editedAt: Date.now(),
+          originalClientTimestamp,
+        });
+        return { success: true };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        handleError('ENCRYPTION_FAILED', errMsg);
+        return { success: false, errorCode: 'ENCRYPTION_FAILED' };
+      }
+    },
+    [isConnected, roomId, publish, handleError],
+  );
+
   // ============================================
   // Receive Message Handler
   // ============================================
 
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
-      const event: NewRoomMessageEvent = JSON.parse(message.body);
-
+      const event = JSON.parse(message.body) as NewRoomMessageEvent & Partial<RoomMessageEditedEventPayload>;
       if (event.roomId !== roomId) return;
+
+      if (event.eventType === 'ROOM_MESSAGE_EDITED') {
+        const edit = event as unknown as RoomMessageEditedEventPayload;
+        if (!edit.success || !edit.messageId) {
+          return;
+        }
+        const groupKey = getGroupKey(roomId);
+        const encContent = edit.encryptedContent;
+        const encIv = edit.iv;
+        if (!groupKey || !encContent || !encIv) {
+          handleError('NO_GROUP_KEY', 'Cannot apply room message edit');
+          return;
+        }
+        const editedAtMs = edit.editedAt
+          ? new Date(edit.editedAt).getTime()
+          : Date.now();
+        setMessages((prev) => {
+          const existing = prev.find(m => m.id === edit.messageId);
+          const keepTs = existing?.timestamp ?? Date.now();
+          const eventType = toMessageType(edit.type);
+          const isFileMsg = eventType !== 'text' && !!edit.fileId;
+          void (async () => {
+            try {
+              if (isFileMsg) {
+                const fileMsg = await decryptRoomFileEvent(
+                  {
+                    roomId: edit.roomId,
+                    messageId: edit.messageId,
+                    senderTgId: edit.senderTgId ?? 0,
+                    senderName: edit.senderName,
+                    encryptedContent: encContent,
+                    iv: encIv,
+                    clientTimestamp: keepTs,
+                    type: edit.type,
+                    fileId: edit.fileId,
+                    thumbnailFileId: edit.thumbnailFileId,
+                    encryptedMeta: edit.encryptedMeta,
+                    fileSize: edit.fileSize,
+                  } as NewRoomMessageEvent,
+                  groupKey,
+                  roomId,
+                  userId,
+                  keepTs,
+                  eventType,
+                  undefined,
+                );
+                setMessages(p => p.map(m =>
+                  m.id === edit.messageId
+                    ? { ...fileMsg, timestamp: m.timestamp, editedAt: editedAtMs }
+                    : m
+                ));
+              } else {
+                const plaintext = await decryptMessage(
+                  groupKey,
+                  encContent,
+                  encIv,
+                  roomId,
+                );
+                setMessages(p => p.map(m =>
+                  m.id === edit.messageId
+                    ? { ...m, content: plaintext, editedAt: editedAtMs }
+                    : m
+                ));
+              }
+            } catch (e) {
+              console.error('[useRoomMessages] room edit decrypt:', e);
+              handleError('DECRYPTION_FAILED', e instanceof Error ? e.message : 'Unknown error');
+            }
+          })();
+          return prev;
+        });
+        return;
+      }
 
       const groupKey = getGroupKey(roomId);
       if (!groupKey) {
@@ -458,6 +601,23 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     }
   }, [roomId, userId, onNewMessage, handleError]);
 
+  const handleRoomMessageEditedUser = useCallback(
+    (message: IMessage) => {
+      try {
+        const event: RoomMessageEditedEventPayload = JSON.parse(message.body);
+        if (event.roomId !== roomId) {
+          return;
+        }
+        if (event.success === false) {
+          onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+        }
+      } catch (e) {
+        console.error('[useRoomMessages] room-message-edited user queue', e);
+      }
+    },
+    [roomId, onEditError],
+  );
+
   // ============================================
   // Message Sent Acknowledgment Handler
   // ============================================
@@ -515,7 +675,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
           if (isFileMsg) {
             const fileMsg = await decryptSyncedRoomFileMessage(
-              syncedMsg, groupKey, roomId, userId, ts, msgType,
+              syncedMsg, groupKey, roomId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
             );
             decryptedMessages.push(fileMsg);
           } else {
@@ -531,6 +691,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
               isOwn: syncedMsg.senderTgId === userId,
               type: 'text',
               replyToMessageId: syncedMsg.replyToMessageId || undefined,
+              editedAt: editedAtFromServerIso(syncedMsg.editedAt),
             });
           }
         } catch (decryptErr) {
@@ -557,6 +718,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     handleNewMessageRef.current = handleNewMessage;
     handleMessageSentRef.current = handleMessageSent;
     handleSyncMessagesRef.current = handleSyncMessages;
+    handleRoomMessageEditedUserRef.current = handleRoomMessageEditedUser;
   });
 
   // ============================================
@@ -582,10 +744,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     const onNewMsg = (msg: IMessage) => handleNewMessageRef.current(msg);
     const onMsgSent = (msg: IMessage) => handleMessageSentRef.current(msg);
     const onSyncResult = (msg: IMessage) => handleSyncMessagesRef.current(msg);
+    const onRoomEditUser = (msg: IMessage) => handleRoomMessageEditedUserRef.current(msg);
 
     subscribe(roomTopic, onNewMsg);
     subscribe(ROOM_MESSAGE_SENT_DESTINATION, onMsgSent);
     subscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION, onSyncResult);
+    subscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION, onRoomEditUser);
 
     triggerSyncIfReady('subscription');
 
@@ -593,6 +757,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       unsubscribe(roomTopic);
       unsubscribe(ROOM_MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION);
+      unsubscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION);
     };
   // Intentionally exclude subscribe/unsubscribe/publish (stable from parent); re-run on room connection.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -647,6 +812,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     hideMessages,
     syncMessages,
     error,
+    editMessage,
   };
 }
 
@@ -669,6 +835,12 @@ function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): n
     if (Number.isFinite(ms)) return ms;
   }
   return Date.now();
+}
+
+function editedAtFromServerIso(iso?: string | null): number | undefined {
+  if (!iso) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
 }
 
 // ============================================
@@ -754,6 +926,7 @@ async function decryptSyncedRoomFileMessage(
   userId: number,
   timestamp: number,
   messageType: MessageType,
+  editedAt?: number,
 ): Promise<DecryptedMessage> {
   let caption = '';
   try {
@@ -798,6 +971,7 @@ async function decryptSyncedRoomFileMessage(
     thumbnailFileId: syncedMsg.thumbnailFileId,
     thumbnailUrl,
     replyToMessageId: syncedMsg.replyToMessageId || undefined,
+    ...(editedAt != null ? { editedAt } : {}),
   };
 
   return msg;

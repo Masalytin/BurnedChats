@@ -116,6 +116,8 @@ export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv
   senderName?: string;
   /** Client-only quote hydrated from `replyToMessageId` and local state. */
   replyTo?: ReplyToInfo;
+  /** When set, the message was edited (UI shows an “edited” label). */
+  editedAt?: number;
 }
 
 /**

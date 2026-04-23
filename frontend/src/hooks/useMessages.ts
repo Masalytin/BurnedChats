@@ -9,6 +9,7 @@ import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTran
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
 import { enrichReplyTo } from '@/utils/replyPreview';
+import { isWithinEditWindow } from '@/utils/editWindow';
 import i18n from '@/i18n';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
@@ -72,6 +73,17 @@ interface MessageSentEvent {
   error?: string;
 }
 
+/** Message edit relay / ACK (DM). */
+interface MessageEditedEvent {
+  success: boolean;
+  sessionId: string;
+  messageId: string;
+  encryptedContent?: string;
+  iv?: string;
+  editedAt?: string;
+  errorCode?: string;
+}
+
 /** Synced message from server (5.1.2, matches SyncMessagesEvent.SyncedMessage) */
 interface SyncedMessage {
   messageId: string;
@@ -86,6 +98,8 @@ interface SyncedMessage {
   encryptedMeta?: string;
   fileSize?: number;
   replyToMessageId?: string;
+  /** ISO-8601 from server when the offline copy was last edited. */
+  editedAt?: string | null;
 }
 
 /** Sync messages event from server (5.1.2) */
@@ -126,6 +140,8 @@ interface UseMessagesOptions {
   onStatusChange?: (messageId: string, status: MessageStatus) => void;
   /** Callback when error occurs */
   onError?: (error: MessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
+  /** DM message edit was rejected (server or decrypt). */
+  onEditError?: (errorCode: string) => void;
   /** Callback when messages are synced after reconnection (5.1.2) */
   onSyncComplete?: (count: number) => void;
 }
@@ -152,6 +168,12 @@ interface UseMessagesReturn {
   syncMessages: () => void;
   /** Current error */
   error: MessageErrorCode | null;
+  /** Edit an existing own message (text or file caption) within the server window. */
+  editMessage: (
+    messageId: string,
+    newText: string,
+    originalClientTimestamp: number,
+  ) => Promise<{ success: boolean; errorCode?: string }>;
 }
 
 // ============================================
@@ -163,6 +185,8 @@ const MESSAGE_SENT_DESTINATION = '/user/queue/message-sent';
 const SEND_MESSAGE_DESTINATION = '/app/message.send';
 const SYNC_MESSAGES_DESTINATION = '/app/message.sync';
 const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
+const MESSAGE_EDITED_DESTINATION = '/user/queue/message-edited';
+const EDIT_MESSAGE_DESTINATION = '/app/message.edit';
 
 // ============================================
 // Hook Implementation
@@ -204,7 +228,7 @@ const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userId, ws, onNewMessage, onStatusChange, onError, onSyncComplete } = options;
+  const { sessionId, userId, ws, onNewMessage, onStatusChange, onError, onSyncComplete, onEditError } = options;
   const { hiddenIds, hide: hideMessages } = useHiddenMessages('dm', sessionId);
   const { isConnected, subscribe, unsubscribe, publish, isReconnection: wsIsReconnection } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
@@ -229,6 +253,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
   const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
+  const handleMessageEditedRef = useRef<(message: IMessage) => void>(() => {});
 
   // ============================================
   // Error Handling
@@ -636,7 +661,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
           if (isFileMsg) {
             const fileMsg = await decryptSyncedFileMessage(
-              syncedMsg, aesKey, sessionId, userId, ts, msgType,
+              syncedMsg, aesKey, sessionId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
             );
             decryptedMessages.push(fileMsg);
           } else {
@@ -657,6 +682,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               isOwn: syncedMsg.senderId === userId,
               type: 'text',
               replyToMessageId: syncedMsg.replyToMessageId || undefined,
+              editedAt: editedAtFromServerIso(syncedMsg.editedAt),
             });
           }
         } catch (decryptErr) {
@@ -762,11 +788,92 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     }
   }, [sessionId, onStatusChange, handleError]);
 
+  /**
+   * Apply DM message edit (from peer or our own send ACK).
+   */
+  const handleMessageEdited = useCallback(async (message: IMessage) => {
+    try {
+      const event: MessageEditedEvent = JSON.parse(message.body);
+      if (event.sessionId !== sessionId) {
+        return;
+      }
+      if (!event.success) {
+        onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+        return;
+      }
+      const aesKey = getAESKey(sessionId);
+      if (!aesKey || !event.encryptedContent || !event.iv) {
+        onEditError?.('INTERNAL_ERROR');
+        return;
+      }
+      const plaintext = await decryptMessage(
+        aesKey,
+        event.encryptedContent,
+        event.iv,
+        sessionId,
+      );
+      const editedAtMs = event.editedAt
+        ? new Date(event.editedAt).getTime()
+        : Date.now();
+      setMessages(prev => prev.map(m =>
+        m.id === event.messageId
+          ? { ...m, content: plaintext, editedAt: editedAtMs }
+          : m
+      ));
+    } catch (e) {
+      console.error('[useMessages] message-edited handler:', e);
+      onEditError?.('INTERNAL_ERROR');
+    }
+  }, [sessionId, onEditError]);
+
+  const editMessage = useCallback(
+    async (
+      messageId: string,
+      newText: string,
+      originalClientTimestamp: number,
+    ): Promise<{ success: boolean; errorCode?: string }> => {
+      setError(null);
+      if (!isConnected) {
+        return { success: false, errorCode: 'NOT_CONNECTED' };
+      }
+      if (!sessionId) {
+        return { success: false, errorCode: 'NO_SESSION' };
+      }
+      if (!isHandshakeComplete(sessionId)) {
+        return { success: false, errorCode: 'NO_ENCRYPTION_KEY' };
+      }
+      const aesKey = getAESKey(sessionId);
+      if (!aesKey) {
+        return { success: false, errorCode: 'NO_ENCRYPTION_KEY' };
+      }
+      if (!isWithinEditWindow(originalClientTimestamp)) {
+        return { success: false, errorCode: 'WINDOW_EXPIRED' };
+      }
+      try {
+        const encrypted = await encryptMessage(aesKey, newText, sessionId);
+        publish(EDIT_MESSAGE_DESTINATION, {
+          sessionId,
+          messageId,
+          encryptedContent: encrypted.ciphertext,
+          iv: encrypted.iv,
+          editedAt: Date.now(),
+          originalClientTimestamp,
+        });
+        return { success: true };
+      } catch {
+        handleError('ENCRYPTION_FAILED');
+        return { success: false, errorCode: 'ENCRYPTION_FAILED' };
+      }
+    },
+    [isConnected, sessionId, publish, handleError],
+  );
+
   // Keep handler refs up to date so subscription callbacks always use latest logic
   useEffect(() => {
     handleNewMessageRef.current = handleNewMessage;
     handleMessageSentRef.current = handleMessageSent;
     handleSyncMessagesRef.current = handleSyncMessages;
+    handleMessageEditedRef.current = handleMessageEdited;
   });
 
   // ============================================
@@ -818,10 +925,12 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     const onNewMessage = (message: IMessage) => handleNewMessageRef.current(message);
     const onMessageSent = (message: IMessage) => handleMessageSentRef.current(message);
     const onSyncResult = (message: IMessage) => handleSyncMessagesRef.current(message);
+    const onMessageEdited = (message: IMessage) => handleMessageEditedRef.current(message);
 
     subscribe(NEW_MESSAGE_DESTINATION, onNewMessage);
     subscribe(MESSAGE_SENT_DESTINATION, onMessageSent);
     subscribe(SYNC_MESSAGES_RESULT_DESTINATION, onSyncResult);
+    subscribe(MESSAGE_EDITED_DESTINATION, onMessageEdited);
 
     // Initial offline-messages sync on chat open (shared with useRoomMessages via useMessageSync).
     // Subscription to SYNC_MESSAGES_RESULT_DESTINATION above runs before this publish.
@@ -831,6 +940,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       unsubscribe(NEW_MESSAGE_DESTINATION);
       unsubscribe(MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_MESSAGES_RESULT_DESTINATION);
+      unsubscribe(MESSAGE_EDITED_DESTINATION);
     };
   // Intentionally exclude subscribe/unsubscribe/publish so effect only re-runs when
   // connection state or session identity actually changes (avoids duplicate syncs).
@@ -873,6 +983,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     retryMessage,
     syncMessages,
     error,
+    editMessage,
   };
 }
 
@@ -990,6 +1101,12 @@ async function decryptFileEvent(
 /**
  * Decrypt a synced file message.
  */
+function editedAtFromServerIso(iso?: string | null): number | undefined {
+  if (!iso) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
 async function decryptSyncedFileMessage(
   syncedMsg: SyncedMessage,
   aesKey: CryptoKey,
@@ -997,6 +1114,7 @@ async function decryptSyncedFileMessage(
   userId: number,
   timestamp: number,
   messageType: MessageType,
+  editedAt?: number,
 ): Promise<DecryptedMessage> {
   let caption = '';
   try {
@@ -1040,6 +1158,7 @@ async function decryptSyncedFileMessage(
     thumbnailFileId: syncedMsg.thumbnailFileId,
     thumbnailUrl,
     replyToMessageId: syncedMsg.replyToMessageId || undefined,
+    ...(editedAt != null ? { editedAt } : {}),
   };
 
   return msg;

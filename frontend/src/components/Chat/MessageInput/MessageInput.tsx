@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
 import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
+import { Check } from 'lucide-react';
 import { ReplyChip, type ReplyChipModel } from '../ReplyChip';
+import { EditChip } from '../EditChip';
 import './MessageInput.css';
 
 export type { FileMessageType };
@@ -39,6 +41,8 @@ interface MessageInputProps {
   /** IMP-MA-03: show reply target above the field */
   replyTo?: ReplyChipModel | null;
   onReplyCancel?: () => void;
+  /** IMP-MA-04: edit existing message (disables attachments) */
+  editMode?: { initialText: string; onCancel: () => void } | null;
   /** For focus when starting a reply (optional) */
   textAreaRef?: Ref<HTMLTextAreaElement | null>;
 }
@@ -69,6 +73,7 @@ export const MessageInput = memo(function MessageInput({
   className = '',
   replyTo = null,
   onReplyCancel,
+  editMode = null,
   textAreaRef: textAreaRefProp,
 }: MessageInputProps) {
   const { t } = useTranslation();
@@ -135,6 +140,12 @@ export const MessageInput = memo(function MessageInput({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape' && editMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        editMode.onCancel();
+        return;
+      }
       if (e.key === 'Escape' && replyTo && onReplyCancel) {
         e.preventDefault();
         e.stopPropagation();
@@ -146,7 +157,7 @@ export const MessageInput = memo(function MessageInput({
         handleSubmit();
       }
     },
-    [handleSubmit, replyTo, onReplyCancel],
+    [handleSubmit, replyTo, onReplyCancel, editMode],
   );
 
   // P4-4-1-1: Open file picker
@@ -191,6 +202,12 @@ export const MessageInput = memo(function MessageInput({
   }, [text]);
 
   useEffect(() => {
+    if (editMode) {
+      setText(editMode.initialText);
+    }
+  }, [editMode?.initialText, editMode]);
+
+  useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -205,7 +222,7 @@ export const MessageInput = memo(function MessageInput({
   }, [onTypingChange]);
 
   const canSend = text.trim().length > 0 && !disabled && !isSending;
-  const canAttach = !disabled && !isUploading && !!onFileSelected;
+  const canAttach = !disabled && !isUploading && !!onFileSelected && !editMode;
 
   const setTextareaRef = useCallback(
     (el: HTMLTextAreaElement | null) => {
@@ -221,7 +238,10 @@ export const MessageInput = memo(function MessageInput({
 
   return (
     <div className={`message-input ${className}`}>
-      {replyTo && onReplyCancel && (
+      {editMode && (
+        <EditChip onCancel={editMode.onCancel} />
+      )}
+      {!editMode && replyTo && onReplyCancel && (
         <ReplyChip replyTo={replyTo} onCancel={onReplyCancel} />
       )}
       <div className="message-input-container">
@@ -265,10 +285,12 @@ export const MessageInput = memo(function MessageInput({
           className={`message-input-send ${canSend ? 'message-input-send--active' : ''}`}
           onClick={handleSubmit}
           disabled={!canSend}
-          aria-label="Send message"
+          aria-label={editMode ? t('chat.edit.save') : 'Send message'}
         >
           {isSending ? (
             <span className="message-input-spinner" />
+          ) : editMode ? (
+            <Check className="message-input-save-icon" size={22} aria-hidden />
           ) : (
             <SendIcon />
           )}

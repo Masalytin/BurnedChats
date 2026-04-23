@@ -1,11 +1,14 @@
 package dev.burnedchats.handler;
 
+import dev.burnedchats.dto.event.MessageEditedEvent;
 import dev.burnedchats.dto.event.MessageSentEvent;
 import dev.burnedchats.dto.event.NewMessageEvent;
 import dev.burnedchats.dto.event.SyncMessagesEvent;
+import dev.burnedchats.dto.request.EditMessageRequest;
 import dev.burnedchats.dto.request.SendMessageRequest;
 import dev.burnedchats.dto.request.SyncMessagesRequest;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageEdit;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
@@ -18,6 +21,7 @@ import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -29,6 +33,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -92,6 +97,8 @@ public class MessageHandler {
      */
     private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
 
+    private static final String MESSAGE_EDITED_DESTINATION = "/queue/message-edited";
+
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
@@ -116,6 +123,29 @@ public class MessageHandler {
      * @param request   the send message request containing encrypted content
      * @param principal authenticated user principal
      */
+    @MessageMapping("/message.edit")
+    public void editMessage(@Payload @Valid EditMessageRequest request, Principal principal) {
+        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
+        Long senderId = telegramPrincipal.getUserId();
+        String sessionId = request.getSessionId();
+        String messageId = request.getMessageId();
+        LOG.info("DM message edit: sessionId={}, messageId={}, senderId={}", sessionId, messageId, senderId);
+
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    sendMessageEditError(senderId, sessionId, messageId, "NOT_EDITABLE");
+                    return Mono.empty();
+                }))
+                .flatMap(session -> applyDmEdit(session, senderId, request))
+                .subscribe(
+                        v -> { },
+                        error -> {
+                            LOG.error("editMessage: sessionId={}, error={}", sessionId, error.getMessage());
+                            sendMessageEditError(senderId, sessionId, messageId, "INTERNAL_ERROR");
+                        }
+            );
+    }
+
     @MessageMapping("/message.send")
     public void relayMessage(@Payload SendMessageRequest request, Principal principal) {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
@@ -196,13 +226,13 @@ public class MessageHandler {
                                 LOG.info("Synced {} messages for user {} in session {}",
                                         syncedMessages.size(), userId, sessionId);
 
-                                // Delete delivered messages from queue
+                                // Delete delivered messages from queue, then any tombstone edits
                                 if (!messages.isEmpty()) {
                                     offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
                                     return messageRepository.deleteMessages(userId, sessionId)
-                                            .then(Mono.empty());
+                                            .then(flushPendingDmEdits(userId, sessionId));
                                 }
-                                return Mono.empty();
+                                return flushPendingDmEdits(userId, sessionId);
                             });
                 })
                 .subscribe(
@@ -339,7 +369,8 @@ public class MessageHandler {
         LOG.info("Message delivered immediately: sessionId={}, messageId={}, type={}, from={}, to={}",
                 sessionId, messageId, type, senderId, recipientId);
 
-        return Mono.empty();
+        return messageRepository.putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp)
+                .then();
     }
 
     /**
@@ -370,7 +401,7 @@ public class MessageHandler {
                     if (!queued) {
                         LOG.warn("Failed to queue message: sessionId={}, messageId={}", sessionId, messageId);
                         sendError(senderId, sessionId, messageId, "QUEUE_FAILED");
-                        return Mono.empty();
+                        return Mono.<Void>empty();
                     }
 
                     // Send Telegram notification to offline recipient
@@ -387,7 +418,8 @@ public class MessageHandler {
                     LOG.info("Message queued for offline delivery: sessionId={}, messageId={}, from={}, to={}",
                             sessionId, messageId, senderId, recipientId);
 
-                    return Mono.empty();
+                    return messageRepository.putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp)
+                            .then();
                 });
     }
 
@@ -452,5 +484,165 @@ public class MessageHandler {
         if (replyTo != null && !replyTo.isBlank()) {
             LOG.debug("message.send includes replyToMessageId={} sessionId={}", replyTo, sessionId);
         }
+    }
+
+    private Mono<Void> applyDmEdit(Session session, Long senderId, EditMessageRequest req) {
+        String sessionId = session.getId();
+        String messageId = req.getMessageId();
+        if (!session.isParticipant(senderId)) {
+            sendMessageEditError(senderId, sessionId, messageId, "NOT_PARTICIPANT");
+            return Mono.empty();
+        }
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            sendMessageEditError(senderId, sessionId, messageId, errorCodeForNonActiveMessageSession(session.getStatus()));
+            return Mono.empty();
+        }
+        Long recipientId = session.getPeerId(senderId);
+        if (recipientId == null) {
+            sendMessageEditError(senderId, sessionId, messageId, "INTERNAL_ERROR");
+            return Mono.empty();
+        }
+        Instant editedAt = Instant.ofEpochMilli(req.getEditedAt());
+        if (isClientEditTimeImplausible(req.getOriginalClientTimestamp(), req.getEditedAt())) {
+            sendMessageEditError(senderId, sessionId, messageId, "WINDOW_EXPIRED");
+            return Mono.empty();
+        }
+
+        return onlineStatusRepository.isOnline(recipientId)
+                .flatMap(online -> messageRepository.updateMessageInQueue(
+                                recipientId, sessionId, messageId, senderId,
+                                req.getEncryptedContent(), req.getIv(), editedAt)
+                        .flatMap(updated -> {
+                            if (Boolean.TRUE.equals(updated)) {
+                                sendEditSuccessBoth(sessionId, messageId, req, editedAt, senderId, recipientId, online);
+                                return Mono.<Void>empty();
+                            }
+                            return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
+                                    .flatMap(meta -> {
+                                        if (!meta.getSenderId().equals(senderId)) {
+                                            sendMessageEditError(senderId, sessionId, messageId, "NOT_OWNER");
+                                            return Mono.<Void>empty();
+                                        }
+                                        if (isOutsideEditWindow(meta.getServerTimestamp())) {
+                                            sendMessageEditError(senderId, sessionId, messageId, "WINDOW_EXPIRED");
+                                            return Mono.<Void>empty();
+                                        }
+                                        if (online) {
+                                            sendEditSuccessBoth(sessionId, messageId, req, editedAt,
+                                                    senderId, recipientId, true);
+                                            return Mono.<Void>empty();
+                                        }
+                                        MessageEdit edit = MessageEdit.builder()
+                                                .messageId(messageId)
+                                                .sessionId(sessionId)
+                                                .senderId(senderId)
+                                                .encryptedContent(req.getEncryptedContent())
+                                                .iv(req.getIv())
+                                                .editedAt(editedAt)
+                                                .build();
+                                        return messageRepository.queueEdit(recipientId, sessionId, edit)
+                                                .flatMap(ok -> {
+                                                    if (!Boolean.TRUE.equals(ok)) {
+                                                        sendMessageEditError(senderId, sessionId, messageId, "INTERNAL_ERROR");
+                                                        return Mono.<Void>empty();
+                                                    }
+                                                    sendMessageEditSuccess(senderId, sessionId, messageId, req, editedAt);
+                                                    return Mono.<Void>empty();
+                                                });
+                                    })
+                                    .switchIfEmpty(Mono.defer(() -> {
+                                        if (isOutsideEditWindow(Instant.ofEpochMilli(req.getOriginalClientTimestamp()))) {
+                                            sendMessageEditError(senderId, sessionId, messageId, "WINDOW_EXPIRED");
+                                        } else {
+                                            sendMessageEditError(senderId, sessionId, messageId, "NOT_EDITABLE");
+                                        }
+                                        return Mono.<Void>empty();
+                                    }));
+                        })
+                );
+    }
+
+    private void sendEditSuccessBoth(
+            String sessionId, String messageId, EditMessageRequest req, Instant editedAt,
+            Long senderId, Long recipientId, boolean recipientOnline) {
+        MessageEditedEvent ok = buildMessageEditSuccess(sessionId, messageId, req, editedAt);
+        sendMessageEdited(senderId, ok);
+        if (recipientOnline) {
+            sendMessageEdited(recipientId, ok);
+        }
+    }
+
+    private MessageEditedEvent buildMessageEditSuccess(
+            String sessionId, String messageId, EditMessageRequest req, Instant editedAt) {
+        return MessageEditedEvent.builder()
+                .success(true)
+                .sessionId(sessionId)
+                .messageId(messageId)
+                .encryptedContent(req.getEncryptedContent())
+                .iv(req.getIv())
+                .editedAt(editedAt)
+                .build();
+    }
+
+    private void sendMessageEditSuccess(
+            Long userId, String sessionId, String messageId, EditMessageRequest req, Instant editedAt) {
+        sendMessageEdited(userId, buildMessageEditSuccess(sessionId, messageId, req, editedAt));
+    }
+
+    private void sendMessageEdited(Long userId, MessageEditedEvent event) {
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                MESSAGE_EDITED_DESTINATION,
+                event
+        );
+    }
+
+    private void sendMessageEditError(Long userId, String sessionId, String messageId, String errorCode) {
+        MessageEditedEvent event = MessageEditedEvent.builder()
+                .success(false)
+                .sessionId(sessionId)
+                .messageId(messageId)
+                .errorCode(errorCode)
+                .build();
+        sendMessageEdited(userId, event);
+    }
+
+    private static boolean isClientEditTimeImplausible(long originalClient, long editedAt) {
+        Instant o = Instant.ofEpochMilli(originalClient);
+        Instant e = Instant.ofEpochMilli(editedAt);
+        return isOutsideEditWindow(o) || e.isBefore(o);
+    }
+
+    private static boolean isOutsideEditWindow(Instant baseServerOrClient) {
+        if (baseServerOrClient == null) {
+            return true;
+        }
+        return baseServerOrClient.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
+    }
+
+    private Mono<Void> flushPendingDmEdits(Long userId, String sessionId) {
+        return messageRepository.getPendingEdits(userId, sessionId)
+                .collectList()
+                .flatMap(edits -> {
+                    for (MessageEdit e : edits) {
+                        MessageEditedEvent event = MessageEditedEvent.builder()
+                                .success(true)
+                                .sessionId(sessionId)
+                                .messageId(e.getMessageId())
+                                .encryptedContent(e.getEncryptedContent())
+                                .iv(e.getIv())
+                                .editedAt(e.getEditedAt())
+                                .build();
+                        messagingTemplate.convertAndSendToUser(
+                                String.valueOf(userId),
+                                MESSAGE_EDITED_DESTINATION,
+                                event
+                        );
+                    }
+                    if (edits.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    return messageRepository.deleteEdits(userId, sessionId).then();
+                });
     }
 }

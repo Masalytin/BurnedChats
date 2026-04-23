@@ -264,6 +264,9 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         <div className="image-bubble__meta">
           <span className="image-bubble__size">{formattedSize}</span>
           <span className="image-bubble__time">{formattedTime}</span>
+          {message.editedAt != null && (
+            <span className="image-bubble__edited">{t('chat.edit.editedLabel')}</span>
+          )}
           {message.isOwn && (
             <span className="message-status" aria-label={getStatusLabel(message.status)}>
               <StatusIcon status={message.status} />

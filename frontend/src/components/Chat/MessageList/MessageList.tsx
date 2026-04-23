@@ -16,6 +16,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { quoteSenderLabel } from '@/utils/replyPreview';
+import { isWithinEditWindow } from '@/utils/editWindow';
 import './MessageList.css';
 
 const HIGHLIGHT_MS = 1500;
@@ -63,6 +64,8 @@ interface MessageListProps {
   peerDisplayName: string;
   /** Start reply in composer (context menu or swipe) */
   onReplyToMessage?: (message: DecryptedMessage) => void;
+  /** Open edit-in-composer for an eligible own message (IMP-MA-04) */
+  onEditMessage?: (message: DecryptedMessage) => void;
 }
 
 /**
@@ -93,6 +96,7 @@ export const MessageList = memo(
   userId,
   peerDisplayName,
   onReplyToMessage,
+  onEditMessage,
 },
   ref,
 ) {
@@ -101,6 +105,19 @@ export const MessageList = memo(
   const haptics = useHaptics();
   const listRef = useRef<HTMLDivElement>(null);
   const [actionMenu, setActionMenu] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
+  /** Re-compute “edit in window” while the menu is open (15 min from send time). */
+  const [editMenuTick, setEditMenuTick] = useState(0);
+  useEffect(() => {
+    if (!actionMenu) {
+      return;
+    }
+    const id = globalThis.setInterval(() => {
+      setEditMenuTick((x) => x + 1);
+    }, 15_000);
+    return () => {
+      clearInterval(id);
+    };
+  }, [actionMenu]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
   const prevIdsRef = useRef<Set<string>>(new Set());
@@ -257,9 +274,11 @@ export const MessageList = memo(
     }
     const { messageId } = actionMenu;
     const msg = messages.find((m) => m.id === messageId);
-    const noOp = () => {
-      // Placeholders for IMP-MA-04…06
-    };
+    const now = Date.now();
+    const canEdit =
+      !!msg &&
+      !!onEditMessage &&
+      canUserEditMessage(msg, now);
     return [
       {
         id: 'reply',
@@ -286,10 +305,15 @@ export const MessageList = memo(
       },
       {
         id: 'edit',
-        label: t('chat.messageActions.edit'),
+        label: t('chat.actions.edit'),
         icon: <Pencil size={18} />,
-        disabled: true,
-        onClick: noOp,
+        disabled: !canEdit,
+        onClick: () => {
+          if (msg && canEdit) {
+            onEditMessage(msg);
+            closeActionMenu();
+          }
+        },
       },
       {
         id: 'deleteForMe',
@@ -321,6 +345,8 @@ export const MessageList = memo(
     copyFromMenu,
     onRequestDeleteForMe,
     onReplyToMessage,
+    onEditMessage,
+    editMenuTick,
   ]);
 
   const openMenuHandler = selection ? handleOpenActionMenu : undefined;
@@ -473,6 +499,7 @@ export const MessageList = memo(
             }
             onReplyQuoteClick={scrollToMessage}
             onSwipeReply={onReplyToMessage ? () => { onReplyToMessage(message); } : undefined}
+            isEdited={message.editedAt != null}
           />
         );
       })}
@@ -508,6 +535,26 @@ export const MessageList = memo(
     </div>
   );
 }));
+
+function canUserEditMessage(msg: DecryptedMessage, now: number): boolean {
+  if (!msg.isOwn) {
+    return false;
+  }
+  if (msg.status === 'sending' || msg.status === 'failed') {
+    return false;
+  }
+  if (msg.type === 'text') {
+    return isWithinEditWindow(msg.timestamp, now);
+  }
+  if (msg.type === 'image' || msg.type === 'video' || msg.type === 'file') {
+    const caption = msg.content?.trim() ?? '';
+    if (caption.length === 0) {
+      return false;
+    }
+    return isWithinEditWindow(msg.timestamp, now);
+  }
+  return false;
+}
 
 /**
  * Check if two dates are the same day
