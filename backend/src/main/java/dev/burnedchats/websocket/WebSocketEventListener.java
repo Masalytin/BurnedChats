@@ -5,12 +5,14 @@ import dev.burnedchats.dto.event.IncomingRequestEvent;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.dto.event.SyncMessagesEvent;
+import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedEdit;
 import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedMessage;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.MessageDeletion;
+import dev.burnedchats.model.MessageEdit;
 import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
@@ -29,7 +31,9 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import reactor.core.publisher.Flux;
 
@@ -260,7 +264,8 @@ public class WebSocketEventListener {
 
         Flux.merge(
                         messageRepository.findSessionsWithPendingMessages(userId),
-                        messageRepository.findSessionsWithPendingDeletions(userId))
+                        messageRepository.findSessionsWithPendingDeletions(userId),
+                        messageRepository.findSessionsWithPendingEdits(userId))
                 .distinct()
                 .flatMap(sessionId -> pushPendingMessagesForSession(userId, sessionId)
                         .doOnNext(delivered -> {
@@ -304,42 +309,56 @@ public class WebSocketEventListener {
      * @return mono of the number of messages delivered (0 if none)
      */
     private Mono<Integer> pushPendingMessagesForSession(Long userId, String sessionId) {
-        return messageRepository.getPendingMessages(userId, sessionId)
-                .collectList()
-                .zipWith(messageRepository.getPendingDeletions(userId, sessionId).collectList())
-                .flatMap(tuple -> {
-                    List<Message> messages = tuple.getT1();
-                    List<MessageDeletion> deletions = tuple.getT2();
-                    if (messages.isEmpty() && deletions.isEmpty()) {
-                        return Mono.just(0);
-                    }
-                    List<String> deletedIds = deletions.stream()
-                            .map(MessageDeletion::getMessageId)
-                            .toList();
-                    List<SyncedMessage> syncedMessages = messages.stream()
-                            .map(SyncedMessage::fromMessage)
-                            .toList();
-                    SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages, deletedIds);
+        return Mono.zip(
+                messageRepository.getPendingMessages(userId, sessionId).collectList(),
+                messageRepository.getPendingEdits(userId, sessionId).collectList(),
+                messageRepository.getPendingDeletions(userId, sessionId).collectList()
+        ).flatMap(tuple -> {
+            List<Message> messages = tuple.getT1();
+            List<MessageEdit> pendingEdits = tuple.getT2();
+            List<MessageDeletion> deletions = tuple.getT3();
+            Set<String> deletedIdSet = deletions.stream()
+                    .map(MessageDeletion::getMessageId)
+                    .collect(Collectors.toSet());
+            List<SyncedEdit> syncedEdits = pendingEdits.stream()
+                    .filter(e -> !deletedIdSet.contains(e.getMessageId()))
+                    .map(SyncedEdit::fromMessageEdit)
+                    .toList();
+            List<String> deletedIds = deletions.stream()
+                    .map(MessageDeletion::getMessageId)
+                    .toList();
+            if (messages.isEmpty() && syncedEdits.isEmpty() && deletedIds.isEmpty()) {
+                return Mono.just(0);
+            }
+            List<SyncedMessage> syncedMessages = messages.stream()
+                    .map(SyncedMessage::fromMessage)
+                    .toList();
+            SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages, deletedIds, syncedEdits);
 
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(userId),
-                            SYNC_MESSAGES_DESTINATION,
-                            event
-                    );
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(userId),
+                    SYNC_MESSAGES_DESTINATION,
+                    event
+            );
 
-                    LOG.debug("Server-push sync: {} messages, {} deletions, user {} session {}",
-                            messages.size(), deletedIds.size(), userId, sessionId);
+            LOG.debug("Server-push sync: {} messages, {} edits, {} deletions, user {} session {}",
+                    messages.size(), syncedEdits.size(), deletedIds.size(), userId, sessionId);
 
-                    Mono<Void> after = Mono.empty();
-                    if (!messages.isEmpty()) {
-                        offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                        after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
-                    }
-                    if (!deletions.isEmpty()) {
-                        after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
-                    }
-                    return after.thenReturn(messages.size() + deletions.size());
-                })
+            Mono<Void> after = Mono.empty();
+            if (!messages.isEmpty()) {
+                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
+                after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
+            }
+            if (!pendingEdits.isEmpty()) {
+                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_edit, pendingEdits.size());
+                after = after.then(messageRepository.deleteEdits(userId, sessionId).then());
+            }
+            if (!deletions.isEmpty()) {
+                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_deletion, deletions.size());
+                after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
+            }
+            return after.thenReturn(messages.size() + pendingEdits.size() + deletions.size());
+        })
                 .onErrorResume(error -> {
                     LOG.error("Server-push sync failed for user {} session {}: {}",
                             userId, sessionId, error.getMessage());

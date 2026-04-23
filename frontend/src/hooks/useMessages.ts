@@ -112,6 +112,15 @@ interface SyncedMessage {
   editedAt?: string | null;
 }
 
+/** Tombstone edit in sync (matches SyncMessagesEvent.SyncedEdit). */
+interface SyncedEditPayload {
+  messageId: string;
+  encryptedContent: string;
+  iv: string;
+  /** Server ISO-8601 (Instant) */
+  editedAt?: string;
+}
+
 /** Sync messages event from server (5.1.2) */
 interface SyncMessagesEvent {
   success: boolean;
@@ -121,7 +130,11 @@ interface SyncMessagesEvent {
   serverTimestamp: string;
   error?: string;
   /** Tombstones for delete-for-everyone while offline. */
+  deletedIds?: string[];
+  /** @deprecated Server may still send; prefer deletedIds. */
   deletedMessageIds?: string[];
+  /** Tombstone edits when the message is no longer in the main queue. */
+  edits?: SyncedEditPayload[];
 }
 
 /** WebSocket API passed from parent (must use same connection as app) */
@@ -662,85 +675,105 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         return;
       }
 
-      const deletedIds = event.deletedMessageIds ?? [];
-      if (deletedIds.length > 0) {
-        const idSet = new Set(deletedIds);
+      const toDecrypt = event.messages ?? [];
+      const editPayloads = event.edits ?? [];
+      const tombstoneDeleteIds = event.deletedIds ?? event.deletedMessageIds ?? [];
+      const needsKey = toDecrypt.length > 0 || editPayloads.length > 0;
+      let newMessageCount = 0;
+      if (needsKey) {
+        const aesKey = getAESKey(sessionId);
+        if (!aesKey) {
+          handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt synced messages - no AES key');
+          return;
+        }
+
+        // 1) New offline messages
+        const decryptedMessages: DecryptedMessage[] = [];
+        for (const syncedMsg of toDecrypt) {
+          try {
+            const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
+            const msgType = toMessageType(syncedMsg.type);
+            const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
+
+            if (isFileMsg) {
+              const fileMsg = await decryptSyncedFileMessage(
+                syncedMsg, aesKey, sessionId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
+              );
+              decryptedMessages.push(fileMsg);
+            } else {
+              const plaintext = await decryptMessage(
+                aesKey,
+                syncedMsg.encryptedContent,
+                syncedMsg.iv,
+                sessionId,
+              );
+
+              decryptedMessages.push({
+                id: syncedMsg.messageId,
+                sessionId,
+                fromUserId: syncedMsg.senderId,
+                content: plaintext,
+                timestamp: ts,
+                status: 'delivered',
+                isOwn: syncedMsg.senderId === userId,
+                type: 'text',
+                replyToMessageId: syncedMsg.replyToMessageId || undefined,
+                editedAt: editedAtFromServerIso(syncedMsg.editedAt),
+              });
+            }
+          } catch (decryptErr) {
+            console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
+          }
+        }
+
+        newMessageCount = decryptedMessages.length;
+        if (decryptedMessages.length > 0) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = decryptedMessages.filter(m => !existingIds.has(m.id));
+            if (newMessages.length === 0) return prev;
+            return [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
+          });
+          decryptedMessages.forEach(msg => onNewMessage?.(msg));
+        }
+
+        // 2) Tombstone edits (after new messages, before deletions)
+        for (const edit of editPayloads) {
+          try {
+            const aesKey2 = getAESKey(sessionId);
+            if (!aesKey2) break;
+            const plaintext = await decryptMessage(
+              aesKey2,
+              edit.encryptedContent,
+              edit.iv,
+              sessionId,
+            );
+            const editedAtMs = edit.editedAt
+              ? new Date(edit.editedAt).getTime()
+              : Date.now();
+            setMessages(prev => prev.map(m =>
+              m.id === edit.messageId
+                ? { ...m, content: plaintext, editedAt: editedAtMs }
+                : m
+            ));
+          } catch (e) {
+            console.error('[useMessages] Failed to apply sync edit:', e);
+          }
+        }
+      } else {
+        console.log('[useMessages] No ciphertext in sync (deletions only or empty)');
+      }
+
+      // 3) Deletions last (delete wins over a concurrent edit in the same sync)
+      if (tombstoneDeleteIds.length > 0) {
+        const idSet = new Set(tombstoneDeleteIds);
         setMessages(prev => prev.filter(m => !idSet.has(m.id)));
       }
 
-      const toDecrypt = event.messages ?? [];
-      if (toDecrypt.length === 0) {
-        console.log('[useMessages] No messages to decrypt (tombstones only or empty)');
-        onSyncComplete?.(0);
-        return;
-      }
-
-      // Get AES key for decryption
-      const aesKey = getAESKey(sessionId);
-      if (!aesKey) {
-        handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt synced messages - no AES key');
-        return;
-      }
-
-      // Decrypt all synced messages
-      const decryptedMessages: DecryptedMessage[] = [];
-      
-      for (const syncedMsg of toDecrypt) {
-        try {
-          const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
-          const msgType = toMessageType(syncedMsg.type);
-          const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
-
-          if (isFileMsg) {
-            const fileMsg = await decryptSyncedFileMessage(
-              syncedMsg, aesKey, sessionId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
-            );
-            decryptedMessages.push(fileMsg);
-          } else {
-            const plaintext = await decryptMessage(
-              aesKey,
-              syncedMsg.encryptedContent,
-              syncedMsg.iv,
-              sessionId,
-            );
-
-            decryptedMessages.push({
-              id: syncedMsg.messageId,
-              sessionId,
-              fromUserId: syncedMsg.senderId,
-              content: plaintext,
-              timestamp: ts,
-              status: 'delivered',
-              isOwn: syncedMsg.senderId === userId,
-              type: 'text',
-              replyToMessageId: syncedMsg.replyToMessageId || undefined,
-              editedAt: editedAtFromServerIso(syncedMsg.editedAt),
-            });
-          }
-        } catch (decryptErr) {
-          console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
-        }
-      }
-
-      // Add synced messages (avoid duplicates)
-      if (decryptedMessages.length > 0) {
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = decryptedMessages.filter(m => !existingIds.has(m.id));
-          
-          if (newMessages.length === 0) return prev;
-          
-          // Sort by timestamp
-          const allMessages = [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
-          return allMessages;
-        });
-
-        // Notify callbacks
-        decryptedMessages.forEach(msg => onNewMessage?.(msg));
-      }
-
-      console.log(`[useMessages] Synced ${decryptedMessages.length} messages`);
-      onSyncComplete?.(decryptedMessages.length);
+      console.log(
+        `[useMessages] Sync batch: ${newMessageCount} message(s), ${editPayloads.length} edit(s), ${tombstoneDeleteIds.length} delete(s)`,
+      );
+      onSyncComplete?.(newMessageCount);
 
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse sync event:', parseErr);

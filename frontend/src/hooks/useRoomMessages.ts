@@ -739,16 +739,26 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       setSyncing(false);
 
-      if (!event.success || event.count === 0) return;
+      if (!event.success) return;
 
+      const serverList = event.messages ?? [];
       const groupKey = getGroupKey(roomId);
-      if (!groupKey) {
+      if (serverList.length > 0 && !groupKey) {
         handleError('NO_GROUP_KEY', 'Cannot decrypt synced room messages — no group key');
         return;
       }
 
+      // Full server list for the room: replace delivered messages, keep only local in-flight (sending / failed)
+      if (serverList.length === 0) {
+        setMessages(prev => prev
+          .filter(m => m.status === 'sending' || m.status === 'failed')
+          .sort((a, b) => a.timestamp - b.timestamp),
+        );
+        return;
+      }
+
       const decryptedMessages: DecryptedMessage[] = [];
-      for (const syncedMsg of event.messages) {
+      for (const syncedMsg of serverList) {
         try {
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
           const msgType = toMessageType(syncedMsg.type);
@@ -756,11 +766,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
           if (isFileMsg) {
             const fileMsg = await decryptSyncedRoomFileMessage(
-              syncedMsg, groupKey, roomId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
+              syncedMsg, groupKey!, roomId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
             );
             decryptedMessages.push(fileMsg);
           } else {
-            const plaintext = await decryptMessage(groupKey, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
+            const plaintext = await decryptMessage(groupKey!, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
             decryptedMessages.push({
               id: syncedMsg.messageId,
               sessionId: roomId,
@@ -780,14 +790,17 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         }
       }
 
-      if (decryptedMessages.length > 0) {
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = decryptedMessages.filter(m => !existingIds.has(m.id));
-          if (newMessages.length === 0) return prev;
-          return [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
-        });
+      if (serverList.length > 0 && decryptedMessages.length === 0) {
+        return;
       }
+
+      const serverIdSet = new Set(decryptedMessages.map(m => m.id));
+      setMessages(prev => {
+        const localInFlight = prev.filter(
+          m => (m.status === 'sending' || m.status === 'failed') && !serverIdSet.has(m.id),
+        );
+        return [...decryptedMessages, ...localInFlight].sort((a, b) => a.timestamp - b.timestamp);
+      });
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);

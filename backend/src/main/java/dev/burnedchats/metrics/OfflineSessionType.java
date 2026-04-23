@@ -11,5 +11,13 @@ public enum OfflineSessionType {
     /**
      * Per-room list {@code messages:{roomId}}.
      */
-    room
+    room,
+    /**
+     * Tombstone edit queue {@code message-edits:{recipientId}:{sessionId}} (DM sync delivery).
+     */
+    dm_edit,
+    /**
+     * Tombstone deletion queue {@code message-deletions:{recipientId}:{sessionId}} (DM sync delivery).
+     */
+    dm_deletion
 }

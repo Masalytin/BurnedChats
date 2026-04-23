@@ -36,6 +36,8 @@ public class OfflineQueueMetrics {
     private final Counter droppedRoom;
     private final Counter deliveredDm;
     private final Counter deliveredRoom;
+    private final Counter deliveredDmEdit;
+    private final Counter deliveredDmDeletion;
     private final Counter expiredMessagesDm;
     private final Counter expiredMessagesRoom;
     private final AtomicLong sizeGaugeDm = new AtomicLong(0L);
@@ -62,6 +64,14 @@ public class OfflineQueueMetrics {
                 .register(registry);
         this.deliveredRoom = Counter.builder(METRIC_DELIVERED)
                 .tag(TAG_SESSION_TYPE, OfflineSessionType.room.name())
+                .register(registry);
+        this.deliveredDmEdit = Counter.builder(METRIC_DELIVERED)
+                .description("DM tombstone edits delivered via sync and removed from Redis")
+                .tag(TAG_SESSION_TYPE, OfflineSessionType.dm_edit.name())
+                .register(registry);
+        this.deliveredDmDeletion = Counter.builder(METRIC_DELIVERED)
+                .description("DM tombstone deletions delivered via sync and removed from Redis")
+                .tag(TAG_SESSION_TYPE, OfflineSessionType.dm_deletion.name())
                 .register(registry);
         this.expiredMessagesDm = Counter.builder(METRIC_EXPIRED)
                 .description("Messages lost to Redis key TTL, approximated from last known list size")
@@ -99,7 +109,12 @@ public class OfflineQueueMetrics {
         if (messageCount <= 0) {
             return;
         }
-        (type == OfflineSessionType.dm ? deliveredDm : deliveredRoom).increment(messageCount);
+        switch (type) {
+            case dm -> deliveredDm.increment(messageCount);
+            case room -> deliveredRoom.increment(messageCount);
+            case dm_edit -> deliveredDmEdit.increment(messageCount);
+            case dm_deletion -> deliveredDmDeletion.increment(messageCount);
+        }
     }
 
     public void setTrackedListSize(String redisListKey, long listSize) {

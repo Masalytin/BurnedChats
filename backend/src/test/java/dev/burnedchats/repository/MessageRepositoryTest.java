@@ -6,6 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageDeletion;
+import dev.burnedchats.model.MessageEdit;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -496,6 +498,53 @@ class MessageRepositoryTest {
             StepVerifier.create(messageRepository.messageExists(RECIPIENT_ID, TEST_SESSION_ID, TEST_MESSAGE_ID))
                     .expectNext(false)
                     .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("Tombstone queue caps (50)")
+    class TombstoneQueueCaps {
+
+        @Test
+        @DisplayName("queueEdit should trim to 50 when list overflows")
+        void queueEditTrimsTo50() {
+            messagesProperties.getMessageEdits().setMaxSize(50);
+            String key = "message-edits:" + RECIPIENT_ID + ":" + TEST_SESSION_ID;
+            MessageEdit edit = MessageEdit.builder()
+                    .messageId("e1")
+                    .sessionId(TEST_SESSION_ID)
+                    .senderId(SENDER_ID)
+                    .encryptedContent("a")
+                    .iv("b")
+                    .editedAt(Instant.now())
+                    .build();
+
+            when(listOperations.rightPush(eq(key), anyString())).thenReturn(Mono.just(51L));
+            when(listOperations.trim(eq(key), eq(-50L), eq(-1L))).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
+
+            messageRepository.queueEdit(RECIPIENT_ID, TEST_SESSION_ID, edit).block();
+
+            verify(listOperations).trim(key, -50L, -1L);
+        }
+
+        @Test
+        @DisplayName("queueDeletion should trim to 50 when list overflows")
+        void queueDeletionTrimsTo50() {
+            messagesProperties.getMessageDeletions().setMaxSize(50);
+            String key = "message-deletions:" + RECIPIENT_ID + ":" + TEST_SESSION_ID;
+            MessageDeletion d = MessageDeletion.builder()
+                    .messageId("d1")
+                    .deletedByTgId(SENDER_ID)
+                    .build();
+
+            when(listOperations.rightPush(eq(key), anyString())).thenReturn(Mono.just(51L));
+            when(listOperations.trim(eq(key), eq(-50L), eq(-1L))).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
+
+            messageRepository.queueDeletion(RECIPIENT_ID, TEST_SESSION_ID, d).block();
+
+            verify(listOperations).trim(key, -50L, -1L);
         }
     }
 }

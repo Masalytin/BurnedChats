@@ -1,18 +1,21 @@
 package dev.burnedchats.dto.event;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageEdit;
 import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 
 /**
  * Event containing synced messages after reconnection.
  *
  * <p>Sent to the client in response to a SYNC_MESSAGES request.
- * Contains all messages that were queued while the user was offline.
+ * Contains all messages that were queued while the user was offline,
+ * plus optional tombstone edits and delete-for-everyone ids.
  *
  * @see dev.burnedchats.handler.MessageHandler#syncMessages
  */
@@ -52,8 +55,17 @@ public class SyncMessagesEvent {
 
     /**
      * Message ids deleted for everyone while the user was offline (DM).
+     * JSON field {@code "deletedIds"}; {@code "deletedMessageIds"} is accepted for compatibility.
      */
-    private final List<String> deletedMessageIds;
+    @JsonProperty("deletedIds")
+    @JsonAlias("deletedMessageIds")
+    private final List<String> deletedIds;
+
+    /**
+     * Edits for messages no longer in the main offline list (tombstone queue).
+     */
+    @Builder.Default
+    private final List<SyncedEdit> edits = List.of();
 
     /**
      * A synced message containing encrypted content.
@@ -61,80 +73,22 @@ public class SyncMessagesEvent {
     @Getter
     @Builder
     public static class SyncedMessage {
-        /**
-         * Unique message ID.
-         */
         private final String messageId;
-
-        /**
-         * Sender's Telegram user ID.
-         */
         private final Long senderId;
-
-        /**
-         * Encrypted message content (Base64).
-         */
         private final String encryptedContent;
-
-        /**
-         * Initialization vector for AES-GCM (Base64).
-         */
         private final String iv;
-
-        /**
-         * Client-side timestamp when message was sent.
-         */
         private final Long clientTimestamp;
-
-        /**
-         * Server-side timestamp when message was received.
-         */
         private final Instant serverTimestamp;
-
-        /**
-         * Message type: "text", "image", "video", or "file".
-         */
         private final String type;
-
-        /**
-         * ID of the uploaded encrypted file.
-         */
         private final String fileId;
-
-        /**
-         * ID of the uploaded encrypted thumbnail.
-         */
         private final String thumbnailFileId;
-
-        /**
-         * Base64-encoded encrypted file metadata (fileName, mimeType).
-         */
         private final String encryptedMeta;
-
-        /**
-         * Original file size in bytes.
-         */
         private final Long fileSize;
-
-        /**
-         * Optional ID of the message this one replies to (plaintext metadata).
-         */
         private final String replyToMessageId;
-
-        /**
-         * Time of last edit, if any.
-         */
         private final Instant editedAt;
 
         /**
          * Convert a domain {@link Message} into a {@code SyncedMessage} DTO.
-         *
-         * <p>Centralised mapping used by both the client-initiated sync
-         * ({@code MessageHandler.syncMessages}) and the server-initiated
-         * fan-out sync on STOMP CONNECT.
-         *
-         * @param msg the source message
-         * @return the mapped synced message DTO
          */
         public static SyncedMessage fromMessage(Message msg) {
             return SyncedMessage.builder()
@@ -156,33 +110,60 @@ public class SyncMessagesEvent {
     }
 
     /**
-     * Create a successful sync event.
+     * Pending edit to apply on the client after sync (tombstone queue).
      */
+    @Getter
+    @Builder
+    public static class SyncedEdit {
+        private final String messageId;
+        private final String encryptedContent;
+        private final String iv;
+        private final Instant editedAt;
+
+        /**
+         * Map a queued {@link MessageEdit} to the sync DTO.
+         */
+        public static SyncedEdit fromMessageEdit(MessageEdit e) {
+            return SyncedEdit.builder()
+                    .messageId(e.getMessageId())
+                    .encryptedContent(e.getEncryptedContent())
+                    .iv(e.getIv())
+                    .editedAt(e.getEditedAt())
+                    .build();
+        }
+    }
+
     public static SyncMessagesEvent success(String sessionId, List<SyncedMessage> messages) {
         return success(sessionId, messages, List.of());
     }
 
-    /**
-     * Create a successful sync event including remote-delete tombstones.
-     */
     public static SyncMessagesEvent success(
-            String sessionId, List<SyncedMessage> messages, List<String> deletedMessageIds) {
-        List<String> safeDeleted = deletedMessageIds == null
+            String sessionId, List<SyncedMessage> messages, List<String> deletedIds) {
+        return success(sessionId, messages, deletedIds, List.of());
+    }
+
+    public static SyncMessagesEvent success(
+            String sessionId,
+            List<SyncedMessage> messages,
+            List<String> deletedIds,
+            List<SyncedEdit> edits) {
+        List<String> safeDeleted = deletedIds == null
                 ? List.of()
-                : List.copyOf(deletedMessageIds);
+                : List.copyOf(deletedIds);
+        List<SyncedEdit> safeEdits = edits == null
+                ? List.of()
+                : List.copyOf(edits);
         return SyncMessagesEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
                 .messages(messages)
                 .count(messages.size())
                 .serverTimestamp(Instant.now())
-                .deletedMessageIds(safeDeleted)
+                .deletedIds(safeDeleted)
+                .edits(safeEdits)
                 .build();
     }
 
-    /**
-     * Create an error sync event.
-     */
     public static SyncMessagesEvent error(String sessionId, String errorCode) {
         return SyncMessagesEvent.builder()
                 .success(false)
@@ -191,7 +172,8 @@ public class SyncMessagesEvent {
                 .count(0)
                 .serverTimestamp(Instant.now())
                 .error(errorCode)
-                .deletedMessageIds(Collections.emptyList())
+                .deletedIds(List.of())
+                .edits(List.of())
                 .build();
     }
 }

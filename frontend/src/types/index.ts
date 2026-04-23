@@ -142,6 +142,34 @@ export interface DecryptedFileMessage extends DecryptedMessage {
 }
 
 // ============================================
+// DM sync (IMP-MA-07) — /user/queue/sync-messages
+// ============================================
+
+/** Tombstone edit delivered with offline sync (ciphertext; decrypt with session key). */
+export interface SyncedEdit {
+  messageId: string;
+  encryptedContent: string;
+  iv: string;
+  /** Server time as epoch ms or ISO-8601 (Jackson Instant). */
+  editedAt: number | string;
+}
+
+/** Full drain of pending DM data after reconnect. */
+export interface DmSyncMessagesEvent {
+  success: boolean;
+  sessionId: string;
+  /** Pending offline message payloads. */
+  messages: unknown[];
+  count: number;
+  serverTimestamp: string;
+  error?: string;
+  deletedIds?: string[];
+  /** @deprecated Prefer deletedIds. */
+  deletedMessageIds?: string[];
+  edits?: SyncedEdit[];
+}
+
+// ============================================
 // WebSocket Event Types
 // ============================================
 

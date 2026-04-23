@@ -40,6 +40,8 @@ import java.security.Principal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * STOMP handler for encrypted message relay.
@@ -216,46 +218,60 @@ public class MessageHandler {
                         return Mono.empty();
                     }
 
-                    // Get pending messages + delete tombstones
-                    return messageRepository.getPendingMessages(userId, sessionId)
-                            .collectList()
-                            .zipWith(messageRepository.getPendingDeletions(userId, sessionId).collectList())
-                            .flatMap(tuple -> {
-                                List<Message> messages = tuple.getT1();
-                                List<MessageDeletion> deletions = tuple.getT2();
-                                List<String> deletedIds = deletions.stream()
-                                        .map(MessageDeletion::getMessageId)
-                                        .toList();
-                                List<SyncMessagesEvent.SyncedMessage> syncedMessages = messages.stream()
-                                        .map(SyncMessagesEvent.SyncedMessage::fromMessage)
-                                        .toList();
+                    // Pending messages, tombstone edits, and tombstone deletions
+                    return Mono.zip(
+                            messageRepository.getPendingMessages(userId, sessionId).collectList(),
+                            messageRepository.getPendingEdits(userId, sessionId).collectList(),
+                            messageRepository.getPendingDeletions(userId, sessionId).collectList()
+                    ).flatMap(tuple -> {
+                        List<Message> messages = tuple.getT1();
+                        List<MessageEdit> pendingEdits = tuple.getT2();
+                        List<MessageDeletion> deletions = tuple.getT3();
+                        Set<String> deletedIdSet = deletions.stream()
+                                .map(MessageDeletion::getMessageId)
+                                .collect(Collectors.toSet());
+                        List<SyncMessagesEvent.SyncedEdit> syncedEdits = pendingEdits.stream()
+                                .filter(e -> !deletedIdSet.contains(e.getMessageId()))
+                                .map(SyncMessagesEvent.SyncedEdit::fromMessageEdit)
+                                .toList();
+                        List<String> deletedIds = deletions.stream()
+                                .map(MessageDeletion::getMessageId)
+                                .toList();
+                        List<SyncMessagesEvent.SyncedMessage> syncedMessages = messages.stream()
+                                .map(SyncMessagesEvent.SyncedMessage::fromMessage)
+                                .toList();
 
-                                if (syncedMessages.isEmpty() && deletedIds.isEmpty()) {
-                                    return flushPendingDmEdits(userId, sessionId);
-                                }
+                        if (syncedMessages.isEmpty() && syncedEdits.isEmpty() && deletedIds.isEmpty()) {
+                            return Mono.empty();
+                        }
 
-                                // Send sync event to user
-                                SyncMessagesEvent event = SyncMessagesEvent.success(
-                                        sessionId, syncedMessages, deletedIds);
-                                messagingTemplate.convertAndSendToUser(
-                                        String.valueOf(userId),
-                                        SYNC_MESSAGES_DESTINATION,
-                                        event
-                                );
+                        SyncMessagesEvent event = SyncMessagesEvent.success(
+                                sessionId, syncedMessages, deletedIds, syncedEdits);
+                        messagingTemplate.convertAndSendToUser(
+                                String.valueOf(userId),
+                                SYNC_MESSAGES_DESTINATION,
+                                event
+                        );
 
-                                LOG.info("Synced {} messages, {} deletions for user {} in session {}",
-                                        syncedMessages.size(), deletedIds.size(), userId, sessionId);
+                        LOG.info(
+                                "Synced {} messages, {} edits, {} deletions for user {} in session {}",
+                                syncedMessages.size(), syncedEdits.size(), deletedIds.size(), userId, sessionId);
 
-                                Mono<Void> after = Mono.empty();
-                                if (!messages.isEmpty()) {
-                                    offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                                    after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
-                                }
-                                if (!deletions.isEmpty()) {
-                                    after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
-                                }
-                                return after.then(flushPendingDmEdits(userId, sessionId));
-                            });
+                        Mono<Void> after = Mono.empty();
+                        if (!messages.isEmpty()) {
+                            offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
+                            after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
+                        }
+                        if (!pendingEdits.isEmpty()) {
+                            offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_edit, pendingEdits.size());
+                            after = after.then(messageRepository.deleteEdits(userId, sessionId).then());
+                        }
+                        if (!deletions.isEmpty()) {
+                            offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_deletion, deletions.size());
+                            after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
+                        }
+                        return after;
+                    });
                 })
                 .subscribe(
                         result -> {},
@@ -800,29 +816,4 @@ public class MessageHandler {
         return baseServerOrClient.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
     }
 
-    private Mono<Void> flushPendingDmEdits(Long userId, String sessionId) {
-        return messageRepository.getPendingEdits(userId, sessionId)
-                .collectList()
-                .flatMap(edits -> {
-                    for (MessageEdit e : edits) {
-                        MessageEditedEvent event = MessageEditedEvent.builder()
-                                .success(true)
-                                .sessionId(sessionId)
-                                .messageId(e.getMessageId())
-                                .encryptedContent(e.getEncryptedContent())
-                                .iv(e.getIv())
-                                .editedAt(e.getEditedAt())
-                                .build();
-                        messagingTemplate.convertAndSendToUser(
-                                String.valueOf(userId),
-                                MESSAGE_EDITED_DESTINATION,
-                                event
-                        );
-                    }
-                    if (edits.isEmpty()) {
-                        return Mono.empty();
-                    }
-                    return messageRepository.deleteEdits(userId, sessionId).then();
-                });
-    }
 }
