@@ -15,7 +15,8 @@ RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 # Download dependencies (layer caching)
 RUN ./gradlew dependencies --no-daemon -q || true
 
-# Copy source code
+# Copy source code (lombok.config must be present: @Slf4j field name LOG)
+COPY backend/lombok.config backend/
 COPY backend/src backend/src
 COPY config/ config/
 
