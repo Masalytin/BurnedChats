@@ -1,12 +1,15 @@
-import { useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useRef, useEffect, useCallback, memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CheckSquare, Copy, Pencil, Reply, Trash2, UserX } from 'lucide-react';
 import { Message } from '../Message';
 import { ImageMessageBubble } from '../ImageMessageBubble';
 import { VideoMessageBubble } from '../VideoMessageBubble';
 import { DocumentMessageBubble } from '../DocumentMessageBubble';
+import { MessageActionMenu, type MessageAction } from '../MessageActionMenu';
 import { TypingIndicator } from '../TypingIndicator';
 import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import type { UploadStage } from '../UploadProgressOverlay';
+import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import type { DecryptedMessage, DecryptedFileMessage } from '@/types';
 import './MessageList.css';
 
@@ -37,6 +40,10 @@ interface MessageListProps {
   onOpenViewer?: (message: DecryptedFileMessage) => void;
   /** Optional CSS class name */
   className?: string;
+  /** Message multi-select + action menu (IMP-MA-01) */
+  selection?: UseMessageSelectionReturn;
+  /** Fired after long-press / context menu opens (optional analytics / side effects) */
+  onMessageLongPress?: (message: DecryptedMessage, anchor: DOMRect) => void;
 }
 
 /**
@@ -59,9 +66,12 @@ export const MessageList = memo(function MessageList({
   onRetryUpload,
   onOpenViewer,
   className = '',
+  selection,
+  onMessageLongPress,
 }: MessageListProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
+  const [actionMenu, setActionMenu] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
   const prevIdsRef = useRef<Set<string>>(new Set());
@@ -149,6 +159,81 @@ export const MessageList = memo(function MessageList({
     return !isSameDay(currentDate, prevDate);
   };
 
+  const handleOpenActionMenu = useCallback(
+    (messageId: string, anchor: DOMRect) => {
+      setActionMenu({ messageId, anchor });
+      const msg = messages.find((m) => m.id === messageId);
+      if (msg) {
+        onMessageLongPress?.(msg, anchor);
+      }
+    },
+    [messages, onMessageLongPress],
+  );
+
+  const closeActionMenu = useCallback(() => {
+    setActionMenu(null);
+  }, []);
+
+  const menuActions: MessageAction[] = useMemo(() => {
+    if (!actionMenu) {
+      return [];
+    }
+    const { messageId } = actionMenu;
+    const noOp = () => {
+      // Placeholders for IMP-MA-02…06
+    };
+    return [
+      {
+        id: 'reply',
+        label: t('chat.messageActions.reply'),
+        icon: <Reply size={18} />,
+        disabled: true,
+        onClick: noOp,
+      },
+      {
+        id: 'copy',
+        label: t('chat.messageActions.copy'),
+        icon: <Copy size={18} />,
+        disabled: true,
+        onClick: noOp,
+      },
+      {
+        id: 'edit',
+        label: t('chat.messageActions.edit'),
+        icon: <Pencil size={18} />,
+        disabled: true,
+        onClick: noOp,
+      },
+      {
+        id: 'delete',
+        label: t('chat.messageActions.delete'),
+        icon: <Trash2 size={18} />,
+        disabled: true,
+        variant: 'destructive',
+        onClick: noOp,
+      },
+      {
+        id: 'deleteForMe',
+        label: t('chat.messageActions.deleteForMe'),
+        icon: <UserX size={18} />,
+        disabled: true,
+        onClick: noOp,
+      },
+      {
+        id: 'select',
+        label: t('chat.messageActions.select'),
+        icon: <CheckSquare size={18} />,
+        disabled: !selection,
+        onClick: () => {
+          selection?.enterSelectionWith(messageId);
+          closeActionMenu();
+        },
+      },
+    ];
+  }, [actionMenu, closeActionMenu, selection, t]);
+
+  const openMenuHandler = selection ? handleOpenActionMenu : undefined;
+
   if (isLoading && messages.length === 0) {
     return (
       <div className={`message-list message-list--loading ${className}`}>
@@ -204,6 +289,8 @@ export const MessageList = memo(function MessageList({
               <ImageMessageBubble
                 message={message}
                 onOpenViewer={onOpenViewer}
+                selection={selection}
+                onOpenActionMenu={openMenuHandler}
               />
             </div>
           );
@@ -220,6 +307,8 @@ export const MessageList = memo(function MessageList({
               <VideoMessageBubble
                 message={message}
                 onOpenViewer={onOpenViewer}
+                selection={selection}
+                onOpenActionMenu={openMenuHandler}
               />
             </div>
           );
@@ -233,7 +322,11 @@ export const MessageList = memo(function MessageList({
                   <span>{formatDateForSeparator(message.timestamp)}</span>
                 </div>
               )}
-              <DocumentMessageBubble message={message} />
+              <DocumentMessageBubble
+                message={message}
+                selection={selection}
+                onOpenActionMenu={openMenuHandler}
+              />
             </div>
           );
         }
@@ -241,6 +334,7 @@ export const MessageList = memo(function MessageList({
         return (
           <Message
             key={message.id}
+            messageId={message.id}
             content={message.content}
             isOwn={message.isOwn}
             timestamp={message.timestamp}
@@ -248,6 +342,8 @@ export const MessageList = memo(function MessageList({
             showDateSeparator={dateSep}
             senderName={message.senderName}
             isNew={newMessageIds.has(message.id)}
+            selection={selection}
+            onOpenActionMenu={openMenuHandler}
           />
         );
       })}
@@ -272,6 +368,14 @@ export const MessageList = memo(function MessageList({
 
       {/* Scroll anchor */}
       <div ref={bottomRef} className="message-list-bottom" />
+
+      {actionMenu && (
+        <MessageActionMenu
+          anchor={actionMenu.anchor}
+          actions={menuActions}
+          onClose={closeActionMenu}
+        />
+      )}
     </div>
   );
 });

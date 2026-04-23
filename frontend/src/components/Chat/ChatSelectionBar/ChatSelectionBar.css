@@ -1,0 +1,39 @@
+/* Same footprint as .chat-screen-header (ChatScreen.css) */
+.chat-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-bottom: 1px solid var(--bc-border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  min-height: 56px;
+  z-index: 2;
+}
+
+.chat-selection-bar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  cursor: pointer;
+  border-radius: var(--bc-radius-full);
+  flex-shrink: 0;
+}
+
+.chat-selection-bar__close:hover {
+  background: var(--bc-bg-elevated);
+}
+
+.chat-selection-bar__count {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bc-text-md);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+}

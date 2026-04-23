@@ -1,0 +1,83 @@
+.message-action-menu-portal {
+  --ma-menu-appear: 140ms;
+}
+
+.message-action-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.message-action-menu {
+  position: fixed;
+  z-index: 1001;
+  min-width: 200px;
+  max-width: min(100vw - 16px, 280px);
+  padding: var(--bc-spacing-xs);
+  background: var(--bc-bg-elevated);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top left;
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity var(--ma-menu-appear) ease-out,
+    transform var(--ma-menu-appear) ease-out;
+}
+
+.message-action-menu--open {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.message-action-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  width: 100%;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border: none;
+  background: transparent;
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-sm);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--bc-radius-sm);
+  transition: background var(--bc-transition-fast);
+}
+
+.message-action-menu__item:hover,
+.message-action-menu__item--active {
+  background: var(--bc-bg-secondary);
+}
+
+.message-action-menu__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.message-action-menu__item--destructive {
+  color: var(--bc-error, #e5484d);
+}
+
+.message-action-menu__item--destructive:hover,
+.message-action-menu__item--destructive.message-action-menu__item--active {
+  background: rgba(229, 72, 77, 0.12);
+}
+
+.message-action-menu__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.message-action-menu__label {
+  flex: 1;
+}

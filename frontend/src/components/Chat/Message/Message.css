@@ -20,8 +20,52 @@
 /* Message Container */
 .message {
   display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
   padding: var(--bc-spacing-xs) var(--bc-spacing-md);
   max-width: 100%;
+}
+
+/* Selection mode (IMP-MA-01): checkbox + highlight */
+.message--selectable {
+  user-select: none;
+}
+
+.message--selectable .message__select-checkbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border-radius: var(--bc-radius-sm);
+  border: 2px solid var(--bc-border-color);
+  background: rgba(0, 0, 0, 0.08);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.message--selectable .message__select-checkbox[data-checked='true'] {
+  background: var(--bc-accent, #2ea6ff);
+  border-color: var(--bc-accent, #2ea6ff);
+}
+
+.message--selectable .message__select-checkbox[data-checked='true']::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.message--selectable[data-selected='true'] .message-bubble,
+.message--selectable[data-selected='true'] .image-bubble,
+.message--selectable[data-selected='true'] .video-bubble,
+.message--selectable[data-selected='true'] .doc-bubble {
+  box-shadow: inset 0 0 0 2px rgba(46, 166, 255, 0.45);
+  background-color: var(--bc-bg-elevated);
 }
 
 .message--own {

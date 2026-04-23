@@ -6,6 +6,8 @@ import { MessageInput } from '../MessageInput';
 import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
+import { ChatSelectionBar } from '../ChatSelectionBar';
+import { useMessageSelection } from '@/hooks/useMessageSelection';
 import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
@@ -112,8 +114,22 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const { t } = useTranslation();
   const toast = useToast();
   const haptics = useHaptics();
+  const messageSelection = useMessageSelection();
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  useEffect(() => {
+    if (messageSelection.mode !== 'selecting') {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        messageSelection.clear();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [messageSelection.mode, messageSelection.clear]);
 
   // P4-4-2-4: Full-screen media viewer
   const [viewerMessage, setViewerMessage] = useState<DecryptedFileMessage | null>(null);
@@ -288,12 +304,20 @@ export const RoomChatRoom = memo(function RoomChatRoom({
 
   return (
     <div className="chat-screen room-chat-room">
-      <ChatScreenHeader
-        onBack={onBack}
-        backAriaLabel={t('common.back')}
-        left={headerLeft}
-        right={headerRight}
-      />
+      {messageSelection.mode === 'selecting' ? (
+        <ChatSelectionBar
+          count={messageSelection.count}
+          onClose={messageSelection.clear}
+          actions={[]}
+        />
+      ) : (
+        <ChatScreenHeader
+          onBack={onBack}
+          backAriaLabel={t('common.back')}
+          left={headerLeft}
+          right={headerRight}
+        />
+      )}
 
       {hasKey ? (
         <>
@@ -304,6 +328,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onCancelUpload={handleCancelUpload}
             onRetryUpload={handleRetryUpload}
             onOpenViewer={handleOpenViewer}
+            selection={messageSelection}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">

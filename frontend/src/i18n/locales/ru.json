@@ -79,7 +79,19 @@
     "loadingMessages": "Загрузка сообщений...",
     "emptyMessages": "Пока нет сообщений",
     "emptyHint": "Напишите сообщение, чтобы начать разговор",
-    "temporarilyUnavailable": "Чат временно недоступен"
+    "temporarilyUnavailable": "Чат временно недоступен",
+    "selectionModeToolbar": "Выбор сообщений",
+    "selectionCount": "Выбрано: {{count}}",
+    "selectionCount_one": "Выбрано: 1",
+    "messageActions": {
+      "reply": "Ответить",
+      "copy": "Копировать",
+      "edit": "Изменить",
+      "delete": "Удалить",
+      "deleteForMe": "Удалить у меня",
+      "select": "Выбрать",
+      "cancel": "Отмена"
+    }
   },
 
   "files": {

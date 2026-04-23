@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useRef } from 'react';
+import { memo, useCallback, useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
 import { MessageList } from '../MessageList';
@@ -7,6 +7,8 @@ import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
+import { ChatSelectionBar } from '../ChatSelectionBar';
+import { useMessageSelection } from '@/hooks/useMessageSelection';
 import { Avatar } from '@/components/Avatar';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { UploadStage } from '../UploadProgressOverlay';
@@ -88,7 +90,21 @@ export const ChatRoom = memo(function ChatRoom({
 }: ChatRoomProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
+  const messageSelection = useMessageSelection();
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
+
+  useEffect(() => {
+    if (messageSelection.mode !== 'selecting') {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        messageSelection.clear();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [messageSelection.mode, messageSelection.clear]);
 
   // P4-4-1-2: File selected but not yet confirmed
   const [pendingFile, setPendingFile] = useState<SelectedFileInfo | null>(null);
@@ -194,12 +210,20 @@ export const ChatRoom = memo(function ChatRoom({
 
   return (
     <div className={`chat-screen chat-room ${className}`}>
-      <ChatScreenHeader
-        onBack={onBack}
-        backAriaLabel={t('common.back')}
-        left={headerLeft}
-        right={headerRight}
-      />
+      {messageSelection.mode === 'selecting' ? (
+        <ChatSelectionBar
+          count={messageSelection.count}
+          onClose={messageSelection.clear}
+          actions={[]}
+        />
+      ) : (
+        <ChatScreenHeader
+          onBack={onBack}
+          backAriaLabel={t('common.back')}
+          left={headerLeft}
+          right={headerRight}
+        />
+      )}
 
       {errorMessage && disabled && (
         <div
@@ -221,6 +245,7 @@ export const ChatRoom = memo(function ChatRoom({
         onCancelUpload={onCancelUpload}
         onRetryUpload={onRetryUpload}
         onOpenViewer={handleOpenViewer}
+        selection={messageSelection}
         className="chat-room-messages chat-screen-messages"
       />
 

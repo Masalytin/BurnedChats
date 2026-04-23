@@ -1,8 +1,13 @@
-import { memo } from 'react';
+import { memo, useRef, useCallback } from 'react';
 import type { MessageStatus } from '@/types';
+import { useHaptics } from '@/hooks/useHaptics';
+import { useLongPress } from '@/hooks/useLongPress';
+import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import './Message.css';
 
 interface MessageProps {
+  /** Message id (for selection and action menu) */
+  messageId: string;
   /** Message content text */
   content: string;
   /** Whether this message was sent by the current user */
@@ -19,6 +24,10 @@ interface MessageProps {
   senderName?: string;
   /** Whether to play the "new message" entrance animation */
   isNew?: boolean;
+  /** Multi-select (IMP-MA-01) */
+  selection?: UseMessageSelectionReturn;
+  /** Opens the message action popover; long-press is enabled when set */
+  onOpenActionMenu?: (messageId: string, anchor: DOMRect) => void;
 }
 
 /**
@@ -30,6 +39,7 @@ interface MessageProps {
  * - Delivery status indicators (4.3.5)
  */
 export const Message = memo(function Message({
+  messageId,
   content,
   isOwn,
   timestamp,
@@ -38,10 +48,36 @@ export const Message = memo(function Message({
   className = '',
   senderName,
   isNew = false,
+  selection,
+  onOpenActionMenu,
 }: MessageProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const haptics = useHaptics();
+  const menuEnabled = Boolean(onOpenActionMenu);
+  const isSelecting = selection?.mode === 'selecting';
+  const isSelected = selection ? selection.isSelected(messageId) : false;
+
+  const handleOpenMenu = useCallback(() => {
+    if (!onOpenActionMenu || !rootRef.current) return;
+    haptics.selectionChanged();
+    onOpenActionMenu(messageId, rootRef.current.getBoundingClientRect());
+  }, [haptics, messageId, onOpenActionMenu]);
+
+  const { handlers } = useLongPress({
+    enabled: menuEnabled && !isSelecting,
+    onLongPress: handleOpenMenu,
+    onShortClick: (e) => {
+      if (isSelecting) {
+        e.preventDefault();
+        selection?.toggle(messageId);
+      }
+    },
+  });
+
   const validTs = typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0;
   const formattedTime = validTs ? formatTime(timestamp) : '--:--';
   const formattedDate = validTs ? formatDate(timestamp) : '';
+  const shouldInteract = menuEnabled || isSelecting;
 
   return (
     <>
@@ -51,9 +87,23 @@ export const Message = memo(function Message({
         </div>
       )}
       <div
-        className={`message ${isOwn ? 'message--own' : 'message--peer'} ${isNew ? 'message--new' : ''} ${className}`.trim()}
+        ref={rootRef}
+        className={
+          `message ${isOwn ? 'message--own' : 'message--peer'} ${isNew ? 'message--new' : ''} ${
+            isSelecting ? 'message--selectable' : ''
+          } ${className}`.trim()
+        }
+        data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
         role="listitem"
+        {...(shouldInteract ? handlers : {})}
       >
+        {isSelecting && (
+          <span
+            className="message__select-checkbox"
+            aria-hidden
+            data-checked={isSelected ? 'true' : 'false'}
+          />
+        )}
         <div className="message-bubble">
           {!isOwn && senderName && (
             <span className="message-sender-name">{senderName}</span>

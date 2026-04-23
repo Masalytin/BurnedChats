@@ -1,6 +1,10 @@
 import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
+import { useHaptics } from '@/hooks/useHaptics';
+import { useLongPress } from '@/hooks/useLongPress';
+import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
+import '../Message/Message.css';
 import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
@@ -15,6 +19,8 @@ type DocState = 'idle' | 'downloading' | 'downloaded' | 'error';
 
 interface DocumentMessageBubbleProps {
   message: DecryptedFileMessage;
+  selection?: UseMessageSelectionReturn;
+  onOpenActionMenu?: (messageId: string, anchor: DOMRect) => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -32,8 +38,28 @@ function formatTime(timestamp: number): string {
  */
 export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   message,
+  selection,
+  onOpenActionMenu,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const haptics = useHaptics();
+  const menuEnabled = Boolean(onOpenActionMenu);
+  const isSelecting = selection?.mode === 'selecting';
+  const isSelected = selection ? selection.isSelected(message.id) : false;
+  const shouldInteract = menuEnabled || isSelecting;
+
+  const handleOpenMenu = useCallback(() => {
+    if (!onOpenActionMenu || !rootRef.current) return;
+    haptics.selectionChanged();
+    onOpenActionMenu(message.id, rootRef.current.getBoundingClientRect());
+  }, [haptics, message.id, onOpenActionMenu]);
+
+  const { handlers } = useLongPress({
+    enabled: menuEnabled && !isSelecting,
+    onLongPress: handleOpenMenu,
+  });
+
   const decryptionKey = useDecryptionKey(message.sessionId);
 
   const [docState, setDocState] = useState<DocState>('idle');
@@ -50,6 +76,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   const hasCaption = message.content && !message.content.startsWith('📎');
 
   const handleDownload = useCallback(async () => {
+    if (isSelecting) {
+      selection?.toggle(message.id);
+      return;
+    }
     if (docState === 'downloading') return;
 
     if (docState === 'downloaded' && downloadedBlobRef.current) {
@@ -93,7 +123,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     } finally {
       abortRef.current = null;
     }
-  }, [docState, message.fileId, message.sessionId, fileName, mimeType, decryptionKey]);
+  }, [isSelecting, selection, docState, message.fileId, message.sessionId, fileName, mimeType, decryptionKey, message.id]);
 
   const handleRetry = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {
@@ -116,9 +146,21 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
   return (
     <div
-      className={`message ${message.isOwn ? 'message--own' : 'message--peer'}`}
+      ref={rootRef}
+      className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
+        isSelecting ? 'message--selectable' : ''
+      }`.trim()}
+      data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       role="listitem"
+      {...(shouldInteract ? handlers : {})}
     >
+      {isSelecting && (
+        <span
+          className="message__select-checkbox"
+          aria-hidden
+          data-checked={isSelected ? 'true' : 'false'}
+        />
+      )}
       <div className="doc-bubble">
         {!message.isOwn && message.senderName && (
           <span className="message-sender-name">{message.senderName}</span>

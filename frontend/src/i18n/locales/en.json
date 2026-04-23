@@ -79,7 +79,19 @@
     "loadingMessages": "Loading messages...",
     "emptyMessages": "No messages yet",
     "emptyHint": "Send a message to start the conversation",
-    "temporarilyUnavailable": "Chat temporarily unavailable"
+    "temporarilyUnavailable": "Chat temporarily unavailable",
+    "selectionModeToolbar": "Message selection",
+    "selectionCount": "{{count}} selected",
+    "selectionCount_one": "1 selected",
+    "messageActions": {
+      "reply": "Reply",
+      "copy": "Copy",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteForMe": "Delete for me",
+      "select": "Select",
+      "cancel": "Cancel"
+    }
   },
 
   "files": {
