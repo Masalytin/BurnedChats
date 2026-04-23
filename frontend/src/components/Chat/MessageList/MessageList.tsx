@@ -17,6 +17,7 @@ import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { quoteSenderLabel } from '@/utils/replyPreview';
 import { isWithinEditWindow } from '@/utils/editWindow';
+import { formatChatDateSeparator } from '@/utils/formatChatDateSeparator';
 import './MessageList.css';
 
 const HIGHLIGHT_MS = 1500;
@@ -110,6 +111,7 @@ export const MessageList = memo(
   const haptics = useHaptics();
   const listRef = useRef<HTMLDivElement>(null);
   const [actionMenu, setActionMenu] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
+  const [a11yRovingId, setA11yRovingId] = useState<string | null>(null);
   /** Re-compute “edit in window” while the menu is open (15 min from send time). */
   const [editMenuTick, setEditMenuTick] = useState(0);
   useEffect(() => {
@@ -244,9 +246,12 @@ export const MessageList = memo(
     return !isSameDay(currentDate, prevDate);
   };
 
+  const orderedMessageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+
   const handleOpenActionMenu = useCallback(
     (messageId: string, anchor: DOMRect) => {
       setActionMenu({ messageId, anchor });
+      setA11yRovingId(messageId);
       const msg = messages.find((m) => m.id === messageId);
       if (msg) {
         onMessageLongPress?.(msg, anchor);
@@ -256,8 +261,53 @@ export const MessageList = memo(
   );
 
   const closeActionMenu = useCallback(() => {
+    const returnId = actionMenu?.messageId;
     setActionMenu(null);
-  }, []);
+    if (returnId) {
+      requestAnimationFrame(() => {
+        listRef.current
+          ?.querySelector<HTMLElement>(`[data-message-id="${returnId}"]`)
+          ?.focus();
+      });
+    }
+  }, [actionMenu]);
+
+  const handleRangeExtendKey = useCallback(
+    (messageId: string, direction: 'up' | 'down') => {
+      if (!selection?.extendTo) {
+        return;
+      }
+      const idx = messages.findIndex((m) => m.id === messageId);
+      const nidx = direction === 'up' ? idx - 1 : idx + 1;
+      if (nidx < 0 || nidx >= messages.length) {
+        return;
+      }
+      const otherId = messages[nidx]!.id;
+      selection.extendTo(otherId, orderedMessageIds);
+      setA11yRovingId(otherId);
+      requestAnimationFrame(() => {
+        listRef.current?.querySelector<HTMLElement>(`[data-message-id="${otherId}"]`)?.focus();
+      });
+    },
+    [messages, orderedMessageIds, selection],
+  );
+
+  useEffect(() => {
+    if (selection?.mode !== 'selecting') {
+      setA11yRovingId(null);
+      return;
+    }
+    if (selection.count === 0) {
+      return;
+    }
+    if (a11yRovingId != null) {
+      return;
+    }
+    const first = messages.find((m) => selection.isSelected(m.id))?.id;
+    if (first) {
+      setA11yRovingId(first);
+    }
+  }, [selection, messages, a11yRovingId]);
 
   const copyFromMenu = useCallback(
     async (msg: DecryptedMessage) => {
@@ -344,7 +394,7 @@ export const MessageList = memo(
       },
       {
         id: 'select',
-        label: t('chat.messageActions.select'),
+        label: t('chat.actions.select'),
         icon: <CheckSquare size={18} />,
         disabled: !selection,
         onClick: () => {
@@ -395,13 +445,16 @@ export const MessageList = memo(
     );
   }
 
+  const isSelectListbox = selection?.mode === 'selecting';
+
   return (
     <div
       ref={listRef}
       className={`message-list ${className}`}
       onScroll={handleScroll}
-      role="list"
-      aria-label="Chat messages"
+      role={isSelectListbox ? 'listbox' : 'list'}
+      aria-label={t('chat.aria.messageList')}
+      aria-multiselectable={isSelectListbox ? true : undefined}
     >
       {/* Loading indicator at top */}
       {isLoading && (
@@ -419,7 +472,7 @@ export const MessageList = memo(
             <div key={message.id}>
               {dateSep && (
                 <div className="message-date-separator">
-                  <span>{formatDateForSeparator(message.timestamp)}</span>
+                  <span>{formatChatDateSeparator(message.timestamp, t)}</span>
                 </div>
               )}
               <ImageMessageBubble
@@ -427,6 +480,10 @@ export const MessageList = memo(
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
+                onRovingActivate={() => { setA11yRovingId(message.id); }}
+                a11yLabelId={`message-a11y-${message.id}`}
+                onRangeExtendKey={handleRangeExtendKey}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -447,7 +504,7 @@ export const MessageList = memo(
             <div key={message.id}>
               {dateSep && (
                 <div className="message-date-separator">
-                  <span>{formatDateForSeparator(message.timestamp)}</span>
+                  <span>{formatChatDateSeparator(message.timestamp, t)}</span>
                 </div>
               )}
               <VideoMessageBubble
@@ -455,6 +512,10 @@ export const MessageList = memo(
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
+                onRovingActivate={() => { setA11yRovingId(message.id); }}
+                a11yLabelId={`message-a11y-${message.id}`}
+                onRangeExtendKey={handleRangeExtendKey}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -475,13 +536,17 @@ export const MessageList = memo(
             <div key={message.id}>
               {dateSep && (
                 <div className="message-date-separator">
-                  <span>{formatDateForSeparator(message.timestamp)}</span>
+                  <span>{formatChatDateSeparator(message.timestamp, t)}</span>
                 </div>
               )}
               <DocumentMessageBubble
                 message={message}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
+                onRovingActivate={() => { setA11yRovingId(message.id); }}
+                a11yLabelId={`message-a11y-${message.id}`}
+                onRangeExtendKey={handleRangeExtendKey}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -519,6 +584,10 @@ export const MessageList = memo(
             onReplyQuoteClick={scrollToMessage}
             onSwipeReply={onReplyToMessage ? () => { onReplyToMessage(message); } : undefined}
             isEdited={message.editedAt != null}
+            rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
+            onRovingActivate={() => { setA11yRovingId(message.id); }}
+            a11yLabelId={`message-a11y-${message.id}`}
+            onRangeExtendKey={handleRangeExtendKey}
           />
         );
       })}
@@ -549,6 +618,7 @@ export const MessageList = memo(
           anchor={actionMenu.anchor}
           actions={menuActions}
           onClose={closeActionMenu}
+          labelledById={`message-a11y-${actionMenu.messageId}`}
         />
       )}
     </div>
@@ -593,20 +663,3 @@ function isFileMessage(msg: DecryptedMessage): msg is DecryptedFileMessage {
   return msg.type !== 'text' && 'fileId' in msg && typeof (msg as DecryptedFileMessage).fileId === 'string';
 }
 
-/**
- * Format timestamp to date string for separator (mirrored from Message component).
- */
-function formatDateForSeparator(timestamp: number): string {
-  const date = new Date(timestamp);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (isSameDay(date, today)) return 'Today';
-  if (isSameDay(date, yesterday)) return 'Yesterday';
-  return date.toLocaleDateString([], {
-    month: 'short',
-    day: 'numeric',
-    year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
-  });
-}

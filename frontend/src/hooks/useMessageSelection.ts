@@ -8,6 +8,8 @@ export interface UseMessageSelectionReturn {
   isSelected: (id: string) => boolean;
   toggle: (id: string) => void;
   enterSelectionWith: (id: string) => void;
+  /** Selects all message ids between the current range anchor and `endId` (inclusive, by `orderedIds` order). */
+  extendTo: (endId: string, orderedIds: readonly string[]) => void;
   clear: () => void;
   count: number;
 }
@@ -18,6 +20,8 @@ export interface UseMessageSelectionReturn {
  */
 export function useMessageSelection(): UseMessageSelectionReturn {
   const [rawIds, setRawIds] = useState<Set<string>>(() => new Set());
+  /** Anchor for Shift+arrow range selection (last explicit toggle / enter). */
+  const [rangeAnchorId, setRangeAnchorId] = useState<string | null>(null);
 
   const count = rawIds.size;
   const mode: MessageSelectionMode = count > 0 ? 'selecting' : 'idle';
@@ -38,6 +42,7 @@ export function useMessageSelection(): UseMessageSelectionReturn {
 
   const toggle = useCallback(
     (id: string) => {
+      setRangeAnchorId(id);
       setIds((prev) => {
         const next = new Set(prev);
         if (next.has(id)) {
@@ -53,6 +58,7 @@ export function useMessageSelection(): UseMessageSelectionReturn {
 
   const enterSelectionWith = useCallback(
     (id: string) => {
+      setRangeAnchorId(id);
       setIds((prev) => {
         const next = new Set(prev);
         next.add(id);
@@ -62,8 +68,30 @@ export function useMessageSelection(): UseMessageSelectionReturn {
     [setIds],
   );
 
+  const extendTo = useCallback(
+    (endId: string, orderedIds: readonly string[]) => {
+      const anchor = rangeAnchorId ?? endId;
+      const ia = orderedIds.indexOf(anchor);
+      const ib = orderedIds.indexOf(endId);
+      if (ia < 0 || ib < 0) {
+        return;
+      }
+      const lo = Math.min(ia, ib);
+      const hi = Math.max(ia, ib);
+      setIds((prev) => {
+        const next = new Set(prev);
+        for (let i = lo; i <= hi; i++) {
+          next.add(orderedIds[i]!);
+        }
+        return next;
+      });
+    },
+    [setIds, rangeAnchorId],
+  );
+
   const clear = useCallback(() => {
     setRawIds(new Set());
+    setRangeAnchorId(null);
   }, []);
 
   return {
@@ -72,6 +100,7 @@ export function useMessageSelection(): UseMessageSelectionReturn {
     isSelected,
     toggle,
     enterSelectionWith,
+    extendTo,
     clear,
     count,
   };

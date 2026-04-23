@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
+import { memo, useState, useCallback, useRef, useMemo, type MouseEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -6,6 +6,7 @@ import { useLongPress } from '@/hooks/useLongPress';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
+import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
@@ -27,6 +28,10 @@ interface ImageMessageBubbleProps {
   replySenderLabel?: string;
   onReplyQuoteClick?: (messageId: string) => void;
   onSwipeReply?: () => void;
+  rovingTabIndex?: 0 | -1;
+  onRovingActivate?: () => void;
+  a11yLabelId?: string;
+  onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -51,6 +56,10 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   replySenderLabel,
   onReplyQuoteClick,
   onSwipeReply,
+  rovingTabIndex = -1,
+  onRovingActivate,
+  a11yLabelId,
+  onRangeExtendKey,
 }: ImageMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -68,6 +77,13 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   const { handlers: longPress } = useLongPress({
     enabled: menuEnabled && !isSelecting,
     onLongPress: handleOpenMenu,
+    onShortClick: (e) => {
+      if (isSelecting) {
+        e.preventDefault();
+        onRovingActivate?.();
+        selection?.toggle(message.id);
+      }
+    },
   });
   const swipe = useSwipeGesture({
     onSwipeRight: () => {
@@ -90,8 +106,59 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   const [fullDownloadErrorKey, setFullDownloadErrorKey] = useState<string | null>(null);
 
   const hasCaption = message.content && !message.content.startsWith('📷');
+  const labelId = a11yLabelId ?? `message-a11y-${message.id}`;
+  const rowA11yLabel = useMemo(() => {
+    const preview =
+      (hasCaption && String(message.content).trim()) ||
+      message.fileMeta?.fileName ||
+      t('files.bubble.photo');
+    return message.isOwn
+      ? t('chat.aria.ownMessagePreview', { preview })
+      : t('chat.aria.peerMessagePreview', {
+          name: message.senderName?.trim() || t('chat.reply.unknownSender'),
+          preview,
+        });
+  }, [hasCaption, message.content, message.fileMeta?.fileName, message.isOwn, message.senderName, t]);
   const formattedTime = formatTime(message.timestamp);
   const formattedSize = formatLocalizedFileSize(message.fileSize, t);
+
+  const onRowMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (isSelecting || (menuEnabled && !isSelecting)) {
+        (e.currentTarget as HTMLElement).focus();
+        onRovingActivate?.();
+      }
+    },
+    [isSelecting, menuEnabled, onRovingActivate],
+  );
+
+  const onRowKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (isSelecting) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          onRovingActivate?.();
+          selection?.toggle(message.id);
+          return;
+        }
+        if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          e.preventDefault();
+          onRangeExtendKey?.(message.id, e.key === 'ArrowUp' ? 'up' : 'down');
+          return;
+        }
+      }
+      if (menuEnabled && !isSelecting) {
+        if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+          e.preventDefault();
+          handleOpenMenu();
+        }
+      }
+    },
+    [isSelecting, menuEnabled, message.id, onRangeExtendKey, selection, handleOpenMenu],
+  );
+
+  const rowRole = isSelecting ? 'option' : 'listitem';
+  const tabIndex = isSelecting ? rovingTabIndex : menuEnabled && !isSelecting ? -1 : -1;
 
   const handleThumbnailError = useCallback(() => {
     setThumbnailState('error');
@@ -177,10 +244,18 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         isSelecting ? 'message--selectable' : ''
       }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
-      role="listitem"
+      role={rowRole}
+      aria-selected={isSelecting ? isSelected : undefined}
+      aria-labelledby={labelId}
       data-message-id={message.id}
+      tabIndex={tabIndex}
+      onMouseDown={onRowMouseDown}
+      onKeyDown={onRowKeyDown}
       {...(shouldInteract ? handlers : {})}
     >
+      <span id={labelId} className="visually-hidden">
+        {rowA11yLabel}
+      </span>
       {isSelecting && (
         <span
           className="message__select-checkbox"
@@ -268,7 +343,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
             <span className="image-bubble__edited">{t('chat.edit.editedLabel')}</span>
           )}
           {message.isOwn && (
-            <span className="message-status" aria-label={getStatusLabel(message.status)}>
+            <span className="message-status" aria-label={messageStatusAriaLabel(t, message.status)}>
               <StatusIcon status={message.status} />
             </span>
           )}
@@ -295,13 +370,3 @@ function StatusIcon({ status }: { status: MessageStatus }) {
   }
 }
 
-function getStatusLabel(status: MessageStatus): string {
-  const labels: Record<MessageStatus, string> = {
-    sending: 'Sending',
-    sent: 'Sent',
-    delivered: 'Delivered',
-    read: 'Read',
-    failed: 'Failed to send',
-  };
-  return labels[status];
-}

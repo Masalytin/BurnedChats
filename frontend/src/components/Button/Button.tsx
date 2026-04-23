@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode, MouseEvent } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type MouseEvent } from 'react';
 import { useHaptics } from '../../hooks/useHaptics';
 import './Button.css';
 
@@ -20,20 +20,23 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /**
  * Reusable button component with Telegram theme support and haptic feedback
  */
-export function Button({
-  variant = 'primary',
-  size = 'md',
-  fullWidth = false,
-  isLoading = false,
-  leftIcon,
-  rightIcon,
-  disableHaptics = false,
-  children,
-  disabled,
-  className = '',
-  onClick,
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = 'primary',
+    size = 'md',
+    fullWidth = false,
+    isLoading = false,
+    leftIcon,
+    rightIcon,
+    disableHaptics = false,
+    children,
+    disabled,
+    className = '',
+    onClick,
+    ...props
+  },
+  ref,
+) {
   const haptics = useHaptics();
 
   const classes = [
@@ -61,6 +64,7 @@ export function Button({
 
   return (
     <button
+      ref={ref}
       className={classes}
       disabled={disabled || isLoading}
       onClick={handleClick}
@@ -72,6 +76,6 @@ export function Button({
       {!isLoading && rightIcon && <span className="button-icon button-icon--right">{rightIcon}</span>}
     </button>
   );
-}
+});
 
 

@@ -48,14 +48,14 @@ export function ChatSelectionBar({
     <div
       className="chat-selection-bar"
       role="toolbar"
-      aria-label={t('chat.selectionModeToolbar')}
+      aria-label={t('chat.a11y.selectionToolbar')}
     >
       <button
         type="button"
         className="chat-selection-bar__close"
         onClick={onClose}
-        aria-label={t('chat.messageActions.cancel')}
-        title={t('chat.messageActions.cancel')}
+        aria-label={t('chat.select.exit')}
+        title={t('chat.select.exit')}
       >
         <X size={22} strokeWidth={2.4} />
       </button>
@@ -116,6 +116,7 @@ export function ChatSelectionBar({
                     role="menuitem"
                     className="chat-selection-bar__delete-menu-item"
                     disabled={!!deleteForEveryoneDisabled}
+                    aria-disabled={!!deleteForEveryoneDisabled}
                     title={
                       deleteForEveryoneDisabled
                         ? (deleteForEveryoneDisabledHint ?? t('chat.delete.mixedSelection'))

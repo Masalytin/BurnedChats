@@ -1,5 +1,9 @@
 {
   "common": {
+    "date": {
+      "today": "Сегодня",
+      "yesterday": "Вчера"
+    },
     "cancel": "Отмена",
     "back": "Назад",
     "loading": "Загрузка...",
@@ -76,6 +80,7 @@
     "burnButtonTitle": "Уничтожить этот чат навсегда",
     "errorBannerLabel": "Ошибка чата",
     "messagePlaceholder": "Сообщение {{name}}...",
+    "composerFallback": "Сообщение",
     "loadingMessages": "Загрузка сообщений...",
     "emptyMessages": "Пока нет сообщений",
     "emptyHint": "Напишите сообщение, чтобы начать разговор",
@@ -83,11 +88,39 @@
     "selectionModeToolbar": "Выбор сообщений",
     "selectionCount": "Выбрано: {{count}}",
     "selectionCount_one": "Выбрано: 1",
+    "messageStatus": {
+      "sending": "Отправка",
+      "sent": "Отправлено",
+      "delivered": "Доставлено",
+      "read": "Прочитано",
+      "failed": "Не удалось отправить"
+    },
+    "aria": {
+      "messageList": "Сообщения чата",
+      "typeMessage": "Введите сообщение",
+      "sendMessage": "Отправить сообщение",
+      "ownMessagePreview": "Ваше сообщение: {{preview}}",
+      "peerMessagePreview": "Сообщение от {{name}}: {{preview}}"
+    },
+    "a11y": {
+      "selectionToolbar": "Панель выбранных сообщений",
+      "messageDeleted": "Сообщение удалено",
+      "messageEdited": "Сообщение изменено",
+      "selectionModeEntered": "Режим выбора, можно отмечать сообщения",
+      "selectedCount": "Выбрано сообщений: {{count}}"
+    },
+    "select": {
+      "countSelected": "Выбрано: {{count}}",
+      "countSelected_one": "Выбрано: 1",
+      "exit": "Выйти из выбора"
+    },
     "actions": {
       "copy": "Копировать",
       "copyToast": "Скопировано",
       "copyFailed": "Не удалось скопировать",
       "deleteForMe": "Удалить у меня",
+      "deleteForEveryone": "Удалить у всех",
+      "select": "Выбрать",
       "reply": "Ответить",
       "edit": "Изменить"
     },

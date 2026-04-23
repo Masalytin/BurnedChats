@@ -46,4 +46,19 @@ describe('useMessageSelection', () => {
     expect(result.current.count).toBe(0);
     expect(result.current.mode).toBe('idle');
   });
+
+  it('extendTo selects range between anchor and end', () => {
+    const { result } = renderHook(() => useMessageSelection());
+    const order = ['a', 'b', 'c', 'd'] as const;
+    act(() => {
+      result.current.enterSelectionWith('b');
+    });
+    act(() => {
+      result.current.extendTo('d', order);
+    });
+    expect(result.current.isSelected('a')).toBe(false);
+    expect(result.current.isSelected('b')).toBe(true);
+    expect(result.current.isSelected('c')).toBe(true);
+    expect(result.current.isSelected('d')).toBe(true);
+  });
 });

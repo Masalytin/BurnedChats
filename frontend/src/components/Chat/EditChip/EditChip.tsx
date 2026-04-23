@@ -10,7 +10,7 @@ export interface EditChipProps {
 export function EditChip({ onCancel, labelKey = 'chat.edit.editChipLabel' }: EditChipProps) {
   const { t } = useTranslation();
   return (
-    <div className="edit-chip" role="status" data-testid="edit-chip">
+    <div className="edit-chip" role="status" aria-live="polite" data-testid="edit-chip">
       <span className="edit-chip__text">{t(labelKey)}</span>
       <button
         type="button"

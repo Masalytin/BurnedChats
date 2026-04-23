@@ -67,7 +67,7 @@ export const MessageInput = memo(function MessageInput({
   onTypingChange,
   disabled = false,
   isUploading = false,
-  placeholder = 'Message...',
+  placeholder,
   isSending = false,
   maxLength = 4096,
   className = '',
@@ -78,6 +78,7 @@ export const MessageInput = memo(function MessageInput({
 }: MessageInputProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
+  const placeholderResolved = placeholder ?? t('chat.composerFallback');
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -146,7 +147,7 @@ export const MessageInput = memo(function MessageInput({
         editMode.onCancel();
         return;
       }
-      if (e.key === 'Escape' && replyTo && onReplyCancel) {
+      if (e.key === 'Escape' && replyTo && onReplyCancel && !text.trim()) {
         e.preventDefault();
         e.stopPropagation();
         onReplyCancel();
@@ -157,7 +158,7 @@ export const MessageInput = memo(function MessageInput({
         handleSubmit();
       }
     },
-    [handleSubmit, replyTo, onReplyCancel, editMode],
+    [handleSubmit, text, replyTo, onReplyCancel, editMode],
   );
 
   // P4-4-1-1: Open file picker
@@ -204,6 +205,14 @@ export const MessageInput = memo(function MessageInput({
   useEffect(() => {
     if (editMode) {
       setText(editMode.initialText);
+      const ta = textareaRef.current;
+      const len = editMode.initialText.length;
+      requestAnimationFrame(() => {
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(len, len);
+        }
+      });
     }
   }, [editMode?.initialText, editMode]);
 
@@ -274,18 +283,18 @@ export const MessageInput = memo(function MessageInput({
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={placeholderResolved}
           disabled={disabled}
           rows={1}
           maxLength={maxLength}
-          aria-label="Type a message"
+          aria-label={t('chat.aria.typeMessage')}
         />
         <button
           type="button"
           className={`message-input-send ${canSend ? 'message-input-send--active' : ''}`}
           onClick={handleSubmit}
           disabled={!canSend}
-          aria-label={editMode ? t('chat.edit.save') : 'Send message'}
+          aria-label={editMode ? t('chat.edit.save') : t('chat.aria.sendMessage')}
         >
           {isSending ? (
             <span className="message-input-spinner" />

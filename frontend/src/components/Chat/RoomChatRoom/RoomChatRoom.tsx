@@ -12,6 +12,7 @@ import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { ChatSelectionBar } from '../ChatSelectionBar';
 import { useMessageSelection } from '@/hooks/useMessageSelection';
+import { useAnnouncer } from '@/hooks/useAnnouncer';
 import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
@@ -119,6 +120,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const toast = useToast();
   const haptics = useHaptics();
   const messageSelection = useMessageSelection();
+  const { announce, announcerRef } = useAnnouncer();
+  const prevSelectionModeRef = useRef<'idle' | 'selecting'>('idle');
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
@@ -140,6 +143,32 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [messageSelection.mode, messageSelection.clear]);
+
+  useEffect(() => {
+    const mode = messageSelection.mode;
+    if (mode === 'selecting' && prevSelectionModeRef.current === 'idle') {
+      announce(t('chat.a11y.selectionModeEntered'));
+    }
+    prevSelectionModeRef.current = mode;
+  }, [messageSelection.mode, announce, t]);
+
+  const selectCountDebounceRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  useEffect(() => {
+    if (messageSelection.mode !== 'selecting' || messageSelection.count <= 1) {
+      return;
+    }
+    if (selectCountDebounceRef.current) {
+      clearTimeout(selectCountDebounceRef.current);
+    }
+    selectCountDebounceRef.current = globalThis.setTimeout(() => {
+      announce(t('chat.a11y.selectedCount', { count: messageSelection.count }));
+    }, 200);
+    return () => {
+      if (selectCountDebounceRef.current) {
+        clearTimeout(selectCountDebounceRef.current);
+      }
+    };
+  }, [messageSelection.count, messageSelection.mode, announce, t]);
 
   // P4-4-2-4: Full-screen media viewer
   const [viewerMessage, setViewerMessage] = useState<DecryptedFileMessage | null>(null);
@@ -262,6 +291,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           }
           return;
         }
+        announce(t('chat.a11y.messageEdited'));
         setEditingMessage(null);
         messageInputTextAreaRef.current?.focus();
         return;
@@ -270,7 +300,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       setReplyTarget(null);
       messageInputTextAreaRef.current?.focus();
     },
-    [sendMessage, haptics, replyTarget, editingMessage, editMessage, toast, t],
+    [sendMessage, haptics, replyTarget, editingMessage, editMessage, toast, t, announce],
   );
 
   const handleFileSelected = useCallback((info: SelectedFileInfo) => {
@@ -378,11 +408,12 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     if (deleteConfirmIds?.length) {
       hideMessages(deleteConfirmIds);
       toast.success(t('chat.delete.hidden'));
+      announce(t('chat.a11y.messageDeleted'));
       haptics.destructive();
       messageSelection.clear();
     }
     setDeleteConfirmIds(null);
-  }, [deleteConfirmIds, hideMessages, toast, t, haptics, messageSelection]);
+  }, [deleteConfirmIds, hideMessages, toast, t, haptics, messageSelection, announce]);
 
   const handleCancelDeleteForMe = useCallback(() => {
     setDeleteConfirmIds(null);
@@ -404,10 +435,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       }
     }
     toast.success(t('chat.delete.forEveryoneDone'));
+    announce(t('chat.a11y.messageDeleted'));
     haptics.destructive();
     messageSelection.clear();
     setDeleteEveryoneIds(null);
-  }, [deleteEveryoneIds, deleteMessage, toast, t, haptics, messageSelection]);
+  }, [deleteEveryoneIds, deleteMessage, toast, t, haptics, messageSelection, announce]);
 
   const handleCancelDeleteForEveryone = useCallback(() => {
     setDeleteEveryoneIds(null);
@@ -478,6 +510,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
 
   return (
     <div className="chat-screen room-chat-room">
+      <div ref={announcerRef} className="visually-hidden" role="status" />
       {messageSelection.mode === 'selecting' ? (
         <ChatSelectionBar
           count={messageSelection.count}

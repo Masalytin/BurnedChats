@@ -31,6 +31,15 @@
   background-color: rgba(36, 129, 204, 0.2) !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .message.message--highlighted .message-bubble,
+  .message.message--highlighted .image-bubble,
+  .message.message--highlighted .video-bubble,
+  .message.message--highlighted .doc-bubble {
+    transition: none;
+  }
+}
+
 /* ============================================
  * Loading States
  * ============================================ */

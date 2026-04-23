@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MessageAction } from './types';
 import './MessageActionMenu.css';
@@ -12,6 +12,8 @@ export interface MessageActionMenuProps {
   anchor: { x: number; y: number } | DOMRect;
   actions: MessageAction[];
   onClose: () => void;
+  /** id of the message row element for `aria-labelledby` */
+  labelledById?: string;
 }
 
 type MenuPos = { top: number; left: number };
@@ -28,7 +30,8 @@ function anchorPoint(anchor: MessageActionMenuProps['anchor']): { x: number; y: 
  * Context menu for message actions. Positioned in the viewport with flip; closes on
  * outside click, Escape, and supports arrow/Enter keyboard navigation.
  */
-export function MessageActionMenu({ anchor, actions, onClose }: MessageActionMenuProps) {
+export function MessageActionMenu({ anchor, actions, onClose, labelledById }: MessageActionMenuProps) {
+  const idPrefix = useId().replace(/:/g, '');
   const listRef = useRef<HTMLDivElement>(null);
   const activeIndexRef = useRef(0);
   const [position, setPosition] = useState<MenuPos | null>(null);
@@ -88,21 +91,59 @@ export function MessageActionMenu({ anchor, actions, onClose }: MessageActionMen
     setActiveIndex((prev) => (enabled.includes(prev) ? prev : enabled[0]!));
   }, [getEnabledIndices, actions]);
 
+  const focusMenu = useCallback(() => {
+    requestAnimationFrame(() => {
+      listRef.current?.focus();
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    focusMenu();
+  }, [focusMenu]);
+
   useEffect(() => {
     const onDocDown = (e: MouseEvent) => {
       if (listRef.current && !listRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    const onKey = (e: KeyboardEvent) => {
+    const onDocKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
+      }
+    };
+    document.addEventListener('mousedown', onDocDown, true);
+    document.addEventListener('keydown', onDocKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown, true);
+      document.removeEventListener('keydown', onDocKey, true);
+    };
+  }, [onClose]);
+
+  const onItemClick = useCallback(
+    (action: MessageAction) => {
+      if (action.disabled) return;
+      action.onClick();
+      onClose();
+    },
+    [onClose],
+  );
+
+  const getItemDomId = useCallback(
+    (index: number) => `ma-${idPrefix}-item-${index}`,
+    [idPrefix],
+  );
+
+  const handleMenuKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!listRef.current) {
         return;
       }
-      if (!listRef.current) return;
       const enabled = getEnabledIndices();
-      if (enabled.length === 0) return;
+      if (enabled.length === 0) {
+        return;
+      }
       const pos = (idx: number) => enabled.indexOf(idx);
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -118,6 +159,12 @@ export function MessageActionMenu({ anchor, actions, onClose }: MessageActionMen
           const nextP = p <= 0 ? enabled.length - 1 : p - 1;
           return enabled[nextP] ?? cur;
         });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setActiveIndex(enabled[0]!);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setActiveIndex(enabled[enabled.length - 1]!);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const i = activeIndexRef.current;
@@ -127,27 +174,16 @@ export function MessageActionMenu({ anchor, actions, onClose }: MessageActionMen
           onClose();
         }
       }
-    };
-    document.addEventListener('mousedown', onDocDown, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('mousedown', onDocDown, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [actions, getEnabledIndices, onClose]);
-
-  const onItemClick = useCallback(
-    (action: MessageAction) => {
-      if (action.disabled) return;
-      action.onClick();
-      onClose();
     },
-    [onClose],
+    [actions, getEnabledIndices, onClose],
   );
 
   if (typeof document === 'undefined' || !position) {
     return null;
   }
+
+  const activeItemId = getItemDomId(activeIndex);
+  const menuId = `ma-${idPrefix}-list`;
 
   const menu = (
     <div
@@ -157,19 +193,25 @@ export function MessageActionMenu({ anchor, actions, onClose }: MessageActionMen
     >
       <div
         ref={listRef}
+        id={menuId}
         className={`message-action-menu${open ? ' message-action-menu--open' : ''}`}
         style={{ top: position.top, left: position.left }}
         role="menu"
+        aria-labelledby={labelledById}
+        aria-activedescendant={activeItemId}
         data-testid="message-action-menu"
-        tabIndex={-1}
+        tabIndex={0}
+        onKeyDown={handleMenuKeyDown}
       >
         {actions.map((a, i) => {
           const isActive = i === activeIndex;
           return (
             <button
               key={a.id + String(i)}
+              id={getItemDomId(i)}
               type="button"
               role="menuitem"
+              tabIndex={-1}
               className={
                 'message-action-menu__item' +
                 (a.variant === 'destructive' ? ' message-action-menu__item--destructive' : '') +

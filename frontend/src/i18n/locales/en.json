@@ -1,5 +1,9 @@
 {
   "common": {
+    "date": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "cancel": "Cancel",
     "back": "Back",
     "loading": "Loading...",
@@ -76,6 +80,7 @@
     "burnButtonTitle": "Destroy this chat permanently",
     "errorBannerLabel": "Chat error",
     "messagePlaceholder": "Message {{name}}...",
+    "composerFallback": "Message",
     "loadingMessages": "Loading messages...",
     "emptyMessages": "No messages yet",
     "emptyHint": "Send a message to start the conversation",
@@ -83,11 +88,39 @@
     "selectionModeToolbar": "Message selection",
     "selectionCount": "{{count}} selected",
     "selectionCount_one": "1 selected",
+    "messageStatus": {
+      "sending": "Sending",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "failed": "Failed to send"
+    },
+    "aria": {
+      "messageList": "Chat messages",
+      "typeMessage": "Type a message",
+      "sendMessage": "Send message",
+      "ownMessagePreview": "Your message: {{preview}}",
+      "peerMessagePreview": "Message from {{name}}: {{preview}}"
+    },
+    "a11y": {
+      "selectionToolbar": "Selected messages toolbar",
+      "messageDeleted": "Message removed",
+      "messageEdited": "Message updated",
+      "selectionModeEntered": "Selection mode, messages can be selected",
+      "selectedCount": "{{count}} messages selected"
+    },
+    "select": {
+      "countSelected": "{{count}} selected",
+      "countSelected_one": "1 selected",
+      "exit": "Exit selection"
+    },
     "actions": {
       "copy": "Copy",
       "copyToast": "Copied",
       "copyFailed": "Could not copy",
       "deleteForMe": "Delete for me",
+      "deleteForEveryone": "Delete for everyone",
+      "select": "Select",
       "reply": "Reply",
       "edit": "Edit"
     },

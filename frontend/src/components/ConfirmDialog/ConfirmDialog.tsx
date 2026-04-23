@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -38,12 +38,25 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   const { t } = useTranslation();
   const haptics = useHaptics();
   const cancelLabelResolved = cancelLabel ?? t('common.cancel');
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       haptics.impact('medium');
     }
   }, [isOpen, haptics]);
+
+  useEffect(() => {
+    if (!isOpen || isLoading || variant !== 'destructive') {
+      return;
+    }
+    const id = globalThis.setTimeout(() => {
+      confirmButtonRef.current?.focus();
+    }, 100);
+    return () => {
+      clearTimeout(id);
+    };
+  }, [isOpen, isLoading, variant]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -96,6 +109,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
             {cancelLabelResolved}
           </Button>
           <Button
+            ref={confirmButtonRef}
             variant={variant === 'destructive' ? 'destructive' : 'primary'}
             onClick={onConfirm}
             isLoading={isLoading}

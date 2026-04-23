@@ -81,3 +81,12 @@
 .message-action-menu__label {
   flex: 1;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .message-action-menu {
+    transition: none;
+  }
+  .message-action-menu--open {
+    transform: none;
+  }
+}
