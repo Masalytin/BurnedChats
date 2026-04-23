@@ -1,9 +1,11 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.NewRoomMessageEvent;
+import dev.burnedchats.dto.event.RoomMessageDeletedEvent;
 import dev.burnedchats.dto.event.RoomMessageEditedEvent;
 import dev.burnedchats.dto.event.RoomMessageSentEvent;
 import dev.burnedchats.dto.event.SyncRoomMessagesEvent;
+import dev.burnedchats.dto.request.DeleteRoomMessageRequest;
 import dev.burnedchats.dto.request.EditRoomMessageRequest;
 import dev.burnedchats.dto.request.SendRoomMessageRequest;
 import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
@@ -15,6 +17,7 @@ import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import jakarta.validation.Valid;
@@ -111,12 +114,18 @@ public class RoomMessageHandler {
      */
     private static final String ROOM_MESSAGE_EDITED_USER_DESTINATION = "/queue/room-message-edited";
 
+    /**
+     * User-scoped room delete errors (success is broadcast on the room topic only).
+     */
+    private static final String ROOM_MESSAGE_DELETED_USER_DESTINATION = "/queue/room-message-deleted";
+
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final FileMessageRelayValidator fileMessageRelayValidator;
+    private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
@@ -128,6 +137,7 @@ public class RoomMessageHandler {
      * @param request   the send message request containing encrypted content
      * @param principal authenticated user principal
      */
+    @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.edit")
     public void editRoomMessage(
             @Payload @Valid EditRoomMessageRequest request, Principal principal) {
@@ -188,6 +198,76 @@ public class RoomMessageHandler {
                         error -> {
                             LOG.error("ROOM_MESSAGE_EDIT failed: roomId={}, error={}", roomId, error.getMessage());
                             sendRoomMessageEditError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
+                        }
+            );
+    }
+
+    @SuppressWarnings("checkstyle:MethodLength")
+    @MessageMapping("/room.message.delete")
+    public void deleteRoomMessage(
+            @Payload @Valid DeleteRoomMessageRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long userId = tp.getUserId();
+        String roomId = request.getRoomId();
+        String messageId = request.getMessageId();
+        LOG.info("ROOM_MESSAGE_DELETE: roomId={}, messageId={}, userId={}", roomId, messageId, userId);
+
+        roomMembersRepository.isMember(roomId, userId)
+                .flatMap(isMember -> {
+                    if (!isMember) {
+                        sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_MEMBER");
+                        return Mono.empty();
+                    }
+                    return roomRepository.findById(roomId)
+                            .switchIfEmpty(Mono.defer(() -> {
+                                sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_FOUND");
+                                return Mono.empty();
+                            }))
+                            .flatMap(room -> roomMessageRepository.findRoomMessageById(roomId, messageId)
+                                    .flatMap(opt -> {
+                                        if (opt.isEmpty()) {
+                                            sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_FOUND");
+                                            return Mono.empty();
+                                        }
+                                        RoomMessage rm = opt.get();
+                                        boolean own = userId.equals(rm.getSenderTgId());
+                                        boolean asOwner = !own && userId.equals(room.getOwnerTgId());
+                                        if (!own && !asOwner) {
+                                            sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_ALLOWED");
+                                            return Mono.empty();
+                                        }
+                                        return roomMessageRepository.removeRoomMessageValue(roomId, rm)
+                                                .flatMap(ok -> {
+                                                    if (!ok) {
+                                                        sendRoomMessageDeleteError(
+                                                                userId, roomId, messageId, "NOT_FOUND");
+                                                        return Mono.empty();
+                                                    }
+                                                    if (FileMessageRelayValidator.isFileMessage(rm.getType())) {
+                                                        fileBurnService.burnFiles(
+                                                                rm.getFileId(), rm.getThumbnailFileId());
+                                                    }
+                                                    RoomMessageDeletedEvent ev = RoomMessageDeletedEvent.builder()
+                                                            .eventType("ROOM_MESSAGE_DELETED")
+                                                            .success(true)
+                                                            .roomId(roomId)
+                                                            .messageId(messageId)
+                                                            .deletedByTgId(userId)
+                                                            .deletedByOwner(!own && asOwner)
+                                                            .deletedAt(Instant.now())
+                                                            .build();
+                                                    messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
+                                                    return roomRepository
+                                                            .extendTtl(roomId, RoomRepository.DEFAULT_TTL)
+                                                            .then();
+                                                });
+                                    }));
+                })
+                .subscribe(
+                        v -> { },
+                        error -> {
+                            LOG.error("ROOM_MESSAGE_DELETE failed: roomId={}, error={}", roomId, error.getMessage());
+                            sendRoomMessageDeleteError(userId, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -424,6 +504,21 @@ public class RoomMessageHandler {
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(userId),
                 ROOM_MESSAGE_EDITED_USER_DESTINATION,
+                event
+        );
+    }
+
+    private void sendRoomMessageDeleteError(Long userId, String roomId, String messageId, String errorCode) {
+        RoomMessageDeletedEvent event = RoomMessageDeletedEvent.builder()
+                .eventType("ROOM_MESSAGE_DELETED")
+                .success(false)
+                .roomId(roomId)
+                .messageId(messageId)
+                .errorCode(errorCode)
+                .build();
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                ROOM_MESSAGE_DELETED_USER_DESTINATION,
                 event
         );
     }

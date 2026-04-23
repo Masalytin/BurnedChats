@@ -9,6 +9,12 @@ export interface ChatSelectionBarProps {
   onCopy?: () => void;
   /** User chose "Delete for me" from the delete submenu (parent shows confirm). */
   onRequestDeleteForMe?: () => void;
+  /** "For everyone" from delete submenu (parent shows confirm). */
+  onRequestDeleteForEveryone?: () => void;
+  /** When true, "For everyone" is disabled (e.g. mixed selection). */
+  deleteForEveryoneDisabled?: boolean;
+  /** Tooltip when "For everyone" is disabled */
+  deleteForEveryoneDisabledHint?: string;
 }
 
 /**
@@ -19,6 +25,9 @@ export function ChatSelectionBar({
   onClose,
   onCopy,
   onRequestDeleteForMe,
+  onRequestDeleteForEveryone,
+  deleteForEveryoneDisabled,
+  deleteForEveryoneDisabledHint,
 }: ChatSelectionBarProps) {
   const { t } = useTranslation();
   const [deleteMenuOpen, setDeleteMenuOpen] = useState(false);
@@ -65,7 +74,7 @@ export function ChatSelectionBar({
             <span className="chat-selection-bar__action-label">{t('chat.actions.copy')}</span>
           </button>
         )}
-        {onRequestDeleteForMe && (
+        {(onRequestDeleteForMe || onRequestDeleteForEveryone) && (
           <div className="chat-selection-bar__delete-wrap" ref={deleteWrapRef}>
             <button
               type="button"
@@ -88,26 +97,41 @@ export function ChatSelectionBar({
             </button>
             {deleteMenuOpen && (
               <div className="chat-selection-bar__delete-menu" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="chat-selection-bar__delete-menu-item chat-selection-bar__delete-menu-item--danger"
-                  onClick={() => {
-                    setDeleteMenuOpen(false);
-                    onRequestDeleteForMe();
-                  }}
-                >
-                  {t('chat.actions.deleteForMe')}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="chat-selection-bar__delete-menu-item"
-                  disabled
-                  title={t('chat.delete.deleteForEveryoneDisabledHint')}
-                >
-                  {t('chat.delete.deleteForEveryoneLabel')}
-                </button>
+                {onRequestDeleteForMe && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="chat-selection-bar__delete-menu-item chat-selection-bar__delete-menu-item--danger"
+                    onClick={() => {
+                      setDeleteMenuOpen(false);
+                      onRequestDeleteForMe();
+                    }}
+                  >
+                    {t('chat.actions.deleteForMe')}
+                  </button>
+                )}
+                {onRequestDeleteForEveryone && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="chat-selection-bar__delete-menu-item"
+                    disabled={!!deleteForEveryoneDisabled}
+                    title={
+                      deleteForEveryoneDisabled
+                        ? (deleteForEveryoneDisabledHint ?? t('chat.delete.mixedSelection'))
+                        : t('chat.delete.deleteForEveryoneLabel')
+                    }
+                    onClick={() => {
+                      if (deleteForEveryoneDisabled) {
+                        return;
+                      }
+                      setDeleteMenuOpen(false);
+                      onRequestDeleteForEveryone();
+                    }}
+                  >
+                    {t('chat.delete.deleteForEveryoneLabel')}
+                  </button>
+                )}
               </div>
             )}
           </div>

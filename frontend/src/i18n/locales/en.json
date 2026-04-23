@@ -113,9 +113,16 @@
     "delete": {
       "confirmTitleForMe": "Delete messages?",
       "confirmDescriptionForMe": "This will only remove the message from your device. The other {{context}} will still see it.",
+      "confirmTitleForEveryone": "Delete for everyone?",
+      "confirmDescriptionForEveryone": "This removes the message for all participants. File attachments are deleted from the server.",
+      "confirmDescriptionAsOwner": "You are removing another member's message for everyone in this room. Attachments are deleted from the server.",
       "deleteForMeLabel": "Delete for me",
       "deleteForEveryoneLabel": "Delete for everyone",
-      "deleteForEveryoneDisabledHint": "Coming soon",
+      "deleteForEveryoneDisabledHint": "You can only delete for everyone on your own messages, or as room owner for any message.",
+      "mixedSelection": "Select only your own messages, or as owner you may include any",
+      "failed": "Could not delete message on the server",
+      "removedByOwner": "A moderator removed your message",
+      "forEveryoneDone": "Message deleted for everyone",
       "hidden": "Hidden on this device",
       "contextPeer": "participant",
       "contextRoom": "room members"
@@ -126,6 +133,7 @@
       "edit": "Edit",
       "delete": "Delete",
       "deleteForMe": "Delete for me",
+      "deleteForEveryone": "Delete for everyone",
       "select": "Select",
       "cancel": "Cancel"
     }

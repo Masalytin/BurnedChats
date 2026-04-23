@@ -35,6 +35,16 @@ public class MessagesProperties {
     private MessageEdits messageEdits = new MessageEdits();
 
     /**
+     * Tombstone queue for DM deletes for everyone ({@code message-deletions:{user}:{session}}).
+     */
+    private MessageDeletions messageDeletions = new MessageDeletions();
+
+    /**
+     * TTL for {@code message-senders:{sessionId}} (HSET of messageId → senderTgId).
+     */
+    private Duration senderIndexTtl = Duration.ofHours(24);
+
+    /**
      * Server-push sync configuration.
      *
      * <p>When enabled, the backend fans out {@code SyncMessagesEvent} to the
@@ -107,5 +117,14 @@ public class MessagesProperties {
          * TTL for {@code dm-editable:{sessionId}:{messageId}} (ownership + 15m window anchor).
          */
         private Duration editableMetaTtl = Duration.ofMinutes(20);
+    }
+
+    /**
+     * {@code message-deletions:{recipientId}:{sessionId}} list and caps.
+     */
+    @Data
+    public static class MessageDeletions {
+        private Duration ttl = Duration.ofHours(1);
+        private int maxSize = 50;
     }
 }

@@ -1741,7 +1741,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
     [t, toast],
   );
 
-  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage } = useMessages({
+  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage, deleteMessage } = useMessages({
     sessionId,
     userId,
     ws,
@@ -1797,6 +1797,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
       errorMessage={error ? t('chat.temporarilyUnavailable') : undefined}
       hideMessages={hideMessages}
       onEditMessage={handleEditDm}
+      onDeleteForEveryone={deleteMessage}
     />
   );
 }

@@ -22,4 +22,11 @@ public class DmMessageEditableMeta implements Serializable {
 
     private Long senderId;
     private Instant serverTimestamp;
+
+    /**
+     * Present for non-text messages after relay — used when deleting a delivered message
+     * so attachment blobs can be removed from storage.
+     */
+    private String fileId;
+    private String thumbnailFileId;
 }

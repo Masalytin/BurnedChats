@@ -9,6 +9,8 @@ import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedMessage;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
+import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
@@ -28,6 +30,8 @@ import reactor.core.publisher.Mono;
 import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import reactor.core.publisher.Flux;
 
 /**
  * WebSocket event listener for handling connection lifecycle events.
@@ -254,7 +258,10 @@ public class WebSocketEventListener {
         AtomicInteger sessionCount = new AtomicInteger(0);
         AtomicInteger messageCount = new AtomicInteger(0);
 
-        messageRepository.findSessionsWithPendingMessages(userId)
+        Flux.merge(
+                        messageRepository.findSessionsWithPendingMessages(userId),
+                        messageRepository.findSessionsWithPendingDeletions(userId))
+                .distinct()
                 .flatMap(sessionId -> pushPendingMessagesForSession(userId, sessionId)
                         .doOnNext(delivered -> {
                             if (delivered > 0) {
@@ -299,32 +306,39 @@ public class WebSocketEventListener {
     private Mono<Integer> pushPendingMessagesForSession(Long userId, String sessionId) {
         return messageRepository.getPendingMessages(userId, sessionId)
                 .collectList()
-                .flatMap(messages -> {
-                    if (messages.isEmpty()) {
+                .zipWith(messageRepository.getPendingDeletions(userId, sessionId).collectList())
+                .flatMap(tuple -> {
+                    List<Message> messages = tuple.getT1();
+                    List<MessageDeletion> deletions = tuple.getT2();
+                    if (messages.isEmpty() && deletions.isEmpty()) {
                         return Mono.just(0);
                     }
-
+                    List<String> deletedIds = deletions.stream()
+                            .map(MessageDeletion::getMessageId)
+                            .toList();
                     List<SyncedMessage> syncedMessages = messages.stream()
                             .map(SyncedMessage::fromMessage)
                             .toList();
+                    SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages, deletedIds);
 
-                    SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages);
-
-                    // convertAndSendToUser is synchronous w.r.t. broker hand-off —
-                    // only then clear the Redis queue so that a crash before
-                    // hand-off preserves the messages for the next sync attempt.
                     messagingTemplate.convertAndSendToUser(
                             String.valueOf(userId),
                             SYNC_MESSAGES_DESTINATION,
                             event
                     );
 
-                    LOG.debug("Server-push sync: delivered {} messages to user {} for session {}",
-                            messages.size(), userId, sessionId);
+                    LOG.debug("Server-push sync: {} messages, {} deletions, user {} session {}",
+                            messages.size(), deletedIds.size(), userId, sessionId);
 
-                    offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                    return messageRepository.deleteMessages(userId, sessionId)
-                            .thenReturn(messages.size());
+                    Mono<Void> after = Mono.empty();
+                    if (!messages.isEmpty()) {
+                        offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
+                        after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
+                    }
+                    if (!deletions.isEmpty()) {
+                        after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
+                    }
+                    return after.thenReturn(messages.size() + deletions.size());
                 })
                 .onErrorResume(error -> {
                     LOG.error("Server-push sync failed for user {} session {}: {}",

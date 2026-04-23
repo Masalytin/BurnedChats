@@ -58,6 +58,33 @@ public class FileBurnService {
                 });
     }
 
+    /**
+     * Best-effort removal of a message's file attachment(s) from storage and Redis metadata.
+     * Does not block the caller on failures (logs at WARN).
+     *
+     * @param fileId          main file id, or null
+     * @param thumbnailFileId optional thumbnail id, or null
+     */
+    public void burnFiles(String fileId, String thumbnailFileId) {
+        if (fileId != null && !fileId.isBlank()) {
+            deleteSingleFile(fileId)
+                    .onErrorResume(e -> {
+                        LOG.warn("Failed to burn main file {}: {}", fileId, e.getMessage());
+                        return Mono.empty();
+                    })
+                    .subscribe();
+        }
+        if (thumbnailFileId != null && !thumbnailFileId.isBlank()
+                && !thumbnailFileId.equals(fileId)) {
+            deleteSingleFile(thumbnailFileId)
+                    .onErrorResume(e -> {
+                        LOG.warn("Failed to burn thumbnail {}: {}", thumbnailFileId, e.getMessage());
+                        return Mono.empty();
+                    })
+                    .subscribe();
+        }
+    }
+
     private Mono<Void> deleteSingleFile(String fileId) {
         return fileStorageService.delete(fileId)
                 .doOnNext(deleted -> {

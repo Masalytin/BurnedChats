@@ -84,6 +84,16 @@ interface MessageEditedEvent {
   errorCode?: string;
 }
 
+/** Delete for everyone (DM). */
+interface MessageDeletedEvent {
+  success: boolean;
+  sessionId: string;
+  messageId: string;
+  deletedByTgId?: number;
+  deletedByOwner?: boolean;
+  errorCode?: string;
+}
+
 /** Synced message from server (5.1.2, matches SyncMessagesEvent.SyncedMessage) */
 interface SyncedMessage {
   messageId: string;
@@ -110,6 +120,8 @@ interface SyncMessagesEvent {
   count: number;
   serverTimestamp: string;
   error?: string;
+  /** Tombstones for delete-for-everyone while offline. */
+  deletedMessageIds?: string[];
 }
 
 /** WebSocket API passed from parent (must use same connection as app) */
@@ -174,6 +186,13 @@ interface UseMessagesReturn {
     newText: string,
     originalClientTimestamp: number,
   ) => Promise<{ success: boolean; errorCode?: string }>;
+  /**
+   * Server-side delete for everyone (own messages). Resolves when MESSAGE_DELETED is received.
+   */
+  deleteMessage: (messageId: string) => Promise<{
+    success: boolean;
+    errorCode?: 'NOT_ALLOWED' | 'NOT_FOUND' | 'NOT_PARTICIPANT' | 'INTERNAL_ERROR' | string;
+  }>;
 }
 
 // ============================================
@@ -187,6 +206,8 @@ const SYNC_MESSAGES_DESTINATION = '/app/message.sync';
 const SYNC_MESSAGES_RESULT_DESTINATION = '/user/queue/sync-messages';
 const MESSAGE_EDITED_DESTINATION = '/user/queue/message-edited';
 const EDIT_MESSAGE_DESTINATION = '/app/message.edit';
+const DELETE_MESSAGE_DESTINATION = '/app/message.delete';
+const MESSAGE_DELETED_DESTINATION = '/user/queue/message-deleted';
 
 // ============================================
 // Hook Implementation
@@ -254,6 +275,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
   const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
   const handleMessageEditedRef = useRef<(message: IMessage) => void>(() => {});
+  const handleMessageDeletedRef = useRef<(message: IMessage) => void>(() => {});
+  const pendingDeleteResolversRef = useRef(
+    new Map<string, (r: { success: boolean; errorCode?: string }) => void>(),
+  );
 
   // ============================================
   // Error Handling
@@ -637,8 +662,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         return;
       }
 
-      if (event.count === 0) {
-        console.log('[useMessages] No messages to sync');
+      const deletedIds = event.deletedMessageIds ?? [];
+      if (deletedIds.length > 0) {
+        const idSet = new Set(deletedIds);
+        setMessages(prev => prev.filter(m => !idSet.has(m.id)));
+      }
+
+      const toDecrypt = event.messages ?? [];
+      if (toDecrypt.length === 0) {
+        console.log('[useMessages] No messages to decrypt (tombstones only or empty)');
         onSyncComplete?.(0);
         return;
       }
@@ -653,7 +685,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       // Decrypt all synced messages
       const decryptedMessages: DecryptedMessage[] = [];
       
-      for (const syncedMsg of event.messages) {
+      for (const syncedMsg of toDecrypt) {
         try {
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
           const msgType = toMessageType(syncedMsg.type);
@@ -868,12 +900,57 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     [isConnected, sessionId, publish, handleError],
   );
 
+  const handleMessageDeleted = useCallback(
+    (message: IMessage) => {
+      try {
+        const event: MessageDeletedEvent = JSON.parse(message.body);
+        if (event.sessionId !== sessionId) {
+          return;
+        }
+        const finish = pendingDeleteResolversRef.current.get(event.messageId);
+        if (finish) {
+          pendingDeleteResolversRef.current.delete(event.messageId);
+          finish({
+            success: !!event.success,
+            errorCode: event.errorCode,
+          });
+        }
+        if (event.success) {
+          setMessages(prev => prev.filter(m => m.id !== event.messageId));
+        }
+      } catch (e) {
+        console.error('[useMessages] message-deleted handler:', e);
+      }
+    },
+    [sessionId],
+  );
+
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      if (!isConnected || !sessionId) {
+        return Promise.resolve({ success: false, errorCode: 'NOT_CONNECTED' as const });
+      }
+      return new Promise<{ success: boolean; errorCode?: string }>(resolve => {
+        pendingDeleteResolversRef.current.set(messageId, resolve);
+        publish(DELETE_MESSAGE_DESTINATION, { sessionId, messageId });
+        window.setTimeout(() => {
+          if (pendingDeleteResolversRef.current.has(messageId)) {
+            pendingDeleteResolversRef.current.delete(messageId);
+            resolve({ success: false, errorCode: 'INTERNAL_ERROR' });
+          }
+        }, 15_000);
+      });
+    },
+    [isConnected, sessionId, publish],
+  );
+
   // Keep handler refs up to date so subscription callbacks always use latest logic
   useEffect(() => {
     handleNewMessageRef.current = handleNewMessage;
     handleMessageSentRef.current = handleMessageSent;
     handleSyncMessagesRef.current = handleSyncMessages;
     handleMessageEditedRef.current = handleMessageEdited;
+    handleMessageDeletedRef.current = handleMessageDeleted;
   });
 
   // ============================================
@@ -926,11 +1003,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     const onMessageSent = (message: IMessage) => handleMessageSentRef.current(message);
     const onSyncResult = (message: IMessage) => handleSyncMessagesRef.current(message);
     const onMessageEdited = (message: IMessage) => handleMessageEditedRef.current(message);
+    const onMessageDeleted = (message: IMessage) => handleMessageDeletedRef.current(message);
 
     subscribe(NEW_MESSAGE_DESTINATION, onNewMessage);
     subscribe(MESSAGE_SENT_DESTINATION, onMessageSent);
     subscribe(SYNC_MESSAGES_RESULT_DESTINATION, onSyncResult);
     subscribe(MESSAGE_EDITED_DESTINATION, onMessageEdited);
+    subscribe(MESSAGE_DELETED_DESTINATION, onMessageDeleted);
 
     // Initial offline-messages sync on chat open (shared with useRoomMessages via useMessageSync).
     // Subscription to SYNC_MESSAGES_RESULT_DESTINATION above runs before this publish.
@@ -941,6 +1020,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       unsubscribe(MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_MESSAGES_RESULT_DESTINATION);
       unsubscribe(MESSAGE_EDITED_DESTINATION);
+      unsubscribe(MESSAGE_DELETED_DESTINATION);
     };
   // Intentionally exclude subscribe/unsubscribe/publish so effect only re-runs when
   // connection state or session identity actually changes (avoids duplicate syncs).
@@ -984,6 +1064,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     syncMessages,
     error,
     editMessage,
+    deleteMessage,
   };
 }
 

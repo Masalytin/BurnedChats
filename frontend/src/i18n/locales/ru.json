@@ -113,9 +113,16 @@
     "delete": {
       "confirmTitleForMe": "Удалить сообщения?",
       "confirmDescriptionForMe": "Сообщения исчезнут только у вас на устройстве. {{context}} по-прежнему их увидит.",
+      "confirmTitleForEveryone": "Удалить у всех?",
+      "confirmDescriptionForEveryone": "Сообщение исчезнет у всех участников. Вложения будут удалены с сервера.",
+      "confirmDescriptionAsOwner": "Вы удаляете сообщение другого участника у всех в этой комнате. Вложения будут удалены с сервера.",
       "deleteForMeLabel": "Удалить у меня",
       "deleteForEveryoneLabel": "Удалить у всех",
-      "deleteForEveryoneDisabledHint": "Скоро",
+      "deleteForEveryoneDisabledHint": "Можно удалить у всех только свои сообщения; владелец комнаты — любые.",
+      "mixedSelection": "Выберите только свои сообщения (владелец комнаты может отметить любые)",
+      "failed": "Не удалось удалить сообщение на сервере",
+      "removedByOwner": "Модератор удалил ваше сообщение",
+      "forEveryoneDone": "Сообщение удалено у всех",
       "hidden": "Скрыто на этом устройстве",
       "contextPeer": "собеседник",
       "contextRoom": "участники комнаты"
@@ -126,6 +133,7 @@
       "edit": "Изменить",
       "delete": "Удалить",
       "deleteForMe": "Удалить у меня",
+      "deleteForEveryone": "Удалить у всех",
       "select": "Выбрать",
       "cancel": "Отмена"
     }

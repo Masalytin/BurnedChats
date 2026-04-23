@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 
 /**
  * Redis repository for room message storage.
@@ -200,6 +201,50 @@ public class RoomMessageRepository {
                 .onErrorResume(e -> {
                     LOG.error("updateMessage failed: {}", e.getMessage());
                     return Mono.empty();
+                });
+    }
+
+    /**
+     * Find a room message by id without mutating the list.
+     */
+    public Mono<Optional<RoomMessage>> findRoomMessageById(String roomId, String messageId) {
+        String key = keyFor(roomId);
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    for (String json : jsonList) {
+                        try {
+                            RoomMessage m = objectMapper.readValue(json, RoomMessage.class);
+                            if (messageId.equals(m.getMessageId())) {
+                                return Mono.just(Optional.of(m));
+                            }
+                        } catch (JsonProcessingException e) {
+                            LOG.warn("Skipping bad room list entry: {}", e.getMessage());
+                        }
+                    }
+                    return Mono.just(Optional.empty());
+                });
+    }
+
+    /**
+     * Remove a known message value from the list (exact JSON for LREM).
+     */
+    public Mono<Boolean> removeRoomMessageValue(String roomId, RoomMessage message) {
+        String key = keyFor(roomId);
+        Duration ttl = messagesProperties.getOfflineQueue().getTtl();
+        return serializeMessage(message)
+                .flatMap(json -> redisTemplate.opsForList()
+                        .remove(key, 1L, json)
+                        .flatMap(removed -> {
+                            if (removed != null && removed > 0) {
+                                return redisTemplate.expire(key, ttl).thenReturn(true);
+                            }
+                            return Mono.just(false);
+                        }))
+                .onErrorResume(e -> {
+                    LOG.error("removeRoomMessageValue failed: roomId={}, error={}", roomId, e.getMessage());
+                    return Mono.just(false);
                 });
     }
 

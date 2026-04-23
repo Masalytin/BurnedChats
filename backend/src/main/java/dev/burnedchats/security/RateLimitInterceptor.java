@@ -43,17 +43,19 @@ public class RateLimitInterceptor implements ChannelInterceptor {
     /**
      * Mapping of STOMP destinations to rate limit types.
      */
-    private static final Map<String, RateLimitType> DESTINATION_RATE_LIMITS = Map.of(
-            "/app/search", RateLimitType.SEARCH,
-            "/app/session.create", RateLimitType.SESSION_CREATE,
-            "/app/session.accept", RateLimitType.SESSION_ACTION,
-            "/app/session.reject", RateLimitType.SESSION_ACTION,
-            "/app/message.send", RateLimitType.MESSAGE,
-            "/app/message.sync", RateLimitType.MESSAGE,
-            "/app/message.edit", RateLimitType.MESSAGE_EDIT,
-            "/app/room.message.edit", RateLimitType.MESSAGE_EDIT,
-            "/app/handshake.key", RateLimitType.HANDSHAKE,
-            "/app/verification.confirm", RateLimitType.SESSION_ACTION
+    private static final Map<String, RateLimitType> DESTINATION_RATE_LIMITS = Map.ofEntries(
+            Map.entry("/app/search", RateLimitType.SEARCH),
+            Map.entry("/app/session.create", RateLimitType.SESSION_CREATE),
+            Map.entry("/app/session.accept", RateLimitType.SESSION_ACTION),
+            Map.entry("/app/session.reject", RateLimitType.SESSION_ACTION),
+            Map.entry("/app/message.send", RateLimitType.MESSAGE),
+            Map.entry("/app/message.sync", RateLimitType.MESSAGE),
+            Map.entry("/app/message.edit", RateLimitType.MESSAGE_EDIT),
+            Map.entry("/app/room.message.edit", RateLimitType.MESSAGE_EDIT),
+            Map.entry("/app/message.delete", RateLimitType.MESSAGE_DELETE),
+            Map.entry("/app/room.message.delete", RateLimitType.MESSAGE_DELETE),
+            Map.entry("/app/handshake.key", RateLimitType.HANDSHAKE),
+            Map.entry("/app/verification.confirm", RateLimitType.SESSION_ACTION)
     );
 
     @Override

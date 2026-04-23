@@ -16,7 +16,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for TelegramAuthService.
@@ -51,7 +56,8 @@ class TelegramAuthServiceTest {
 
         // User JSON
         String userJson = String.format(
-                "{\"id\":%d,\"first_name\":\"Test\",\"last_name\":\"User\",\"username\":\"%s\",\"language_code\":\"en\"}",
+                "{\"id\":%d,\"first_name\":\"Test\",\"last_name\":\"User\","
+                        + "\"username\":\"%s\",\"language_code\":\"en\"}",
                 userId, username
         );
         params.put("user", userJson);
@@ -63,7 +69,9 @@ class TelegramAuthServiceTest {
         StringBuilder dataCheckString = new StringBuilder();
         boolean first = true;
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (!first) dataCheckString.append('\n');
+            if (!first) {
+                dataCheckString.append('\n');
+            }
             dataCheckString.append(entry.getKey()).append('=').append(entry.getValue());
             first = false;
         }
@@ -76,7 +84,9 @@ class TelegramAuthServiceTest {
         StringBuilder initData = new StringBuilder();
         first = true;
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (!first) initData.append('&');
+            if (!first) {
+                initData.append('&');
+            }
             initData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
                     .append('=')
                     .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
@@ -216,7 +226,9 @@ class TelegramAuthServiceTest {
             StringBuilder dataCheckString = new StringBuilder();
             boolean first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) dataCheckString.append('\n');
+                if (!first) {
+                    dataCheckString.append('\n');
+                }
                 dataCheckString.append(entry.getKey()).append('=').append(entry.getValue());
                 first = false;
             }
@@ -227,7 +239,9 @@ class TelegramAuthServiceTest {
             StringBuilder initData = new StringBuilder();
             first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) initData.append('&');
+                if (!first) {
+                    initData.append('&');
+                }
                 initData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
                         .append('=')
                         .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
@@ -255,7 +269,9 @@ class TelegramAuthServiceTest {
             StringBuilder dataCheckString = new StringBuilder();
             boolean first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) dataCheckString.append('\n');
+                if (!first) {
+                    dataCheckString.append('\n');
+                }
                 dataCheckString.append(entry.getKey()).append('=').append(entry.getValue());
                 first = false;
             }
@@ -266,7 +282,9 @@ class TelegramAuthServiceTest {
             StringBuilder initData = new StringBuilder();
             first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) initData.append('&');
+                if (!first) {
+                    initData.append('&');
+                }
                 initData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
                         .append('=')
                         .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
@@ -297,7 +315,9 @@ class TelegramAuthServiceTest {
             StringBuilder dataCheckString = new StringBuilder();
             boolean first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) dataCheckString.append('\n');
+                if (!first) {
+                    dataCheckString.append('\n');
+                }
                 dataCheckString.append(entry.getKey()).append('=').append(entry.getValue());
                 first = false;
             }
@@ -308,7 +328,9 @@ class TelegramAuthServiceTest {
             StringBuilder initData = new StringBuilder();
             first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) initData.append('&');
+                if (!first) {
+                    initData.append('&');
+                }
                 initData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
                         .append('=')
                         .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
@@ -337,7 +359,9 @@ class TelegramAuthServiceTest {
             StringBuilder dataCheckString = new StringBuilder();
             boolean first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) dataCheckString.append('\n');
+                if (!first) {
+                    dataCheckString.append('\n');
+                }
                 dataCheckString.append(entry.getKey()).append('=').append(entry.getValue());
                 first = false;
             }
@@ -348,7 +372,9 @@ class TelegramAuthServiceTest {
             StringBuilder initData = new StringBuilder();
             first = true;
             for (Map.Entry<String, String> entry : params.entrySet()) {
-                if (!first) initData.append('&');
+                if (!first) {
+                    initData.append('&');
+                }
                 initData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
                         .append('=')
                         .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));

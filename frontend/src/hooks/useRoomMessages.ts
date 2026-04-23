@@ -32,6 +32,8 @@ const SYNC_ROOM_MESSAGES_DESTINATION = '/app/room.message.sync';
 const SYNC_ROOM_MESSAGES_RESULT_DESTINATION = '/user/queue/room-sync-messages';
 const ROOM_MESSAGE_EDITED_USER_DESTINATION = '/user/queue/room-message-edited';
 const EDIT_ROOM_MESSAGE_DESTINATION = '/app/room.message.edit';
+const DELETE_ROOM_MESSAGE_DESTINATION = '/app/room.message.delete';
+const ROOM_MESSAGE_DELETED_USER_DESTINATION = '/user/queue/room-message-deleted';
 
 function getRoomTopic(roomId: string): string {
   return `/topic/room/${roomId}`;
@@ -153,6 +155,8 @@ interface UseRoomMessagesOptions {
   onNewMessage?: (message: DecryptedMessage) => void;
   onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   onEditError?: (errorCode: string) => void;
+  /** Another member's message was removed by the room owner. */
+  onMessageDeletedByOwner?: () => void;
 }
 
 /** Hook return value */
@@ -172,6 +176,11 @@ export interface UseRoomMessagesReturn {
     newText: string,
     originalClientTimestamp: number,
   ) => Promise<{ success: boolean; errorCode?: string }>;
+  /** Delete for everyone (own message, or room owner can delete any). */
+  deleteMessage: (messageId: string) => Promise<{
+    success: boolean;
+    errorCode?: string;
+  }>;
 }
 
 // ============================================
@@ -188,7 +197,7 @@ export interface UseRoomMessagesReturn {
  * consistent with how sessionId is used for 1-on-1 chats.
  */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, ws, onNewMessage, onError, onEditError } = options;
+  const { roomId, userId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner } = options;
   const { hiddenIds, hide: hideMessages } = useHiddenMessages('room', roomId);
   const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
@@ -212,6 +221,10 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
   const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
   const handleRoomMessageEditedUserRef = useRef<(message: IMessage) => void>(() => {});
+  const handleRoomMessageDeleteUserRef = useRef<(message: IMessage) => void>(() => {});
+  const pendingRoomDeleteResolversRef = useRef(
+    new Map<string, (r: { success: boolean; errorCode?: string }) => void>(),
+  );
 
   // ============================================
   // Error Handling
@@ -422,6 +435,25 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     }
   }, [isConnected, roomId, userId, publish, handleError]);
 
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      if (!isConnected || !roomId) {
+        return Promise.resolve({ success: false, errorCode: 'NOT_CONNECTED' });
+      }
+      return new Promise<{ success: boolean; errorCode?: string }>(resolve => {
+        pendingRoomDeleteResolversRef.current.set(messageId, resolve);
+        publish(DELETE_ROOM_MESSAGE_DESTINATION, { roomId, messageId });
+        window.setTimeout(() => {
+          if (pendingRoomDeleteResolversRef.current.has(messageId)) {
+            pendingRoomDeleteResolversRef.current.delete(messageId);
+            resolve({ success: false, errorCode: 'INTERNAL_ERROR' });
+          }
+        }, 15_000);
+      });
+    },
+    [isConnected, roomId, publish],
+  );
+
   const editMessage = useCallback(
     async (
       messageId: string,
@@ -470,6 +502,28 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     try {
       const event = JSON.parse(message.body) as NewRoomMessageEvent & Partial<RoomMessageEditedEventPayload>;
       if (event.roomId !== roomId) return;
+
+      if (event.eventType === 'ROOM_MESSAGE_DELETED') {
+        const del = event as unknown as {
+          success?: boolean;
+          messageId: string;
+          deletedByTgId?: number;
+          deletedByOwner?: boolean;
+        };
+        if (!del.messageId || del.success === false) {
+          return;
+        }
+        setMessages(prev => prev.filter(m => m.id !== del.messageId));
+        const finish = pendingRoomDeleteResolversRef.current.get(del.messageId);
+        if (finish) {
+          pendingRoomDeleteResolversRef.current.delete(del.messageId);
+          finish({ success: true });
+        }
+        if (del.deletedByOwner && del.deletedByTgId !== userId) {
+          onMessageDeletedByOwner?.();
+        }
+        return;
+      }
 
       if (event.eventType === 'ROOM_MESSAGE_EDITED') {
         const edit = event as unknown as RoomMessageEditedEventPayload;
@@ -599,7 +653,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse message:', parseErr);
     }
-  }, [roomId, userId, onNewMessage, handleError]);
+  }, [roomId, userId, onNewMessage, handleError, onMessageDeletedByOwner]);
 
   const handleRoomMessageEditedUser = useCallback(
     (message: IMessage) => {
@@ -616,6 +670,33 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       }
     },
     [roomId, onEditError],
+  );
+
+  const handleRoomMessageDeleteUser = useCallback(
+    (message: IMessage) => {
+      try {
+        const event = JSON.parse(message.body) as {
+          roomId: string;
+          messageId: string;
+          success: boolean;
+          errorCode?: string;
+        };
+        if (event.roomId !== roomId) {
+          return;
+        }
+        if (event.success) {
+          return;
+        }
+        const finish = pendingRoomDeleteResolversRef.current.get(event.messageId);
+        if (finish) {
+          pendingRoomDeleteResolversRef.current.delete(event.messageId);
+          finish({ success: false, errorCode: event.errorCode ?? 'NOT_ALLOWED' });
+        }
+      } catch (e) {
+        console.error('[useRoomMessages] room-message-deleted user queue', e);
+      }
+    },
+    [roomId],
   );
 
   // ============================================
@@ -719,6 +800,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     handleMessageSentRef.current = handleMessageSent;
     handleSyncMessagesRef.current = handleSyncMessages;
     handleRoomMessageEditedUserRef.current = handleRoomMessageEditedUser;
+    handleRoomMessageDeleteUserRef.current = handleRoomMessageDeleteUser;
   });
 
   // ============================================
@@ -745,11 +827,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     const onMsgSent = (msg: IMessage) => handleMessageSentRef.current(msg);
     const onSyncResult = (msg: IMessage) => handleSyncMessagesRef.current(msg);
     const onRoomEditUser = (msg: IMessage) => handleRoomMessageEditedUserRef.current(msg);
+    const onRoomDeleteUser = (msg: IMessage) => handleRoomMessageDeleteUserRef.current(msg);
 
     subscribe(roomTopic, onNewMsg);
     subscribe(ROOM_MESSAGE_SENT_DESTINATION, onMsgSent);
     subscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION, onSyncResult);
     subscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION, onRoomEditUser);
+    subscribe(ROOM_MESSAGE_DELETED_USER_DESTINATION, onRoomDeleteUser);
 
     triggerSyncIfReady('subscription');
 
@@ -758,6 +842,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       unsubscribe(ROOM_MESSAGE_SENT_DESTINATION);
       unsubscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION);
       unsubscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION);
+      unsubscribe(ROOM_MESSAGE_DELETED_USER_DESTINATION);
     };
   // Intentionally exclude subscribe/unsubscribe/publish (stable from parent); re-run on room connection.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -813,6 +898,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     syncMessages,
     error,
     editMessage,
+    deleteMessage,
   };
 }
 

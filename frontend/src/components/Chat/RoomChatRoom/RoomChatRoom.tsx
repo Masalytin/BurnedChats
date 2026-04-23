@@ -122,6 +122,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
+  const [deleteEveryoneIds, setDeleteEveryoneIds] = useState<string[] | null>(null);
   const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<DecryptedMessage | null>(null);
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -184,6 +185,10 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     [t, toast],
   );
 
+  const onMessageDeletedByOwner = useCallback(() => {
+    toast.info(t('chat.delete.removedByOwner'), { duration: 4000 });
+  }, [t, toast]);
+
   const replyChip: ReplyChipModel | null = useMemo(() => {
     if (!replyTarget) {
       return null;
@@ -201,13 +206,14 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     }
   }, [replyTarget]);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage } =
+  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage, deleteMessage } =
     useRoomMessages({
       roomId,
       userId,
       ws,
       onError: handleRoomMessageError,
       onEditError: handleRoomEditError,
+      onMessageDeletedByOwner,
     });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
@@ -325,6 +331,33 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setDeleteConfirmIds(ids);
   }, []);
 
+  const requestDeleteForEveryone = useCallback((ids: string[]) => {
+    setDeleteEveryoneIds(ids);
+  }, []);
+
+  const selectionCanDeleteForEveryone = useMemo(() => {
+    if (messageSelection.selectedIds.size === 0) {
+      return false;
+    }
+    return Array.from(messageSelection.selectedIds).every(id => {
+      const m = messages.find(x => x.id === id);
+      return m && (m.isOwn || isOwner);
+    });
+  }, [messageSelection.selectedIds, messages, isOwner]);
+
+  const everyoneConfirmDescription = useMemo(() => {
+    if (!deleteEveryoneIds?.length) {
+      return '';
+    }
+    const asOwner = deleteEveryoneIds.some(id => {
+      const m = messages.find(x => x.id === id);
+      return m && !m.isOwn;
+    });
+    return asOwner
+      ? t('chat.delete.confirmDescriptionAsOwner')
+      : t('chat.delete.confirmDescriptionForEveryone');
+  }, [deleteEveryoneIds, messages, t]);
+
   const handleBulkCopy = useCallback(async () => {
     const selected = messages
       .filter((m) => messageSelection.selectedIds.has(m.id))
@@ -353,6 +386,31 @@ export const RoomChatRoom = memo(function RoomChatRoom({
 
   const handleCancelDeleteForMe = useCallback(() => {
     setDeleteConfirmIds(null);
+  }, []);
+
+  const handleConfirmDeleteForEveryone = useCallback(async () => {
+    if (!deleteEveryoneIds?.length) {
+      setDeleteEveryoneIds(null);
+      return;
+    }
+    for (const id of deleteEveryoneIds) {
+      const r = await deleteMessage(id);
+      if (!r.success) {
+        toast.error(t('chat.delete.failed'));
+        haptics.destructive();
+        messageSelection.clear();
+        setDeleteEveryoneIds(null);
+        return;
+      }
+    }
+    toast.success(t('chat.delete.forEveryoneDone'));
+    haptics.destructive();
+    messageSelection.clear();
+    setDeleteEveryoneIds(null);
+  }, [deleteEveryoneIds, deleteMessage, toast, t, haptics, messageSelection]);
+
+  const handleCancelDeleteForEveryone = useCallback(() => {
+    setDeleteEveryoneIds(null);
   }, []);
 
   const handleLeaveClick = useCallback(() => {
@@ -428,6 +486,13 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           onRequestDeleteForMe={() => {
             requestDeleteForMe(Array.from(messageSelection.selectedIds));
           }}
+          onRequestDeleteForEveryone={() => {
+            if (selectionCanDeleteForEveryone) {
+              requestDeleteForEveryone(Array.from(messageSelection.selectedIds));
+            }
+          }}
+          deleteForEveryoneDisabled={!selectionCanDeleteForEveryone}
+          deleteForEveryoneDisabledHint={t('chat.delete.mixedSelection')}
         />
       ) : (
         <ChatScreenHeader
@@ -449,6 +514,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onOpenViewer={handleOpenViewer}
             selection={messageSelection}
             onRequestDeleteForMe={requestDeleteForMe}
+            onRequestDeleteForEveryone={requestDeleteForEveryone}
+            canDeleteForEveryone={m => m.isOwn || isOwner}
             userId={userId}
             peerDisplayName={roomPeerDisplayName}
             onReplyToMessage={handleReplyToMessage}
@@ -541,6 +608,18 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           context: t('chat.delete.contextRoom'),
         })}
         confirmLabel={t('chat.delete.deleteForMeLabel')}
+        cancelLabel={t('common.cancel')}
+        variant="destructive"
+        icon={<span role="img" aria-hidden>🗑️</span>}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteEveryoneIds?.length}
+        onClose={handleCancelDeleteForEveryone}
+        onConfirm={() => { void handleConfirmDeleteForEveryone(); }}
+        title={t('chat.delete.confirmTitleForEveryone')}
+        description={everyoneConfirmDescription}
+        confirmLabel={t('chat.delete.deleteForEveryoneLabel')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
         icon={<span role="img" aria-hidden>🗑️</span>}

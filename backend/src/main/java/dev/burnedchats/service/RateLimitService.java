@@ -72,7 +72,12 @@ public class RateLimitService {
         /**
          * Message edit (DM and room) — lower cap than new sends.
          */
-        MESSAGE_EDIT(10, Duration.ofMinutes(1));
+        MESSAGE_EDIT(10, Duration.ofMinutes(1)),
+
+        /**
+         * Delete for everyone (DM and room).
+         */
+        MESSAGE_DELETE(30, Duration.ofMinutes(1));
 
         private final int maxRequests;
         private final Duration window;

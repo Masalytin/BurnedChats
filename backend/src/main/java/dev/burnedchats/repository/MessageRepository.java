@@ -7,6 +7,7 @@ import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.DmMessageEditableMeta;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.MessageEdit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Redis repository for offline message queue.
@@ -56,6 +58,8 @@ public class MessageRepository {
     private static final String COUNT_PREFIX = "messages:count:";
     private static final String EDIT_QUEUE_PREFIX = "message-edits:";
     private static final String EDITABLE_META_PREFIX = "dm-editable:";
+    private static final String SENDER_INDEX_PREFIX = "message-senders:";
+    private static final String DELETION_QUEUE_PREFIX = "message-deletions:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
@@ -246,10 +250,12 @@ public class MessageRepository {
                 .flatMap(userId -> deleteMessages(userId, sessionId)
                         .flatMap(dmCount -> deleteEdits(userId, sessionId)
                                 .defaultIfEmpty(0L)
-                                .map(edCount -> dmCount + edCount)))
+                                .flatMap(edCount -> deleteDeletions(userId, sessionId)
+                                        .map(delCount -> dmCount + edCount + delCount))))
                 .reduce(0L, Long::sum)
                 .flatMap(total -> deleteAllEditableMetaForSession(sessionId)
-                        .map(metaDeleted -> total + metaDeleted))
+                        .flatMap(metaDeleted -> deleteMessageSenderIndexForSession(sessionId)
+                                .map(idxDeleted -> total + metaDeleted + idxDeleted)))
                 .doOnSuccess(count -> LOG.debug("Deleted {} total keys for session {}", count, sessionId));
     }
 
@@ -258,13 +264,24 @@ public class MessageRepository {
      * left the offline queue. Short TTL.
      */
     public Mono<Boolean> putDmMessageEditableMeta(
-            String sessionId, String messageId, Long senderId, Instant serverTimestamp) {
+            String sessionId,
+            String messageId,
+            Long senderId,
+            Instant serverTimestamp,
+            String fileId,
+            String thumbnailFileId) {
         String key = editableMetaKey(sessionId, messageId);
         Duration ttl = messagesProperties.getMessageEdits().getEditableMetaTtl();
-        DmMessageEditableMeta meta = DmMessageEditableMeta.builder()
+        DmMessageEditableMeta.DmMessageEditableMetaBuilder b = DmMessageEditableMeta.builder()
                 .senderId(senderId)
-                .serverTimestamp(serverTimestamp)
-                .build();
+                .serverTimestamp(serverTimestamp);
+        if (fileId != null && !fileId.isBlank()) {
+            b.fileId(fileId);
+        }
+        if (thumbnailFileId != null && !thumbnailFileId.isBlank()) {
+            b.thumbnailFileId(thumbnailFileId);
+        }
+        DmMessageEditableMeta meta = b.build();
         return serializeEditableMeta(meta)
                 .flatMap(json -> redisTemplate.opsForValue()
                         .set(key, json)
@@ -285,6 +302,15 @@ public class MessageRepository {
         return redisTemplate.opsForValue()
                 .get(key)
                 .flatMap(this::deserializeEditableMeta);
+    }
+
+    /**
+     * Remove editable meta for a single message (after delete for everyone).
+     */
+    public Mono<Boolean> deleteDmMessageEditableMeta(String sessionId, String messageId) {
+        String key = editableMetaKey(sessionId, messageId);
+        return redisTemplate.delete(key)
+                .map(n -> n > 0);
     }
 
     /**
@@ -435,6 +461,150 @@ public class MessageRepository {
             return true;
         }
         return serverTimestamp.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
+    }
+
+    /**
+     * Store messageId → sender for delivered/queued DM messages (short TTL).
+     */
+    public Mono<Boolean> putMessageSenderIndex(String sessionId, String messageId, Long senderTgId) {
+        String key = senderIndexKey(sessionId);
+        Duration ttl = messagesProperties.getSenderIndexTtl();
+        return redisTemplate.opsForHash()
+                .put(key, messageId, String.valueOf(senderTgId))
+                .flatMap(ok -> redisTemplate.expire(key, ttl).thenReturn(Boolean.TRUE.equals(ok)))
+                .onErrorResume(e -> {
+                    LOG.warn("putMessageSenderIndex failed: {}", e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    public Mono<Long> getMessageSenderIndex(String sessionId, String messageId) {
+        String key = senderIndexKey(sessionId);
+        return redisTemplate.opsForHash()
+                .get(key, messageId)
+                .map(v -> Long.parseLong(String.valueOf(v)));
+    }
+
+    public Mono<Long> removeMessageSenderIndex(String sessionId, String messageId) {
+        String key = senderIndexKey(sessionId);
+        return redisTemplate.opsForHash()
+                .remove(key, messageId);
+    }
+
+    public Mono<Long> deleteMessageSenderIndexForSession(String sessionId) {
+        return redisTemplate.delete(senderIndexKey(sessionId));
+    }
+
+    /**
+     * Remove one message from the recipient's offline queue; returns the removed payload if any.
+     */
+    public Mono<Optional<Message>> removeMessageFromQueue(Long recipientId, String sessionId, String messageId) {
+        String key = keyFor(recipientId, sessionId);
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    for (String json : jsonList) {
+                        try {
+                            Message m = objectMapper.readValue(json, Message.class);
+                            if (messageId.equals(m.getMessageId())) {
+                                return redisTemplate.opsForList()
+                                        .remove(key, 1L, json)
+                                        .then(updateCountAfterRemove(recipientId, key, jsonList.size() - 1))
+                                        .thenReturn(Optional.of(m));
+                            }
+                        } catch (JsonProcessingException e) {
+                            LOG.warn("Skipping bad queue entry: {}", e.getMessage());
+                        }
+                    }
+                    return Mono.just(Optional.empty());
+                });
+    }
+
+    private Mono<Void> updateCountAfterRemove(Long recipientId, String queueKey, long newSize) {
+        String countKey = countKeyFor(recipientId);
+        if (newSize <= 0) {
+            offlineQueueMetrics.removeTrackedListKey(queueKey);
+            return redisTemplate.delete(queueKey)
+                    .flatMap(deleted -> deleted > 0
+                            ? redisTemplate.opsForValue().decrement(countKey)
+                            : Mono.empty())
+                    .then();
+        }
+        offlineQueueMetrics.setTrackedListSize(queueKey, newSize);
+        return redisTemplate.opsForValue().decrement(countKey).then();
+    }
+
+    public Mono<Boolean> queueDeletion(Long recipientId, String sessionId, MessageDeletion deletion) {
+        int maxList = messagesProperties.getMessageDeletions().getMaxSize();
+        Duration listTtl = messagesProperties.getMessageDeletions().getTtl();
+        String key = deletionsKeyFor(recipientId, sessionId);
+        return serializeMessageDeletion(deletion)
+                .flatMap(json -> redisTemplate.opsForList()
+                        .rightPush(key, json)
+                        .flatMap(size -> {
+                            if (size > maxList) {
+                                long dropped = size - maxList;
+                                offlineQueueMetrics.recordDroppedOverflow(OfflineSessionType.dm, dropped);
+                                return redisTemplate.opsForList()
+                                        .trim(key, -maxList, -1L)
+                                        .thenReturn((long) maxList);
+                            }
+                            return Mono.just(size);
+                        })
+                        .flatMap(size -> {
+                            if (size == 1) {
+                                return redisTemplate.expire(key, listTtl).thenReturn(true);
+                            }
+                            return redisTemplate.expire(key, listTtl).thenReturn(true);
+                        }))
+                .onErrorResume(e -> {
+                    LOG.error("queueDeletion failed: {}", e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    public Flux<MessageDeletion> getPendingDeletions(Long recipientId, String sessionId) {
+        String key = deletionsKeyFor(recipientId, sessionId);
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .flatMap(this::deserializeMessageDeletion);
+    }
+
+    public Mono<Long> deleteDeletions(Long recipientId, String sessionId) {
+        String key = deletionsKeyFor(recipientId, sessionId);
+        return redisTemplate.delete(key);
+    }
+
+    public Flux<String> findSessionsWithPendingDeletions(Long userId) {
+        String match = DELETION_QUEUE_PREFIX + userId + ":*";
+        String keyPrefix = DELETION_QUEUE_PREFIX + userId + ":";
+        ScanOptions options = ScanOptions.scanOptions().match(match).count(100).build();
+        return redisTemplate.scan(options)
+                .map(k -> k.substring(keyPrefix.length()))
+                .distinct();
+    }
+
+    private String senderIndexKey(String sessionId) {
+        return SENDER_INDEX_PREFIX + sessionId;
+    }
+
+    private String deletionsKeyFor(Long recipientId, String sessionId) {
+        return DELETION_QUEUE_PREFIX + recipientId + ":" + sessionId;
+    }
+
+    private Mono<String> serializeMessageDeletion(MessageDeletion deletion) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(deletion))
+                .onErrorMap(JsonProcessingException.class, e ->
+                        new RuntimeException("Failed to serialize message deletion", e));
+    }
+
+    private Mono<MessageDeletion> deserializeMessageDeletion(String json) {
+        return Mono.fromCallable(() -> objectMapper.readValue(json, MessageDeletion.class))
+                .onErrorResume(e -> {
+                    LOG.warn("Failed to deserialize message deletion: {}", e.getMessage());
+                    return Mono.empty();
+                });
     }
 
     private String editableMetaKey(String sessionId, String messageId) {

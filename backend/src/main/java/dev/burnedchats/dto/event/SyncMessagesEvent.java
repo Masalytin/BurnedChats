@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -48,6 +49,11 @@ public class SyncMessagesEvent {
      * Error code if sync failed.
      */
     private final String error;
+
+    /**
+     * Message ids deleted for everyone while the user was offline (DM).
+     */
+    private final List<String> deletedMessageIds;
 
     /**
      * A synced message containing encrypted content.
@@ -153,12 +159,24 @@ public class SyncMessagesEvent {
      * Create a successful sync event.
      */
     public static SyncMessagesEvent success(String sessionId, List<SyncedMessage> messages) {
+        return success(sessionId, messages, List.of());
+    }
+
+    /**
+     * Create a successful sync event including remote-delete tombstones.
+     */
+    public static SyncMessagesEvent success(
+            String sessionId, List<SyncedMessage> messages, List<String> deletedMessageIds) {
+        List<String> safeDeleted = deletedMessageIds == null
+                ? List.of()
+                : List.copyOf(deletedMessageIds);
         return SyncMessagesEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
                 .messages(messages)
                 .count(messages.size())
                 .serverTimestamp(Instant.now())
+                .deletedMessageIds(safeDeleted)
                 .build();
     }
 
@@ -173,6 +191,7 @@ public class SyncMessagesEvent {
                 .count(0)
                 .serverTimestamp(Instant.now())
                 .error(errorCode)
+                .deletedMessageIds(Collections.emptyList())
                 .build();
     }
 }

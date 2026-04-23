@@ -1,13 +1,17 @@
 package dev.burnedchats.handler;
 
+import dev.burnedchats.dto.event.MessageDeletedEvent;
 import dev.burnedchats.dto.event.MessageEditedEvent;
 import dev.burnedchats.dto.event.MessageSentEvent;
 import dev.burnedchats.dto.event.NewMessageEvent;
 import dev.burnedchats.dto.event.SyncMessagesEvent;
+import dev.burnedchats.dto.request.DeleteMessageRequest;
 import dev.burnedchats.dto.request.EditMessageRequest;
 import dev.burnedchats.dto.request.SendMessageRequest;
 import dev.burnedchats.dto.request.SyncMessagesRequest;
+import dev.burnedchats.model.DmMessageEditableMeta;
 import dev.burnedchats.model.Message;
+import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.MessageEdit;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
@@ -17,6 +21,7 @@ import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import dev.burnedchats.telegram.BurnedChatsBot;
@@ -99,6 +104,8 @@ public class MessageHandler {
 
     private static final String MESSAGE_EDITED_DESTINATION = "/queue/message-edited";
 
+    private static final String MESSAGE_DELETED_DESTINATION = "/queue/message-deleted";
+
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
@@ -106,6 +113,7 @@ public class MessageHandler {
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
     private final FileMessageRelayValidator fileMessageRelayValidator;
+    private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
@@ -184,6 +192,7 @@ public class MessageHandler {
      * @param request   the sync request containing session ID
      * @param principal authenticated user principal
      */
+    @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/message.sync")
     public void syncMessages(@Payload SyncMessagesRequest request, Principal principal) {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
@@ -207,32 +216,45 @@ public class MessageHandler {
                         return Mono.empty();
                     }
 
-                    // Get pending messages
+                    // Get pending messages + delete tombstones
                     return messageRepository.getPendingMessages(userId, sessionId)
                             .collectList()
-                            .flatMap(messages -> {
+                            .zipWith(messageRepository.getPendingDeletions(userId, sessionId).collectList())
+                            .flatMap(tuple -> {
+                                List<Message> messages = tuple.getT1();
+                                List<MessageDeletion> deletions = tuple.getT2();
+                                List<String> deletedIds = deletions.stream()
+                                        .map(MessageDeletion::getMessageId)
+                                        .toList();
                                 List<SyncMessagesEvent.SyncedMessage> syncedMessages = messages.stream()
                                         .map(SyncMessagesEvent.SyncedMessage::fromMessage)
                                         .toList();
 
+                                if (syncedMessages.isEmpty() && deletedIds.isEmpty()) {
+                                    return flushPendingDmEdits(userId, sessionId);
+                                }
+
                                 // Send sync event to user
-                                SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages);
+                                SyncMessagesEvent event = SyncMessagesEvent.success(
+                                        sessionId, syncedMessages, deletedIds);
                                 messagingTemplate.convertAndSendToUser(
                                         String.valueOf(userId),
                                         SYNC_MESSAGES_DESTINATION,
                                         event
                                 );
 
-                                LOG.info("Synced {} messages for user {} in session {}",
-                                        syncedMessages.size(), userId, sessionId);
+                                LOG.info("Synced {} messages, {} deletions for user {} in session {}",
+                                        syncedMessages.size(), deletedIds.size(), userId, sessionId);
 
-                                // Delete delivered messages from queue, then any tombstone edits
+                                Mono<Void> after = Mono.empty();
                                 if (!messages.isEmpty()) {
                                     offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                                    return messageRepository.deleteMessages(userId, sessionId)
-                                            .then(flushPendingDmEdits(userId, sessionId));
+                                    after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
                                 }
-                                return flushPendingDmEdits(userId, sessionId);
+                                if (!deletions.isEmpty()) {
+                                    after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
+                                }
+                                return after.then(flushPendingDmEdits(userId, sessionId));
                             });
                 })
                 .subscribe(
@@ -255,6 +277,146 @@ public class MessageHandler {
                 SYNC_MESSAGES_DESTINATION,
                 event
         );
+    }
+
+    @MessageMapping("/message.delete")
+    public void deleteMessage(@Payload @Valid DeleteMessageRequest request, Principal principal) {
+        TelegramPrincipal tp = (TelegramPrincipal) principal;
+        Long deleterId = tp.getUserId();
+        String sessionId = request.getSessionId();
+        String messageId = request.getMessageId();
+        LOG.info("DM message delete: sessionId={}, messageId={}, deleterId={}", sessionId, messageId, deleterId);
+
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    sendMessageDeletedError(deleterId, sessionId, messageId, "NOT_FOUND");
+                    return Mono.empty();
+                }))
+                .flatMap(session -> runDmDelete(session, deleterId, messageId))
+                .subscribe(
+                        v -> { },
+                        error -> {
+                            LOG.error("deleteMessage: sessionId={}, error={}", sessionId, error.getMessage());
+                            sendMessageDeletedError(deleterId, sessionId, messageId, "INTERNAL_ERROR");
+                        }
+            );
+    }
+
+    private Mono<Void> runDmDelete(Session session, Long deleterId, String messageId) {
+        String sessionId = session.getId();
+        if (!session.isParticipant(deleterId)) {
+            sendMessageDeletedError(deleterId, sessionId, messageId, "NOT_PARTICIPANT");
+            return Mono.empty();
+        }
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            String err = errorCodeForNonActiveMessageSession(session.getStatus());
+            sendMessageDeletedError(deleterId, sessionId, messageId, err);
+            return Mono.empty();
+        }
+        Long peerId = session.getPeerId(deleterId);
+        if (peerId == null) {
+            sendMessageDeletedError(deleterId, sessionId, messageId, "INTERNAL_ERROR");
+            return Mono.empty();
+        }
+        return messageRepository.removeMessageFromQueue(peerId, sessionId, messageId)
+                .flatMap(removed -> {
+                    if (removed.isPresent()) {
+                        if (!deleterId.equals(removed.get().getSenderId())) {
+                            sendMessageDeletedError(deleterId, sessionId, messageId, "NOT_ALLOWED");
+                            return Mono.empty();
+                        }
+                        return finalizeDmDeleteFromQueue(session, peerId, deleterId, messageId, removed.get());
+                    }
+                    return assertDeleterOwnsMessage(sessionId, messageId, deleterId)
+                            .flatMap(code -> {
+                                if (!"OK".equals(code)) {
+                                    sendMessageDeletedError(deleterId, sessionId, messageId, code);
+                                    return Mono.empty();
+                                }
+                                return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
+                                        .switchIfEmpty(Mono.just(DmMessageEditableMeta.builder().build()))
+                                        .flatMap(meta -> finalizeDmDeleteDelivered(
+                                                session, peerId, deleterId, messageId, meta));
+                            });
+                });
+    }
+
+    private Mono<String> assertDeleterOwnsMessage(String sessionId, String messageId, Long deleterId) {
+        return messageRepository.getMessageSenderIndex(sessionId, messageId)
+                .map(sid -> deleterId.equals(sid) ? "OK" : "NOT_ALLOWED")
+                .switchIfEmpty(
+                        messageRepository.getDmMessageEditableMeta(sessionId, messageId)
+                                .map(m -> deleterId.equals(m.getSenderId()) ? "OK" : "NOT_ALLOWED")
+                                .switchIfEmpty(Mono.just("NOT_FOUND"))
+                );
+    }
+
+    private Mono<Void> finalizeDmDeleteFromQueue(
+            Session session, Long peerId, Long deleterId, String messageId, Message fromQueue) {
+        String sessionId = session.getId();
+        if (FileMessageRelayValidator.isFileMessage(fromQueue.getType())) {
+            fileBurnService.burnFiles(fromQueue.getFileId(), fromQueue.getThumbnailFileId());
+        }
+        return messageRepository.removeMessageSenderIndex(sessionId, messageId)
+                .then(messageRepository.deleteDmMessageEditableMeta(sessionId, messageId))
+                .then(broadcastDmDeleted(session, peerId, deleterId, messageId));
+    }
+
+    private Mono<Void> finalizeDmDeleteDelivered(
+            Session session, Long peerId, Long deleterId, String messageId, DmMessageEditableMeta meta) {
+        String sessionId = session.getId();
+        if (meta != null && meta.getFileId() != null) {
+            fileBurnService.burnFiles(meta.getFileId(), meta.getThumbnailFileId());
+        }
+        return messageRepository.removeMessageSenderIndex(sessionId, messageId)
+                .then(messageRepository.deleteDmMessageEditableMeta(sessionId, messageId))
+                .then(broadcastDmDeleted(session, peerId, deleterId, messageId));
+    }
+
+    private Mono<Void> broadcastDmDeleted(Session session, Long peerId, Long deleterId, String messageId) {
+        String sessionId = session.getId();
+        Instant deletedAt = Instant.now();
+        MessageDeletedEvent ev = MessageDeletedEvent.builder()
+                .success(true)
+                .sessionId(sessionId)
+                .messageId(messageId)
+                .deletedByTgId(deleterId)
+                .deletedByOwner(false)
+                .deletedAt(deletedAt)
+                .build();
+        sendMessageDeleted(deleterId, ev);
+        MessageDeletion tomb = MessageDeletion.builder()
+                .messageId(messageId)
+                .deletedByTgId(deleterId)
+                .deletedAt(deletedAt)
+                .build();
+        return onlineStatusRepository.isOnline(peerId)
+                .flatMap(online -> {
+                    if (Boolean.TRUE.equals(online)) {
+                        sendMessageDeleted(peerId, ev);
+                        return Mono.<Void>empty();
+                    }
+                    return messageRepository.queueDeletion(peerId, sessionId, tomb)
+                            .then(Mono.empty());
+                });
+    }
+
+    private void sendMessageDeleted(Long userId, MessageDeletedEvent event) {
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(userId),
+                MESSAGE_DELETED_DESTINATION,
+                event
+        );
+    }
+
+    private void sendMessageDeletedError(Long userId, String sessionId, String messageId, String errorCode) {
+        MessageDeletedEvent event = MessageDeletedEvent.builder()
+                .success(false)
+                .sessionId(sessionId)
+                .messageId(messageId)
+                .errorCode(errorCode)
+                .build();
+        sendMessageDeleted(userId, event);
     }
 
     /**
@@ -369,7 +531,11 @@ public class MessageHandler {
         LOG.info("Message delivered immediately: sessionId={}, messageId={}, type={}, from={}, to={}",
                 sessionId, messageId, type, senderId, recipientId);
 
-        return messageRepository.putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp)
+        String fileId = FileMessageRelayValidator.isFileMessage(type) ? request.getFileId() : null;
+        String thumbId = FileMessageRelayValidator.isFileMessage(type) ? request.getThumbnailFileId() : null;
+        return messageRepository.putDmMessageEditableMeta(
+                        sessionId, messageId, senderId, serverTimestamp, fileId, thumbId)
+                .then(messageRepository.putMessageSenderIndex(sessionId, messageId, senderId))
                 .then();
     }
 
@@ -418,7 +584,14 @@ public class MessageHandler {
                     LOG.info("Message queued for offline delivery: sessionId={}, messageId={}, from={}, to={}",
                             sessionId, messageId, senderId, recipientId);
 
-                    return messageRepository.putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp)
+                    String queuedType = request.getType() != null ? request.getType() : "text";
+                    String fileId = FileMessageRelayValidator.isFileMessage(queuedType) ? request.getFileId() : null;
+                    String thumbId = FileMessageRelayValidator.isFileMessage(queuedType)
+                            ? request.getThumbnailFileId()
+                            : null;
+                    return messageRepository
+                            .putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp, fileId, thumbId)
+                            .then(messageRepository.putMessageSenderIndex(sessionId, messageId, senderId))
                             .then();
                 });
     }
@@ -486,6 +659,7 @@ public class MessageHandler {
         }
     }
 
+    @SuppressWarnings("checkstyle:MethodLength")
     private Mono<Void> applyDmEdit(Session session, Long senderId, EditMessageRequest req) {
         String sessionId = session.getId();
         String messageId = req.getMessageId();
@@ -494,7 +668,8 @@ public class MessageHandler {
             return Mono.empty();
         }
         if (session.getStatus() != SessionStatus.ACTIVE) {
-            sendMessageEditError(senderId, sessionId, messageId, errorCodeForNonActiveMessageSession(session.getStatus()));
+            String err = errorCodeForNonActiveMessageSession(session.getStatus());
+            sendMessageEditError(senderId, sessionId, messageId, err);
             return Mono.empty();
         }
         Long recipientId = session.getPeerId(senderId);
@@ -543,18 +718,23 @@ public class MessageHandler {
                                         return messageRepository.queueEdit(recipientId, sessionId, edit)
                                                 .flatMap(ok -> {
                                                     if (!Boolean.TRUE.equals(ok)) {
-                                                        sendMessageEditError(senderId, sessionId, messageId, "INTERNAL_ERROR");
+                                                        sendMessageEditError(
+                                                                senderId, sessionId, messageId, "INTERNAL_ERROR");
                                                         return Mono.<Void>empty();
                                                     }
-                                                    sendMessageEditSuccess(senderId, sessionId, messageId, req, editedAt);
+                                                    sendMessageEditSuccess(
+                                                            senderId, sessionId, messageId, req, editedAt);
                                                     return Mono.<Void>empty();
                                                 });
                                     })
                                     .switchIfEmpty(Mono.defer(() -> {
-                                        if (isOutsideEditWindow(Instant.ofEpochMilli(req.getOriginalClientTimestamp()))) {
-                                            sendMessageEditError(senderId, sessionId, messageId, "WINDOW_EXPIRED");
+                                        long orig = req.getOriginalClientTimestamp();
+                                        if (isOutsideEditWindow(Instant.ofEpochMilli(orig))) {
+                                            sendMessageEditError(
+                                                    senderId, sessionId, messageId, "WINDOW_EXPIRED");
                                         } else {
-                                            sendMessageEditError(senderId, sessionId, messageId, "NOT_EDITABLE");
+                                            sendMessageEditError(
+                                                    senderId, sessionId, messageId, "NOT_EDITABLE");
                                         }
                                         return Mono.<Void>empty();
                                     }));

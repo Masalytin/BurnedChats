@@ -58,6 +58,9 @@ interface MessageListProps {
   onMessageLongPress?: (message: DecryptedMessage, anchor: DOMRect) => void;
   /** Parent shows delete-for-me confirmation (IMP-MA-05) */
   onRequestDeleteForMe?: (messageIds: string[]) => void;
+  /** Delete for everyone (server); optional per-message gate (IMP-MA-06) */
+  onRequestDeleteForEveryone?: (messageIds: string[]) => void;
+  canDeleteForEveryone?: (message: DecryptedMessage) => boolean;
   /** Current user id (IMP-MA-03 quote labels) */
   userId: number;
   /** Peer name in DM, or a fallback in rooms when no sender is known */
@@ -93,6 +96,8 @@ export const MessageList = memo(
   selection,
   onMessageLongPress,
   onRequestDeleteForMe,
+  onRequestDeleteForEveryone,
+  canDeleteForEveryone,
   userId,
   peerDisplayName,
   onReplyToMessage,
@@ -326,6 +331,18 @@ export const MessageList = memo(
         },
       },
       {
+        id: 'deleteForEveryone',
+        label: t('chat.actions.deleteForEveryone'),
+        icon: <Trash2 size={18} />,
+        disabled: !msg || !onRequestDeleteForEveryone || !canDeleteForEveryone?.(msg),
+        variant: 'destructive',
+        onClick: () => {
+          if (msg && onRequestDeleteForEveryone && canDeleteForEveryone?.(msg)) {
+            onRequestDeleteForEveryone([messageId]);
+          }
+        },
+      },
+      {
         id: 'select',
         label: t('chat.messageActions.select'),
         icon: <CheckSquare size={18} />,
@@ -344,6 +361,8 @@ export const MessageList = memo(
     t,
     copyFromMenu,
     onRequestDeleteForMe,
+    onRequestDeleteForEveryone,
+    canDeleteForEveryone,
     onReplyToMessage,
     onEditMessage,
     editMenuTick,
