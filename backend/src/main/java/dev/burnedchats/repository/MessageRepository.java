@@ -46,7 +46,7 @@ import java.util.List;
 @Repository
 public class MessageRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(MessageRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MessageRepository.class);
 
     private static final String KEY_PREFIX = "messages:";
     private static final String COUNT_PREFIX = "messages:count:";
@@ -123,12 +123,12 @@ public class MessageRepository {
                 .doOnSuccess(ok -> {
                     if (Boolean.TRUE.equals(ok)) {
                         offlineQueueMetrics.recordEnqueued(OfflineSessionType.dm);
-                        log.debug("Queued message {} for user {} in session {}",
+                        LOG.debug("Queued message {} for user {} in session {}",
                                 message.getMessageId(), message.getRecipientId(), message.getSessionId());
                     }
                 })
                 .onErrorResume(e -> {
-                    log.error("Failed to queue message: {}", e.getMessage());
+                    LOG.error("Failed to queue message: {}", e.getMessage());
                     return Mono.just(false);
                 });
     }
@@ -146,7 +146,7 @@ public class MessageRepository {
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
                 .flatMap(this::deserializeMessage)
-                .doOnComplete(() -> log.debug("Retrieved pending messages for user {} in session {}",
+                .doOnComplete(() -> LOG.debug("Retrieved pending messages for user {} in session {}",
                         recipientId, sessionId));
     }
 
@@ -163,7 +163,7 @@ public class MessageRepository {
                 .flatMap(key -> redisTemplate.opsForList()
                         .range(key, 0, -1)
                         .flatMap(this::deserializeMessage))
-                .doOnComplete(() -> log.debug("Retrieved all pending messages for user {}", recipientId));
+                .doOnComplete(() -> LOG.debug("Retrieved all pending messages for user {}", recipientId));
     }
 
     /**
@@ -192,7 +192,7 @@ public class MessageRepository {
         return redisTemplate.scan(options)
                 .map(key -> key.substring(keyPrefix.length()))
                 .distinct()
-                .doOnComplete(() -> log.debug(
+                .doOnComplete(() -> LOG.debug(
                         "Scanned sessions with pending messages for user {}", userId));
     }
 
@@ -222,7 +222,7 @@ public class MessageRepository {
                             }
                             return Mono.just(count);
                         }))
-                .doOnSuccess(count -> log.debug("Deleted {} messages for user {} in session {}",
+                .doOnSuccess(count -> LOG.debug("Deleted {} messages for user {} in session {}",
                         count, recipientId, sessionId));
     }
 
@@ -239,7 +239,7 @@ public class MessageRepository {
         return Flux.fromIterable(participantIds)
                 .flatMap(userId -> deleteMessages(userId, sessionId))
                 .reduce(0L, (a, b) -> a + b)
-                .doOnSuccess(count -> log.debug("Deleted {} total messages for session {}",
+                .doOnSuccess(count -> LOG.debug("Deleted {} total messages for session {}",
                         count, sessionId));
     }
 
@@ -291,7 +291,7 @@ public class MessageRepository {
     private Mono<Message> deserializeMessage(String json) {
         return Mono.fromCallable(() -> objectMapper.readValue(json, Message.class))
                 .onErrorResume(e -> {
-                    log.warn("Failed to deserialize message: {}", e.getMessage());
+                    LOG.warn("Failed to deserialize message: {}", e.getMessage());
                     return Mono.empty();
                 });
     }

@@ -18,7 +18,7 @@ import java.util.Map;
 @Service
 public class RedisHealthService {
 
-    private static final Logger log = LoggerFactory.getLogger(RedisHealthService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RedisHealthService.class);
 
     private static final Duration PING_TIMEOUT = Duration.ofSeconds(5);
 
@@ -40,7 +40,7 @@ public class RedisHealthService {
                 .map("PONG"::equals)
                 .timeout(PING_TIMEOUT)
                 .onErrorResume(e -> {
-                    log.warn("Redis health check failed: {}", e.getMessage());
+                    LOG.warn("Redis health check failed: {}", e.getMessage());
                     return Mono.just(false);
                 });
     }
@@ -75,7 +75,7 @@ public class RedisHealthService {
                 .doFinally(signal -> redisTemplate.delete(testKey).subscribe())
                 .timeout(PING_TIMEOUT)
                 .onErrorResume(e -> {
-                    log.warn("Redis write/read test failed: {}", e.getMessage());
+                    LOG.warn("Redis write/read test failed: {}", e.getMessage());
                     return Mono.just(false);
                 });
     }

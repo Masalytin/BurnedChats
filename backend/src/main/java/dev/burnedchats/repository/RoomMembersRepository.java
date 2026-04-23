@@ -46,7 +46,7 @@ public class RoomMembersRepository {
                 .flatMap(n -> redisTemplate.opsForSet()
                         .add(reverseKeyFor(tgId), roomId)
                         .thenReturn(n))
-                .doOnSuccess(n -> log.debug("Added member {} to room {} (added={})", tgId, roomId, n));
+                .doOnSuccess(n -> LOG.debug("Added member {} to room {} (added={})", tgId, roomId, n));
     }
 
     /**
@@ -62,7 +62,7 @@ public class RoomMembersRepository {
                 .flatMap(n -> redisTemplate.opsForSet()
                         .remove(reverseKeyFor(tgId), (Object) roomId)
                         .thenReturn(n))
-                .doOnSuccess(n -> log.debug("Removed member {} from room {} (removed={})", tgId, roomId, n));
+                .doOnSuccess(n -> LOG.debug("Removed member {} from room {} (removed={})", tgId, roomId, n));
     }
 
     /**
@@ -74,7 +74,7 @@ public class RoomMembersRepository {
     public Flux<String> getMembers(String roomId) {
         return redisTemplate.opsForSet()
                 .members(keyFor(roomId))
-                .doOnComplete(() -> log.debug("Fetched members for room {}", roomId));
+                .doOnComplete(() -> LOG.debug("Fetched members for room {}", roomId));
     }
 
     /**
@@ -86,7 +86,7 @@ public class RoomMembersRepository {
     public Flux<String> getRoomsForMember(Long tgId) {
         return redisTemplate.opsForSet()
                 .members(reverseKeyFor(tgId))
-                .doOnComplete(() -> log.debug("Fetched rooms for member {}", tgId));
+                .doOnComplete(() -> LOG.debug("Fetched rooms for member {}", tgId));
     }
 
     /**
@@ -126,7 +126,7 @@ public class RoomMembersRepository {
                     return redisTemplate.opsForSet().remove(reverseKeyFor(tgId), (Object) roomId);
                 })
                 .then(redisTemplate.delete(keyFor(roomId)))
-                .doOnSuccess(n -> log.debug("Deleted members set for room {}", roomId))
+                .doOnSuccess(n -> LOG.debug("Deleted members set for room {}", roomId))
                 .then();
     }
 

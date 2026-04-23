@@ -1,7 +1,5 @@
 package dev.burnedchats.metrics;
 
-import java.util.Objects;
-
 /**
  * Classifies Redis keys for offline message lists (metrics, keyspace, SCAN).
  * Does not use user or session id values in Micrometer tags — only in internal routing.

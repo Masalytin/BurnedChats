@@ -128,13 +128,13 @@ public class RoomMessageHandler {
         String roomId = request.getRoomId();
         String messageId = request.getMessageId();
 
-        log.info("SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, messageId={}",
+        LOG.info("SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, messageId={}",
                 roomId, senderTgId, messageId);
 
         roomMembersRepository.isMember(roomId, senderTgId)
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        log.debug("SEND_ROOM_MESSAGE rejected: user {} not a member of room {}",
+                        LOG.debug("SEND_ROOM_MESSAGE rejected: user {} not a member of room {}",
                                 senderTgId, roomId);
                         sendError(senderTgId, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
@@ -152,7 +152,7 @@ public class RoomMessageHandler {
                             .then(Mono.defer(() -> saveAndBroadcast(request, senderTgId, roomId, messageId)));
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
-                    log.debug("File validation failed for room message {} in room {}: {}",
+                    LOG.debug("File validation failed for room message {} in room {}: {}",
                             messageId, roomId, ex.getErrorCode());
                     sendError(senderTgId, roomId, messageId, ex.getErrorCode());
                     return Mono.empty();
@@ -160,11 +160,11 @@ public class RoomMessageHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error processing SEND_ROOM_MESSAGE: roomId={}, error={}",
+                            LOG.error("Error processing SEND_ROOM_MESSAGE: roomId={}, error={}",
                                     roomId, error.getMessage());
                             sendError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     private Mono<Void> saveAndBroadcast(
@@ -195,7 +195,7 @@ public class RoomMessageHandler {
         return roomMessageRepository.saveMessage(message)
                 .flatMap(saved -> {
                     if (!saved) {
-                        log.warn("Failed to save room message: roomId={}, messageId={}",
+                        LOG.warn("Failed to save room message: roomId={}, messageId={}",
                                 roomId, messageId);
                         sendError(senderTgId, roomId, messageId, "SAVE_FAILED");
                         return Mono.<Void>empty();
@@ -235,7 +235,7 @@ public class RoomMessageHandler {
 
                     NewRoomMessageEvent event = eventBuilder.build();
                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
-                    log.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
+                    LOG.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
                             roomId, messageId, senderTgId);
                     // Send delivery acknowledgment back to sender so the client can
                     // transition the message status from 'sending' to 'sent'.
@@ -263,12 +263,12 @@ public class RoomMessageHandler {
         Long userId = tp.getUserId();
         String roomId = request.roomId();
 
-        log.info("SYNC_ROOM_MESSAGES: roomId={}, userId={}", roomId, userId);
+        LOG.info("SYNC_ROOM_MESSAGES: roomId={}, userId={}", roomId, userId);
 
         roomMembersRepository.isMember(roomId, userId)
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        log.debug("SYNC_ROOM_MESSAGES rejected: user {} is not a member of room {}", userId, roomId);
+                        LOG.debug("SYNC_ROOM_MESSAGES rejected: user {} is not a member of room {}", userId, roomId);
                         sendSyncError(userId, roomId, "NOT_MEMBER");
                         return Mono.empty();
                     }
@@ -298,7 +298,7 @@ public class RoomMessageHandler {
                                         ROOM_SYNC_DESTINATION,
                                         event
                                 );
-                                log.info("SYNC_ROOM_MESSAGES sent: roomId={}, userId={}, count={}",
+                                LOG.info("SYNC_ROOM_MESSAGES sent: roomId={}, userId={}, count={}",
                                         roomId, userId, messages.size());
                                 offlineQueueMetrics.recordDelivered(OfflineSessionType.room, messages.size());
                                 return Mono.empty();
@@ -307,11 +307,11 @@ public class RoomMessageHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error processing SYNC_ROOM_MESSAGES: roomId={}, userId={}, error={}",
+                            LOG.error("Error processing SYNC_ROOM_MESSAGES: roomId={}, userId={}, error={}",
                                     roomId, userId, error.getMessage());
                             sendSyncError(userId, roomId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     private void sendError(Long senderTgId, String roomId, String messageId, String errorCode) {
@@ -320,7 +320,7 @@ public class RoomMessageHandler {
                 ROOM_MESSAGE_SENT_DESTINATION,
                 RoomMessageSentEvent.error(roomId, messageId, errorCode)
         );
-        log.trace("Sent room message error to sender {}: {}", senderTgId, errorCode);
+        LOG.trace("Sent room message error to sender {}: {}", senderTgId, errorCode);
     }
 
     private void sendSyncError(Long userId, String roomId, String errorCode) {
@@ -330,6 +330,6 @@ public class RoomMessageHandler {
                 ROOM_SYNC_DESTINATION,
                 event
         );
-        log.trace("Sent sync error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent sync error to user {}: {}", userId, errorCode);
     }
 }

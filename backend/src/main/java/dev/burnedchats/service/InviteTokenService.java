@@ -64,8 +64,8 @@ public class InviteTokenService {
                     return inviteTokenRepository.save(token)
                             .thenReturn(buildInviteUrl(tokenValue));
                 })
-                .doOnSuccess(url -> log.info("Invite link generated for room={} by tgId={}", roomId, requesterTgId))
-                .doOnError(e -> log.warn("Failed to generate invite link for room={}: {}", roomId, e.getMessage()));
+                .doOnSuccess(url -> LOG.info("Invite link generated for room={} by tgId={}", roomId, requesterTgId))
+                .doOnError(e -> LOG.warn("Failed to generate invite link for room={}: {}", roomId, e.getMessage()));
     }
 
     /**

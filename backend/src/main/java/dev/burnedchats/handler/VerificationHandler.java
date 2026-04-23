@@ -94,7 +94,7 @@ public class VerificationHandler {
         String sessionId = request.getSessionId();
         Boolean confirmed = request.getConfirmed();
 
-        log.info("Verification confirmation received: sessionId={}, userId={}, confirmed={}",
+        LOG.info("Verification confirmation received: sessionId={}, userId={}, confirmed={}",
                 sessionId, userId, confirmed);
 
         // Handle negative verification (fingerprint mismatch)
@@ -106,7 +106,7 @@ public class VerificationHandler {
         // Find session and process verification
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for verification: {}", sessionId);
+                    LOG.debug("Session not found for verification: {}", sessionId);
                     sendError(userId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -114,11 +114,11 @@ public class VerificationHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error processing verification: sessionId={}, userId={}, error={}",
+                            LOG.error("Error processing verification: sessionId={}, userId={}, error={}",
                                     sessionId, userId, error.getMessage());
                             sendError(userId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -133,7 +133,7 @@ public class VerificationHandler {
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
-            log.debug("User {} is not a participant in session {}", userId, sessionId);
+            LOG.debug("User {} is not a participant in session {}", userId, sessionId);
             sendError(userId, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
@@ -141,7 +141,7 @@ public class VerificationHandler {
         // Validate session status - must be ACTIVE or HANDSHAKE
         SessionStatus status = session.getStatus();
         if (status != SessionStatus.ACTIVE && status != SessionStatus.HANDSHAKE) {
-            log.debug("Session {} is not active for verification: {}", sessionId, status);
+            LOG.debug("Session {} is not active for verification: {}", sessionId, status);
             String errorCode = status == SessionStatus.BURNED ? "SESSION_BURNED"
                     : status == SessionStatus.PENDING ? "SESSION_NOT_READY"
                     : "SESSION_NOT_ACTIVE";
@@ -180,7 +180,7 @@ public class VerificationHandler {
                         sendPeerVerified(peerId, sessionId, bothVerified);
                     }
 
-                    log.info("Verification confirmed: sessionId={}, userId={}, bothVerified={}",
+                    LOG.info("Verification confirmed: sessionId={}, userId={}, bothVerified={}",
                             sessionId, userId, bothVerified);
                 })
                 .then();
@@ -194,7 +194,7 @@ public class VerificationHandler {
      * @param userId    the reporting user's ID
      */
     private void handleMismatch(String sessionId, Long userId) {
-        log.warn("SECURITY: Fingerprint mismatch reported! sessionId={}, userId={}",
+        LOG.warn("SECURITY: Fingerprint mismatch reported! sessionId={}, userId={}",
                 sessionId, userId);
 
         sessionRepository.findById(sessionId)
@@ -209,12 +209,12 @@ public class VerificationHandler {
                                     sendMismatch(peerId, sessionId);
                                 }
 
-                                log.warn("SECURITY: Mismatch notifications sent for session {}",
+                                LOG.warn("SECURITY: Mismatch notifications sent for session {}",
                                         sessionId);
                             }
                         },
-                        error -> log.error("Error handling mismatch: {}", error.getMessage())
-                );
+                        error -> LOG.error("Error handling mismatch: {}", error.getMessage())
+            );
     }
 
     /**
@@ -230,7 +230,7 @@ public class VerificationHandler {
                 event
         );
 
-        log.debug("Sent verification status to user {}: sessionId={}, verified={}, peerVerified={}",
+        LOG.debug("Sent verification status to user {}: sessionId={}, verified={}, peerVerified={}",
                 userId, sessionId, verified, peerVerified);
     }
 
@@ -252,7 +252,7 @@ public class VerificationHandler {
                 event
         );
 
-        log.debug("Sent peer verified notification to user {}: sessionId={}, bothVerified={}",
+        LOG.debug("Sent peer verified notification to user {}: sessionId={}, bothVerified={}",
                 userId, sessionId, bothVerified);
     }
 
@@ -268,7 +268,7 @@ public class VerificationHandler {
                 event
         );
 
-        log.debug("Sent mismatch warning to user {}: sessionId={}", userId, sessionId);
+        LOG.debug("Sent mismatch warning to user {}: sessionId={}", userId, sessionId);
     }
 
     /**
@@ -283,6 +283,6 @@ public class VerificationHandler {
                 event
         );
 
-        log.trace("Sent verification error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent verification error to user {}: {}", userId, errorCode);
     }
 }

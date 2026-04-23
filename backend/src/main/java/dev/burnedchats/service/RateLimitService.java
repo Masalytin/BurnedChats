@@ -117,7 +117,7 @@ public class RateLimitService {
                 })
                 .flatMap(count -> {
                     if (count > type.getMaxRequests()) {
-                        log.warn("Rate limit exceeded: userId={}, type={}, count={}",
+                        LOG.warn("Rate limit exceeded: userId={}, type={}, count={}",
                                 userId, type, count);
 
                         // Calculate retry after
@@ -126,7 +126,7 @@ public class RateLimitService {
                                 .flatMap(ttl -> Mono.error(new RateLimitException(ttl)));
                     }
 
-                    log.trace("Rate limit check passed: userId={}, type={}, count={}/{}",
+                    LOG.trace("Rate limit check passed: userId={}, type={}, count={}/{}",
                             userId, type, count, type.getMaxRequests());
                     return Mono.just(true);
                 });
@@ -179,7 +179,7 @@ public class RateLimitService {
                 .map(count -> count > 0)
                 .doOnSuccess(reset -> {
                     if (reset) {
-                        log.info("Rate limit reset: userId={}, type={}", userId, type);
+                        LOG.info("Rate limit reset: userId={}, type={}", userId, type);
                     }
                 });
     }

@@ -32,7 +32,7 @@ import java.util.Collection;
 @Repository
 public class OnlineStatusRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(OnlineStatusRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(OnlineStatusRepository.class);
 
     private static final String KEY_PREFIX = "online:";
     private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
@@ -67,7 +67,7 @@ public class OnlineStatusRepository {
 
         return redisTemplate.opsForValue()
                 .set(key, timestamp, DEFAULT_TTL)
-                .doOnSuccess(result -> log.trace("User {} marked online", tgId));
+                .doOnSuccess(result -> LOG.trace("User {} marked online", tgId));
     }
 
     /**
@@ -87,7 +87,7 @@ public class OnlineStatusRepository {
         String key = keyFor(tgId);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(count -> log.debug("User {} marked offline", tgId));
+                .doOnSuccess(count -> LOG.debug("User {} marked offline", tgId));
     }
 
     /**
@@ -98,7 +98,7 @@ public class OnlineStatusRepository {
      */
     public Mono<Boolean> isOnline(Long tgId) {
         return redisTemplate.hasKey(keyFor(tgId))
-                .doOnSuccess(online -> log.trace("User {} online status: {}", tgId, online));
+                .doOnSuccess(online -> LOG.trace("User {} online status: {}", tgId, online));
     }
 
     /**
@@ -118,7 +118,7 @@ public class OnlineStatusRepository {
                 .map(timestamp -> Instant.ofEpochMilli(Long.parseLong(timestamp)))
                 .doOnSuccess(instant -> {
                     if (instant != null) {
-                        log.trace("User {} last seen: {}", tgId, instant);
+                        LOG.trace("User {} last seen: {}", tgId, instant);
                     }
                 });
     }
@@ -132,7 +132,7 @@ public class OnlineStatusRepository {
     public Flux<Long> getOnlineUsers(Collection<Long> tgIds) {
         return Flux.fromIterable(tgIds)
                 .filterWhen(this::isOnline)
-                .doOnComplete(() -> log.debug("Checked online status for {} users", tgIds.size()));
+                .doOnComplete(() -> LOG.debug("Checked online status for {} users", tgIds.size()));
     }
 
     /**
@@ -145,7 +145,7 @@ public class OnlineStatusRepository {
     public Mono<Long> countOnline() {
         return redisTemplate.keys(KEY_PREFIX + "*")
                 .count()
-                .doOnSuccess(count -> log.debug("Online users count: {}", count));
+                .doOnSuccess(count -> LOG.debug("Online users count: {}", count));
     }
 
     /**
@@ -158,7 +158,7 @@ public class OnlineStatusRepository {
     public Flux<Long> getAllOnlineUserIds() {
         return redisTemplate.keys(KEY_PREFIX + "*")
                 .map(key -> Long.parseLong(key.substring(KEY_PREFIX.length())))
-                .doOnComplete(() -> log.debug("Retrieved all online user IDs"));
+                .doOnComplete(() -> LOG.debug("Retrieved all online user IDs"));
     }
 
     /**
@@ -175,7 +175,7 @@ public class OnlineStatusRepository {
         return redisTemplate.getExpire(key)
                 .doOnSuccess(ttl -> {
                     if (ttl != null) {
-                        log.trace("User {} TTL remaining: {}", tgId, ttl);
+                        LOG.trace("User {} TTL remaining: {}", tgId, ttl);
                     }
                 });
     }
@@ -192,7 +192,7 @@ public class OnlineStatusRepository {
         String key = keyFor(tgId);
 
         return redisTemplate.expire(key, DEFAULT_TTL)
-                .doOnSuccess(result -> log.trace("Extended TTL for user {}: {}", tgId, result));
+                .doOnSuccess(result -> LOG.trace("Extended TTL for user {}: {}", tgId, result));
     }
 
     /**
@@ -208,7 +208,7 @@ public class OnlineStatusRepository {
                 .flatMap(this::setOnline)
                 .filter(result -> result)
                 .count()
-                .doOnSuccess(count -> log.debug("Set {} users online", count));
+                .doOnSuccess(count -> LOG.debug("Set {} users online", count));
     }
 
     /**
@@ -221,7 +221,7 @@ public class OnlineStatusRepository {
         return Flux.fromIterable(tgIds)
                 .flatMap(this::setOffline)
                 .reduce(0L, Long::sum)
-                .doOnSuccess(count -> log.debug("Set {} users offline", count));
+                .doOnSuccess(count -> LOG.debug("Set {} users offline", count));
     }
 
     private String keyFor(Long tgId) {

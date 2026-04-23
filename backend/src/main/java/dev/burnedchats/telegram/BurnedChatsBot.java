@@ -56,9 +56,9 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     public void init() {
         try {
             registerBotCommands();
-            log.info("BurnedChatsBot initialized successfully. Username: @{}", getBotUsername());
+            LOG.info("BurnedChatsBot initialized successfully. Username: @{}", getBotUsername());
         } catch (TelegramApiException e) {
-            log.error("Failed to register bot commands", e);
+            LOG.error("Failed to register bot commands", e);
         }
     }
 
@@ -75,7 +75,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
         setMyCommands.setScope(new BotCommandScopeDefault());
 
         execute(setMyCommands);
-        log.debug("Bot commands registered: {}", commands);
+        LOG.debug("Bot commands registered: {}", commands);
     }
 
     @Override
@@ -90,18 +90,18 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
             String username = update.getMessage().getFrom().getUserName();
 
-            log.debug("Received message from @{}: {}", username, messageText);
+            LOG.debug("Received message from @{}: {}", username, messageText);
 
             try {
                 if (messageText.startsWith("/start")) {
                     handleStartCommand(chatId, update);
-                } else if (messageText.equals("/help")) {
+                } else if ("/help".equals(messageText)) {
                     handleHelpCommand(chatId);
                 } else {
                     handleUnknownCommand(chatId);
                 }
             } catch (TelegramApiException e) {
-                log.error("Failed to process message from chatId {}", chatId, e);
+                LOG.error("Failed to process message from chatId {}", chatId, e);
             }
         }
     }
@@ -120,7 +120,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
         // Check for deep link parameter (e.g., /start sessionId123)
         if (messageText.length() > 7) {
             deepLinkParam = messageText.substring(7).trim();
-            log.debug("Deep link parameter received: {}", deepLinkParam);
+            LOG.debug("Deep link parameter received: {}", deepLinkParam);
         }
 
         String welcomeText = buildWelcomeMessage();
@@ -133,7 +133,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                 .build();
 
         execute(message);
-        log.info("Sent /start response to chatId: {}", chatId);
+        LOG.info("Sent /start response to chatId: {}", chatId);
     }
 
     /**
@@ -146,7 +146,8 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                 Добро пожаловать в защищённый мессенджер!
                 
                 %s <b>Что это?</b>
-                Приложение для секретных переписок с end-to-end шифрованием. Сообщения не хранятся на сервере — только у вас.
+                Приложение для секретных переписок с end-to-end шифрованием. Сообщения не хранятся
+                на сервере — только у вас.
                 
                 %s <b>Как работает:</b>
                 • Найдите собеседника по @username
@@ -245,7 +246,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                 .build();
 
         execute(message);
-        log.info("Sent /help response to chatId: {}", chatId);
+        LOG.info("Sent /help response to chatId: {}", chatId);
     }
 
     /**
@@ -286,10 +287,10 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                     .build();
 
             execute(message);
-            log.debug("Notification sent to chatId: {}", chatId);
+            LOG.debug("Notification sent to chatId: {}", chatId);
             return true;
         } catch (TelegramApiException e) {
-            log.error("Failed to send notification to chatId: {}", chatId, e);
+            LOG.error("Failed to send notification to chatId: {}", chatId, e);
             return false;
         }
     }
@@ -313,10 +314,10 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                     .build();
 
             execute(message);
-            log.debug("Notification with button sent to chatId: {}", chatId);
+            LOG.debug("Notification with button sent to chatId: {}", chatId);
             return true;
         } catch (TelegramApiException e) {
-            log.error("Failed to send notification with button to chatId: {}", chatId, e);
+            LOG.error("Failed to send notification with button to chatId: {}", chatId, e);
             return false;
         }
     }

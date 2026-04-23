@@ -11,7 +11,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.io.InputStream;
@@ -80,7 +85,7 @@ public class FileController {
                     return Mono.just(errorResponse(status, e.getErrorCode(), e.getMessage()));
                 })
                 .onErrorResume(e -> {
-                    log.error("Unexpected error during file upload", e);
+                    LOG.error("Unexpected error during file upload", e);
                     return Mono.just(errorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
                             "INTERNAL_ERROR", "An unexpected error occurred"));
                 });
@@ -122,7 +127,7 @@ public class FileController {
                     return Mono.just(jsonErrorResponse(status, e.getErrorCode(), e.getMessage()));
                 })
                 .onErrorResume(e -> {
-                    log.error("Unexpected error during file download: fileId={}", fileId, e);
+                    LOG.error("Unexpected error during file download: fileId={}", fileId, e);
                     return Mono.just(jsonErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
                             "INTERNAL_ERROR", "An unexpected error occurred"));
                 });

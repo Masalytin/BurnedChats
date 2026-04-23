@@ -53,9 +53,9 @@ public class InviteTokenRepository {
                 .then(redisTemplate.opsForSet()
                         .add(roomInvitesKeyFor(token.getRoomId()), token.getToken()))
                 .thenReturn(true)
-                .doOnSuccess(ok -> log.debug("Saved invite token {} for room {}", token.getToken(), token.getRoomId()))
+                .doOnSuccess(ok -> LOG.debug("Saved invite token {} for room {}", token.getToken(), token.getRoomId()))
                 .onErrorResume(e -> {
-                    log.error("Failed to save invite token {}: {}", token.getToken(), e.getMessage());
+                    LOG.error("Failed to save invite token {}: {}", token.getToken(), e.getMessage());
                     return Mono.just(false);
                 });
     }
@@ -77,9 +77,9 @@ public class InviteTokenRepository {
                 )
                 .filter(map -> !map.isEmpty())
                 .map(this::fromHash)
-                .doOnNext(t -> log.debug("Found invite token {} -> room {}", token, t.getRoomId()))
+                .doOnNext(t -> LOG.debug("Found invite token {} -> room {}", token, t.getRoomId()))
                 .onErrorResume(e -> {
-                    log.error("Failed to find invite token {}: {}", token, e.getMessage());
+                    LOG.error("Failed to find invite token {}: {}", token, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -98,9 +98,9 @@ public class InviteTokenRepository {
 
         return redisTemplate.opsForHash()
                 .increment(key, "usedCount", 1)
-                .doOnNext(count -> log.debug("Incremented use count for token {}: {}", token, count))
+                .doOnNext(count -> LOG.debug("Incremented use count for token {}: {}", token, count))
                 .onErrorResume(e -> {
-                    log.error("Failed to increment use count for token {}: {}", token, e.getMessage());
+                    LOG.error("Failed to increment use count for token {}: {}", token, e.getMessage());
                     return Mono.just(-1L);
                 });
     }
@@ -113,7 +113,7 @@ public class InviteTokenRepository {
      */
     public Mono<Long> delete(String token) {
         return redisTemplate.delete(keyFor(token))
-                .doOnSuccess(n -> log.debug("Deleted invite token {} (result={})", token, n));
+                .doOnSuccess(n -> LOG.debug("Deleted invite token {} (result={})", token, n));
     }
 
     /**
@@ -142,9 +142,9 @@ public class InviteTokenRepository {
                             .then(redisTemplate.delete(roomInvitesKey))
                             .then();
                 })
-                .doOnSuccess(v -> log.debug("Deleted all invite tokens for room {}", roomId))
+                .doOnSuccess(v -> LOG.debug("Deleted all invite tokens for room {}", roomId))
                 .onErrorResume(e -> {
-                    log.error("Failed to delete invite tokens for room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to delete invite tokens for room {}: {}", roomId, e.getMessage());
                     return Mono.empty();
                 });
     }

@@ -68,7 +68,7 @@ public class TelegramAuthService {
         this.telegramProperties = telegramProperties;
         this.objectMapper = objectMapper;
         this.secretKey = computeSecretKey(telegramProperties.getBot().getToken());
-        log.info("TelegramAuthService initialized");
+        LOG.info("TelegramAuthService initialized");
     }
 
     /**
@@ -90,7 +90,7 @@ public class TelegramAuthService {
             throw AuthenticationException.missingField("initData");
         }
 
-        log.debug("Validating initData (length: {})", initData.length());
+        LOG.debug("Validating initData (length: {})", initData.length());
 
         try {
             // Parse initData into key-value pairs
@@ -107,7 +107,7 @@ public class TelegramAuthService {
             String computedHash = computeHash(dataCheckString);
 
             if (!constantTimeEquals(computedHash, providedHash)) {
-                log.warn("Invalid initData signature");
+                LOG.warn("Invalid initData signature");
                 throw AuthenticationException.invalidSignature();
             }
 
@@ -117,17 +117,17 @@ public class TelegramAuthService {
             // Check expiration
             int maxAge = telegramProperties.getMiniApp().getAuth().getMaxAge();
             if (result.isExpired(maxAge)) {
-                log.warn("InitData expired. AuthDate: {}, MaxAge: {}s", result.getAuthDate(), maxAge);
+                LOG.warn("InitData expired. AuthDate: {}, MaxAge: {}s", result.getAuthDate(), maxAge);
                 throw AuthenticationException.expired();
             }
 
-            log.debug("InitData validated successfully for user: {}", result.getUserId());
+            LOG.debug("InitData validated successfully for user: {}", result.getUserId());
             return result;
 
         } catch (AuthenticationException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to validate initData", e);
+            LOG.error("Failed to validate initData", e);
             throw new AuthenticationException("Failed to validate authentication data", e);
         }
     }
@@ -158,7 +158,7 @@ public class TelegramAuthService {
      */
     private byte[] computeSecretKey(String botToken) {
         if (botToken == null || botToken.isBlank()) {
-            log.warn("Bot token is not configured, authentication will fail");
+            LOG.warn("Bot token is not configured, authentication will fail");
             return new byte[0];
         }
 
@@ -171,7 +171,7 @@ public class TelegramAuthService {
             mac.init(keySpec);
             return mac.doFinal(botToken.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("Failed to compute secret key", e);
+            LOG.error("Failed to compute secret key", e);
             throw new IllegalStateException("Failed to initialize HMAC", e);
         }
     }
@@ -238,7 +238,7 @@ public class TelegramAuthService {
             byte[] hashBytes = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
             return bytesToHex(hashBytes);
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("Failed to compute hash", e);
+            LOG.error("Failed to compute hash", e);
             throw new IllegalStateException("Failed to compute HMAC", e);
         }
     }
@@ -269,16 +269,16 @@ public class TelegramAuthService {
             return false;
         }
 
-        byte[] aBytes = a.getBytes(StandardCharsets.UTF_8);
-        byte[] bBytes = b.getBytes(StandardCharsets.UTF_8);
+        byte[] utf8Left = a.getBytes(StandardCharsets.UTF_8);
+        byte[] utf8Right = b.getBytes(StandardCharsets.UTF_8);
 
-        if (aBytes.length != bBytes.length) {
+        if (utf8Left.length != utf8Right.length) {
             return false;
         }
 
         int result = 0;
-        for (int i = 0; i < aBytes.length; i++) {
-            result |= aBytes[i] ^ bBytes[i];
+        for (int i = 0; i < utf8Left.length; i++) {
+            result |= utf8Left[i] ^ utf8Right[i];
         }
         return result == 0;
     }
@@ -301,7 +301,7 @@ public class TelegramAuthService {
                 long authDateUnix = Long.parseLong(authDateStr);
                 builder.authDate(Instant.ofEpochSecond(authDateUnix));
             } catch (NumberFormatException e) {
-                log.warn("Invalid auth_date format: {}", authDateStr);
+                LOG.warn("Invalid auth_date format: {}", authDateStr);
                 throw AuthenticationException.missingField("auth_date");
             }
         } else {
@@ -350,7 +350,7 @@ public class TelegramAuthService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to parse user JSON: {}", userJson, e);
+            LOG.error("Failed to parse user JSON: {}", userJson, e);
             throw new AuthenticationException("Failed to parse user data", e);
         }
     }

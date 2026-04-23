@@ -108,11 +108,11 @@ public class FileService {
                         return fileMetadataRepository.save(metadata);
                     }))
                     .thenReturn(new UploadResult(fileId, contentLength))
-                    .doOnSuccess(r -> log.info("File uploaded: fileId={}, tgId={}, context={}:{}, size={}",
+                    .doOnSuccess(r -> LOG.info("File uploaded: fileId={}, tgId={}, context={}:{}, size={}",
                             fileId, tgId, contextType, contextId, contentLength))
                     .doOnError(e -> {
                         fileStorageService.delete(fileId).subscribe();
-                        log.error("File upload failed: tgId={}, context={}:{}",
+                        LOG.error("File upload failed: tgId={}, context={}:{}",
                                 tgId, contextType, contextId, e);
                     });
         });
@@ -155,8 +155,8 @@ public class FileService {
                                         long size = metadata.getSize() != null ? metadata.getSize() : 0;
                                         return Mono.just(new DownloadResult(data, size));
                                     }))
-                    .doOnSuccess(r -> log.info("File download started: fileId={}, tgId={}", fileId, tgId))
-                    .doOnError(e -> log.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
+                    .doOnSuccess(r -> LOG.info("File download started: fileId={}, tgId={}", fileId, tgId))
+                    .doOnError(e -> LOG.error("File download failed: fileId={}, tgId={}", fileId, tgId, e));
         });
     }
 
@@ -168,13 +168,13 @@ public class FileService {
     private Mono<Void> verifyStoredSizeMatchesContentLength(String fileId, long expectedBytes) {
         return fileStorageService.fileSize(fileId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.warn("Upload size check: file missing on disk after save, fileId={}", fileId);
+                    LOG.warn("Upload size check: file missing on disk after save, fileId={}", fileId);
                     return Mono.error(new BurnedChatsException(
                             "Stored file missing after upload", "FILE_SIZE_INVALID"));
                 }))
                 .flatMap(actual -> {
                     if (!actual.equals(expectedBytes)) {
-                        log.warn("Upload size mismatch: fileId={}, expected={}, actual={}",
+                        LOG.warn("Upload size mismatch: fileId={}, expected={}, actual={}",
                                 fileId, expectedBytes, actual);
                         return fileStorageService.delete(fileId)
                                 .then(Mono.error(new BurnedChatsException(

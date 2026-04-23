@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * the BurnedChats Telegram Mini App, including WebSocket messaging,
  * Telegram Bot integration, and session management.
  */
+@SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 @SpringBootApplication
 @ConfigurationPropertiesScan("dev.burnedchats.config")
 @EnableScheduling

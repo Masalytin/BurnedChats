@@ -86,7 +86,7 @@ public class WebSocketEventListener {
         Principal principal = accessor.getUser();
 
         if (principal == null) {
-            log.warn("Session connected without principal: sessionId={}",
+            LOG.warn("Session connected without principal: sessionId={}",
                     accessor.getSessionId());
             return;
         }
@@ -95,11 +95,11 @@ public class WebSocketEventListener {
             Long userId = telegramPrincipal.getUserId();
             String sessionId = accessor.getSessionId();
 
-            log.info("User connected: userId={}, sessionId={}", userId, sessionId);
+            LOG.info("User connected: userId={}, sessionId={}", userId, sessionId);
 
             // Mark user as online
             onlineStatusRepository.setOnline(userId)
-                    .doOnSuccess(v -> log.debug("User {} marked as online", userId))
+                    .doOnSuccess(v -> LOG.debug("User {} marked as online", userId))
                     .subscribe();
 
             // Cache user info if not already cached
@@ -136,12 +136,12 @@ public class WebSocketEventListener {
         if (principal instanceof TelegramPrincipal telegramPrincipal) {
             Long userId = telegramPrincipal.getUserId();
 
-            log.info("User disconnected: userId={}, sessionId={}, closeStatus={}",
+            LOG.info("User disconnected: userId={}, sessionId={}, closeStatus={}",
                     userId, event.getSessionId(), event.getCloseStatus());
 
             // Mark user as offline
             onlineStatusRepository.setOffline(userId)
-                    .doOnSuccess(v -> log.debug("User {} marked as offline", userId))
+                    .doOnSuccess(v -> LOG.debug("User {} marked as offline", userId))
                     .subscribe();
         }
     }
@@ -161,7 +161,7 @@ public class WebSocketEventListener {
                 .build();
 
         userRepository.save(user)
-                .doOnSuccess(v -> log.debug("User {} cached", user.getId()))
+                .doOnSuccess(v -> LOG.debug("User {} cached", user.getId()))
                 .subscribe();
     }
 
@@ -182,15 +182,15 @@ public class WebSocketEventListener {
                                     INCOMING_REQUEST_DESTINATION,
                                     event
                             );
-                            log.info("Sent pending request to user {}: sessionId={}",
+                            LOG.info("Sent pending request to user {}: sessionId={}",
                                     userId, event.getSessionId());
                         }))
                 .subscribe(
                         event -> {},
-                        error -> log.error("Error sending pending requests to user {}: {}",
+                        error -> LOG.error("Error sending pending requests to user {}: {}",
                                 userId, error.getMessage()),
-                        () -> log.debug("Finished sending pending requests to user {}", userId)
-                );
+                        () -> LOG.debug("Finished sending pending requests to user {}", userId)
+            );
     }
 
     /**
@@ -265,23 +265,23 @@ public class WebSocketEventListener {
                 .then()
                 .subscribe(
                         v -> {},
-                        error -> log.error(
+                        error -> LOG.error(
                                 "Error during server-push sync fan-out for user {}: {}",
                                 userId, error.getMessage()),
                         () -> {
                             int sessions = sessionCount.get();
                             int messages = messageCount.get();
                             if (sessions > 0) {
-                                log.info(
+                                LOG.info(
                                         "Server-push sync: userId={}, sessions={}, messages={}",
                                         userId, sessions, messages);
                             } else {
-                                log.debug(
+                                LOG.debug(
                                         "Server-push sync: userId={}, no pending messages",
                                         userId);
                             }
                         }
-                );
+            );
     }
 
     /**
@@ -319,7 +319,7 @@ public class WebSocketEventListener {
                             event
                     );
 
-                    log.debug("Server-push sync: delivered {} messages to user {} for session {}",
+                    LOG.debug("Server-push sync: delivered {} messages to user {} for session {}",
                             messages.size(), userId, sessionId);
 
                     offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
@@ -327,7 +327,7 @@ public class WebSocketEventListener {
                             .thenReturn(messages.size());
                 })
                 .onErrorResume(error -> {
-                    log.error("Server-push sync failed for user {} session {}: {}",
+                    LOG.error("Server-push sync failed for user {} session {}: {}",
                             userId, sessionId, error.getMessage());
                     return Mono.just(0);
                 });

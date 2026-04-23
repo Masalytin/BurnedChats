@@ -56,8 +56,8 @@ public class TelegramWebhookConfig {
         String token = telegramProperties.getBot().getToken();
 
         if (token == null || token.isBlank()) {
-            log.warn("Telegram bot token is not configured. Webhook bot will not work.");
-            log.warn("Set TELEGRAM_BOT_TOKEN environment variable.");
+            LOG.warn("Telegram bot token is not configured. Webhook bot will not work.");
+            LOG.warn("Set TELEGRAM_BOT_TOKEN environment variable.");
         }
 
         return new BurnedChatsWebhookBot(telegramProperties, botMessages);
@@ -72,7 +72,7 @@ public class TelegramWebhookConfig {
     public void registerWebhook() {
         String token = telegramProperties.getBot().getToken();
         if (token == null || token.isBlank()) {
-            log.warn("Cannot register webhook: bot token is not configured");
+            LOG.warn("Cannot register webhook: bot token is not configured");
             return;
         }
 
@@ -81,8 +81,8 @@ public class TelegramWebhookConfig {
         String secretToken = telegramProperties.getBot().getWebhook().getSecretToken();
 
         if (webhookUrl == null || webhookUrl.isBlank()) {
-            log.error("Cannot register webhook: webhook URL is not configured");
-            log.error("Set TELEGRAM_WEBHOOK_URL environment variable "
+            LOG.error("Cannot register webhook: webhook URL is not configured");
+            LOG.error("Set TELEGRAM_WEBHOOK_URL environment variable "
                     + "(e.g., https://yourdomain.com)");
             return;
         }
@@ -105,7 +105,7 @@ public class TelegramWebhookConfig {
             // Add secret token if configured
             if (secretToken != null && !secretToken.isBlank()) {
                 webhookBuilder.secretToken(secretToken);
-                log.debug("Webhook secret token configured");
+                LOG.debug("Webhook secret token configured");
             }
 
             SetWebhook setWebhook = webhookBuilder.build();
@@ -114,12 +114,12 @@ public class TelegramWebhookConfig {
             BurnedChatsWebhookBot bot = burnedChatsWebhookBot();
             bot.setWebhook(setWebhook);
 
-            log.info("Telegram webhook registered successfully");
-            log.info("Webhook URL: {}", fullWebhookUrl);
-            log.info("Bot username: @{}", telegramProperties.getBot().getUsername());
+            LOG.info("Telegram webhook registered successfully");
+            LOG.info("Webhook URL: {}", fullWebhookUrl);
+            LOG.info("Bot username: @{}", telegramProperties.getBot().getUsername());
 
         } catch (TelegramApiException e) {
-            log.error("Failed to register Telegram webhook at {}", fullWebhookUrl, e);
+            LOG.error("Failed to register Telegram webhook at {}", fullWebhookUrl, e);
         }
     }
 }

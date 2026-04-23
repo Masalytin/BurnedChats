@@ -139,7 +139,7 @@ public class RoomJoinService {
                         .then(roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL))
                         .then()
                 )
-                .doOnSuccess(v -> log.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
+                .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
                         roomId, senderTgId, ownerTgId));
     }
 
@@ -162,7 +162,7 @@ public class RoomJoinService {
                     }
                     return joinRequestRepository.remove(roomId, senderTgId);
                 })
-                .doOnSuccess(v -> log.info("Join rejected: roomId={}, senderTgId={}, ownerTgId={}",
+                .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderTgId={}, ownerTgId={}",
                         roomId, senderTgId, ownerTgId));
     }
 
@@ -175,7 +175,7 @@ public class RoomJoinService {
                 .then(memberPublicKeyRepository.put(room.getId(), senderTgId, senderPublicKey))
                 .then(roomRepository.extendTtl(room.getId(), RoomRepository.DEFAULT_TTL))
                 .thenReturn((JoinResult) new JoinResult.Approved(room.getId(), room.getOwnerTgId()))
-                .doOnSuccess(r -> log.info("User {} joined room {} directly (BY_PASSWORD)",
+                .doOnSuccess(r -> LOG.info("User {} joined room {} directly (BY_PASSWORD)",
                         senderTgId, room.getId()));
     }
 
@@ -197,7 +197,7 @@ public class RoomJoinService {
                             .build();
                     return joinRequestRepository.save(request)
                             .thenReturn((JoinResult) new JoinResult.Pending(request, room.getOwnerTgId()))
-                            .doOnSuccess(r -> log.info("Join request created: roomId={}, senderTgId={}, ownerTgId={}",
+                            .doOnSuccess(r -> LOG.info("Join request created: roomId={}, senderTgId={}, ownerTgId={}",
                                     room.getId(), senderTgId, room.getOwnerTgId()));
                 });
     }

@@ -84,13 +84,13 @@ public class StompAuthInterceptor implements ChannelInterceptor {
      */
     private void handleConnect(StompHeaderAccessor accessor) {
         String sessionId = accessor.getSessionId();
-        log.debug("Processing STOMP CONNECT for session: {}", sessionId);
+        LOG.debug("Processing STOMP CONNECT for session: {}", sessionId);
 
         // Extract initData from header
         String initData = accessor.getFirstNativeHeader(INIT_DATA_HEADER);
 
         if (initData == null || initData.isBlank()) {
-            log.warn("Missing {} header in STOMP CONNECT, sessionId: {}", 
+            LOG.warn("Missing {} header in STOMP CONNECT, sessionId: {}", 
                     INIT_DATA_HEADER, sessionId);
             throw AuthenticationException.missingField(INIT_DATA_HEADER);
         }
@@ -103,15 +103,15 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             TelegramPrincipal principal = new TelegramPrincipal(telegramData);
             accessor.setUser(principal);
 
-            log.info("STOMP CONNECT authenticated: userId={}, username={}, sessionId={}",
+            LOG.info("STOMP CONNECT authenticated: userId={}, username={}, sessionId={}",
                     principal.getUserId(), principal.getUsername(), sessionId);
 
         } catch (AuthenticationException e) {
-            log.warn("STOMP CONNECT authentication failed: {}, sessionId: {}", 
+            LOG.warn("STOMP CONNECT authentication failed: {}, sessionId: {}", 
                     e.getMessage(), sessionId);
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected error during STOMP authentication, sessionId: {}", 
+            LOG.error("Unexpected error during STOMP authentication, sessionId: {}", 
                     sessionId, e);
             throw new AuthenticationException("Authentication failed", e);
         }

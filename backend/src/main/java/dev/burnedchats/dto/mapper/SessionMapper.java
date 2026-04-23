@@ -31,8 +31,10 @@ public interface SessionMapper {
     @Mapping(target = "sessionId", source = "session.id")
     @Mapping(target = "status", source = "session.status")
     @Mapping(target = "peer", source = "peer")
-    @Mapping(target = "verified", expression = "java(isInitiator ? session.isInitiatorVerified() : session.isResponderVerified())")
-    @Mapping(target = "peerVerified", expression = "java(isInitiator ? session.isResponderVerified() : session.isInitiatorVerified())")
+    @Mapping(target = "verified",
+            expression = "java(isInitiator ? session.isInitiatorVerified() : session.isResponderVerified())")
+    @Mapping(target = "peerVerified",
+            expression = "java(isInitiator ? session.isResponderVerified() : session.isInitiatorVerified())")
     @Mapping(target = "createdAt", source = "session.createdAt")
     @Mapping(target = "lastActivityAt", source = "session.lastActivityAt")
     SessionResponse toResponse(Session session, UserResponse peer, boolean isInitiator);

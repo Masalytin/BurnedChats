@@ -17,7 +17,7 @@ import java.time.Duration;
 @Component
 public class OfflineQueueSizeSampler {
 
-    private static final Logger log = LoggerFactory.getLogger(OfflineQueueSizeSampler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(OfflineQueueSizeSampler.class);
     private static final ScanOptions SCAN_OPTIONS = ScanOptions.scanOptions()
             .match("messages:*")
             .count(500)
@@ -54,17 +54,17 @@ public class OfflineQueueSizeSampler {
                         .defaultIfEmpty(0L)
                         .map(sz -> {
                             if (OfflineQueueKeyUtil.isUserMessageListKey(key)) {
-                                return new long[] { sz, 0L };
+                                return new long[]{sz, 0L};
                             }
-                            return new long[] { 0L, sz };
+                            return new long[]{0L, sz};
                         }))
                 .reduce(
-                        new long[] { 0L, 0L },
-                        (a, b) -> new long[] { a[0] + b[0], a[1] + b[1] }
+                        new long[]{0L, 0L},
+                        (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]}
                 )
                 .doOnNext(totals -> metrics.updateScannedListSizes(totals[0], totals[1]))
                 .onErrorResume(e -> {
-                    log.debug("Offline queue size scan failed: {}", e.getMessage());
+                    LOG.debug("Offline queue size scan failed: {}", e.getMessage());
                     return Mono.empty();
                 })
                 .block(Duration.ofSeconds(30));

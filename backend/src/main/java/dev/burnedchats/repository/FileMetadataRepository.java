@@ -26,7 +26,7 @@ import java.util.Map;
 @Repository
 public class FileMetadataRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(FileMetadataRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FileMetadataRepository.class);
 
     private static final String META_PREFIX = "file_meta:";
     private static final String CONTEXT_PREFIX = "file_context:";
@@ -58,7 +58,7 @@ public class FileMetadataRepository {
                         .add(contextKey, metadata.getFileId())
                         .then(redisTemplate.expire(contextKey, properties.getMetadataTtl()))
                         .thenReturn(true))
-                .doOnSuccess(r -> log.debug("Saved file metadata: {}, context: {}:{}",
+                .doOnSuccess(r -> LOG.debug("Saved file metadata: {}, context: {}:{}",
                         metadata.getFileId(), metadata.getContextType(), metadata.getContextId()));
     }
 
@@ -81,9 +81,9 @@ public class FileMetadataRepository {
                 .map(map -> fromMap(fileId, map))
                 .doOnSuccess(meta -> {
                     if (meta != null) {
-                        log.debug("Found file metadata: {}", fileId);
+                        LOG.debug("Found file metadata: {}", fileId);
                     } else {
-                        log.debug("File metadata not found: {}", fileId);
+                        LOG.debug("File metadata not found: {}", fileId);
                     }
                 });
     }
@@ -106,7 +106,7 @@ public class FileMetadataRepository {
                             .map(count -> count > 0);
                 })
                 .defaultIfEmpty(false)
-                .doOnSuccess(deleted -> log.debug("Deleted file metadata: {}, result: {}", fileId, deleted));
+                .doOnSuccess(deleted -> LOG.debug("Deleted file metadata: {}, result: {}", fileId, deleted));
     }
 
     /**
@@ -121,7 +121,7 @@ public class FileMetadataRepository {
 
         return redisTemplate.opsForSet()
                 .members(contextKey)
-                .doOnComplete(() -> log.debug("Listed files for context: {}", contextId));
+                .doOnComplete(() -> LOG.debug("Listed files for context: {}", contextId));
     }
 
     /**
@@ -135,7 +135,7 @@ public class FileMetadataRepository {
         String key = contextKeyFor(contextId);
         return redisTemplate.delete(key)
                 .map(count -> count > 0)
-                .doOnSuccess(deleted -> log.debug("Deleted context key {}: {}", key, deleted));
+                .doOnSuccess(deleted -> LOG.debug("Deleted context key {}: {}", key, deleted));
     }
 
     /**

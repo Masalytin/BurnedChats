@@ -106,11 +106,11 @@ public class BurnHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.getSessionId();
 
-        log.info("Session burn requested: sessionId={}, userId={}", sessionId, userId);
+        LOG.info("Session burn requested: sessionId={}, userId={}", sessionId, userId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for burn: {}", sessionId);
+                    LOG.debug("Session not found for burn: {}", sessionId);
                     sendBurnError(userId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -118,10 +118,10 @@ public class BurnHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error burning session {}: {}", sessionId, error.getMessage());
+                            LOG.error("Error burning session {}: {}", sessionId, error.getMessage());
                             sendBurnError(userId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -132,14 +132,14 @@ public class BurnHandler {
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
-            log.debug("User {} is not a participant in session {}", userId, sessionId);
+            LOG.debug("User {} is not a participant in session {}", userId, sessionId);
             sendBurnError(userId, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
         // Validate session status - cannot burn already burned sessions
         if (session.getStatus() == SessionStatus.BURNED) {
-            log.debug("Session {} is already burned", sessionId);
+            LOG.debug("Session {} is already burned", sessionId);
             sendBurnError(userId, sessionId, "ALREADY_BURNED");
             return Mono.empty();
         }
@@ -164,7 +164,7 @@ public class BurnHandler {
         Long responderId = session.getResponderId();
         Instant burnedAt = Instant.now();
 
-        log.info("Burning session: sessionId={}, initiator={}, responder={}, burnedBy={}",
+        LOG.info("Burning session: sessionId={}, initiator={}, responder={}, burnedBy={}",
                 sessionId, initiatorId, responderId, burningUserId);
 
         // First update status to BURNED (prevents race conditions)
@@ -179,7 +179,7 @@ public class BurnHandler {
                 .doOnSuccess(deleted -> {
                     sendBurnSignalToBothParticipants(sessionId, initiatorId, responderId, 
                             burningUserId, burnedAt);
-                    log.info("Session burned successfully: sessionId={}, burnedBy={}", 
+                    LOG.info("Session burned successfully: sessionId={}, burnedBy={}", 
                             sessionId, burningUserId);
                 })
                 .then();
@@ -207,14 +207,14 @@ public class BurnHandler {
         return Mono.when(
                 // Delete queued messages for both participants
                 messageRepository.deleteAllForSession(sessionId, participantIds)
-                        .doOnSuccess(count -> log.debug("Deleted {} messages for session {}", 
+                        .doOnSuccess(count -> LOG.debug("Deleted {} messages for session {}", 
                                 count, sessionId)),
                 
                 // Delete any pending requests (in case session was in PENDING status)
                 requestRepository.delete(responderId, sessionId)
                         .doOnSuccess(deleted -> {
                             if (deleted) {
-                                log.debug("Deleted pending request for responder {}", responderId);
+                                LOG.debug("Deleted pending request for responder {}", responderId);
                             }
                         }),
                 
@@ -222,7 +222,7 @@ public class BurnHandler {
                 requestRepository.delete(initiatorId, sessionId)
                         .doOnSuccess(deleted -> {
                             if (deleted) {
-                                log.debug("Deleted pending request for initiator {}", initiatorId);
+                                LOG.debug("Deleted pending request for initiator {}", initiatorId);
                             }
                         })
         );
@@ -262,7 +262,7 @@ public class BurnHandler {
                 BURN_SIGNAL_DESTINATION,
                 event
         );
-        log.debug("Sent burn signal to initiator: {}", initiatorId);
+        LOG.debug("Sent burn signal to initiator: {}", initiatorId);
 
         // Send to responder
         messagingTemplate.convertAndSendToUser(
@@ -270,7 +270,7 @@ public class BurnHandler {
                 BURN_SIGNAL_DESTINATION,
                 event
         );
-        log.debug("Sent burn signal to responder: {}", responderId);
+        LOG.debug("Sent burn signal to responder: {}", responderId);
     }
 
     /**
@@ -289,6 +289,6 @@ public class BurnHandler {
                 event
         );
 
-        log.trace("Sent burn error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent burn error to user {}: {}", userId, errorCode);
     }
 }

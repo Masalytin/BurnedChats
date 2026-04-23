@@ -34,7 +34,7 @@ import java.time.Duration;
 @Repository
 public class RequestRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(RequestRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RequestRepository.class);
 
     private static final String KEY_PREFIX = "request:";
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(5);
@@ -60,10 +60,10 @@ public class RequestRepository {
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(request))
                 .flatMap(json -> redisTemplate.opsForList().leftPush(key, json))
                 .flatMap(size -> redisTemplate.expire(key, DEFAULT_TTL).thenReturn(size))
-                .doOnSuccess(size -> log.debug("Saved request for recipient {}, session {}, queue size: {}",
+                .doOnSuccess(size -> LOG.debug("Saved request for recipient {}, session {}, queue size: {}",
                         request.getRecipientTgId(), request.getSessionId(), size))
                 .onErrorResume(JsonProcessingException.class, e -> {
-                    log.error("Failed to serialize chat request: {}", e.getMessage());
+                    LOG.error("Failed to serialize chat request: {}", e.getMessage());
                     return Mono.error(new RuntimeException("Failed to serialize request", e));
                 });
     }
@@ -81,10 +81,13 @@ public class RequestRepository {
                 .range(key, 0, -1)
                 .flatMap(json -> {
                     ChatRequest request = parseRequest(json);
-                    return request != null ? reactor.core.publisher.Mono.just(request) : reactor.core.publisher.Mono.empty();
+                    if (request != null) {
+                        return reactor.core.publisher.Mono.just(request);
+                    }
+                    return reactor.core.publisher.Mono.empty();
                 })
                 .filter(request -> !request.isExpired())
-                .doOnComplete(() -> log.debug("Retrieved requests for recipient: {}", recipientTgId));
+                .doOnComplete(() -> LOG.debug("Retrieved requests for recipient: {}", recipientTgId));
     }
 
     /**
@@ -100,9 +103,9 @@ public class RequestRepository {
                 .next()
                 .doOnSuccess(request -> {
                     if (request != null) {
-                        log.debug("Found request for session: {}", sessionId);
+                        LOG.debug("Found request for session: {}", sessionId);
                     } else {
-                        log.debug("Request not found for session: {}", sessionId);
+                        LOG.debug("Request not found for session: {}", sessionId);
                     }
                 });
     }
@@ -123,7 +126,7 @@ public class RequestRepository {
                 .next()
                 .doOnSuccess(request -> {
                     if (request != null) {
-                        log.debug("Found request for session: {}", sessionId);
+                        LOG.debug("Found request for session: {}", sessionId);
                     }
                 });
     }
@@ -150,7 +153,7 @@ public class RequestRepository {
                     }
                 })
                 .defaultIfEmpty(false)
-                .doOnSuccess(removed -> log.debug("Deleted request for session {}: {}", sessionId, removed));
+                .doOnSuccess(removed -> LOG.debug("Deleted request for session {}: {}", sessionId, removed));
     }
 
     /**
@@ -163,7 +166,7 @@ public class RequestRepository {
         String key = keyFor(recipientTgId);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(count -> log.debug("Deleted all requests for recipient {}: {} keys",
+                .doOnSuccess(count -> LOG.debug("Deleted all requests for recipient {}: {} keys",
                         recipientTgId, count));
     }
 
@@ -213,7 +216,7 @@ public class RequestRepository {
         try {
             return objectMapper.readValue(json, ChatRequest.class);
         } catch (JsonProcessingException e) {
-            log.warn("Failed to parse chat request: {}", e.getMessage());
+            LOG.warn("Failed to parse chat request: {}", e.getMessage());
             return null;
         }
     }

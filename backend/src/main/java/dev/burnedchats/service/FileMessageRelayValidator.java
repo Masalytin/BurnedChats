@@ -77,7 +77,7 @@ public class FileMessageRelayValidator {
     private Mono<Void> validateSingleFile(String fileId, Long senderTgId, String contextId) {
         return fileMetadataRepository.findById(fileId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("File metadata not found during relay validation: {}", fileId);
+                    LOG.debug("File metadata not found during relay validation: {}", fileId);
                     return Mono.error(new FileValidationException("FILE_NOT_FOUND", fileId));
                 }))
                 .flatMap(meta -> checkOwnershipAndContext(meta, senderTgId, contextId))
@@ -87,12 +87,12 @@ public class FileMessageRelayValidator {
     private Mono<FileMetadata> checkOwnershipAndContext(FileMetadata meta,
                                                          Long senderTgId, String contextId) {
         if (!String.valueOf(senderTgId).equals(meta.getUploaderTgId())) {
-            log.debug("File {} not owned by sender {}, actual uploader: {}",
+            LOG.debug("File {} not owned by sender {}, actual uploader: {}",
                     meta.getFileId(), senderTgId, meta.getUploaderTgId());
             return Mono.error(new FileValidationException("FILE_NOT_OWNED", meta.getFileId()));
         }
         if (!contextId.equals(meta.getContextId())) {
-            log.debug("File {} context mismatch: expected {}, actual {}",
+            LOG.debug("File {} context mismatch: expected {}, actual {}",
                     meta.getFileId(), contextId, meta.getContextId());
             return Mono.error(new FileValidationException("FILE_CONTEXT_MISMATCH", meta.getFileId()));
         }

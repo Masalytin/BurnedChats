@@ -34,7 +34,7 @@ import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
+    private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 
     private final StompAuthInterceptor stompAuthInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
@@ -114,7 +114,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // Preserve publish order for message consistency
         registry.setPreservePublishOrder(true);
 
-        log.info("Message broker configured with heartbeat: server={}ms, client={}ms",
+        LOG.info("Message broker configured with heartbeat: server={}ms, client={}ms",
                 serverHeartbeat, clientHeartbeat);
     }
 
@@ -150,7 +150,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns(allowedOrigins);
 
-        log.info("STOMP endpoints registered at /ws with SockJS fallback");
+        LOG.info("STOMP endpoints registered at /ws with SockJS fallback");
     }
 
     /**
@@ -167,7 +167,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setSendTimeLimit(sendTimeout)              // Send timeout
                 .setTimeToFirstMessage(30000);              // Time to first message after connect
 
-        log.debug("WebSocket transport configured: maxMessageSize={}, sendBuffer={}, sendTimeout={}",
+        LOG.debug("WebSocket transport configured: maxMessageSize={}, sendBuffer={}, sendTimeout={}",
                 maxMessageSize, sendBufferSize, sendTimeout);
     }
 
@@ -191,7 +191,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // Add rate limiting interceptor (5.1.6)
         registration.interceptors(stompAuthInterceptor, rateLimitInterceptor);
 
-        log.info("Inbound channel configured with StompAuthInterceptor and RateLimitInterceptor");
+        LOG.info("Inbound channel configured with StompAuthInterceptor and RateLimitInterceptor");
     }
 
     /**
@@ -220,7 +220,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void handleSubscription(SessionSubscribeEvent event) {
         String destination = (String) event.getMessage().getHeaders().get("simpDestination");
         String sessionId = (String) event.getMessage().getHeaders().get("simpSessionId");
-        log.debug("Client subscribed: sessionId={}, destination={}", sessionId, destination);
+        LOG.debug("Client subscribed: sessionId={}, destination={}", sessionId, destination);
     }
 }
 

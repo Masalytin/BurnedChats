@@ -42,10 +42,10 @@ public class UserPreferenceHandler {
 
         languagePreferenceRepository.save(userId, request.getLanguageCode())
                 .subscribe(
-                        success -> log.debug("Language preference saved: userId={}, lang={}",
+                        success -> LOG.debug("Language preference saved: userId={}, lang={}",
                                 userId, request.getLanguageCode()),
-                        error -> log.warn("Failed to save language preference: userId={}, error={}",
+                        error -> LOG.warn("Failed to save language preference: userId={}, error={}",
                                 userId, error.getMessage())
-                );
+            );
     }
 }

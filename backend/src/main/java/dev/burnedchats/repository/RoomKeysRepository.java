@@ -79,11 +79,11 @@ public class RoomKeysRepository {
         return redisTemplate.opsForHash()
                 .put(key, bundle.getRecipientTgId(), value)
                 .then(redisTemplate.expire(key, KEY_BUNDLE_TTL))
-                .doOnSuccess(ok -> log.debug(
+                .doOnSuccess(ok -> LOG.debug(
                         "Stored key bundle for member {} in room {} epoch {}",
                         bundle.getRecipientTgId(), bundle.getRoomId(), bundle.getEpoch()))
                 .onErrorResume(e -> {
-                    log.error("Failed to store key bundle for member {} in room {}: {}",
+                    LOG.error("Failed to store key bundle for member {} in room {}: {}",
                             bundle.getRecipientTgId(), bundle.getRoomId(), e.getMessage());
                     return Mono.just(false);
                 });
@@ -106,9 +106,9 @@ public class RoomKeysRepository {
                 .map(v -> String.valueOf(v))
                 .filter(v -> !v.isBlank())
                 .map(v -> deserialise(v, roomId, epoch, tgId))
-                .doOnNext(b -> log.debug("Fetched key bundle for member {} in room {} epoch {}", tgId, roomId, epoch))
+                .doOnNext(b -> LOG.debug("Fetched key bundle for member {} in room {} epoch {}", tgId, roomId, epoch))
                 .onErrorResume(e -> {
-                    log.error("Failed to fetch key bundle for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to fetch key bundle for member {} in room {}: {}", tgId, roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -133,9 +133,9 @@ public class RoomKeysRepository {
                         roomId,
                         epoch,
                         String.valueOf(entry.getKey())))
-                .doOnComplete(() -> log.debug("Fetched all key bundles for room {} epoch {}", roomId, epoch))
+                .doOnComplete(() -> LOG.debug("Fetched all key bundles for room {} epoch {}", roomId, epoch))
                 .onErrorResume(e -> {
-                    log.error("Failed to fetch key bundles for room {} epoch {}: {}", roomId, epoch, e.getMessage());
+                    LOG.error("Failed to fetch key bundles for room {} epoch {}: {}", roomId, epoch, e.getMessage());
                     return Flux.empty();
                 });
     }
@@ -152,7 +152,7 @@ public class RoomKeysRepository {
      */
     public Mono<Long> deleteEpoch(String roomId, int epoch) {
         return redisTemplate.delete(keysKeyFor(roomId, epoch))
-                .doOnSuccess(n -> log.debug("Deleted key bundles for room {} epoch {} (result={})", roomId, epoch, n));
+                .doOnSuccess(n -> LOG.debug("Deleted key bundles for room {} epoch {} (result={})", roomId, epoch, n));
     }
 
     /**
@@ -176,11 +176,11 @@ public class RoomKeysRepository {
                     keysToDelete[currentEpoch + 1] = epochKeyFor(roomId);
 
                     return redisTemplate.delete(keysToDelete)
-                            .doOnSuccess(n -> log.debug("Deleted all key data for room {} (keys={})", roomId, n));
+                            .doOnSuccess(n -> LOG.debug("Deleted all key data for room {} (keys={})", roomId, n));
                 })
                 .then()
                 .onErrorResume(e -> {
-                    log.error("Failed to delete key data for room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to delete key data for room {}: {}", roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -199,9 +199,9 @@ public class RoomKeysRepository {
         return redisTemplate.opsForValue()
                 .get(epochKeyFor(roomId))
                 .map(Integer::parseInt)
-                .doOnNext(epoch -> log.debug("Current epoch for room {}: {}", roomId, epoch))
+                .doOnNext(epoch -> LOG.debug("Current epoch for room {}: {}", roomId, epoch))
                 .onErrorResume(e -> {
-                    log.error("Failed to get epoch for room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to get epoch for room {}: {}", roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -216,9 +216,9 @@ public class RoomKeysRepository {
     public Mono<Boolean> setCurrentEpoch(String roomId, int epoch) {
         return redisTemplate.opsForValue()
                 .set(epochKeyFor(roomId), String.valueOf(epoch), EPOCH_TTL)
-                .doOnSuccess(ok -> log.debug("Set epoch {} for room {}", epoch, roomId))
+                .doOnSuccess(ok -> LOG.debug("Set epoch {} for room {}", epoch, roomId))
                 .onErrorResume(e -> {
-                    log.error("Failed to set epoch for room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to set epoch for room {}: {}", roomId, e.getMessage());
                     return Mono.just(false);
                 });
     }

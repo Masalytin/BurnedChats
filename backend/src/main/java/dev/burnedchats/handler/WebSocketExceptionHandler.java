@@ -30,7 +30,7 @@ public class WebSocketExceptionHandler {
     @MessageExceptionHandler(RateLimitException.class)
     @SendToUser("/queue/errors")
     public Map<String, Object> handleRateLimitException(RateLimitException exception) {
-        log.warn("Rate limit exceeded: {}", exception.getMessage());
+        LOG.warn("Rate limit exceeded: {}", exception.getMessage());
 
         return Map.of(
                 "success", false,
@@ -50,7 +50,7 @@ public class WebSocketExceptionHandler {
     @MessageExceptionHandler(Exception.class)
     @SendToUser("/queue/errors")
     public Map<String, Object> handleException(Exception exception) {
-        log.error("Unhandled WebSocket exception: {}", exception.getMessage(), exception);
+        LOG.error("Unhandled WebSocket exception: {}", exception.getMessage(), exception);
 
         return Map.of(
                 "success", false,

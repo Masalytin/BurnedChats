@@ -9,13 +9,10 @@ import jakarta.validation.constraints.NotBlank;
  * or reconnecting to a room. Returns all messages currently stored in
  * {@code messages:{roomId}} so the client can fill in any gaps.
  *
+ * @param roomId room ID to sync messages for
  * @see dev.burnedchats.handler.RoomMessageHandler
  */
 public record SyncRoomMessagesRequest(
-
-        /**
-         * Room ID to sync messages for.
-         */
         @NotBlank(message = "Room ID is required")
         String roomId
 ) {

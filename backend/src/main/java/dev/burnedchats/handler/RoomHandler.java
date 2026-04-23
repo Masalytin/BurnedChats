@@ -70,7 +70,8 @@ import java.util.Objects;
  *   <li>{@code /app/room.getMembers} — returns the list of member tgIds for a room (P2-4.3.1)</li>
  *   <li>{@code /app/room.burn} — burn the room (owner only); deletes all room data and notifies members (P2-4.3.2)</li>
  *   <li>{@code /app/room.leave} — member (non-owner) leaves the room; triggers rekey notification (P2-4.3.4)</li>
- *   <li>{@code /app/room.requestKeyBundle} — existing member requests re-delivery of group key after app restart (P2-3.2.3)</li>
+ *   <li>{@code /app/room.requestKeyBundle} — existing member requests re-delivery of group key after
+ *   app restart (P2-3.2.3)</li>
  * </ul>
  *
  * <p>Events sent:
@@ -86,9 +87,11 @@ import java.util.Objects;
  *   <li>{@code /user/queue/member-pubkeys} — member ECDH public keys (sent to owner)</li>
  *   <li>{@code /user/queue/room-list} — list of rooms the user participates in</li>
  *   <li>{@code /user/queue/room-members} — list of member tgIds for a room (P2-4.3.1)</li>
- *   <li>{@code /user/queue/room-burned} — ROOM_BURNED notification (sent to all members including owner) (P2-4.3.2)</li>
+ *   <li>{@code /user/queue/room-burned} — ROOM_BURNED notification (sent to all members including
+ *   owner) (P2-4.3.2)</li>
  *   <li>{@code /user/queue/room-left} — LEFT_ROOM confirmation (sent to the leaving member) (P2-4.3.4)</li>
- *   <li>{@code /user/queue/room-member-left} — member-left notification (sent to remaining members; triggers owner rekey) (P2-4.3.4)</li>
+ *   <li>{@code /user/queue/room-member-left} — member-left notification (sent to remaining members;
+ *   triggers owner rekey) (P2-4.3.4)</li>
  * </ul>
  *
  * <p>Security contract:
@@ -150,7 +153,7 @@ public class RoomHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long ownerTgId = telegramPrincipal.getUserId();
 
-        log.info("CREATE_ROOM requested: ownerTgId={}, joinMode={}", ownerTgId, request.getJoinMode());
+        LOG.info("CREATE_ROOM requested: ownerTgId={}, joinMode={}", ownerTgId, request.getJoinMode());
 
         roomService.createRoom(
                         ownerTgId,
@@ -163,7 +166,8 @@ public class RoomHandler {
                         inviteTokenService.generateInviteLink(room.getId(), ownerTgId)
                                 .map(inviteUrl -> RoomCreatedEvent.success(room.getId(), inviteUrl))
                                 .onErrorResume(e -> {
-                                    log.warn("Invite token generation failed for room {}: {}", room.getId(), e.getMessage());
+                                    LOG.warn("Invite token generation failed for room {}: {}",
+                                            room.getId(), e.getMessage());
                                     return reactor.core.publisher.Mono.just(RoomCreatedEvent.success(room.getId()));
                                 })
                                 .flatMap(event -> memberPublicKeyRepository
@@ -177,14 +181,14 @@ public class RoomHandler {
                                     ROOM_CREATED_DESTINATION,
                                     event
                             );
-                            log.info("ROOM_CREATED sent: roomId={}, ownerTgId={}, hasInviteUrl={}",
+                            LOG.info("ROOM_CREATED sent: roomId={}, ownerTgId={}, hasInviteUrl={}",
                                     event.getRoomId(), ownerTgId, event.getInviteUrl() != null);
                         },
                         error -> {
-                            log.error("Room creation failed for owner {}: {}", ownerTgId, error.getMessage());
+                            LOG.error("Room creation failed for owner {}: {}", ownerTgId, error.getMessage());
                             sendRoomCreatedError(ownerTgId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -201,7 +205,7 @@ public class RoomHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long requesterTgId = telegramPrincipal.getUserId();
 
-        log.info("GET_INVITE_LINK requested: roomId={}, tgId={}", request.getRoomId(), requesterTgId);
+        LOG.info("GET_INVITE_LINK requested: roomId={}, tgId={}", request.getRoomId(), requesterTgId);
 
         inviteTokenService.generateInviteLink(request.getRoomId(), requesterTgId)
                 .subscribe(
@@ -211,11 +215,11 @@ public class RoomHandler {
                                     INVITE_LINK_DESTINATION,
                                     InviteLinkEvent.success(inviteUrl)
                             );
-                            log.info("INVITE_LINK sent for room={}, tgId={}", request.getRoomId(), requesterTgId);
+                            LOG.info("INVITE_LINK sent for room={}, tgId={}", request.getRoomId(), requesterTgId);
                         },
                         error -> {
                             String errorCode = mapInviteError(error);
-                            log.warn("GET_INVITE_LINK failed: roomId={}, tgId={}, error={}",
+                            LOG.warn("GET_INVITE_LINK failed: roomId={}, tgId={}, error={}",
                                     request.getRoomId(), requesterTgId, errorCode);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(requesterTgId),
@@ -223,7 +227,7 @@ public class RoomHandler {
                                     InviteLinkEvent.error(errorCode)
                             );
                         }
-                );
+            );
     }
 
     /**
@@ -242,7 +246,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long requesterTgId = tp.getUserId();
 
-        log.info("GET_INVITE_INFO requested: tgId={}", requesterTgId);
+        LOG.info("GET_INVITE_INFO requested: tgId={}", requesterTgId);
 
         inviteTokenService.resolveRoomByToken(request.getInviteToken())
                 .subscribe(
@@ -255,19 +259,21 @@ public class RoomHandler {
                                     INVITE_INFO_DESTINATION,
                                     RoomInviteInfoEvent.success(salt, room.getJoinMode().name(), hasPassword)
                             );
-                            log.info("ROOM_INVITE_INFO sent: roomId={}, tgId={}, hasPassword={}",
+                            LOG.info("ROOM_INVITE_INFO sent: roomId={}, tgId={}, hasPassword={}",
                                     room.getId(), requesterTgId, hasPassword);
                         },
                         error -> {
-                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage() : "INTERNAL_ERROR";
-                            log.warn("GET_INVITE_INFO failed: tgId={}, error={}", requesterTgId, code);
+                            String code = error instanceof IllegalArgumentException iae
+                                    ? iae.getMessage()
+                                    : "INTERNAL_ERROR";
+                            LOG.warn("GET_INVITE_INFO failed: tgId={}, error={}", requesterTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(requesterTgId),
                                     INVITE_INFO_DESTINATION,
                                     RoomInviteInfoEvent.error(code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -295,7 +301,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long senderTgId = tp.getUserId();
 
-        log.info("REQUEST_JOIN_ROOM: senderTgId={}", senderTgId);
+        LOG.info("REQUEST_JOIN_ROOM: senderTgId={}", senderTgId);
 
         roomJoinService.requestJoin(
                         senderTgId,
@@ -306,56 +312,59 @@ public class RoomHandler {
                         request.getPublicKey()
                 )
                 .subscribe(
-                        result -> {
-                            if (result instanceof RoomJoinService.JoinResult.Approved approved) {
-                                log.info("User {} joined room {} directly (BY_PASSWORD)", senderTgId, approved.roomId());
-                                messagingTemplate.convertAndSendToUser(
-                                        String.valueOf(senderTgId),
-                                        JOIN_RESULT_DESTINATION,
-                                        JoinApprovedEvent.success(approved.roomId())
-                                );
-                                // Notify owner to wrap and deliver the KEY_BUNDLE to the new member.
-                                // The owner's client handles autoApproved=true by sending KEY_BUNDLE
-                                // immediately without showing a confirmation dialog.
-                                messagingTemplate.convertAndSendToUser(
-                                        String.valueOf(approved.ownerTgId()),
-                                        JOIN_REQUESTS_DESTINATION,
-                                        RoomJoinRequestEvent.autoApproved(
-                                                approved.roomId(),
-                                                senderTgId,
-                                                tp.getUsername(),
-                                                tp.getFirstName(),
-                                                System.currentTimeMillis(),
-                                                request.getPublicKey()
-                                        )
-                                );
-                            } else if (result instanceof RoomJoinService.JoinResult.Pending pending) {
-                                log.info("Join request pending: roomId={}, senderTgId={}, ownerTgId={}",
-                                        pending.request().getRoomId(), senderTgId, pending.ownerTgId());
-                                messagingTemplate.convertAndSendToUser(
-                                        String.valueOf(pending.ownerTgId()),
-                                        JOIN_REQUESTS_DESTINATION,
-                                        RoomJoinRequestEvent.of(
-                                                pending.request().getRoomId(),
-                                                pending.request().getSenderTgId(),
-                                                pending.request().getUsername(),
-                                                pending.request().getFirstName(),
-                                                pending.request().getCreatedAt(),
-                                                pending.request().getPublicKey()
-                                        )
-                                );
-                            }
-                        },
+                        result -> onRequestJoinRoomSuccess(senderTgId, request, tp, result),
                         error -> {
                             String code = mapJoinError(error);
-                            log.warn("REQUEST_JOIN_ROOM failed: senderTgId={}, error={}", senderTgId, code);
+                            LOG.warn("REQUEST_JOIN_ROOM failed: senderTgId={}, error={}", senderTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(senderTgId),
                                     JOIN_RESULT_DESTINATION,
                                     JoinApprovedEvent.error(code)
                             );
                         }
-                );
+            );
+    }
+
+    private void onRequestJoinRoomSuccess(Long senderTgId, RequestJoinRoomRequest request, TelegramPrincipal tp,
+            RoomJoinService.JoinResult result) {
+        if (result instanceof RoomJoinService.JoinResult.Approved approved) {
+            LOG.info("User {} joined room {} directly (BY_PASSWORD)", senderTgId, approved.roomId());
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(senderTgId),
+                    JOIN_RESULT_DESTINATION,
+                    JoinApprovedEvent.success(approved.roomId())
+            );
+            // Notify owner to wrap and deliver the KEY_BUNDLE to the new member.
+            // The owner's client handles autoApproved=true by sending KEY_BUNDLE
+            // immediately without showing a confirmation dialog.
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(approved.ownerTgId()),
+                    JOIN_REQUESTS_DESTINATION,
+                    RoomJoinRequestEvent.autoApproved(
+                            approved.roomId(),
+                            senderTgId,
+                            tp.getUsername(),
+                            tp.getFirstName(),
+                            System.currentTimeMillis(),
+                            request.getPublicKey()
+                    )
+            );
+        } else if (result instanceof RoomJoinService.JoinResult.Pending pending) {
+            LOG.info("Join request pending: roomId={}, senderTgId={}, ownerTgId={}",
+                    pending.request().getRoomId(), senderTgId, pending.ownerTgId());
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(pending.ownerTgId()),
+                    JOIN_REQUESTS_DESTINATION,
+                    RoomJoinRequestEvent.of(
+                            pending.request().getRoomId(),
+                            pending.request().getSenderTgId(),
+                            pending.request().getUsername(),
+                            pending.request().getFirstName(),
+                            pending.request().getCreatedAt(),
+                            pending.request().getPublicKey()
+                    )
+            );
+        }
     }
 
     /**
@@ -372,7 +381,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long ownerTgId = tp.getUserId();
 
-        log.info("ACCEPT_ROOM_JOIN: roomId={}, senderTgId={}, ownerTgId={}",
+        LOG.info("ACCEPT_ROOM_JOIN: roomId={}, senderTgId={}, ownerTgId={}",
                 request.getRoomId(), request.getSenderTgId(), ownerTgId);
 
         roomJoinService.acceptJoin(ownerTgId, request.getRoomId(), request.getSenderTgId())
@@ -383,12 +392,12 @@ public class RoomHandler {
                                     JOIN_RESULT_DESTINATION,
                                     JoinApprovedEvent.success(request.getRoomId())
                             );
-                            log.info("JOIN_APPROVED sent: roomId={}, senderTgId={}",
+                            LOG.info("JOIN_APPROVED sent: roomId={}, senderTgId={}",
                                     request.getRoomId(), request.getSenderTgId());
                         },
                         error -> {
                             String code = mapJoinDecisionError(error);
-                            log.warn("ACCEPT_ROOM_JOIN failed: roomId={}, ownerTgId={}, error={}",
+                            LOG.warn("ACCEPT_ROOM_JOIN failed: roomId={}, ownerTgId={}, error={}",
                                     request.getRoomId(), ownerTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(ownerTgId),
@@ -396,7 +405,7 @@ public class RoomHandler {
                                     JoinApprovedEvent.error(code)
                             );
                         }
-                );
+            );
     }
 
     /**
@@ -413,7 +422,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long ownerTgId = tp.getUserId();
 
-        log.info("REJECT_ROOM_JOIN: roomId={}, senderTgId={}, ownerTgId={}",
+        LOG.info("REJECT_ROOM_JOIN: roomId={}, senderTgId={}, ownerTgId={}",
                 request.getRoomId(), request.getSenderTgId(), ownerTgId);
 
         roomJoinService.rejectJoin(ownerTgId, request.getRoomId(), request.getSenderTgId())
@@ -424,12 +433,12 @@ public class RoomHandler {
                                     JOIN_RESULT_DESTINATION,
                                     JoinRejectedEvent.of(request.getRoomId())
                             );
-                            log.info("JOIN_REJECTED sent: roomId={}, senderTgId={}",
+                            LOG.info("JOIN_REJECTED sent: roomId={}, senderTgId={}",
                                     request.getRoomId(), request.getSenderTgId());
                         },
                         error -> {
                             String code = mapJoinDecisionError(error);
-                            log.warn("REJECT_ROOM_JOIN failed: roomId={}, ownerTgId={}, error={}",
+                            LOG.warn("REJECT_ROOM_JOIN failed: roomId={}, ownerTgId={}, error={}",
                                     request.getRoomId(), ownerTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(ownerTgId),
@@ -437,7 +446,7 @@ public class RoomHandler {
                                     JoinApprovedEvent.error(code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -459,7 +468,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long ownerTgId = tp.getUserId();
 
-        log.info("SEND_KEY_BUNDLE: roomId={}, recipientTgId={}, epoch={}, ownerTgId={}",
+        LOG.info("SEND_KEY_BUNDLE: roomId={}, recipientTgId={}, epoch={}, ownerTgId={}",
                 request.getRoomId(), request.getRecipientTgId(), request.getEpoch(), ownerTgId);
 
         roomRepository.findById(request.getRoomId())
@@ -486,12 +495,12 @@ public class RoomHandler {
                                     KEY_BUNDLE_DESTINATION,
                                     KeyBundleEvent.from(bundle)
                             );
-                            log.info("KEY_BUNDLE relayed: roomId={}, recipientTgId={}, epoch={}",
+                            LOG.info("KEY_BUNDLE relayed: roomId={}, recipientTgId={}, epoch={}",
                                     bundle.getRoomId(), bundle.getRecipientTgId(), bundle.getEpoch());
                         },
-                        error -> log.warn("SEND_KEY_BUNDLE failed: roomId={}, ownerTgId={}, error={}",
+                        error -> LOG.warn("SEND_KEY_BUNDLE failed: roomId={}, ownerTgId={}, error={}",
                                 request.getRoomId(), ownerTgId, error.getMessage())
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -518,7 +527,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long callerTgId = tp.getUserId();
 
-        log.info("REQUEST_KEY_BUNDLE: roomId={}, callerTgId={}", request.getRoomId(), callerTgId);
+        LOG.info("REQUEST_KEY_BUNDLE: roomId={}, callerTgId={}", request.getRoomId(), callerTgId);
 
         roomRepository.findById(request.getRoomId())
                 .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
@@ -552,7 +561,8 @@ public class RoomHandler {
                                             request.getPublicKey()
                                     )
                             );
-                            log.info("REQUEST_KEY_BUNDLE: notified owner {} to send KEY_BUNDLE for member {} in room {}",
+                            LOG.info(
+                                    "REQUEST_KEY_BUNDLE: notified owner {} to send KEY_BUNDLE for member {} in room {}",
                                     room.getOwnerTgId(), callerTgId, request.getRoomId());
                         },
                         error -> {
@@ -560,10 +570,10 @@ public class RoomHandler {
                                     : error instanceof IllegalStateException ise ? ise.getMessage()
                                     : error instanceof SecurityException ? "NOT_MEMBER"
                                     : "INTERNAL_ERROR";
-                            log.warn("REQUEST_KEY_BUNDLE failed: roomId={}, callerTgId={}, error={}",
+                            LOG.warn("REQUEST_KEY_BUNDLE failed: roomId={}, callerTgId={}, error={}",
                                     request.getRoomId(), callerTgId, code);
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -591,7 +601,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long ownerTgId = tp.getUserId();
 
-        log.info("REKEY: roomId={}, newEpoch={}, bundles={}, ownerTgId={}",
+        LOG.info("REKEY: roomId={}, newEpoch={}, bundles={}, ownerTgId={}",
                 request.getRoomId(), request.getNewEpoch(), request.getBundles().size(), ownerTgId);
 
         roomRepository.findById(request.getRoomId())
@@ -640,12 +650,12 @@ public class RoomHandler {
                                         RoomRekeyEvent.of(request.getRoomId(), request.getNewEpoch())
                                 );
                             });
-                            log.info("REKEY completed: roomId={}, newEpoch={}, members={}",
+                            LOG.info("REKEY completed: roomId={}, newEpoch={}, members={}",
                                     request.getRoomId(), request.getNewEpoch(), bundles.size());
                         },
-                        error -> log.warn("REKEY failed: roomId={}, ownerTgId={}, error={}",
+                        error -> LOG.warn("REKEY failed: roomId={}, ownerTgId={}, error={}",
                                 request.getRoomId(), ownerTgId, error.getMessage())
-                );
+            );
     }
 
     /**
@@ -660,7 +670,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long ownerTgId = tp.getUserId();
 
-        log.info("GET_MEMBER_PUBKEYS: roomId={}, ownerTgId={}", request.getRoomId(), ownerTgId);
+        LOG.info("GET_MEMBER_PUBKEYS: roomId={}, ownerTgId={}", request.getRoomId(), ownerTgId);
 
         roomRepository.findById(request.getRoomId())
                 .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
@@ -681,7 +691,7 @@ public class RoomHandler {
                                     MEMBER_PUBKEYS_DESTINATION,
                                     event
                             );
-                            log.info("MEMBER_PUBKEYS sent: roomId={}, count={}, epoch={}",
+                            LOG.info("MEMBER_PUBKEYS sent: roomId={}, count={}, epoch={}",
                                     request.getRoomId(),
                                     event.getPublicKeys() != null ? event.getPublicKeys().size() : 0,
                                     event.getCurrentEpoch());
@@ -690,7 +700,7 @@ public class RoomHandler {
                             String code = error instanceof SecurityException ? "NOT_OWNER"
                                     : error instanceof IllegalArgumentException ? error.getMessage()
                                     : "INTERNAL_ERROR";
-                            log.warn("GET_MEMBER_PUBKEYS failed: roomId={}, ownerTgId={}, error={}",
+                            LOG.warn("GET_MEMBER_PUBKEYS failed: roomId={}, ownerTgId={}, error={}",
                                     request.getRoomId(), ownerTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(ownerTgId),
@@ -698,7 +708,7 @@ public class RoomHandler {
                                     MemberPublicKeysEvent.error(request.getRoomId(), code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -721,12 +731,12 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long tgId = tp.getUserId();
 
-        log.info("GET_MY_ROOMS requested: tgId={}", tgId);
+        LOG.info("GET_MY_ROOMS requested: tgId={}", tgId);
 
         roomMembersRepository.getRoomsForMember(tgId)
                 .flatMap(roomId -> roomRepository.findById(roomId)
                         .onErrorResume(e -> {
-                            log.warn("GET_MY_ROOMS: skipping roomId={} — {}", roomId, e.getMessage());
+                            LOG.warn("GET_MY_ROOMS: skipping roomId={} — {}", roomId, e.getMessage());
                             return reactor.core.publisher.Mono.empty();
                         })
                         .onErrorComplete())
@@ -745,17 +755,17 @@ public class RoomHandler {
                                     ROOM_LIST_DESTINATION,
                                     RoomListEvent.success(rooms)
                             );
-                            log.info("ROOM_LIST sent: tgId={}, count={}", tgId, rooms.size());
+                            LOG.info("ROOM_LIST sent: tgId={}, count={}", tgId, rooms.size());
                         },
                         error -> {
-                            log.error("GET_MY_ROOMS failed: tgId={}, error={}", tgId, error.getMessage());
+                            LOG.error("GET_MY_ROOMS failed: tgId={}, error={}", tgId, error.getMessage());
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(tgId),
                                     ROOM_LIST_DESTINATION,
                                     RoomListEvent.error("INTERNAL_ERROR")
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -775,7 +785,7 @@ public class RoomHandler {
         TelegramPrincipal tp = (TelegramPrincipal) principal;
         Long requesterTgId = tp.getUserId();
 
-        log.info("GET_ROOM_MEMBERS requested: roomId={}, tgId={}", request.getRoomId(), requesterTgId);
+        LOG.info("GET_ROOM_MEMBERS requested: roomId={}, tgId={}", request.getRoomId(), requesterTgId);
 
         roomMembersRepository.isMember(request.getRoomId(), requesterTgId)
                 .flatMap(isMember -> {
@@ -791,11 +801,14 @@ public class RoomHandler {
                                     ROOM_MEMBERS_LIST_DESTINATION,
                                     RoomMembersListEvent.success(request.getRoomId(), members)
                             );
-                            log.info("ROOM_MEMBERS_LIST sent: roomId={}, count={}", request.getRoomId(), members.size());
+                            LOG.info("ROOM_MEMBERS_LIST sent: roomId={}, count={}",
+                                    request.getRoomId(), members.size());
                         },
                         error -> {
-                            String code = error instanceof SecurityException ? "NOT_MEMBER" : "INTERNAL_ERROR";
-                            log.warn("GET_ROOM_MEMBERS failed: roomId={}, tgId={}, error={}",
+                            String code = error instanceof SecurityException
+                                    ? "NOT_MEMBER"
+                                    : "INTERNAL_ERROR";
+                            LOG.warn("GET_ROOM_MEMBERS failed: roomId={}, tgId={}, error={}",
                                     request.getRoomId(), requesterTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(requesterTgId),
@@ -803,7 +816,7 @@ public class RoomHandler {
                                     RoomMembersListEvent.error(code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -832,7 +845,7 @@ public class RoomHandler {
         Long ownerTgId = tp.getUserId();
         String roomId = request.getRoomId();
 
-        log.info("BURN_ROOM requested: roomId={}, ownerTgId={}", roomId, ownerTgId);
+        LOG.info("BURN_ROOM requested: roomId={}, ownerTgId={}", roomId, ownerTgId);
 
         roomRepository.findById(roomId)
                 .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
@@ -868,14 +881,14 @@ public class RoomHandler {
                                             event
                                     )
                             );
-                            log.info("ROOM_BURNED sent: roomId={}, ownerTgId={}, memberCount={}",
+                            LOG.info("ROOM_BURNED sent: roomId={}, ownerTgId={}, memberCount={}",
                                     roomId, ownerTgId, members.size());
                         },
                         error -> {
                             String code = error instanceof SecurityException ? "NOT_OWNER"
                                     : error instanceof IllegalArgumentException ? error.getMessage()
                                     : "INTERNAL_ERROR";
-                            log.warn("BURN_ROOM failed: roomId={}, ownerTgId={}, error={}",
+                            LOG.warn("BURN_ROOM failed: roomId={}, ownerTgId={}, error={}",
                                     roomId, ownerTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(ownerTgId),
@@ -883,7 +896,7 @@ public class RoomHandler {
                                     RoomBurnedEvent.error(roomId, code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -912,7 +925,7 @@ public class RoomHandler {
         Long callerTgId = tp.getUserId();
         String roomId = request.getRoomId();
 
-        log.info("LEAVE_ROOM requested: roomId={}, callerTgId={}", roomId, callerTgId);
+        LOG.info("LEAVE_ROOM requested: roomId={}, callerTgId={}", roomId, callerTgId);
 
         roomRepository.findById(roomId)
                 .switchIfEmpty(reactor.core.publisher.Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
@@ -947,7 +960,7 @@ public class RoomHandler {
                                             memberLeftEvent
                                     )
                             );
-                            log.info("LEAVE_ROOM processed: roomId={}, leftTgId={}, remainingMembers={}",
+                            LOG.info("LEAVE_ROOM processed: roomId={}, leftTgId={}, remainingMembers={}",
                                     roomId, callerTgId, remainingMembers.size());
                         },
                         error -> {
@@ -955,7 +968,7 @@ public class RoomHandler {
                                     : error instanceof IllegalStateException ise ? ise.getMessage()
                                     : error instanceof SecurityException ? "NOT_MEMBER"
                                     : "INTERNAL_ERROR";
-                            log.warn("LEAVE_ROOM failed: roomId={}, callerTgId={}, error={}",
+                            LOG.warn("LEAVE_ROOM failed: roomId={}, callerTgId={}, error={}",
                                     roomId, callerTgId, code);
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(callerTgId),
@@ -963,7 +976,7 @@ public class RoomHandler {
                                     RoomLeftEvent.error(roomId, code)
                             );
                         }
-                );
+            );
     }
 
     // -------------------------------------------------------------------------

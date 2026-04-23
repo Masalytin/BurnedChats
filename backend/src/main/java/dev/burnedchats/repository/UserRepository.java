@@ -36,7 +36,7 @@ import java.util.Map;
 @Repository
 public class UserRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(UserRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UserRepository.class);
 
     private static final String KEY_PREFIX = "user:";
     private static final Duration DEFAULT_TTL = Duration.ofDays(7);
@@ -66,9 +66,9 @@ public class UserRepository {
                 .map(this::mapToUser)
                 .doOnSuccess(user -> {
                     if (user != null) {
-                        log.debug("Found cached user: {}", tgId);
+                        LOG.debug("Found cached user: {}", tgId);
                     } else {
-                        log.debug("User not in cache: {}", tgId);
+                        LOG.debug("User not in cache: {}", tgId);
                     }
                 });
     }
@@ -102,9 +102,9 @@ public class UserRepository {
                 .next()
                 .doOnSuccess(user -> {
                     if (user != null) {
-                        log.debug("Found user by username: {}", username);
+                        LOG.debug("Found user by username: {}", username);
                     } else {
-                        log.debug("User not found by username: {}", username);
+                        LOG.debug("User not found by username: {}", username);
                     }
                 });
     }
@@ -126,7 +126,7 @@ public class UserRepository {
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
                 .then(redisTemplate.expire(key, DEFAULT_TTL))
-                .doOnSuccess(result -> log.debug("Saved user to cache: {} (@{})",
+                .doOnSuccess(result -> LOG.debug("Saved user to cache: {} (@{})",
                         user.getId(), user.getUsername()));
     }
 
@@ -163,7 +163,7 @@ public class UserRepository {
         String key = keyFor(tgId);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(count -> log.debug("Deleted user from cache: {}", tgId));
+                .doOnSuccess(count -> LOG.debug("Deleted user from cache: {}", tgId));
     }
 
     /**
@@ -198,7 +198,7 @@ public class UserRepository {
 
         return redisTemplate.opsForHash()
                 .putAll(key, fields)
-                .doOnSuccess(result -> log.debug("Updated user fields: {}", tgId));
+                .doOnSuccess(result -> LOG.debug("Updated user fields: {}", tgId));
     }
 
     /**

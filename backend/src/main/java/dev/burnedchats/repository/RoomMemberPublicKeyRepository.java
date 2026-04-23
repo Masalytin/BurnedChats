@@ -8,7 +8,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Redis repository for ECDH P-256 public keys of room members.
@@ -54,9 +53,9 @@ public class RoomMemberPublicKeyRepository {
                 .put(key, String.valueOf(tgId), publicKey)
                 .then(redisTemplate.expire(key, TTL))
                 .then()
-                .doOnSuccess(v -> log.debug("Stored public key for member {} in room {}", tgId, roomId))
+                .doOnSuccess(v -> LOG.debug("Stored public key for member {} in room {}", tgId, roomId))
                 .onErrorResume(e -> {
-                    log.error("Failed to store public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to store public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -75,7 +74,7 @@ public class RoomMemberPublicKeyRepository {
                 .map(String::valueOf)
                 .filter(v -> !v.isBlank())
                 .onErrorResume(e -> {
-                    log.error("Failed to get public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to get public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -93,9 +92,9 @@ public class RoomMemberPublicKeyRepository {
                         entry -> String.valueOf(entry.getKey()),
                         entry -> String.valueOf(entry.getValue())
                 )
-                .doOnSuccess(m -> log.debug("Fetched {} public keys for room {}", m.size(), roomId))
+                .doOnSuccess(m -> LOG.debug("Fetched {} public keys for room {}", m.size(), roomId))
                 .onErrorResume(e -> {
-                    log.error("Failed to get public keys for room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to get public keys for room {}: {}", roomId, e.getMessage());
                     return Mono.just(Map.of());
                 });
     }
@@ -111,7 +110,7 @@ public class RoomMemberPublicKeyRepository {
         return redisTemplate.opsForHash()
                 .remove(keyFor(roomId), (Object) String.valueOf(tgId))
                 .then()
-                .doOnSuccess(v -> log.debug("Removed public key for member {} in room {}", tgId, roomId));
+                .doOnSuccess(v -> LOG.debug("Removed public key for member {} in room {}", tgId, roomId));
     }
 
     /**
@@ -123,7 +122,7 @@ public class RoomMemberPublicKeyRepository {
     public Mono<Void> deleteRoom(String roomId) {
         return redisTemplate.delete(keyFor(roomId))
                 .then()
-                .doOnSuccess(v -> log.debug("Deleted all public keys for room {}", roomId));
+                .doOnSuccess(v -> LOG.debug("Deleted all public keys for room {}", roomId));
     }
 
     private String keyFor(String roomId) {

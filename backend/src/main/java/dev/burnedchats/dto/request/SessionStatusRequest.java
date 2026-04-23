@@ -8,12 +8,10 @@ import jakarta.validation.constraints.NotBlank;
  * <p>Used by clients to verify if a session is still active
  * and to get the remaining time until expiration.
  *
+ * @param sessionId session ID to check
  * @see dev.burnedchats.handler.SessionHandler#checkSessionStatus
  */
 public record SessionStatusRequest(
-        /**
-         * Session ID to check.
-         */
         @NotBlank(message = "Session ID is required")
         String sessionId
 ) {

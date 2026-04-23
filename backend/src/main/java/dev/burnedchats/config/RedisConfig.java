@@ -42,7 +42,7 @@ import java.time.Duration;
 @Configuration
 public class RedisConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(RedisConfig.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RedisConfig.class);
 
     @Value("${spring.data.redis.host:localhost}")
     private String redisHost;
@@ -142,7 +142,7 @@ public class RedisConfig {
         LettuceConnectionFactory factory = new LettuceConnectionFactory(serverConfig, clientConfig);
         factory.setShareNativeConnection(false);  // Don't share for reactive use
 
-        log.info("Redis connection factory configured: host={}, port={}, database={}, pool.maxActive={}",
+        LOG.info("Redis connection factory configured: host={}, port={}, database={}, pool.maxActive={}",
                 redisHost, redisPort, redisDatabase, maxActive);
 
         return factory;
@@ -172,7 +172,7 @@ public class RedisConfig {
                         .hashValue(valueSerializer)
                         .build();
 
-        log.debug("Reactive Redis template created with JSON serialization");
+        LOG.debug("Reactive Redis template created with JSON serialization");
 
         return new ReactiveRedisTemplate<>(connectionFactory, serializationContext);
     }
@@ -228,7 +228,7 @@ public class RedisConfig {
         template.setEnableTransactionSupport(false);
         template.afterPropertiesSet();
 
-        log.debug("Imperative Redis template created with JSON serialization");
+        LOG.debug("Imperative Redis template created with JSON serialization");
 
         return template;
     }

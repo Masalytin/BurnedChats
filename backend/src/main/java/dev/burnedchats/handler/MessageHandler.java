@@ -92,7 +92,6 @@ public class MessageHandler {
      */
     private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
 
-
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
@@ -124,13 +123,13 @@ public class MessageHandler {
         String sessionId = request.getSessionId();
         String messageId = request.getMessageId();
 
-        log.info("Message relay requested: sessionId={}, senderId={}, messageId={}",
+        LOG.info("Message relay requested: sessionId={}, senderId={}, messageId={}",
                 sessionId, senderId, messageId);
 
         // Validate session and relay message
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for message: {}", sessionId);
+                    LOG.debug("Session not found for message: {}", sessionId);
                     sendError(senderId, sessionId, messageId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -138,11 +137,11 @@ public class MessageHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error relaying message: sessionId={}, senderId={}, error={}",
+                            LOG.error("Error relaying message: sessionId={}, senderId={}, error={}",
                                     sessionId, senderId, error.getMessage());
                             sendError(senderId, sessionId, messageId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -161,19 +160,19 @@ public class MessageHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        log.info("Sync messages requested: sessionId={}, userId={}", sessionId, userId);
+        LOG.info("Sync messages requested: sessionId={}, userId={}", sessionId, userId);
 
         // Validate session and sync messages
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for sync: {}", sessionId);
+                    LOG.debug("Session not found for sync: {}", sessionId);
                     sendSyncError(userId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
                 .flatMap(session -> {
                     // Validate user is participant
                     if (!session.isParticipant(userId)) {
-                        log.debug("User {} is not a participant in session {}", userId, sessionId);
+                        LOG.debug("User {} is not a participant in session {}", userId, sessionId);
                         sendSyncError(userId, sessionId, "NOT_PARTICIPANT");
                         return Mono.empty();
                     }
@@ -194,7 +193,7 @@ public class MessageHandler {
                                         event
                                 );
 
-                                log.info("Synced {} messages for user {} in session {}",
+                                LOG.info("Synced {} messages for user {} in session {}",
                                         syncedMessages.size(), userId, sessionId);
 
                                 // Delete delivered messages from queue
@@ -209,11 +208,11 @@ public class MessageHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error syncing messages: sessionId={}, userId={}, error={}",
+                            LOG.error("Error syncing messages: sessionId={}, userId={}, error={}",
                                     sessionId, userId, error.getMessage());
                             sendSyncError(userId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -238,7 +237,7 @@ public class MessageHandler {
 
         // Validate sender is a participant
         if (!session.isParticipant(senderId)) {
-            log.debug("User {} is not a participant in session {}", senderId, sessionId);
+            LOG.debug("User {} is not a participant in session {}", senderId, sessionId);
             sendError(senderId, sessionId, messageId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
@@ -246,22 +245,15 @@ public class MessageHandler {
         // Validate session status - must be ACTIVE
         SessionStatus status = session.getStatus();
         if (status != SessionStatus.ACTIVE) {
-            log.debug("Session {} is not active, status: {}", sessionId, status);
-            String errorCode = switch (status) {
-                case PENDING -> "SESSION_PENDING";
-                case HANDSHAKE -> "SESSION_HANDSHAKE";
-                case BURNED -> "SESSION_BURNED";
-                case EXPIRED -> "SESSION_EXPIRED";
-                default -> "INVALID_STATUS";
-            };
-            sendError(senderId, sessionId, messageId, errorCode);
+            LOG.debug("Session {} is not active, status: {}", sessionId, status);
+            sendError(senderId, sessionId, messageId, errorCodeForNonActiveMessageSession(status));
             return Mono.empty();
         }
 
         // Get recipient ID
         Long recipientId = session.getPeerId(senderId);
         if (recipientId == null) {
-            log.error("Could not determine recipient for sender {} in session {}", senderId, sessionId);
+            LOG.error("Could not determine recipient for sender {} in session {}", senderId, sessionId);
             sendError(senderId, sessionId, messageId, "INTERNAL_ERROR");
             return Mono.empty();
         }
@@ -289,7 +281,7 @@ public class MessageHandler {
                     }
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
-                    log.debug("File validation failed for message {} in session {}: {}",
+                    LOG.debug("File validation failed for message {} in session {}: {}",
                             messageId, sessionId, ex.getErrorCode());
                     sendError(senderId, sessionId, messageId, ex.getErrorCode());
                     return Mono.empty();
@@ -339,7 +331,7 @@ public class MessageHandler {
                 sentEvent
         );
 
-        log.info("Message delivered immediately: sessionId={}, messageId={}, type={}, from={}, to={}",
+        LOG.info("Message delivered immediately: sessionId={}, messageId={}, type={}, from={}, to={}",
                 sessionId, messageId, type, senderId, recipientId);
 
         return Mono.empty();
@@ -370,7 +362,7 @@ public class MessageHandler {
         return messageRepository.queueMessage(message)
                 .flatMap(queued -> {
                     if (!queued) {
-                        log.warn("Failed to queue message: sessionId={}, messageId={}", sessionId, messageId);
+                        LOG.warn("Failed to queue message: sessionId={}, messageId={}", sessionId, messageId);
                         sendError(senderId, sessionId, messageId, "QUEUE_FAILED");
                         return Mono.empty();
                     }
@@ -386,7 +378,7 @@ public class MessageHandler {
                             sentEvent
                     );
 
-                    log.info("Message queued for offline delivery: sessionId={}, messageId={}, from={}, to={}",
+                    LOG.info("Message queued for offline delivery: sessionId={}, messageId={}, from={}, to={}",
                             sessionId, messageId, senderId, recipientId);
 
                     return Mono.empty();
@@ -416,12 +408,22 @@ public class MessageHandler {
                     );
 
                     if (sent) {
-                        log.info("Telegram notification sent to offline recipient {}: sessionId={}",
+                        LOG.info("Telegram notification sent to offline recipient {}: sessionId={}",
                                 recipientId, sessionId);
                     } else {
-                        log.warn("Failed to send Telegram notification to recipient {}", recipientId);
+                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientId);
                     }
                 });
+    }
+
+    private static String errorCodeForNonActiveMessageSession(SessionStatus status) {
+        return switch (status) {
+            case PENDING -> "SESSION_PENDING";
+            case HANDSHAKE -> "SESSION_HANDSHAKE";
+            case BURNED -> "SESSION_BURNED";
+            case EXPIRED -> "SESSION_EXPIRED";
+            default -> "INVALID_STATUS";
+        };
     }
 
     /**
@@ -436,6 +438,6 @@ public class MessageHandler {
                 event
         );
 
-        log.trace("Sent message error to sender {}: {}", senderId, errorCode);
+        LOG.trace("Sent message error to sender {}: {}", senderId, errorCode);
     }
 }

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @ConditionalOnProperty(name = "app.files.cleanup-enabled", havingValue = "true", matchIfMissing = true)
 public class FileCleanupService {
 
-    private static final Logger log = LoggerFactory.getLogger(FileCleanupService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FileCleanupService.class);
 
     private final FileStorageService fileStorageService;
     private final FileMetadataRepository fileMetadataRepository;
@@ -39,7 +39,7 @@ public class FileCleanupService {
      */
     @Scheduled(fixedDelayString = "#{@fileStorageProperties.cleanupInterval.toMillis()}")
     public void cleanup() {
-        log.debug("Starting file cleanup scan");
+        LOG.debug("Starting file cleanup scan");
         AtomicInteger deleted = new AtomicInteger(0);
 
         fileStorageService.listAll()
@@ -56,12 +56,12 @@ public class FileCleanupService {
                 .doOnComplete(() -> {
                     int count = deleted.get();
                     if (count > 0) {
-                        log.info("File cleanup completed: {} orphaned file(s) deleted", count);
+                        LOG.info("File cleanup completed: {} orphaned file(s) deleted", count);
                     } else {
-                        log.debug("File cleanup completed: no orphaned files found");
+                        LOG.debug("File cleanup completed: no orphaned files found");
                     }
                 })
-                .doOnError(e -> log.error("File cleanup failed", e))
+                .doOnError(e -> LOG.error("File cleanup failed", e))
                 .subscribe();
     }
 }

@@ -37,7 +37,6 @@ import java.util.List;
 @Slf4j
 public class BurnedChatsWebhookBot extends TelegramWebhookBot {
 
-
     private final TelegramProperties telegramProperties;
     private final BotMessageService botMessages;
 
@@ -58,10 +57,10 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     public void init() {
         try {
             registerBotCommands();
-            log.info("BurnedChatsWebhookBot initialized successfully. Username: @{}",
+            LOG.info("BurnedChatsWebhookBot initialized successfully. Username: @{}",
                     getBotUsername());
         } catch (TelegramApiException e) {
-            log.error("Failed to register bot commands", e);
+            LOG.error("Failed to register bot commands", e);
         }
     }
 
@@ -81,7 +80,7 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
 
             execute(setMyCommands);
         }
-        log.debug("Bot commands registered for all supported languages");
+        LOG.debug("Bot commands registered for all supported languages");
     }
 
     @Override
@@ -97,11 +96,11 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
             String username = update.getMessage().getFrom().getUserName();
             String langCode = update.getMessage().getFrom().getLanguageCode();
 
-            log.debug("Webhook received message from @{}: {}", username, messageText);
+            LOG.debug("Webhook received message from @{}: {}", username, messageText);
 
             if (messageText.startsWith("/start")) {
                 return handleStartCommand(chatId, update, langCode);
-            } else if (messageText.equals("/help")) {
+            } else if ("/help".equals(messageText)) {
                 return handleHelpCommand(chatId, langCode);
             } else {
                 return handleUnknownCommand(chatId, langCode);
@@ -126,12 +125,12 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
         // Check for deep link parameter (e.g., /start sessionId123)
         if (messageText.length() > 7) {
             deepLinkParam = messageText.substring(7).trim();
-            log.debug("Deep link parameter received: {}", deepLinkParam);
+            LOG.debug("Deep link parameter received: {}", deepLinkParam);
         }
 
         String welcomeText = botMessages.get("bot.start.text", langCode);
 
-        log.info("Sent /start response to chatId: {}", chatId);
+        LOG.info("Sent /start response to chatId: {}", chatId);
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(welcomeText)
@@ -181,7 +180,7 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     private SendMessage handleHelpCommand(long chatId, String langCode) {
         String helpText = botMessages.get("bot.help.text", langCode);
 
-        log.info("Sent /help response to chatId: {}", chatId);
+        LOG.info("Sent /help response to chatId: {}", chatId);
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(helpText)
@@ -223,10 +222,10 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
                     .build();
 
             execute(message);
-            log.debug("Notification sent to chatId: {}", chatId);
+            LOG.debug("Notification sent to chatId: {}", chatId);
             return true;
         } catch (TelegramApiException e) {
-            log.error("Failed to send notification to chatId: {}", chatId, e);
+            LOG.error("Failed to send notification to chatId: {}", chatId, e);
             return false;
         }
     }
@@ -250,10 +249,10 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
                     .build();
 
             execute(message);
-            log.debug("Notification with button sent to chatId: {}", chatId);
+            LOG.debug("Notification with button sent to chatId: {}", chatId);
             return true;
         } catch (TelegramApiException e) {
-            log.error("Failed to send notification with button to chatId: {}", chatId, e);
+            LOG.error("Failed to send notification with button to chatId: {}", chatId, e);
             return false;
         }
     }

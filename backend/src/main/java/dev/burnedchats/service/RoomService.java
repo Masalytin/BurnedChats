@@ -32,7 +32,8 @@ public class RoomService {
      *
      * <ol>
      *   <li>Generate a UUID v4 for the room.</li>
-     *   <li>If password proof is supplied: hash it and store with salt; otherwise store empty (BY_REQUEST without password).</li>
+     *   <li>If password proof is supplied: hash it and store with salt; otherwise store empty
+     *   (BY_REQUEST without password).</li>
      *   <li>Persist the room in Redis with a 30-day TTL.</li>
      *   <li>Add the owner as the first member of {@code room_members:{roomId}}.</li>
      * </ol>
@@ -67,10 +68,10 @@ public class RoomService {
         return roomRepository.save(room)
                 .then(roomMembersRepository.add(roomId, ownerTgId))
                 .thenReturn(room)
-                .doOnSuccess(r -> log.info("Room created: id={}, owner={}, joinMode={}",
+                .doOnSuccess(r -> LOG.info("Room created: id={}, owner={}, joinMode={}",
                         r.getId(), ownerTgId, joinMode))
                 .onErrorResume(e -> {
-                    log.error("Failed to create room for owner {}: {}", ownerTgId, e.getMessage());
+                    LOG.error("Failed to create room for owner {}: {}", ownerTgId, e.getMessage());
                     return Mono.error(e);
                 });
     }
@@ -85,7 +86,7 @@ public class RoomService {
         return Mono.when(
                 roomRepository.delete(roomId),
                 roomMembersRepository.deleteAll(roomId)
-        ).doOnSuccess(v -> log.info("Room deleted: {}", roomId));
+        ).doOnSuccess(v -> LOG.info("Room deleted: {}", roomId));
     }
 
     /**

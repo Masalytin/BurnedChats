@@ -94,12 +94,12 @@ public class RoomMessageRepository {
                 .doOnSuccess(r -> {
                     if (Boolean.TRUE.equals(r)) {
                         offlineQueueMetrics.recordEnqueued(OfflineSessionType.room);
-                        log.debug("Saved room message {} for room {}",
+                        LOG.debug("Saved room message {} for room {}",
                                 message.getMessageId(), message.getRoomId());
                     }
                 })
                 .onErrorResume(e -> {
-                    log.error("Failed to save room message: roomId={}, error={}",
+                    LOG.error("Failed to save room message: roomId={}, error={}",
                             message.getRoomId(), e.getMessage());
                     return Mono.just(false);
                 });
@@ -120,7 +120,7 @@ public class RoomMessageRepository {
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
                 .flatMap(this::deserializeMessage)
-                .doOnComplete(() -> log.debug("Retrieved messages for room {}", roomId));
+                .doOnComplete(() -> LOG.debug("Retrieved messages for room {}", roomId));
     }
 
     /**
@@ -134,7 +134,7 @@ public class RoomMessageRepository {
         offlineQueueMetrics.removeTrackedListKey(key);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(n -> log.debug("Deleted message list for room {}: {} keys", roomId, n));
+                .doOnSuccess(n -> LOG.debug("Deleted message list for room {}: {} keys", roomId, n));
     }
 
     private String keyFor(String roomId) {
@@ -150,7 +150,7 @@ public class RoomMessageRepository {
     private Mono<RoomMessage> deserializeMessage(String json) {
         return Mono.fromCallable(() -> objectMapper.readValue(json, RoomMessage.class))
                 .onErrorResume(e -> {
-                    log.warn("Failed to deserialize room message: {}", e.getMessage());
+                    LOG.warn("Failed to deserialize room message: {}", e.getMessage());
                     return Mono.empty();
                 });
     }

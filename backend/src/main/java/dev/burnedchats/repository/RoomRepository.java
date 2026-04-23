@@ -42,9 +42,9 @@ public class RoomRepository {
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
                 .then(redisTemplate.expire(key, DEFAULT_TTL))
-                .doOnSuccess(ok -> log.debug("Saved room {}", room.getId()))
+                .doOnSuccess(ok -> LOG.debug("Saved room {}", room.getId()))
                 .onErrorResume(e -> {
-                    log.error("Failed to save room {}: {}", room.getId(), e.getMessage());
+                    LOG.error("Failed to save room {}: {}", room.getId(), e.getMessage());
                     return Mono.just(false);
                 });
     }
@@ -66,9 +66,9 @@ public class RoomRepository {
                 )
                 .filter(map -> !map.isEmpty())
                 .map(this::fromHash)
-                .doOnNext(room -> log.debug("Found room {}", roomId))
+                .doOnNext(room -> LOG.debug("Found room {}", roomId))
                 .onErrorResume(e -> {
-                    log.error("Failed to find room {}: {}", roomId, e.getMessage());
+                    LOG.error("Failed to find room {}: {}", roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -83,7 +83,7 @@ public class RoomRepository {
      */
     public Mono<Long> delete(String roomId) {
         return redisTemplate.delete(keyFor(roomId))
-                .doOnSuccess(n -> log.debug("Deleted room key {} (result={})", roomId, n));
+                .doOnSuccess(n -> LOG.debug("Deleted room key {} (result={})", roomId, n));
     }
 
     /**
@@ -95,7 +95,7 @@ public class RoomRepository {
      */
     public Mono<Boolean> extendTtl(String roomId, Duration ttl) {
         return redisTemplate.expire(keyFor(roomId), ttl)
-                .doOnSuccess(ok -> log.debug("Extended TTL for room {}", roomId));
+                .doOnSuccess(ok -> LOG.debug("Extended TTL for room {}", roomId));
     }
 
     // -------------------------------------------------------------------------

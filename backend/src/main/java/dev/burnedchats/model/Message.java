@@ -146,6 +146,7 @@ public class Message implements Serializable {
      * @param fileSize         original file size in bytes (nullable)
      * @return the constructed Message
      */
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public static Message fromFileRequest(String sessionId, Long senderId, Long recipientId,
                                            String messageId, String encryptedContent,
                                            String iv, Long clientTimestamp,

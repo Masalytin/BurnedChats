@@ -48,10 +48,10 @@ public class HeartbeatHandler {
 
             onlineStatusRepository.setOnline(userId)
                     .subscribe(
-                            result -> log.trace("Heartbeat received: userId={}", userId),
-                            error -> log.warn("Failed to process heartbeat for user {}: {}",
+                            result -> LOG.trace("Heartbeat received: userId={}", userId),
+                            error -> LOG.warn("Failed to process heartbeat for user {}: {}",
                                     userId, error.getMessage())
-                    );
+                );
         }
     }
 }

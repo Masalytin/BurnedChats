@@ -17,7 +17,7 @@ import java.util.Optional;
  */
 public final class JsonUtils {
 
-    private static final Logger log = LoggerFactory.getLogger(JsonUtils.class);
+    private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class);
 
     private static final ObjectMapper MAPPER = createObjectMapper();
 
@@ -46,7 +46,7 @@ public final class JsonUtils {
         try {
             return MAPPER.writeValueAsString(object);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize object to JSON: {}", e.getMessage());
+            LOG.error("Failed to serialize object to JSON: {}", e.getMessage());
             return "";
         }
     }
@@ -77,7 +77,7 @@ public final class JsonUtils {
         try {
             return Optional.ofNullable(MAPPER.readValue(json, clazz));
         } catch (JsonProcessingException e) {
-            log.error("Failed to deserialize JSON to {}: {}", clazz.getSimpleName(), e.getMessage());
+            LOG.error("Failed to deserialize JSON to {}: {}", clazz.getSimpleName(), e.getMessage());
             return Optional.empty();
         }
     }

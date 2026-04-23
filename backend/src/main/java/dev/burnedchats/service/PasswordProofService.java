@@ -90,7 +90,7 @@ public class PasswordProofService {
             byte[] expected = Base64.getDecoder().decode(storedHashBase64);
             return MessageDigest.isEqual(actual, expected);
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid Base64 in proof verification");
+            LOG.warn("Invalid Base64 in proof verification");
             return false;
         }
     }

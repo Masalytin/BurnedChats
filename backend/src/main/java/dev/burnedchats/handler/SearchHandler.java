@@ -87,11 +87,11 @@ public class SearchHandler {
         Long searcherTgId = telegramPrincipal.getUserId();
         String query = request.getQuery() != null ? request.getQuery().trim() : "";
 
-        log.debug("Search request from user {}: query='{}'", searcherTgId, query);
+        LOG.debug("Search request from user {}: query='{}'", searcherTgId, query);
 
         // Validate query format
         if (!isValidQuery(query)) {
-            log.debug("Invalid search query format: '{}'", query);
+            LOG.debug("Invalid search query format: '{}'", query);
             sendResult(searcherTgId, SearchResultEvent.error("INVALID_QUERY"));
             return;
         }
@@ -115,14 +115,14 @@ public class SearchHandler {
         try {
             targetTgId = Long.parseLong(query);
         } catch (NumberFormatException e) {
-            log.warn("Failed to parse user ID: '{}'", query);
+            LOG.warn("Failed to parse user ID: '{}'", query);
             sendResult(searcherTgId, SearchResultEvent.error("INVALID_QUERY"));
             return;
         }
 
         // Check for self-search
         if (targetTgId.equals(searcherTgId)) {
-            log.debug("User {} attempted self-search", searcherTgId);
+            LOG.debug("User {} attempted self-search", searcherTgId);
             sendResult(searcherTgId, SearchResultEvent.error("SELF_SEARCH"));
             return;
         }
@@ -132,18 +132,18 @@ public class SearchHandler {
                 .flatMap(user -> enrichWithOnlineStatus(user))
                 .subscribe(
                         userResponse -> {
-                            log.debug("Found user by ID: {} ({})", targetTgId, userResponse.getUsername());
+                            LOG.debug("Found user by ID: {} ({})", targetTgId, userResponse.getUsername());
                             sendResult(searcherTgId, SearchResultEvent.found(userResponse));
                         },
                         error -> {
-                            log.error("Error searching user by ID {}: {}", targetTgId, error.getMessage());
+                            LOG.error("Error searching user by ID {}: {}", targetTgId, error.getMessage());
                             sendResult(searcherTgId, SearchResultEvent.notFound());
                         },
                         () -> {
-                            log.debug("User not found by ID: {}", targetTgId);
+                            LOG.debug("User not found by ID: {}", targetTgId);
                             sendResult(searcherTgId, SearchResultEvent.notFound());
                         }
-                );
+            );
     }
 
     /**
@@ -164,7 +164,7 @@ public class SearchHandler {
                 .hasElement()
                 .flatMap(isSelf -> {
                     if (isSelf) {
-                        log.debug("User {} attempted self-search by username", searcherTgId);
+                        LOG.debug("User {} attempted self-search by username", searcherTgId);
                         return Mono.just(SearchResultEvent.error("SELF_SEARCH"));
                     }
                     return searchUserByUsername(normalizedUsername);
@@ -172,11 +172,11 @@ public class SearchHandler {
                 .subscribe(
                         result -> sendResult(searcherTgId, result),
                         error -> {
-                            log.error("Error searching user by username '{}': {}", 
+                            LOG.error("Error searching user by username '{}': {}", 
                                     normalizedUsername, error.getMessage());
                             sendResult(searcherTgId, SearchResultEvent.notFound());
                         }
-                );
+            );
     }
 
     /**
@@ -192,9 +192,9 @@ public class SearchHandler {
                 .defaultIfEmpty(SearchResultEvent.notFound())
                 .doOnNext(result -> {
                     if (result.isFound()) {
-                        log.debug("Found user by username: @{}", username);
+                        LOG.debug("Found user by username: @{}", username);
                     } else {
-                        log.debug("User not found by username: @{}", username);
+                        LOG.debug("User not found by username: @{}", username);
                     }
                 });
     }
@@ -223,7 +223,7 @@ public class SearchHandler {
                 SEARCH_RESULT_DESTINATION,
                 result
         );
-        log.trace("Sent search result to user {}: found={}, error={}", 
+        LOG.trace("Sent search result to user {}: found={}, error={}", 
                 userTgId, result.isFound(), result.getError());
     }
 

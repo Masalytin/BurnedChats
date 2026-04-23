@@ -128,7 +128,6 @@ public class SessionHandler {
      */
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
 
-
     private final SessionRepository sessionRepository;
     private final RequestRepository requestRepository;
     private final UserRepository userRepository;
@@ -163,19 +162,19 @@ public class SessionHandler {
         String secretQuestion = normalizeOptionalText(request.getSecretQuestion());
         String secretExpectedAnswer = normalizeOptionalText(request.getSecretExpectedAnswer());
 
-        log.info("Session creation requested: initiator={}, recipient={}, hasQuestion={}",
+        LOG.info("Session creation requested: initiator={}, recipient={}, hasQuestion={}",
                 initiatorId, recipientId, secretQuestion != null);
 
         // Validate: cannot create session with self
         if (initiatorId.equals(recipientId)) {
-            log.debug("Self-request rejected for user {}", initiatorId);
+            LOG.debug("Self-request rejected for user {}", initiatorId);
             sendToInitiator(initiatorId, SessionCreatedEvent.error("SELF_REQUEST"));
             return;
         }
 
         if (secretQuestion != null) {
             if (secretExpectedAnswer == null) {
-                log.debug("Secret question present without expected answer: initiator={}", initiatorId);
+                LOG.debug("Secret question present without expected answer: initiator={}", initiatorId);
                 sendToInitiator(initiatorId, SessionCreatedEvent.error("EXPECTED_ANSWER_REQUIRED"));
                 return;
             }
@@ -208,7 +207,7 @@ public class SessionHandler {
         // Check if initiator already has an active session
         sessionRepository.findActiveByParticipant(initiatorId)
                 .flatMap(existingSession -> {
-                    log.debug("Initiator {} already has active session: {}",
+                    LOG.debug("Initiator {} already has active session: {}",
                             initiatorId, existingSession.getId());
                     return Mono.just(SessionCreatedEvent.error("ALREADY_HAS_SESSION"));
                 })
@@ -216,7 +215,7 @@ public class SessionHandler {
                         // Check if recipient already has an active session
                         sessionRepository.findActiveByParticipant(recipientId)
                                 .flatMap(existingSession -> {
-                                    log.debug("Recipient {} already has active session: {}",
+                                    LOG.debug("Recipient {} already has active session: {}",
                                             recipientId, existingSession.getId());
                                     return Mono.just(SessionCreatedEvent.error("RECIPIENT_HAS_SESSION"));
                                 })
@@ -225,7 +224,7 @@ public class SessionHandler {
                                         requestRepository.existsBetween(initiatorId, recipientId)
                                                 .flatMap(exists -> {
                                                     if (exists) {
-                                                        log.debug("Pending request already exists: {} -> {}",
+                                                        LOG.debug("Pending request already exists: {} -> {}",
                                                                 initiatorId, recipientId);
                                                         return Mono.just(SessionCreatedEvent.error(
                                                                 "PENDING_REQUEST_EXISTS"));
@@ -239,11 +238,11 @@ public class SessionHandler {
                 .subscribe(
                         event -> sendToInitiator(initiatorId, event),
                         error -> {
-                            log.error("Error creating session: initiator={}, recipient={}, error={}",
+                            LOG.error("Error creating session: initiator={}, recipient={}, error={}",
                                     initiatorId, recipientId, error.getMessage());
                             sendToInitiator(initiatorId, SessionCreatedEvent.error("INTERNAL_ERROR"));
                         }
-                );
+            );
     }
 
     /**
@@ -260,26 +259,10 @@ public class SessionHandler {
         ).flatMap(users -> {
             TelegramUser initiator = users.getT1();
             TelegramUser recipient = users.getT2();
-
-            // Generate session ID
             String sessionId = UUID.randomUUID().toString();
             Instant now = Instant.now();
-
-            // Create session
-            Session session = Session.builder()
-                    .id(sessionId)
-                    .initiatorId(initiatorId)
-                    .responderId(recipientId)
-                    .status(SessionStatus.PENDING)
-                    .createdAt(now)
-                    .lastActivityAt(now)
-                    .secretQuestion(secretQuestion)
-                    .secretAnswerHash(secretQuestion != null
-                            ? SecretAnswerHasher.hash(secretExpectedAnswer)
-                            : null)
-                    .build();
-
-            // Create chat request for recipient's queue
+            Session session = newPendingSession(
+                    sessionId, initiatorId, recipientId, now, secretQuestion, secretExpectedAnswer);
             ChatRequest chatRequest = ChatRequest.fromSender(sessionId, initiator, recipientId, secretQuestion);
 
             // Save session and request
@@ -299,7 +282,7 @@ public class SessionHandler {
                         // Build response for initiator
                         UserResponse recipientResponse = userMapper.toResponse(recipient, isRecipientOnline);
 
-                        log.info("Session created successfully: sessionId={}, initiator={}, recipient={}, online={}",
+                        LOG.info("Session created successfully: sessionId={}, initiator={}, recipient={}, online={}",
                                 sessionId, initiatorId, recipientId, isRecipientOnline);
 
                         return Mono.just(SessionCreatedEvent.success(
@@ -311,6 +294,22 @@ public class SessionHandler {
                         ));
                     });
         });
+    }
+
+    private static Session newPendingSession(String sessionId, Long initiatorId, Long recipientId, Instant now,
+            String secretQuestion, String secretExpectedAnswer) {
+        return Session.builder()
+                .id(sessionId)
+                .initiatorId(initiatorId)
+                .responderId(recipientId)
+                .status(SessionStatus.PENDING)
+                .createdAt(now)
+                .lastActivityAt(now)
+                .secretQuestion(secretQuestion)
+                .secretAnswerHash(secretQuestion != null
+                        ? SecretAnswerHasher.hash(secretExpectedAnswer)
+                        : null)
+                .build();
     }
 
     /**
@@ -341,7 +340,7 @@ public class SessionHandler {
                 event
         );
 
-        log.debug("Sent incoming request event to recipient {}: sessionId={}", recipientId, sessionId);
+        LOG.debug("Sent incoming request event to recipient {}: sessionId={}", recipientId, sessionId);
     }
 
     /**
@@ -369,9 +368,9 @@ public class SessionHandler {
                     );
 
                     if (sent) {
-                        log.info("Telegram notification sent to recipient {}: sessionId={}", recipientId, sessionId);
+                        LOG.info("Telegram notification sent to recipient {}: sessionId={}", recipientId, sessionId);
                     } else {
-                        log.warn("Failed to send Telegram notification to recipient {}", recipientId);
+                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientId);
                     }
                 });
     }
@@ -386,7 +385,7 @@ public class SessionHandler {
                 event
         );
 
-        log.trace("Sent session-created event to initiator {}: success={}, error={}",
+        LOG.trace("Sent session-created event to initiator {}: success={}, error={}",
                 initiatorId, event.isSuccess(), event.getError());
     }
 
@@ -407,7 +406,7 @@ public class SessionHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long userId = telegramPrincipal.getUserId();
 
-        log.info("Pending requests requested by user: {}", userId);
+        LOG.info("Pending requests requested by user: {}", userId);
 
         requestRepository.findByRecipient(userId)
                 .flatMap(request -> buildIncomingRequestEvent(request)
@@ -417,15 +416,15 @@ public class SessionHandler {
                                     INCOMING_REQUEST_DESTINATION,
                                     event
                             );
-                            log.debug("Sent pending request to user {}: sessionId={}",
+                            LOG.debug("Sent pending request to user {}: sessionId={}",
                                     userId, event.getSessionId());
                         }))
                 .subscribe(
                         event -> {},
-                        error -> log.error("Error sending pending requests to user {}: {}",
+                        error -> LOG.error("Error sending pending requests to user {}: {}",
                                 userId, error.getMessage()),
-                        () -> log.debug("Finished sending pending requests to user {}", userId)
-                );
+                        () -> LOG.debug("Finished sending pending requests to user {}", userId)
+            );
     }
 
     /**
@@ -489,11 +488,11 @@ public class SessionHandler {
         Long responderId = telegramPrincipal.getUserId();
         String sessionId = request.getSessionId();
 
-        log.info("Session accept requested: sessionId={}, responderId={}", sessionId, responderId);
+        LOG.info("Session accept requested: sessionId={}, responderId={}", sessionId, responderId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found: {}", sessionId);
+                    LOG.debug("Session not found: {}", sessionId);
                     sendAcceptError(responderId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -501,10 +500,10 @@ public class SessionHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error accepting session {}: {}", sessionId, error.getMessage());
+                            LOG.error("Error accepting session {}: {}", sessionId, error.getMessage());
                             sendAcceptError(responderId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -516,14 +515,14 @@ public class SessionHandler {
 
         // Validate user is the responder
         if (!responderId.equals(session.getResponderId())) {
-            log.debug("User {} is not responder for session {}", responderId, sessionId);
+            LOG.debug("User {} is not responder for session {}", responderId, sessionId);
             sendAcceptError(responderId, sessionId, "NOT_RESPONDER");
             return Mono.empty();
         }
 
         // Validate session status
         if (session.getStatus() != SessionStatus.PENDING) {
-            log.debug("Session {} is not pending, status: {}", sessionId, session.getStatus());
+            LOG.debug("Session {} is not pending, status: {}", sessionId, session.getStatus());
             String errorCode = session.getStatus() == SessionStatus.HANDSHAKE
                     || session.getStatus() == SessionStatus.ACTIVE
                     ? "ALREADY_ACCEPTED" : "SESSION_EXPIRED";
@@ -534,7 +533,7 @@ public class SessionHandler {
         // Check for secret question validation
         return requestRepository.findBySessionId(responderId, sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Request not found for session: {}", sessionId);
+                    LOG.debug("Request not found for session: {}", sessionId);
                     sendAcceptError(responderId, sessionId, "REQUEST_EXPIRED");
                     return Mono.empty();
                 }))
@@ -543,19 +542,19 @@ public class SessionHandler {
                     if (chatRequest.isHasQuestion()) {
                         String providedAnswer = request.getSecretAnswer();
                         if (providedAnswer == null || providedAnswer.isBlank()) {
-                            log.debug("Secret answer required but not provided for session {}", sessionId);
+                            LOG.debug("Secret answer required but not provided for session {}", sessionId);
                             sendAcceptError(responderId, sessionId, "ANSWER_REQUIRED");
                             return Mono.empty();
                         }
                         String expectedHash = session.getSecretAnswerHash();
                         if (expectedHash == null || expectedHash.isBlank()) {
-                            log.warn("Session {} has secret question but missing expected answer hash", sessionId);
+                            LOG.warn("Session {} has secret question but missing expected answer hash", sessionId);
                             sendAcceptError(responderId, sessionId, "INTERNAL_ERROR");
                             return Mono.empty();
                         }
                         String providedHash = SecretAnswerHasher.hash(providedAnswer);
                         if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
-                            log.debug("Wrong secret answer for session {}", sessionId);
+                            LOG.debug("Wrong secret answer for session {}", sessionId);
                             sendAcceptError(responderId, sessionId, "WRONG_ANSWER");
                             return Mono.empty();
                         }
@@ -608,7 +607,7 @@ public class SessionHandler {
                             responderEvent
                     );
 
-                    log.info("Session accepted: sessionId={}, initiator={}, responder={}, expiresAt={}",
+                    LOG.info("Session accepted: sessionId={}, initiator={}, responder={}, expiresAt={}",
                             sessionId, initiatorId, responderId, expiresAt);
                 })
                 .then();
@@ -635,7 +634,7 @@ public class SessionHandler {
                 SESSION_ACCEPTED_DESTINATION,
                 event
         );
-        log.trace("Sent accept error to responder {}: {}", responderId, errorCode);
+        LOG.trace("Sent accept error to responder {}: {}", responderId, errorCode);
     }
 
     // ==================== Session Status (5.1.4) ====================
@@ -655,7 +654,7 @@ public class SessionHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        log.debug("Session status check: sessionId={}, userId={}", sessionId, userId);
+        LOG.debug("Session status check: sessionId={}, userId={}", sessionId, userId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
@@ -693,10 +692,10 @@ public class SessionHandler {
                             ));
                         },
                         error -> {
-                            log.error("Error checking session status: {}", error.getMessage());
+                            LOG.error("Error checking session status: {}", error.getMessage());
                             sendSessionStatus(userId, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
                         }
-                );
+            );
     }
 
     /**
@@ -727,7 +726,7 @@ public class SessionHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        log.info("Peer disconnect notification: sessionId={}, userId={}, reason={}",
+        LOG.info("Peer disconnect notification: sessionId={}, userId={}, reason={}",
                 sessionId, userId, request.reason());
 
         sessionRepository.findById(sessionId)
@@ -735,7 +734,7 @@ public class SessionHandler {
                         session -> {
                             // Validate user is participant
                             if (!session.isParticipant(userId)) {
-                                log.debug("User {} is not participant in session {}", userId, sessionId);
+                                LOG.debug("User {} is not participant in session {}", userId, sessionId);
                                 return;
                             }
 
@@ -753,11 +752,11 @@ public class SessionHandler {
                                     event
                             );
 
-                            log.info("Peer {} notified about disconnect of user {} in session {}",
+                            LOG.info("Peer {} notified about disconnect of user {} in session {}",
                                     peerId, userId, sessionId);
                         },
-                        error -> log.error("Error handling peer disconnect: {}", error.getMessage())
-                );
+                        error -> LOG.error("Error handling peer disconnect: {}", error.getMessage())
+            );
     }
 
     // ==================== Reject Request (Task 3.4.3) ====================
@@ -783,19 +782,19 @@ public class SessionHandler {
         Long responderId = telegramPrincipal.getUserId();
         String sessionId = request.getSessionId();
 
-        log.info("Session reject requested: sessionId={}, responderId={}", sessionId, responderId);
+        LOG.info("Session reject requested: sessionId={}, responderId={}", sessionId, responderId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for rejection: {}", sessionId);
+                    LOG.debug("Session not found for rejection: {}", sessionId);
                     // Silent fail - session may have already expired
                     return Mono.empty();
                 }))
                 .flatMap(session -> validateAndRejectSession(session, responderId))
                 .subscribe(
                         result -> {},
-                        error -> log.error("Error rejecting session {}: {}", sessionId, error.getMessage())
-                );
+                        error -> LOG.error("Error rejecting session {}: {}", sessionId, error.getMessage())
+            );
     }
 
     /**
@@ -806,13 +805,13 @@ public class SessionHandler {
 
         // Validate user is the responder
         if (!responderId.equals(session.getResponderId())) {
-            log.debug("User {} is not responder for session {}, cannot reject", responderId, sessionId);
+            LOG.debug("User {} is not responder for session {}, cannot reject", responderId, sessionId);
             return Mono.empty();
         }
 
         // Validate session status - only PENDING sessions can be rejected
         if (session.getStatus() != SessionStatus.PENDING) {
-            log.debug("Session {} is not pending, cannot reject. Status: {}", sessionId, session.getStatus());
+            LOG.debug("Session {} is not pending, cannot reject. Status: {}", sessionId, session.getStatus());
             return Mono.empty();
         }
 
@@ -839,13 +838,36 @@ public class SessionHandler {
                             event
                     );
 
-                    log.info("Session rejected: sessionId={}, initiator={}, responder={}",
+                    LOG.info("Session rejected: sessionId={}, initiator={}, responder={}",
                             sessionId, initiatorId, responderId);
                 })
                 .then();
     }
 
     // ==================== Active Sessions (4.6.1, 4.6.2, 4.6.4) ====================
+
+    private Mono<SessionResponse> mapSessionToListResponse(Session session, Long userId,
+            List<String> expiredSessionIds) {
+        if (session.isExpired()) {
+            synchronized (expiredSessionIds) {
+                expiredSessionIds.add(session.getId());
+            }
+            LOG.debug("Session {} is expired, marking for cleanup", session.getId());
+            return Mono.<SessionResponse>empty();
+        }
+
+        Long peerId = session.getPeerId(userId);
+        boolean isInitiator = userId.equals(session.getInitiatorId());
+
+        return Mono.zip(
+                userRepository.findById(peerId)
+                        .defaultIfEmpty(createPlaceholderUser(peerId)),
+                onlineStatusRepository.isOnline(peerId)
+        ).map(tuple -> {
+            UserResponse peerResponse = userMapper.toResponse(tuple.getT1(), tuple.getT2());
+            return sessionMapper.toResponse(session, peerResponse, isInitiator);
+        });
+    }
 
     /**
      * Get list of active sessions for the authenticated user (4.6.1).
@@ -866,35 +888,13 @@ public class SessionHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long userId = telegramPrincipal.getUserId();
 
-        log.info("Getting active sessions for user: {}", userId);
+        LOG.info("Getting active sessions for user: {}", userId);
 
         // Use concurrent list for thread-safe access from reactive streams
         List<String> expiredSessionIds = new ArrayList<>();
 
         sessionRepository.findAllActiveByParticipant(userId)
-                .flatMap(session -> {
-                    // 4.6.4: Check if session is expired and needs cleanup
-                    if (session.isExpired()) {
-                        synchronized (expiredSessionIds) {
-                            expiredSessionIds.add(session.getId());
-                        }
-                        log.debug("Session {} is expired, marking for cleanup", session.getId());
-                        return Mono.<SessionResponse>empty();
-                    }
-
-                    Long peerId = session.getPeerId(userId);
-                    boolean isInitiator = userId.equals(session.getInitiatorId());
-
-                    // Get peer info
-                    return Mono.zip(
-                            userRepository.findById(peerId)
-                                    .defaultIfEmpty(createPlaceholderUser(peerId)),
-                            onlineStatusRepository.isOnline(peerId)
-                    ).map(tuple -> {
-                        UserResponse peerResponse = userMapper.toResponse(tuple.getT1(), tuple.getT2());
-                        return sessionMapper.toResponse(session, peerResponse, isInitiator);
-                    });
-                })
+                .flatMap(session -> mapSessionToListResponse(session, userId, expiredSessionIds))
                 .collectList()
                 .doOnSuccess(sessions -> {
                     // 4.6.4: Cleanup expired sessions
@@ -916,10 +916,10 @@ public class SessionHandler {
                                     event
                             );
 
-                            log.info("Sent active sessions list to user {}: count={}", userId, sessions.size());
+                            LOG.info("Sent active sessions list to user {}: count={}", userId, sessions.size());
                         },
                         error -> {
-                            log.error("Error getting active sessions for user {}: {}",
+                            LOG.error("Error getting active sessions for user {}: {}",
                                     userId, error.getMessage());
                             messagingTemplate.convertAndSendToUser(
                                     String.valueOf(userId),
@@ -927,7 +927,7 @@ public class SessionHandler {
                                     ActiveSessionsListEvent.error("INTERNAL_ERROR")
                             );
                         }
-                );
+            );
     }
 
     /**
@@ -940,10 +940,10 @@ public class SessionHandler {
             sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
                     .then(sessionRepository.delete(sessionId))
                     .subscribe(
-                            deleted -> log.info("Cleaned up expired session: {}", sessionId),
-                            error -> log.error("Error cleaning up session {}: {}",
+                            deleted -> LOG.info("Cleaned up expired session: {}", sessionId),
+                            error -> LOG.error("Error cleaning up session {}: {}",
                                     sessionId, error.getMessage())
-                    );
+                );
         }
     }
 
@@ -971,11 +971,11 @@ public class SessionHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        log.info("Session resume requested: sessionId={}, userId={}", sessionId, userId);
+        LOG.info("Session resume requested: sessionId={}, userId={}", sessionId, userId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for resume: {}", sessionId);
+                    LOG.debug("Session not found for resume: {}", sessionId);
                     sendResumeError(userId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -983,10 +983,10 @@ public class SessionHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error resuming session {}: {}", sessionId, error.getMessage());
+                            LOG.error("Error resuming session {}: {}", sessionId, error.getMessage());
                             sendResumeError(userId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -997,20 +997,20 @@ public class SessionHandler {
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
-            log.debug("User {} is not participant in session {}", userId, sessionId);
+            LOG.debug("User {} is not participant in session {}", userId, sessionId);
             sendResumeError(userId, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
         // Check if session is burned or expired
         if (session.getStatus() == SessionStatus.BURNED) {
-            log.debug("Session {} is burned, cannot resume", sessionId);
+            LOG.debug("Session {} is burned, cannot resume", sessionId);
             sendResumeEvent(userId, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
             return Mono.empty();
         }
 
         if (session.getStatus() == SessionStatus.EXPIRED || session.isExpired()) {
-            log.debug("Session {} is expired, cannot resume", sessionId);
+            LOG.debug("Session {} is expired, cannot resume", sessionId);
             // Cleanup the expired session
             return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
                     .doOnSuccess(v -> sendResumeEvent(userId, SessionResumedEvent.expired(sessionId)))
@@ -1058,7 +1058,7 @@ public class SessionHandler {
                             event
                     );
 
-                    log.info("Session resumed: sessionId={}, userId={}, status={}, peerOnline={}",
+                    LOG.info("Session resumed: sessionId={}, userId={}, status={}, peerOnline={}",
                             sessionId, userId, session.getStatus(), peerOnline);
                 })
                 .then();

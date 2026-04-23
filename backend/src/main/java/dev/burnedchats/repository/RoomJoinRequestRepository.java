@@ -52,10 +52,10 @@ public class RoomJoinRequestRepository {
                 .then(redisTemplate.opsForSet().add(indexKey, senderStr))
                 .then(redisTemplate.expire(indexKey, TTL))
                 .then()
-                .doOnSuccess(v -> log.debug("Saved join request: roomId={}, senderTgId={}",
+                .doOnSuccess(v -> LOG.debug("Saved join request: roomId={}, senderTgId={}",
                         request.getRoomId(), request.getSenderTgId()))
                 .onErrorResume(e -> {
-                    log.error("Failed to save join request: roomId={}, senderTgId={}: {}",
+                    LOG.error("Failed to save join request: roomId={}, senderTgId={}: {}",
                             request.getRoomId(), request.getSenderTgId(), e.getMessage());
                     return Mono.error(e);
                 });
@@ -79,7 +79,7 @@ public class RoomJoinRequestRepository {
                     Long senderTgId = Long.parseLong(senderStr);
                     return findByRoomAndSender(roomId, senderTgId);
                 })
-                .doOnComplete(() -> log.debug("Listed join requests for room {}", roomId));
+                .doOnComplete(() -> LOG.debug("Listed join requests for room {}", roomId));
     }
 
     /**
@@ -128,9 +128,9 @@ public class RoomJoinRequestRepository {
         return redisTemplate.delete(hashKey)
                 .then(redisTemplate.opsForSet().remove(indexKey, senderStr))
                 .then()
-                .doOnSuccess(v -> log.debug("Removed join request: roomId={}, senderTgId={}", roomId, senderTgId))
+                .doOnSuccess(v -> LOG.debug("Removed join request: roomId={}, senderTgId={}", roomId, senderTgId))
                 .onErrorResume(e -> {
-                    log.error("Failed to remove join request: roomId={}, senderTgId={}: {}",
+                    LOG.error("Failed to remove join request: roomId={}, senderTgId={}: {}",
                             roomId, senderTgId, e.getMessage());
                     return Mono.error(e);
                 });
@@ -148,7 +148,7 @@ public class RoomJoinRequestRepository {
                 .flatMap(senderStr -> redisTemplate.delete(hashKey(roomId, Long.parseLong(senderStr))))
                 .then(redisTemplate.delete(indexKey(roomId)))
                 .then()
-                .doOnSuccess(v -> log.debug("Deleted all join requests for room {}", roomId));
+                .doOnSuccess(v -> LOG.debug("Deleted all join requests for room {}", roomId));
     }
 
     // -------------------------------------------------------------------------

@@ -30,6 +30,10 @@
         <property name="max" value="120"/>
         <property name="ignorePattern" value="^package.*|^import.*|a]* href|href|http://|https://|ftp://"/>
     </module>
+    <module name="SuppressionSingleFilter">
+        <property name="files" value=".*[/\\](RoomHandler|SessionHandler)\.java"/>
+        <property name="checks" value="FileLength"/>
+    </module>
 
     <module name="TreeWalker">
         <!-- Annotations -->

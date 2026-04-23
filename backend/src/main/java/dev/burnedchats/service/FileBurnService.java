@@ -44,16 +44,16 @@ public class FileBurnService {
         return fileMetadataRepository.findFileIdsByContextId(contextId)
                 .flatMap(fileId -> deleteSingleFile(fileId)
                         .onErrorResume(e -> {
-                            log.warn("Failed to delete file {} during burn cascade for context {}: {}",
+                            LOG.warn("Failed to delete file {} during burn cascade for context {}: {}",
                                     fileId, contextId, e.getMessage());
                             return Mono.empty();
                         })
                 )
                 .then(fileMetadataRepository.deleteContextKey(contextId))
                 .then()
-                .doOnSuccess(v -> log.info("Burn cascade file cleanup completed for context: {}", contextId))
+                .doOnSuccess(v -> LOG.info("Burn cascade file cleanup completed for context: {}", contextId))
                 .onErrorResume(e -> {
-                    log.error("Burn cascade file cleanup failed for context {}: {}", contextId, e.getMessage());
+                    LOG.error("Burn cascade file cleanup failed for context {}: {}", contextId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -62,9 +62,9 @@ public class FileBurnService {
         return fileStorageService.delete(fileId)
                 .doOnNext(deleted -> {
                     if (deleted) {
-                        log.debug("Deleted file from storage during burn: {}", fileId);
+                        LOG.debug("Deleted file from storage during burn: {}", fileId);
                     } else {
-                        log.debug("File already absent from storage during burn: {}", fileId);
+                        LOG.debug("File already absent from storage during burn: {}", fileId);
                     }
                 })
                 .then(fileMetadataRepository.delete(fileId))

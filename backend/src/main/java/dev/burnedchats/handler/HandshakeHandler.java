@@ -118,12 +118,12 @@ public class HandshakeHandler {
         String sessionId = request.getSessionId();
         String publicKey = request.getPublicKey();
 
-        log.info("Public key relay requested: sessionId={}, senderId={}, keyLength={}",
+        LOG.info("Public key relay requested: sessionId={}, senderId={}, keyLength={}",
                 sessionId, senderId, publicKey != null ? publicKey.length() : 0);
 
         // Validate public key format before processing
         if (!isValidBase64Key(publicKey)) {
-            log.warn("Invalid public key format from user {}: sessionId={}", senderId, sessionId);
+            LOG.warn("Invalid public key format from user {}: sessionId={}", senderId, sessionId);
             sendError(senderId, sessionId, "INVALID_KEY");
             return;
         }
@@ -131,7 +131,7 @@ public class HandshakeHandler {
         // Find session and relay key
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    log.debug("Session not found for handshake: {}", sessionId);
+                    LOG.debug("Session not found for handshake: {}", sessionId);
                     sendError(senderId, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
@@ -139,11 +139,11 @@ public class HandshakeHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            log.error("Error relaying public key: sessionId={}, senderId={}, error={}",
+                            LOG.error("Error relaying public key: sessionId={}, senderId={}, error={}",
                                     sessionId, senderId, error.getMessage());
                             sendError(senderId, sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     /**
@@ -167,7 +167,7 @@ public class HandshakeHandler {
 
         // Validate sender is a participant
         if (!session.isParticipant(senderId)) {
-            log.debug("User {} is not a participant in session {}", senderId, sessionId);
+            LOG.debug("User {} is not a participant in session {}", senderId, sessionId);
             sendError(senderId, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
@@ -175,7 +175,7 @@ public class HandshakeHandler {
         // Validate session status - must be HANDSHAKE (or ACTIVE for key refresh)
         SessionStatus status = session.getStatus();
         if (status != SessionStatus.HANDSHAKE && status != SessionStatus.ACTIVE) {
-            log.debug("Session {} is not in handshake/active status: {}", sessionId, status);
+            LOG.debug("Session {} is not in handshake/active status: {}", sessionId, status);
             String errorCode = status == SessionStatus.PENDING ? "SESSION_NOT_ACCEPTED"
                     : status == SessionStatus.BURNED ? "SESSION_BURNED"
                     : "INVALID_STATUS";
@@ -185,57 +185,51 @@ public class HandshakeHandler {
 
         // Check if user already submitted a key (prevent duplicate submissions)
         if (session.getPublicKeyForUser(senderId) != null) {
-            log.debug("User {} already submitted key for session {}", senderId, sessionId);
+            LOG.debug("User {} already submitted key for session {}", senderId, sessionId);
             // Not an error - just ignore duplicate
             return Mono.empty();
         }
 
-        log.info("Public key received: sessionId={}, from={}", sessionId, senderId);
+        LOG.info("Public key received: sessionId={}, from={}", sessionId, senderId);
 
         // Atomically set the public key and re-read session to check if both are ready
         return sessionRepository.setPublicKeyAtomic(sessionId, senderId, publicKey)
-                .flatMap(updatedSession -> {
-                    log.info("After atomic set: sessionId={}, bothReady={}",
-                            sessionId, updatedSession.areBothKeysReady());
+                .flatMap(updatedSession -> afterPublicKeyAtomic(session, senderId, sessionId, status, updatedSession));
+    }
 
-                    // Check if both keys are now available
-                    if (updatedSession.areBothKeysReady()) {
-                        // Both keys ready - relay to both participants simultaneously
-                        Long initiatorId = updatedSession.getInitiatorId();
-                        Long responderId = updatedSession.getResponderId();
-                        String initiatorKey = updatedSession.getInitiatorPublicKey();
-                        String responderKey = updatedSession.getResponderPublicKey();
-                        Instant timestamp = Instant.now();
+    private Mono<Void> afterPublicKeyAtomic(Session session, Long senderId, String sessionId,
+            SessionStatus status, Session updatedSession) {
+        LOG.info("After atomic set: sessionId={}, bothReady={}",
+                sessionId, updatedSession.areBothKeysReady());
 
-                        // Send responder's key to initiator
-                        sendPeerPublicKey(initiatorId, sessionId, responderId, responderKey, timestamp);
-                        // Send initiator's key to responder
-                        sendPeerPublicKey(responderId, sessionId, initiatorId, initiatorKey, timestamp);
+        if (updatedSession.areBothKeysReady()) {
+            Long initiatorId = updatedSession.getInitiatorId();
+            Long responderId = updatedSession.getResponderId();
+            String initiatorKey = updatedSession.getInitiatorPublicKey();
+            String responderKey = updatedSession.getResponderPublicKey();
+            Instant timestamp = Instant.now();
 
-                        log.info("Both public keys relayed: sessionId={}, initiator={}, responder={}",
-                                sessionId, initiatorId, responderId);
+            sendPeerPublicKey(initiatorId, sessionId, responderId, responderKey, timestamp);
+            sendPeerPublicKey(responderId, sessionId, initiatorId, initiatorKey, timestamp);
 
-                        // Clear temporary keys and update status to ACTIVE atomically
-                        return sessionRepository.clearPublicKeysAndSetActive(sessionId)
-                                .doOnSuccess(s -> log.info("Session {} is now ACTIVE", sessionId))
-                                .then();
-                    } else {
-                        // Only one key received - wait for the other
-                        log.debug("Waiting for peer's key: sessionId={}", sessionId);
+            LOG.info("Both public keys relayed: sessionId={}, initiator={}, responder={}",
+                    sessionId, initiatorId, responderId);
 
-                        // For ACTIVE sessions (key refresh), notify the peer that they need
-                        // to submit their key too. This handles the case where one party
-                        // reconnects after closing the app and needs to re-establish encryption.
-                        if (status == SessionStatus.ACTIVE) {
-                            Long peerId = session.getInitiatorId().equals(senderId)
-                                    ? session.getResponderId()
-                                    : session.getInitiatorId();
-                            sendKeyRefreshNotification(peerId, sessionId);
-                        }
+            return sessionRepository.clearPublicKeysAndSetActive(sessionId)
+                    .doOnSuccess(s -> LOG.info("Session {} is now ACTIVE", sessionId))
+                    .then();
+        }
 
-                        return Mono.empty();
-                    }
-                });
+        LOG.debug("Waiting for peer's key: sessionId={}", sessionId);
+
+        if (status == SessionStatus.ACTIVE) {
+            Long peerId = session.getInitiatorId().equals(senderId)
+                    ? session.getResponderId()
+                    : session.getInitiatorId();
+            sendKeyRefreshNotification(peerId, sessionId);
+        }
+
+        return Mono.empty();
     }
 
     /**
@@ -259,7 +253,7 @@ public class HandshakeHandler {
                 event
         );
 
-        log.debug("Sent PEER_PUBLIC_KEY to user {}: sessionId={}, peerId={}",
+        LOG.debug("Sent PEER_PUBLIC_KEY to user {}: sessionId={}, peerId={}",
                 recipientId, sessionId, peerId);
     }
 
@@ -279,7 +273,7 @@ public class HandshakeHandler {
                 event
         );
 
-        log.trace("Sent handshake error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent handshake error to user {}: {}", userId, errorCode);
     }
 
     /**
@@ -304,7 +298,7 @@ public class HandshakeHandler {
                 notification
         );
 
-        log.info("Sent key refresh notification to user {} for session {}", peerId, sessionId);
+        LOG.info("Sent key refresh notification to user {} for session {}", peerId, sessionId);
     }
 
     /**

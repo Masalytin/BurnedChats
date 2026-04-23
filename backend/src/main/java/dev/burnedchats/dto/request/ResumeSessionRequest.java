@@ -8,12 +8,10 @@ import jakarta.validation.constraints.NotBlank;
  * <p>Used by clients to resume a session after reconnecting
  * or reopening the Mini App.
  *
+ * @param sessionId session ID to resume
  * @see dev.burnedchats.handler.SessionHandler#resumeSession
  */
 public record ResumeSessionRequest(
-        /**
-         * Session ID to resume.
-         */
         @NotBlank(message = "Session ID is required")
         String sessionId
 ) {

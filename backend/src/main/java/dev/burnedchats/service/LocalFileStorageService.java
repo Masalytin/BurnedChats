@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 @Service
 public class LocalFileStorageService implements FileStorageService {
 
-    private static final Logger log = LoggerFactory.getLogger(LocalFileStorageService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalFileStorageService.class);
 
     private static final String FILE_EXTENSION = ".enc";
     private static final int BUFFER_SIZE = 8192;
@@ -44,7 +44,7 @@ public class LocalFileStorageService implements FileStorageService {
     void initStorageDirectory() {
         try {
             Files.createDirectories(storagePath);
-            log.info("File storage directory ready: {}", storagePath.toAbsolutePath());
+            LOG.info("File storage directory ready: {}", storagePath.toAbsolutePath());
         } catch (IOException e) {
             throw new IllegalStateException("Cannot create file storage directory: " + storagePath, e);
         }
@@ -65,8 +65,8 @@ public class LocalFileStorageService implements FileStorageService {
                                 .publishOn(Schedulers.boundedElastic())
                                 .doOnTerminate(() -> closeQuietly(channel))
                                 .then(Mono.just(filePath.toString())))
-                .doOnSuccess(path -> log.debug("Saved file: {}", fileId))
-                .doOnError(e -> log.error("Failed to save file: {}", fileId, e));
+                .doOnSuccess(path -> LOG.debug("Saved file: {}", fileId))
+                .doOnError(e -> LOG.error("Failed to save file: {}", fileId, e));
     }
 
     @Override
@@ -85,16 +85,16 @@ public class LocalFileStorageService implements FileStorageService {
         Path filePath = resolve(fileId);
 
         return Mono.fromCallable(() -> {
-                    try {
-                        return Files.deleteIfExists(filePath);
-                    } catch (NoSuchFileException e) {
-                        return false;
-                    }
-                })
+            try {
+                return Files.deleteIfExists(filePath);
+            } catch (NoSuchFileException e) {
+                return false;
+            }
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .doOnSuccess(deleted -> {
                     if (deleted) {
-                        log.debug("Deleted file: {}", fileId);
+                        LOG.debug("Deleted file: {}", fileId);
                     }
                 });
     }
@@ -112,11 +112,11 @@ public class LocalFileStorageService implements FileStorageService {
         Path filePath = resolve(fileId);
 
         return Mono.fromCallable(() -> {
-                    if (!Files.exists(filePath)) {
-                        return -1L;
-                    }
-                    return Files.size(filePath);
-                })
+            if (!Files.exists(filePath)) {
+                return -1L;
+            }
+            return Files.size(filePath);
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(size -> size < 0 ? Mono.empty() : Mono.just(size));
     }
@@ -124,16 +124,16 @@ public class LocalFileStorageService implements FileStorageService {
     @Override
     public Flux<String> listAll() {
         return Mono.fromCallable(() -> {
-                    try (Stream<Path> paths = Files.list(storagePath)) {
-                        return paths
-                                .filter(p -> p.getFileName().toString().endsWith(FILE_EXTENSION))
-                                .map(p -> {
-                                    String name = p.getFileName().toString();
-                                    return name.substring(0, name.length() - FILE_EXTENSION.length());
-                                })
-                                .toList();
-                    }
-                })
+            try (Stream<Path> paths = Files.list(storagePath)) {
+                return paths
+                        .filter(p -> p.getFileName().toString().endsWith(FILE_EXTENSION))
+                        .map(p -> {
+                            String name = p.getFileName().toString();
+                            return name.substring(0, name.length() - FILE_EXTENSION.length());
+                        })
+                        .toList();
+            }
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMapMany(Flux::fromIterable);
     }
@@ -148,7 +148,7 @@ public class LocalFileStorageService implements FileStorageService {
                 channel.close();
             }
         } catch (IOException e) {
-            log.warn("Failed to close file channel", e);
+            LOG.warn("Failed to close file channel", e);
         }
     }
 }

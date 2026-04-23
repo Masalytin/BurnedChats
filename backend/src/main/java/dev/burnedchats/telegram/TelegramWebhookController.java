@@ -67,14 +67,14 @@ public class TelegramWebhookController {
         String configuredSecret = telegramProperties.getBot().getWebhook().getSecretToken();
         if (configuredSecret != null && !configuredSecret.isBlank()) {
             if (secretToken == null || !secretToken.equals(configuredSecret)) {
-                log.warn("Invalid webhook secret token received. "
+                LOG.warn("Invalid webhook secret token received. "
                         + "Expected: [REDACTED], Got: {}", 
                         secretToken == null ? "null" : "[REDACTED]");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
         }
 
-        log.debug("Webhook update received: updateId={}, hasMessage={}, hasCallbackQuery={}",
+        LOG.debug("Webhook update received: updateId={}, hasMessage={}, hasCallbackQuery={}",
                 update.getUpdateId(),
                 update.hasMessage(),
                 update.hasCallbackQuery());
@@ -83,13 +83,13 @@ public class TelegramWebhookController {
             BotApiMethod<?> response = webhookBot.onWebhookUpdateReceived(update);
 
             if (response != null) {
-                log.debug("Webhook response: {}", response.getClass().getSimpleName());
+                LOG.debug("Webhook response: {}", response.getClass().getSimpleName());
                 return ResponseEntity.ok(response);
             }
 
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.error("Error processing webhook update: updateId={}", 
+            LOG.error("Error processing webhook update: updateId={}", 
                     update.getUpdateId(), e);
             // Return OK to prevent Telegram from retrying
             return ResponseEntity.ok().build();

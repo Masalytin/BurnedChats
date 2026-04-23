@@ -42,8 +42,8 @@ public class TelegramBotConfig {
         String token = telegramProperties.getBot().getToken();
         
         if (token == null || token.isBlank()) {
-            log.warn("Telegram bot token is not configured. Bot will not be registered.");
-            log.warn("Set TELEGRAM_BOT_TOKEN environment variable to enable the bot.");
+            LOG.warn("Telegram bot token is not configured. Bot will not be registered.");
+            LOG.warn("Set TELEGRAM_BOT_TOKEN environment variable to enable the bot.");
             return new TelegramBotsApi(DefaultBotSession.class);
         }
 
@@ -51,10 +51,10 @@ public class TelegramBotConfig {
         
         try {
             api.registerBot(bot);
-            log.info("Telegram bot registered successfully in Long Polling mode");
-            log.info("Bot username: @{}", telegramProperties.getBot().getUsername());
+            LOG.info("Telegram bot registered successfully in Long Polling mode");
+            LOG.info("Bot username: @{}", telegramProperties.getBot().getUsername());
         } catch (TelegramApiException e) {
-            log.error("Failed to register Telegram bot", e);
+            LOG.error("Failed to register Telegram bot", e);
             throw e;
         }
 

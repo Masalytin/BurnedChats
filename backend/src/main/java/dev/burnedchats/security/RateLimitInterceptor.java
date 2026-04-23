@@ -91,7 +91,7 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             rateLimitService.checkRateLimitBlocking(userId, rateLimitType);
             return message;
         } catch (RateLimitException e) {
-            log.warn("Rate limit exceeded for user {} on {}: retry after {}s",
+            LOG.warn("Rate limit exceeded for user {} on {}: retry after {}s",
                     userId, destination, e.getRetryAfterSeconds());
             throw e;
         }

@@ -41,7 +41,7 @@ import java.util.Map;
 @Repository
 public class SessionRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(SessionRepository.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SessionRepository.class);
 
     private static final String KEY_PREFIX = "session:";
 
@@ -74,9 +74,9 @@ public class SessionRepository {
                 .map(this::mapToSession)
                 .doOnSuccess(session -> {
                     if (session != null) {
-                        log.debug("Found session: {}", sessionId);
+                        LOG.debug("Found session: {}", sessionId);
                     } else {
-                        log.debug("Session not found: {}", sessionId);
+                        LOG.debug("Session not found: {}", sessionId);
                     }
                 });
     }
@@ -94,7 +94,7 @@ public class SessionRepository {
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
                 .then(redisTemplate.expire(key, sessionTtl))
-                .doOnSuccess(result -> log.debug("Saved session: {}, status: {}",
+                .doOnSuccess(result -> LOG.debug("Saved session: {}, status: {}",
                         session.getId(), session.getStatus()));
     }
 
@@ -111,7 +111,7 @@ public class SessionRepository {
         return redisTemplate.opsForHash()
                 .put(key, "status", status.name())
                 .flatMap(result -> updateLastActivity(sessionId))
-                .doOnSuccess(result -> log.debug("Updated session {} status to {}", sessionId, status));
+                .doOnSuccess(result -> LOG.debug("Updated session {} status to {}", sessionId, status));
     }
 
     /**
@@ -157,7 +157,7 @@ public class SessionRepository {
                             .put(key, field, publicKey)
                             .then(redisTemplate.opsForHash().put(key, "lastActivityAt", now))
                             .then(findById(sessionId)) // Re-read to get both keys
-                            .doOnSuccess(s -> log.debug(
+                            .doOnSuccess(s -> LOG.debug(
                                     "Atomically set {} for session {}", field, sessionId));
                 });
     }
@@ -177,7 +177,7 @@ public class SessionRepository {
                 .then(redisTemplate.opsForHash().put(key, "status", SessionStatus.ACTIVE.name()))
                 .then(redisTemplate.opsForHash().put(key, "handshakeCompletedAt", now))
                 .then(redisTemplate.opsForHash().put(key, "lastActivityAt", now))
-                .doOnSuccess(result -> log.debug(
+                .doOnSuccess(result -> LOG.debug(
                         "Cleared public keys and set ACTIVE for session: {}", sessionId));
     }
 
@@ -200,7 +200,7 @@ public class SessionRepository {
                             : "responderVerified";
                     return redisTemplate.opsForHash()
                             .put(key, field, String.valueOf(verified))
-                            .doOnSuccess(result -> log.debug(
+                            .doOnSuccess(result -> LOG.debug(
                                     "Updated verification for session {}, user {}: {}",
                                     sessionId, userId, verified));
                 })
@@ -220,7 +220,7 @@ public class SessionRepository {
         return redisTemplate.opsForHash()
                 .put(key, "handshakeCompletedAt", now)
                 .flatMap(result -> updateStatus(sessionId, SessionStatus.ACTIVE))
-                .doOnSuccess(result -> log.debug("Handshake completed for session: {}", sessionId));
+                .doOnSuccess(result -> LOG.debug("Handshake completed for session: {}", sessionId));
     }
 
     /**
@@ -233,7 +233,7 @@ public class SessionRepository {
         String key = keyFor(sessionId);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(count -> log.debug("Deleted session: {}, keys: {}", sessionId, count));
+                .doOnSuccess(count -> LOG.debug("Deleted session: {}, keys: {}", sessionId, count));
     }
 
     /**
@@ -282,7 +282,7 @@ public class SessionRepository {
                 .next()
                 .doOnSuccess(session -> {
                     if (session != null) {
-                        log.debug("Found active session for user {}: {}", userId, session.getId());
+                        LOG.debug("Found active session for user {}: {}", userId, session.getId());
                     }
                 });
     }
@@ -300,7 +300,7 @@ public class SessionRepository {
      * @return flux of active sessions for user
      */
     public Flux<Session> findAllActiveByParticipant(Long userId) {
-        log.debug("Finding all active sessions for user: {}", userId);
+        LOG.debug("Finding all active sessions for user: {}", userId);
         
         return redisTemplate.keys(KEY_PREFIX + "*")
                 .flatMap(key -> redisTemplate.opsForHash().entries(key)
@@ -313,7 +313,7 @@ public class SessionRepository {
                 .filter(session -> session.isParticipant(userId)
                         && session.getStatus() != SessionStatus.BURNED
                         && session.getStatus() != SessionStatus.EXPIRED)
-                .doOnComplete(() -> log.debug("Completed finding active sessions for user: {}", userId));
+                .doOnComplete(() -> LOG.debug("Completed finding active sessions for user: {}", userId));
     }
 
     private String keyFor(String sessionId) {
