@@ -1747,16 +1747,23 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
     };
   }, [syncMessagesRef, syncMessages]);
 
-  const handleSendMessage = useCallback((text: string) => {
-    sendMessage(text);
-  }, [sendMessage]);
+  const handleSendMessage = useCallback(
+    (text: string, options?: { replyToMessageId?: string }) => {
+      void sendMessage(text, options);
+    },
+    [sendMessage],
+  );
 
-  const handleSendFile = useCallback((file: File, caption?: string) => {
-    sendFileMessage(file, caption);
-  }, [sendFileMessage]);
+  const handleSendFile = useCallback(
+    (file: File, caption?: string, options?: { replyToMessageId?: string }) => {
+      void sendFileMessage(file, caption, options);
+    },
+    [sendFileMessage],
+  );
 
   return (
     <ChatRoom
+      userId={userId}
       sessionId={sessionId}
       peer={peer}
       messages={messages}

@@ -103,6 +103,11 @@ public class Message implements Serializable {
     private Long fileSize;
 
     /**
+     * Optional client message ID this message replies to (plaintext relay metadata).
+     */
+    private String replyToMessageId;
+
+    /**
      * Create a Message from a send request.
      *
      * @param sessionId        the session ID
@@ -114,9 +119,10 @@ public class Message implements Serializable {
      * @param clientTimestamp  the client timestamp
      * @return the constructed Message
      */
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public static Message fromRequest(String sessionId, Long senderId, Long recipientId,
                                        String messageId, String encryptedContent,
-                                       String iv, Long clientTimestamp) {
+                                       String iv, Long clientTimestamp, String replyToMessageId) {
         return Message.builder()
                 .messageId(messageId)
                 .sessionId(sessionId)
@@ -126,6 +132,7 @@ public class Message implements Serializable {
                 .iv(iv)
                 .clientTimestamp(clientTimestamp)
                 .serverTimestamp(Instant.now())
+                .replyToMessageId(replyToMessageId)
                 .build();
     }
 
@@ -151,7 +158,7 @@ public class Message implements Serializable {
                                            String messageId, String encryptedContent,
                                            String iv, Long clientTimestamp,
                                            String type, String fileId, String thumbnailFileId,
-                                           String encryptedMeta, Long fileSize) {
+                                           String encryptedMeta, Long fileSize, String replyToMessageId) {
         return Message.builder()
                 .messageId(messageId)
                 .sessionId(sessionId)
@@ -166,6 +173,7 @@ public class Message implements Serializable {
                 .thumbnailFileId(thumbnailFileId)
                 .encryptedMeta(encryptedMeta)
                 .fileSize(fileSize)
+                .replyToMessageId(replyToMessageId)
                 .build();
     }
 }

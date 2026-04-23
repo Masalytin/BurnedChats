@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, memo, useMemo, useState } from 'react';
+import { useRef, useEffect, useCallback, memo, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckSquare, Copy, Pencil, Reply, Trash2 } from 'lucide-react';
 import { Message } from '../Message';
@@ -15,7 +15,14 @@ import { useToast } from '@/components/Toast';
 import { useHaptics } from '@/hooks/useHaptics';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
+import { quoteSenderLabel } from '@/utils/replyPreview';
 import './MessageList.css';
+
+const HIGHLIGHT_MS = 1500;
+
+export type MessageListHandle = {
+  scrollToMessage: (messageId: string) => void;
+};
 
 interface UploadStateInfo {
   progress: number;
@@ -50,6 +57,12 @@ interface MessageListProps {
   onMessageLongPress?: (message: DecryptedMessage, anchor: DOMRect) => void;
   /** Parent shows delete-for-me confirmation (IMP-MA-05) */
   onRequestDeleteForMe?: (messageIds: string[]) => void;
+  /** Current user id (IMP-MA-03 quote labels) */
+  userId: number;
+  /** Peer name in DM, or a fallback in rooms when no sender is known */
+  peerDisplayName: string;
+  /** Start reply in composer (context menu or swipe) */
+  onReplyToMessage?: (message: DecryptedMessage) => void;
 }
 
 /**
@@ -61,7 +74,9 @@ interface MessageListProps {
  * - Typing indicator
  * - Loading state
  */
-export const MessageList = memo(function MessageList({
+export const MessageList = memo(
+  forwardRef<MessageListHandle, MessageListProps>(function MessageList(
+    {
   messages,
   isPeerTyping = false,
   peerName,
@@ -75,7 +90,12 @@ export const MessageList = memo(function MessageList({
   selection,
   onMessageLongPress,
   onRequestDeleteForMe,
-}: MessageListProps) {
+  userId,
+  peerDisplayName,
+  onReplyToMessage,
+},
+  ref,
+) {
   const { t } = useTranslation();
   const toast = useToast();
   const haptics = useHaptics();
@@ -85,6 +105,7 @@ export const MessageList = memo(function MessageList({
   const isNearBottomRef = useRef(true);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const firstRenderRef = useRef(true);
+  const highlightTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
   /** IDs of messages that just appeared (for entrance animation); skip on initial load */
   const newMessageIds = useMemo(() => {
@@ -117,6 +138,39 @@ export const MessageList = memo(function MessageList({
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior });
   }, []);
+
+  const scrollToMessage = useCallback((messageId: string) => {
+    const root = listRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('message--highlighted');
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = globalThis.setTimeout(() => {
+      el.classList.remove('message--highlighted');
+      highlightTimeoutRef.current = null;
+    }, HIGHLIGHT_MS);
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToMessage,
+    }),
+    [scrollToMessage],
+  );
+
+  useEffect(
+    () => () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   /**
    * Handle scroll event
@@ -204,15 +258,20 @@ export const MessageList = memo(function MessageList({
     const { messageId } = actionMenu;
     const msg = messages.find((m) => m.id === messageId);
     const noOp = () => {
-      // Placeholders for IMP-MA-03…06
+      // Placeholders for IMP-MA-04…06
     };
     return [
       {
         id: 'reply',
-        label: t('chat.messageActions.reply'),
+        label: t('chat.actions.reply'),
         icon: <Reply size={18} />,
-        disabled: true,
-        onClick: noOp,
+        disabled: !msg || !onReplyToMessage,
+        onClick: () => {
+          if (msg && onReplyToMessage) {
+            onReplyToMessage(msg);
+            closeActionMenu();
+          }
+        },
       },
       {
         id: 'copy',
@@ -261,6 +320,7 @@ export const MessageList = memo(function MessageList({
     t,
     copyFromMenu,
     onRequestDeleteForMe,
+    onReplyToMessage,
   ]);
 
   const openMenuHandler = selection ? handleOpenActionMenu : undefined;
@@ -322,6 +382,16 @@ export const MessageList = memo(function MessageList({
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                replyTo={message.replyTo}
+                replySenderLabel={
+                  message.replyTo
+                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    : undefined
+                }
+                onReplyQuoteClick={scrollToMessage}
+                onSwipeReply={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
               />
             </div>
           );
@@ -340,6 +410,16 @@ export const MessageList = memo(function MessageList({
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                replyTo={message.replyTo}
+                replySenderLabel={
+                  message.replyTo
+                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    : undefined
+                }
+                onReplyQuoteClick={scrollToMessage}
+                onSwipeReply={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
               />
             </div>
           );
@@ -357,6 +437,16 @@ export const MessageList = memo(function MessageList({
                 message={message}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
+                replyTo={message.replyTo}
+                replySenderLabel={
+                  message.replyTo
+                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    : undefined
+                }
+                onReplyQuoteClick={scrollToMessage}
+                onSwipeReply={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
               />
             </div>
           );
@@ -375,6 +465,14 @@ export const MessageList = memo(function MessageList({
             isNew={newMessageIds.has(message.id)}
             selection={selection}
             onOpenActionMenu={openMenuHandler}
+            replyTo={message.replyTo}
+            replySenderLabel={
+              message.replyTo
+                ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                : undefined
+            }
+            onReplyQuoteClick={scrollToMessage}
+            onSwipeReply={onReplyToMessage ? () => { onReplyToMessage(message); } : undefined}
           />
         );
       })}
@@ -409,7 +507,7 @@ export const MessageList = memo(function MessageList({
       )}
     </div>
   );
-});
+}));
 
 /**
  * Check if two dates are the same day

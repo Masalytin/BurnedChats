@@ -1,10 +1,12 @@
-import { memo, useCallback, useEffect, useState, useRef } from 'react';
+import { memo, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import { makeReplyPreview, resolveReplyAuthor } from '@/utils/replyPreview';
+import type { ReplyChipModel } from '../ReplyChip';
 import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
@@ -23,7 +25,7 @@ import type {
 import { useHaptics } from '@/hooks/useHaptics';
 import { isFilesErrorI18nKey } from '@/services/fileTransferErrors';
 import type { UploadStage } from '../UploadProgressOverlay';
-import type { DecryptedFileMessage } from '@/types';
+import type { DecryptedFileMessage, DecryptedMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
 
@@ -120,6 +122,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const hasKey = hasGroupKey(roomId);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
+  const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
+  const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const roomPeerDisplayName = t('room.chat.fallbackPeer');
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -167,6 +172,23 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     [t, toast],
   );
 
+  const replyChip: ReplyChipModel | null = useMemo(() => {
+    if (!replyTarget) {
+      return null;
+    }
+    return {
+      senderName: resolveReplyAuthor(replyTarget, userId, roomPeerDisplayName, t),
+      preview: makeReplyPreview(replyTarget, t),
+      type: replyTarget.type,
+    };
+  }, [replyTarget, userId, roomPeerDisplayName, t]);
+
+  useEffect(() => {
+    if (replyTarget) {
+      messageInputTextAreaRef.current?.focus();
+    }
+  }, [replyTarget]);
+
   const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages } =
     useRoomMessages({
       roomId,
@@ -187,10 +209,23 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     };
   }, [syncMessagesRef, syncMessages]);
 
-  const handleSend = useCallback((text: string) => {
-    haptics.success();
-    sendMessage(text);
-  }, [sendMessage, haptics]);
+  const handleCancelReply = useCallback(() => {
+    setReplyTarget(null);
+  }, []);
+
+  const handleReplyToMessage = useCallback((message: DecryptedMessage) => {
+    setReplyTarget(message);
+  }, []);
+
+  const handleSend = useCallback(
+    (text: string) => {
+      haptics.success();
+      void sendMessage(text, { replyToMessageId: replyTarget?.id });
+      setReplyTarget(null);
+      messageInputTextAreaRef.current?.focus();
+    },
+    [sendMessage, haptics, replyTarget],
+  );
 
   const handleFileSelected = useCallback((info: SelectedFileInfo) => {
     setPendingFile(info);
@@ -215,12 +250,15 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         setUploadState(prev => prev ? { ...prev, progress: percent, stage: 'uploading' } : null);
       },
       signal: controller.signal,
+      replyToMessageId: replyTarget?.id,
     };
 
     const result = await sendFileMessage(file, caption, options);
     abortRef.current = null;
 
     if (result.success) {
+      setReplyTarget(null);
+      messageInputTextAreaRef.current?.focus();
       setUploadState(null);
     } else {
       setUploadState(prev => prev ? { ...prev, stage: 'failed' } : null);
@@ -371,6 +409,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onOpenViewer={handleOpenViewer}
             selection={messageSelection}
             onRequestDeleteForMe={requestDeleteForMe}
+            userId={userId}
+            peerDisplayName={roomPeerDisplayName}
+            onReplyToMessage={handleReplyToMessage}
             className="room-chat-room-messages chat-screen-messages"
           />
           <div className="chat-screen-input">
@@ -379,6 +420,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
               onFileSelected={handleFileSelected}
               isUploading={isUploading}
               placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
+              replyTo={replyChip}
+              onReplyCancel={handleCancelReply}
+              textAreaRef={messageInputTextAreaRef}
             />
           </div>
         </>

@@ -111,6 +111,11 @@ public class SyncMessagesEvent {
         private final Long fileSize;
 
         /**
+         * Optional ID of the message this one replies to (plaintext metadata).
+         */
+        private final String replyToMessageId;
+
+        /**
          * Convert a domain {@link Message} into a {@code SyncedMessage} DTO.
          *
          * <p>Centralised mapping used by both the client-initiated sync
@@ -133,6 +138,7 @@ public class SyncMessagesEvent {
                     .thumbnailFileId(msg.getThumbnailFileId())
                     .encryptedMeta(msg.getEncryptedMeta())
                     .fileSize(msg.getFileSize())
+                    .replyToMessageId(msg.getReplyToMessageId())
                     .build();
         }
     }

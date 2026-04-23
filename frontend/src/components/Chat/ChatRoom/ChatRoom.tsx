@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useRef, useEffect } from 'react';
+import { memo, useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -7,6 +7,8 @@ import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
 import { MessageInput } from '../MessageInput';
+import { makeReplyPreview, resolveReplyAuthor } from '@/utils/replyPreview';
+import type { ReplyChipModel } from '../ReplyChip';
 import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
@@ -27,6 +29,8 @@ export interface FileUploadState {
 }
 
 interface ChatRoomProps {
+  /** Current user's Telegram id (IMP-MA-03 reply author labels) */
+  userId: number;
   /** Session ID for the chat */
   sessionId: string;
   /** Information about the peer user */
@@ -40,9 +44,9 @@ interface ChatRoomProps {
   /** Whether peer is verified (fingerprint matched) */
   isVerified?: boolean;
   /** Callback when message is sent */
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string, options?: { replyToMessageId?: string }) => void;
   /** Callback when file is sent (P4-3-2-1) */
-  onSendFile?: (file: File, caption?: string) => void;
+  onSendFile?: (file: File, caption?: string, options?: { replyToMessageId?: string }) => void;
   /** Callback when user typing status changes */
   onTypingChange?: (isTyping: boolean) => void;
   /** Callback when burn button is clicked */
@@ -76,6 +80,7 @@ interface ChatRoomProps {
  * - File picker + preview + upload progress (P4-4-1-1 / P4-4-1-2 / P4-4-1-3)
  */
 export const ChatRoom = memo(function ChatRoom({
+  userId,
   sessionId: _sessionId,
   peer,
   messages,
@@ -100,7 +105,26 @@ export const ChatRoom = memo(function ChatRoom({
   const haptics = useHaptics();
   const messageSelection = useMessageSelection();
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
+  const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
+  const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const displayName = peer?.displayName?.trim() || `User ${peer?.id ?? ''}`.trim() || t('common.unknown');
+
+  const replyChip: ReplyChipModel | null = useMemo(() => {
+    if (!replyTarget) {
+      return null;
+    }
+    return {
+      senderName: resolveReplyAuthor(replyTarget, userId, displayName, t),
+      preview: makeReplyPreview(replyTarget, t),
+      type: replyTarget.type,
+    };
+  }, [replyTarget, userId, displayName, t]);
+
+  useEffect(() => {
+    if (replyTarget) {
+      messageInputTextAreaRef.current?.focus();
+    }
+  }, [replyTarget]);
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -130,10 +154,26 @@ export const ChatRoom = memo(function ChatRoom({
     setViewerMessage(null);
   }, []);
 
-  const handleSend = useCallback((text: string) => {
-    haptics.success();
-    onSendMessage(text);
-  }, [onSendMessage, haptics]);
+  const handleSend = useCallback(
+    (text: string) => {
+      haptics.success();
+      onSendMessage(text, { replyToMessageId: replyTarget?.id });
+      setReplyTarget(null);
+      messageInputTextAreaRef.current?.focus();
+    },
+    [onSendMessage, haptics, replyTarget],
+  );
+
+  const handleCancelReply = useCallback(() => {
+    setReplyTarget(null);
+  }, []);
+
+  const handleReplyToMessage = useCallback(
+    (message: DecryptedMessage) => {
+      setReplyTarget(message);
+    },
+    [],
+  );
 
   const handleTypingChange = useCallback((isTyping: boolean) => {
     onTypingChange?.(isTyping);
@@ -150,11 +190,16 @@ export const ChatRoom = memo(function ChatRoom({
   }, []);
 
   // P4-4-1-2: Confirmed send from preview
-  const handlePreviewSend = useCallback((file: File, caption?: string) => {
-    pendingCaptionRef.current = caption;
-    setPendingFile(null);
-    onSendFile?.(file, caption);
-  }, [onSendFile]);
+  const handlePreviewSend = useCallback(
+    (file: File, caption?: string) => {
+      pendingCaptionRef.current = caption;
+      setPendingFile(null);
+      onSendFile?.(file, caption, { replyToMessageId: replyTarget?.id });
+      setReplyTarget(null);
+      messageInputTextAreaRef.current?.focus();
+    },
+    [onSendFile, replyTarget],
+  );
 
   const handlePreviewCancel = useCallback(() => {
     setPendingFile(null);
@@ -292,6 +337,9 @@ export const ChatRoom = memo(function ChatRoom({
         onOpenViewer={handleOpenViewer}
         selection={messageSelection}
         onRequestDeleteForMe={requestDeleteForMe}
+        userId={userId}
+        peerDisplayName={displayName}
+        onReplyToMessage={handleReplyToMessage}
         className="chat-room-messages chat-screen-messages"
       />
 
@@ -303,6 +351,9 @@ export const ChatRoom = memo(function ChatRoom({
           disabled={disabled}
           isUploading={isUploading}
           placeholder={t('chat.messagePlaceholder', { name: displayName })}
+          replyTo={replyChip}
+          onReplyCancel={handleCancelReply}
+          textAreaRef={messageInputTextAreaRef}
         />
       </div>
 

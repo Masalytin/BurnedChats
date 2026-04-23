@@ -118,6 +118,11 @@ public class NewMessageEvent {
     private Long fileSize;
 
     /**
+     * Optional ID of the message this one replies to (plaintext metadata).
+     */
+    private String replyToMessageId;
+
+    /**
      * Error code if message delivery failed.
      *
      * <p>Possible values:

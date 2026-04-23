@@ -19,6 +19,18 @@
   flex-shrink: 0;
 }
 
+/* IMP-MA-03: jump-to message highlight */
+.message.message--highlighted {
+  position: relative;
+}
+.message.message--highlighted .message-bubble,
+.message.message--highlighted .image-bubble,
+.message.message--highlighted .video-bubble,
+.message.message--highlighted .doc-bubble {
+  transition: background-color 0.35s ease;
+  background-color: rgba(36, 129, 204, 0.2) !important;
+}
+
 /* ============================================
  * Loading States
  * ============================================ */

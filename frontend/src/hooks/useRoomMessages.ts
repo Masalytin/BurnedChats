@@ -8,6 +8,8 @@ import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
+import { enrichReplyTo } from '@/utils/replyPreview';
+import i18n from '@/i18n';
 import type {
   DecryptedMessage,
   DecryptedFileMessage,
@@ -51,6 +53,7 @@ interface NewRoomMessageEvent {
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
+  replyToMessageId?: string;
 }
 
 /** Room message sent acknowledgment from server */
@@ -76,6 +79,7 @@ interface SyncedRoomMessage {
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
+  replyToMessageId?: string;
 }
 
 /** Sync room messages response */
@@ -110,6 +114,7 @@ export interface SendRoomFileOptions {
   onProgress?: (percent: number) => void;
   onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
+  replyToMessageId?: string;
 }
 
 /** WebSocket interface (same shape as DM — see {@link ChatWebSocketApi}) */
@@ -130,7 +135,7 @@ export interface UseRoomMessagesReturn {
   messages: DecryptedMessage[];
   isLoading: boolean;
   isSyncing: boolean;
-  sendMessage: (text: string) => Promise<SendRoomMessageResult>;
+  sendMessage: (text: string, options?: { replyToMessageId?: string }) => Promise<SendRoomMessageResult>;
   sendFileMessage: (file: File, caption?: string, options?: SendRoomFileOptions) => Promise<SendRoomMessageResult>;
   clearMessages: () => void;
   hideMessages: (ids: string | string[]) => void;
@@ -161,7 +166,10 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const visibleMessages = useMemo(
-    () => messages.filter((m) => !hiddenIds.has(m.id)),
+    () =>
+      messages
+        .filter((m) => !hiddenIds.has(m.id))
+        .map((m) => enrichReplyTo(m, messages, i18n.t.bind(i18n))),
     [messages, hiddenIds],
   );
   const [isLoading] = useState(false);
@@ -212,7 +220,10 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   // Send Message
   // ============================================
 
-  const sendMessage = useCallback(async (text: string): Promise<SendRoomMessageResult> => {
+  const sendMessage = useCallback(async (
+    text: string,
+    options?: { replyToMessageId?: string },
+  ): Promise<SendRoomMessageResult> => {
     setError(null);
 
     if (!isConnected) {
@@ -233,6 +244,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
     const messageId = generateMessageId();
     const timestamp = Date.now();
+    const replyToMessageId = options?.replyToMessageId;
 
     try {
       const encrypted = await encryptMessage(groupKey, text, roomId);
@@ -248,6 +260,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         status: 'sending',
         isOwn: true,
         type: 'text',
+        replyToMessageId,
       };
       // senderName is intentionally omitted for own messages (own messages don't show sender label)
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
@@ -258,6 +271,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         encryptedContent: encrypted.ciphertext,
         iv: encrypted.iv,
         timestamp,
+        ...(replyToMessageId ? { replyToMessageId } : {}),
       });
 
       return { success: true, messageId, error: null };
@@ -304,6 +318,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     const messageId = generateMessageId();
     const timestamp = Date.now();
     const messageType = validated.messageType;
+    const replyToMessageId = options?.replyToMessageId;
 
     try {
       const uploadHandle = enqueueUpload({
@@ -339,6 +354,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         thumbnailUrl: uploadResult.thumbnailDataUrl,
         fileSize: uploadResult.size,
         fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
+        replyToMessageId,
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
@@ -353,6 +369,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         thumbnailFileId: uploadResult.thumbnailFileId,
         encryptedMeta,
         fileSize: uploadResult.size,
+        ...(replyToMessageId ? { replyToMessageId } : {}),
       });
 
       return { success: true, messageId, error: null };
@@ -399,7 +416,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
         if (isFileMsg) {
           decryptedMsg = await decryptRoomFileEvent(
-            event, groupKey, roomId, userId, ts, eventType,
+            event, groupKey, roomId, userId, ts, eventType, event.replyToMessageId || undefined,
           );
         } else {
           const plaintext = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
@@ -413,6 +430,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             status: 'delivered',
             isOwn: event.senderTgId === userId,
             type: 'text',
+            replyToMessageId: event.replyToMessageId || undefined,
           };
         }
 
@@ -512,6 +530,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
               status: 'delivered',
               isOwn: syncedMsg.senderTgId === userId,
               type: 'text',
+              replyToMessageId: syncedMsg.replyToMessageId || undefined,
             });
           }
         } catch (decryptErr) {
@@ -678,6 +697,7 @@ async function decryptRoomFileEvent(
   userId: number,
   timestamp: number,
   messageType: MessageType,
+  replyToMessageId?: string,
 ): Promise<DecryptedMessage> {
   let caption = '';
   try {
@@ -721,6 +741,7 @@ async function decryptRoomFileEvent(
     fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
     thumbnailFileId: event.thumbnailFileId,
     thumbnailUrl,
+    replyToMessageId,
   };
 
   return msg;
@@ -776,6 +797,7 @@ async function decryptSyncedRoomFileMessage(
     fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
     thumbnailFileId: syncedMsg.thumbnailFileId,
     thumbnailUrl,
+    replyToMessageId: syncedMsg.replyToMessageId || undefined,
   };
 
   return msg;

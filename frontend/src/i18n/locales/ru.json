@@ -87,7 +87,18 @@
       "copy": "Копировать",
       "copyToast": "Скопировано",
       "copyFailed": "Не удалось скопировать",
-      "deleteForMe": "Удалить у меня"
+      "deleteForMe": "Удалить у меня",
+      "reply": "Ответить"
+    },
+    "reply": {
+      "you": "Вы",
+      "chipLabel": "Ответ на {{name}}",
+      "cancelAriaLabel": "Отменить ответ",
+      "deletedOriginal": "Исходное сообщение недоступно",
+      "imageShort": "Фото",
+      "videoShort": "Видео",
+      "fileShort": "Файл",
+      "unknownSender": "Неизвестно"
     },
     "delete": {
       "confirmTitleForMe": "Удалить сообщения?",
@@ -311,6 +322,7 @@
     },
 
     "chat": {
+      "fallbackPeer": "Участник",
       "noAccess": "Нет доступа",
       "noAccessHint": "Вы не являетесь участником этой комнаты",
       "loadingKey": "Загрузка ключа шифрования...",

@@ -96,6 +96,17 @@ class MessageRepositoryTest {
         }
     }
 
+    @Test
+    @DisplayName("Message JSON round-trips replyToMessageId for offline queue")
+    void messageJsonRoundTripsReplyToId() throws JsonProcessingException {
+        Message m = createTestMessage();
+        m.setReplyToMessageId("replied-to-msg-1");
+        String json = toJson(m);
+        assertTrue(json.contains("replyToMessageId"));
+        Message out = objectMapper.readValue(json, Message.class);
+        assertEquals("replied-to-msg-1", out.getReplyToMessageId());
+    }
+
     @Nested
     @DisplayName("queueMessage")
     class QueueMessage {

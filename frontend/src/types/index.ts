@@ -72,6 +72,17 @@ export interface ChatRequest {
 
 export type MessageType = 'text' | 'image' | 'video' | 'file';
 
+/** Hydrated quote for display; preview is always client-side (never from server). */
+export interface ReplyToInfo {
+  messageId: string;
+  senderId: number;
+  senderName?: string;
+  preview: string;
+  type: MessageType;
+  /** True when the referenced id is not in the local message list. */
+  deleted?: boolean;
+}
+
 export type MessageStatus = 
   | 'sending'    // Message is being sent
   | 'sent'       // Message sent to server
@@ -88,6 +99,8 @@ export interface Message {
   timestamp: number;
   status: MessageStatus;
   type: MessageType;
+  /** Plaintext relay metadata: id of the message this one replies to. */
+  replyToMessageId?: string;
 
   // File-specific fields (present when type !== 'text')
   fileId?: string;
@@ -101,6 +114,8 @@ export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv
   isOwn: boolean;
   /** Display name of the sender — set for room messages only; undefined for 1-to-1 chats. */
   senderName?: string;
+  /** Client-only quote hydrated from `replyToMessageId` and local state. */
+  replyTo?: ReplyToInfo;
 }
 
 /**

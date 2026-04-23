@@ -258,6 +258,8 @@ public class MessageHandler {
             return Mono.empty();
         }
 
+        logReplyToIfPresent(request, sessionId);
+
         // File validation for non-text messages
         Mono<Void> fileValidation = Mono.empty();
         if (FileMessageRelayValidator.isFileMessage(request.getType())) {
@@ -316,6 +318,9 @@ public class MessageHandler {
                     .encryptedMeta(request.getEncryptedMeta())
                     .fileSize(request.getFileSize());
         }
+        if (request.getReplyToMessageId() != null && !request.getReplyToMessageId().isBlank()) {
+            eventBuilder.replyToMessageId(request.getReplyToMessageId());
+        }
 
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(recipientId),
@@ -352,11 +357,12 @@ public class MessageHandler {
                     sessionId, senderId, recipientId, messageId,
                     request.getEncryptedContent(), request.getIv(), request.getTimestamp(),
                     request.getType(), request.getFileId(), request.getThumbnailFileId(),
-                    request.getEncryptedMeta(), request.getFileSize());
+                    request.getEncryptedMeta(), request.getFileSize(), request.getReplyToMessageId());
         } else {
             message = Message.fromRequest(
                     sessionId, senderId, recipientId, messageId,
-                    request.getEncryptedContent(), request.getIv(), request.getTimestamp());
+                    request.getEncryptedContent(), request.getIv(), request.getTimestamp(),
+                    request.getReplyToMessageId());
         }
 
         return messageRepository.queueMessage(message)
@@ -439,5 +445,12 @@ public class MessageHandler {
         );
 
         LOG.trace("Sent message error to sender {}: {}", senderId, errorCode);
+    }
+
+    private void logReplyToIfPresent(SendMessageRequest request, String sessionId) {
+        String replyTo = request.getReplyToMessageId();
+        if (replyTo != null && !replyTo.isBlank()) {
+            LOG.debug("message.send includes replyToMessageId={} sessionId={}", replyTo, sessionId);
+        }
     }
 }

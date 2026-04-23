@@ -147,4 +147,10 @@ public class SendMessageRequest implements FileMessageAware {
      */
     @Positive(message = "File size must be positive")
     private Long fileSize;
+
+    /**
+     * Optional ID of the message this one replies to (plaintext metadata; no content).
+     */
+    @Size(max = 64, message = "Reply target message ID must not exceed 64 characters")
+    private String replyToMessageId;
 }

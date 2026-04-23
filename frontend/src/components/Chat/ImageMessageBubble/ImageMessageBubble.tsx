@@ -1,9 +1,12 @@
 import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DecryptedFileMessage } from '@/types';
+import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
+import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
+import { ReplyQuote } from '../ReplyQuote';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -20,6 +23,10 @@ interface ImageMessageBubbleProps {
   onOpenViewer?: (message: DecryptedFileMessage) => void;
   selection?: UseMessageSelectionReturn;
   onOpenActionMenu?: (messageId: string, anchor: DOMRect) => void;
+  replyTo?: ReplyToInfo;
+  replySenderLabel?: string;
+  onReplyQuoteClick?: (messageId: string) => void;
+  onSwipeReply?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -40,6 +47,10 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   onOpenViewer,
   selection,
   onOpenActionMenu,
+  replyTo,
+  replySenderLabel,
+  onReplyQuoteClick,
+  onSwipeReply,
 }: ImageMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,10 +65,18 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
     onOpenActionMenu(message.id, rootRef.current.getBoundingClientRect());
   }, [haptics, message.id, onOpenActionMenu]);
 
-  const { handlers } = useLongPress({
+  const { handlers: longPress } = useLongPress({
     enabled: menuEnabled && !isSelecting,
     onLongPress: handleOpenMenu,
   });
+  const swipe = useSwipeGesture({
+    onSwipeRight: () => {
+      haptics.selectionChanged();
+      onSwipeReply?.();
+    },
+    enabled: menuEnabled && !isSelecting && Boolean(onSwipeReply),
+  });
+  const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
   const shouldInteract = menuEnabled || isSelecting;
   const decryptionKey = useDecryptionKey(message.sessionId);
@@ -159,6 +178,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       role="listitem"
+      data-message-id={message.id}
       {...(shouldInteract ? handlers : {})}
     >
       {isSelecting && (
@@ -171,6 +191,13 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       <div className="image-bubble" onClick={handleTap}>
         {!message.isOwn && message.senderName && (
           <span className="message-sender-name">{message.senderName}</span>
+        )}
+        {replyTo && replySenderLabel && onReplyQuoteClick && (
+          <ReplyQuote
+            reply={replyTo}
+            senderLabel={replySenderLabel}
+            onJumpToMessage={onReplyQuoteClick}
+          />
         )}
 
         <div className="image-bubble__thumbnail-wrap">

@@ -101,4 +101,9 @@ public class RoomMessage implements Serializable {
      * Original file size in bytes.
      */
     private Long fileSize;
+
+    /**
+     * Optional client message ID this message replies to (plaintext relay metadata).
+     */
+    private String replyToMessageId;
 }

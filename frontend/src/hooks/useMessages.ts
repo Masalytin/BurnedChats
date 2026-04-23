@@ -8,6 +8,8 @@ import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { validateFileForUpload } from '@/utils/fileValidation';
 import { fileValidationToastParams } from '@/utils/fileValidationI18n';
+import { enrichReplyTo } from '@/utils/replyPreview';
+import i18n from '@/i18n';
 import type { DecryptedMessage, DecryptedFileMessage, FileMetadata, MessageStatus, MessageType } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 import { useMessageSync } from '@/hooks/useMessageSync';
@@ -56,6 +58,7 @@ interface NewMessageEvent {
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
+  replyToMessageId?: string;
 }
 
 /** Message sent acknowledgment from server */
@@ -82,6 +85,7 @@ interface SyncedMessage {
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
+  replyToMessageId?: string;
 }
 
 /** Sync messages event from server (5.1.2) */
@@ -102,6 +106,8 @@ export interface SendFileOptions {
   onProgress?: (percent: number) => void;
   onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
+  /** IMP-MA-03 */
+  replyToMessageId?: string;
 }
 
 /** Hook options */
@@ -133,7 +139,7 @@ interface UseMessagesReturn {
   /** Whether sync is in progress (5.1.2) */
   isSyncing: boolean;
   /** Send a new text message */
-  sendMessage: (text: string) => Promise<SendMessageResult>;
+  sendMessage: (text: string, options?: { replyToMessageId?: string }) => Promise<SendMessageResult>;
   /** Send a file message (image, video, or document) with optional caption */
   sendFileMessage: (file: File, caption?: string, options?: SendFileOptions) => Promise<SendMessageResult>;
   /** Clear all messages (local only) */
@@ -208,7 +214,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const visibleMessages = useMemo(
-    () => messages.filter((m) => !hiddenIds.has(m.id)),
+    () =>
+      messages
+        .filter((m) => !hiddenIds.has(m.id))
+        .map((m) => enrichReplyTo(m, messages, i18n.t.bind(i18n))),
     [messages, hiddenIds],
   );
   const [isLoading, _setIsLoading] = useState(false);
@@ -274,7 +283,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   /**
    * Encrypt and send a message.
    */
-  const sendMessage = useCallback(async (text: string): Promise<SendMessageResult> => {
+  const sendMessage = useCallback(async (
+    text: string,
+    options?: { replyToMessageId?: string },
+  ): Promise<SendMessageResult> => {
     // Clear previous error before attempting to send
     setError(null);
 
@@ -335,6 +347,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     // Generate message ID
     const messageId = generateMessageId();
     const timestamp = Date.now();
+    const replyToMessageId = options?.replyToMessageId;
 
     try {
       // Encrypt message with session binding
@@ -353,6 +366,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         status: 'sending',
         isOwn: true,
         type: 'text',
+        replyToMessageId,
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
@@ -365,6 +379,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         encryptedContent: encrypted.ciphertext,
         iv: encrypted.iv,
         timestamp,
+        ...(replyToMessageId ? { replyToMessageId } : {}),
       });
 
       console.log('[useMessages] Message published successfully', { messageId });
@@ -423,6 +438,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     const messageId = generateMessageId();
     const timestamp = Date.now();
     const messageType = validated.messageType;
+    const replyToMessageId = options?.replyToMessageId;
 
     try {
       const uploadHandle = enqueueUpload({
@@ -458,6 +474,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         thumbnailUrl: uploadResult.thumbnailDataUrl,
         fileSize: uploadResult.size,
         fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
+        replyToMessageId,
       };
       setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
 
@@ -472,6 +489,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         thumbnailFileId: uploadResult.thumbnailFileId,
         encryptedMeta,
         fileSize: uploadResult.size,
+        ...(replyToMessageId ? { replyToMessageId } : {}),
       });
 
       debugLog('success', 'File message sent', { messageId, sessionId, type: messageType });
@@ -534,7 +552,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
         if (isFileMsg) {
           decryptedMsg = await decryptFileEvent(
-            event, aesKey, sessionId, userId, ts, eventType,
+            event, aesKey, sessionId, userId, ts, eventType, event.replyToMessageId || undefined,
           );
         } else {
           const plaintext = await decryptMessage(
@@ -553,6 +571,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             status: 'delivered',
             isOwn: event.senderId === userId,
             type: 'text',
+            replyToMessageId: event.replyToMessageId || undefined,
           };
         }
 
@@ -637,6 +656,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               status: 'delivered',
               isOwn: syncedMsg.senderId === userId,
               type: 'text',
+              replyToMessageId: syncedMsg.replyToMessageId || undefined,
             });
           }
         } catch (decryptErr) {
@@ -766,7 +786,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     setMessages(prev => prev.filter(m => m.id !== messageId));
 
     // Resend
-    return sendMessage(message.content);
+    return sendMessage(message.content, {
+      replyToMessageId: message.replyToMessageId,
+    });
   }, [visibleMessages, sendMessage]);
 
   // ============================================
@@ -916,6 +938,7 @@ async function decryptFileEvent(
   userId: number,
   timestamp: number,
   messageType: MessageType,
+  replyToMessageId?: string,
 ): Promise<DecryptedMessage> {
   let caption = '';
   try {
@@ -958,6 +981,7 @@ async function decryptFileEvent(
     fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
     thumbnailFileId: event.thumbnailFileId,
     thumbnailUrl,
+    replyToMessageId,
   };
 
   return msg;
@@ -1015,6 +1039,7 @@ async function decryptSyncedFileMessage(
     fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
     thumbnailFileId: syncedMsg.thumbnailFileId,
     thumbnailUrl,
+    replyToMessageId: syncedMsg.replyToMessageId || undefined,
   };
 
   return msg;

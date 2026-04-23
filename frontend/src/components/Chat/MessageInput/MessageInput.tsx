@@ -1,8 +1,9 @@
-import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent, type Ref, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
 import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
+import { ReplyChip, type ReplyChipModel } from '../ReplyChip';
 import './MessageInput.css';
 
 export type { FileMessageType };
@@ -35,6 +36,11 @@ interface MessageInputProps {
   maxLength?: number;
   /** Optional CSS class name */
   className?: string;
+  /** IMP-MA-03: show reply target above the field */
+  replyTo?: ReplyChipModel | null;
+  onReplyCancel?: () => void;
+  /** For focus when starting a reply (optional) */
+  textAreaRef?: Ref<HTMLTextAreaElement | null>;
 }
 
 /** Typing indicator debounce delay in ms */
@@ -61,6 +67,9 @@ export const MessageInput = memo(function MessageInput({
   isSending = false,
   maxLength = 4096,
   className = '',
+  replyTo = null,
+  onReplyCancel,
+  textAreaRef: textAreaRefProp,
 }: MessageInputProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
@@ -124,12 +133,21 @@ export const MessageInput = memo(function MessageInput({
     }
   }, [text, disabled, isSending, onSend, onTypingChange]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }, [handleSubmit]);
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape' && replyTo && onReplyCancel) {
+        e.preventDefault();
+        e.stopPropagation();
+        onReplyCancel();
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit, replyTo, onReplyCancel],
+  );
 
   // P4-4-1-1: Open file picker
   const handleAttachClick = useCallback(() => {
@@ -189,8 +207,23 @@ export const MessageInput = memo(function MessageInput({
   const canSend = text.trim().length > 0 && !disabled && !isSending;
   const canAttach = !disabled && !isUploading && !!onFileSelected;
 
+  const setTextareaRef = useCallback(
+    (el: HTMLTextAreaElement | null) => {
+      textareaRef.current = el;
+      if (typeof textAreaRefProp === 'function') {
+        textAreaRefProp(el);
+      } else if (textAreaRefProp) {
+        (textAreaRefProp as MutableRefObject<HTMLTextAreaElement | null>).current = el;
+      }
+    },
+    [textAreaRefProp],
+  );
+
   return (
     <div className={`message-input ${className}`}>
+      {replyTo && onReplyCancel && (
+        <ReplyChip replyTo={replyTo} onCancel={onReplyCancel} />
+      )}
       <div className="message-input-container">
         {/* P4-4-1-1: Attachment button */}
         {onFileSelected && (
@@ -216,7 +249,7 @@ export const MessageInput = memo(function MessageInput({
         )}
 
         <textarea
-          ref={textareaRef}
+          ref={setTextareaRef}
           className="message-input-field"
           value={text}
           onChange={handleChange}

@@ -1,9 +1,12 @@
 import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DecryptedFileMessage } from '@/types';
+import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
+import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
+import { ReplyQuote } from '../ReplyQuote';
 import '../Message/Message.css';
 import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -21,6 +24,10 @@ interface DocumentMessageBubbleProps {
   message: DecryptedFileMessage;
   selection?: UseMessageSelectionReturn;
   onOpenActionMenu?: (messageId: string, anchor: DOMRect) => void;
+  replyTo?: ReplyToInfo;
+  replySenderLabel?: string;
+  onReplyQuoteClick?: (messageId: string) => void;
+  onSwipeReply?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -40,6 +47,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   message,
   selection,
   onOpenActionMenu,
+  replyTo,
+  replySenderLabel,
+  onReplyQuoteClick,
+  onSwipeReply,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -55,10 +66,18 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     onOpenActionMenu(message.id, rootRef.current.getBoundingClientRect());
   }, [haptics, message.id, onOpenActionMenu]);
 
-  const { handlers } = useLongPress({
+  const { handlers: longPress } = useLongPress({
     enabled: menuEnabled && !isSelecting,
     onLongPress: handleOpenMenu,
   });
+  const swipe = useSwipeGesture({
+    onSwipeRight: () => {
+      haptics.selectionChanged();
+      onSwipeReply?.();
+    },
+    enabled: menuEnabled && !isSelecting && Boolean(onSwipeReply),
+  });
+  const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
   const decryptionKey = useDecryptionKey(message.sessionId);
 
@@ -151,6 +170,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
         isSelecting ? 'message--selectable' : ''
       }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
+      data-message-id={message.id}
       role="listitem"
       {...(shouldInteract ? handlers : {})}
     >
@@ -164,6 +184,13 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       <div className="doc-bubble">
         {!message.isOwn && message.senderName && (
           <span className="message-sender-name">{message.senderName}</span>
+        )}
+        {replyTo && replySenderLabel && onReplyQuoteClick && (
+          <ReplyQuote
+            reply={replyTo}
+            senderLabel={replySenderLabel}
+            onJumpToMessage={onReplyQuoteClick}
+          />
         )}
 
         <div className="doc-bubble__body" onClick={handleDownload}>

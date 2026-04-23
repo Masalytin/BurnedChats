@@ -1,8 +1,11 @@
 import { memo, useRef, useCallback } from 'react';
-import type { MessageStatus } from '@/types';
+import type { MessageStatus, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
+import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
+import { ReplyQuote } from '../ReplyQuote';
 import './Message.css';
 
 interface MessageProps {
@@ -28,6 +31,13 @@ interface MessageProps {
   selection?: UseMessageSelectionReturn;
   /** Opens the message action popover; long-press is enabled when set */
   onOpenActionMenu?: (messageId: string, anchor: DOMRect) => void;
+  /** Quoted message above bubble (IMP-MA-03) */
+  replyTo?: ReplyToInfo;
+  /** Localized name line for the quote (you / peer / room member) */
+  replySenderLabel?: string;
+  onReplyQuoteClick?: (messageId: string) => void;
+  /** Swipe right → quick reply (IMP-MA-03) */
+  onSwipeReply?: () => void;
 }
 
 /**
@@ -50,6 +60,10 @@ export const Message = memo(function Message({
   isNew = false,
   selection,
   onOpenActionMenu,
+  replyTo,
+  replySenderLabel,
+  onReplyQuoteClick,
+  onSwipeReply,
 }: MessageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const haptics = useHaptics();
@@ -63,7 +77,7 @@ export const Message = memo(function Message({
     onOpenActionMenu(messageId, rootRef.current.getBoundingClientRect());
   }, [haptics, messageId, onOpenActionMenu]);
 
-  const { handlers } = useLongPress({
+  const { handlers: longPress } = useLongPress({
     enabled: menuEnabled && !isSelecting,
     onLongPress: handleOpenMenu,
     onShortClick: (e) => {
@@ -73,6 +87,16 @@ export const Message = memo(function Message({
       }
     },
   });
+
+  const swipe = useSwipeGesture({
+    onSwipeRight: () => {
+      haptics.selectionChanged();
+      onSwipeReply?.();
+    },
+    enabled: menuEnabled && !isSelecting && Boolean(onSwipeReply),
+  });
+
+  const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
   const validTs = typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0;
   const formattedTime = validTs ? formatTime(timestamp) : '--:--';
@@ -94,6 +118,7 @@ export const Message = memo(function Message({
           } ${className}`.trim()
         }
         data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
+        data-message-id={messageId}
         role="listitem"
         {...(shouldInteract ? handlers : {})}
       >
@@ -107,6 +132,13 @@ export const Message = memo(function Message({
         <div className="message-bubble">
           {!isOwn && senderName && (
             <span className="message-sender-name">{senderName}</span>
+          )}
+          {replyTo && replySenderLabel && onReplyQuoteClick && (
+            <ReplyQuote
+              reply={replyTo}
+              senderLabel={replySenderLabel}
+              onJumpToMessage={onReplyQuoteClick}
+            />
           )}
           <p className="message-content">{content}</p>
           <div className="message-meta">

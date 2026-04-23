@@ -1,0 +1,48 @@
+.reply-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.06));
+  border-left: 3px solid var(--tg-theme-link-color, #2481cc);
+}
+
+.reply-chip__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-chip__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-theme-link-color, #2481cc);
+  margin-bottom: 2px;
+}
+
+.reply-chip__preview {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--tg-theme-hint-color, #707579);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-chip__close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tg-theme-hint-color, #707579);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reply-chip__close:hover {
+  background: rgba(0, 0, 0, 0.08);
+}

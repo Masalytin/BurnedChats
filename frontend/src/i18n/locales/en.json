@@ -87,7 +87,18 @@
       "copy": "Copy",
       "copyToast": "Copied",
       "copyFailed": "Could not copy",
-      "deleteForMe": "Delete for me"
+      "deleteForMe": "Delete for me",
+      "reply": "Reply"
+    },
+    "reply": {
+      "you": "You",
+      "chipLabel": "Replying to {{name}}",
+      "cancelAriaLabel": "Cancel reply",
+      "deletedOriginal": "Original message is unavailable",
+      "imageShort": "Image",
+      "videoShort": "Video",
+      "fileShort": "File",
+      "unknownSender": "Unknown"
     },
     "delete": {
       "confirmTitleForMe": "Delete messages?",
@@ -311,6 +322,7 @@
     },
 
     "chat": {
+      "fallbackPeer": "Member",
       "noAccess": "No access",
       "noAccessHint": "You are not a member of this room",
       "loadingKey": "Loading encryption key...",

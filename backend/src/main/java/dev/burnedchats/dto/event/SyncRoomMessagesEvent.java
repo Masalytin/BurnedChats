@@ -116,6 +116,11 @@ public class SyncRoomMessagesEvent {
          * Original file size in bytes.
          */
         private final Long fileSize;
+
+        /**
+         * Optional ID of the message this one replies to (plaintext metadata).
+         */
+        private final String replyToMessageId;
     }
 
     /**

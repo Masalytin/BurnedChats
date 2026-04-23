@@ -1,0 +1,51 @@
+.reply-quote {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 6px 8px 8px 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.message--own .reply-quote {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.reply-quote__bar {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--tg-theme-link-color, #2481cc);
+  align-self: stretch;
+  min-height: 36px;
+}
+
+.reply-quote__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reply-quote__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-theme-link-color, #2481cc);
+}
+
+.reply-quote__preview {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--tg-theme-hint-color, #707579);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

@@ -189,6 +189,9 @@ public class RoomMessageHandler {
                     .encryptedMeta(request.getEncryptedMeta())
                     .fileSize(request.getFileSize());
         }
+        if (request.getReplyToMessageId() != null && !request.getReplyToMessageId().isBlank()) {
+            msgBuilder.replyToMessageId(request.getReplyToMessageId());
+        }
 
         RoomMessage message = msgBuilder.build();
 
@@ -231,6 +234,9 @@ public class RoomMessageHandler {
                                 .thumbnailFileId(request.getThumbnailFileId())
                                 .encryptedMeta(request.getEncryptedMeta())
                                 .fileSize(request.getFileSize());
+                    }
+                    if (request.getReplyToMessageId() != null && !request.getReplyToMessageId().isBlank()) {
+                        eventBuilder.replyToMessageId(request.getReplyToMessageId());
                     }
 
                     NewRoomMessageEvent event = eventBuilder.build();
@@ -289,6 +295,7 @@ public class RoomMessageHandler {
                                             .thumbnailFileId(msg.getThumbnailFileId())
                                             .encryptedMeta(msg.getEncryptedMeta())
                                             .fileSize(msg.getFileSize())
+                                            .replyToMessageId(msg.getReplyToMessageId())
                                             .build()))
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {

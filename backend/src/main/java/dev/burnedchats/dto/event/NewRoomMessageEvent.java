@@ -118,6 +118,11 @@ public class NewRoomMessageEvent {
     private Long fileSize;
 
     /**
+     * Optional ID of the message this one replies to (plaintext metadata).
+     */
+    private String replyToMessageId;
+
+    /**
      * Error code if operation failed.
      */
     private String error;
