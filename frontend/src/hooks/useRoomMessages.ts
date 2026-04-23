@@ -182,17 +182,14 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   const doPublishInitialSync = useCallback(() => {
     publish(SYNC_ROOM_MESSAGES_DESTINATION, {
       roomId,
-      lastMessageTimestamp: null,
     });
   }, [roomId, publish]);
 
   const doPublishReconnectSync = useCallback(() => {
-    const lastMessage = messages[messages.length - 1];
     publish(SYNC_ROOM_MESSAGES_DESTINATION, {
       roomId,
-      lastMessageTimestamp: lastMessage?.timestamp ?? null,
     });
-  }, [roomId, messages, publish]);
+  }, [roomId, publish]);
 
   const messageSync = useMessageSync({
     scopeId: roomId,
@@ -608,12 +605,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     if (!getGroupKey(roomId)) return;
 
     setSyncing(true);
-    const lastMessage = messages[messages.length - 1];
+    // Full offline queue drain — server returns all pending room messages and clears the queue.
     publish(SYNC_ROOM_MESSAGES_DESTINATION, {
       roomId,
-      lastMessageTimestamp: lastMessage?.timestamp ?? null,
     });
-  }, [isConnected, roomId, messages, publish, setSyncing]);
+  }, [isConnected, roomId, publish, setSyncing]);
 
   return { messages, isLoading, isSyncing, sendMessage, sendFileMessage, clearMessages, syncMessages, error };
 }

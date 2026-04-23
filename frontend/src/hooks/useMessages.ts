@@ -228,17 +228,14 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const doPublishInitialSync = useCallback(() => {
     publish(SYNC_MESSAGES_DESTINATION, {
       sessionId,
-      lastMessageTimestamp: null,
     });
   }, [sessionId, publish]);
 
   const doPublishReconnectSync = useCallback(() => {
-    const lastMessage = messages[messages.length - 1];
     publish(SYNC_MESSAGES_DESTINATION, {
       sessionId,
-      lastMessageTimestamp: lastMessage?.timestamp || null,
     });
-  }, [sessionId, messages, publish]);
+  }, [sessionId, publish]);
 
   const onInitialSyncRequest = useCallback(
     (source: 'subscription' | 'late-handshake') => {
@@ -681,16 +678,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
     setSyncing(true);
 
-    // Get timestamp of last message for incremental sync
-    const lastMessage = messages[messages.length - 1];
-    
+    // Full offline queue drain — server returns all pending messages and clears the queue.
     publish(SYNC_MESSAGES_DESTINATION, {
       sessionId,
-      lastMessageTimestamp: lastMessage?.timestamp || null,
     });
 
     console.log('[useMessages] Sync request sent');
-  }, [isConnected, sessionId, messages, publish, setSyncing]);
+  }, [isConnected, sessionId, publish, setSyncing]);
 
   /**
    * Handle message sent acknowledgment.
