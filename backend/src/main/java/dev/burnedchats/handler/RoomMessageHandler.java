@@ -186,7 +186,7 @@ public class RoomMessageHandler {
                                                 .fileSize(rm.getFileSize())
                                                 .build();
                                         messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
-                                        return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL).then();
+                                        return extendRoomTtlAfterMutation(roomId);
                                     }))
                             .switchIfEmpty(Mono.defer(() -> {
                                 sendRoomMessageEditError(senderTgId, roomId, messageId, "NOT_EDITABLE");
@@ -257,9 +257,7 @@ public class RoomMessageHandler {
                                                             .deletedAt(Instant.now())
                                                             .build();
                                                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
-                                                    return roomRepository
-                                                            .extendTtl(roomId, RoomRepository.DEFAULT_TTL)
-                                                            .then();
+                                                    return extendRoomTtlAfterMutation(roomId);
                                                 });
                                     }));
                 })
@@ -403,8 +401,21 @@ public class RoomMessageHandler {
                             ROOM_MESSAGE_SENT_DESTINATION,
                             RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
                     );
-                    return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL).then();
+                    return extendRoomTtlAfterMutation(roomId);
                 });
+    }
+
+    /**
+     * Refresh room TTL after a mutation that was already broadcast or acked.
+     * Failures must not surface as edit/send/delete errors to the client.
+     */
+    private Mono<Void> extendRoomTtlAfterMutation(String roomId) {
+        return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL)
+                .doOnError(err -> LOG.warn(
+                        "extendTtl failed after room mutation (already applied): roomId={}, error={}",
+                        roomId, err.toString()))
+                .onErrorComplete()
+                .then();
     }
 
     /**

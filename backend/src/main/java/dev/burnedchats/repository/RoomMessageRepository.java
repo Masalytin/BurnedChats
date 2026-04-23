@@ -192,10 +192,16 @@ public class RoomMessageRepository {
                     return serializeMessage(updated)
                             .flatMap(json -> redisTemplate.opsForList().set(key, finalIndex, json)
                                     .flatMap(b -> {
-                                        if (Boolean.TRUE.equals(b)) {
-                                            return redisTemplate.expire(key, ttl).thenReturn(updated);
+                                        if (!Boolean.TRUE.equals(b)) {
+                                            return Mono.empty();
                                         }
-                                        return Mono.empty();
+                                        return redisTemplate.expire(key, ttl)
+                                                .doOnError(e -> LOG.warn(
+                                                        "expire failed after room message edit LSET"
+                                                                + " (ciphertext updated): roomId={}, error={}",
+                                                        roomId, e.toString()))
+                                                .onErrorResume(e -> Mono.just(false))
+                                                .thenReturn(updated);
                                     }));
                 })
                 .onErrorResume(e -> {

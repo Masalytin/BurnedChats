@@ -862,7 +862,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       if (event.sessionId !== sessionId) {
         return;
       }
-      if (!event.success) {
+      // Only treat as server rejection when success is explicitly false (same as room user-queue handler).
+      if (event.success === false) {
         onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
         return;
       }
