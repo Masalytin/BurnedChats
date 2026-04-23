@@ -4,11 +4,13 @@ import type { MessageStatus, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
+import { useMessageRowDoubleOpenMenu } from '@/hooks/useMessageRowDoubleOpenMenu';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { formatChatDateSeparator } from '@/utils/formatChatDateSeparator';
 import { ReplyQuote } from '../ReplyQuote';
+import { MessageReplyAction } from '../MessageReplyAction';
 import './Message.css';
 
 interface MessageProps {
@@ -41,6 +43,8 @@ interface MessageProps {
   onReplyQuoteClick?: (messageId: string) => void;
   /** Swipe right → quick reply (IMP-MA-03) */
   onSwipeReply?: () => void;
+  /** Inline reply icon (IMP-MA-10); hidden in selection mode */
+  onReplyIconClick?: () => void;
   /** When set, show a subtle “edited” label next to the time. */
   isEdited?: boolean;
   /** Selection mode: roving `tabIndex` (single active row) */
@@ -75,6 +79,7 @@ export const Message = memo(function Message({
   replySenderLabel,
   onReplyQuoteClick,
   onSwipeReply,
+  onReplyIconClick,
   isEdited = false,
   rovingTabIndex = -1,
   onRovingActivate,
@@ -105,6 +110,11 @@ export const Message = memo(function Message({
     haptics.selectionChanged();
     onOpenActionMenu(messageId, rootRef.current.getBoundingClientRect());
   }, [haptics, messageId, onOpenActionMenu]);
+
+  const rowDoubleOpen = useMessageRowDoubleOpenMenu({
+    active: menuEnabled && !isSelecting,
+    onOpenMenu: handleOpenMenu,
+  });
 
   const { handlers: longPress } = useLongPress({
     enabled: menuEnabled && !isSelecting,
@@ -183,7 +193,7 @@ export const Message = memo(function Message({
         className={
           `message ${isOwn ? 'message--own' : 'message--peer'} ${isNew ? 'message--new' : ''} ${
             isSelecting ? 'message--selectable' : ''
-          } ${className}`.trim()
+          } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''} ${className}`.trim()
         }
         data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
         data-message-id={messageId}
@@ -193,7 +203,16 @@ export const Message = memo(function Message({
         tabIndex={tabIndex}
         onMouseDown={onRowMouseDown}
         onKeyDown={onRowKeyDown}
+        onDoubleClick={rowDoubleOpen.onDoubleClick}
         {...(shouldInteract ? handlers : {})}
+        onPointerUp={
+          shouldInteract
+            ? (e) => {
+                handlers.onPointerUp(e);
+                rowDoubleOpen.onPointerUp(e);
+              }
+            : undefined
+        }
       >
         <span id={labelId} className="visually-hidden">
           {a11yLabel}
@@ -205,6 +224,15 @@ export const Message = memo(function Message({
             data-checked={isSelected ? 'true' : 'false'}
           />
         )}
+        <MessageReplyAction
+          visible={Boolean(onReplyIconClick) && !isSelecting}
+          onReply={() => {
+            haptics.selectionChanged();
+            onReplyIconClick?.();
+          }}
+          ariaLabel={t('chat.actions.reply')}
+          title={t('chat.actions.reply')}
+        />
         <div className="message-bubble">
           {!isOwn && senderName && <span className="message-sender-name">{senderName}</span>}
           {replyTo && replySenderLabel && onReplyQuoteClick && (

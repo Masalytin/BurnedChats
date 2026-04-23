@@ -1,0 +1,38 @@
+.message__reply-wrap {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.message__reply-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: -6px;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-muted);
+  opacity: 0.38;
+  cursor: pointer;
+  border-radius: var(--bc-radius-md);
+}
+
+.message__reply-btn:hover,
+.message__reply-btn:focus-visible {
+  opacity: 0.95;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(46, 166, 255, 0.35);
+}
+
+.message:hover .message__reply-btn,
+.message:focus-within .message__reply-btn {
+  opacity: 0.72;
+}
+
+@media (hover: none) {
+  .message__reply-btn {
+    opacity: 0.55;
+  }
+}

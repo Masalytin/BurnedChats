@@ -4,10 +4,12 @@ import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
+import { useMediaBubblePrimaryAndMenu } from '@/hooks/useMediaBubblePrimaryAndMenu';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
+import { MessageReplyAction } from '../MessageReplyAction';
 import '../Message/Message.css';
 import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -33,6 +35,7 @@ interface DocumentMessageBubbleProps {
   onRovingActivate?: () => void;
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
+  onReplyIconClick?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -60,6 +63,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   onRovingActivate,
   a11yLabelId,
   onRangeExtendKey,
+  onReplyIconClick,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -161,6 +165,15 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     }
   }, [isSelecting, selection, onRovingActivate, docState, message.fileId, message.sessionId, fileName, mimeType, decryptionKey, message.id]);
 
+  const mediaTapMenu = useMediaBubblePrimaryAndMenu({
+    menuEnabled,
+    isSelecting,
+    onOpenMenu: handleOpenMenu,
+    runPrimary: () => {
+      void handleDownload();
+    },
+  });
+
   const handleRetry = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
@@ -237,7 +250,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       ref={rootRef}
       className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
         isSelecting ? 'message--selectable' : ''
-      }`.trim()}
+      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''}`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       data-message-id={message.id}
       role={rowRole}
@@ -247,6 +260,22 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       onMouseDown={onRowMouseDown}
       onKeyDown={onRowKeyDown}
       {...(shouldInteract ? handlers : {})}
+      onClickCapture={
+        shouldInteract
+          ? (e) => {
+              handlers.onClickCapture(e);
+              mediaTapMenu.onRootClickCapture(e);
+            }
+          : undefined
+      }
+      onPointerUp={
+        shouldInteract
+          ? (e) => {
+              handlers.onPointerUp(e);
+              mediaTapMenu.onRootPointerUp(e);
+            }
+          : undefined
+      }
     >
       <span id={labelId} className="visually-hidden">
         {rowA11yLabel}
@@ -258,6 +287,15 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
           data-checked={isSelected ? 'true' : 'false'}
         />
       )}
+      <MessageReplyAction
+        visible={Boolean(onReplyIconClick) && !isSelecting}
+        onReply={() => {
+          haptics.selectionChanged();
+          onReplyIconClick?.();
+        }}
+        ariaLabel={t('chat.actions.reply')}
+        title={t('chat.actions.reply')}
+      />
       <div className="doc-bubble">
         {!message.isOwn && message.senderName && (
           <span className="message-sender-name">{message.senderName}</span>
@@ -270,7 +308,11 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
           />
         )}
 
-        <div className="doc-bubble__body" onClick={handleDownload}>
+        <div
+          className="doc-bubble__body"
+          onClick={mediaTapMenu.onInnerClick}
+          onDoubleClick={mediaTapMenu.onInnerDoubleClick}
+        >
           <div className="doc-bubble__icon" style={{ color: iconInfo.color }}>
             <span className="doc-bubble__icon-emoji">{iconInfo.icon}</span>
             <span className="doc-bubble__icon-label">{iconInfo.label}</span>

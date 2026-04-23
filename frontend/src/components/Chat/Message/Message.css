@@ -26,6 +26,11 @@
   max-width: 100%;
 }
 
+/* IMP-MA-10: avoid accidental text selection on double-click; copy remains via menu */
+.message--menu-gestures:not(.message--selectable) {
+  user-select: none;
+}
+
 /* Selection mode (IMP-MA-01): checkbox + highlight */
 .message--selectable {
   user-select: none;

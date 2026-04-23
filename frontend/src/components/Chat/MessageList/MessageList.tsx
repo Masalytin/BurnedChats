@@ -494,6 +494,9 @@ export const MessageList = memo(
                 onSwipeReply={
                   onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
                 }
+                onReplyIconClick={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
               />
             </div>
           );
@@ -524,6 +527,9 @@ export const MessageList = memo(
                 }
                 onReplyQuoteClick={scrollToMessage}
                 onSwipeReply={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
+                onReplyIconClick={
                   onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
                 }
               />
@@ -557,6 +563,9 @@ export const MessageList = memo(
                 onSwipeReply={
                   onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
                 }
+                onReplyIconClick={
+                  onReplyToMessage ? () => { onReplyToMessage(message); } : undefined
+                }
               />
             </div>
           );
@@ -583,6 +592,7 @@ export const MessageList = memo(
             }
             onReplyQuoteClick={scrollToMessage}
             onSwipeReply={onReplyToMessage ? () => { onReplyToMessage(message); } : undefined}
+            onReplyIconClick={onReplyToMessage ? () => { onReplyToMessage(message); } : undefined}
             isEdited={message.editedAt != null}
             rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
             onRovingActivate={() => { setA11yRovingId(message.id); }}

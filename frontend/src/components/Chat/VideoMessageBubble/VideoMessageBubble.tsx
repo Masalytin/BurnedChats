@@ -4,10 +4,12 @@ import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
+import { useMediaBubblePrimaryAndMenu } from '@/hooks/useMediaBubblePrimaryAndMenu';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
+import { MessageReplyAction } from '../MessageReplyAction';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -34,6 +36,7 @@ interface VideoMessageBubbleProps {
   onRovingActivate?: () => void;
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
+  onReplyIconClick?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -68,6 +71,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   onRovingActivate,
   a11yLabelId,
   onRangeExtendKey,
+  onReplyIconClick,
 }: VideoMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -250,6 +254,15 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     }, 0);
   }, [handlePlay, message.fileId]);
 
+  const mediaTapMenu = useMediaBubblePrimaryAndMenu({
+    menuEnabled,
+    isSelecting,
+    onOpenMenu: handleOpenMenu,
+    runPrimary: () => {
+      void handlePlay();
+    },
+  });
+
   const hasCaption = message.content && !message.content.startsWith('🎬');
   const formattedTime = formatTime(message.timestamp);
   const formattedSize = formatLocalizedFileSize(message.fileSize, t);
@@ -310,7 +323,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       ref={rootRef}
       className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
         isSelecting ? 'message--selectable' : ''
-      }`.trim()}
+      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''}`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       role={rowRole}
       aria-selected={isSelecting ? isSelected : undefined}
@@ -320,6 +333,22 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       onMouseDown={onRowMouseDown}
       onKeyDown={onRowKeyDown}
       {...(shouldInteract ? handlers : {})}
+      onClickCapture={
+        shouldInteract
+          ? (e) => {
+              handlers.onClickCapture(e);
+              mediaTapMenu.onRootClickCapture(e);
+            }
+          : undefined
+      }
+      onPointerUp={
+        shouldInteract
+          ? (e) => {
+              handlers.onPointerUp(e);
+              mediaTapMenu.onRootPointerUp(e);
+            }
+          : undefined
+      }
     >
       <span id={labelId} className="visually-hidden">
         {rowA11yLabel}
@@ -331,6 +360,15 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
           data-checked={isSelected ? 'true' : 'false'}
         />
       )}
+      <MessageReplyAction
+        visible={Boolean(onReplyIconClick) && !isSelecting}
+        onReply={() => {
+          haptics.selectionChanged();
+          onReplyIconClick?.();
+        }}
+        ariaLabel={t('chat.actions.reply')}
+        title={t('chat.actions.reply')}
+      />
       <div className="video-bubble">
         {!message.isOwn && message.senderName && (
           <span className="message-sender-name">{message.senderName}</span>
@@ -356,7 +394,11 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
               onEnded={handleVideoEnded}
             />
           ) : (
-            <div className="video-bubble__poster-wrap" onClick={handlePlay}>
+            <div
+              className="video-bubble__poster-wrap"
+              onClick={mediaTapMenu.onInnerClick}
+              onDoubleClick={mediaTapMenu.onInnerDoubleClick}
+            >
               {thumbnailState === 'loading' && (
                 <div className="video-bubble__placeholder">
                   <span className="video-bubble__placeholder-icon">🎬</span>
