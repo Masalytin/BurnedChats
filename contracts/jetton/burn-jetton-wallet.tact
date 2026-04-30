@@ -8,6 +8,8 @@ const perInternalDeployTon: Int = ton("0.55");
 const Basechain: Int = 0;
 const walletStateInitCells: Int = 30;
 const walletStateInitBits: Int = 20000;
+/// Max excluded owner addresses on the exclusion list (gas bounded scan on transfer).
+const MAX_EXCLUDED_ADDRESSES: Int = 64;
 
 struct BurnJettonData {
     totalSupply: Int;
@@ -125,6 +127,49 @@ message(0x4d7e2bc4) JettonUpdateFeeConfig {
     treasury_rate_bps: Int;
     staking_pool: Address;
     treasury: Address;
+    dynamic_burn_enabled: Bool;
+    large_tx_threshold: Int as coins;
+    activity_threshold: Int;
+    max_burn_rate_bps: Int;
+    tx_count_snapshot: Int;
+    activity_hour_bucket: Int;
+    low_supply_mode: Bool;
+    excluded_count: Int;
+    excluded_head: Cell;
+}
+
+/// Admin: add holder address to the excluded-from-fees list (TEP owner address, not jetton wallet).
+message(0x5a1c8f01) AddExcluded {
+    queryId: Int as uint64;
+    address: Address;
+}
+
+/// Admin: remove holder address from the excluded-from-fees list.
+message(0x5a1c8f02) RemoveExcluded {
+    queryId: Int as uint64;
+    address: Address;
+}
+
+/// Admin: toggle dynamic burn bonuses (large tx + activity snapshot).
+message(0x5a1c8f03) SetDynamicBurnEnabled {
+    queryId: Int as uint64;
+    enabled: Bool;
+}
+
+/// Admin: thresholds for dynamic burn (BPS bonuses are fixed: +25 large tx, +12 activity).
+message(0x5a1c8f04) SetDynamicBurnThresholds {
+    queryId: Int as uint64;
+    large_tx_threshold: Int as coins;
+    activity_threshold: Int;
+}
+
+/// Admin: low-supply auto fee reduction parameters.
+message(0x5a1c8f05) SetAutoReduceParams {
+    queryId: Int as uint64;
+    threshold: Int as coins;
+    low_burn_bps: Int;
+    low_staking_bps: Int;
+    low_treasury_bps: Int;
 }
 
 struct FeeParts {
@@ -146,6 +191,74 @@ struct DecodedFeeConfig {
     treasBps: Int;
     poolOwner: Address;
     treasuryOwner: Address;
+    dynamicBurnEnabled: Bool;
+    largeTxThreshold: Int;
+    activityThreshold: Int;
+    maxBurnRateBps: Int;
+    txCountSnapshot: Int;
+    activityHourBucket: Int;
+    lowSupplyMode: Bool;
+    excludedCount: Int;
+    excludedHead: Cell;
+}
+
+inline fun emptyExcludedHead(): Cell {
+    return beginCell().endCell();
+}
+
+inline fun isExcludedChainEmpty(head: Cell): Bool {
+    let s = head.beginParse();
+    return s.bits() == 0 && s.refs() == 0;
+}
+
+fun isInExcludedChain(addr: Address, head: Cell): Bool {
+    if (isExcludedChainEmpty(head)) {
+        return false;
+    }
+    let s = head.beginParse();
+    let a = s.loadAddress();
+    if (a == addr) {
+        return true;
+    }
+    if (s.refs() == 0) {
+        return false;
+    }
+    return isInExcludedChain(addr, s.loadRef());
+}
+
+inline fun isExcludedMember(addr: Address, head: Cell, count: Int): Bool {
+    if (count == 0 || isExcludedChainEmpty(head)) {
+        return false;
+    }
+    return isInExcludedChain(addr, head);
+}
+
+fun excludedChainPrepend(head: Cell, addr: Address): Cell {
+    return beginCell().storeAddress(addr).storeRef(head).endCell();
+}
+
+fun excludedChainRemove(addr: Address, head: Cell): Cell {
+    if (isExcludedChainEmpty(head)) {
+        return head;
+    }
+    let s = head.beginParse();
+    let a = s.loadAddress();
+    let tail = s.loadRef();
+    if (a == addr) {
+        return tail;
+    }
+    let newTail = excludedChainRemove(addr, tail);
+    return beginCell().storeAddress(a).storeRef(newTail).endCell();
+}
+
+inline fun computeDynamicBurnBps(cfg: DecodedFeeConfig, amount: Int): Int {
+    if (cfg.lowSupplyMode || !cfg.dynamicBurnEnabled) {
+        return cfg.burnBps;
+    }
+    let bps0 = cfg.burnBps;
+    let bps1 = amount > cfg.largeTxThreshold ? bps0 + 25 : bps0;
+    let bps2 = cfg.txCountSnapshot > cfg.activityThreshold ? bps1 + 12 : bps1;
+    return bps2 > cfg.maxBurnRateBps ? cfg.maxBurnRateBps : bps2;
 }
 
 inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
@@ -158,6 +271,15 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
             treasBps: 0,
             poolOwner: newAddress(0, 0),
             treasuryOwner: newAddress(0, 0),
+            dynamicBurnEnabled: false,
+            largeTxThreshold: 0,
+            activityThreshold: 100,
+            maxBurnRateBps: 100,
+            txCountSnapshot: 0,
+            activityHourBucket: 0,
+            lowSupplyMode: false,
+            excludedCount: 0,
+            excludedHead: emptyExcludedHead(),
         };
     }
     let active = s.loadUint(1) == 1;
@@ -166,6 +288,35 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
     let tr = s.loadUint(16);
     let p = s.loadAddress();
     let t = s.loadAddress();
+    if (s.refs() == 0) {
+        return DecodedFeeConfig {
+            active: active,
+            burnBps: b,
+            stakeBps: st,
+            treasBps: tr,
+            poolOwner: p,
+            treasuryOwner: t,
+            dynamicBurnEnabled: false,
+            largeTxThreshold: 10 * pow(10, 9),
+            activityThreshold: 100,
+            maxBurnRateBps: 100,
+            txCountSnapshot: 0,
+            activityHourBucket: 0,
+            lowSupplyMode: false,
+            excludedCount: 0,
+            excludedHead: emptyExcludedHead(),
+        };
+    }
+    let ext = s.loadRef().beginParse();
+    let dynamicBurnEnabled = ext.loadBit();
+    let largeTxThreshold = ext.loadCoins();
+    let activityThreshold = ext.loadUint(32);
+    let maxBurnRateBps = ext.loadUint(16);
+    let txCountSnapshot = ext.loadUint(32);
+    let activityHourBucket = ext.loadUint(32);
+    let lowSupplyMode = ext.loadBit();
+    let excludedCount = ext.loadUint(16);
+    let excludedHead = ext.loadRef();
     return DecodedFeeConfig {
         active: active,
         burnBps: b,
@@ -173,7 +324,40 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
         treasBps: tr,
         poolOwner: p,
         treasuryOwner: t,
+        dynamicBurnEnabled: dynamicBurnEnabled,
+        largeTxThreshold: largeTxThreshold,
+        activityThreshold: activityThreshold,
+        maxBurnRateBps: maxBurnRateBps,
+        txCountSnapshot: txCountSnapshot,
+        activityHourBucket: activityHourBucket,
+        lowSupplyMode: lowSupplyMode,
+        excludedCount: excludedCount,
+        excludedHead: excludedHead,
     };
+}
+
+inline fun packFeeConfigExtension(
+    dynamicBurnEnabled: Bool,
+    largeTxThreshold: Int,
+    activityThreshold: Int,
+    maxBurnRateBps: Int,
+    txCountSnapshot: Int,
+    activityHourBucket: Int,
+    lowSupplyMode: Bool,
+    excludedCount: Int,
+    excludedHead: Cell,
+): Cell {
+    return beginCell()
+        .storeBit(dynamicBurnEnabled)
+        .storeCoins(largeTxThreshold)
+        .storeUint(activityThreshold, 32)
+        .storeUint(maxBurnRateBps, 16)
+        .storeUint(txCountSnapshot, 32)
+        .storeUint(activityHourBucket, 32)
+        .storeBit(lowSupplyMode)
+        .storeUint(excludedCount, 16)
+        .storeRef(excludedHead)
+        .endCell();
 }
 
 inline fun packFeeConfigCell(
@@ -182,6 +366,7 @@ inline fun packFeeConfigCell(
     treasBps: Int,
     poolOwner: Address,
     treasuryOwner: Address,
+    ext: Cell,
 ): Cell {
     return beginCell()
         .storeUint(1, 1)
@@ -190,6 +375,7 @@ inline fun packFeeConfigCell(
         .storeUint(treasBps, 16)
         .storeAddress(poolOwner)
         .storeAddress(treasuryOwner)
+        .storeRef(ext)
         .endCell();
 }
 
@@ -238,12 +424,24 @@ contract BurnJettonWallet(
             msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
             "Invalid fee bps",
         );
+        let ext = packFeeConfigExtension(
+            msg.dynamic_burn_enabled,
+            msg.large_tx_threshold,
+            msg.activity_threshold,
+            msg.max_burn_rate_bps,
+            msg.tx_count_snapshot,
+            msg.activity_hour_bucket,
+            msg.low_supply_mode,
+            msg.excluded_count,
+            msg.excluded_head,
+        );
         self.feeConfig = packFeeConfigCell(
             msg.burn_rate_bps,
             msg.staking_rate_bps,
             msg.treasury_rate_bps,
             msg.staking_pool,
             msg.treasury,
+            ext,
         );
     }
 
@@ -257,7 +455,45 @@ contract BurnJettonWallet(
         forceBasechain(cfg.poolOwner);
         forceBasechain(cfg.treasuryOwner);
 
-        let parts = computeFeeParts(msg.amount, cfg.burnBps, cfg.stakeBps, cfg.treasBps);
+        let excludedTransfer = isExcludedMember(
+            self.owner,
+            cfg.excludedHead,
+            cfg.excludedCount,
+        ) || isExcludedMember(msg.destination, cfg.excludedHead, cfg.excludedCount);
+
+        if (excludedTransfer) {
+            self.balance -= msg.amount;
+            require(self.balance >= 0, "Incorrect balance after send");
+            checkEitherForwardPayload(msg.forwardPayload);
+
+            let ctx = context();
+            let fwd = ctx.readForwardFee();
+            let recipientForwards = 1 + sign(msg.forwardTonAmount);
+            require(
+                ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
+                "Insufficient amount of TON attached",
+            );
+
+            let emptyCfg = jettonWalletEmptyFeeConfig();
+            deploy(DeployParameters {
+                value: perInternalDeployTon,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: JettonTransferInternal {
+                    queryId: msg.queryId,
+                    amount: msg.amount,
+                    sender: self.owner,
+                    responseDestination: msg.responseDestination,
+                    forwardTonAmount: msg.forwardTonAmount,
+                    forwardPayload: msg.forwardPayload,
+                }.toCell(),
+                init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
+            });
+            return;
+        }
+
+        let burnBps = computeDynamicBurnBps(cfg, msg.amount);
+        let parts = computeFeeParts(msg.amount, burnBps, cfg.stakeBps, cfg.treasBps);
         require(parts.burn + parts.staking + parts.treasury + parts.net == msg.amount, "Fee split invariant");
 
         self.balance -= msg.amount;

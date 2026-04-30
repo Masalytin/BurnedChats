@@ -1,8 +1,9 @@
 import {
     BurnJettonWallet as BurnJettonWalletBase,
+    type JettonBurn as JettonBurnPayload,
     type JettonTransfer as JettonTransferPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
-import { Address, beginCell, ContractProvider, Sender } from '@ton/core';
+import { Address, beginCell, ContractProvider, Sender, toNano } from '@ton/core';
 
 export class BurnJettonWallet extends BurnJettonWalletBase {
     static override fromAddress(address: Address): BurnJettonWallet {
@@ -34,5 +35,21 @@ export class BurnJettonWallet extends BurnJettonWalletBase {
             forwardPayload: beginCell().storeUint(0, 1).asSlice(),
         };
         return this.send(provider, via, { value: params.value }, msg);
+    }
+
+    async sendBurn(
+        provider: ContractProvider,
+        via: Sender,
+        params: { jettonAmount: bigint; responseDestination?: Address | null; value?: bigint },
+    ) {
+        const msg: JettonBurnPayload = {
+            $$type: 'JettonBurn',
+            queryId: 0n,
+            amount: params.jettonAmount,
+            responseDestination: params.responseDestination ?? null,
+            customPayload: null,
+        };
+        const value = params.value ?? toNano('0.05');
+        return this.send(provider, via, { value }, msg);
     }
 }

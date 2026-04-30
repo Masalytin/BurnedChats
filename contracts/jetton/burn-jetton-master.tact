@@ -23,6 +23,12 @@ struct MasterFeeParamsView {
     feeDestinationsActive: Bool;
 }
 
+struct EffectiveFeeParams {
+    burnBps: Int;
+    stakingBps: Int;
+    treasuryBps: Int;
+}
+
 contract BurnJettonMaster(
     totalSupply: Int as coins,
     admin: Address,
@@ -34,6 +40,18 @@ contract BurnJettonMaster(
     stakingPoolOwner: Address,
     treasuryOwner: Address,
     feeDestinationsActive: Bool,
+    excludedHead: Cell,
+    excludedCount: Int,
+    dynamicBurnEnabled: Bool,
+    largeTxThreshold: Int as coins,
+    activityThreshold: Int,
+    maxBurnRateBps: Int,
+    txCountLastHour: Int,
+    activityHourBucket: Int,
+    autoReduceThreshold: Int as coins,
+    lowBurnBps: Int,
+    lowStakingBps: Int,
+    lowTreasuryBps: Int,
 ) {
     receive() {
         cashback(sender());
@@ -90,6 +108,13 @@ contract BurnJettonMaster(
         let wallet = getBurnJettonBasechainWalletByOwner(msg.sender);
         require(s.workchain == Basechain && s.address == wallet.hash!!, "Unauthorized burn");
 
+        let hour = now() / 3600;
+        if (hour != self.activityHourBucket) {
+            self.activityHourBucket = hour;
+            self.txCountLastHour = 0;
+        }
+        self.txCountLastHour += 1;
+
         self.totalSupply -= msg.amount;
 
         if (msg.responseDestination != null) {
@@ -131,6 +156,46 @@ contract BurnJettonMaster(
         self.feeDestinationsActive = true;
     }
 
+    receive(msg: AddExcluded) {
+        require(sender() == self.admin, "Incorrect sender");
+        if (!isInExcludedChain(msg.address, self.excludedHead)) {
+            require(self.excludedCount < MAX_EXCLUDED_ADDRESSES, "Max excluded");
+            self.excludedHead = excludedChainPrepend(self.excludedHead, msg.address);
+            self.excludedCount += 1;
+        }
+    }
+
+    receive(msg: RemoveExcluded) {
+        require(sender() == self.admin, "Incorrect sender");
+        if (isInExcludedChain(msg.address, self.excludedHead)) {
+            self.excludedHead = excludedChainRemove(msg.address, self.excludedHead);
+            self.excludedCount -= 1;
+        }
+    }
+
+    receive(msg: SetDynamicBurnEnabled) {
+        require(sender() == self.admin, "Incorrect sender");
+        self.dynamicBurnEnabled = msg.enabled;
+    }
+
+    receive(msg: SetDynamicBurnThresholds) {
+        require(sender() == self.admin, "Incorrect sender");
+        self.largeTxThreshold = msg.large_tx_threshold;
+        self.activityThreshold = msg.activity_threshold;
+    }
+
+    receive(msg: SetAutoReduceParams) {
+        require(sender() == self.admin, "Incorrect sender");
+        require(
+            msg.low_burn_bps + msg.low_staking_bps + msg.low_treasury_bps <= 10000,
+            "Invalid low fee bps",
+        );
+        self.autoReduceThreshold = msg.threshold;
+        self.lowBurnBps = msg.low_burn_bps;
+        self.lowStakingBps = msg.low_staking_bps;
+        self.lowTreasuryBps = msg.low_treasury_bps;
+    }
+
     receive(msg: SyncFeeConfigToWallet) {
         require(sender() == self.admin, "Incorrect sender");
         require(self.feeDestinationsActive, "Fee destinations not configured on master");
@@ -138,13 +203,27 @@ contract BurnJettonMaster(
         let ctx = context();
         require(ctx.value > ton("0.03"), "Insufficient TON for sync");
 
+        let low = self.totalSupply < self.autoReduceThreshold;
+        let effBurn = low ? self.lowBurnBps : self.burnRateBps;
+        let effStake = low ? self.lowStakingBps : self.stakingRateBps;
+        let effTreas = low ? self.lowTreasuryBps : self.treasuryRateBps;
+
         let cfg = JettonUpdateFeeConfig {
             queryId: msg.queryId,
-            burn_rate_bps: self.burnRateBps,
-            staking_rate_bps: self.stakingRateBps,
-            treasury_rate_bps: self.treasuryRateBps,
+            burn_rate_bps: effBurn,
+            staking_rate_bps: effStake,
+            treasury_rate_bps: effTreas,
             staking_pool: self.stakingPoolOwner,
             treasury: self.treasuryOwner,
+            dynamic_burn_enabled: self.dynamicBurnEnabled,
+            large_tx_threshold: self.largeTxThreshold,
+            activity_threshold: self.activityThreshold,
+            max_burn_rate_bps: self.maxBurnRateBps,
+            tx_count_snapshot: self.txCountLastHour,
+            activity_hour_bucket: self.activityHourBucket,
+            low_supply_mode: low,
+            excluded_count: self.excludedCount,
+            excluded_head: self.excludedHead,
         };
 
         message(MessageParameters {
@@ -183,6 +262,19 @@ contract BurnJettonMaster(
             treasuryOwner: self.treasuryOwner,
             feeDestinationsActive: self.feeDestinationsActive,
         };
+    }
+
+    get fun get_effective_fee_params(): EffectiveFeeParams {
+        let low = self.totalSupply < self.autoReduceThreshold;
+        return EffectiveFeeParams {
+            burnBps: low ? self.lowBurnBps : self.burnRateBps,
+            stakingBps: low ? self.lowStakingBps : self.stakingRateBps,
+            treasuryBps: low ? self.lowTreasuryBps : self.treasuryRateBps,
+        };
+    }
+
+    get fun get_is_excluded(holder: Address): Bool {
+        return isInExcludedChain(holder, self.excludedHead);
     }
 }
 

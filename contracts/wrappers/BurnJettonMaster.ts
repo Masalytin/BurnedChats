@@ -1,12 +1,19 @@
 import {
     BurnJettonMaster as BurnJettonMasterBase,
     JettonTransferInternal,
+    type AddExcluded as AddExcludedPayload,
     type Mint as MintPayload,
+    type RemoveExcluded as RemoveExcludedPayload,
+    type SetAutoReduceParams as SetAutoReduceParamsPayload,
+    type SetDynamicBurnEnabled as SetDynamicBurnEnabledPayload,
+    type SetDynamicBurnThresholds as SetDynamicBurnThresholdsPayload,
     type SetFeeDestinations as SetFeeDestinationsPayload,
     type SetFeeParams as SetFeeParamsPayload,
     type SyncFeeConfigToWallet as SyncFeeConfigToWalletPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { Address, beginCell, Cell, ContractProvider, Sender, toNano } from '@ton/core';
+
+const NANO = 10n ** 9n;
 
 export class BurnJettonMaster extends BurnJettonMasterBase {
     /**
@@ -17,6 +24,7 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
     }
 
     static async fromInitDeployed(admin: Address, content: Cell) {
+        const emptyExcluded = beginCell().endCell();
         const base = await BurnJettonMasterBase.fromInit(
             0n,
             admin,
@@ -28,6 +36,18 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             admin,
             admin,
             false,
+            emptyExcluded,
+            0n,
+            false,
+            10n * NANO,
+            100n,
+            100n,
+            0n,
+            0n,
+            100n * NANO,
+            10n,
+            6n,
+            4n,
         );
         if (base.init === undefined) {
             throw new Error('BurnJettonMaster init is not defined');
@@ -99,5 +119,58 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             owner,
         };
         return this.send(provider, via, { value: toNano('0.06') }, msg);
+    }
+
+    async sendAddExcluded(provider: ContractProvider, via: Sender, holder: Address) {
+        const msg: AddExcludedPayload = {
+            $$type: 'AddExcluded',
+            queryId: 0n,
+            address: holder,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    async sendRemoveExcluded(provider: ContractProvider, via: Sender, holder: Address) {
+        const msg: RemoveExcludedPayload = {
+            $$type: 'RemoveExcluded',
+            queryId: 0n,
+            address: holder,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    async sendSetDynamicBurnEnabled(provider: ContractProvider, via: Sender, enabled: boolean) {
+        const msg: SetDynamicBurnEnabledPayload = {
+            $$type: 'SetDynamicBurnEnabled',
+            queryId: 0n,
+            enabled,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    async sendSetDynamicBurnThresholds(provider: ContractProvider, via: Sender, p: { largeTxThreshold: bigint; activityThreshold: bigint }) {
+        const msg: SetDynamicBurnThresholdsPayload = {
+            $$type: 'SetDynamicBurnThresholds',
+            queryId: 0n,
+            large_tx_threshold: p.largeTxThreshold,
+            activity_threshold: p.activityThreshold,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    async sendSetAutoReduceParams(
+        provider: ContractProvider,
+        via: Sender,
+        p: { threshold: bigint; lowBurnBps: bigint; lowStakingBps: bigint; lowTreasuryBps: bigint },
+    ) {
+        const msg: SetAutoReduceParamsPayload = {
+            $$type: 'SetAutoReduceParams',
+            queryId: 0n,
+            threshold: p.threshold,
+            low_burn_bps: p.lowBurnBps,
+            low_staking_bps: p.lowStakingBps,
+            low_treasury_bps: p.lowTreasuryBps,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 }

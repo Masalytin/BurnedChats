@@ -183,4 +183,185 @@ describe('BURN Jetton base (TEP-74)', () => {
         const jettonData = await master.getGetJettonData();
         expect(jettonData.totalSupply).toBe(0n);
     });
+
+    it('excluded receiver: transfer applies no fee (full amount to recipient)', async () => {
+        const minted = 100n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        const ex = await master.sendAddExcluded(deployer.getSender(), userY.address);
+        expect(ex.transactions).toHaveTransaction({ success: true });
+        expect(await master.getGetIsExcluded(userY.address)).toBe(true);
+
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        const ten = 10n * NANO_PER_BURN;
+        await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: ten,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        expect((await walletY.getGetWalletData()).balance).toBe(ten);
+
+        const supply = (await master.getGetJettonData()).totalSupply;
+        expect(supply).toBe(minted);
+    });
+
+    it('excluded sender (e.g. staking pool): transfer to user applies no fee', async () => {
+        const add = await master.sendAddExcluded(deployer.getSender(), staking.address);
+        expect(add.transactions).toHaveTransaction({ success: true });
+
+        const minted = 50n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), staking.address, minted, 1n, toNano('0.25'));
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), staking.address);
+
+        const walletStaking = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(staking.address)));
+        const ten = 10n * NANO_PER_BURN;
+        await walletStaking.sendTransfer(staking.getSender(), {
+            jettonAmount: ten,
+            destinationOwner: userY.address,
+            responseDestination: staking.address,
+            value: toNano('3.5'),
+        });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        expect((await walletY.getGetWalletData()).balance).toBe(ten);
+
+        const stakeW = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(staking.address)));
+        expect((await stakeW.getGetWalletData()).balance).toBe(minted - ten);
+    });
+
+    it('transfer 11 BURN without dynamic burn (sanity)', async () => {
+        const minted = 200n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        const amount = 11n * NANO_PER_BURN;
+        const net = amount - (amount * 50n) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
+
+        await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: amount,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        expect((await walletY.getGetWalletData()).balance).toBe(net);
+    });
+
+    it('dynamic burn: amount > 10 BURN adds +25 BPS to burn component', async () => {
+        await master.sendSetDynamicBurnEnabled(deployer.getSender(), true);
+        await master.sendSetDynamicBurnThresholds(deployer.getSender(), {
+            largeTxThreshold: 10n * NANO_PER_BURN,
+            activityThreshold: 100_000n,
+        });
+
+        const minted = 200n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        const amount = 11n * NANO_PER_BURN;
+        const burnBps = 75n;
+        const net = amount - (amount * burnBps) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
+
+        const transferResult = await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: amount,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+        expect(transferResult.transactions).toHaveTransaction({ success: true });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        expect((await walletY.getGetWalletData()).balance).toBe(net);
+    });
+
+    it('dynamic burn: activity snapshot above threshold adds +12 BPS (threshold 0)', async () => {
+        await master.sendSetDynamicBurnEnabled(deployer.getSender(), true);
+        await master.sendSetDynamicBurnThresholds(deployer.getSender(), {
+            largeTxThreshold: 1000n * NANO_PER_BURN,
+            activityThreshold: 0n,
+        });
+
+        const minted = 200n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        const first = 5n * NANO_PER_BURN;
+        await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: first,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const amount = 5n * NANO_PER_BURN;
+        const burnBps = 62n;
+        const net = amount - (amount * burnBps) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
+
+        await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: amount,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        const yBal = (await walletY.getGetWalletData()).balance;
+        const firstNet =
+            first - (first * 50n) / 10000n - (first * 30n) / 10000n - (first * 20n) / 10000n;
+        expect(yBal).toBe(firstNet + net);
+    });
+
+    it('low supply: totalSupply < 100 BURN uses 10 / 6 / 4 BPS via get_effective_fee_params and transfers', async () => {
+        const minted = 200n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        const burnAmt = 101n * NANO_PER_BURN;
+        const br = await walletX.sendBurn(userX.getSender(), { jettonAmount: burnAmt, value: toNano('0.08') });
+        expect(br.transactions).toHaveTransaction({ success: true });
+
+        const supply = (await master.getGetJettonData()).totalSupply;
+        expect(supply).toBe(99n * NANO_PER_BURN);
+
+        const eff = await master.getGetEffectiveFeeParams();
+        expect(eff.burnBps).toBe(10n);
+        expect(eff.stakingBps).toBe(6n);
+        expect(eff.treasuryBps).toBe(4n);
+
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), userX.address);
+        const ten = 10n * NANO_PER_BURN;
+        const net = ten - (ten * 10n) / 10000n - (ten * 6n) / 10000n - (ten * 4n) / 10000n;
+
+        await walletX.sendTransfer(userX.getSender(), {
+            jettonAmount: ten,
+            destinationOwner: userY.address,
+            responseDestination: userX.address,
+            value: toNano('3.5'),
+        });
+
+        const walletY = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userY.address)));
+        expect((await walletY.getGetWalletData()).balance).toBe(net);
+    });
+
+    it('totalSupply exactly 100 BURN uses full fee (boundary)', async () => {
+        const minted = 200n * NANO_PER_BURN;
+        await master.sendMint(deployer.getSender(), userX.address, minted, 1n, toNano('0.25'));
+        const walletX = blockchain.openContract(BurnJettonWallet.fromAddress(await master.getGetWalletAddress(userX.address)));
+        await walletX.sendBurn(userX.getSender(), { jettonAmount: 100n * NANO_PER_BURN, value: toNano('0.08') });
+
+        const eff = await master.getGetEffectiveFeeParams();
+        expect(eff.burnBps).toBe(50n);
+        expect(eff.stakingBps).toBe(30n);
+        expect(eff.treasuryBps).toBe(20n);
+    });
 });
