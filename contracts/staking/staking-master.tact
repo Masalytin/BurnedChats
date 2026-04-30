@@ -2,6 +2,7 @@
 // Staking Master — user entry for Stake / Unstake / Claim (full reward math in later cards).
 
 import "./staking-messages";
+import "./staking-lock";
 
 /// Tier ids: Flexible=0, Silver=1, Gold=2, Diamond=3
 message(0x5a020001) UserStake {
@@ -29,25 +30,12 @@ struct StakeInfoView {
 contract StakingMaster(
     pool: Address,
     jettonMaster: Address,
+    stakingLock: Address,
     stakes: map<Address, StakeInfoView>,
 ) {
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
     const GasToPool: Int = ton("0.05");
-
-    /// Lock durations (approximate epoch months/years): Silver 180d, Gold 365d, Diamond 1095d
-    inline fun tierLockSeconds(tier: Int): Int {
-        if (tier == 0) {
-            return 0;
-        }
-        if (tier == 1) {
-            return 15552000; // ~180 days
-        }
-        if (tier == 2) {
-            return 31536000; // 365 days
-        }
-        return 94608000; // Diamond ~3 * 365d
-    }
 
     inline fun assertTier(tier: Int) {
         require(tier >= self.MinTier && tier <= self.MaxTier, "Bad tier");
@@ -65,7 +53,8 @@ contract StakingMaster(
         require(self.stakes.get(who) == null, "Already staked");
 
         let start = now();
-        let unlockTime = start + self.tierLockSeconds(msg.tier);
+        // Matches StakingLock default tier durations until governance adjusts lock (stored per stake).
+        let unlockTime = start + defaultTierUnlockDuration(msg.tier);
 
         let info = StakeInfoView {
             amount: msg.amount,
@@ -100,6 +89,9 @@ contract StakingMaster(
         let cur = curOpt!!;
         require(cur.amount > 0, "Empty stake");
 
+        let t = now();
+        require(cur.unlockTime <= t, "Still locked");
+
         message(MessageParameters {
             to: self.pool,
             value: self.GasToPool,
@@ -127,6 +119,10 @@ contract StakingMaster(
 
     get fun get_jetton_master(): Address {
         return self.jettonMaster;
+    }
+
+    get fun get_staking_lock(): Address {
+        return self.stakingLock;
     }
 
     get fun get_stake(ownerAddr: Address): StakeInfoView? {

@@ -13,8 +13,8 @@ export function emptyStakesMap() {
 }
 
 export class StakingMaster extends StakingMasterBase {
-    static async prepareInit(pool: Address, jettonMaster: Address): Promise<StakingMaster> {
-        const raw = await StakingMasterBase.fromInit(pool, jettonMaster, emptyStakesMap());
+    static async prepareInit(pool: Address, jettonMaster: Address, stakingLock: Address): Promise<StakingMaster> {
+        const raw = await StakingMasterBase.fromInit(pool, jettonMaster, stakingLock, emptyStakesMap());
         return new StakingMaster(raw.address, raw.init);
     }
 
