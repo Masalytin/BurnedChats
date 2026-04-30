@@ -52,6 +52,13 @@ pom.xml.next
 release.properties
 
 # ========================
+# TON contracts (contracts/)
+# ========================
+contracts/build/
+contracts/node_modules/
+contracts/.env
+
+# ========================
 # Node.js / Frontend
 # ========================
 node_modules/
