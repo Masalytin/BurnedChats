@@ -10,6 +10,16 @@
                 "external": false
             },
             "mode": "full"
+        },
+        {
+            "name": "BurnJettonMaster",
+            "path": "jetton/burn-jetton-master.tact",
+            "output": "build/BurnJettonMaster",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
         }
     ]
 }

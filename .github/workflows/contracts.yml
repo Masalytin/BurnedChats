@@ -32,7 +32,7 @@ jobs:
               run: npm ci
 
             - name: Build contracts
-              run: npm run build -- BurnPlaceholder
+              run: npx blueprint build --all
 
             - name: Test
               run: npm test
