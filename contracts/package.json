@@ -4,7 +4,7 @@
     "scripts": {
         "bp": "blueprint",
         "start": "blueprint run",
-        "build": "blueprint build",
+        "build": "blueprint build --all",
         "test": "jest --verbose",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

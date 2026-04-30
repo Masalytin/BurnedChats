@@ -4,6 +4,7 @@
 const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
+const perInternalDeployTon: Int = ton("0.55");
 const Basechain: Int = 0;
 const walletStateInitCells: Int = 30;
 const walletStateInitBits: Int = 20000;
@@ -95,6 +96,111 @@ message(3) ChangeOwner {
     newOwner: Address;
 }
 
+/// Admin updates global fee BPS on master (see burn-jetton-master).
+message(0x1a72d4e2) SetFeeParams {
+    queryId: Int as uint64;
+    burn_rate_bps: Int;
+    staking_rate_bps: Int;
+    treasury_rate_bps: Int;
+}
+
+/// Admin sets staking pool and treasury owner addresses on master (their jetton wallets receive fee shares).
+message(0x2b59c1a7) SetFeeDestinations {
+    queryId: Int as uint64;
+    staking_pool: Address;
+    treasury: Address;
+}
+
+/// Admin: push cached fee config from master to one holder's jetton wallet.
+message(0x3c8f9013) SyncFeeConfigToWallet {
+    queryId: Int as uint64;
+    owner: Address;
+}
+
+/// Master-only: update fee parameters and destination owner addresses on a wallet.
+message(0x4d7e2bc4) JettonUpdateFeeConfig {
+    queryId: Int as uint64;
+    burn_rate_bps: Int;
+    staking_rate_bps: Int;
+    treasury_rate_bps: Int;
+    staking_pool: Address;
+    treasury: Address;
+}
+
+struct FeeParts {
+    burn: Int;
+    staking: Int;
+    treasury: Int;
+    net: Int;
+}
+
+/// Single empty cell for all wallets at deploy so address depends only on (owner, master, balance).
+inline fun jettonWalletEmptyFeeConfig(): Cell {
+    return beginCell().endCell();
+}
+
+struct DecodedFeeConfig {
+    active: Bool;
+    burnBps: Int;
+    stakeBps: Int;
+    treasBps: Int;
+    poolOwner: Address;
+    treasuryOwner: Address;
+}
+
+inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
+    let s = cfg.beginParse();
+    if (s.bits() == 0) {
+        return DecodedFeeConfig {
+            active: false,
+            burnBps: 0,
+            stakeBps: 0,
+            treasBps: 0,
+            poolOwner: newAddress(0, 0),
+            treasuryOwner: newAddress(0, 0),
+        };
+    }
+    let active = s.loadUint(1) == 1;
+    let b = s.loadUint(16);
+    let st = s.loadUint(16);
+    let tr = s.loadUint(16);
+    let p = s.loadAddress();
+    let t = s.loadAddress();
+    return DecodedFeeConfig {
+        active: active,
+        burnBps: b,
+        stakeBps: st,
+        treasBps: tr,
+        poolOwner: p,
+        treasuryOwner: t,
+    };
+}
+
+inline fun packFeeConfigCell(
+    burnBps: Int,
+    stakeBps: Int,
+    treasBps: Int,
+    poolOwner: Address,
+    treasuryOwner: Address,
+): Cell {
+    return beginCell()
+        .storeUint(1, 1)
+        .storeUint(burnBps, 16)
+        .storeUint(stakeBps, 16)
+        .storeUint(treasBps, 16)
+        .storeAddress(poolOwner)
+        .storeAddress(treasuryOwner)
+        .endCell();
+}
+
+inline fun computeFeeParts(amount: Int, burnBps: Int, stakeBps: Int, treasBps: Int): FeeParts {
+    let b = amount * burnBps / 10000;
+    let s = amount * stakeBps / 10000;
+    let t = amount * treasBps / 10000;
+    let n = amount - b - s - t;
+    return FeeParts { burn: b, staking: s, treasury: t, net: n };
+}
+
 inline fun checkEitherForwardPayload(forwardPayload: Slice) {
     if (forwardPayload.preloadUint(1) == 1) {
         let bitsAndRefs = calculateSliceBitsAndRefs(forwardPayload);
@@ -124,46 +230,119 @@ contract BurnJettonWallet(
     owner: Address,
     master: Address,
     balance: Int as coins,
+    feeConfig: Cell,
 ) {
+    receive(msg: JettonUpdateFeeConfig) {
+        require(sender() == self.master, "Incorrect sender");
+        require(
+            msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
+            "Invalid fee bps",
+        );
+        self.feeConfig = packFeeConfigCell(
+            msg.burn_rate_bps,
+            msg.staking_rate_bps,
+            msg.treasury_rate_bps,
+            msg.staking_pool,
+            msg.treasury,
+        );
+    }
+
     receive(msg: JettonTransfer) {
         forceBasechain(msg.destination);
         require(sender() == self.owner, "Incorrect sender");
+        require(msg.amount > 0, "Amount must be positive");
+
+        let cfg = decodeFeeConfig(self.feeConfig);
+        require(cfg.active, "Fee destinations not configured");
+        forceBasechain(cfg.poolOwner);
+        forceBasechain(cfg.treasuryOwner);
+
+        let parts = computeFeeParts(msg.amount, cfg.burnBps, cfg.stakeBps, cfg.treasBps);
+        require(parts.burn + parts.staking + parts.treasury + parts.net == msg.amount, "Fee split invariant");
 
         self.balance -= msg.amount;
         require(self.balance >= 0, "Incorrect balance after send");
         checkEitherForwardPayload(msg.forwardPayload);
 
         let ctx = context();
-        let fwdCount = 1 + sign(msg.forwardTonAmount);
+        let fwd = ctx.readForwardFee();
+        let deployPart =
+            getForwardFee(walletStateInitCells, walletStateInitBits, false) +
+            2 * getComputeFee(gasForTransfer, false) +
+            minTonsForStorage;
+        let recipientForwards = 1 + sign(msg.forwardTonAmount);
         require(
-            ctx.value >
-                msg.forwardTonAmount +
-                fwdCount * ctx.readForwardFee() +
-                getForwardFee(walletStateInitCells, walletStateInitBits, false) +
-                (2 * getComputeFee(gasForTransfer, false) + minTonsForStorage),
+            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
             "Insufficient amount of TON attached",
         );
 
+        let emptyCfg = jettonWalletEmptyFeeConfig();
+        let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
+        let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
+
         deploy(DeployParameters {
-            value: 0,
-            mode: SendRemainingValue,
+            value: perInternalDeployTon,
             bounce: true,
+            mode: SendPayGasSeparately,
             body: JettonTransferInternal {
                 queryId: msg.queryId,
-                amount: msg.amount,
+                amount: parts.net,
                 sender: self.owner,
                 responseDestination: msg.responseDestination,
                 forwardTonAmount: msg.forwardTonAmount,
                 forwardPayload: msg.forwardPayload,
             }.toCell(),
-            init: initOf BurnJettonWallet(msg.destination, self.master, 0),
+            init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
+        });
+
+        deploy(DeployParameters {
+            value: perInternalDeployTon,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: JettonTransferInternal {
+                queryId: msg.queryId,
+                amount: parts.staking,
+                sender: self.owner,
+                responseDestination: msg.responseDestination,
+                forwardTonAmount: 0,
+                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            }.toCell(),
+            init: poolWalletInit,
+        });
+
+        deploy(DeployParameters {
+            value: perInternalDeployTon,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: JettonTransferInternal {
+                queryId: msg.queryId,
+                amount: parts.treasury,
+                sender: self.owner,
+                responseDestination: msg.responseDestination,
+                forwardTonAmount: 0,
+                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            }.toCell(),
+            init: treasWalletInit,
+        });
+
+        message(MessageParameters {
+            to: self.master,
+            value: ton("0.06"),
+            mode: SendPayGasSeparately,
+            bounce: true,
+            body: JettonBurnNotification {
+                queryId: msg.queryId,
+                amount: parts.burn,
+                sender: self.owner,
+                responseDestination: msg.responseDestination,
+            }.toCell(),
         });
     }
 
     receive(msg: JettonTransferInternal) {
         self.balance += msg.amount;
 
-        let wallet: StateInit = initOf BurnJettonWallet(msg.sender, self.master, 0);
+        let wallet: StateInit = initOf BurnJettonWallet(msg.sender, self.master, 0, jettonWalletEmptyFeeConfig());
         if (!wallet.hasSameBasechainAddress(sender())) {
             require(self.master == sender(), "Incorrect sender");
         }
@@ -235,5 +414,10 @@ contract BurnJettonWallet(
             minter: self.master,
             code: myCode(),
         };
+    }
+
+    /// Whether master pushed fee config (for tests / off-chain reads).
+    get fun get_fee_config_active(): Bool {
+        return decodeFeeConfig(self.feeConfig).active;
     }
 }

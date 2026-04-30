@@ -14,11 +14,26 @@ struct BurnJettonMasterState {
     jettonWalletCode: Cell;
 }
 
+struct MasterFeeParamsView {
+    burnRateBps: Int;
+    stakingRateBps: Int;
+    treasuryRateBps: Int;
+    stakingPoolOwner: Address;
+    treasuryOwner: Address;
+    feeDestinationsActive: Bool;
+}
+
 contract BurnJettonMaster(
     totalSupply: Int as coins,
     admin: Address,
     content: Cell,
     mintable: Bool,
+    burnRateBps: Int,
+    stakingRateBps: Int,
+    treasuryRateBps: Int,
+    stakingPoolOwner: Address,
+    treasuryOwner: Address,
+    feeDestinationsActive: Bool,
 ) {
     receive() {
         cashback(sender());
@@ -98,6 +113,49 @@ contract BurnJettonMaster(
         self.admin = msg.newOwner;
     }
 
+    receive(msg: SetFeeParams) {
+        require(sender() == self.admin, "Incorrect sender");
+        require(
+            msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
+            "Invalid fee bps",
+        );
+        self.burnRateBps = msg.burn_rate_bps;
+        self.stakingRateBps = msg.staking_rate_bps;
+        self.treasuryRateBps = msg.treasury_rate_bps;
+    }
+
+    receive(msg: SetFeeDestinations) {
+        require(sender() == self.admin, "Incorrect sender");
+        self.stakingPoolOwner = msg.staking_pool;
+        self.treasuryOwner = msg.treasury;
+        self.feeDestinationsActive = true;
+    }
+
+    receive(msg: SyncFeeConfigToWallet) {
+        require(sender() == self.admin, "Incorrect sender");
+        require(self.feeDestinationsActive, "Fee destinations not configured on master");
+
+        let ctx = context();
+        require(ctx.value > ton("0.03"), "Insufficient TON for sync");
+
+        let cfg = JettonUpdateFeeConfig {
+            queryId: msg.queryId,
+            burn_rate_bps: self.burnRateBps,
+            staking_rate_bps: self.stakingRateBps,
+            treasury_rate_bps: self.treasuryRateBps,
+            staking_pool: self.stakingPoolOwner,
+            treasury: self.treasuryOwner,
+        };
+
+        message(MessageParameters {
+            body: cfg.toCell(),
+            to: getBurnJettonWalletByOwner(msg.owner),
+            value: 0,
+            bounce: false,
+            mode: SendRemainingValue | SendIgnoreErrors,
+        });
+    }
+
     bounced(msg: bounced<JettonTransferInternal>) {
         self.totalSupply -= msg.amount;
     }
@@ -115,10 +173,21 @@ contract BurnJettonMaster(
     get fun get_wallet_address(ownerAddress: Address): Address {
         return getBurnJettonWalletByOwner(ownerAddress);
     }
+
+    get fun get_fee_params(): MasterFeeParamsView {
+        return MasterFeeParamsView {
+            burnRateBps: self.burnRateBps,
+            stakingRateBps: self.stakingRateBps,
+            treasuryRateBps: self.treasuryRateBps,
+            stakingPoolOwner: self.stakingPoolOwner,
+            treasuryOwner: self.treasuryOwner,
+            feeDestinationsActive: self.feeDestinationsActive,
+        };
+    }
 }
 
 inline fun getBurnJettonWalletInit(address: Address): StateInit {
-    return initOf BurnJettonWallet(address, myAddress(), 0);
+    return initOf BurnJettonWallet(address, myAddress(), 0, jettonWalletEmptyFeeConfig());
 }
 
 inline fun getBurnJettonWalletByOwner(jettonWalletOwner: Address): Address {
