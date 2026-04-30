@@ -34,8 +34,8 @@ jobs:
             - name: Build contracts
               run: npx blueprint build --all
 
-            - name: Test
-              run: npm test
+            - name: Test with coverage
+              run: npm run test:coverage
 
             - name: Lint
               run: npm run lint
