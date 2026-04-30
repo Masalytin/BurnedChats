@@ -20,6 +20,26 @@
                 "external": false
             },
             "mode": "full"
+        },
+        {
+            "name": "StakingPool",
+            "path": "staking/staking-pool.tact",
+            "output": "build/StakingPool",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
+        },
+        {
+            "name": "StakingMaster",
+            "path": "staking/staking-master.tact",
+            "output": "build/StakingMaster",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
         }
     ]
 }
