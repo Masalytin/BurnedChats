@@ -12,9 +12,29 @@ export function emptyStakesMap() {
     return Dictionary.empty(Dictionary.Keys.Address(), dictValueParserStakeInfoView());
 }
 
+export function emptyRewardPerShareMap() {
+    return Dictionary.empty(Dictionary.Keys.Uint(8), Dictionary.Values.BigInt(257));
+}
+
+export function emptyUserRewardDebtMap() {
+    return Dictionary.empty(Dictionary.Keys.Address(), Dictionary.Values.BigInt(257));
+}
+
+export function emptyMasterTierTotalsMap() {
+    return Dictionary.empty(Dictionary.Keys.Uint(8), Dictionary.Values.BigVarUint(4));
+}
+
 export class StakingMaster extends StakingMasterBase {
     static async prepareInit(pool: Address, jettonMaster: Address, stakingLock: Address): Promise<StakingMaster> {
-        const raw = await StakingMasterBase.fromInit(pool, jettonMaster, stakingLock, emptyStakesMap());
+        const raw = await StakingMasterBase.fromInit(
+            pool,
+            jettonMaster,
+            stakingLock,
+            emptyStakesMap(),
+            emptyRewardPerShareMap(),
+            emptyUserRewardDebtMap(),
+            emptyMasterTierTotalsMap(),
+        );
         return new StakingMaster(raw.address, raw.init);
     }
 

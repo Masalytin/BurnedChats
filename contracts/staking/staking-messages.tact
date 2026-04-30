@@ -28,3 +28,14 @@ message(0x5a010014) WireStakingMaster {
     queryId: Int as uint64;
     stakingMaster: Address;
 }
+
+/// Staking Master relays to Pool → Pool notifies Master (`StakeFeeRewardsAccrue`) so `sender()==pool`.
+message(0x5a010015) RelayStakeFeeAccrual {
+    queryId: Int as uint64;
+    feeAmount: Int as coins;
+}
+
+message(0x5a010016) StakeFeeRewardsAccrue {
+    queryId: Int as uint64;
+    feeAmount: Int as coins;
+}

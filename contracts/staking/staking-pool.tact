@@ -27,6 +27,7 @@ contract StakingPool(
     const MaxTier: Int = 3;
     /// TON attached to payout JettonTransfer (must cover wallet gates, see burn-jetton-wallet JettonTransfer).
     const PayRewardsTon: Int = ton("3.5");
+    const GasPoolToMasterAccrual: Int = ton("0.06");
 
     inline fun jettonRewardsWalletAddr(): Address {
         return contractAddress(
@@ -52,6 +53,23 @@ contract StakingPool(
         require(sender() == self.bootstrapOwner, "Only bootstrap");
         self.stakingMaster = msg.stakingMaster;
         self.master_wired = true;
+    }
+
+    /// Pools stake-fee BURN accounted in `CreditPoolBalance` into `rewardPerShare` tiers on Master.
+    receive(msg: RelayStakeFeeAccrual) {
+        self.assertMaster();
+        require(msg.feeAmount > 0, "Bad fee");
+
+        message(MessageParameters {
+            to: self.stakingMaster,
+            value: self.GasPoolToMasterAccrual,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: StakeFeeRewardsAccrue {
+                queryId: msg.queryId,
+                feeAmount: msg.feeAmount,
+            }.toCell(),
+        });
     }
 
     receive(msg: IncrementTotalStake) {

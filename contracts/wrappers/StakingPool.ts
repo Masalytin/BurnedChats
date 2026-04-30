@@ -5,6 +5,7 @@ import {
     WireStakingMaster,
     type CreditPoolBalance,
     type PayRewards,
+    type RelayStakeFeeAccrual,
 } from '../build/StakingPool/StakingPool_StakingPool';
 import { Address, ContractProvider, Dictionary, Sender, toNano } from '@ton/core';
 
@@ -49,6 +50,16 @@ export class StakingPool extends StakingPoolBase {
             delta,
         };
         return this.send(provider, via, { value: toNano('0.06') }, msg);
+    }
+
+    /** Relays accrued staking-fee (BURN nano) into StakingMaster `rewardPerShare` bookkeeping. */
+    async sendRelayStakeFeeAccrual(provider: ContractProvider, via: Sender, feeAmount: bigint) {
+        const msg: RelayStakeFeeAccrual = {
+            $$type: 'RelayStakeFeeAccrual',
+            queryId: 0n,
+            feeAmount,
+        };
+        return this.send(provider, via, { value: toNano('0.12') }, msg);
     }
 
     async sendPayRewards(provider: ContractProvider, via: Sender, p: { recipient: Address; amount: bigint }) {

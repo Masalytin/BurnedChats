@@ -2,19 +2,21 @@ import { Blockchain } from '@ton/sandbox';
 import { toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
-import { StakingMaster } from '../wrappers/StakingMaster';
 import {
     StakingLock,
     TIER_DIAMOND_SECONDS,
     TIER_GOLD_SECONDS,
     TIER_SILVER_SECONDS,
 } from '../wrappers/StakingLock';
+import { StakingMaster } from '../wrappers/StakingMaster';
 import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { StakingLock_errors_backward } from '../build/StakingMaster/StakingMaster_StakingLock';
 import { StakingPool_errors_backward } from '../build/StakingPool/StakingPool_StakingPool';
 import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW } from './helpers';
 import '@ton/test-utils';
+
+const REWARD_SCALE = StakingMaster.RewardScale;
 
 describe('Staking Pool + Master (P5-2-1-1)', () => {
     it('deploys in Sandbox; stake updates pool tiers; exclusions + payouts', async () => {
@@ -263,5 +265,194 @@ describe('StakingLock + unstake guards (P5-2-1-2)', () => {
         expect(flexStake.transactions).toHaveTransaction({ success: true });
         const flexUnstake = await stakingMaster.sendUserUnstake(user.getSender());
         expect(flexUnstake.transactions).toHaveTransaction({ success: true });
+    });
+});
+
+describe('Accumulated staking rewards (P5-2-2-1)', () => {
+    it('RelayStakeFeeAccrual distributes 5/10/25/60 tier slices into rewardPerShare; solo Flexible gets tier-0 slice', async () => {
+        const blockchain = await Blockchain.create();
+        const deployer = await blockchain.treasury('deployer');
+        const alice = await blockchain.treasury('alice');
+
+        const content = BurnJettonMaster.jettonContentFromUri('https://example.com/md-rewards.json');
+        const m = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
+        const jettonMaster = blockchain.openContract(m);
+        await jettonMaster.send(deployer.getSender(), { value: DEPLOY_TON }, null);
+
+        const poolBase = await StakingPool.prepareInit({
+            bootstrapOwner: deployer.address,
+            jettonMinter: jettonMaster.address,
+            stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
+        });
+        const poolOnChain = blockchain.openContract(poolBase);
+        await poolOnChain.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const lockBase = await StakingLock.prepareInit(deployer.address);
+        const stakingLock = blockchain.openContract(lockBase);
+        await stakingLock.send(deployer.getSender(), { value: toNano('0.08') }, null);
+
+        const masterBase = await StakingMaster.prepareInit(
+            poolBase.address,
+            jettonMaster.address,
+            stakingLock.address,
+        );
+        const stakingMaster = blockchain.openContract(masterBase);
+        await stakingMaster.send(deployer.getSender(), { value: toNano('10') }, null);
+
+        await poolOnChain.sendWireStakingMaster(deployer.getSender(), stakingMaster.address);
+        await jettonMaster.sendMint(deployer.getSender(), alice.address, 20n * NANO_PER_BURN, 1n, MINT_TON);
+
+        const aliceStakeAmt = NANO_PER_BURN;
+        await stakingMaster.sendUserStake(alice.getSender(), { amount: aliceStakeAmt, tier: 0 });
+        expect(await poolOnChain.getGetTotalStake(0n)).toBe(aliceStakeAmt);
+
+        expect(await stakingMaster.getGetMasterTotalStake(0n)).toBe(aliceStakeAmt);
+        expect(await stakingMaster.getGetPendingReward(alice.address)).toBe(0n);
+
+        const feeAmount = 1000n * NANO_PER_BURN;
+        const tier0Slice = (feeAmount * 5n) / 100n;
+        const expectedDeltaRps = (tier0Slice * REWARD_SCALE) / aliceStakeAmt;
+
+        const masterSender = blockchain.sender(stakingMaster.address);
+        const relayTx = await poolOnChain.sendRelayStakeFeeAccrual(masterSender, feeAmount);
+        expect(relayTx.transactions).toHaveTransaction({ success: true });
+
+        expect(await stakingMaster.getGetRewardPerShare(0n)).toBe(expectedDeltaRps);
+        const pend = await stakingMaster.getGetPendingReward(alice.address);
+        expect(pend).toBe((aliceStakeAmt * expectedDeltaRps) / REWARD_SCALE);
+        expect(pend).toBe(tier0Slice);
+    });
+
+    it('splits tier-0 fee between two Flexible stakers by stake ratio', async () => {
+        const blockchain = await Blockchain.create();
+        const deployer = await blockchain.treasury('deployer');
+        const alice = await blockchain.treasury('alice2');
+        const bob = await blockchain.treasury('bob2');
+
+        const content = BurnJettonMaster.jettonContentFromUri('https://example.com/md-rewards-split.json');
+        const m = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
+        const jettonMaster = blockchain.openContract(m);
+        await jettonMaster.send(deployer.getSender(), { value: DEPLOY_TON }, null);
+
+        const poolBase = await StakingPool.prepareInit({
+            bootstrapOwner: deployer.address,
+            jettonMinter: jettonMaster.address,
+            stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
+        });
+        const poolOnChain = blockchain.openContract(poolBase);
+        await poolOnChain.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const lockBase = await StakingLock.prepareInit(deployer.address);
+        const stakingLock = blockchain.openContract(lockBase);
+        await stakingLock.send(deployer.getSender(), { value: toNano('0.08') }, null);
+
+        const masterBase = await StakingMaster.prepareInit(
+            poolBase.address,
+            jettonMaster.address,
+            stakingLock.address,
+        );
+        const stakingMaster = blockchain.openContract(masterBase);
+        await stakingMaster.send(deployer.getSender(), { value: toNano('10') }, null);
+
+        await poolOnChain.sendWireStakingMaster(deployer.getSender(), stakingMaster.address);
+
+        await jettonMaster.sendMint(deployer.getSender(), alice.address, 20n * NANO_PER_BURN, 1n, MINT_TON);
+        await jettonMaster.sendMint(deployer.getSender(), bob.address, 20n * NANO_PER_BURN, 1n, MINT_TON);
+
+        const aAmt = 6n * NANO_PER_BURN;
+        const bAmt = 4n * NANO_PER_BURN;
+
+        await stakingMaster.sendUserStake(alice.getSender(), { amount: aAmt, tier: 0 });
+        await stakingMaster.sendUserStake(bob.getSender(), { amount: bAmt, tier: 0 });
+
+        const feeAmount = 100n * NANO_PER_BURN;
+        const tier0Slice = (feeAmount * 5n) / 100n;
+        const masterSender = blockchain.sender(stakingMaster.address);
+        await poolOnChain.sendRelayStakeFeeAccrual(masterSender, feeAmount);
+
+        const pA = await stakingMaster.getGetPendingReward(alice.address);
+        const pB = await stakingMaster.getGetPendingReward(bob.address);
+        expect(pA).toBe((tier0Slice * aAmt) / (aAmt + bAmt));
+        expect(pB).toBe((tier0Slice * bAmt) / (aAmt + bAmt));
+        expect(pA + pB).toBe(tier0Slice);
+    });
+
+    it('rejects RelayStakeFeeAccrual unless sender is StakingMaster', async () => {
+        const blockchain = await Blockchain.create();
+        const deployer = await blockchain.treasury('deployer');
+        const outsider = await blockchain.treasury('outsider');
+
+        const content = BurnJettonMaster.jettonContentFromUri('https://example.com/md-poolguard.json');
+        const m = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
+        const jettonMaster = blockchain.openContract(m);
+        await jettonMaster.send(deployer.getSender(), { value: DEPLOY_TON }, null);
+
+        const poolBase = await StakingPool.prepareInit({
+            bootstrapOwner: deployer.address,
+            jettonMinter: jettonMaster.address,
+            stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
+        });
+        const poolOnChain = blockchain.openContract(poolBase);
+        await poolOnChain.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const lockBase = await StakingLock.prepareInit(deployer.address);
+        const stakingLock = blockchain.openContract(lockBase);
+        await stakingLock.send(deployer.getSender(), { value: toNano('0.08') }, null);
+
+        const masterBase = await StakingMaster.prepareInit(
+            poolBase.address,
+            jettonMaster.address,
+            stakingLock.address,
+        );
+        const stakingMaster = blockchain.openContract(masterBase);
+        await stakingMaster.send(deployer.getSender(), { value: toNano('10') }, null);
+
+        await poolOnChain.sendWireStakingMaster(deployer.getSender(), stakingMaster.address);
+
+        const rogue = await poolOnChain.sendRelayStakeFeeAccrual(outsider.getSender(), NANO_PER_BURN);
+        expect(rogue.transactions).toHaveTransaction({
+            success: false,
+            exitCode: StakingPool_errors_backward['Only staking master'],
+        });
+    });
+
+    it('accrues with no stakers: no division-by-zero and reward_per_share unchanged', async () => {
+        const blockchain = await Blockchain.create();
+        const deployer = await blockchain.treasury('deployer');
+
+        const content = BurnJettonMaster.jettonContentFromUri('https://example.com/md-nostake.json');
+        const m = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
+        const jettonMaster = blockchain.openContract(m);
+        await jettonMaster.send(deployer.getSender(), { value: DEPLOY_TON }, null);
+
+        const poolBase = await StakingPool.prepareInit({
+            bootstrapOwner: deployer.address,
+            jettonMinter: jettonMaster.address,
+            stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
+        });
+        const poolOnChain = blockchain.openContract(poolBase);
+        await poolOnChain.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const lockBase = await StakingLock.prepareInit(deployer.address);
+        const stakingLock = blockchain.openContract(lockBase);
+        await stakingLock.send(deployer.getSender(), { value: toNano('0.08') }, null);
+
+        const masterBase = await StakingMaster.prepareInit(
+            poolBase.address,
+            jettonMaster.address,
+            stakingLock.address,
+        );
+        const stakingMaster = blockchain.openContract(masterBase);
+        await stakingMaster.send(deployer.getSender(), { value: toNano('10') }, null);
+
+        await poolOnChain.sendWireStakingMaster(deployer.getSender(), stakingMaster.address);
+
+        const masterSender = blockchain.sender(stakingMaster.address);
+        const tx = await poolOnChain.sendRelayStakeFeeAccrual(masterSender, 123n * NANO_PER_BURN);
+        expect(tx.transactions).toHaveTransaction({ success: true });
+
+        for (let t = 0; t <= 3; t++) {
+            expect(await stakingMaster.getGetRewardPerShare(BigInt(t))).toBe(0n);
+        }
     });
 });
