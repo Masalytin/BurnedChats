@@ -279,6 +279,11 @@ contract BurnJettonMaster(
     get fun get_is_excluded(holder: Address): Bool {
         return isInExcludedChain(holder, self.excludedHead);
     }
+
+    /// Treasury TEP-74 owner address (must match `SetFeeDestinations.treasury` — typically the Treasury contract).
+    get fun get_treasury_address(): Address {
+        return self.treasuryOwner;
+    }
 }
 
 inline fun getBurnJettonWalletInit(address: Address): StateInit {

@@ -65,15 +65,41 @@ class MessageHandlerSyncTest {
     @Test
     void syncMessages_offlineTombstoneEditAndDelete_sendsOneEventAndClearsQueues() throws Exception {
         SyncMessagesRequest request = new SyncMessagesRequest(SESSION_ID);
+        Session session = offlineSyncSession();
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));
+        stubOfflineQueues();
+        TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
+        when(principal.getUserId()).thenReturn(USER_A);
 
-        Session session = Session.builder()
+        messageHandler.syncMessages(request, principal);
+
+        Thread.sleep(300);
+
+        ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
+        verify(messagingTemplate).convertAndSendToUser(eq("1001"), eq("/queue/sync-messages"), eventCap.capture());
+        SyncMessagesEvent ev = eventCap.getValue();
+        assertThat(ev.isSuccess()).isTrue();
+        assertThat(ev.getSessionId()).isEqualTo(SESSION_ID);
+        assertThat(ev.getMessages()).hasSize(1);
+        assertThat(ev.getEdits()).hasSize(1);
+        assertThat(ev.getEdits().get(0).getMessageId()).isEqualTo("m-tomb");
+        assertThat(ev.getDeletedIds()).containsExactly("m-gone");
+
+        verify(messageRepository).deleteMessages(USER_A, SESSION_ID);
+        verify(messageRepository).deleteEdits(USER_A, SESSION_ID);
+        verify(messageRepository).deleteDeletions(USER_A, SESSION_ID);
+    }
+
+    private Session offlineSyncSession() {
+        return Session.builder()
                 .id(SESSION_ID)
                 .initiatorId(USER_A)
                 .responderId(USER_B)
                 .status(SessionStatus.ACTIVE)
                 .build();
-        when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));
+    }
 
+    private void stubOfflineQueues() {
         Message offlineDm = Message.builder()
                 .messageId("m-offline")
                 .sessionId(SESSION_ID)
@@ -108,27 +134,6 @@ class MessageHandlerSyncTest {
         when(messageRepository.deleteMessages(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteEdits(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteDeletions(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
-
-        TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
-        when(principal.getUserId()).thenReturn(USER_A);
-
-        messageHandler.syncMessages(request, principal);
-
-        Thread.sleep(300);
-
-        ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("1001"), eq("/queue/sync-messages"), eventCap.capture());
-        SyncMessagesEvent ev = eventCap.getValue();
-        assertThat(ev.isSuccess()).isTrue();
-        assertThat(ev.getSessionId()).isEqualTo(SESSION_ID);
-        assertThat(ev.getMessages()).hasSize(1);
-        assertThat(ev.getEdits()).hasSize(1);
-        assertThat(ev.getEdits().get(0).getMessageId()).isEqualTo("m-tomb");
-        assertThat(ev.getDeletedIds()).containsExactly("m-gone");
-
-        verify(messageRepository).deleteMessages(USER_A, SESSION_ID);
-        verify(messageRepository).deleteEdits(USER_A, SESSION_ID);
-        verify(messageRepository).deleteDeletions(USER_A, SESSION_ID);
     }
 
     @Test

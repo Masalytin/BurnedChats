@@ -114,6 +114,9 @@ public class OfflineQueueMetrics {
             case room -> deliveredRoom.increment(messageCount);
             case dm_edit -> deliveredDmEdit.increment(messageCount);
             case dm_deletion -> deliveredDmDeletion.increment(messageCount);
+            default -> {
+                throw new IllegalStateException("Unhandled offline session type: " + type);
+            }
         }
     }
 

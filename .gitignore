@@ -1,6 +1,30 @@
 # BurnedChats .gitignore
 
 # ========================
+# Build artifacts & caches (do not commit)
+# ========================
+# Gradle — project root and any nested projects
+.gradle/
+
+# Backend (Spring / Gradle)
+backend/build/
+backend/bin/
+
+# Frontend (Vite)
+frontend/dist/
+frontend/dist-ssr/
+
+# Contracts (Node tooling; see also contracts/.gitignore)
+contracts/build/
+
+# Node — any package in the repo
+node_modules/
+
+# Catch-all for other tooling output (Vite cache, nested packages, etc.)
+**/dist/
+out/
+
+# ========================
 # IDE and Editor
 # ========================
 .idea/
@@ -18,12 +42,9 @@
 *.sublime-project
 
 # ========================
-# Java / Gradle
+# Java / Gradle (artifacts not tied to one directory)
 # ========================
-# Compiled class files
 *.class
-
-# Package files
 *.war
 *.ear
 *.nar
@@ -31,17 +52,13 @@
 *.tar.gz
 *.rar
 
-# JAR files (except gradle wrapper)
+# JAR files (keep Gradle wrapper)
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
-# Gradle
-.gradle/
+# Any other Gradle `build/` dirs (future modules) — after explicit paths above
 **/build/
 !gradle/wrapper/
-
-# Backend compiled output
-backend/bin/
 
 # Maven (if ever used)
 target/
@@ -52,25 +69,21 @@ pom.xml.next
 release.properties
 
 # ========================
-# TON contracts (contracts/)
+# TON contracts (contracts/) — env & tooling
 # ========================
-contracts/build/
 contracts/node_modules/
 contracts/.env
 
 # ========================
-# Node.js / Frontend
+# Node.js logs & stores
 # ========================
-node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
 
-# Build output
-**/dist/
-out/
+# Next / Nuxt / caches
 .next/
 .nuxt/
 .cache/
@@ -168,4 +181,3 @@ certs/*.p12
 
 # SSH keys
 .ssh/*
-

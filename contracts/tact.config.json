@@ -60,6 +60,26 @@
                 "external": false
             },
             "mode": "full"
+        },
+        {
+            "name": "Treasury",
+            "path": "treasury/treasury.tact",
+            "output": "build/Treasury",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
+        },
+        {
+            "name": "Vesting",
+            "path": "vesting/vesting.tact",
+            "output": "build/Vesting",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
         }
     ]
 }

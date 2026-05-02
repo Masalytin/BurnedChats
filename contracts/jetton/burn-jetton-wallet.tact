@@ -562,8 +562,15 @@ contract BurnJettonWallet(
             init: poolWalletInit,
         });
 
+        // Minimal forward so Treasury (jetton owner) receives `JettonNotification` for total_received stats (P5-3-2-1).
+        let treasFwdTon: Int = 1;
+        let treasDeliverTon = max(
+            perInternalDeployTon,
+            treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
+        );
+
         deploy(DeployParameters {
-            value: perInternalDeployTon,
+            value: treasDeliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
@@ -571,7 +578,7 @@ contract BurnJettonWallet(
                 amount: parts.treasury,
                 sender: self.owner,
                 responseDestination: msg.responseDestination,
-                forwardTonAmount: 0,
+                forwardTonAmount: treasFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
             init: treasWalletInit,

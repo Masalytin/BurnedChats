@@ -12,6 +12,7 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.security.Principal;
 
 /**
@@ -23,7 +24,7 @@ import java.security.Principal;
  * <p>The interceptor:
  * <ol>
  *   <li>Extracts X-Telegram-Init-Data header from CONNECT frame</li>
- *   <li>Validates the initData using {@link TelegramAuthService}</li>
+ *   <li>Validates credentials via {@link AuthenticationService}</li>
  *   <li>Creates a {@link TelegramPrincipal} for the authenticated user</li>
  *   <li>Rejects connections with invalid or missing authentication</li>
  * </ol>
@@ -36,7 +37,7 @@ import java.security.Principal;
  * heart-beat: 10000,10000
  * </pre>
  *
- * @see TelegramAuthService
+ * @see AuthenticationService
  * @see TelegramPrincipal
  */
 @Slf4j
@@ -45,8 +46,9 @@ import java.security.Principal;
 public class StompAuthInterceptor implements ChannelInterceptor {
 
     private static final String INIT_DATA_HEADER = "X-Telegram-Init-Data";
+    private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(30);
 
-    private final TelegramAuthService telegramAuthService;
+    private final AuthenticationService authenticationService;
 
     /**
      * Intercept messages before they are sent to the channel.
@@ -96,11 +98,13 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
 
         try {
-            // Validate initData and extract user info
-            TelegramInitData telegramData = telegramAuthService.validateInitData(initData);
-
-            // Create principal for the authenticated user
-            TelegramPrincipal principal = new TelegramPrincipal(telegramData);
+            UnifiedUser unifiedUser = authenticationService
+                    .authenticate(AuthCredentials.telegram(initData))
+                    .block(AUTH_TIMEOUT);
+            if (unifiedUser == null || unifiedUser.telegramInitData() == null) {
+                throw new AuthenticationException("Telegram authentication did not yield init context");
+            }
+            TelegramPrincipal principal = new TelegramPrincipal(unifiedUser.telegramInitData());
             accessor.setUser(principal);
 
             LOG.info("STOMP CONNECT authenticated: userId={}, username={}, sessionId={}",
