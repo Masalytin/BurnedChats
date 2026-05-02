@@ -12,10 +12,13 @@ export interface AuthCredentials {
 }
 
 export interface AuthResult {
+  /** Stable user id (`internalId` from backend); for Telegram still derived from tg id helper */
   userId: string;
   displayName: string;
   authType: AuthType;
   token?: string;
+  /** Friendly EQ… address for wallet flows */
+  walletAddress?: string;
 }
 
 export interface AuthUser {
@@ -24,6 +27,8 @@ export interface AuthUser {
   avatarUrl?: string;
   authType: AuthType;
   telegramId?: number;
+  /** User-friendly TON address (Ton Connect); set for wallet-only users */
+  walletAddress?: string;
   username?: string;
   firstName?: string;
   lastName?: string;

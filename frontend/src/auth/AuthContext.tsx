@@ -11,7 +11,8 @@ import WebApp from '@twa-dev/sdk';
 import { getEnvironment } from '../env/detector';
 import { telegramInternalId } from './internalId';
 import { TelegramAuthProvider } from './TelegramAuthProvider';
-import { AuthType, type AuthCredentials, type AuthProvider, type AuthUser } from './types';
+import { WalletAuthProvider } from './WalletAuthProvider';
+import { AuthType, type AuthCredentials, type AuthProvider, type AuthResult, type AuthUser } from './types';
 
 interface AuthContextValue {
   provider: AuthProvider | null;
@@ -54,18 +55,32 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
+  const buildWalletUser = useCallback((result: AuthResult): AuthUser => {
+    const friendly = result.walletAddress ?? result.userId;
+    return {
+      internalId: result.userId,
+      displayName: result.displayName,
+      authType: AuthType.WALLET,
+      walletAddress: friendly,
+    };
+  }, []);
+
   const login = useCallback(async () => {
     if (!provider) {
       return;
     }
 
-    await provider.authenticate();
+    const result = await provider.authenticate();
     if (provider.type === AuthType.TELEGRAM) {
       const unified = buildTelegramUser();
       setUser(unified);
       setIsAuthenticated(Boolean(unified));
+    } else if (provider.type === AuthType.WALLET) {
+      const unified = buildWalletUser(result);
+      setUser(unified);
+      setIsAuthenticated(true);
     }
-  }, [provider, buildTelegramUser]);
+  }, [provider, buildTelegramUser, buildWalletUser]);
 
   const logout = useCallback(() => {
     provider?.logout();
@@ -99,7 +114,8 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
           setIsAuthenticated(false);
         }
       } else {
-        setProvider(null);
+        const walletProvider = new WalletAuthProvider();
+        setProvider(walletProvider);
         setUser(null);
         setIsAuthenticated(false);
       }
