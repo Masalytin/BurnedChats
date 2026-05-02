@@ -74,6 +74,7 @@ contract Governor(
                 GV_ACTIVE,
                 0,
                 cfg.timelockDelay,
+                self.timelock,
                 emptyVotes,
             );
 
@@ -137,6 +138,26 @@ contract Governor(
         require(stored != null && sender() == stored!!, "Bad caller");
 
         self.proposalStateById.set(msg.proposalId, msg.newState);
+
+        /// On-chain execution path: queue Timelock after voting success (P5-3-1-3).
+        if (msg.newState == 1 && msg.queueActive) {
+            require(msg.queueDelay == 0 || msg.queueDelay >= 86400, "Bad queue delay");
+            message(MessageParameters {
+                to: self.timelock,
+                value: ton("0.15"),
+                mode: SendPayGasSeparately,
+                bounce: true,
+                body: TimelockQueue {
+                    queryId: 0,
+                    proposalId: msg.proposalId,
+                    proposalContract: stored!!,
+                    target: msg.queueTarget,
+                    method: msg.queueMethod,
+                    args: msg.queueArgs,
+                    delay: msg.queueDelay,
+                }.toCell(),
+            });
+        }
 
         cashback(sender());
     }

@@ -43,7 +43,7 @@ message(0x5a030003) SetTierRewardShare {
 }
 
 contract StakingLock(
-    governor: Address,
+    timelock: Address,
     configs: map<Int, TierConfig>,
 ) {
     const MinTier: Int = 0;
@@ -53,8 +53,8 @@ contract StakingLock(
         cashback(sender());
     }
 
-    inline fun assertGov() {
-        require(sender() == self.governor, "Not governor");
+    inline fun assertTimelock() {
+        require(sender() == self.timelock, "Only timelock");
     }
 
     inline fun assertTier(tier: Int) {
@@ -67,7 +67,7 @@ contract StakingLock(
     }
 
     receive(msg: SetLockDuration) {
-        self.assertGov();
+        self.assertTimelock();
         let t = msg.tier;
         self.assertTier(t);
         let cur = self.tierCfg(t);
@@ -83,7 +83,7 @@ contract StakingLock(
     }
 
     receive(msg: SetTierMultiplier) {
-        self.assertGov();
+        self.assertTimelock();
         let t = msg.tier;
         self.assertTier(t);
         require(msg.multiplier > 0, "Bad multiplier");
@@ -100,7 +100,7 @@ contract StakingLock(
     }
 
     receive(msg: SetTierRewardShare) {
-        self.assertGov();
+        self.assertTimelock();
         let t = msg.tier;
         self.assertTier(t);
         require(msg.share >= 0 && msg.share <= 100, "Bad share");
@@ -147,7 +147,7 @@ contract StakingLock(
         return self.tierCfg(tier).multiplier;
     }
 
-    get fun get_governor(): Address {
-        return self.governor;
+    get fun get_timelock(): Address {
+        return self.timelock;
     }
 }

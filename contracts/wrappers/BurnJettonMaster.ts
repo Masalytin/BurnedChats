@@ -23,11 +23,12 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
         return beginCell().storeUint(1, 8).storeRef(beginCell().storeStringTail(metadataUri).endCell()).endCell();
     }
 
-    static async fromInitDeployed(admin: Address, content: Cell) {
+    static async fromInitDeployed(admin: Address, content: Cell, timelock: Address = admin) {
         const emptyExcluded = beginCell().endCell();
         const base = await BurnJettonMasterBase.fromInit(
             0n,
             admin,
+            timelock,
             content,
             true,
             50n,

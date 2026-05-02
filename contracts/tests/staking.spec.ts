@@ -234,7 +234,7 @@ describe('StakingLock + unstake guards (P5-2-1-2)', () => {
         const rogue = await lock.sendSetTierRewardShare(user.getSender(), { tier: 0, share: 5n });
         expect(rogue.transactions).toHaveTransaction({
             success: false,
-            exitCode: StakingLock_errors_backward['Not governor'],
+            exitCode: StakingLock_errors_backward['Only timelock'],
         });
     });
 

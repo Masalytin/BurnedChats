@@ -10,6 +10,7 @@ struct BurnJettonMasterState {
     totalSupply: Int as coins;
     mintable: Bool;
     adminAddress: Address;
+    timelockAddress: Address;
     jettonContent: Cell;
     jettonWalletCode: Cell;
 }
@@ -32,6 +33,7 @@ struct EffectiveFeeParams {
 contract BurnJettonMaster(
     totalSupply: Int as coins,
     admin: Address,
+    timelock: Address,
     content: Cell,
     mintable: Bool,
     burnRateBps: Int,
@@ -139,7 +141,7 @@ contract BurnJettonMaster(
     }
 
     receive(msg: SetFeeParams) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         require(
             msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
             "Invalid fee bps",
@@ -150,14 +152,14 @@ contract BurnJettonMaster(
     }
 
     receive(msg: SetFeeDestinations) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         self.stakingPoolOwner = msg.staking_pool;
         self.treasuryOwner = msg.treasury;
         self.feeDestinationsActive = true;
     }
 
     receive(msg: AddExcluded) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         if (!isInExcludedChain(msg.address, self.excludedHead)) {
             require(self.excludedCount < MAX_EXCLUDED_ADDRESSES, "Max excluded");
             self.excludedHead = excludedChainPrepend(self.excludedHead, msg.address);
@@ -166,7 +168,7 @@ contract BurnJettonMaster(
     }
 
     receive(msg: RemoveExcluded) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         if (isInExcludedChain(msg.address, self.excludedHead)) {
             self.excludedHead = excludedChainRemove(msg.address, self.excludedHead);
             self.excludedCount -= 1;
@@ -174,18 +176,18 @@ contract BurnJettonMaster(
     }
 
     receive(msg: SetDynamicBurnEnabled) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         self.dynamicBurnEnabled = msg.enabled;
     }
 
     receive(msg: SetDynamicBurnThresholds) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         self.largeTxThreshold = msg.large_tx_threshold;
         self.activityThreshold = msg.activity_threshold;
     }
 
     receive(msg: SetAutoReduceParams) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         require(
             msg.low_burn_bps + msg.low_staking_bps + msg.low_treasury_bps <= 10000,
             "Invalid low fee bps",
@@ -197,7 +199,7 @@ contract BurnJettonMaster(
     }
 
     receive(msg: SyncFeeConfigToWallet) {
-        require(sender() == self.admin, "Incorrect sender");
+        require(sender() == self.timelock, "Only timelock");
         require(self.feeDestinationsActive, "Fee destinations not configured on master");
 
         let ctx = context();
@@ -244,6 +246,7 @@ contract BurnJettonMaster(
             totalSupply: self.totalSupply,
             mintable: self.mintable,
             adminAddress: self.admin,
+            timelockAddress: self.timelock,
             jettonContent: self.content,
             jettonWalletCode: codeOf BurnJettonWallet,
         };

@@ -24,9 +24,10 @@ inline fun validateFeaturePriorityPayload(payload: Cell) {
     require(ds.bits() > 0, "Feature description required");
 }
 
-/// TreasurySpend: Address recipient, Coins amount, Cell reason ref (non-empty).
+/// TreasurySpend: Treasury contract, recipient, Coins amount, Cell reason ref (non-empty).
 inline fun validateTreasurySpendPayload(payload: Cell) {
     let s = payload.beginParse();
+    s.loadAddress();
     s.loadAddress();
     let _amt = s.loadCoins();
     let reasonCell = s.loadRef();

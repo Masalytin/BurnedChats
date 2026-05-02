@@ -46,6 +46,37 @@ message(0x5a040103) ExecuteProposal {
 message(0x5a040122) ProposalStateReportToGovernor {
     proposalId: Int as uint64;
     newState: Int as uint8;
+    /// When `newState` is Succeeded and `queueActive`, Governor forwards `TimelockQueue`.
+    queueDelay: Int as uint64;
+    queueTarget: Address;
+    queueMethod: Int as uint32;
+    queueArgs: Cell;
+    queueActive: Bool;
+}
+
+/// Timelock — queued execution after governance voting (P5-3-1-3).
+message(0x5a040201) TimelockQueue {
+    queryId: Int as uint64;
+    proposalId: Int as uint64;
+    proposalContract: Address;
+    target: Address;
+    method: Int as uint32;
+    args: Cell;
+    delay: Int as uint64;
+}
+
+message(0x5a040202) TimelockExecutePending {
+    queryId: Int as uint64;
+    proposalId: Int as uint64;
+}
+
+message(0x5a040203) TimelockCancel {
+    queryId: Int as uint64;
+    proposalId: Int as uint64;
+}
+
+message(0x5a040015) ProposalMarkExecuted {
+    queryId: Int as uint64;
 }
 
 message(0x5a040011) ProposalVoteRelay {

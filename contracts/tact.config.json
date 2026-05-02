@@ -50,6 +50,16 @@
                 "external": false
             },
             "mode": "full"
+        },
+        {
+            "name": "Timelock",
+            "path": "governance/timelock.tact",
+            "output": "build/Timelock",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
         }
     ]
 }

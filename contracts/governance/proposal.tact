@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: MIT
-// Single-proposal child contract: voting, finalize, execute (Governor-only execute after timelock).
+// Single-proposal child contract: voting, finalize, timelock queue, execute via Timelock / off-chain-only Feature path.
 
 import "./governance-messages";
+import "../treasury/treasury-messages";
 
 inline fun assertVoteRelayer(senderAddr: Address, voteRelayer: Address) {
     require(senderAddr == voteRelayer, "Only vote relay");
 }
 
+inline fun zeroAddr(): Address {
+    return address("EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c");
+}
+
 /// Active voting.
 const PS_ACTIVE: Int = 0;
-/// Passed quorum + threshold; waiting timelock.
+/// Passed quorum + threshold; waiting timelock execution.
 const PS_SUCCEEDED: Int = 1;
 const PS_DEFEATED: Int = 2;
-/// Reserved for delegate timelock queue (TOKENOMICS); not set by this MVP proposal contract.
 const PS_QUEUED: Int = 3;
 const PS_EXECUTED: Int = 4;
 const PS_CANCELLED: Int = 5;
+
+const TREASURY_SPEND_OPCODE: Int = 0x5a050001;
 
 contract Proposal(
     id: Int as uint64,
@@ -34,6 +40,7 @@ contract Proposal(
     state: Int as uint8,
     succeededAt: Int as uint64,
     timelockDelaySec: Int as uint64,
+    timelockAddr: Address,
     voted: map<Address, Int as uint8>,
 ) {
     receive() {
@@ -50,15 +57,27 @@ contract Proposal(
         require(t <= self.endTime, "Voting ended");
     }
 
-    fun reportState(to: Address, ns: Int) {
+    fun reportStateEx(
+        ns: Int,
+        queueDelay: Int,
+        queueTarget: Address,
+        queueMethod: Int,
+        queueArgs: Cell,
+        queueActive: Bool,
+    ) {
         message(MessageParameters {
-            to: to,
+            to: self.governor,
             value: ton("0.03"),
             mode: SendPayGasSeparately,
             bounce: false,
             body: ProposalStateReportToGovernor {
                 proposalId: self.id,
                 newState: ns,
+                queueDelay: queueDelay,
+                queueTarget: queueTarget,
+                queueMethod: queueMethod,
+                queueArgs: queueArgs,
+                queueActive: queueActive,
             }.toCell(),
         });
     }
@@ -91,44 +110,91 @@ contract Proposal(
         let total = self.forVotes + self.againstVotes;
         if (total < self.quorumRequired) {
             self.state = PS_DEFEATED;
-            self.reportState(self.governor, PS_DEFEATED);
+            self.reportStateEx(PS_DEFEATED, 0, zeroAddr(), 0, beginCell().endCell(), false);
             cashback(sender());
             return;
         }
 
         if (total == 0) {
             self.state = PS_DEFEATED;
-            self.reportState(self.governor, PS_DEFEATED);
+            self.reportStateEx(PS_DEFEATED, 0, zeroAddr(), 0, beginCell().endCell(), false);
             cashback(sender());
             return;
         }
 
-        // thresholdBps: e.g. 5000 means for/total >= 50%
         require(self.thresholdBps >= 0 && self.thresholdBps <= 10000, "Bad threshold");
-        let pass =
-            self.forVotes * 10000 >= self.thresholdBps * total;
+        let pass = self.forVotes * 10000 >= self.thresholdBps * total;
 
-        if (pass) {
-            self.state = PS_SUCCEEDED;
-            self.succeededAt = now();
-            self.reportState(self.governor, PS_SUCCEEDED);
-        } else {
+        if (!pass) {
             self.state = PS_DEFEATED;
-            self.reportState(self.governor, PS_DEFEATED);
+            self.reportStateEx(PS_DEFEATED, 0, zeroAddr(), 0, beginCell().endCell(), false);
+            cashback(sender());
+            return;
         }
+
+        self.state = PS_SUCCEEDED;
+        self.succeededAt = now();
+
+        let qDelay: Int = self.timelockDelaySec;
+        let qTarget: Address = zeroAddr();
+        let qMethod: Int = 0;
+        let qArgs: Cell = beginCell().endCell();
+        let qActive: Bool = false;
+
+        let ty = self.proposalType;
+        if (ty == 0) {
+            let s = self.payload.beginParse();
+            qTarget = s.loadAddress();
+            qMethod = s.loadUint(32);
+            qArgs = s.loadRef();
+            qActive = true;
+        } else if (ty == 1) {
+            qActive = false;
+        } else if (ty == 2) {
+            let s = self.payload.beginParse();
+            qTarget = s.loadAddress();
+            let recipient = s.loadAddress();
+            let amt = s.loadCoins();
+            let reason = s.loadRef();
+            qArgs = TreasurySpend {
+                queryId: 0,
+                recipient: recipient,
+                amount: amt,
+                reason: reason,
+            }.toCell();
+            qMethod = TREASURY_SPEND_OPCODE;
+            qActive = true;
+        } else if (ty == 3) {
+            let s = self.payload.beginParse();
+            qTarget = s.loadAddress();
+            qMethod = s.loadUint(32);
+            qArgs = s.loadRef();
+            let _reason = s.loadRef();
+            qActive = true;
+        }
+
+        self.reportStateEx(PS_SUCCEEDED, qDelay, qTarget, qMethod, qArgs, qActive);
         cashback(sender());
     }
 
+    /// FeaturePriority (off-chain signal): Governor may mark executed without Timelock.
+    /// Parameter / Treasury / Emergency proposals must complete via `TimelockExecutePending` → `ProposalMarkExecuted`.
     receive(msg: ProposalExecute) {
         self.assertGov();
         require(self.state == PS_SUCCEEDED, "Not succeeded");
-        require(self.succeededAt > 0, "No succ time");
-        require(now() >= self.succeededAt + self.timelockDelaySec, "Timelocked");
-        require(self.timelockDelaySec >= 0, "Bad delay");
+        require(self.proposalType == 1, "Use timelock path");
 
         self.state = PS_EXECUTED;
-        self.reportState(self.governor, PS_EXECUTED);
+        self.reportStateEx(PS_EXECUTED, 0, zeroAddr(), 0, beginCell().endCell(), false);
+        cashback(sender());
+    }
 
+    receive(msg: ProposalMarkExecuted) {
+        require(sender() == self.timelockAddr, "Only timelock");
+        require(self.state == PS_SUCCEEDED, "Not succeeded");
+
+        self.state = PS_EXECUTED;
+        self.reportStateEx(PS_EXECUTED, 0, zeroAddr(), 0, beginCell().endCell(), false);
         cashback(sender());
     }
 
@@ -138,7 +204,7 @@ contract Proposal(
         require(self.state == PS_ACTIVE, "Not active");
 
         self.state = PS_CANCELLED;
-        self.reportState(self.governor, PS_CANCELLED);
+        self.reportStateEx(PS_CANCELLED, 0, zeroAddr(), 0, beginCell().endCell(), false);
         cashback(sender());
     }
 
@@ -196,6 +262,10 @@ contract Proposal(
 
     get fun get_timelock_delay(): Int {
         return self.timelockDelaySec;
+    }
+
+    get fun get_timelock_addr(): Address {
+        return self.timelockAddr;
     }
 
     get fun get_payload(): Cell {

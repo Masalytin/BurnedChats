@@ -35,6 +35,7 @@ describe('BurnJetton', () => {
             expect(data.totalSupply).toBe(0n);
             expect(data.mintable).toBe(true);
             expect(data.adminAddress.equals(ctx.deployer.address)).toBe(true);
+            expect(data.timelockAddress.equals(ctx.deployer.address)).toBe(true);
 
             const w1 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             const w2 = await ctx.master.getGetWalletAddress(ctx.userX.address);
@@ -414,7 +415,7 @@ describe('BurnJetton', () => {
             const feeRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, fee);
             expect(feeRes.transactions).toHaveTransaction({
                 success: false,
-                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
             });
 
             const add: AddExcludedMsg = {
@@ -425,7 +426,7 @@ describe('BurnJetton', () => {
             const addRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, add);
             expect(addRes.transactions).toHaveTransaction({
                 success: false,
-                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
             });
 
             const ar: SetAutoReduceParamsMsg = {
@@ -439,7 +440,7 @@ describe('BurnJetton', () => {
             const arRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, ar);
             expect(arRes.transactions).toHaveTransaction({
                 success: false,
-                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
             });
         });
     });
