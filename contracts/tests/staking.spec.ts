@@ -60,6 +60,7 @@ describe('Staking Pool + Master (P5-2-1-1)', () => {
             jettonMaster.address,
             stakingLock.address,
             deployer.address,
+            deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
         await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);
@@ -155,6 +156,7 @@ describe('Staking Pool + Master (P5-2-1-1)', () => {
             poolBase.address,
             jettonMaster.address,
             stakingLock.address,
+            deployer.address,
             deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
@@ -264,6 +266,7 @@ describe('StakingLock + unstake guards (P5-2-1-2)', () => {
             jettonMaster.address,
             stakingLock.address,
             deployer.address,
+            deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
         await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);
@@ -347,6 +350,7 @@ describe('Accumulated staking rewards (P5-2-2-1)', () => {
             jettonMaster.address,
             stakingLock.address,
             deployer.address,
+            deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
         await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);
@@ -408,6 +412,7 @@ describe('Accumulated staking rewards (P5-2-2-1)', () => {
             jettonMaster.address,
             stakingLock.address,
             deployer.address,
+            deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
         await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);
@@ -467,6 +472,7 @@ describe('Accumulated staking rewards (P5-2-2-1)', () => {
             jettonMaster.address,
             stakingLock.address,
             deployer.address,
+            deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
         await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);
@@ -505,6 +511,7 @@ describe('Accumulated staking rewards (P5-2-2-1)', () => {
             poolBase.address,
             jettonMaster.address,
             stakingLock.address,
+            deployer.address,
             deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
@@ -550,6 +557,7 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
             poolBase.address,
             jettonMaster.address,
             stakingLock.address,
+            deployer.address,
             deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);
@@ -613,6 +621,7 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
             poolBase.address,
             jettonMaster.address,
             stakingLock.address,
+            deployer.address,
             deployer.address,
         );
         const stakingMaster = blockchain.openContract(masterBase);

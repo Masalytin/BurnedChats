@@ -3,6 +3,10 @@
 
 import "./governance-messages";
 
+inline fun assertVoteRelayer(senderAddr: Address, voteRelayer: Address) {
+    require(senderAddr == voteRelayer, "Only vote relay");
+}
+
 /// Active voting.
 const PS_ACTIVE: Int = 0;
 /// Passed quorum + threshold; waiting timelock.
@@ -16,6 +20,7 @@ const PS_CANCELLED: Int = 5;
 contract Proposal(
     id: Int as uint64,
     governor: Address,
+    voteRelayer: Address,
     proposer: Address,
     proposalType: Int as uint32,
     payload: Cell,
@@ -23,6 +28,7 @@ contract Proposal(
     endTime: Int as uint64,
     forVotes: Int,
     againstVotes: Int,
+    totalVpSnapshot: Int,
     quorumRequired: Int,
     thresholdBps: Int as uint16,
     state: Int as uint8,
@@ -58,7 +64,7 @@ contract Proposal(
     }
 
     receive(msg: ProposalVoteRelay) {
-        self.assertGov();
+        assertVoteRelayer(sender(), self.voteRelayer);
         require(self.state == PS_ACTIVE, "Not active");
 
         let t = now();
@@ -144,6 +150,10 @@ contract Proposal(
         return self.governor;
     }
 
+    get fun get_vote_relayer(): Address {
+        return self.voteRelayer;
+    }
+
     get fun get_proposer(): Address {
         return self.proposer;
     }
@@ -158,6 +168,10 @@ contract Proposal(
 
     get fun get_against_votes(): Int {
         return self.againstVotes;
+    }
+
+    get fun get_total_vp_snapshot(): Int {
+        return self.totalVpSnapshot;
     }
 
     get fun get_start_time(): Int {

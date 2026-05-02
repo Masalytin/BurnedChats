@@ -34,6 +34,7 @@ export class StakingMaster extends StakingMasterBase {
         jettonMaster: Address,
         stakingLock: Address,
         bootstrapOwner: Address,
+        governorAddr: Address,
     ): Promise<StakingMaster> {
         const placeholderJw = pool;
         const raw = await StakingMasterBase.fromInit(
@@ -41,6 +42,7 @@ export class StakingMaster extends StakingMasterBase {
             jettonMaster,
             stakingLock,
             bootstrapOwner,
+            governorAddr,
             placeholderJw,
             false,
             emptyTierStakeMap(),

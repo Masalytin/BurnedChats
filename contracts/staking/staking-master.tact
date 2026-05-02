@@ -2,6 +2,8 @@
 // Staking Master — Jetton stake via TEP-74 notification; Unstake / Claim; emission tick (Phase 1 linear).
 
 import "../jetton/burn-jetton-wallet";
+import "../governance/governance-messages";
+import "../vp-math";
 import "./staking-messages";
 import "./staking-lock";
 
@@ -35,6 +37,7 @@ contract StakingMaster(
     jettonMaster: Address,
     stakingLock: Address,
     bootstrapOwner: Address,
+    governorAddr: Address,
     stakingJettonWallet: Address,
     jwConfigured: Bool,
     stakesT0: map<Address, StakeInfoView>,
@@ -547,6 +550,61 @@ contract StakingMaster(
         cashback(sender());
     }
 
+    fun computeOwnerVotingPower(ownerAddr: Address): Int {
+        let sum: Int = 0;
+        let t = self.MinTier;
+        while (t <= self.MaxTier) {
+            let stOpt = self.stakesMapGet(t, ownerAddr);
+            if (stOpt != null) {
+                let stake = stOpt!!;
+                if (stake.amount > 0) {
+                    sum =
+                        sum + tierVotingPowerFromAmount(stake.amount, stake.tier);
+                }
+            }
+            t = t + 1;
+        }
+        return sum;
+    }
+
+    fun computeTotalVotingPower(): Int {
+        let sum: Int = 0;
+        let t = self.MinTier;
+        while (t <= self.MaxTier) {
+            let tot = self.tierTotalStake(t);
+            if (tot > 0) {
+                sum = sum + tierVotingPowerFromAmount(tot, t);
+            }
+            t = t + 1;
+        }
+        return sum;
+    }
+
+    receive(msg: GovernorVoteRelay) {
+        require(sender() == self.governorAddr, "Only governor");
+        require(msg.claimedVp > 0, "Zero claimed vp");
+
+        let onChainVp = self.computeOwnerVotingPower(msg.voter);
+        let vpEff = onChainVp;
+        if (msg.claimedVp < vpEff) {
+            vpEff = msg.claimedVp;
+        }
+        require(vpEff > 0, "Zero effective vp");
+
+        message(MessageParameters {
+            to: msg.proposal,
+            value: ton("0.07"),
+            mode: SendPayGasSeparately,
+            bounce: true,
+            body: ProposalVoteRelay {
+                voter: msg.voter,
+                support: msg.support,
+                vp: vpEff,
+            }.toCell(),
+        });
+        cashback(sender());
+    }
+
     fun calculatePendingRewardFor(ownerAddr: Address, tierAsInt: Int): Int {
         let stakeOpt = self.stakesMapGet(tierAsInt, ownerAddr);
         if (stakeOpt == null) {
@@ -563,6 +621,19 @@ contract StakingMaster(
             return 0;
         }
         return pend;
+    }
+
+    get fun get_voting_power(ownerAddr: Address): Int {
+        return self.computeOwnerVotingPower(ownerAddr);
+    }
+
+    /// Sum of VP over all tiers (Σ tierTotalStake × multiplier / 100). Multipliers mirror default StakingLock.
+    get fun get_total_voting_power(): Int {
+        return self.computeTotalVotingPower();
+    }
+
+    get fun get_governor_addr(): Address {
+        return self.governorAddr;
     }
 
     get fun calculatePendingReward(ownerAddr: Address, tier: Int): Int {

@@ -97,6 +97,7 @@ export async function setupStakingEnvironment(
         jettonMaster.address,
         stakingLock.address,
         deployer.address,
+        deployer.address,
     );
     const stakingMaster = blockchain.openContract(masterBase);
     await stakingMaster.send(deployer.getSender(), { value: toNano('50') }, null);

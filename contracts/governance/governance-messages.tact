@@ -1,14 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Shared governance opcodes — Governor ⇄ Proposal
 
+import "./governance-types";
+
+/// Apply config change after Timelock / successful Parameter governance execution path.
+message(0x5a040104) TimelockSetProposalConfig {
+    queryId: Int as uint64;
+    proposalType: Int as uint32;
+    config: ProposalConfig;
+}
+
+/// Period, quorum denominator, thresholds are derived from governor.proposalConfigs (P5-3-1-2).
 message(0x5a040101) CreateProposal {
     queryId: Int as uint64;
     proposalType: Int as uint32;
     payload: Cell;
-    periodSeconds: Int as uint32;
-    quorumRequired: Int;
-    thresholdBps: Int as uint16;
-    /// Claimed VP; must be ≥ Governor.minProposalVp. On-chain derivation via Staking (P5-3-1-2).
+    /// Total VP denominator at snapshot instant (typically StakingMaster.get_total_voting_power off-chain witness).
+    totalVpAtSnapshot: Int;
+    /// Proposer self-reported VP; must be ≥ minProposalVp. Used together with staking relay for votes.
     claimedVp: Int;
 }
 
@@ -16,7 +25,16 @@ message(0x5a040102) CastVote {
     queryId: Int as uint64;
     proposalId: Int as uint64;
     support: Bool;
-    /// Snapshot VP asserted off-chain until async Staking verifier is added.
+    /// Self-reported cap; applied voting weight is min(on-chain VP from Staking, claimedVp).
+    claimedVp: Int;
+}
+
+/// Trusted Governor triggers StakingMaster to relay a capped vote weight to Proposal.
+message(0x5a040019) GovernorVoteRelay {
+    queryId: Int as uint64;
+    proposal: Address;
+    voter: Address;
+    support: Bool;
     claimedVp: Int;
 }
 
