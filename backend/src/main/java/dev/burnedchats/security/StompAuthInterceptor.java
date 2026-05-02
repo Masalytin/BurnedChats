@@ -48,10 +48,17 @@ import java.security.Principal;
 public class StompAuthInterceptor implements ChannelInterceptor {
 
     private static final String INIT_DATA_HEADER = "X-Telegram-Init-Data";
+    private static final String AUTH_TYPE_HEADER = "X-Auth-Type";
+    private static final String AUTH_TYPE_HEADER_LEGACY = "auth-type";
+    private static final String AUTH_TOKEN_HEADER = "X-Auth-Token";
+    private static final String AUTH_TOKEN_HEADER_LEGACY = "auth-token";
+    private static final String AUTH_TYPE_TELEGRAM = "telegram";
+    private static final String AUTH_TYPE_WALLET = "wallet";
     private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(30);
 
     private final AuthenticationService authenticationService;
     private final TelegramAuthService telegramAuthService;
+    private final SessionTokenService sessionTokenService;
     private final UserIdentityRepository userIdentityRepository;
 
     /**
@@ -92,39 +99,95 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         String sessionId = accessor.getSessionId();
         LOG.debug("Processing STOMP CONNECT for session: {}", sessionId);
 
-        // Extract initData from header
-        String initData = accessor.getFirstNativeHeader(INIT_DATA_HEADER);
-
-        if (initData == null || initData.isBlank()) {
-            LOG.warn("Missing {} header in STOMP CONNECT, sessionId: {}", 
-                    INIT_DATA_HEADER, sessionId);
-            throw AuthenticationException.missingField(INIT_DATA_HEADER);
+        String authType = readAuthType(accessor);
+        if (authType == null) {
+            authType = AUTH_TYPE_TELEGRAM;
         }
 
         try {
-            UnifiedUser unifiedUser = authenticationService
-                    .authenticate(AuthCredentials.telegram(initData))
-                    .block(AUTH_TIMEOUT);
-            if (unifiedUser == null || unifiedUser.telegramId() == null) {
-                throw new AuthenticationException("Telegram authentication did not yield telegram id");
+            if (AUTH_TYPE_WALLET.equals(authType)) {
+                handleWalletConnect(accessor, sessionId);
+            } else if (AUTH_TYPE_TELEGRAM.equals(authType)) {
+                handleTelegramConnect(accessor, sessionId);
+            } else {
+                throw new AuthenticationException("Unsupported auth type: " + authType);
             }
-            userIdentityRepository.save(unifiedUser).block(AUTH_TIMEOUT);
-            TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
-            TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
-            accessor.setUser(principal);
-
-            LOG.info("STOMP CONNECT authenticated: userId={}, username={}, sessionId={}",
-                    principal.getUserId(), principal.getUsername(), sessionId);
-
         } catch (AuthenticationException e) {
-            LOG.warn("STOMP CONNECT authentication failed: {}, sessionId: {}", 
+            LOG.warn("STOMP CONNECT authentication failed: {}, sessionId: {}",
                     e.getMessage(), sessionId);
             throw e;
         } catch (Exception e) {
-            LOG.error("Unexpected error during STOMP authentication, sessionId: {}", 
+            LOG.error("Unexpected error during STOMP authentication, sessionId: {}",
                     sessionId, e);
             throw new AuthenticationException("Authentication failed", e);
         }
+    }
+
+    private void handleTelegramConnect(StompHeaderAccessor accessor, String sessionId) {
+        String initData = accessor.getFirstNativeHeader(INIT_DATA_HEADER);
+        if (initData == null || initData.isBlank()) {
+            LOG.warn("Missing {} header in STOMP CONNECT, sessionId: {}", INIT_DATA_HEADER, sessionId);
+            throw AuthenticationException.missingField(INIT_DATA_HEADER);
+        }
+
+        UnifiedUser unifiedUser = authenticationService
+                .authenticate(AuthCredentials.telegram(initData))
+                .block(AUTH_TIMEOUT);
+        if (unifiedUser == null || unifiedUser.telegramId() == null) {
+            throw new AuthenticationException("Telegram authentication did not yield telegram id");
+        }
+        userIdentityRepository.save(unifiedUser).block(AUTH_TIMEOUT);
+        TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
+        TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
+        accessor.setUser(principal);
+
+        LOG.info("STOMP CONNECT authenticated (telegram): userId={}, username={}, sessionId={}",
+                principal.getUserId(), principal.getUsername(), sessionId);
+    }
+
+    private void handleWalletConnect(StompHeaderAccessor accessor, String sessionId) {
+        String token = firstNonBlank(
+                accessor.getFirstNativeHeader(AUTH_TOKEN_HEADER),
+                accessor.getFirstNativeHeader(AUTH_TOKEN_HEADER_LEGACY));
+        if (token == null) {
+            LOG.warn("Missing wallet auth token header in STOMP CONNECT, sessionId: {}", sessionId);
+            throw AuthenticationException.missingField(AUTH_TOKEN_HEADER);
+        }
+
+        String internalId = sessionTokenService.validateAndRefresh(token).block(AUTH_TIMEOUT);
+        if (internalId == null || internalId.isBlank()) {
+            throw new AuthenticationException("Invalid or expired wallet session token");
+        }
+
+        UnifiedUser unifiedUser = userIdentityRepository.findById(internalId).block(AUTH_TIMEOUT);
+        if (unifiedUser == null) {
+            throw new AuthenticationException("Wallet session user not found");
+        }
+
+        WalletPrincipal principal = new WalletPrincipal(unifiedUser);
+        accessor.setUser(principal);
+        LOG.info("STOMP CONNECT authenticated (wallet): internalId={}, sessionId={}",
+                principal.getInternalId(), sessionId);
+    }
+
+    private String readAuthType(StompHeaderAccessor accessor) {
+        String authType = firstNonBlank(
+                accessor.getFirstNativeHeader(AUTH_TYPE_HEADER),
+                accessor.getFirstNativeHeader(AUTH_TYPE_HEADER_LEGACY));
+        if (authType == null) {
+            return null;
+        }
+        return authType.trim().toLowerCase();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
     }
 
     /**
@@ -228,6 +291,31 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         public String toString() {
             return "TelegramPrincipal{userId=" + getUserId() 
                     + ", username=" + getUsername() + "}";
+        }
+    }
+
+    /**
+     * Principal implementation for wallet-authenticated users.
+     */
+    public static class WalletPrincipal implements Principal {
+
+        private final UnifiedUser unifiedUser;
+
+        public WalletPrincipal(UnifiedUser unifiedUser) {
+            this.unifiedUser = unifiedUser;
+        }
+
+        @Override
+        public String getName() {
+            return unifiedUser.internalId();
+        }
+
+        public String getInternalId() {
+            return unifiedUser.internalId();
+        }
+
+        public String getWalletAddress() {
+            return unifiedUser.walletAddress();
         }
     }
 }

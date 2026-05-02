@@ -8,6 +8,7 @@ export interface AuthCredentials {
   initData?: string;
   walletAddress?: string;
   walletProof?: string;
+  sessionToken?: string;
 }
 
 export interface AuthResult {

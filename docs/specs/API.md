@@ -23,22 +23,36 @@ Development: http://localhost:8080
 
 ### Аутентификация
 
-Все WebSocket соединения требуют Telegram `initData` в заголовках STOMP CONNECT:
+Все WebSocket соединения требуют один из двух режимов аутентификации в STOMP CONNECT:
+
+- `telegram` (legacy/current): `X-Auth-Type: telegram` + `X-Telegram-Init-Data`
+- `wallet`: `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token из `POST /api/auth/wallet`)
 
 ```typescript
-// Frontend
+// Frontend (telegram)
 const client = new Client({
   connectHeaders: {
+    'X-Auth-Type': 'telegram',
     'X-Telegram-Init-Data': window.Telegram.WebApp.initData
+  }
+});
+
+// Frontend (wallet)
+const walletClient = new Client({
+  connectHeaders: {
+    'X-Auth-Type': 'wallet',
+    'X-Auth-Token': '<session-token>'
   }
 });
 ```
 
 ```java
 // Backend - StompAuthInterceptor.java
-String initData = accessor.getFirstNativeHeader("X-Telegram-Init-Data");
-TelegramUser user = authService.validateInitData(initData);
+String authType = accessor.getFirstNativeHeader("X-Auth-Type");
+String token = accessor.getFirstNativeHeader("X-Auth-Token");
 ```
+
+Совместимость: backend также принимает legacy-имена заголовков `auth-type` / `auth-token`.
 
 ### Rate Limits
 
@@ -119,6 +133,37 @@ GET /actuator/info
 
 - Требования к авторизации запроса (публичный эндпоинт vs привязка к сессии) задаёт реализация backend; рекомендуется rate limiting.
 - Базовый URL тот же, что в разделе [Base URL](#base-url); во frontend dev без `VITE_API_URL` используется относительный путь `/api/auth/nonce` (прокси Vite).
+
+#### `POST /api/auth/wallet`
+
+Проверяет TON `walletProof` (формат: сериализованный `ton_proof` JSON из Ton Connect) и выдаёт opaque session token для STOMP.
+
+**Request body:**
+
+```json
+{
+  "walletAddress": "EQBx7...",
+  "walletProof": "{\"address\":\"EQBx7...\",\"proof\":{\"timestamp\":1679312400,\"domain\":{\"value\":\"burnedchats.com\",\"lengthBytes\":16},\"signature\":\"base64...\",\"payload\":\"nonce\"}}"
+}
+```
+
+**Response `200 OK`:**
+
+```json
+{
+  "token": "opaque-session-token",
+  "user": {
+    "internalId": "uuid",
+    "displayName": "EQBx...7JfP"
+  }
+}
+```
+
+**Ошибки:**
+
+- `400 Bad Request` — пустой body / невалидные поля запроса.
+- `401 Unauthorized` — wallet proof не прошёл валидацию.
+- `500 Internal Server Error` — внутренняя ошибка при выдаче token.
 
 ---
 
@@ -248,6 +293,7 @@ import SockJS from 'sockjs-client';
 const client = new Client({
   webSocketFactory: () => new SockJS('https://api.burnedchats.com/ws'),
   connectHeaders: {
+    'X-Auth-Type': 'telegram',
     'X-Telegram-Init-Data': window.Telegram.WebApp.initData
   },
   onConnect: () => {
@@ -271,7 +317,7 @@ client.activate();
 │  Client                              Server                  │
 │    │                                    │                    │
 │    │ ─────── STOMP CONNECT ─────────────►│                   │
-│    │         (X-Telegram-Init-Data)     │                    │
+│    │  (X-Auth-Type + auth header)       │                    │
 │    │                                    │ validate initData  │
 │    │                                    │                    │
 │    │ ◄─────── CONNECTED ────────────────│                    │

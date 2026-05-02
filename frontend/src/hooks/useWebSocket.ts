@@ -110,6 +110,8 @@ const PRESENCE_HEARTBEAT_DESTINATION = '/app/heartbeat';
 
 /** Header name for Telegram initData authentication */
 const INIT_DATA_HEADER = 'X-Telegram-Init-Data';
+const AUTH_TYPE_HEADER = 'X-Auth-Type';
+const AUTH_TOKEN_HEADER = 'X-Auth-Token';
 
 /**
  * Parse STOMP error frame to determine error type.
@@ -234,15 +236,27 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const createClient = useCallback(() => {
     const credentials = getCredentials?.() ?? null;
+    const isWallet = credentials?.type === 'wallet';
     const initData = credentials?.type === 'telegram' ? credentials.initData || '' : '';
+    const sessionToken = isWallet ? credentials?.sessionToken || '' : '';
+    const connectHeaders: Record<string, string> = {
+      [AUTH_TYPE_HEADER]: isWallet ? 'wallet' : 'telegram',
+    };
+    if (isWallet) {
+      connectHeaders[AUTH_TOKEN_HEADER] = sessionToken;
+    } else {
+      connectHeaders[INIT_DATA_HEADER] = initData || '';
+    }
 
     debugLog('info', 'Creating STOMP client', { 
       wsUrl: WS_URL,
+      authType: credentials?.type ?? 'unknown',
       hasInitData: Boolean(initData),
       initDataLength: initData?.length || 0,
+      hasSessionToken: Boolean(sessionToken),
     });
 
-    if (!initData && import.meta.env.PROD) {
+    if (!isWallet && !initData && import.meta.env.PROD) {
       debugLog('warn', 'No initData available - authentication will fail');
     }
 
@@ -251,9 +265,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         debugLog('info', 'Creating SockJS connection', { url: WS_URL });
         return new SockJS(WS_URL);
       },
-      connectHeaders: {
-        [INIT_DATA_HEADER]: initData || '',
-      },
+      connectHeaders,
       reconnectDelay,
       heartbeatIncoming,
       heartbeatOutgoing,
@@ -393,8 +405,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
     // Check for initData in production
     const credentials = getCredentials?.() ?? null;
+    const isWallet = credentials?.type === 'wallet';
     const initData = credentials?.type === 'telegram' ? credentials.initData || '' : '';
-    if (!initData && import.meta.env.PROD) {
+    const sessionToken = isWallet ? credentials?.sessionToken || '' : '';
+    if (!isWallet && !initData && import.meta.env.PROD) {
       debugLog('error', 'No initData in production', { 
         platform: WebApp.platform,
         version: WebApp.version,
@@ -402,6 +416,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       handleError({
         type: 'auth_error',
         message: 'Missing authentication data. Please open the app from Telegram.',
+        recoverable: false,
+      });
+      return;
+    }
+    if (isWallet && !sessionToken) {
+      debugLog('error', 'Wallet session token is missing');
+      handleError({
+        type: 'auth_error',
+        message: 'Wallet session is missing. Please reconnect wallet.',
         recoverable: false,
       });
       return;
