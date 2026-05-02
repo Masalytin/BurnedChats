@@ -6,7 +6,7 @@
         "start": "blueprint run",
         "build": "blueprint build --all",
         "test": "jest --verbose",
-        "test:coverage": "c8 --check-coverage --lines 80 --include \"wrappers/**/*.ts\" --include \"tests/helpers.ts\" npm test",
+        "test:coverage": "c8 --check-coverage --lines 80 --include \"wrappers/**/*.ts\" --include \"tests/helpers.ts\" --include \"tests/staking-helpers.ts\" npm test",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "format": "prettier --write .",
