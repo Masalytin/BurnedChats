@@ -88,6 +88,13 @@ telegram:
 
 # BurnedChats application-specific settings
 burnedchats:
+  wallet-auth:
+    nonce-ttl: ${BURNEDCHATS_WALLET_NONCE_TTL:PT5M}
+    proof-max-age: ${BURNEDCHATS_WALLET_PROOF_MAX_AGE:PT5M}
+    session-token-ttl: ${BURNEDCHATS_WALLET_SESSION_TOKEN_TTL:PT1H}
+    domain: ${BURNEDCHATS_WALLET_DOMAIN:burnedchats.com}
+    ton-api-base-url: ${BURNEDCHATS_TON_API_BASE_URL:https://toncenter.com/api/v2}
+    ton-api-key: ${BURNEDCHATS_TON_API_KEY:}
   messages:
     # Server-initiated sync on STOMP CONNECT (FIX-SYNC-4).
     # When enabled, on each WebSocket connect the backend fans out any
