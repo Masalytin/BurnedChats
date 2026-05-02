@@ -23,6 +23,7 @@ import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { Layout } from './components/Layout/Layout';
 import { ChatRequestDialog, type ChatRequestSecretPayload } from './components/ChatRequestDialog';
+import { WalletLoginScreen } from './components/Auth/WalletLoginScreen';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
@@ -1349,8 +1350,8 @@ function AppContent() {
     return <LoadingOverlay message="Loading BurnedChats..." />
   }
 
-  if (environment === 'browser') {
-    return <WalletLoginPlaceholder />;
+  if (environment === 'browser' && !isAuthenticated) {
+    return <WalletLoginScreen />;
   }
 
   // Initialization error
@@ -1788,18 +1789,6 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
       onEditMessage={handleEditDm}
       onDeleteForEveryone={deleteMessage}
     />
-  );
-}
-
-function WalletLoginPlaceholder() {
-  return (
-    <div className="wallet-placeholder">
-      <div className="wallet-placeholder__card">
-        <h1>Wallet Login</h1>
-        <p>Open BurnedChats via wallet auth in standalone mode.</p>
-        <p className="wallet-placeholder__hint">TON Connect integration will be added in the next card.</p>
-      </div>
-    </div>
   );
 }
 

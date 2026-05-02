@@ -82,7 +82,7 @@
   transform: scale(0.98);
 }
 
-.wallet-placeholder {
+.wallet-login-screen {
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
@@ -91,7 +91,7 @@
   background: var(--bc-bg-primary);
 }
 
-.wallet-placeholder__card {
+.wallet-login-screen__card {
   width: min(460px, 100%);
   background: var(--bc-bg-secondary);
   border: 1px solid var(--bc-border-color);
@@ -101,19 +101,80 @@
   text-align: center;
 }
 
-.wallet-placeholder__card h1 {
+.wallet-login-screen__logo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--bc-radius-md);
+  margin-bottom: var(--bc-spacing-md);
+}
+
+.wallet-login-screen__title {
   margin: 0 0 var(--bc-spacing-sm);
   color: var(--bc-text-primary);
   font-size: var(--bc-text-2xl);
 }
 
-.wallet-placeholder__card p {
-  margin: 0;
+.wallet-login-screen__subtitle {
+  margin: 0 0 var(--bc-spacing-md);
   color: var(--bc-text-secondary);
 }
 
-.wallet-placeholder__hint {
-  margin-top: var(--bc-spacing-md) !important;
+.wallet-login-screen__wallets {
+  margin: 0 0 var(--bc-spacing-lg);
+  color: var(--bc-text-tertiary, var(--bc-text-secondary));
+  font-size: var(--bc-text-sm);
+}
+
+.wallet-connect-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-sm);
+  min-width: 220px;
+  padding: var(--bc-spacing-md) var(--bc-spacing-lg);
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-brand-primary);
+  color: var(--bc-bg-primary);
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.wallet-connect-button:hover:not(:disabled) {
+  background: var(--bc-brand-secondary);
+}
+
+.wallet-connect-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.wallet-connect-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.wallet-connect-button__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: wallet-spinner 0.8s linear infinite;
+}
+
+@keyframes wallet-spinner {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.auth-error-display {
+  margin-top: var(--bc-spacing-md);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-sm);
+  background: rgba(255, 80, 80, 0.12);
+  color: var(--bc-text-primary);
   font-size: var(--bc-text-sm);
 }
 

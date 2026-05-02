@@ -17,6 +17,8 @@ export class WalletAuthProvider implements AuthProvider {
   private proofPayload: string | null = null;
   private friendlyAddress: string | null = null;
   private sessionToken: string | null = null;
+  private internalId: string | null = null;
+  private serverDisplayName: string | null = null;
 
   public async authenticate(): Promise<AuthResult> {
     const wallet = await connectWalletWithTonProof();
@@ -28,13 +30,18 @@ export class WalletAuthProvider implements AuthProvider {
 
     this.proofPayload = serializeTonProof(proof);
     this.friendlyAddress = accountToFriendlyAddress(wallet.account);
-    this.sessionToken = await this.authenticateWithBackend(this.friendlyAddress, this.proofPayload);
+
+    const session = await this.authenticateWithBackend(this.friendlyAddress, this.proofPayload);
+    this.sessionToken = session.token;
+    this.internalId = session.internalId;
+    this.serverDisplayName = session.displayName;
 
     return {
-      userId: this.friendlyAddress,
+      userId: this.internalId,
       displayName: this.getDisplayName(),
       authType: AuthType.WALLET,
       token: this.sessionToken,
+      walletAddress: this.friendlyAddress,
     };
   }
 
@@ -48,6 +55,9 @@ export class WalletAuthProvider implements AuthProvider {
   }
 
   public getDisplayName(): string {
+    if (this.serverDisplayName) {
+      return this.serverDisplayName;
+    }
     if (!this.friendlyAddress) {
       return 'Wallet';
     }
@@ -55,11 +65,11 @@ export class WalletAuthProvider implements AuthProvider {
   }
 
   public getUserId(): string {
-    return this.friendlyAddress ?? '';
+    return this.internalId ?? '';
   }
 
   public isAuthenticated(): boolean {
-    return Boolean(this.friendlyAddress && this.proofPayload && this.sessionToken);
+    return Boolean(this.internalId && this.proofPayload && this.sessionToken);
   }
 
   public logout(): void {
@@ -67,9 +77,14 @@ export class WalletAuthProvider implements AuthProvider {
     this.proofPayload = null;
     this.friendlyAddress = null;
     this.sessionToken = null;
+    this.internalId = null;
+    this.serverDisplayName = null;
   }
 
-  private async authenticateWithBackend(walletAddress: string, walletProof: string): Promise<string> {
+  private async authenticateWithBackend(
+    walletAddress: string,
+    walletProof: string,
+  ): Promise<{ token: string; internalId: string; displayName: string }> {
     const base = this.normalizeApiBase();
     const response = await fetch(`${base}/api/auth/wallet`, {
       method: 'POST',
@@ -88,12 +103,20 @@ export class WalletAuthProvider implements AuthProvider {
       throw new Error(`Wallet backend authentication failed: HTTP ${response.status}`);
     }
 
-    const body = (await response.json()) as { token?: unknown };
+    const body = (await response.json()) as {
+      token?: unknown;
+      user?: { internalId?: unknown; displayName?: unknown };
+    };
     if (typeof body.token !== 'string' || body.token.length === 0) {
       throw new Error('Wallet backend authentication response has no token');
     }
+    const internalId = body.user?.internalId;
+    if (typeof internalId !== 'string' || internalId.length === 0) {
+      throw new Error('Wallet backend authentication response has no internalId');
+    }
+    const displayName = typeof body.user?.displayName === 'string' ? body.user.displayName : '';
 
-    return body.token;
+    return { token: body.token, internalId, displayName };
   }
 
   private normalizeApiBase(): string {

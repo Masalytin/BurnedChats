@@ -36,6 +36,19 @@
     "featureBurnDesc": "Уничтожьте все следы переписки одним нажатием."
   },
 
+  "walletLogin": {
+    "title": "Burned Chats",
+    "subtitle": "Подключите TON-кошелёк, чтобы войти в браузере.",
+    "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — QR или deep link",
+    "connect": "Подключить TON-кошелёк",
+    "busy": "Ждём кошелёк…",
+    "errorGeneric": "Что-то пошло не так. Попробуйте снова.",
+    "errorRejected": "Запрос в кошельке отменён. Подключите, когда будете готовы.",
+    "errorProof": "Сервер не подтвердил подпись. Попробуйте подключиться снова.",
+    "errorTimeout": "Время ожидания истекло. Проверьте сеть и попробуйте ещё раз.",
+    "errorNetwork": "Нет связи с сервером. Проверьте подключение и адрес API."
+  },
+
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",

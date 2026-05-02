@@ -36,6 +36,19 @@
     "featureBurnDesc": "Destroy all traces of your conversation with one tap."
   },
 
+  "walletLogin": {
+    "title": "Burned Chats",
+    "subtitle": "Connect your TON wallet to sign in in the browser.",
+    "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — via QR or deep link",
+    "connect": "Connect TON wallet",
+    "busy": "Waiting for wallet…",
+    "errorGeneric": "Something went wrong. Try again.",
+    "errorRejected": "The wallet closed the request. Try again when you are ready.",
+    "errorProof": "The server could not verify the wallet signature. Try reconnecting.",
+    "errorTimeout": "Connection timed out. Check your network and try again.",
+    "errorNetwork": "Could not reach the server. Check your connection and API URL."
+  },
+
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",
