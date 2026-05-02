@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
+import type { AuthCredentials } from '../auth';
 
 /**
  * STOMP client surface passed into chat message hooks (same shape for DM and rooms).
@@ -56,6 +57,8 @@ interface UseWebSocketOptions {
   onError?: (error: WebSocketError) => void;
   /** Callback when reconnected (after disconnect) */
   onReconnect?: () => void;
+  /** Returns current auth credentials for STOMP connect headers */
+  getCredentials?: () => AuthCredentials | null;
 }
 
 /** Debug state for WebSocket */
@@ -186,6 +189,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onDisconnect,
     onError,
     onReconnect,
+    getCredentials,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -229,8 +233,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   }, []);
 
   const createClient = useCallback(() => {
-    // Get fresh initData for each connection attempt
-    const initData = WebApp.initData;
+    const credentials = getCredentials?.() ?? null;
+    const initData = credentials?.type === 'telegram' ? credentials.initData || '' : '';
 
     debugLog('info', 'Creating STOMP client', { 
       wsUrl: WS_URL,
@@ -368,7 +372,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     });
 
     return client;
-  }, [reconnectDelay, heartbeatIncoming, heartbeatOutgoing, maxReconnectAttempts, handleError]);
+  }, [reconnectDelay, heartbeatIncoming, heartbeatOutgoing, maxReconnectAttempts, handleError, getCredentials]);
 
   const connect = useCallback(() => {
     debugLog('info', 'connect() called', { 
@@ -388,7 +392,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
 
     // Check for initData in production
-    if (!WebApp.initData && import.meta.env.PROD) {
+    const credentials = getCredentials?.() ?? null;
+    const initData = credentials?.type === 'telegram' ? credentials.initData || '' : '';
+    if (!initData && import.meta.env.PROD) {
       debugLog('error', 'No initData in production', { 
         platform: WebApp.platform,
         version: WebApp.version,
@@ -413,7 +419,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     
     debugLog('info', 'Activating STOMP client', { url: WS_URL });
     client.activate();
-  }, [createClient, handleError]);
+  }, [createClient, getCredentials, handleError]);
 
   const disconnect = useCallback((clearStoredSubscriptions = true) => {
     if (clientRef.current) {

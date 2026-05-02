@@ -1,5 +1,6 @@
 export { useTelegram } from './useTelegram';
 export type { TelegramUser, TelegramChat } from './useTelegram';
+export { useAuth } from './useAuth';
 export { useWebSocket } from './useWebSocket';
 export type { WebSocketErrorType, ChatWebSocketApi } from './useWebSocket';
 export { useSearch } from './useSearch';

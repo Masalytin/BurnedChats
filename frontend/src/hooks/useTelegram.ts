@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { isTelegramMiniApp } from '../env/detector';
 
 export interface TelegramUser {
   id: number;
@@ -22,12 +23,6 @@ export interface TelegramChat {
 interface UseTelegramReturn {
   /** WebApp SDK instance (null if not ready) */
   webApp: typeof WebApp | null;
-  /** Authenticated Telegram user */
-  user: TelegramUser | null;
-  /** Raw initData string for server authentication */
-  initData: string;
-  /** Parsed initData (not validated - use for UI only) */
-  initDataUnsafe: typeof WebApp.initDataUnsafe;
   /** Whether the SDK is initialized and ready */
   isReady: boolean;
   /** Whether running inside Telegram Mini App */
@@ -87,8 +82,7 @@ interface UseTelegramReturn {
 /**
  * Hook for Telegram Mini App SDK integration.
  * 
- * Provides access to all Mini App features including:
- * - User authentication data (initData)
+ * Provides access to Mini App UI features:
  * - Theme and color scheme
  * - Haptic feedback
  * - Native dialogs
@@ -97,7 +91,7 @@ interface UseTelegramReturn {
  * @example
  * ```tsx
  * function MyComponent() {
- *   const { user, initData, isReady, isInTelegram, impactOccurred } = useTelegram();
+ *   const { isReady, isInTelegram, impactOccurred } = useTelegram();
  *   
  *   if (!isReady) return <Loading />;
  *   
@@ -106,43 +100,17 @@ interface UseTelegramReturn {
  *     // ... handle click
  *   };
  *   
- *   return <div>Hello, {user?.first_name}!</div>;
+ *   return <button onClick={() => impactOccurred('medium')}>Tap</button>;
  * }
  * ```
  */
 export function useTelegram(): UseTelegramReturn {
-  const [isReady, setIsReady] = useState(false);
+  const [isReady] = useState(true);
 
   // Check if running inside Telegram
   const isInTelegram = useMemo(() => {
-    return Boolean(WebApp.initData && WebApp.initData.length > 0);
+    return isTelegramMiniApp();
   }, []);
-
-  useEffect(() => {
-    // Initialize the Mini App
-    try {
-      // Signal to Telegram that the app is ready
-      WebApp.ready();
-
-      // Log initialization info in development
-      if (import.meta.env.DEV) {
-        console.log('[Telegram] Mini App initialized:', {
-          platform: WebApp.platform,
-          version: WebApp.version,
-          colorScheme: WebApp.colorScheme,
-          isInTelegram,
-          initDataLength: WebApp.initData?.length || 0,
-          user: WebApp.initDataUnsafe?.user?.id,
-        });
-      }
-
-      setIsReady(true);
-    } catch (error) {
-      console.error('[Telegram] Failed to initialize WebApp:', error);
-      // For development outside Telegram, still set ready
-      setIsReady(true);
-    }
-  }, [isInTelegram]);
 
   // Native dialogs
   const showAlert = useCallback((message: string) => {
@@ -259,9 +227,6 @@ export function useTelegram(): UseTelegramReturn {
 
   return {
     webApp: isReady ? WebApp : null,
-    user: WebApp.initDataUnsafe?.user as TelegramUser | null,
-    initData: WebApp.initData,
-    initDataUnsafe: WebApp.initDataUnsafe,
     isReady,
     isInTelegram,
     colorScheme: WebApp.colorScheme,

@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AuthContextProvider } from './auth';
+import { getEnvironment } from './env/detector';
+import { useAuth } from './hooks/useAuth';
 import { useTelegram } from './hooks/useTelegram';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
@@ -40,7 +43,6 @@ import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
-import { LandingPage } from './pages/LandingPage';
 import type { UserInfo, ChatRequest } from './types';
 import './App.css';
 
@@ -78,10 +80,10 @@ interface ActiveChat {
 function AppContent() {
   const toast = useToast();
   const { t } = useTranslation();
+  const { user, isLoading: isAuthLoading, isAuthenticated, getCredentials } = useAuth();
   const { 
     isReady, 
     isInTelegram,
-    user, 
     expand, 
     setClosingConfirmation, 
     setHeaderColor,
@@ -102,6 +104,7 @@ function AppContent() {
     publish,
     _debug: wsDebug,
   } = useWebSocket({
+    getCredentials,
     onConnect: () => {
       debugLog('success', 'WebSocket connected');
       notificationOccurred('success');
@@ -123,6 +126,9 @@ function AppContent() {
       debugLog('info', 'WebSocket reconnected');
     },
   });
+
+  const telegramUserId = user?.telegramId ?? null;
+  const environment = getEnvironment();
 
   // Search hook
   const {
@@ -341,7 +347,7 @@ function AppContent() {
     subscribe,
     unsubscribe,
     publish,
-    myTgId: user?.id ?? null,
+    myTgId: telegramUserId,
     onRekeyCompleted: (roomId, newEpoch) => {
       debugLog('success', `[Rekey] Rekey completed for room ${roomId} epoch ${newEpoch}`);
       // Update epoch for the active room chat
@@ -741,38 +747,23 @@ function AppContent() {
     }
   }, [isReady, startParam, isConnected, resetJoinRoom, loadInviteInfo]);
 
-  // Initialize Mini App
+  // Initialize Mini App chrome only in Telegram.
   useEffect(() => {
-    if (isReady) {
-      // Expand the Mini App to full height
-      expand();
-      
-      // Enable closing confirmation
-      setClosingConfirmation(true);
-      
-      // Set header color to match theme
-      setHeaderColor('secondary_bg_color');
-    }
-  }, [isReady, expand, setClosingConfirmation, setHeaderColor]);
+    if (!isReady || !isInTelegram) return;
+    expand();
+    setClosingConfirmation(true);
+    setHeaderColor('secondary_bg_color');
+  }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor]);
 
-  // Connect to WebSocket when ready
+  // Connect to WebSocket only when Telegram auth is available.
   useEffect(() => {
-    if (!isReady) return;
-
-    // In production, require Telegram environment — landing page handles this case
-    if (import.meta.env.PROD && !isInTelegram) {
-      return;
-    }
-
-    // Connect when we have user data (or in dev mode)
-    if (user || import.meta.env.DEV) {
-      connect();
-    }
+    if (!isReady || !isAuthenticated) return;
+    connect();
 
     return () => {
       disconnect();
     };
-  }, [isReady, isInTelegram, user, connect, disconnect]);
+  }, [isReady, isAuthenticated, connect, disconnect]);
 
   // Handle "Start Chat" button click from search results
   const handleStartChat = useCallback((targetUser: UserInfo) => {
@@ -1354,14 +1345,12 @@ function AppContent() {
   }, [keyRefreshSessionId, clearKeyRefresh, startHandshake]);
 
   // Loading state
-  if (!isReady) {
+  if (!isReady || isAuthLoading) {
     return <LoadingOverlay message="Loading BurnedChats..." />
   }
 
-  // Landing page for non-Telegram browsers (in production, or via ?landing query param in dev)
-  const showLanding = import.meta.env.PROD ? !isInTelegram : new URLSearchParams(window.location.search).has('landing');
-  if (showLanding) {
-    return <LandingPage />;
+  if (environment === 'browser') {
+    return <WalletLoginPlaceholder />;
   }
 
   // Initialization error
@@ -1459,14 +1448,14 @@ function AppContent() {
   }
 
   // Chat view (active chat)
-  if (currentView === 'chat' && activeChat && user) {
+  if (currentView === 'chat' && activeChat && telegramUserId !== null) {
     return (
       <>
         <Layout>
           <ChatViewContent
             sessionId={activeChat.sessionId}
             peer={activeChat.peer}
-            userId={user.id}
+            userId={telegramUserId}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
@@ -1575,7 +1564,7 @@ function AppContent() {
   }
 
   // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
-  if (currentView === 'room-chat' && activeRoomChat && user) {
+  if (currentView === 'room-chat' && activeRoomChat && telegramUserId !== null) {
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
     // Fall back to the cached isOwner flag when myRooms hasn't loaded yet
     // (e.g. immediately after room creation before fetchRooms completes).
@@ -1587,7 +1576,7 @@ function AppContent() {
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}
-            userId={user.id}
+            userId={telegramUserId}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             isOwner={isRoomOwner}
             isRequestingKey={isRequestingKey}
@@ -1802,13 +1791,27 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
   );
 }
 
+function WalletLoginPlaceholder() {
+  return (
+    <div className="wallet-placeholder">
+      <div className="wallet-placeholder__card">
+        <h1>Wallet Login</h1>
+        <p>Open BurnedChats via wallet auth in standalone mode.</p>
+        <p className="wallet-placeholder__hint">TON Connect integration will be added in the next card.</p>
+      </div>
+    </div>
+  );
+}
+
 /**
  * App wrapper with providers
  */
 function App() {
   return (
     <ToastProvider position="bottom" maxToasts={3}>
-      <AppContent />
+      <AuthContextProvider>
+        <AppContent />
+      </AuthContextProvider>
     </ToastProvider>
   );
 }

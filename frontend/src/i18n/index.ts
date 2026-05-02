@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
+import { isTelegramMiniApp } from '../env/detector';
 import ar from './locales/ar.json';
 import de from './locales/de.json';
 import en from './locales/en.json';
@@ -22,8 +23,9 @@ function normalizeTelegramLang(code: string): string {
   return lower;
 }
 
-const telegramLang = WebApp.initDataUnsafe.user?.language_code ?? 'en';
-const normalized = normalizeTelegramLang(telegramLang);
+const telegramLang = WebApp.initDataUnsafe.user?.language_code;
+const browserLang = typeof navigator !== 'undefined' ? navigator.language : 'en';
+const normalized = normalizeTelegramLang(telegramLang ?? browserLang);
 const initialLang = (SUPPORTED_LANGS as readonly string[]).includes(normalized) ? normalized : 'en';
 
 i18n
@@ -46,16 +48,18 @@ i18n
 
 // Async override from Telegram CloudStorage (after init, non-blocking)
 // Wrapped in try-catch: CloudStorage requires Telegram Web App >= 6.9
-try {
-  WebApp.CloudStorage.getItem(STORAGE_KEY, (err, savedLang) => {
-    if (!err && savedLang && (SUPPORTED_LANGS as readonly string[]).includes(savedLang)) {
-      if (savedLang !== i18n.language) {
-        i18n.changeLanguage(savedLang);
+if (isTelegramMiniApp()) {
+  try {
+    WebApp.CloudStorage.getItem(STORAGE_KEY, (err, savedLang) => {
+      if (!err && savedLang && (SUPPORTED_LANGS as readonly string[]).includes(savedLang)) {
+        if (savedLang !== i18n.language) {
+          i18n.changeLanguage(savedLang);
+        }
       }
-    }
-  });
-} catch {
-  // CloudStorage not supported in this Telegram Web App version — use Telegram language_code
+    });
+  } catch {
+    // CloudStorage not supported in this Telegram Web App version.
+  }
 }
 
 export default i18n;

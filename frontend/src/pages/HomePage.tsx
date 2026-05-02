@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TelegramUser } from '../hooks/useTelegram';
+import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
@@ -9,7 +9,7 @@ import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, Ar
 import './HomePage.css';
 
 interface HomePageProps {
-  user: TelegramUser | null;
+  user: AuthUser | null;
   isConnected: boolean;
   isConnecting?: boolean;
   reconnectAttempt?: number;
@@ -116,9 +116,7 @@ export function HomePage({
   const query = onSearchQueryChange ? searchQuery : localQuery;
   const setQuery = onSearchQueryChange || setLocalQuery;
 
-  const displayName = user 
-    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
-    : 'Anonymous';
+  const displayName = user?.displayName ?? 'Anonymous';
 
   const handleCopy = useCallback((text: string, label: string) => {
     navigator.clipboard.writeText(text).then(
@@ -198,7 +196,7 @@ export function HomePage({
         <CardContent>
           <div className="home-profile">
             <Avatar 
-              src={user?.photo_url} 
+              src={user?.avatarUrl} 
               name={displayName} 
               size="lg"
             />
@@ -219,16 +217,30 @@ export function HomePage({
                     </button>
                   </span>
                 )}
-                {user && (
+                {user?.telegramId && (
                   <span className="home-profile-id-row">
-                    <span className="home-profile-id-label">ID: {user.id}</span>
+                    <span className="home-profile-id-label">TG ID: {user.telegramId}</span>
                     <button
                       type="button"
                       className="home-profile-copy"
-                      onClick={() => handleCopy(String(user.id), 'ID')}
+                      onClick={() => handleCopy(String(user.telegramId), 'Telegram ID')}
                       aria-label="Copy ID"
                       title="Copy ID"
                     >
+                {user?.internalId && (
+                  <span className="home-profile-id-row">
+                    <span className="home-profile-id-label">Internal ID: {user.internalId}</span>
+                    <button
+                      type="button"
+                      className="home-profile-copy"
+                      onClick={() => handleCopy(user.internalId, 'Internal ID')}
+                      aria-label="Copy internal id"
+                      title="Copy internal id"
+                    >
+                      <CopyIcon size={14} />
+                    </button>
+                  </span>
+                )}
                       <CopyIcon size={14} />
                     </button>
                   </span>
