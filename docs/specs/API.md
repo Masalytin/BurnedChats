@@ -99,6 +99,27 @@ GET /actuator/info
 }
 ```
 
+### Wallet auth (Phase 3): nonce для Ton Connect
+
+#### `GET /api/auth/nonce`
+
+Выдаёт короткоживущую непрозрачную строку для поля Ton Connect `tonProof` в запросе подключения (`ConnectAdditionalRequest.tonProof`). Кошелёк возвращает подписанный `ton_proof`; backend сверяет подпись с этим nonce (защита от replay).
+
+**Response `200 OK`:**
+
+```json
+{
+  "nonce": "<opaque server-generated string>"
+}
+```
+
+Клиент также принимает поле `payload` как синоним `nonce` для обратной совместимости.
+
+**Примечания:**
+
+- Требования к авторизации запроса (публичный эндпоинт vs привязка к сессии) задаёт реализация backend; рекомендуется rate limiting.
+- Базовый URL тот же, что в разделе [Base URL](#base-url); во frontend dev без `VITE_API_URL` используется относительный путь `/api/auth/nonce` (прокси Vite).
+
 ---
 
 ### REST API: Files (Phase 4)
