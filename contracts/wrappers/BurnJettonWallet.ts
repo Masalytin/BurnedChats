@@ -3,7 +3,7 @@ import {
     type JettonBurn as JettonBurnPayload,
     type JettonTransfer as JettonTransferPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
-import { Address, beginCell, ContractProvider, Sender, toNano } from '@ton/core';
+import { Address, beginCell, ContractProvider, Sender, Slice, toNano } from '@ton/core';
 
 export class BurnJettonWallet extends BurnJettonWalletBase {
     static override fromAddress(address: Address): BurnJettonWallet {
@@ -20,6 +20,8 @@ export class BurnJettonWallet extends BurnJettonWalletBase {
             destinationOwner: Address;
             responseDestination: Address;
             forwardTonAmount?: bigint;
+            /** TEP-74 either-cell forward payload (staking uses ref with `StakeForward`). */
+            forwardPayload?: Slice;
             value: bigint;
         },
     ) {
@@ -32,7 +34,7 @@ export class BurnJettonWallet extends BurnJettonWalletBase {
             responseDestination: params.responseDestination,
             customPayload: null,
             forwardTonAmount: forwardTon,
-            forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            forwardPayload: params.forwardPayload ?? beginCell().storeUint(0, 1).asSlice(),
         };
         return this.send(provider, via, { value: params.value }, msg);
     }

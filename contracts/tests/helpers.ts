@@ -1,5 +1,6 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { Address, toNano } from '@ton/core';
+import { Address, beginCell, Slice, toNano } from '@ton/core';
+import { storeStakeForward, type StakeForward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { expect } from '@jest/globals';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
@@ -10,6 +11,16 @@ export const NANO_PER_BURN = 10n ** 9n;
 export const DEPLOY_TON = toNano('0.15');
 export const MINT_TON = toNano('0.25');
 export const TRANSFER_TON = toNano('3.5');
+
+/** Jetton forward_payload for staking master (`StakeForward` in ref, either-bit = 1). */
+export function stakeForwardPayload(tier: number): Slice {
+    const sf: StakeForward = { $$type: 'StakeForward', tier: BigInt(tier) };
+    return beginCell()
+        .storeUint(1, 1)
+        .storeRef(beginCell().store(storeStakeForward(sf)).endCell())
+        .endCell()
+        .asSlice();
+}
 
 /** Fixed sandbox clock for reproducible hour buckets / activity windows. */
 export const SANDBOX_NOW = 1_700_000_000;

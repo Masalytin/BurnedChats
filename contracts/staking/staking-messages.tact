@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Shared opcodes between StakingPool and StakingMaster
 
+// TEP-74 Jetton transfer — opcode MUST match burn-jetton-wallet.tact JettonTransfer
+message(0xf8a7ea5) JettonTransferOut {
+    queryId: Int as uint64;
+    amount: Int as coins;
+    destination: Address;
+    responseDestination: Address?;
+    customPayload: Cell?;
+    forwardTonAmount: Int as coins;
+    forwardPayload: Slice as remaining;
+}
+
+/// Forward payload attached to jetton transfer notifying stake intent (TEP-74 forward_payload ref).
+message(0x5a020010) StakeForward {
+    tier: Int as uint8;
+}
+
 message(0x5a010010) IncrementTotalStake {
     queryId: Int as uint64;
     tier: Int as uint8;

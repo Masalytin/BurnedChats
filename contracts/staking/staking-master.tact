@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: MIT
-// Staking Master — user entry for Stake / Unstake / Claim; accumulated reward per tier (rewardPerShare).
+// Staking Master — Jetton stake via TEP-74 notification; Unstake / Claim; emission tick (Phase 1 linear).
 
+import "../jetton/burn-jetton-wallet";
 import "./staking-messages";
 import "./staking-lock";
 
-/// Tier ids: Flexible=0, Silver=1, Gold=2, Diamond=3
-message(0x5a020001) UserStake {
+message(0x5a020002) UnstakeJetton {
     queryId: Int as uint64;
+    tier: Int as uint8;
     amount: Int as coins;
+}
+
+message(0x5a020003) ClaimRewards {
+    queryId: Int as uint64;
     tier: Int as uint8;
 }
 
-message(0x5a020002) UserUnstake {
+/// Called once by bootstrap after deploy: `wallet = jetton_master.get_wallet_address(staking_master)`.
+message(0x5a020004) SetMasterJettonWallet {
     queryId: Int as uint64;
-}
-
-message(0x5a020003) UserClaim {
-    queryId: Int as uint64;
+    wallet: Address;
 }
 
 struct StakeInfoView {
@@ -31,10 +34,22 @@ contract StakingMaster(
     pool: Address,
     jettonMaster: Address,
     stakingLock: Address,
-    stakes: map<Address, StakeInfoView>,
+    bootstrapOwner: Address,
+    stakingJettonWallet: Address,
+    jwConfigured: Bool,
+    stakesT0: map<Address, StakeInfoView>,
+    stakesT1: map<Address, StakeInfoView>,
+    stakesT2: map<Address, StakeInfoView>,
+    stakesT3: map<Address, StakeInfoView>,
     rewardPerShare: map<Int as uint8, Int>,
-    userRewardDebt: map<Address, Int>,
+    debtT0: map<Address, Int>,
+    debtT1: map<Address, Int>,
+    debtT2: map<Address, Int>,
+    debtT3: map<Address, Int>,
     totalStakeByTier: map<Int as uint8, Int as coins>,
+    emissionStartTime: Int as uint64,
+    lastEmitTime: Int as uint64,
+    emittedSoFar: Int as coins,
 ) {
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
@@ -47,7 +62,20 @@ contract StakingMaster(
     const RewardSharePctTier2: Int = 25;
     const RewardSharePctTier3: Int = 60;
 
-    const GasToPool: Int = ton("0.05");
+    /// 300 BURN (nano) linear emission over 3 years (Phase 1).
+    const TotalEmissionNano: Int = 300000000000;
+    const EmissionDurationSec: Int = 94608000;
+    /// floor(300e9 / emissionDuration) nano per second
+    const EmissionNanoPerSec: Int = 3170;
+    const EmitMinIntervalSec: Int = 60;
+
+    /// Minimum stake 0.01 BURN (anti-dust).
+    const MinStakeNano: Int = 10000000;
+
+    const GasToPool: Int = ton("0.06");
+    /// Must satisfy BurnJettonWallet JettonTransfer gate (forward + ton("2.1") + fees).
+    const GasForwardStakeJetton: Int = ton("3.5");
+    const GasPayRewards: Int = ton("3.5");
 
     inline fun assertTier(tier: Int) {
         require(tier >= self.MinTier && tier <= self.MaxTier, "Bad tier");
@@ -83,6 +111,110 @@ contract StakingMaster(
         return v!!;
     }
 
+    inline fun masterJettonWalletAddr(): Address {
+        return self.stakingJettonWallet;
+    }
+
+    fun stakesMapGet(tier: Int, who: Address): StakeInfoView? {
+        self.assertTier(tier);
+        if (tier == 0) {
+            return self.stakesT0.get(who);
+        }
+        if (tier == 1) {
+            return self.stakesT1.get(who);
+        }
+        if (tier == 2) {
+            return self.stakesT2.get(who);
+        }
+        return self.stakesT3.get(who);
+    }
+
+    fun stakesMapSet(tier: Int, who: Address, info: StakeInfoView) {
+        self.assertTier(tier);
+        if (tier == 0) {
+            self.stakesT0.set(who, info);
+            return;
+        }
+        if (tier == 1) {
+            self.stakesT1.set(who, info);
+            return;
+        }
+        if (tier == 2) {
+            self.stakesT2.set(who, info);
+            return;
+        }
+        self.stakesT3.set(who, info);
+    }
+
+    fun stakesMapDel(tier: Int, who: Address) {
+        self.assertTier(tier);
+        if (tier == 0) {
+            self.stakesT0.replace(who, null);
+            return;
+        }
+        if (tier == 1) {
+            self.stakesT1.replace(who, null);
+            return;
+        }
+        if (tier == 2) {
+            self.stakesT2.replace(who, null);
+            return;
+        }
+        self.stakesT3.replace(who, null);
+    }
+
+    fun debtMapGet(tier: Int, who: Address): Int {
+        self.assertTier(tier);
+        let opt: Int? = null;
+        if (tier == 0) {
+            opt = self.debtT0.get(who);
+        } else if (tier == 1) {
+            opt = self.debtT1.get(who);
+        } else if (tier == 2) {
+            opt = self.debtT2.get(who);
+        } else {
+            opt = self.debtT3.get(who);
+        }
+        if (opt == null) {
+            return 0;
+        }
+        return opt!!;
+    }
+
+    fun debtMapSet(tier: Int, who: Address, debt: Int) {
+        self.assertTier(tier);
+        if (tier == 0) {
+            self.debtT0.set(who, debt);
+            return;
+        }
+        if (tier == 1) {
+            self.debtT1.set(who, debt);
+            return;
+        }
+        if (tier == 2) {
+            self.debtT2.set(who, debt);
+            return;
+        }
+        self.debtT3.set(who, debt);
+    }
+
+    fun debtMapDel(tier: Int, who: Address) {
+        self.assertTier(tier);
+        if (tier == 0) {
+            self.debtT0.replace(who, null);
+            return;
+        }
+        if (tier == 1) {
+            self.debtT1.replace(who, null);
+            return;
+        }
+        if (tier == 2) {
+            self.debtT2.replace(who, null);
+            return;
+        }
+        self.debtT3.replace(who, null);
+    }
+
     fun addTierTotalStake(tier: Int, delta: Int) {
         self.assertTier(tier);
         require(delta > 0, "Bad delta");
@@ -113,7 +245,7 @@ contract StakingMaster(
         self.rewardPerShare.set(tier, prev + deltaRps);
     }
 
-    /// Distributes staking-fee `feeAmount` across tiers by TOKENOMICS default shares (5/10/25/60).
+    /// Distributes staking-fee / emission `feeAmount` across tiers by TOKENOMICS default shares (5/10/25/60).
     fun applyStakeFeeSlices(feeAmount: Int) {
         require(feeAmount > 0, "Bad fee");
         let t: Int = 0;
@@ -128,65 +260,243 @@ contract StakingMaster(
         self.assertTier(tier);
         let rps = self.rewardPerShareForTier(tier);
         let debt = stakeAmount * rps / self.RewardScale;
-        self.userRewardDebt.set(ownerAddr, debt);
+        self.debtMapSet(tier, ownerAddr, debt);
     }
 
-    receive() {
-        cashback(sender());
+    fun totalStakedAllTiers(): Int {
+        let s = 0;
+        let t = 0;
+        while (t <= self.MaxTier) {
+            s = s + self.tierTotalStake(t);
+            t = t + 1;
+        }
+        return s;
     }
 
-    receive(msg: UserStake) {
-        let tierAsInt = msg.tier;
+    /// Phase 1 linear emission + pool accounting credit (tokens must exist in pool jetton wallet).
+    fun tickEmission() {
+        let nowTs = now();
 
-        self.assertTier(tierAsInt);
-        require(msg.amount > 0, "Bad amount");
+        if (self.emissionStartTime == 0) {
+            self.emissionStartTime = nowTs;
+            self.lastEmitTime = nowTs;
+            return;
+        }
 
-        let who = sender();
-        require(self.stakes.get(who) == null, "Already staked");
+        let elapsed = nowTs - self.lastEmitTime;
+        if (elapsed < self.EmitMinIntervalSec) {
+            return;
+        }
 
-        let start = now();
-        // Matches StakingLock default tier durations until governance adjusts lock (stored per stake).
-        let unlockTime = start + defaultTierUnlockDuration(tierAsInt);
+        let pending = elapsed * self.EmissionNanoPerSec;
+        let cap = self.TotalEmissionNano - self.emittedSoFar;
+        if (pending > cap) {
+            pending = cap;
+        }
 
-        let info = StakeInfoView {
-            amount: msg.amount,
-            tier: msg.tier,
-            startTime: start,
-            lastClaimTime: start,
-            unlockTime,
-        };
+        if (pending <= 0) {
+            self.lastEmitTime = nowTs;
+            return;
+        }
 
-        self.stakes.set(who, info);
-        self.addTierTotalStake(tierAsInt, msg.amount);
-        self.initUserRewardDebt(who, tierAsInt, msg.amount);
+        let totalStaked = self.totalStakedAllTiers();
 
-        let fwd = IncrementTotalStake {
-            queryId: msg.queryId,
-            tier: msg.tier,
-            delta: msg.amount,
-        };
+        if (totalStaked > 0) {
+            self.applyStakeFeeSlices(pending);
+        }
 
         message(MessageParameters {
             to: self.pool,
             value: self.GasToPool,
             bounce: true,
             mode: SendPayGasSeparately,
-            body: fwd.toCell(),
+            body: CreditPoolBalance {
+                queryId: 0,
+                delta: pending,
+            }.toCell(),
+        });
+
+        self.emittedSoFar = self.emittedSoFar + pending;
+        self.lastEmitTime = nowTs;
+    }
+
+    fun parseStakeTier(forwardPayload: Slice): Int {
+        require(forwardPayload.preloadUint(1) == 1, "Stake payload required");
+        let br = calculateSliceBitsAndRefs(forwardPayload);
+        require(br.refs == 1 && br.bits == 1, "Bad forward layout");
+        let inner = forwardPayload.loadRef().beginParse();
+        let op = inner.preloadUint(32);
+        require(op == StakeForward.opcode(), "Bad stake opcode");
+        let sf = StakeForward.fromSlice(inner);
+        self.assertTier(sf.tier);
+        return sf.tier;
+    }
+
+    fun forwardStakeJettonsToPool(amount: Int, queryId: Int) {
+        message(MessageParameters {
+            to: self.masterJettonWalletAddr(),
+            value: self.GasForwardStakeJetton,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: JettonTransferOut {
+                queryId: queryId,
+                amount: amount,
+                destination: self.pool,
+                responseDestination: myAddress(),
+                customPayload: null,
+                forwardTonAmount: 0,
+                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            }.toCell(),
         });
     }
 
-    receive(msg: UserUnstake) {
-        let who = sender();
-        let curOpt = self.stakes.get(who);
-        require(curOpt != null, "No stake");
+    fun sendPayRewards(recipient: Address, amount: Int, queryId: Int) {
+        require(amount > 0, "Bad payout");
+        message(MessageParameters {
+            to: self.pool,
+            value: self.GasPayRewards,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: PayRewards {
+                queryId: queryId,
+                recipient: recipient,
+                amount: amount,
+            }.toCell(),
+        });
+    }
 
+    receive() {
+        cashback(sender());
+    }
+
+    receive(msg: SetMasterJettonWallet) {
+        require(sender() == self.bootstrapOwner, "Only bootstrap");
+        require(!self.jwConfigured, "JW already set");
+        forceBasechain(msg.wallet);
+        self.stakingJettonWallet = msg.wallet;
+        self.jwConfigured = true;
+        cashback(sender());
+    }
+
+    /// Jetton wallet notifies Master after incoming transfer; forward_payload carries `StakeForward`.
+    receive(msg: JettonNotification) {
+        require(self.jwConfigured, "JW not configured");
+        require(sender() == self.stakingJettonWallet, "Only master JW");
+
+        // Mint/refill notifications use tiny amounts (below MIN stake); ignore without parsing payload.
+        if (msg.amount < self.MinStakeNano) {
+            cashback(sender());
+            return;
+        }
+
+        self.tickEmission();
+
+        let tierAsInt = self.parseStakeTier(msg.forwardPayload);
+        let staker = msg.sender;
+
+        let oldOpt = self.stakesMapGet(tierAsInt, staker);
+        let start = now();
+        let unlockTime = start + defaultTierUnlockDuration(tierAsInt);
+
+        if (oldOpt != null) {
+            let old = oldOpt!!;
+            let pendingOld = self.calculatePendingRewardFor(staker, tierAsInt);
+            if (pendingOld > 0) {
+                self.sendPayRewards(staker, pendingOld, msg.queryId);
+            }
+
+            let mergedAmt = old.amount + msg.amount;
+            let merged = StakeInfoView {
+                amount: mergedAmt,
+                tier: tierAsInt,
+                startTime: old.startTime,
+                lastClaimTime: start,
+                unlockTime,
+            };
+            self.stakesMapSet(tierAsInt, staker, merged);
+            self.addTierTotalStake(tierAsInt, msg.amount);
+            self.initUserRewardDebt(staker, tierAsInt, mergedAmt);
+        } else {
+            let info = StakeInfoView {
+                amount: msg.amount,
+                tier: tierAsInt,
+                startTime: start,
+                lastClaimTime: start,
+                unlockTime,
+            };
+            self.stakesMapSet(tierAsInt, staker, info);
+            self.addTierTotalStake(tierAsInt, msg.amount);
+            self.initUserRewardDebt(staker, tierAsInt, msg.amount);
+        }
+
+        message(MessageParameters {
+            to: self.pool,
+            value: self.GasToPool,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: IncrementTotalStake {
+                queryId: msg.queryId,
+                tier: tierAsInt,
+                delta: msg.amount,
+            }.toCell(),
+        });
+
+        message(MessageParameters {
+            to: self.pool,
+            value: self.GasToPool,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: CreditPoolBalance {
+                queryId: msg.queryId,
+                delta: msg.amount,
+            }.toCell(),
+        });
+
+        self.forwardStakeJettonsToPool(msg.amount, msg.queryId);
+    }
+
+    receive(msg: UnstakeJetton) {
+        require(context().value >= self.GasPayRewards + self.GasToPool + ton("0.08"), "Low TON unstake");
+        self.tickEmission();
+
+        let who = sender();
+        let tierAsInt = msg.tier;
+        self.assertTier(tierAsInt);
+        require(msg.amount > 0, "Bad amount");
+
+        let curOpt = self.stakesMapGet(tierAsInt, who);
+        require(curOpt != null, "No stake");
         let cur = curOpt!!;
         require(cur.amount > 0, "Empty stake");
+        require(msg.amount <= cur.amount, "Too much");
 
         let t = now();
         require(cur.unlockTime <= t, "Still locked");
 
-        let tierAsInt = cur.tier;
+        let pending = self.calculatePendingRewardFor(who, tierAsInt);
+        let payout = msg.amount + pending;
+        if (payout > 0) {
+            self.sendPayRewards(who, payout, msg.queryId);
+        }
+
+        let newAmt = cur.amount - msg.amount;
+        if (newAmt == 0) {
+            self.stakesMapDel(tierAsInt, who);
+            self.debtMapDel(tierAsInt, who);
+        } else {
+            let upd = StakeInfoView {
+                amount: newAmt,
+                tier: cur.tier,
+                startTime: cur.startTime,
+                lastClaimTime: cur.lastClaimTime,
+                unlockTime: cur.unlockTime,
+            };
+            self.stakesMapSet(tierAsInt, who, upd);
+            self.initUserRewardDebt(who, tierAsInt, newAmt);
+        }
+
+        self.subTierTotalStake(tierAsInt, msg.amount);
+
         message(MessageParameters {
             to: self.pool,
             value: self.GasToPool,
@@ -194,21 +504,40 @@ contract StakingMaster(
             mode: SendPayGasSeparately,
             body: DecrementTotalStake {
                 queryId: msg.queryId,
-                tier: cur.tier,
-                delta: cur.amount,
-            }
-                .toCell(),
+                tier: tierAsInt,
+                delta: msg.amount,
+            }.toCell(),
         });
-
-        self.subTierTotalStake(tierAsInt, cur.amount);
-        self.userRewardDebt.replace(who, null);
-
-        self.stakes.replace(who, null);
     }
 
-    receive(msg: UserClaim) {
-        // Reward distribution / debt updates delegated to P5-2-2-2 (claim payout).
-        cashback(sender());
+    receive(msg: ClaimRewards) {
+        require(context().value >= self.GasPayRewards + ton("0.06"), "Low TON claim");
+        self.tickEmission();
+
+        let who = sender();
+        let tierAsInt = msg.tier;
+        self.assertTier(tierAsInt);
+
+        let curOpt = self.stakesMapGet(tierAsInt, who);
+        require(curOpt != null, "No stake");
+        let cur = curOpt!!;
+        require(cur.amount > 0, "Empty stake");
+
+        let pending = self.calculatePendingRewardFor(who, tierAsInt);
+        require(pending > 0, "Nothing to claim");
+        self.sendPayRewards(who, pending, msg.queryId);
+
+        self.initUserRewardDebt(who, tierAsInt, cur.amount);
+
+        let claimTime = now();
+        let upd = StakeInfoView {
+            amount: cur.amount,
+            tier: cur.tier,
+            startTime: cur.startTime,
+            lastClaimTime: claimTime,
+            unlockTime: cur.unlockTime,
+        };
+        self.stakesMapSet(tierAsInt, who, upd);
     }
 
     /// Trusted callback from staking pool (`sender()==pool`): accrues staking fee into rewardPerShare.
@@ -218,22 +547,17 @@ contract StakingMaster(
         cashback(sender());
     }
 
-    get fun calculatePendingReward(ownerAddr: Address): Int {
-        let stakeOpt = self.stakes.get(ownerAddr);
+    fun calculatePendingRewardFor(ownerAddr: Address, tierAsInt: Int): Int {
+        let stakeOpt = self.stakesMapGet(tierAsInt, ownerAddr);
         if (stakeOpt == null) {
             return 0;
         }
         let stake = stakeOpt!!;
-        let tierAsInt = stake.tier;
         if (stake.amount == 0) {
             return 0;
         }
         let accrued = stake.amount * self.rewardPerShareForTier(tierAsInt) / self.RewardScale;
-        let debt: Int = 0;
-        let dOpt = self.userRewardDebt.get(ownerAddr);
-        if (dOpt != null) {
-            debt = dOpt!!;
-        }
+        let debt = self.debtMapGet(tierAsInt, ownerAddr);
         let pend = accrued - debt;
         if (pend < 0) {
             return 0;
@@ -241,8 +565,13 @@ contract StakingMaster(
         return pend;
     }
 
-    get fun get_pending_reward(ownerAddr: Address): Int {
-        return self.calculatePendingReward(ownerAddr);
+    get fun calculatePendingReward(ownerAddr: Address, tier: Int): Int {
+        self.assertTier(tier);
+        return self.calculatePendingRewardFor(ownerAddr, tier);
+    }
+
+    get fun get_pending_reward(ownerAddr: Address, tier: Int): Int {
+        return self.calculatePendingReward(ownerAddr, tier);
     }
 
     get fun get_reward_scale(): Int {
@@ -254,12 +583,9 @@ contract StakingMaster(
         return self.rewardPerShareForTier(tier);
     }
 
-    get fun get_user_reward_debt(ownerAddr: Address): Int {
-        let dOpt = self.userRewardDebt.get(ownerAddr);
-        if (dOpt == null) {
-            return 0;
-        }
-        return dOpt!!;
+    get fun get_user_reward_debt(ownerAddr: Address, tier: Int): Int {
+        self.assertTier(tier);
+        return self.debtMapGet(tier, ownerAddr);
     }
 
     get fun get_master_total_stake(tier: Int): Int {
@@ -279,7 +605,28 @@ contract StakingMaster(
         return self.stakingLock;
     }
 
-    get fun get_stake(ownerAddr: Address): StakeInfoView? {
-        return self.stakes.get(ownerAddr);
+    get fun get_staking_jetton_wallet(): Address {
+        return self.stakingJettonWallet;
+    }
+
+    get fun get_stake(ownerAddr: Address, tier: Int): StakeInfoView? {
+        self.assertTier(tier);
+        return self.stakesMapGet(tier, ownerAddr);
+    }
+
+    get fun get_emission_start_time(): Int {
+        return self.emissionStartTime;
+    }
+
+    get fun get_last_emit_time(): Int {
+        return self.lastEmitTime;
+    }
+
+    get fun get_emitted_so_far(): Int {
+        return self.emittedSoFar;
+    }
+
+    get fun get_total_emission_budget(): Int {
+        return self.TotalEmissionNano;
     }
 }

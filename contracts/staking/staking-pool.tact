@@ -4,17 +4,6 @@
 import "../jetton/burn-jetton-wallet";
 import "./staking-messages";
 
-// TEP-74 Jetton transfer — opcode MUST match burn-jetton-wallet.tact JettonTransfer
-message(0xf8a7ea5) JettonTransferOut {
-    queryId: Int as uint64;
-    amount: Int as coins;
-    destination: Address;
-    responseDestination: Address?;
-    customPayload: Cell?;
-    forwardTonAmount: Int as coins;
-    forwardPayload: Slice as remaining;
-}
-
 contract StakingPool(
     bootstrapOwner: Address,
     stakingMaster: Address,
@@ -37,6 +26,25 @@ contract StakingPool(
 
     receive() {
         cashback(sender());
+    }
+
+    /// Pool jetton wallet notifies Pool after incoming BURN (staking fee 0.3% or other deposits with notification).
+    receive(msg: JettonNotification) {
+        require(sender() == self.jettonRewardsWalletAddr(), "Only pool JW");
+        require(msg.amount > 0, "Bad amount");
+
+        self.pool_balance = self.pool_balance + msg.amount;
+
+        message(MessageParameters {
+            to: self.stakingMaster,
+            value: self.GasPoolToMasterAccrual,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: StakeFeeRewardsAccrue {
+                queryId: msg.queryId,
+                feeAmount: msg.amount,
+            }.toCell(),
+        });
     }
 
     inline fun assertMaster() {

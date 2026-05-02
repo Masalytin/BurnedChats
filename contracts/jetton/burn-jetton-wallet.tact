@@ -474,9 +474,15 @@ contract BurnJettonWallet(
                 "Insufficient amount of TON attached",
             );
 
+            // Recipient wallet must afford notification forward + fees (fixed perInternalDeployTon is too low).
+            let deliverTon = max(
+                perInternalDeployTon,
+                msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
+            );
+
             let emptyCfg = jettonWalletEmptyFeeConfig();
             deploy(DeployParameters {
-                value: perInternalDeployTon,
+                value: deliverTon,
                 bounce: true,
                 mode: SendPayGasSeparately,
                 body: JettonTransferInternal {
@@ -516,8 +522,18 @@ contract BurnJettonWallet(
         let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
         let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
 
+        let netDeliverTon = max(
+            perInternalDeployTon,
+            msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
+        );
+        let poolFwdTon = ton("0.12");
+        let poolDeliverTon = max(
+            perInternalDeployTon,
+            poolFwdTon + fwd + minTonsForStorage + ton("0.02"),
+        );
+
         deploy(DeployParameters {
-            value: perInternalDeployTon,
+            value: netDeliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
@@ -532,7 +548,7 @@ contract BurnJettonWallet(
         });
 
         deploy(DeployParameters {
-            value: perInternalDeployTon,
+            value: poolDeliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
@@ -540,7 +556,7 @@ contract BurnJettonWallet(
                 amount: parts.staking,
                 sender: self.owner,
                 responseDestination: msg.responseDestination,
-                forwardTonAmount: 0,
+                forwardTonAmount: poolFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
             init: poolWalletInit,
