@@ -40,6 +40,16 @@
                 "external": false
             },
             "mode": "full"
+        },
+        {
+            "name": "Governor",
+            "path": "governance/governor.tact",
+            "output": "build/Governor",
+            "options": {
+                "debug": false,
+                "external": false
+            },
+            "mode": "full"
         }
     ]
 }
