@@ -55,6 +55,7 @@ import reactor.core.publisher.Flux;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@SuppressWarnings("checkstyle:JavadocMethod")
 public class WebSocketEventListener {
 
     /**
@@ -100,27 +101,29 @@ public class WebSocketEventListener {
         }
 
         if (principal instanceof TelegramPrincipal telegramPrincipal) {
-            Long userId = telegramPrincipal.getUserId();
+            Long telegramUserId = telegramPrincipal.getUserId();
+            String internalId = telegramPrincipal.getInternalId();
             String sessionId = accessor.getSessionId();
 
-            LOG.info("User connected: userId={}, sessionId={}", userId, sessionId);
+            LOG.info("User connected: internalId={}, telegramId={}, sessionId={}",
+                    internalId, telegramUserId, sessionId);
 
             // Mark user as online
-            onlineStatusRepository.setOnline(userId)
-                    .doOnSuccess(v -> LOG.debug("User {} marked as online", userId))
+            onlineStatusRepository.setOnline(internalId)
+                    .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
                     .subscribe();
 
             // Cache user info if not already cached
             cacheUserInfo(telegramPrincipal);
 
             // Send pending requests to the user (Task 3.4.1)
-            sendPendingRequests(userId);
+            sendPendingRequests(internalId);
 
             // Server-initiated fan-out sync of pending offline messages
             // (FIX-SYNC-4) — guards against clients that fail to request
             // /app/message.sync themselves.
             if (messagesProperties.getServerPushSync().isEnabled()) {
-                pushPendingMessagesFanOut(userId);
+                pushPendingMessagesFanOut(internalId);
             }
         }
     }
@@ -142,14 +145,14 @@ public class WebSocketEventListener {
         Principal principal = accessor.getUser();
 
         if (principal instanceof TelegramPrincipal telegramPrincipal) {
-            Long userId = telegramPrincipal.getUserId();
+            String internalId = telegramPrincipal.getInternalId();
 
-            LOG.info("User disconnected: userId={}, sessionId={}, closeStatus={}",
-                    userId, event.getSessionId(), event.getCloseStatus());
+            LOG.info("User disconnected: internalId={}, sessionId={}, closeStatus={}",
+                    internalId, event.getSessionId(), event.getCloseStatus());
 
             // Mark user as offline
-            onlineStatusRepository.setOffline(userId)
-                    .doOnSuccess(v -> LOG.debug("User {} marked as offline", userId))
+            onlineStatusRepository.setOffline(internalId)
+                    .doOnSuccess(v -> LOG.debug("User {} marked as offline", internalId))
                     .subscribe();
         }
     }
@@ -181,23 +184,23 @@ public class WebSocketEventListener {
      *
      * @param userId the user's Telegram ID
      */
-    private void sendPendingRequests(Long userId) {
-        requestRepository.findByRecipient(userId)
+    private void sendPendingRequests(String internalId) {
+        requestRepository.findByRecipient(internalId)
                 .flatMap(request -> buildIncomingRequestEvent(request)
                         .doOnNext(event -> {
                             messagingTemplate.convertAndSendToUser(
-                                    String.valueOf(userId),
+                                    internalId,
                                     INCOMING_REQUEST_DESTINATION,
                                     event
                             );
                             LOG.info("Sent pending request to user {}: sessionId={}",
-                                    userId, event.getSessionId());
+                                    internalId, event.getSessionId());
                         }))
                 .subscribe(
                         event -> {},
                         error -> LOG.error("Error sending pending requests to user {}: {}",
-                                userId, error.getMessage()),
-                        () -> LOG.debug("Finished sending pending requests to user {}", userId)
+                                internalId, error.getMessage()),
+                        () -> LOG.debug("Finished sending pending requests to user {}", internalId)
             );
     }
 
@@ -256,7 +259,7 @@ public class WebSocketEventListener {
      *
      * @param userId the Telegram user ID that just connected
      */
-    private void pushPendingMessagesFanOut(Long userId) {
+    private void pushPendingMessagesFanOut(String userId) {
         int concurrency = Math.max(1, messagesProperties.getServerPushSync().getConcurrency());
 
         AtomicInteger sessionCount = new AtomicInteger(0);
@@ -308,7 +311,7 @@ public class WebSocketEventListener {
      * @param sessionId the session whose queue should be drained
      * @return mono of the number of messages delivered (0 if none)
      */
-    private Mono<Integer> pushPendingMessagesForSession(Long userId, String sessionId) {
+    private Mono<Integer> pushPendingMessagesForSession(String userId, String sessionId) {
         return Mono.zip(
                 messageRepository.getPendingMessages(userId, sessionId).collectList(),
                 messageRepository.getPendingEdits(userId, sessionId).collectList(),

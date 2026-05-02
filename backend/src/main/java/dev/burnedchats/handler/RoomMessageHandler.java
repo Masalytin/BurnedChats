@@ -231,7 +231,7 @@ public class RoomMessageHandler {
                                         }
                                         RoomMessage rm = opt.get();
                                         boolean own = userId.equals(rm.getSenderTgId());
-                                        boolean asOwner = !own && userId.equals(room.getOwnerTgId());
+                                        boolean asOwner = !own && java.util.Objects.equals(userId, room.getOwnerTgId());
                                         if (!own && !asOwner) {
                                             sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_ALLOWED");
                                             return Mono.empty();

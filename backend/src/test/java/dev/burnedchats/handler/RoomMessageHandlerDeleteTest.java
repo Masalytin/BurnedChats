@@ -11,6 +11,7 @@ import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
+import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -65,6 +66,7 @@ class RoomMessageHandlerDeleteTest {
         when(roomRepository.findById(ROOM))
                 .thenReturn(Mono.just(dev.burnedchats.model.Room.builder()
                         .id(ROOM)
+                        .ownerInternalId(InternalIds.forTelegramId(100L))
                         .ownerTgId(100L)
                         .build()));
         when(roomMessageRepository.findRoomMessageById(ROOM, "mid"))

@@ -1,5 +1,6 @@
 package dev.burnedchats.security;
 
+import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
 import reactor.core.publisher.Mono;
 

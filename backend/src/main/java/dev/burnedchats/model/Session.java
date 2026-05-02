@@ -1,5 +1,6 @@
 package dev.burnedchats.model;
 
+import dev.burnedchats.util.InternalIds;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -44,12 +45,14 @@ public class Session implements Serializable {
     /**
      * Telegram user ID of the session initiator.
      */
-    private Long initiatorId;
+    private String initiatorInternalId;
+    private Long initiatorTelegramId;
 
     /**
      * Telegram user ID of the session responder.
      */
-    private Long responderId;
+    private String responderInternalId;
+    private Long responderTelegramId;
 
     /**
      * Current session status.
@@ -149,9 +152,22 @@ public class Session implements Serializable {
      * @param userId Telegram user ID
      * @return true if user is initiator or responder
      */
-    public boolean isParticipant(Long userId) {
+    public boolean isParticipant(String userId) {
         return userId != null
-                && (userId.equals(initiatorId) || userId.equals(responderId));
+                && (userId.equals(initiatorInternalId) || userId.equals(responderInternalId));
+    }
+
+    public boolean isParticipant(Long telegramId) {
+        return telegramId != null
+                && (telegramId.equals(initiatorTelegramId) || telegramId.equals(responderTelegramId));
+    }
+
+    public Long getInitiatorId() {
+        return initiatorTelegramId;
+    }
+
+    public Long getResponderId() {
+        return responderTelegramId;
     }
 
     /**
@@ -160,15 +176,32 @@ public class Session implements Serializable {
      * @param userId Telegram user ID of one participant
      * @return user ID of the other participant, or null if not a participant
      */
-    public Long getPeerId(Long userId) {
+    public String getPeerInternalId(String userId) {
         if (userId == null) {
             return null;
         }
-        if (userId.equals(initiatorId)) {
-            return responderId;
+        if (userId.equals(initiatorInternalId)) {
+            return responderInternalId;
         }
-        if (userId.equals(responderId)) {
-            return initiatorId;
+        if (userId.equals(responderInternalId)) {
+            return initiatorInternalId;
+        }
+        return null;
+    }
+
+    public String getPeerId(String userId) {
+        return getPeerInternalId(userId);
+    }
+
+    public Long getPeerId(Long telegramId) {
+        if (telegramId == null) {
+            return null;
+        }
+        if (telegramId.equals(initiatorTelegramId)) {
+            return responderTelegramId;
+        }
+        if (telegramId.equals(responderTelegramId)) {
+            return initiatorTelegramId;
         }
         return null;
     }
@@ -214,8 +247,12 @@ public class Session implements Serializable {
      * @param userId Telegram user ID
      * @return true if user is the initiator
      */
-    public boolean isInitiator(Long userId) {
-        return userId != null && userId.equals(initiatorId);
+    public boolean isInitiator(String userId) {
+        return userId != null && userId.equals(initiatorInternalId);
+    }
+
+    public boolean isInitiator(Long telegramId) {
+        return telegramId != null && telegramId.equals(initiatorTelegramId);
     }
 
     /**
@@ -224,8 +261,12 @@ public class Session implements Serializable {
      * @param userId Telegram user ID
      * @return true if user is the responder
      */
-    public boolean isResponder(Long userId) {
-        return userId != null && userId.equals(responderId);
+    public boolean isResponder(String userId) {
+        return userId != null && userId.equals(responderInternalId);
+    }
+
+    public boolean isResponder(Long telegramId) {
+        return telegramId != null && telegramId.equals(responderTelegramId);
     }
 
     /**
@@ -235,7 +276,7 @@ public class Session implements Serializable {
      * @param publicKey Base64-encoded public key
      * @return true if key was set, false if user is not a participant
      */
-    public boolean setPublicKeyForUser(Long userId, String publicKey) {
+    public boolean setPublicKeyForUser(String userId, String publicKey) {
         if (isInitiator(userId)) {
             this.initiatorPublicKey = publicKey;
             return true;
@@ -247,13 +288,20 @@ public class Session implements Serializable {
         return false;
     }
 
+    public boolean setPublicKeyForUser(Long telegramId, String publicKey) {
+        if (telegramId == null) {
+            return false;
+        }
+        return setPublicKeyForUser(InternalIds.forTelegramId(telegramId), publicKey);
+    }
+
     /**
      * Get the public key submitted by a participant.
      *
      * @param userId Telegram user ID
      * @return the public key, or null if not yet submitted
      */
-    public String getPublicKeyForUser(Long userId) {
+    public String getPublicKeyForUser(String userId) {
         if (isInitiator(userId)) {
             return initiatorPublicKey;
         }
@@ -261,6 +309,13 @@ public class Session implements Serializable {
             return responderPublicKey;
         }
         return null;
+    }
+
+    public String getPublicKeyForUser(Long telegramId) {
+        if (telegramId == null) {
+            return null;
+        }
+        return getPublicKeyForUser(InternalIds.forTelegramId(telegramId));
     }
 
     /**

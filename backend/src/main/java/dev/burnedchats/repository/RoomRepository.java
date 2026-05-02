@@ -109,7 +109,8 @@ public class RoomRepository {
     private Map<String, String> toHash(Room room) {
         Map<String, String> map = new HashMap<>();
         map.put("id", room.getId());
-        map.put("ownerTgId", String.valueOf(room.getOwnerTgId()));
+        map.put("ownerInternalId", room.getOwnerInternalId() != null ? room.getOwnerInternalId() : "");
+        map.put("ownerTgId", room.getOwnerTgId() != null ? String.valueOf(room.getOwnerTgId()) : "");
         map.put("salt", room.getSalt() != null ? room.getSalt() : "");
         map.put("passwordProofHash", room.getPasswordProofHash() != null ? room.getPasswordProofHash() : "");
         map.put("joinMode", room.getJoinMode().name());
@@ -124,12 +125,24 @@ public class RoomRepository {
         String passwordProofHash = hash.getOrDefault("passwordProofHash", "");
         return Room.builder()
                 .id(hash.get("id"))
-                .ownerTgId(Long.parseLong(hash.get("ownerTgId")))
+                .ownerInternalId(hash.get("ownerInternalId"))
+                .ownerTgId(parseLongOrNull(hash.get("ownerTgId")))
                 .salt(salt.isEmpty() ? null : salt)
                 .passwordProofHash(passwordProofHash.isEmpty() ? null : passwordProofHash)
                 .joinMode(Room.JoinMode.valueOf(hash.get("joinMode")))
                 .createdAt(Long.parseLong(hash.get("createdAt")))
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)
                 .build();
+    }
+
+    private Long parseLongOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

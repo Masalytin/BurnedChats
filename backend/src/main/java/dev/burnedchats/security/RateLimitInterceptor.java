@@ -85,7 +85,7 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        Long userId = extractUserId(principal);
+        String userId = extractUserId(principal);
         if (userId == null) {
             return message;
         }
@@ -104,9 +104,9 @@ public class RateLimitInterceptor implements ChannelInterceptor {
     /**
      * Extract user ID from principal.
      */
-    private Long extractUserId(Principal principal) {
+    private String extractUserId(Principal principal) {
         if (principal instanceof StompAuthInterceptor.TelegramPrincipal telegramPrincipal) {
-            return telegramPrincipal.getUserId();
+            return telegramPrincipal.getInternalId();
         }
         return null;
     }

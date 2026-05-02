@@ -52,8 +52,7 @@ public class FileValidationService {
                     "INVALID_CONTEXT_TYPE"));
         }
 
-        long tgId = Long.parseLong(uploaderTgId);
-        return rateLimitService.checkRateLimit(tgId, RateLimitService.RateLimitType.FILE_UPLOAD)
+        return rateLimitService.checkRateLimit(uploaderTgId, RateLimitService.RateLimitType.FILE_UPLOAD)
                 .then();
     }
 }

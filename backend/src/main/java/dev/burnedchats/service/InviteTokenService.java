@@ -44,7 +44,7 @@ public class InviteTokenService {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
-                    if (!room.getOwnerTgId().equals(requesterTgId)) {
+                    if (!java.util.Objects.equals(room.getOwnerTgId(), requesterTgId)) {
                         return Mono.error(new SecurityException("NOT_OWNER"));
                     }
 

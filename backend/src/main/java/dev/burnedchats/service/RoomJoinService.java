@@ -30,6 +30,7 @@ import java.time.Instant;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("checkstyle:LineLength")
 public class RoomJoinService {
 
     private final RoomRepository roomRepository;
@@ -49,13 +50,13 @@ public class RoomJoinService {
     public sealed interface JoinResult permits JoinResult.Approved, JoinResult.Pending {
 
         /** User was added to the room immediately (BY_PASSWORD mode). */
-        record Approved(String roomId, Long ownerTgId) implements JoinResult {}
+        record Approved(String roomId, Long ownerInternalId) implements JoinResult {}
 
         /**
          * A join request was created; the owner must accept it (BY_REQUEST mode).
          * Contains the request so the handler can notify the owner.
          */
-        record Pending(RoomJoinRequest request, Long ownerTgId) implements JoinResult {}
+        record Pending(RoomJoinRequest request, Long ownerInternalId) implements JoinResult {}
     }
 
     /**
@@ -124,13 +125,13 @@ public class RoomJoinService {
      * <p>Adds the requester to {@code room_members}, stores their public key,
      * and removes the join request.
      *
-     * @param ownerTgId  Telegram ID of the room owner (must match room's ownerTgId)
+     * @param ownerInternalId  Telegram ID of the room owner (must match room's ownerInternalId)
      * @param roomId     UUID of the room
      * @param senderTgId Telegram ID of the user to accept
      * @return Mono completing on success; errors for NOT_OWNER / ROOM_NOT_FOUND / REQUEST_NOT_FOUND
      */
-    public Mono<Void> acceptJoin(Long ownerTgId, String roomId, Long senderTgId) {
-        return loadRoomAsOwner(ownerTgId, roomId)
+    public Mono<Void> acceptJoin(Long ownerInternalId, String roomId, Long senderTgId) {
+        return loadRoomAsOwner(ownerInternalId, roomId)
                 .then(joinRequestRepository.findByRoomAndSender(roomId, senderTgId))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND")))
                 .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderTgId)
@@ -139,8 +140,8 @@ public class RoomJoinService {
                         .then(roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL))
                         .then()
                 )
-                .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
-                        roomId, senderTgId, ownerTgId));
+                .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderTgId={}, ownerInternalId={}",
+                        roomId, senderTgId, ownerInternalId));
     }
 
     /**
@@ -148,13 +149,13 @@ public class RoomJoinService {
      *
      * <p>Removes the request without adding the requester to the room.
      *
-     * @param ownerTgId  Telegram ID of the room owner
+     * @param ownerInternalId  Telegram ID of the room owner
      * @param roomId     UUID of the room
      * @param senderTgId Telegram ID of the user to reject
      * @return Mono completing on success; errors for NOT_OWNER / ROOM_NOT_FOUND / REQUEST_NOT_FOUND
      */
-    public Mono<Void> rejectJoin(Long ownerTgId, String roomId, Long senderTgId) {
-        return loadRoomAsOwner(ownerTgId, roomId)
+    public Mono<Void> rejectJoin(Long ownerInternalId, String roomId, Long senderTgId) {
+        return loadRoomAsOwner(ownerInternalId, roomId)
                 .then(joinRequestRepository.exists(roomId, senderTgId))
                 .flatMap(exists -> {
                     if (!exists) {
@@ -162,8 +163,8 @@ public class RoomJoinService {
                     }
                     return joinRequestRepository.remove(roomId, senderTgId);
                 })
-                .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderTgId={}, ownerTgId={}",
-                        roomId, senderTgId, ownerTgId));
+                .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderTgId={}, ownerInternalId={}",
+                        roomId, senderTgId, ownerInternalId));
     }
 
     // -------------------------------------------------------------------------
@@ -197,21 +198,21 @@ public class RoomJoinService {
                             .build();
                     return joinRequestRepository.save(request)
                             .thenReturn((JoinResult) new JoinResult.Pending(request, room.getOwnerTgId()))
-                            .doOnSuccess(r -> LOG.info("Join request created: roomId={}, senderTgId={}, ownerTgId={}",
+                            .doOnSuccess(r -> LOG.info("Join request created: roomId={}, senderTgId={}, ownerInternalId={}",
                                     room.getId(), senderTgId, room.getOwnerTgId()));
                 });
     }
 
     /**
-     * Load a room and verify that {@code ownerTgId} is its owner.
+     * Load a room and verify that {@code ownerInternalId} is its owner.
      *
      * @return Mono with the {@link Room}, or error signals for ROOM_NOT_FOUND / NOT_OWNER
      */
-    private Mono<Room> loadRoomAsOwner(Long ownerTgId, String roomId) {
+    private Mono<Room> loadRoomAsOwner(Long ownerInternalId, String roomId) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
-                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                    if (!room.getOwnerTgId().equals(ownerInternalId)) {
                         return Mono.error(new SecurityException("NOT_OWNER"));
                     }
                     return Mono.just(room);

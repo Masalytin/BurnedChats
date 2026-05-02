@@ -2,6 +2,8 @@ package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.model.TelegramUser;
+import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,7 @@ class AuthenticationServiceTest {
                 .authDate(Instant.now())
                 .user(TelegramUser.builder().id(99L).firstName("T").username("tu").build())
                 .build();
-        UnifiedUser user = UnifiedUser.fromTelegram(init);
+        UnifiedUser user = UnifiedUser.fromTelegram(init, InternalIds.forTelegramId(init.getUserId()));
 
         when(unmatched.supports(any())).thenReturn(false);
         when(telegramLike.supports(any())).thenReturn(true);

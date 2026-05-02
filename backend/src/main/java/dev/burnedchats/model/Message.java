@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import dev.burnedchats.util.InternalIds;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -46,11 +47,13 @@ public class Message implements Serializable {
      * Telegram user ID of the sender.
      */
     private Long senderId;
+    private String senderInternalId;
 
     /**
      * Telegram user ID of the recipient.
      */
     private Long recipientId;
+    private String recipientInternalId;
 
     /**
      * The encrypted message content (Base64-encoded ciphertext).
@@ -132,7 +135,9 @@ public class Message implements Serializable {
                 .messageId(messageId)
                 .sessionId(sessionId)
                 .senderId(senderId)
+                .senderInternalId(senderId != null ? InternalIds.forTelegramId(senderId) : null)
                 .recipientId(recipientId)
+                .recipientInternalId(recipientId != null ? InternalIds.forTelegramId(recipientId) : null)
                 .encryptedContent(encryptedContent)
                 .iv(iv)
                 .clientTimestamp(clientTimestamp)
@@ -168,7 +173,9 @@ public class Message implements Serializable {
                 .messageId(messageId)
                 .sessionId(sessionId)
                 .senderId(senderId)
+                .senderInternalId(senderId != null ? InternalIds.forTelegramId(senderId) : null)
                 .recipientId(recipientId)
+                .recipientInternalId(recipientId != null ? InternalIds.forTelegramId(recipientId) : null)
                 .encryptedContent(encryptedContent)
                 .iv(iv)
                 .clientTimestamp(clientTimestamp)

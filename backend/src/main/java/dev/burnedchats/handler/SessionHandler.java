@@ -29,6 +29,7 @@ import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
+import dev.burnedchats.util.InternalIds;
 import dev.burnedchats.util.SecretAnswerHasher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -300,8 +301,10 @@ public class SessionHandler {
             String secretQuestion, String secretExpectedAnswer) {
         return Session.builder()
                 .id(sessionId)
-                .initiatorId(initiatorId)
-                .responderId(recipientId)
+                .initiatorInternalId(InternalIds.forTelegramId(initiatorId))
+                .initiatorTelegramId(initiatorId)
+                .responderInternalId(InternalIds.forTelegramId(recipientId))
+                .responderTelegramId(recipientId)
                 .status(SessionStatus.PENDING)
                 .createdAt(now)
                 .lastActivityAt(now)

@@ -21,12 +21,14 @@
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  session:{sessionId}          → Hash    │ TTL: 24h (конфиг)     │
-│  request:{recipientTgId}      → List    │ TTL: 5 minutes        │
-│  messages:{tgId}:{sessionId}  → List    │ TTL: 24h (конфиг)     │
-│  messages:count:{tgId}        → String  │ счётчик pending (DM)  │
-│  online:{tgId}                → String  │ TTL: 30 seconds       │
-│  user:{tgId}                  → Hash    │ TTL: 7 days           │
-│  rate:{type}:{tgId}           → String  │ TTL: varies           │
+│  request:{recipientInternalId}→ List    │ TTL: 5 minutes        │
+│  messages:{internalId}:{sessionId} → List │ TTL: 24h (конфиг)   │
+│  messages:count:{internalId}  → String  │ счётчик pending (DM)  │
+│  online:{internalId}          → String  │ TTL: 30 seconds       │
+│  user:{internalId}            → Hash    │ TTL: 90 days          │
+│  auth_tg:{telegramId}         → String  │ TTL: 90 days          │
+│  auth_wallet:{walletAddress}  → String  │ TTL: 90 days          │
+│  rate:{type}:{internalId}     → String  │ TTL: varies           │
 │  blocked:{tgId}               → Set     │ No TTL                │
 │  file_meta:{fileId}           → Hash    │ TTL: 24h (Phase 4)    │
 │  file_context:{contextId}     → Set     │ fileIds, TTL: 24h     │
@@ -77,14 +79,14 @@ EXPIRE session:abc123 3600
 
 | Ключ | Тип | Описание |
 |------|-----|----------|
-| `messages:{recipientTgId}:{sessionId}` | List | JSON сериализованных `Message` (E2EE blob), порядок FIFO |
-| `messages:count:{recipientTgId}` | String | Суммарный счётчик не доставленных сообщений по всем сессиям пользователя |
+| `messages:{recipientInternalId}:{sessionId}` | List | JSON сериализованных `Message` (E2EE blob), порядок FIFO |
+| `messages:count:{recipientInternalId}` | String | Суммарный счётчик не доставленных сообщений по всем сессиям пользователя |
 
 **TTL и cap:** задаются в `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Значения не должны превышать TTL метаданных сессии (`session.active.ttl`). При переполнении список обрезается с головы (старые сообщения отбрасываются); сервер ведёт метрики Micrometer `burnedchats.offline_queue.*` (без идентификаторов пользователей в тегах).
 
 ---
 
-### `request:{recipientTgId}`
+### `request:{recipientInternalId}`
 
 Очередь входящих запросов на чат.
 
@@ -106,46 +108,58 @@ EXPIRE request:444555666 300
 
 ---
 
-### `online:{tgId}`
+### `online:{internalId}`
 
 Статус онлайн (heartbeat).
 
 ```redis
-SET online:111222333 "1704067200000"
-EXPIRE online:111222333 30
+SET online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 "1704067200000"
+EXPIRE online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 30
 ```
 
 Клиент отправляет heartbeat каждые 20 секунд, TTL 30 секунд.
 
 ---
 
-### `user:{tgId}`
+### `user:{internalId}`
 
 Кеш информации о пользователе.
 
 ```redis
-HSET user:111222333
-  username      "alice"
-  firstName     "Alice"
-  lastName      "Smith"
-  photoUrl      "https://..."
-  lastSeen      "1704067200000"
-  registered    "1704000000000"
+HSET user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
+  internalId    "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
+  authType      "TELEGRAM"
+  displayName   "Alice"
+  telegramId    "111222333"
+  walletAddress ""
+  avatarUrl     "https://..."
+  createdAt     "1704000000000"
 
-EXPIRE user:111222333 604800
+EXPIRE user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 7776000
 ```
 
-**TTL:** 7 дней (обновляется при каждом входе)
+**TTL:** 90 дней (обновляется при каждом входе)
+
+### `auth_tg:{telegramId}` / `auth_wallet:{walletAddress}`
+
+Маппинги внешней аутентификации на единый `internalId`:
+
+```redis
+SET auth_tg:111222333 "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
+SET auth_wallet:EQ... "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
+EXPIRE auth_tg:111222333 7776000
+EXPIRE auth_wallet:EQ... 7776000
+```
 
 ---
 
-### `rate:{type}:{tgId}`
+### `rate:{type}:{internalId}`
 
 Rate limiting counters.
 
 ```redis
-INCR rate:message:111222333
-EXPIRE rate:message:111222333 60
+INCR rate:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
+EXPIRE rate:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 ```
 
 | Type | TTL | Max |
@@ -178,6 +192,7 @@ SADD blocked:111222333 "444555666" "777888999"
 
 ```redis
 HSET room:uuid-room-1
+  ownerInternalId "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
   ownerTgId       "111222333"
   salt            "base64..."     # пустая строка, если комната без пароля (BY_REQUEST)
   passwordProofHash "base64..."   # пустая строка, если комната без пароля
@@ -189,7 +204,8 @@ EXPIRE room:uuid-room-1 2592000
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `ownerTgId` | string | Telegram ID владельца |
+| `ownerInternalId` | string | internalId владельца |
+| `ownerTgId` | string | Telegram ID владельца (compat для текущих DTO) |
 | `salt` | string | Salt для KDF (Base64). Пустая строка, если комната без пароля (BY_REQUEST) |
 | `passwordProofHash` | string | Хеш proof. Пустая строка, если комната без пароля |
 | `joinMode` | enum | `by_password` \| `by_request` |
@@ -199,10 +215,10 @@ EXPIRE room:uuid-room-1 2592000
 
 ### `room_members:{roomId}`
 
-Участники комнаты (Set Telegram ID).
+Участники комнаты (Set internalId).
 
 ```redis
-SADD room_members:uuid-room-1 "111222333" "444555666"
+SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 ```
 
 Удаляется при BURN_ROOM.

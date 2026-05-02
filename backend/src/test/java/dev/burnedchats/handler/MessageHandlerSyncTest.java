@@ -16,6 +16,7 @@ import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
+import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -93,8 +94,10 @@ class MessageHandlerSyncTest {
     private Session offlineSyncSession() {
         return Session.builder()
                 .id(SESSION_ID)
-                .initiatorId(USER_A)
-                .responderId(USER_B)
+                .initiatorInternalId(InternalIds.forTelegramId(USER_A))
+                .initiatorTelegramId(USER_A)
+                .responderInternalId(InternalIds.forTelegramId(USER_B))
+                .responderTelegramId(USER_B)
                 .status(SessionStatus.ACTIVE)
                 .build();
     }
@@ -142,8 +145,10 @@ class MessageHandlerSyncTest {
 
         Session session = Session.builder()
                 .id(SESSION_ID)
-                .initiatorId(USER_A)
-                .responderId(USER_B)
+                .initiatorInternalId(InternalIds.forTelegramId(USER_A))
+                .initiatorTelegramId(USER_A)
+                .responderInternalId(InternalIds.forTelegramId(USER_B))
+                .responderTelegramId(USER_B)
                 .status(SessionStatus.ACTIVE)
                 .build();
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));

@@ -50,6 +50,7 @@ import java.util.Optional;
  * @see Message
  */
 @Repository
+@SuppressWarnings({"checkstyle:OverloadMethodsDeclarationOrder", "checkstyle:EmptyLineSeparator"})
 public class MessageRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessageRepository.class);
@@ -90,8 +91,11 @@ public class MessageRepository {
     public Mono<Boolean> queueMessage(Message message) {
         int maxList = messagesProperties.getOfflineQueue().getMaxSizePerSession();
         Duration listTtl = messagesProperties.getOfflineQueue().getTtl();
-        String key = keyFor(message.getRecipientId(), message.getSessionId());
-        String countKey = countKeyFor(message.getRecipientId());
+        String recipientInternalId = message.getRecipientInternalId() != null
+                ? message.getRecipientInternalId()
+                : String.valueOf(message.getRecipientId());
+        String key = keyFor(recipientInternalId, message.getSessionId());
+        String countKey = countKeyFor(recipientInternalId);
 
         return serializeMessage(message)
                 .flatMap(json -> {
@@ -150,7 +154,7 @@ public class MessageRepository {
      * @param sessionId   the session ID
      * @return flux of pending messages
      */
-    public Flux<Message> getPendingMessages(Long recipientId, String sessionId) {
+    public Flux<Message> getPendingMessages(String recipientId, String sessionId) {
         String key = keyFor(recipientId, sessionId);
 
         return redisTemplate.opsForList()
@@ -166,7 +170,7 @@ public class MessageRepository {
      * @param recipientId the recipient's Telegram user ID
      * @return flux of pending messages
      */
-    public Flux<Message> getAllPendingMessages(Long recipientId) {
+    public Flux<Message> getAllPendingMessages(String recipientId) {
         String pattern = KEY_PREFIX + recipientId + ":*";
 
         return redisTemplate.keys(pattern)
@@ -190,7 +194,7 @@ public class MessageRepository {
      * @param userId the recipient's Telegram user ID
      * @return flux of session IDs (distinct), empty if no pending messages
      */
-    public Flux<String> findSessionsWithPendingMessages(Long userId) {
+    public Flux<String> findSessionsWithPendingMessages(String userId) {
         String match = KEY_PREFIX + userId + ":*";
         String keyPrefix = KEY_PREFIX + userId + ":";
 
@@ -215,7 +219,7 @@ public class MessageRepository {
      * @param sessionId   the session ID
      * @return number of messages deleted
      */
-    public Mono<Long> deleteMessages(Long recipientId, String sessionId) {
+    public Mono<Long> deleteMessages(String recipientId, String sessionId) {
         String key = keyFor(recipientId, sessionId);
         String countKey = countKeyFor(recipientId);
         offlineQueueMetrics.removeTrackedListKey(key);
@@ -245,8 +249,9 @@ public class MessageRepository {
      * @param participantIds the participant user IDs
      * @return total number of messages deleted
      */
-    public Mono<Long> deleteAllForSession(String sessionId, List<Long> participantIds) {
+    public Mono<Long> deleteAllForSession(String sessionId, List<?> participantIds) {
         return Flux.fromIterable(participantIds)
+                .map(this::toInternalId)
                 .flatMap(userId -> deleteMessages(userId, sessionId)
                         .flatMap(dmCount -> deleteEdits(userId, sessionId)
                                 .defaultIfEmpty(0L)
@@ -258,6 +263,7 @@ public class MessageRepository {
                                 .map(idxDeleted -> total + metaDeleted + idxDeleted)))
                 .doOnSuccess(count -> LOG.debug("Deleted {} total keys for session {}", count, sessionId));
     }
+
 
     /**
      * Remember who sent a DM message and when, for edit validation after the message
@@ -332,7 +338,7 @@ public class MessageRepository {
      */
     @SuppressWarnings("checkstyle:BooleanExpressionComplexity")
     public Mono<Boolean> updateMessageInQueue(
-            Long recipientId,
+            String recipientId,
             String sessionId,
             String messageId,
             Long senderId,
@@ -387,10 +393,28 @@ public class MessageRepository {
                 });
     }
 
+    public Mono<Boolean> updateMessageInQueue(
+            Long recipientId,
+            String sessionId,
+            String messageId,
+            Long senderId,
+            String newEncryptedContent,
+            String newIv,
+            Instant editedAt) {
+        return updateMessageInQueue(
+                String.valueOf(recipientId),
+                sessionId,
+                messageId,
+                senderId,
+                newEncryptedContent,
+                newIv,
+                editedAt);
+    }
+
     /**
      * Queue an edit for later delivery (recipient was offline and message not in main list).
      */
-    public Mono<Boolean> queueEdit(Long recipientId, String sessionId, MessageEdit edit) {
+    public Mono<Boolean> queueEdit(String recipientId, String sessionId, MessageEdit edit) {
         int maxList = messagesProperties.getMessageEdits().getMaxSize();
         Duration listTtl = messagesProperties.getMessageEdits().getTtl();
         String key = editsKeyFor(recipientId, sessionId);
@@ -429,7 +453,7 @@ public class MessageRepository {
     /**
      * Drain pending tombstone edits for a session.
      */
-    public Flux<MessageEdit> getPendingEdits(Long recipientId, String sessionId) {
+    public Flux<MessageEdit> getPendingEdits(String recipientId, String sessionId) {
         String key = editsKeyFor(recipientId, sessionId);
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
@@ -439,7 +463,7 @@ public class MessageRepository {
     /**
      * Delete all pending tombstone edits after delivery.
      */
-    public Mono<Long> deleteEdits(Long recipientId, String sessionId) {
+    public Mono<Long> deleteEdits(String recipientId, String sessionId) {
         String key = editsKeyFor(recipientId, sessionId);
         return redisTemplate.delete(key);
     }
@@ -447,7 +471,7 @@ public class MessageRepository {
     /**
      * Find session IDs that have at least one pending tombstone edit for the user.
      */
-    public Flux<String> findSessionsWithPendingEdits(Long userId) {
+    public Flux<String> findSessionsWithPendingEdits(String userId) {
         String match = EDIT_QUEUE_PREFIX + userId + ":*";
         String keyPrefix = EDIT_QUEUE_PREFIX + userId + ":";
         ScanOptions options = ScanOptions.scanOptions().match(match).count(100).build();
@@ -498,7 +522,7 @@ public class MessageRepository {
     /**
      * Remove one message from the recipient's offline queue; returns the removed payload if any.
      */
-    public Mono<Optional<Message>> removeMessageFromQueue(Long recipientId, String sessionId, String messageId) {
+    public Mono<Optional<Message>> removeMessageFromQueue(String recipientId, String sessionId, String messageId) {
         String key = keyFor(recipientId, sessionId);
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
@@ -521,7 +545,7 @@ public class MessageRepository {
                 });
     }
 
-    private Mono<Void> updateCountAfterRemove(Long recipientId, String queueKey, long newSize) {
+    private Mono<Void> updateCountAfterRemove(String recipientId, String queueKey, long newSize) {
         String countKey = countKeyFor(recipientId);
         if (newSize <= 0) {
             offlineQueueMetrics.removeTrackedListKey(queueKey);
@@ -535,7 +559,7 @@ public class MessageRepository {
         return redisTemplate.opsForValue().decrement(countKey).then();
     }
 
-    public Mono<Boolean> queueDeletion(Long recipientId, String sessionId, MessageDeletion deletion) {
+    public Mono<Boolean> queueDeletion(String recipientId, String sessionId, MessageDeletion deletion) {
         int maxList = messagesProperties.getMessageDeletions().getMaxSize();
         Duration listTtl = messagesProperties.getMessageDeletions().getTtl();
         String key = deletionsKeyFor(recipientId, sessionId);
@@ -564,19 +588,19 @@ public class MessageRepository {
                 });
     }
 
-    public Flux<MessageDeletion> getPendingDeletions(Long recipientId, String sessionId) {
+    public Flux<MessageDeletion> getPendingDeletions(String recipientId, String sessionId) {
         String key = deletionsKeyFor(recipientId, sessionId);
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
                 .flatMap(this::deserializeMessageDeletion);
     }
 
-    public Mono<Long> deleteDeletions(Long recipientId, String sessionId) {
+    public Mono<Long> deleteDeletions(String recipientId, String sessionId) {
         String key = deletionsKeyFor(recipientId, sessionId);
         return redisTemplate.delete(key);
     }
 
-    public Flux<String> findSessionsWithPendingDeletions(Long userId) {
+    public Flux<String> findSessionsWithPendingDeletions(String userId) {
         String match = DELETION_QUEUE_PREFIX + userId + ":*";
         String keyPrefix = DELETION_QUEUE_PREFIX + userId + ":";
         ScanOptions options = ScanOptions.scanOptions().match(match).count(100).build();
@@ -585,11 +609,71 @@ public class MessageRepository {
                 .distinct();
     }
 
+    public Flux<Message> getPendingMessages(Long recipientId, String sessionId) {
+        return getPendingMessages(String.valueOf(recipientId), sessionId);
+    }
+
+    public Flux<String> findSessionsWithPendingMessages(Long userId) {
+        return findSessionsWithPendingMessages(String.valueOf(userId));
+    }
+
+    public Mono<Long> deleteMessages(Long recipientId, String sessionId) {
+        return deleteMessages(String.valueOf(recipientId), sessionId);
+    }
+
+    public Mono<Boolean> queueEdit(Long recipientId, String sessionId, MessageEdit edit) {
+        return queueEdit(String.valueOf(recipientId), sessionId, edit);
+    }
+
+    public Flux<MessageEdit> getPendingEdits(Long recipientId, String sessionId) {
+        return getPendingEdits(String.valueOf(recipientId), sessionId);
+    }
+
+    public Mono<Long> deleteEdits(Long recipientId, String sessionId) {
+        return deleteEdits(String.valueOf(recipientId), sessionId);
+    }
+
+    public Flux<String> findSessionsWithPendingEdits(Long userId) {
+        return findSessionsWithPendingEdits(String.valueOf(userId));
+    }
+
+    public Mono<Optional<Message>> removeMessageFromQueue(Long recipientId, String sessionId, String messageId) {
+        return removeMessageFromQueue(String.valueOf(recipientId), sessionId, messageId);
+    }
+
+    public Mono<Boolean> queueDeletion(Long recipientId, String sessionId, MessageDeletion deletion) {
+        return queueDeletion(String.valueOf(recipientId), sessionId, deletion);
+    }
+
+    public Flux<MessageDeletion> getPendingDeletions(Long recipientId, String sessionId) {
+        return getPendingDeletions(String.valueOf(recipientId), sessionId);
+    }
+
+    public Mono<Long> deleteDeletions(Long recipientId, String sessionId) {
+        return deleteDeletions(String.valueOf(recipientId), sessionId);
+    }
+
+    public Flux<String> findSessionsWithPendingDeletions(Long userId) {
+        return findSessionsWithPendingDeletions(String.valueOf(userId));
+    }
+
+    public Flux<Message> getAllPendingMessages(Long recipientId) {
+        return getAllPendingMessages(String.valueOf(recipientId));
+    }
+
+    public Mono<Long> getPendingCount(Long recipientId) {
+        return getPendingCount(String.valueOf(recipientId));
+    }
+
+    public Mono<Boolean> messageExists(Long recipientId, String sessionId, String messageId) {
+        return messageExists(String.valueOf(recipientId), sessionId, messageId);
+    }
+
     private String senderIndexKey(String sessionId) {
         return SENDER_INDEX_PREFIX + sessionId;
     }
 
-    private String deletionsKeyFor(Long recipientId, String sessionId) {
+    private String deletionsKeyFor(String recipientId, String sessionId) {
         return DELETION_QUEUE_PREFIX + recipientId + ":" + sessionId;
     }
 
@@ -611,7 +695,7 @@ public class MessageRepository {
         return EDITABLE_META_PREFIX + sessionId + ":" + messageId;
     }
 
-    private String editsKeyFor(Long recipientId, String sessionId) {
+    private String editsKeyFor(String recipientId, String sessionId) {
         return EDIT_QUEUE_PREFIX + recipientId + ":" + sessionId;
     }
 
@@ -649,7 +733,7 @@ public class MessageRepository {
      * @param recipientId the recipient's Telegram user ID
      * @return count of pending messages
      */
-    public Mono<Long> getPendingCount(Long recipientId) {
+    public Mono<Long> getPendingCount(String recipientId) {
         String countKey = countKeyFor(recipientId);
 
         return redisTemplate.opsForValue()
@@ -669,16 +753,23 @@ public class MessageRepository {
      * @param messageId   the message ID to check
      * @return true if message already exists
      */
-    public Mono<Boolean> messageExists(Long recipientId, String sessionId, String messageId) {
+    public Mono<Boolean> messageExists(String recipientId, String sessionId, String messageId) {
         return getPendingMessages(recipientId, sessionId)
                 .any(msg -> messageId.equals(msg.getMessageId()));
     }
 
-    private String keyFor(Long recipientId, String sessionId) {
+    private String keyFor(String recipientId, String sessionId) {
         return KEY_PREFIX + recipientId + ":" + sessionId;
     }
 
-    private String countKeyFor(Long recipientId) {
+    private String toInternalId(Object value) {
+        if (value instanceof Long l) {
+            return String.valueOf(l);
+        }
+        return String.valueOf(value);
+    }
+
+    private String countKeyFor(String recipientId) {
         return COUNT_PREFIX + recipientId;
     }
 

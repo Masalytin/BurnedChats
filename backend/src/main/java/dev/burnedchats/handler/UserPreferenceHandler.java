@@ -38,7 +38,7 @@ public class UserPreferenceHandler {
     @MessageMapping("/user.setLanguage")
     public void setLanguage(@Payload SetLanguageRequest request, Principal principal) {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        String userId = telegramPrincipal.getInternalId();
 
         languagePreferenceRepository.save(userId, request.getLanguageCode())
                 .subscribe(

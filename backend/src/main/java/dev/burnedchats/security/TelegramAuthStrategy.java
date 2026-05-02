@@ -1,7 +1,9 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
+import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -47,8 +49,10 @@ public class TelegramAuthStrategy implements AuthenticationStrategy {
             return Mono.error(new AuthenticationException("Credentials not supported by Telegram strategy"));
         }
         return Mono
-                .fromCallable(() ->
-                        UnifiedUser.fromTelegram(telegramAuthService.validateInitData(credentials.initData())))
+                .fromCallable(() -> {
+                    TelegramInitData initData = telegramAuthService.validateInitData(credentials.initData());
+                    return UnifiedUser.fromTelegram(initData, InternalIds.forTelegramId(initData.getUserId()));
+                })
                 .subscribeOn(Schedulers.boundedElastic());
     }
 

@@ -3,6 +3,7 @@ package dev.burnedchats.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.config.TelegramProperties;
 import dev.burnedchats.model.enums.AuthType;
+import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -142,7 +143,7 @@ class TelegramAuthStrategyTest {
             StepVerifier.create(strategy.authenticate(AuthCredentials.telegram(initData)))
                     .assertNext(user -> {
                         assertEquals(AuthType.TELEGRAM, user.authType());
-                        assertEquals("42", user.subjectId());
+                        assertEquals(InternalIds.forTelegramId(42L), user.internalId());
                         assertEquals("Sam", user.displayName());
                     })
                     .verifyComplete();

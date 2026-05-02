@@ -15,7 +15,7 @@ import java.time.Duration;
 /**
  * Redis repository for pending chat requests.
  *
- * <p>Stores chat requests using Redis List with key pattern: {@code request:{recipientTgId}}
+ * <p>Stores chat requests using Redis List with key pattern: {@code request:{recipientInternalId}}
  *
  * <p>Each recipient has a list of pending requests from different senders.
  * Requests are stored as JSON strings and automatically expire after 5 minutes.
@@ -32,6 +32,7 @@ import java.time.Duration;
  * @see ChatRequest
  */
 @Repository
+@SuppressWarnings("checkstyle:JavadocMethod")
 public class RequestRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(RequestRepository.class);
@@ -55,7 +56,7 @@ public class RequestRepository {
      * @return position in list
      */
     public Mono<Long> save(ChatRequest request) {
-        String key = keyFor(request.getRecipientTgId());
+        String key = keyFor(String.valueOf(request.getRecipientTgId()));
 
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(request))
                 .flatMap(json -> redisTemplate.opsForList().leftPush(key, json))
@@ -74,8 +75,8 @@ public class RequestRepository {
      * @param recipientTgId recipient's Telegram ID
      * @return flux of pending requests
      */
-    public Flux<ChatRequest> findByRecipient(Long recipientTgId) {
-        String key = keyFor(recipientTgId);
+    public Flux<ChatRequest> findByRecipient(String recipientInternalId) {
+        String key = keyFor(recipientInternalId);
 
         return redisTemplate.opsForList()
                 .range(key, 0, -1)
@@ -87,7 +88,11 @@ public class RequestRepository {
                     return reactor.core.publisher.Mono.empty();
                 })
                 .filter(request -> !request.isExpired())
-                .doOnComplete(() -> LOG.debug("Retrieved requests for recipient: {}", recipientTgId));
+                .doOnComplete(() -> LOG.debug("Retrieved requests for recipient: {}", recipientInternalId));
+    }
+
+    public Flux<ChatRequest> findByRecipient(Long recipientTgId) {
+        return findByRecipient(String.valueOf(recipientTgId));
     }
 
     /**
@@ -97,8 +102,8 @@ public class RequestRepository {
      * @param sessionId session UUID
      * @return the request if found
      */
-    public Mono<ChatRequest> findBySessionId(Long recipientTgId, String sessionId) {
-        return findByRecipient(recipientTgId)
+    public Mono<ChatRequest> findBySessionId(String recipientInternalId, String sessionId) {
+        return findByRecipient(recipientInternalId)
                 .filter(request -> sessionId.equals(request.getSessionId()))
                 .next()
                 .doOnSuccess(request -> {
@@ -108,6 +113,10 @@ public class RequestRepository {
                         LOG.debug("Request not found for session: {}", sessionId);
                     }
                 });
+    }
+
+    public Mono<ChatRequest> findBySessionId(Long recipientTgId, String sessionId) {
+        return findBySessionId(String.valueOf(recipientTgId), sessionId);
     }
 
     /**
@@ -138,10 +147,10 @@ public class RequestRepository {
      * @param sessionId session UUID to remove
      * @return true if removed
      */
-    public Mono<Boolean> delete(Long recipientTgId, String sessionId) {
-        String key = keyFor(recipientTgId);
+    public Mono<Boolean> delete(String recipientInternalId, String sessionId) {
+        String key = keyFor(recipientInternalId);
 
-        return findBySessionId(recipientTgId, sessionId)
+        return findBySessionId(recipientInternalId, sessionId)
                 .flatMap(request -> {
                     try {
                         String json = objectMapper.writeValueAsString(request);
@@ -156,18 +165,26 @@ public class RequestRepository {
                 .doOnSuccess(removed -> LOG.debug("Deleted request for session {}: {}", sessionId, removed));
     }
 
+    public Mono<Boolean> delete(Long recipientTgId, String sessionId) {
+        return delete(String.valueOf(recipientTgId), sessionId);
+    }
+
     /**
      * Delete all requests for a recipient.
      *
      * @param recipientTgId recipient's Telegram ID
      * @return number of keys deleted
      */
-    public Mono<Long> deleteAll(Long recipientTgId) {
-        String key = keyFor(recipientTgId);
+    public Mono<Long> deleteAll(String recipientInternalId) {
+        String key = keyFor(recipientInternalId);
 
         return redisTemplate.delete(key)
                 .doOnSuccess(count -> LOG.debug("Deleted all requests for recipient {}: {} keys",
-                        recipientTgId, count));
+                        recipientInternalId, count));
+    }
+
+    public Mono<Long> deleteAll(Long recipientTgId) {
+        return deleteAll(String.valueOf(recipientTgId));
     }
 
     /**
@@ -176,10 +193,14 @@ public class RequestRepository {
      * @param recipientTgId recipient's Telegram ID
      * @return number of pending requests
      */
-    public Mono<Long> countByRecipient(Long recipientTgId) {
-        String key = keyFor(recipientTgId);
+    public Mono<Long> countByRecipient(String recipientInternalId) {
+        String key = keyFor(recipientInternalId);
 
         return redisTemplate.opsForList().size(key);
+    }
+
+    public Mono<Long> countByRecipient(Long recipientTgId) {
+        return countByRecipient(String.valueOf(recipientTgId));
     }
 
     /**
@@ -189,10 +210,14 @@ public class RequestRepository {
      * @param recipientTgId recipient's Telegram ID
      * @return true if request exists
      */
-    public Mono<Boolean> existsBetween(Long senderTgId, Long recipientTgId) {
-        return findByRecipient(recipientTgId)
+    public Mono<Boolean> existsBetween(Long senderTgId, String recipientInternalId) {
+        return findByRecipient(recipientInternalId)
                 .filter(request -> senderTgId.equals(request.getSenderTgId()))
                 .hasElements();
+    }
+
+    public Mono<Boolean> existsBetween(Long senderTgId, Long recipientTgId) {
+        return existsBetween(senderTgId, String.valueOf(recipientTgId));
     }
 
     /**
@@ -201,12 +226,16 @@ public class RequestRepository {
      * @param recipientTgId recipient's Telegram ID
      * @return true if TTL was set
      */
-    public Mono<Boolean> refreshTtl(Long recipientTgId) {
-        return redisTemplate.expire(keyFor(recipientTgId), DEFAULT_TTL);
+    public Mono<Boolean> refreshTtl(String recipientInternalId) {
+        return redisTemplate.expire(keyFor(recipientInternalId), DEFAULT_TTL);
     }
 
-    private String keyFor(Long recipientTgId) {
-        return KEY_PREFIX + recipientTgId;
+    public Mono<Boolean> refreshTtl(Long recipientTgId) {
+        return refreshTtl(String.valueOf(recipientTgId));
+    }
+
+    private String keyFor(String recipientInternalId) {
+        return KEY_PREFIX + recipientInternalId;
     }
 
     private ChatRequest parseRequest(String json) {

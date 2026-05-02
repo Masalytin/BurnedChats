@@ -3,6 +3,7 @@ package dev.burnedchats.repository;
 import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
+import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -69,8 +70,10 @@ class SessionRepositoryTest {
     private Session createTestSession() {
         return Session.builder()
                 .id(TEST_SESSION_ID)
-                .initiatorId(INITIATOR_ID)
-                .responderId(RESPONDER_ID)
+                .initiatorInternalId(InternalIds.forTelegramId(INITIATOR_ID))
+                .initiatorTelegramId(INITIATOR_ID)
+                .responderInternalId(InternalIds.forTelegramId(RESPONDER_ID))
+                .responderTelegramId(RESPONDER_ID)
                 .status(SessionStatus.PENDING)
                 .createdAt(Instant.now())
                 .lastActivityAt(Instant.now())
@@ -80,8 +83,8 @@ class SessionRepositoryTest {
     private Map<Object, Object> sessionToHashMap(Session session) {
         Map<Object, Object> map = new HashMap<>();
         map.put("id", session.getId());
-        map.put("initiatorId", session.getInitiatorId().toString());
-        map.put("responderId", session.getResponderId().toString());
+        map.put("initiatorId", session.getInitiatorTelegramId().toString());
+        map.put("responderId", session.getResponderTelegramId().toString());
         map.put("status", session.getStatus().name());
         map.put("createdAt", String.valueOf(session.getCreatedAt().toEpochMilli()));
         map.put("lastActivityAt", String.valueOf(session.getLastActivityAt().toEpochMilli()));
@@ -108,8 +111,8 @@ class SessionRepositoryTest {
             StepVerifier.create(sessionRepository.findById(TEST_SESSION_ID))
                     .assertNext(found -> {
                         assertEquals(TEST_SESSION_ID, found.getId());
-                        assertEquals(INITIATOR_ID, found.getInitiatorId());
-                        assertEquals(RESPONDER_ID, found.getResponderId());
+                        assertEquals(InternalIds.forTelegramId(INITIATOR_ID), found.getInitiatorInternalId());
+                        assertEquals(InternalIds.forTelegramId(RESPONDER_ID), found.getResponderInternalId());
                         assertEquals(SessionStatus.PENDING, found.getStatus());
                     })
                     .verifyComplete();
@@ -150,8 +153,8 @@ class SessionRepositoryTest {
             StepVerifier.create(sessionRepository.findById(TEST_SESSION_ID))
                     .assertNext(found -> {
                         assertEquals(TEST_SESSION_ID, found.getId());
-                        assertEquals(INITIATOR_ID, found.getInitiatorId());
-                        assertNull(found.getResponderId());
+                        assertEquals(InternalIds.forTelegramId(INITIATOR_ID), found.getInitiatorInternalId());
+                        assertNull(found.getResponderInternalId());
                         assertTrue(found.isInitiatorVerified());
                         assertFalse(found.isResponderVerified());
                         assertEquals("What is the secret?", found.getSecretQuestion());

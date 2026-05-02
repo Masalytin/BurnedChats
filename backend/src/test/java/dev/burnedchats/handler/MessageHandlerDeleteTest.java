@@ -9,6 +9,7 @@ import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.util.InternalIds;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.telegram.BurnedChatsBot;
@@ -63,8 +64,10 @@ class MessageHandlerDeleteTest {
 
         Session session = Session.builder()
                 .id("s1")
-                .initiatorId(1L)
-                .responderId(2L)
+                .initiatorInternalId(InternalIds.forTelegramId(1L))
+                .initiatorTelegramId(1L)
+                .responderInternalId(InternalIds.forTelegramId(2L))
+                .responderTelegramId(2L)
                 .status(SessionStatus.ACTIVE)
                 .build();
         when(sessionRepository.findById("s1")).thenReturn(Mono.just(session));

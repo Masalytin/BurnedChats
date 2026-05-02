@@ -8,6 +8,7 @@ import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.TelegramAuthService;
 import dev.burnedchats.security.TelegramInitData;
+import dev.burnedchats.util.InternalIds;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.stereotype.Service;
@@ -89,11 +90,12 @@ public class FileService {
             if (tgId == null) {
                 return Mono.error(AuthenticationException.missingField("user.id"));
             }
+            String internalId = InternalIds.forTelegramId(tgId);
 
             String fileId = UUID.randomUUID().toString();
 
-            return fileValidationService.validateUpload(contentLength, contextType, String.valueOf(tgId))
-                    .then(validateMembership(tgId, contextType, contextId))
+            return fileValidationService.validateUpload(contentLength, contextType, internalId)
+                    .then(validateMembership(internalId, contextType, contextId))
                     .then(fileStorageService.save(fileId, data))
                     .then(verifyStoredSizeMatchesContentLength(fileId, contentLength))
                     .then(Mono.defer(() -> {
@@ -135,12 +137,13 @@ public class FileService {
             if (tgId == null) {
                 return Mono.error(AuthenticationException.missingField("user.id"));
             }
+            String internalId = InternalIds.forTelegramId(tgId);
 
             return fileMetadataRepository.findById(fileId)
                     .switchIfEmpty(Mono.error(new BurnedChatsException(
                             "File not found: " + fileId, "FILE_NOT_FOUND")))
                     .flatMap(metadata ->
-                            validateMembership(tgId, metadata.getContextType(), metadata.getContextId())
+                            validateMembership(internalId, metadata.getContextType(), metadata.getContextId())
                                     .thenReturn(metadata))
                     .flatMap(metadata ->
                             fileStorageService.exists(fileId)
@@ -185,13 +188,13 @@ public class FileService {
                 });
     }
 
-    private Mono<Void> validateMembership(Long tgId, String contextType, String contextId) {
+    private Mono<Void> validateMembership(String internalId, String contextType, String contextId) {
         if ("session".equals(contextType)) {
             return sessionRepository.findById(contextId)
                     .switchIfEmpty(Mono.error(new BurnedChatsException(
                             "Session not found: " + contextId, "CONTEXT_NOT_FOUND")))
                     .flatMap(session -> {
-                        if (!session.isParticipant(tgId)) {
+                        if (!session.isParticipant(internalId)) {
                             return Mono.<Void>error(new BurnedChatsException(
                                     "User is not a participant of session: " + contextId,
                                     "ACCESS_DENIED"));
@@ -200,7 +203,7 @@ public class FileService {
                     });
         }
 
-        return roomMembersRepository.isMember(contextId, tgId)
+        return roomMembersRepository.isMember(contextId, internalId)
                 .flatMap(isMember -> {
                     if (!isMember) {
                         return Mono.<Void>error(new BurnedChatsException(

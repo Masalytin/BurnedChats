@@ -1,6 +1,8 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.repository.UserIdentityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
@@ -49,6 +51,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(30);
 
     private final AuthenticationService authenticationService;
+    private final TelegramAuthService telegramAuthService;
+    private final UserIdentityRepository userIdentityRepository;
 
     /**
      * Intercept messages before they are sent to the channel.
@@ -101,10 +105,12 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             UnifiedUser unifiedUser = authenticationService
                     .authenticate(AuthCredentials.telegram(initData))
                     .block(AUTH_TIMEOUT);
-            if (unifiedUser == null || unifiedUser.telegramInitData() == null) {
-                throw new AuthenticationException("Telegram authentication did not yield init context");
+            if (unifiedUser == null || unifiedUser.telegramId() == null) {
+                throw new AuthenticationException("Telegram authentication did not yield telegram id");
             }
-            TelegramPrincipal principal = new TelegramPrincipal(unifiedUser.telegramInitData());
+            userIdentityRepository.save(unifiedUser).block(AUTH_TIMEOUT);
+            TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
+            TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
             accessor.setUser(principal);
 
             LOG.info("STOMP CONNECT authenticated: userId={}, username={}, sessionId={}",
@@ -130,13 +136,15 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     public static class TelegramPrincipal implements Principal {
 
         private final TelegramInitData initData;
+        private final UnifiedUser unifiedUser;
 
         /**
          * Create principal from validated init data.
          *
          * @param initData validated Telegram init data
          */
-        public TelegramPrincipal(TelegramInitData initData) {
+        public TelegramPrincipal(UnifiedUser unifiedUser, TelegramInitData initData) {
+            this.unifiedUser = unifiedUser;
             this.initData = initData;
         }
 
@@ -150,7 +158,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          */
         @Override
         public String getName() {
-            return String.valueOf(initData.getUserId());
+            return unifiedUser.internalId();
         }
 
         /**
@@ -159,7 +167,11 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          * @return user ID
          */
         public Long getUserId() {
-            return initData.getUserId();
+            return unifiedUser.telegramId();
+        }
+
+        public String getInternalId() {
+            return unifiedUser.internalId();
         }
 
         /**

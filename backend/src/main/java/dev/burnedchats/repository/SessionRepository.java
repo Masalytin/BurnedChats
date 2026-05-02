@@ -3,6 +3,7 @@ package dev.burnedchats.repository;
 import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
+import dev.burnedchats.util.InternalIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -137,15 +138,15 @@ public class SessionRepository {
      * @param publicKey Base64-encoded public key
      * @return Mono with the updated session, or empty if user is not a participant
      */
-    public Mono<Session> setPublicKeyAtomic(String sessionId, Long userId, String publicKey) {
+    public Mono<Session> setPublicKeyAtomic(String sessionId, String userId, String publicKey) {
         String key = keyFor(sessionId);
 
         return findById(sessionId)
                 .flatMap(session -> {
                     String field;
-                    if (userId.equals(session.getInitiatorId())) {
+                    if (userId.equals(session.getInitiatorInternalId())) {
                         field = "initiatorPublicKey";
-                    } else if (userId.equals(session.getResponderId())) {
+                    } else if (userId.equals(session.getResponderInternalId())) {
                         field = "responderPublicKey";
                     } else {
                         return Mono.empty(); // Not a participant
@@ -160,6 +161,10 @@ public class SessionRepository {
                             .doOnSuccess(s -> LOG.debug(
                                     "Atomically set {} for session {}", field, sessionId));
                 });
+    }
+
+    public Mono<Session> setPublicKeyAtomic(String sessionId, Long telegramId, String publicKey) {
+        return setPublicKeyAtomic(sessionId, InternalIds.forTelegramId(telegramId), publicKey);
     }
 
     /**
@@ -189,13 +194,13 @@ public class SessionRepository {
      * @param verified whether verified
      * @return true if updated
      */
-    public Mono<Boolean> updateVerification(String sessionId, Long userId, boolean verified) {
+    public Mono<Boolean> updateVerification(String sessionId, String userId, boolean verified) {
         String key = keyFor(sessionId);
 
         // First determine if user is initiator or responder
         return findById(sessionId)
                 .flatMap(session -> {
-                    String field = userId.equals(session.getInitiatorId())
+                    String field = userId.equals(session.getInitiatorInternalId())
                             ? "initiatorVerified"
                             : "responderVerified";
                     return redisTemplate.opsForHash()
@@ -205,6 +210,10 @@ public class SessionRepository {
                                     sessionId, userId, verified));
                 })
                 .defaultIfEmpty(false);
+    }
+
+    public Mono<Boolean> updateVerification(String sessionId, Long telegramId, boolean verified) {
+        return updateVerification(sessionId, InternalIds.forTelegramId(telegramId), verified);
     }
 
     /**
@@ -265,7 +274,7 @@ public class SessionRepository {
      * @param userId Telegram user ID
      * @return active session for user, if any
      */
-    public Mono<Session> findActiveByParticipant(Long userId) {
+    public Mono<Session> findActiveByParticipant(String userId) {
         // For now, this is a simple scan implementation
         // In production, consider maintaining a user->session index
         return redisTemplate.keys(KEY_PREFIX + "*")
@@ -287,6 +296,10 @@ public class SessionRepository {
                 });
     }
 
+    public Mono<Session> findActiveByParticipant(Long telegramId) {
+        return findActiveByParticipant(InternalIds.forTelegramId(telegramId));
+    }
+
     /**
      * Find ALL active sessions for a participant (4.6.1).
      *
@@ -299,7 +312,7 @@ public class SessionRepository {
      * @param userId Telegram user ID
      * @return flux of active sessions for user
      */
-    public Flux<Session> findAllActiveByParticipant(Long userId) {
+    public Flux<Session> findAllActiveByParticipant(String userId) {
         LOG.debug("Finding all active sessions for user: {}", userId);
         
         return redisTemplate.keys(KEY_PREFIX + "*")
@@ -316,15 +329,37 @@ public class SessionRepository {
                 .doOnComplete(() -> LOG.debug("Completed finding active sessions for user: {}", userId));
     }
 
+    public Flux<Session> findAllActiveByParticipant(Long telegramId) {
+        return findAllActiveByParticipant(InternalIds.forTelegramId(telegramId));
+    }
+
     private String keyFor(String sessionId) {
         return KEY_PREFIX + sessionId;
     }
 
     private Session mapToSession(Map<String, String> hash) {
+        Long initiatorTelegramId = parseLongOrNull(hash.get("initiatorTelegramId"));
+        if (initiatorTelegramId == null) {
+            initiatorTelegramId = parseLongOrNull(hash.get("initiatorId"));
+        }
+        Long responderTelegramId = parseLongOrNull(hash.get("responderTelegramId"));
+        if (responderTelegramId == null) {
+            responderTelegramId = parseLongOrNull(hash.get("responderId"));
+        }
+        String initiatorInternalId = hash.get("initiatorInternalId");
+        if ((initiatorInternalId == null || initiatorInternalId.isBlank()) && initiatorTelegramId != null) {
+            initiatorInternalId = InternalIds.forTelegramId(initiatorTelegramId);
+        }
+        String responderInternalId = hash.get("responderInternalId");
+        if ((responderInternalId == null || responderInternalId.isBlank()) && responderTelegramId != null) {
+            responderInternalId = InternalIds.forTelegramId(responderTelegramId);
+        }
         return Session.builder()
                 .id(hash.get("id"))
-                .initiatorId(parseLongOrNull(hash.get("initiatorId")))
-                .responderId(parseLongOrNull(hash.get("responderId")))
+                .initiatorInternalId(initiatorInternalId)
+                .initiatorTelegramId(initiatorTelegramId)
+                .responderInternalId(responderInternalId)
+                .responderTelegramId(responderTelegramId)
                 .status(parseStatus(hash.get("status")))
                 .createdAt(parseInstantOrNow(hash.get("createdAt")))
                 .lastActivityAt(parseInstantOrNow(hash.get("lastActivityAt")))
@@ -342,11 +377,19 @@ public class SessionRepository {
         Map<String, String> map = new HashMap<>();
         map.put("id", session.getId());
 
-        if (session.getInitiatorId() != null) {
-            map.put("initiatorId", session.getInitiatorId().toString());
+        if (session.getInitiatorInternalId() != null) {
+            map.put("initiatorInternalId", session.getInitiatorInternalId());
         }
-        if (session.getResponderId() != null) {
-            map.put("responderId", session.getResponderId().toString());
+        if (session.getInitiatorTelegramId() != null) {
+            map.put("initiatorTelegramId", String.valueOf(session.getInitiatorTelegramId()));
+            map.put("initiatorId", String.valueOf(session.getInitiatorTelegramId()));
+        }
+        if (session.getResponderInternalId() != null) {
+            map.put("responderInternalId", session.getResponderInternalId());
+        }
+        if (session.getResponderTelegramId() != null) {
+            map.put("responderTelegramId", String.valueOf(session.getResponderTelegramId()));
+            map.put("responderId", String.valueOf(session.getResponderTelegramId()));
         }
 
         map.put("status", session.getStatus().name());
@@ -379,6 +422,11 @@ public class SessionRepository {
         return map;
     }
 
+    private Instant parseInstantOrNow(String value) {
+        Instant instant = parseInstantOrNull(value);
+        return instant != null ? instant : Instant.now();
+    }
+
     private Long parseLongOrNull(String value) {
         if (value == null || value.isEmpty()) {
             return null;
@@ -388,11 +436,6 @@ public class SessionRepository {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private Instant parseInstantOrNow(String value) {
-        Instant instant = parseInstantOrNull(value);
-        return instant != null ? instant : Instant.now();
     }
 
     private Instant parseInstantOrNull(String value) {

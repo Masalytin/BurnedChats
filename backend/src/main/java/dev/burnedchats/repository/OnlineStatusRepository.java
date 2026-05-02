@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import dev.burnedchats.util.InternalIds;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +31,7 @@ import java.util.Collection;
  * @see <a href="https://redis.io/docs/manual/keyspace-notifications/">Redis Keyspace Notifications</a>
  */
 @Repository
+@SuppressWarnings("checkstyle:JavadocMethod")
 public class OnlineStatusRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(OnlineStatusRepository.class);
@@ -61,13 +63,17 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return true if status was set
      */
-    public Mono<Boolean> setOnline(Long tgId) {
-        String key = keyFor(tgId);
+    public Mono<Boolean> setOnline(String internalId) {
+        String key = keyFor(internalId);
         String timestamp = String.valueOf(Instant.now().toEpochMilli());
 
         return redisTemplate.opsForValue()
                 .set(key, timestamp, DEFAULT_TTL)
-                .doOnSuccess(result -> LOG.trace("User {} marked online", tgId));
+                .doOnSuccess(result -> LOG.trace("User {} marked online", internalId));
+    }
+
+    public Mono<Boolean> setOnline(Long telegramId) {
+        return setOnline(InternalIds.forTelegramId(telegramId));
     }
 
     /**
@@ -83,11 +89,15 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return number of keys deleted (0 or 1)
      */
-    public Mono<Long> setOffline(Long tgId) {
-        String key = keyFor(tgId);
+    public Mono<Long> setOffline(String internalId) {
+        String key = keyFor(internalId);
 
         return redisTemplate.delete(key)
-                .doOnSuccess(count -> LOG.debug("User {} marked offline", tgId));
+                .doOnSuccess(count -> LOG.debug("User {} marked offline", internalId));
+    }
+
+    public Mono<Long> setOffline(Long telegramId) {
+        return setOffline(InternalIds.forTelegramId(telegramId));
     }
 
     /**
@@ -96,9 +106,13 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return true if online
      */
-    public Mono<Boolean> isOnline(Long tgId) {
-        return redisTemplate.hasKey(keyFor(tgId))
-                .doOnSuccess(online -> LOG.trace("User {} online status: {}", tgId, online));
+    public Mono<Boolean> isOnline(String internalId) {
+        return redisTemplate.hasKey(keyFor(internalId))
+                .doOnSuccess(online -> LOG.trace("User {} online status: {}", internalId, online));
+    }
+
+    public Mono<Boolean> isOnline(Long telegramId) {
+        return isOnline(InternalIds.forTelegramId(telegramId));
     }
 
     /**
@@ -110,15 +124,15 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return last seen instant, or empty if offline
      */
-    public Mono<Instant> getLastSeen(Long tgId) {
-        String key = keyFor(tgId);
+    public Mono<Instant> getLastSeen(String internalId) {
+        String key = keyFor(internalId);
 
         return redisTemplate.opsForValue()
                 .get(key)
                 .map(timestamp -> Instant.ofEpochMilli(Long.parseLong(timestamp)))
                 .doOnSuccess(instant -> {
                     if (instant != null) {
-                        LOG.trace("User {} last seen: {}", tgId, instant);
+                        LOG.trace("User {} last seen: {}", internalId, instant);
                     }
                 });
     }
@@ -129,10 +143,10 @@ public class OnlineStatusRepository {
      * @param tgIds collection of Telegram user IDs
      * @return flux of online user IDs
      */
-    public Flux<Long> getOnlineUsers(Collection<Long> tgIds) {
-        return Flux.fromIterable(tgIds)
+    public Flux<String> getOnlineUsers(Collection<String> internalIds) {
+        return Flux.fromIterable(internalIds)
                 .filterWhen(this::isOnline)
-                .doOnComplete(() -> LOG.debug("Checked online status for {} users", tgIds.size()));
+                .doOnComplete(() -> LOG.debug("Checked online status for {} users", internalIds.size()));
     }
 
     /**
@@ -155,9 +169,9 @@ public class OnlineStatusRepository {
      *
      * @return flux of online user IDs
      */
-    public Flux<Long> getAllOnlineUserIds() {
+    public Flux<String> getAllOnlineUserIds() {
         return redisTemplate.keys(KEY_PREFIX + "*")
-                .map(key -> Long.parseLong(key.substring(KEY_PREFIX.length())))
+                .map(key -> key.substring(KEY_PREFIX.length()))
                 .doOnComplete(() -> LOG.debug("Retrieved all online user IDs"));
     }
 
@@ -169,13 +183,13 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return remaining TTL duration, or empty if not online
      */
-    public Mono<Duration> getRemainingTtl(Long tgId) {
-        String key = keyFor(tgId);
+    public Mono<Duration> getRemainingTtl(String internalId) {
+        String key = keyFor(internalId);
 
         return redisTemplate.getExpire(key)
                 .doOnSuccess(ttl -> {
                     if (ttl != null) {
-                        LOG.trace("User {} TTL remaining: {}", tgId, ttl);
+                        LOG.trace("User {} TTL remaining: {}", internalId, ttl);
                     }
                 });
     }
@@ -188,11 +202,11 @@ public class OnlineStatusRepository {
      * @param tgId Telegram user ID
      * @return true if TTL was extended
      */
-    public Mono<Boolean> extendTtl(Long tgId) {
-        String key = keyFor(tgId);
+    public Mono<Boolean> extendTtl(String internalId) {
+        String key = keyFor(internalId);
 
         return redisTemplate.expire(key, DEFAULT_TTL)
-                .doOnSuccess(result -> LOG.trace("Extended TTL for user {}: {}", tgId, result));
+                .doOnSuccess(result -> LOG.trace("Extended TTL for user {}: {}", internalId, result));
     }
 
     /**
@@ -203,8 +217,8 @@ public class OnlineStatusRepository {
      * @param tgIds collection of Telegram user IDs
      * @return count of users marked online
      */
-    public Mono<Long> setOnlineBatch(Collection<Long> tgIds) {
-        return Flux.fromIterable(tgIds)
+    public Mono<Long> setOnlineBatch(Collection<String> internalIds) {
+        return Flux.fromIterable(internalIds)
                 .flatMap(this::setOnline)
                 .filter(result -> result)
                 .count()
@@ -217,14 +231,14 @@ public class OnlineStatusRepository {
      * @param tgIds collection of Telegram user IDs
      * @return count of keys deleted
      */
-    public Mono<Long> setOfflineBatch(Collection<Long> tgIds) {
-        return Flux.fromIterable(tgIds)
+    public Mono<Long> setOfflineBatch(Collection<String> internalIds) {
+        return Flux.fromIterable(internalIds)
                 .flatMap(this::setOffline)
                 .reduce(0L, Long::sum)
                 .doOnSuccess(count -> LOG.debug("Set {} users offline", count));
     }
 
-    private String keyFor(Long tgId) {
-        return KEY_PREFIX + tgId;
+    private String keyFor(String internalId) {
+        return KEY_PREFIX + internalId;
     }
 }

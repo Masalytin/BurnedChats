@@ -112,7 +112,7 @@ public class RateLimitService {
      * @return Mono<Boolean> true if allowed
      * @throws RateLimitException if rate limit exceeded
      */
-    public Mono<Boolean> checkRateLimit(Long userId, RateLimitType type) {
+    public Mono<Boolean> checkRateLimit(String userId, RateLimitType type) {
         String key = keyFor(userId, type);
 
         return redisTemplate.opsForValue()
@@ -142,6 +142,10 @@ public class RateLimitService {
                 });
     }
 
+    public Mono<Boolean> checkRateLimit(Long userId, RateLimitType type) {
+        return checkRateLimit(String.valueOf(userId), type);
+    }
+
     /**
      * Check rate limit synchronously (blocking).
      *
@@ -151,11 +155,15 @@ public class RateLimitService {
      * @param type   type of rate limit
      * @throws RateLimitException if rate limit exceeded
      */
-    public void checkRateLimitBlocking(Long userId, RateLimitType type) {
+    public void checkRateLimitBlocking(String userId, RateLimitType type) {
         Boolean allowed = checkRateLimit(userId, type).block();
         if (!Boolean.TRUE.equals(allowed)) {
             throw new RateLimitException(type.getWindow());
         }
+    }
+
+    public void checkRateLimitBlocking(Long userId, RateLimitType type) {
+        checkRateLimitBlocking(String.valueOf(userId), type);
     }
 
     /**
@@ -165,7 +173,7 @@ public class RateLimitService {
      * @param type   type of rate limit
      * @return remaining requests
      */
-    public Mono<Integer> getRemainingRequests(Long userId, RateLimitType type) {
+    public Mono<Integer> getRemainingRequests(String userId, RateLimitType type) {
         String key = keyFor(userId, type);
 
         return redisTemplate.opsForValue()
@@ -175,6 +183,10 @@ public class RateLimitService {
                 .map(count -> Math.max(0, type.getMaxRequests() - count));
     }
 
+    public Mono<Integer> getRemainingRequests(Long userId, RateLimitType type) {
+        return getRemainingRequests(String.valueOf(userId), type);
+    }
+
     /**
      * Reset rate limit for a user (admin use).
      *
@@ -182,7 +194,7 @@ public class RateLimitService {
      * @param type   type of rate limit
      * @return true if reset
      */
-    public Mono<Boolean> resetRateLimit(Long userId, RateLimitType type) {
+    public Mono<Boolean> resetRateLimit(String userId, RateLimitType type) {
         String key = keyFor(userId, type);
 
         return redisTemplate.delete(key)
@@ -194,7 +206,11 @@ public class RateLimitService {
                 });
     }
 
-    private String keyFor(Long userId, RateLimitType type) {
+    public Mono<Boolean> resetRateLimit(Long userId, RateLimitType type) {
+        return resetRateLimit(String.valueOf(userId), type);
+    }
+
+    private String keyFor(String userId, RateLimitType type) {
         return KEY_PREFIX + type.name().toLowerCase() + ":" + userId;
     }
 }

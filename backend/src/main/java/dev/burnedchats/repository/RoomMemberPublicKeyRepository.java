@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
+import dev.burnedchats.util.InternalIds;
 
 import java.time.Duration;
 import java.util.Map;
@@ -12,7 +13,7 @@ import java.util.Map;
 /**
  * Redis repository for ECDH P-256 public keys of room members.
  *
- * <p>Key pattern: {@code room_member_pubkey:{roomId}} — Hash: {@code tgId} → Base64 SPKI public key.
+ * <p>Key pattern: {@code room_member_pubkey:{roomId}} — Hash: {@code internalId} → Base64 SPKI public key.
  * TTL: 30 days (matches room lifetime).
  *
  * <p>A public key is stored when:
@@ -28,6 +29,7 @@ import java.util.Map;
 @Slf4j
 @Repository
 @RequiredArgsConstructor
+@SuppressWarnings("checkstyle:LineLength")
 public class RoomMemberPublicKeyRepository {
 
     private static final String KEY_PREFIX = "room_member_pubkey:";
@@ -40,50 +42,58 @@ public class RoomMemberPublicKeyRepository {
      * Store (or overwrite) a member's ECDH public key for a room.
      *
      * @param roomId    room UUID
-     * @param tgId      member's Telegram ID
+     * @param internalId member's internal ID
      * @param publicKey Base64 SPKI-encoded ECDH P-256 public key
      * @return Mono completing when stored
      */
-    public Mono<Void> put(String roomId, Long tgId, String publicKey) {
+    public Mono<Void> put(String roomId, String internalId, String publicKey) {
         if (publicKey == null || publicKey.isBlank()) {
             return Mono.empty();
         }
         String key = keyFor(roomId);
         return redisTemplate.opsForHash()
-                .put(key, String.valueOf(tgId), publicKey)
+                .put(key, internalId, publicKey)
                 .then(redisTemplate.expire(key, TTL))
                 .then()
-                .doOnSuccess(v -> LOG.debug("Stored public key for member {} in room {}", tgId, roomId))
+                .doOnSuccess(v -> LOG.debug("Stored public key for member {} in room {}", internalId, roomId))
                 .onErrorResume(e -> {
-                    LOG.error("Failed to store public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to store public key for member {} in room {}: {}", internalId, roomId, e.getMessage());
                     return Mono.empty();
                 });
+    }
+
+    public Mono<Void> put(String roomId, Long telegramId, String publicKey) {
+        return put(roomId, InternalIds.forTelegramId(telegramId), publicKey);
     }
 
     /**
      * Get the ECDH public key for a specific member.
      *
      * @param roomId room UUID
-     * @param tgId   member's Telegram ID
+     * @param internalId member's internal ID
      * @return Mono with Base64 public key, or empty if not found
      */
-    public Mono<String> get(String roomId, Long tgId) {
+    public Mono<String> get(String roomId, String internalId) {
         return redisTemplate.opsForHash()
-                .get(keyFor(roomId), (Object) String.valueOf(tgId))
+                .get(keyFor(roomId), (Object) internalId)
                 .filter(v -> v != null)
                 .map(String::valueOf)
                 .filter(v -> !v.isBlank())
                 .onErrorResume(e -> {
-                    LOG.error("Failed to get public key for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to get public key for member {} in room {}: {}", internalId, roomId, e.getMessage());
                     return Mono.empty();
                 });
+    }
+
+    public Mono<String> get(String roomId, Long telegramId) {
+        return get(roomId, InternalIds.forTelegramId(telegramId));
     }
 
     /**
      * Get all member ECDH public keys for a room.
      *
      * @param roomId room UUID
-     * @return Mono with a map of {@code tgId (string)} → Base64 public key
+     * @return Mono with a map of {@code internalId} → Base64 public key
      */
     public Mono<Map<String, String>> getAll(String roomId) {
         return redisTemplate.opsForHash()
@@ -103,14 +113,18 @@ public class RoomMemberPublicKeyRepository {
      * Remove a member's public key (called when member leaves or is removed).
      *
      * @param roomId room UUID
-     * @param tgId   member's Telegram ID
+     * @param internalId member's internal ID
      * @return Mono completing when removed
      */
-    public Mono<Void> remove(String roomId, Long tgId) {
+    public Mono<Void> remove(String roomId, String internalId) {
         return redisTemplate.opsForHash()
-                .remove(keyFor(roomId), (Object) String.valueOf(tgId))
+                .remove(keyFor(roomId), (Object) internalId)
                 .then()
-                .doOnSuccess(v -> LOG.debug("Removed public key for member {} in room {}", tgId, roomId));
+                .doOnSuccess(v -> LOG.debug("Removed public key for member {} in room {}", internalId, roomId));
+    }
+
+    public Mono<Void> remove(String roomId, Long telegramId) {
+        return remove(roomId, InternalIds.forTelegramId(telegramId));
     }
 
     /**
