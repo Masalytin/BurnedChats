@@ -35,6 +35,9 @@ public class AuthenticationService {
      */
     public Mono<UnifiedUser> authenticate(AuthCredentials credentials) {
         return Mono.defer(() -> {
+            String requestedType = credentials != null && credentials.type() != null
+                    ? credentials.type().trim().toLowerCase()
+                    : "";
             AuthenticationStrategy strategy = strategies.stream()
                     .filter(s -> s.supports(credentials))
                     .findFirst()
@@ -42,7 +45,9 @@ public class AuthenticationService {
             if (strategy == null) {
                 return Mono.error(new AuthenticationException("Unsupported authentication credentials"));
             }
-            LOG.debug("Authenticating via {}", strategy.getClass().getSimpleName());
+            LOG.debug("Authenticating via {} (requested type: {})",
+                    strategy.getClass().getSimpleName(),
+                    requestedType.isEmpty() ? "<default>" : requestedType);
             return strategy.authenticate(credentials);
         });
     }
