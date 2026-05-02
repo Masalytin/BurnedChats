@@ -3,14 +3,11 @@ package dev.burnedchats.security;
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.ton.TonProofVerifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-import java.util.UUID;
 
 /**
  * Wallet authentication strategy based on TON Connect ton_proof.
@@ -20,6 +17,7 @@ import java.util.UUID;
 public class WalletAuthStrategy implements AuthenticationStrategy {
 
     private final TonProofVerifier tonProofVerifier;
+    private final UserIdentityRepository userIdentityRepository;
 
     @Override
     public Mono<UnifiedUser> authenticate(AuthCredentials credentials) {
@@ -27,21 +25,7 @@ public class WalletAuthStrategy implements AuthenticationStrategy {
             return Mono.error(new AuthenticationException("Credentials not supported by wallet strategy"));
         }
         return tonProofVerifier.verify(credentials)
-                .map(verified -> {
-                    String walletAddress = verified.walletAddress();
-                    String internalId = walletInternalId(walletAddress);
-                    String shortAddress = walletAddress.length() > 16
-                            ? walletAddress.substring(0, 16) + "..."
-                            : walletAddress;
-                    return new UnifiedUser(
-                            internalId,
-                            AuthType.WALLET,
-                            "Wallet " + shortAddress,
-                            null,
-                            walletAddress,
-                            null
-                    );
-                })
+                .flatMap(verified -> userIdentityRepository.findOrCreateByWallet(verified.walletAddress()))
                 .onErrorMap(ex -> ex instanceof AuthenticationException
                         ? ex
                         : new AuthenticationException("Invalid wallet proof", ex));
@@ -62,11 +46,5 @@ public class WalletAuthStrategy implements AuthenticationStrategy {
             return false;
         }
         return credentials.walletProof() != null && !credentials.walletProof().isBlank();
-    }
-
-    private static String walletInternalId(String walletAddress) {
-        String normalized = walletAddress == null ? "" : walletAddress.trim().toLowerCase(Locale.ROOT);
-        return UUID.nameUUIDFromBytes(("burnedchats:wallet:" + normalized).getBytes(StandardCharsets.UTF_8))
-                .toString();
     }
 }

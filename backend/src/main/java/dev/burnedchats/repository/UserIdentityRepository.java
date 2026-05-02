@@ -10,7 +10,9 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Repository
@@ -29,6 +31,17 @@ public class UserIdentityRepository {
 
     public Mono<String> findByWalletAddress(String walletAddress) {
         return redisTemplate.opsForValue().get(AUTH_WALLET_PREFIX + normalizeWallet(walletAddress));
+    }
+
+    public Mono<UnifiedUser> findOrCreateByWallet(String walletAddress) {
+        String normalizedWallet = normalizeWallet(walletAddress);
+        if (normalizedWallet.isBlank()) {
+            return Mono.error(new IllegalArgumentException("Wallet address is required"));
+        }
+
+        return findByWalletAddress(normalizedWallet)
+                .flatMap(this::findById)
+                .switchIfEmpty(createWalletUser(normalizedWallet));
     }
 
     public Mono<UnifiedUser> findById(String internalId) {
@@ -103,7 +116,28 @@ public class UserIdentityRepository {
                 avatar.isBlank() ? null : avatar);
     }
 
+    private Mono<UnifiedUser> createWalletUser(String normalizedWallet) {
+        UnifiedUser user = new UnifiedUser(
+                UUID.randomUUID().toString(),
+                dev.burnedchats.model.enums.AuthType.WALLET,
+                shortWalletDisplayName(normalizedWallet),
+                null,
+                normalizedWallet,
+                null);
+        return save(user)
+                .flatMap(saved -> Boolean.TRUE.equals(saved)
+                        ? Mono.just(user)
+                        : Mono.error(new IllegalStateException("Failed to save wallet user")));
+    }
+
+    private String shortWalletDisplayName(String walletAddress) {
+        if (walletAddress.length() <= 8) {
+            return walletAddress;
+        }
+        return walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length() - 4);
+    }
+
     private String normalizeWallet(String walletAddress) {
-        return walletAddress == null ? "" : walletAddress.trim().toLowerCase();
+        return walletAddress == null ? "" : walletAddress.trim().toLowerCase(Locale.ROOT);
     }
 }
