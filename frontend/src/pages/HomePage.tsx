@@ -5,8 +5,11 @@ import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
 import { RoomCard } from '../components/RoomCard';
+import { AccountLinking } from '../components/Settings/AccountLinking';
+import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon } from '../icons';
 import './HomePage.css';
+import '../components/Settings/LinkedAccounts.css';
 
 interface HomePageProps {
   user: AuthUser | null;
@@ -53,6 +56,8 @@ interface HomePageProps {
   onRefreshRooms?: () => void;
   /** Callback to refresh all data (rooms + sessions) */
   onRefreshAll?: () => void;
+  /** Linked accounts (Telegram ↔ wallet) API credentials */
+  linkedAccountsCredentials?: LinkedAccountsCredentials | null;
 }
 
 /** Default search result state */
@@ -90,10 +95,12 @@ export function HomePage({
   onRoomClick,
   onRefreshRooms,
   onRefreshAll,
+  linkedAccountsCredentials = null,
 }: HomePageProps) {
   const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
+  const [linkedRefresh, setLinkedRefresh] = useState(0);
 
   // Show FAB after scrolling down 150px (scroll container is .layout-main)
   useEffect(() => {
@@ -217,7 +224,7 @@ export function HomePage({
                     </button>
                   </span>
                 )}
-                {user?.telegramId && (
+                {user?.telegramId ? (
                   <span className="home-profile-id-row">
                     <span className="home-profile-id-label">TG ID: {user.telegramId}</span>
                     <button
@@ -227,7 +234,11 @@ export function HomePage({
                       aria-label="Copy ID"
                       title="Copy ID"
                     >
-                {user?.internalId && (
+                      <CopyIcon size={14} />
+                    </button>
+                  </span>
+                ) : null}
+                {user?.internalId ? (
                   <span className="home-profile-id-row">
                     <span className="home-profile-id-label">Internal ID: {user.internalId}</span>
                     <button
@@ -240,16 +251,35 @@ export function HomePage({
                       <CopyIcon size={14} />
                     </button>
                   </span>
-                )}
-                      <CopyIcon size={14} />
-                    </button>
-                  </span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {linkedAccountsCredentials && user ? (
+        <section className="home-section animate-slide-up" style={{ animationDelay: '80ms' }}>
+          <h3 className="home-section-title">{t('accountLinking.sectionTitle')}</h3>
+          <p className="linked-accounts-muted" style={{ marginBottom: 'var(--bc-spacing-md, 12px)' }}>
+            {t('accountLinking.sectionSubtitle')}
+          </p>
+          <Card>
+            <CardContent>
+              <LinkedAccounts
+                key={linkedRefresh}
+                credentials={linkedAccountsCredentials}
+                onChanged={() => setLinkedRefresh((k) => k + 1)}
+              />
+              <AccountLinking
+                authType={user.authType}
+                credentials={linkedAccountsCredentials}
+                onLinked={() => setLinkedRefresh((k) => k + 1)}
+              />
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
 
       {/* Search Section */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '100ms' }}>

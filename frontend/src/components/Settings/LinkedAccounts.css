@@ -1,0 +1,63 @@
+.linked-accounts-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md, 12px);
+}
+
+.linked-accounts-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm, 8px);
+}
+
+.linked-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-md, 12px);
+  flex-wrap: wrap;
+}
+
+.linked-account-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.linked-account-kind {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+}
+
+.linked-account-value {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.account-linking-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm, 8px);
+}
+
+.account-linking-hint {
+  font-size: 0.875rem;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.account-linking-link-btn {
+  align-self: flex-start;
+}
+
+.linked-accounts-muted {
+  font-size: 0.875rem;
+  opacity: 0.75;
+}

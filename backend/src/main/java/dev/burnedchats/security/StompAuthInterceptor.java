@@ -3,6 +3,7 @@ package dev.burnedchats.security;
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
@@ -25,10 +26,12 @@ import java.security.Principal;
  *
  * <p>The interceptor:
  * <ol>
- *   <li>Extracts X-Telegram-Init-Data header from CONNECT frame</li>
- *   <li>Validates credentials via {@link AuthenticationService}</li>
- *   <li>Creates a {@link TelegramPrincipal} for the authenticated user</li>
- *   <li>Rejects connections with invalid or missing authentication</li>
+ *   <li>Reads auth type headers ({@code telegram} default or {@code wallet})</li>
+ *   <li>For Telegram: validates initData, resolves {@code auth_tg:{telegramId}} → {@code internalId} when present,
+ *       merges fresh profile fields from initData into the stored identity, persists with
+ *       {@link UserIdentityRepository#save(UnifiedUser)}, sets {@link TelegramPrincipal}</li>
+ *   <li>For wallet: validates opaque session token, loads {@link UnifiedUser}, sets {@link WalletPrincipal}</li>
+ *   <li>Rejects CONNECT with invalid or missing credentials</li>
  * </ol>
  *
  * <p>Example STOMP CONNECT frame:
@@ -39,7 +42,9 @@ import java.security.Principal;
  * heart-beat: 10000,10000
  * </pre>
  *
- * @see AuthenticationService
+ * @see TelegramAuthService
+ * @see SessionTokenService
+ * @see UserIdentityRepository
  * @see TelegramPrincipal
  */
 @Slf4j
@@ -56,7 +61,6 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private static final String AUTH_TYPE_WALLET = "wallet";
     private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(30);
 
-    private final AuthenticationService authenticationService;
     private final TelegramAuthService telegramAuthService;
     private final SessionTokenService sessionTokenService;
     private final UserIdentityRepository userIdentityRepository;
@@ -130,19 +134,47 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             throw AuthenticationException.missingField(INIT_DATA_HEADER);
         }
 
-        UnifiedUser unifiedUser = authenticationService
-                .authenticate(AuthCredentials.telegram(initData))
-                .block(AUTH_TIMEOUT);
-        if (unifiedUser == null || unifiedUser.telegramId() == null) {
+        TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
+        Long tgId = telegramInitData.getUserId();
+        if (tgId == null) {
             throw new AuthenticationException("Telegram authentication did not yield telegram id");
         }
+
+        UnifiedUser derived = UnifiedUser.fromTelegram(telegramInitData, InternalIds.forTelegramId(tgId));
+        String mappedId = userIdentityRepository.findByTelegramId(tgId).block(AUTH_TIMEOUT);
+        UnifiedUser unifiedUser = derived;
+        if (mappedId != null && !mappedId.isBlank()) {
+            UnifiedUser stored = userIdentityRepository.findById(mappedId).block(AUTH_TIMEOUT);
+            if (stored != null) {
+                unifiedUser = mergeTelegramProfile(stored, telegramInitData);
+            }
+        }
+
         userIdentityRepository.save(unifiedUser).block(AUTH_TIMEOUT);
-        TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
+
         TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
         accessor.setUser(principal);
 
         LOG.info("STOMP CONNECT authenticated (telegram): userId={}, username={}, sessionId={}",
                 principal.getUserId(), principal.getUsername(), sessionId);
+    }
+
+    /**
+     * Refreshes display fields from Telegram while preserving linked identity (wallet, internal id mapping).
+     */
+    private static UnifiedUser mergeTelegramProfile(UnifiedUser stored, TelegramInitData telegramInitData) {
+        dev.burnedchats.model.TelegramUser telegramUser = telegramInitData.getUser();
+        String displayName = telegramUser != null ? telegramUser.getDisplayName() : stored.displayName();
+        String avatarUrl = telegramUser != null && telegramUser.getPhotoUrl() != null
+                ? telegramUser.getPhotoUrl()
+                : stored.avatarUrl();
+        return new UnifiedUser(
+                stored.internalId(),
+                stored.authType(),
+                displayName != null ? displayName : stored.displayName(),
+                telegramInitData.getUserId(),
+                stored.walletAddress(),
+                avatarUrl);
     }
 
     private void handleWalletConnect(StompHeaderAccessor accessor, String sessionId) {

@@ -167,6 +167,88 @@ GET /actuator/info
 
 ---
 
+### Account linking (Phase 3): Telegram ↔ TON wallet
+
+Все эндпоинты ниже **не** требуют Spring Security cookie: доверие строится на валидном `initData` (Telegram) и/или проверенном `walletProof` / opaque `sessionToken`.
+
+#### `POST /api/auth/link-wallet`
+
+Привязка кошелька к пользователю, вошедшему через Mini App.
+
+**Request body:**
+
+```json
+{
+  "initData": "...",
+  "walletAddress": "EQBx7...",
+  "walletProof": "{... Ton Connect ton_proof JSON ...}"
+}
+```
+
+**Ответ `200 OK`:** объект в форме «linked accounts» (см. `POST /api/auth/linked-accounts`).
+
+**Ошибки:** `400` — невалидное тело; `401` — initData / proof; `409` — кошелёк или другой кошелёк уже привязан к другому аккаунту / нужно сначала отвязать.
+
+#### `POST /api/auth/link-telegram/challenge`
+
+Для **wallet-only** сессии (opaque token после `POST /api/auth/wallet`): создаёт одноразовый challenge в Redis (TTL ~15 мин).
+
+**Request body:** `{ "sessionToken": "<opaque>" }`
+
+**Response `200 OK`:** `{ "ok": true, "challengeId": "<32 hex>", "telegramLink": "https://t.me/<bot>?startapp=lt_<challengeId>" }`  
+Поле `telegramLink` может отсутствовать, если в конфиге не задан `telegram.bot.username`.
+
+#### `POST /api/auth/link-telegram/complete`
+
+Завершение привязки Telegram из Mini App: `start_param` имеет вид `lt_<challengeId>`.
+
+**Request body:** `{ "challengeId": "<32 hex>", "initData": "..." }`
+
+**Ответ `200 OK`:** как у `linked-accounts`.
+
+**Ошибки:** `401` — просроченный challenge / невалидный initData; `409` — Telegram уже привязан к другому internalId.
+
+#### `POST /api/auth/linked-accounts`
+
+Снимок привязок для текущего пользователя. Ровно одно из полей:
+
+```json
+{ "initData": "...", "sessionToken": null }
+```
+
+или
+
+```json
+{ "initData": null, "sessionToken": "..." }
+```
+
+**Response `200 OK` (пример):**
+
+```json
+{
+  "ok": true,
+  "internalId": "...",
+  "authType": "TELEGRAM",
+  "displayName": "...",
+  "telegramLinked": true,
+  "telegramId": 123456789,
+  "telegramLabel": "@username",
+  "walletLinked": true,
+  "walletAddress": "0:...",
+  "linkedMethodCount": 2
+}
+```
+
+#### `POST /api/auth/unlink-wallet`
+
+Тело: `{ "initData": "..." }`. Отвязывает кошелёк, если остаётся привязанный Telegram (`400`, если это единственный способ входа).
+
+#### `POST /api/auth/unlink-telegram`
+
+Тело: `{ "sessionToken": "..." }`. Отвязывает Telegram, если остаётся кошелёк.
+
+---
+
 ### REST API: Files (Phase 4)
 
 Загрузка и скачивание **зашифрованных на клиенте** blob'ов. Тело запроса/ответа — сырая бинарная последовательность (`application/octet-stream`), не JSON.

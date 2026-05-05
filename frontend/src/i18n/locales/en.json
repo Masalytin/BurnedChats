@@ -49,6 +49,28 @@
     "errorNetwork": "Could not reach the server. Check your connection and API URL."
   },
 
+  "accountLinking": {
+    "sectionTitle": "Linked accounts",
+    "sectionSubtitle": "Connect Telegram and your TON wallet to the same account.",
+    "telegram": "Telegram",
+    "tonWallet": "TON wallet",
+    "notLinked": "Not linked",
+    "linkWallet": "Link TON wallet",
+    "unlink": "Unlink",
+    "walletInstructions": "Your browser profile is wallet-only. Create a secure link from here, open it inside Telegram Mini App once, and the app completes the bind automatically.",
+    "prepareTelegramLink": "Prepare Telegram link",
+    "openTelegram": "Open in Telegram",
+    "openBot": "Open Telegram bot",
+    "telegramCompleteHint": "Mini App opens with a pending link — we finish when this screen loads.",
+    "telegramLinkedToast": "Telegram linked to your wallet account.",
+    "loadFailed": "Could not load linked accounts.",
+    "linkFailed": "Linking failed.",
+    "unlinkFailed": "Could not unlink.",
+    "challengeFailed": "Could not create Telegram link.",
+    "conflict": "This Telegram account or wallet is already linked elsewhere.",
+    "retryLoad": "Try again"
+  },
+
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",

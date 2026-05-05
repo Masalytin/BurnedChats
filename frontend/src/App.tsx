@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import WebApp from '@twa-dev/sdk';
 import { AuthContextProvider } from './auth';
+import { AuthType } from './auth/types';
 import { getEnvironment } from './env/detector';
 import { useAuth } from './hooks/useAuth';
 import { useTelegram } from './hooks/useTelegram';
@@ -38,6 +40,8 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
+import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
@@ -130,6 +134,23 @@ function AppContent() {
 
   const telegramUserId = user?.telegramId ?? null;
   const environment = getEnvironment();
+
+  const linkedAccountsCredentials = useMemo((): LinkedAccountsCredentials | null => {
+    if (!isAuthenticated || !user) {
+      return null;
+    }
+    if (environment === 'telegram') {
+      const initData = WebApp.initData ?? '';
+      return initData.length > 0 ? { kind: 'telegram', initData } : null;
+    }
+    const creds = getCredentials();
+    if (user.authType === AuthType.WALLET && creds?.sessionToken) {
+      return { kind: 'wallet', sessionToken: creds.sessionToken };
+    }
+    return null;
+  }, [isAuthenticated, user, environment, getCredentials]);
+
+  const telegramWalletLinkAttemptedRef = useRef(false);
 
   // Search hook
   const {
@@ -747,6 +768,31 @@ function AppContent() {
       loadInviteInfo(token);
     }
   }, [isReady, startParam, isConnected, resetJoinRoom, loadInviteInfo]);
+
+  // Telegram Mini App completes wallet ↔ Telegram linking (start_param lt_<challenge>)
+  useEffect(() => {
+    if (!isReady || environment !== 'telegram') return;
+    if (!startParam?.startsWith('lt_')) return;
+    const challengeId = startParam.slice('lt_'.length);
+    if (!/^[a-fA-F0-9]{32}$/.test(challengeId)) return;
+    const initData = WebApp.initData;
+    if (!initData) return;
+    if (telegramWalletLinkAttemptedRef.current) return;
+    telegramWalletLinkAttemptedRef.current = true;
+
+    void (async () => {
+      try {
+        await completeTelegramWalletLink(challengeId, initData);
+        notificationOccurred('success');
+        toast.success(t('accountLinking.telegramLinkedToast'));
+      } catch (err) {
+        telegramWalletLinkAttemptedRef.current = false;
+        const msg = err instanceof Error ? err.message : t('accountLinking.linkFailed');
+        notificationOccurred('error');
+        toast.error(msg, { title: t('accountLinking.sectionTitle') });
+      }
+    })();
+  }, [environment, isReady, notificationOccurred, startParam, t, toast]);
 
   // Initialize Mini App chrome only in Telegram.
   useEffect(() => {
@@ -1658,6 +1704,7 @@ function AppContent() {
           onRoomClick={handleRoomClick}
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
+          linkedAccountsCredentials={linkedAccountsCredentials}
         />
 
         {/* Chat request dialog */}

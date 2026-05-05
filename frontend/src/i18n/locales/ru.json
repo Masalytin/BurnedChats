@@ -49,6 +49,28 @@
     "errorNetwork": "Нет связи с сервером. Проверьте подключение и адрес API."
   },
 
+  "accountLinking": {
+    "sectionTitle": "Привязанные аккаунты",
+    "sectionSubtitle": "Объедините Telegram и TON-кошелёк под одним профилем.",
+    "telegram": "Telegram",
+    "tonWallet": "TON-кошелёк",
+    "notLinked": "Не привязан",
+    "linkWallet": "Привязать TON-кошелёк",
+    "unlink": "Отвязать",
+    "walletInstructions": "В браузере вы вошли через кошелёк. Создайте ссылку, откройте её один раз в Mini App Telegram — приложение автоматически завершит привязку.",
+    "prepareTelegramLink": "Создать ссылку для Telegram",
+    "openTelegram": "Открыть в Telegram",
+    "openBot": "Открыть бота Telegram",
+    "telegramCompleteHint": "Откройте Mini App — привязка завершится при загрузке экрана.",
+    "telegramLinkedToast": "Telegram привязан к вашему профилю кошелька.",
+    "loadFailed": "Не удалось загрузить привязки.",
+    "linkFailed": "Не удалось привязать.",
+    "unlinkFailed": "Не удалось отвязать.",
+    "challengeFailed": "Не удалось создать ссылку для Telegram.",
+    "conflict": "Этот Telegram или кошелёк уже привязан к другому аккаунту.",
+    "retryLoad": "Повторить"
+  },
+
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",
