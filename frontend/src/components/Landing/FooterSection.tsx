@@ -16,22 +16,36 @@ export function FooterSection() {
         Ready to chat without leaving a trace?
       </motion.h2>
 
-      <motion.a
-        href={TELEGRAM_BOT_URL}
-        className="hero-cta"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Open Burned Chats in Telegram"
+      <motion.div
+        className="hero-cta-group footer-cta-group"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.96 }}
       >
-        <TelegramIcon />
-        Open in Telegram
-      </motion.a>
+        <motion.a
+          href={TELEGRAM_BOT_URL}
+          className="hero-cta"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open Burned Chats in Telegram"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <TelegramIcon />
+          Open in Telegram
+        </motion.a>
+        <motion.a
+          href="/app"
+          className="hero-cta hero-cta--secondary"
+          aria-label="Open Burned Chats Web App"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <GlobeIcon />
+          Launch Web App
+        </motion.a>
+      </motion.div>
 
       <hr className="footer-hr" />
 
@@ -48,6 +62,16 @@ export function FooterSection() {
         </a>
       </div>
     </footer>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
   );
 }
 

@@ -76,19 +76,30 @@ export function HeroSection() {
           Built on <span className="hl">zero-knowledge</span> architecture.
         </motion.p>
 
-        <motion.a
-          href={TELEGRAM_BOT_URL}
-          className="hero-cta"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open Burned Chats in Telegram"
-          variants={fadeUp}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <TelegramIcon />
-          Open in Telegram
-        </motion.a>
+        <motion.div className="hero-cta-group" variants={fadeUp}>
+          <motion.a
+            href={TELEGRAM_BOT_URL}
+            className="hero-cta"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open Burned Chats in Telegram"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            <TelegramIcon />
+            Open in Telegram
+          </motion.a>
+          <motion.a
+            href="/app"
+            className="hero-cta hero-cta--secondary"
+            aria-label="Open Burned Chats Web App"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            <GlobeIcon />
+            Launch Web App
+          </motion.a>
+        </motion.div>
       </motion.div>
 
       <motion.div
@@ -108,6 +119,16 @@ function FlameHeroIcon() {
   return (
     <svg className="hero-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   );
 }

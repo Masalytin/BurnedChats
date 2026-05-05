@@ -4,6 +4,7 @@
  * ============================================ */
 
 :root {
+  --brand: #ff6b35;
   --lp-bg: #0a0a0f;
   --lp-bg-alt: #101018;
   --lp-bg-card: #16161e;
@@ -162,6 +163,31 @@
   transform: translateY(-3px);
   box-shadow: 0 10px 40px rgba(255, 107, 53, 0.5);
   color: #fff;
+}
+
+.hero-cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+}
+
+.footer-cta-group {
+  margin: 0 auto;
+}
+
+.hero-cta--secondary {
+  background: transparent;
+  border: 1.5px solid var(--brand, #ff6b35);
+  color: var(--brand, #ff6b35);
+  box-shadow: none;
+}
+
+.hero-cta--secondary:hover {
+  background: rgba(255, 107, 53, 0.08);
+  color: var(--brand, #ff6b35);
+  box-shadow: 0 6px 24px rgba(255, 107, 53, 0.12);
 }
 
 .hero-cta svg {
@@ -853,6 +879,21 @@
 /* ============================================
  * RESPONSIVE
  * ============================================ */
+
+@media (max-width: 480px) {
+  .hero-cta-group {
+    flex-direction: column;
+    width: 100%;
+    max-width: min(320px, 100%);
+    padding-inline: 1rem;
+    box-sizing: border-box;
+  }
+
+  .hero-cta-group .hero-cta {
+    width: 100%;
+    justify-content: center;
+  }
+}
 
 @media (min-width: 640px) {
   .manifesto-grid { grid-template-columns: 1fr 1fr; }
