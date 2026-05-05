@@ -10,6 +10,7 @@
 - [Treasury](#treasury)
 - [Распределение эмиссии](#распределение-эмиссии)
 - [Стейкинг](#стейкинг)
+- [BCID Fee Semantics](#bcid-fee-semantics)
 - [Utility (применение)](#utility-применение)
 - [Governance](#governance)
 - [Техническая архитектура](#техническая-архитектура)
@@ -355,6 +356,38 @@ DailyReward(user) = TierShare × DailyPoolEmission × (UserStake / TotalTierStak
 ### Staking Pool Wallet
 
 Staking Pool — отдельный смарт-контракт, выступающий **excluded address** для механики комиссий: переводы из Staking Pool пользователю не подвергаются повторному burn/staking/treasury fee. Это позволяет наградам выплачиваться без двойного обложения.
+
+---
+
+## BCID Fee Semantics
+
+> Распределение BURN при операциях с Burned Chats ID (BCID NFT-профилем) и согласование с **стандартным 1% Jetton fee** на переводах.
+
+### Варианты операций
+
+| Операция | Стоимость (пользователь) | Распределение внутри BCID-контракта |
+|----------|---------------------------|--------------------------------------|
+| Mint BCID | 0.001 BURN (+ gas) | 50% burn / 30% staking / 20% treasury |
+| Rename | 0.001 BURN | 50% / 30% / 20% |
+| Avatar update | 0.0005 BURN | 50% / 30% / 20% |
+
+### Механика (Variant A — adopted)
+
+1. **BCID-контракт включён в excluded addresses** Jetton Master (см. [P5-1-2-2](../phases/phase-5-burn-token/cards/P5-1-2-2.md); конкретный адрес добавляется после деплоя BCID в [P3-3.1.3](../phases/phase-3-wallet-auth/cards/P3-3-1-3.md)).
+2. Пользовательский Jetton **transfer** на адрес BCID-контракта **не** облагается стандартным 1% fee уровня Jetton Wallet (отправитель/получатель excluded по правилам master).
+3. BCID-контракт получает **полную** заявленную сумму (например 0.001 BURN для mint).
+4. Контракт исполняет **исходящие** переводы согласно сплиту 50/30/20 (к excluded burn path / staking pool / treasury — без повторного Jetton fee).
+5. **Итог:** 100% уплаченного BURN по смыслу продукта уходит в 50/30/20; не суммируется «1% Jetton поверх» для mint/rename/avatar на BCID.
+
+### Edge cases
+
+- **Недостаточный баланс** — кошелёк отклоняет transfer до сети.
+- **Недостаток TON gas** у BCID-контракта — операция не завершается; пользователь видит ошибку в кошельке / UI.
+- **Коллизия nickname** — разрешается on-chain в nickname registry (см. P3-3.1.2).
+
+### Обоснование
+
+Источник решения: [P3-3-1-1-bcid-fee-semantics.md](../phases/phase-3-wallet-auth/decisions/P3-3-1-1-bcid-fee-semantics.md).
 
 ---
 
