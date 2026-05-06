@@ -176,6 +176,21 @@ app:
     metadata-ttl: ${FILE_METADATA_TTL:PT24H}  # 24 hours (ISO-8601)
     cleanup-interval: ${FILE_CLEANUP_INTERVAL:PT15M}  # 15 minutes
     cleanup-enabled: ${FILE_CLEANUP_ENABLED:true}
+  # TON Center API (Phase 5: BURN token reads) — testnet by default
+  ton:
+    network: testnet
+    rpc:
+      endpoint: ${TONCENTER_ENDPOINT:https://testnet.toncenter.com/api/v2}
+      api-key: ${TONCENTER_API_KEY:}
+      timeout-ms: ${TONCENTER_TIMEOUT_MS:5000}
+      retry-attempts: ${TONCENTER_RETRY_ATTEMPTS:3}
+    cache:
+      ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
+    addresses:
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:}
+      governor: ${BURN_GOVERNOR_ADDRESS:}
+      treasury: ${BURN_TREASURY_ADDRESS:}
 
 # Application info
 info:

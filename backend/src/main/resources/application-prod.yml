@@ -75,4 +75,21 @@ burnedchats:
       max-size-per-room: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_ROOM:500}
       keyspace-listener-enabled: ${BURNEDCHATS_OFFLINE_MSG_KEYSPACE_LISTENER:true}
 
+# TON reads (mainnet)
+app:
+  ton:
+    network: mainnet
+    rpc:
+      endpoint: ${TONCENTER_ENDPOINT:https://toncenter.com/api/v2}
+      api-key: ${TONCENTER_API_KEY}
+      timeout-ms: ${TONCENTER_TIMEOUT_MS:5000}
+      retry-attempts: ${TONCENTER_RETRY_ATTEMPTS:3}
+    cache:
+      ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
+    addresses:
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:}
+      governor: ${BURN_GOVERNOR_ADDRESS:}
+      treasury: ${BURN_TREASURY_ADDRESS:}
+
 
