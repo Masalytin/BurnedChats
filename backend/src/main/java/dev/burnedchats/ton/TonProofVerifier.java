@@ -132,7 +132,8 @@ public class TonProofVerifier {
     }
 
     /**
-     * Ensures the nonce key exists (issued and not expired). Does not delete — avoids burning the nonce on RPC/signature failure.
+     * Ensures the nonce key exists (issued and not expired). Does not delete — avoids burning the nonce
+     * on RPC/signature failure.
      */
     private Mono<Void> assertNoncePresent(String nonce) {
         if (nonce == null || nonce.isBlank()) {
@@ -300,7 +301,8 @@ public class TonProofVerifier {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] messageHash = digest.digest(message.array());
 
-        ByteBuffer finalMessage = ByteBuffer.allocate(TON_HEADER_PREFIX.length + TON_CONNECT_PREFIX.length + messageHash.length);
+        int finalMsgLen = TON_HEADER_PREFIX.length + TON_CONNECT_PREFIX.length + messageHash.length;
+        ByteBuffer finalMessage = ByteBuffer.allocate(finalMsgLen);
         finalMessage.put(TON_HEADER_PREFIX);
         finalMessage.put(TON_CONNECT_PREFIX);
         finalMessage.put(messageHash);
@@ -308,8 +310,10 @@ public class TonProofVerifier {
         return digest.digest(finalMessage.array());
     }
 
-    private static boolean verifyEd25519(byte[] rawPublicKey, byte[] message, byte[] signature) throws GeneralSecurityException {
-        byte[] encodedPublicKey = new byte[ED25519_SPKI_PREFIX.length + rawPublicKey.length];
+    private static boolean verifyEd25519(byte[] rawPublicKey, byte[] message, byte[] signature)
+            throws GeneralSecurityException {
+        int encKeyLen = ED25519_SPKI_PREFIX.length + rawPublicKey.length;
+        byte[] encodedPublicKey = new byte[encKeyLen];
         System.arraycopy(ED25519_SPKI_PREFIX, 0, encodedPublicKey, 0, ED25519_SPKI_PREFIX.length);
         System.arraycopy(rawPublicKey, 0, encodedPublicKey, ED25519_SPKI_PREFIX.length, rawPublicKey.length);
 

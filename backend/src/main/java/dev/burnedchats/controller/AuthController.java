@@ -56,11 +56,15 @@ public class AuthController {
         if (request == null) {
             return Mono.just(error(HttpStatus.BAD_REQUEST, "Request body is required"));
         }
-        return authenticationService.authenticate(AuthCredentials.wallet(request.walletProof(), request.walletAddress()))
-                .flatMap(user -> issueWalletResponse(user))
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Wallet authentication failed")));
+        var walletCreds = AuthCredentials.wallet(request.walletProof(), request.walletAddress());
+        return authenticationService.authenticate(walletCreds)
+                .flatMap(this::issueWalletResponse)
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(e -> Mono.just(
+                        error(HttpStatus.INTERNAL_SERVER_ERROR, "Wallet authentication failed")));
     }
 
     private Mono<ResponseEntity<Map<String, Object>>> issueWalletResponse(UnifiedUser user) {
@@ -83,9 +87,12 @@ public class AuthController {
         }
         return authAccountLinkService.linkWallet(body.initData(), body.walletAddress(), body.walletProof())
                 .map(this::linkedAccountsOk)
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class, e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class,
+                        e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Wallet link failed")));
     }
 
@@ -111,24 +118,31 @@ public class AuthController {
                     }
                     return ResponseEntity.<Map<String, Object>>ok(res);
                 })
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create telegram link")));
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(e -> Mono.just(
+                        error(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create telegram link")));
     }
 
     /**
      * Completes telegram binding using a consumed challenge issued for the browser wallet session.
      */
     @PostMapping("/link-telegram/complete")
-    public Mono<ResponseEntity<Map<String, Object>>> linkTelegramComplete(@RequestBody LinkTelegramCompleteRequest body) {
+    public Mono<ResponseEntity<Map<String, Object>>> linkTelegramComplete(
+            @RequestBody LinkTelegramCompleteRequest body) {
         if (body == null || blank(body.initData()) || blank(body.challengeId())) {
             return Mono.just(error(HttpStatus.BAD_REQUEST, "challengeId and initData are required"));
         }
         return authAccountLinkService.completeTelegramLink(body.challengeId(), body.initData())
                 .map(this::linkedAccountsOk)
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class, e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class,
+                        e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Telegram link failed")));
     }
 
@@ -146,9 +160,12 @@ public class AuthController {
                         new LinkedHashMap<>(),
                         tuple.getT1(),
                         tuple.getT2())))
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class, e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class,
+                        e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Linked accounts unavailable")));
     }
 
@@ -163,9 +180,12 @@ public class AuthController {
                         new LinkedHashMap<>(),
                         tuple.getT1(),
                         tuple.getT2())))
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Unlink failed")));
     }
 
@@ -175,10 +195,14 @@ public class AuthController {
             return Mono.just(error(HttpStatus.BAD_REQUEST, "sessionToken is required"));
         }
         return authAccountLinkService.unlinkTelegram(body.sessionToken())
-                .map(user -> ResponseEntity.<Map<String, Object>>ok(buildLinkedPayload(new LinkedHashMap<>(), user, "")))
-                .onErrorResume(AuthenticationException.class, e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
-                .onErrorResume(IllegalArgumentException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class, e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .map(user -> ResponseEntity.<Map<String, Object>>ok(
+                        buildLinkedPayload(new LinkedHashMap<>(), user, "")))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Unlink failed")));
     }
 
