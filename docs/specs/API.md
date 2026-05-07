@@ -363,6 +363,12 @@ public ResponseEntity<?> onWebhook(
 
 ---
 
+### Phase 5: BURN jetton (backend read services)
+
+Публичные REST-эндпоинты для номинала BURN **в этой итерации не добавляются**. Чтение on-chain выполняется внутри backend через **`JettonService`** (Ton Center `runGetMethod`, реактивные `Mono` / `Flux`). Для будущих HTTP-обёрток ориентировочно используются DTO `JettonInfo`, `EffectiveFeeParams`, `UserBalance` (см. `backend/.../ton/dto`).
+
+---
+
 ## WebSocket API (STOMP)
 
 ### Подключение

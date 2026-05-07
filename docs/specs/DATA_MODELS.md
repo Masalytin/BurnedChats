@@ -182,6 +182,26 @@ SADD blocked:111222333 "444555666" "777888999"
 
 ---
 
+### Phase 5: TON RPC cache (`TonService`)
+
+Стабильные ответы `runGetMethod` / `getAddressInformation` кэшируются в Redis с ключами:
+
+| Шаблон ключа | TTL | Назначение |
+|--------------|-----|------------|
+| `ton:rpc:{address}:{method}:{argsHash}` | `app.ton.cache.ttl-seconds` | Нормализованный адрес, имя get-метода, SHA-256 от JSON аргументов стека |
+
+### Phase 5: Jetton (`JettonService`)
+
+| Шаблон ключа | TTL | Значение |
+|--------------|-----|----------|
+| `ton:jetton:balance:v1:{workchain}:{hex}` | 30 с | `BigInteger` nano баланса BURN |
+| `ton:jetton:info:v1:{workchain}:{hex}` | 1 ч | JSON `JettonInfo` мастера (`app.ton.addresses.jetton-master`) |
+| `ton:jetton:fees:v1:{workchain}:{hex}` | 5 мин | JSON `EffectiveFeeParams` (`get_effective_fee_params`) |
+
+Адрес в суффиксе ключа нормализуется в вид `workchain:hex` (см. `TonAddressBoc.normalizeKey`).
+
+---
+
 ## Phase 2: Комнаты (Redis)
 
 > Полный план: [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md). Ниже — целевые структуры ключей.
