@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { AuthContextProvider } from './auth';
 import { AuthType } from './auth/types';
@@ -40,6 +41,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { StakingPage } from './pages/StakingPage';
 import { WalletChrome } from './components/Wallet/WalletDrawer';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
@@ -86,6 +88,7 @@ interface ActiveChat {
 function AppContent() {
   const toast = useToast();
   const { t } = useTranslation();
+  const location = useLocation();
   const { user, isLoading: isAuthLoading, isAuthenticated, getCredentials } = useAuth();
   const { 
     isReady, 
@@ -1467,6 +1470,18 @@ function AppContent() {
       handshakeResult={handshakeResult}
     />
   );
+
+  if (location.pathname === '/app/staking') {
+    return (
+      <>
+        {walletChrome}
+        <Layout>
+          <StakingPage />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
 
   // Pending request view (waiting for recipient to accept)
   if (currentView === 'pending-request' && pendingSession) {

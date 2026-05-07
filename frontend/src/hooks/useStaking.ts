@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TxResult } from '@/ton/types';
 import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
 import {
+  calculateApy as calculateApyOnChain,
   claimTx,
   getStakes,
   getTierConfigs,
@@ -67,6 +68,10 @@ export interface UseStaking {
   stake(params: { tier: StakingTier; amount: bigint }): Promise<TxResult>;
   unstake(params: { tier: StakingTier; amount: bigint }): Promise<TxResult>;
   claim(params: { tier: StakingTier }): Promise<TxResult>;
+  /**
+   * Indicative APY for UI: uses an illustrative tier TVL of `6 × stakeAmount` when total tier stake is unknown (see TOKENOMICS examples).
+   */
+  calculateApy(tier: StakingTier, stakeAmount: bigint): number;
 }
 
 export function useStaking(): UseStaking {
@@ -228,6 +233,14 @@ export function useStaking(): UseStaking {
     [walletAddress, loadCore],
   );
 
+  const calculateApy = useCallback((tier: StakingTier, stakeAmount: bigint): number => {
+    if (stakeAmount <= 0n) {
+      return 0;
+    }
+    const illustrativeTierTvl = stakeAmount * 6n;
+    return calculateApyOnChain(tier, stakeAmount, illustrativeTierTvl);
+  }, []);
+
   const mergedStakes = mergeOptimistic(chainStakes, optimisticByTier);
   const stakes = mergedStakes.map((s) => ({
     ...s,
@@ -244,5 +257,6 @@ export function useStaking(): UseStaking {
     stake,
     unstake,
     claim,
+    calculateApy,
   };
 }

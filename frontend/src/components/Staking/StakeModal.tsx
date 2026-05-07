@@ -1,0 +1,305 @@
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { StakingTier, type TierConfig } from '@/types/ton';
+import { formatBurn, parseBurn } from '@/utils/format';
+import { formatLockDuration } from '@/utils/staking-format';
+
+import { TierBadge } from './TierBadge';
+import styles from './Staking.module.css';
+
+const TIER_ORDER: StakingTier[] = [
+  StakingTier.Diamond,
+  StakingTier.Gold,
+  StakingTier.Silver,
+  StakingTier.Flexible,
+];
+
+export interface StakeModalProps {
+  open: boolean;
+  onClose: () => void;
+  /** Initially selected tier when opening */
+  initialTier: StakingTier;
+  tierConfigs: TierConfig[];
+  walletBalanceNano: bigint | null;
+  calculateApy: (tier: StakingTier, stakeAmount: bigint) => number;
+  onConfirmStake: (tier: StakingTier, amount: bigint) => Promise<{ ok: boolean }>;
+}
+
+/**
+ * Bottom-sheet stake flow: tier cards, amount + slider, lock warning, indicative APY.
+ */
+export function StakeModal({
+  open,
+  onClose,
+  initialTier,
+  tierConfigs,
+  walletBalanceNano,
+  calculateApy,
+  onConfirmStake,
+}: StakeModalProps) {
+  const { t } = useTranslation();
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  const [tier, setTier] = useState<StakingTier>(initialTier);
+  const [amountStr, setAmountStr] = useState('0');
+  const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<'edit' | 'signing' | 'done'>('edit');
+
+  useEffect(() => {
+    if (open) {
+      setTier(initialTier);
+      setAmountStr('0');
+      setError(null);
+      setPhase('edit');
+      queueMicrotask(() => closeRef.current?.focus());
+    }
+  }, [open, initialTier]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && phase === 'edit') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose, phase]);
+
+  const cfgByTier = useMemo(() => {
+    const m = new Map<StakingTier, TierConfig>();
+    for (const c of tierConfigs) {
+      m.set(c.tier, c);
+    }
+    return m;
+  }, [tierConfigs]);
+
+  const selectedCfg = cfgByTier.get(tier);
+  const balance = walletBalanceNano ?? 0n;
+
+  const amountNano = useMemo(() => {
+    try {
+      return parseBurn(amountStr);
+    } catch {
+      return 0n;
+    }
+  }, [amountStr]);
+
+  const unlockDate = useMemo((): Date | null => {
+    if (!selectedCfg || selectedCfg.lockDurationSec <= 0) {
+      return null;
+    }
+    return new Date(Date.now() + selectedCfg.lockDurationSec * 1000);
+  }, [selectedCfg]);
+
+  const apyPct = amountNano > 0n ? calculateApy(tier, amountNano) : 0;
+
+  const setFromSlider = useCallback(
+    (pct: number) => {
+      if (balance <= 0n) {
+        setAmountStr('0');
+        return;
+      }
+      const x = (balance * BigInt(Math.round(pct * 1000))) / 100_000n;
+      const s = x === 0n ? '0' : formatBurn(x).replace(/\s*BURN\s*$/i, '').trim();
+      setAmountStr(s || '0');
+    },
+    [balance],
+  );
+
+  const sliderPct =
+    balance > 0n ? Math.min(100, Math.max(0, Number((amountNano * 10000n) / balance) / 100)) : 0;
+
+  const handleMax = useCallback(() => {
+    if (balance <= 0n) {
+      setAmountStr('0');
+      return;
+    }
+    const s = formatBurn(balance).replace(/\s*BURN\s*$/i, '').trim();
+    setAmountStr(s || '0');
+  }, [balance]);
+
+  const validateAndSubmit = useCallback(async () => {
+    setError(null);
+    let nano: bigint;
+    try {
+      nano = parseBurn(amountStr);
+    } catch {
+      setError(t('staking.amountInvalid'));
+      return;
+    }
+    if (nano <= 0n) {
+      setError(t('staking.amountPositive'));
+      return;
+    }
+    if (nano > balance) {
+      setError(t('staking.amountOverBalance'));
+      return;
+    }
+    setPhase('signing');
+    const res = await onConfirmStake(tier, nano);
+    if (res.ok) {
+      setPhase('done');
+    } else {
+      setPhase('edit');
+    }
+  }, [amountStr, balance, onConfirmStake, t, tier]);
+
+  if (!open) {
+    return null;
+  }
+
+  const sortedConfigs = [...tierConfigs].sort(
+    (a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier),
+  );
+
+  return (
+    <div
+      className={styles.backdrop}
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && phase === 'edit') {
+          onClose();
+        }
+      }}
+    >
+      <div className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className={styles.sheetHeader}>
+          <h2 id={titleId} className={styles.sheetTitle}>
+            {t('staking.stakeModalTitle')}
+          </h2>
+          <button
+            type="button"
+            ref={closeRef}
+            className={styles.iconBtn}
+            onClick={onClose}
+            aria-label={t('staking.modalClose')}
+            disabled={phase === 'signing'}
+          >
+            ×
+          </button>
+        </div>
+
+        {phase === 'done' ? (
+          <div className={styles.progressBox}>
+            <div className={styles.checkPop} style={{ fontSize: 48, marginBottom: 8 }} aria-hidden="true">
+              ✓
+            </div>
+            <p style={{ margin: 0 }}>{t('staking.stakeSuccess')}</p>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} style={{ marginTop: 16 }} onClick={onClose}>
+              {t('staking.done')}
+            </button>
+          </div>
+        ) : null}
+
+        {phase === 'signing' ? (
+          <div className={styles.progressBox}>
+            <p style={{ margin: 0 }}>{t('staking.stakeSigning')}</p>
+          </div>
+        ) : null}
+
+        {phase === 'edit' ? (
+          <>
+            <p className={styles.muted} style={{ marginTop: 0 }}>
+              {t('staking.stakePickTier')}
+            </p>
+            <div className={styles.tierPickGrid}>
+              {sortedConfigs.map((c) => (
+                <button
+                  key={c.tier}
+                  type="button"
+                  className={`${styles.tierPick} ${c.tier === tier ? styles.tierPickSelected : ''}`}
+                  onClick={() => setTier(c.tier)}
+                  aria-pressed={c.tier === tier}
+                >
+                  <TierBadge tier={c.tier} config={c} showLockHint />
+                  <div className={styles.muted} style={{ marginTop: 8, fontSize: 12 }}>
+                    {t('staking.tierPickHint', {
+                      mult: c.multiplier.toFixed(1),
+                      lock: formatLockDuration(c.lockDurationSec, t),
+                    })}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <label className={styles.fieldLabel} htmlFor="stake-amount-input">
+              {t('staking.amountLabel')}
+            </label>
+            <div className={styles.inputRow}>
+              <input
+                id="stake-amount-input"
+                className={styles.input}
+                inputMode="decimal"
+                autoComplete="off"
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                aria-invalid={error != null}
+                aria-describedby={error ? 'stake-amount-error' : 'stake-balance-hint'}
+              />
+              <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleMax}>
+                {t('staking.max')}
+              </button>
+            </div>
+            <div id="stake-balance-hint" className={styles.muted} style={{ fontSize: 12, marginTop: 6 }}>
+              {t('staking.walletBalance', { amount: formatBurn(balance) })}
+            </div>
+            <input
+              type="range"
+              className={styles.slider}
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(sliderPct)}
+              onChange={(e) => setFromSlider(Number(e.target.value))}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(sliderPct)}
+              aria-label={t('staking.amountSliderAria')}
+              disabled={balance <= 0n}
+            />
+
+            {unlockDate ? (
+              <div className={styles.lockWarn} role="status">
+                {t('staking.lockConfirm', {
+                  date: unlockDate.toLocaleDateString(undefined, { dateStyle: 'long' }),
+                })}
+              </div>
+            ) : null}
+
+            <div className={styles.apyRow}>
+              <span>{t('staking.indicativeApy', { pct: apyPct.toFixed(1) })}</span>
+              <span
+                className={styles.apyHelp}
+                tabIndex={0}
+                title={t('staking.apyTooltip')}
+                aria-label={t('staking.apyTooltip')}
+              >
+                ?
+              </span>
+            </div>
+
+            {error ? (
+              <p id="stake-amount-error" className={styles.errText} role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              style={{ width: '100%', marginTop: 16 }}
+              onClick={() => void validateAndSubmit()}
+            >
+              {t('staking.stakeConfirm')}
+            </button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}

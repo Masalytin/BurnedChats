@@ -26,6 +26,7 @@ export function AppRouter() {
             </TelegramLandingGuard>
           }
         />
+        <Route path="/app/staking" element={<App />} />
         <Route path="/app" element={<App />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
