@@ -439,3 +439,188 @@
     border-radius: 16px;
   }
 }
+
+/* APY calculator */
+.calcMainTabRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.calcMainTab {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.18));
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calcMainTabOn {
+  border-color: var(--tg-theme-link-color, #3390ec);
+  background: rgba(51, 144, 236, 0.15);
+}
+
+.calcMainTab:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #3390ec);
+  outline-offset: 2px;
+}
+
+.calcSection {
+  margin-bottom: 24px;
+}
+
+.calcPhaseRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.calcPhaseBtn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.18));
+  background: var(--tg-theme-bg-color, rgba(0, 0, 0, 0.15));
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calcPhaseBtnOn {
+  border-color: var(--tg-theme-link-color, #3390ec);
+  background: rgba(51, 144, 236, 0.12);
+}
+
+.calcActivityRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.calcActivityBtn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.2));
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calcActivityBtnOn {
+  border-color: var(--tg-theme-link-color, #3390ec);
+  background: rgba(51, 144, 236, 0.15);
+}
+
+.fieldHint {
+  display: inline-flex;
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+  cursor: help;
+}
+
+.calcResults {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.1));
+}
+
+.calcStatRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.calcStatRow:first-child {
+  margin-top: 0;
+}
+
+.calcStatEm {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.calcChart {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.1));
+  background: var(--tg-theme-bg-color, rgba(0, 0, 0, 0.12));
+}
+
+.calcChartTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+  margin-bottom: 10px;
+}
+
+.calcChartRow {
+  margin-bottom: 10px;
+}
+
+.calcChartRow:last-child {
+  margin-bottom: 0;
+}
+
+.calcChartLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.calcChartLabelHi {
+  color: var(--tg-theme-link-color, #3390ec);
+  font-weight: 700;
+}
+
+.calcChartTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--tg-theme-bg-color, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+}
+
+.calcChartFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.35));
+  transition: width 0.2s ease;
+}
+
+.calcChartFillHi {
+  background: var(--tg-theme-link-color, #3390ec);
+}
+
+.miniApyBox {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.1));
+}
+
+.miniApyMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.75));
+}

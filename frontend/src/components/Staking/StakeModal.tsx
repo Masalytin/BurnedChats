@@ -5,6 +5,7 @@ import { StakingTier, type TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
 import { formatLockDuration } from '@/utils/staking-format';
 
+import { StakeMiniApyBlock } from './StakeMiniApy';
 import { TierBadge } from './TierBadge';
 import styles from './Staking.module.css';
 
@@ -22,7 +23,8 @@ export interface StakeModalProps {
   initialTier: StakingTier;
   tierConfigs: TierConfig[];
   walletBalanceNano: bigint | null;
-  calculateApy: (tier: StakingTier, stakeAmount: bigint) => number;
+  /** Current on-chain stake in the selected tier (excludes the amount being typed). */
+  existingStakeInTierNano: bigint;
   onConfirmStake: (tier: StakingTier, amount: bigint) => Promise<{ ok: boolean }>;
 }
 
@@ -35,7 +37,7 @@ export function StakeModal({
   initialTier,
   tierConfigs,
   walletBalanceNano,
-  calculateApy,
+  existingStakeInTierNano,
   onConfirmStake,
 }: StakeModalProps) {
   const { t } = useTranslation();
@@ -95,8 +97,6 @@ export function StakeModal({
     }
     return new Date(Date.now() + selectedCfg.lockDurationSec * 1000);
   }, [selectedCfg]);
-
-  const apyPct = amountNano > 0n ? calculateApy(tier, amountNano) : 0;
 
   const setFromSlider = useCallback(
     (pct: number) => {
@@ -271,17 +271,14 @@ export function StakeModal({
               </div>
             ) : null}
 
-            <div className={styles.apyRow}>
-              <span>{t('staking.indicativeApy', { pct: apyPct.toFixed(1) })}</span>
-              <span
-                className={styles.apyHelp}
-                tabIndex={0}
-                title={t('staking.apyTooltip')}
-                aria-label={t('staking.apyTooltip')}
-              >
-                ?
-              </span>
-            </div>
+            {selectedCfg ? (
+              <StakeMiniApyBlock
+                tier={tier}
+                amountNano={amountNano}
+                existingStakeInTierNano={existingStakeInTierNano}
+                rewardSharePercent={selectedCfg.rewardSharePercent}
+              />
+            ) : null}
 
             {error ? (
               <p id="stake-amount-error" className={styles.errText} role="alert">

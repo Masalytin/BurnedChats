@@ -11,6 +11,7 @@ import { formatBurn } from '@/utils/format';
 import { formatTimeRemaining, formatTierName } from '@/utils/staking-format';
 import type { TxResult } from '@/ton/types';
 
+import { ApyCalculator } from './ApyCalculator';
 import { RewardsCard } from './RewardsCard';
 import { StakeModal } from './StakeModal';
 import { TierBadge } from './TierBadge';
@@ -78,7 +79,6 @@ export function StakingDashboard() {
     stake,
     unstake,
     claim,
-    calculateApy,
   } = useStaking();
 
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
@@ -88,6 +88,7 @@ export function StakingDashboard() {
   const [busyClaimTier, setBusyClaimTier] = useState<StakingTier | null>(null);
   const [busyClaimAll, setBusyClaimAll] = useState(false);
   const [rewardHighlight, setRewardHighlight] = useState(false);
+  const [mainTab, setMainTab] = useState<'overview' | 'calculator'>('overview');
   const nowSec = Math.floor(Date.now() / 1000);
 
   const sortedConfigs = useMemo(() => sortConfigs(tierConfigs), [tierConfigs]);
@@ -186,6 +187,16 @@ export function StakingDashboard() {
   const unstakeStake = stakeByTier.get(unstakeModalTier);
   const unstakeCfg = tierConfigs.find((c) => c.tier === unstakeModalTier);
 
+  const existingStakeByTier = useMemo(() => {
+    const p: Partial<Record<StakingTier, bigint>> = {};
+    for (const s of stakes) {
+      p[s.tier] = s.amount;
+    }
+    return p;
+  }, [stakes]);
+
+  const stakeModalExisting = stakeByTier.get(stakeModalTier)?.amount ?? 0n;
+
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
@@ -251,6 +262,38 @@ export function StakingDashboard() {
         </div>
       ) : null}
 
+      <div className={styles.calcMainTabRow} role="tablist" aria-label={t('staking.calculator.mainTabsAria')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === 'overview'}
+          className={`${styles.calcMainTab} ${mainTab === 'overview' ? styles.calcMainTabOn : ''}`}
+          onClick={() => setMainTab('overview')}
+        >
+          {t('staking.calculator.tabOverview')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === 'calculator'}
+          className={`${styles.calcMainTab} ${mainTab === 'calculator' ? styles.calcMainTabOn : ''}`}
+          onClick={() => setMainTab('calculator')}
+        >
+          {t('staking.calculator.tabCalculator')}
+        </button>
+      </div>
+
+      {mainTab === 'calculator' ? (
+        <ApyCalculator
+          tierConfigs={tierConfigs}
+          walletBalanceNano={burn.balance}
+          existingStakeByTier={existingStakeByTier}
+          initialTier={StakingTier.Gold}
+        />
+      ) : null}
+
+      {mainTab === 'overview' ? (
+        <>
       <UnlockTimeline stakes={stakes} />
 
       <RewardsCard
@@ -348,13 +391,16 @@ export function StakingDashboard() {
         })}
       </div>
 
+      </>
+      ) : null}
+
       <StakeModal
         open={stakeModalOpen}
         onClose={() => setStakeModalOpen(false)}
         initialTier={stakeModalTier}
         tierConfigs={tierConfigs}
         walletBalanceNano={burn.balance}
-        calculateApy={calculateApy}
+        existingStakeInTierNano={stakeModalExisting}
         onConfirmStake={onConfirmStake}
       />
 
