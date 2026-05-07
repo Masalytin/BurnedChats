@@ -134,6 +134,27 @@
     "errAmountOverBalance": "Amount exceeds your BURN balance."
   },
 
+  "staking": {
+    "tierFlexible": "Flexible",
+    "tierSilver": "Silver",
+    "tierGold": "Gold",
+    "tierDiamond": "Diamond",
+    "lockFlexible": "Flexible",
+    "lock6m": "6 months",
+    "lock1y": "1 year",
+    "lock3y": "3 years",
+    "unlocksIn": "Unlocks in {{parts}}",
+    "unlocked": "Unlocked",
+    "timePartYear_one": "1 year",
+    "timePartYear_other": "{{count}} years",
+    "timePartMonth_one": "1 month",
+    "timePartMonth_other": "{{count}} months",
+    "timePartDay_one": "1 day",
+    "timePartDay_other": "{{count}} days",
+    "timePartHour_one": "1 hour",
+    "timePartHour_other": "{{count}} hours"
+  },
+
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",

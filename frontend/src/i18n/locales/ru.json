@@ -134,6 +134,35 @@
     "errAmountOverBalance": "Сумма превышает баланс BURN."
   },
 
+  "staking": {
+    "tierFlexible": "Гибкий",
+    "tierSilver": "Серебро",
+    "tierGold": "Золото",
+    "tierDiamond": "Алмаз",
+    "lockFlexible": "Гибкий",
+    "lock6m": "6 месяцев",
+    "lock1y": "1 год",
+    "lock3y": "3 года",
+    "unlocksIn": "Разблокировка через {{parts}}",
+    "unlocked": "Разблокировано",
+    "timePartYear_one": "1 год",
+    "timePartYear_few": "{{count}} года",
+    "timePartYear_many": "{{count}} лет",
+    "timePartYear_other": "{{count}} лет",
+    "timePartMonth_one": "1 месяц",
+    "timePartMonth_few": "{{count}} месяца",
+    "timePartMonth_many": "{{count}} месяцев",
+    "timePartMonth_other": "{{count}} месяцев",
+    "timePartDay_one": "1 день",
+    "timePartDay_few": "{{count}} дня",
+    "timePartDay_many": "{{count}} дней",
+    "timePartDay_other": "{{count}} дней",
+    "timePartHour_one": "1 час",
+    "timePartHour_few": "{{count}} часа",
+    "timePartHour_many": "{{count}} часов",
+    "timePartHour_other": "{{count}} часов"
+  },
+
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",
