@@ -42,6 +42,9 @@ dependencies {
     // Logging (included in spring-boot-starter but explicit for clarity)
     implementation("ch.qos.logback:logback-classic")
 
+    // TON cell / BoC decoding (governance proposal payloads)
+    implementation("org.ton.ton4j:cell:2.0.2")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
