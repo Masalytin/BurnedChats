@@ -1,0 +1,761 @@
+/* Governance UI — Telegram Mini App theme tokens (aligned with Staking.module.css) */
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 16px 96px;
+  color: var(--tg-theme-text-color, #fff);
+}
+
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.vpPill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.12));
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+  font-size: 13px;
+}
+
+.listRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabBtn,
+.tabActiveBtn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.18));
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabBtn:focus-visible,
+.tabActiveBtn:focus-visible,
+.primaryBtn:focus-visible,
+.ghostBtn:focus-visible,
+.backLink:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #3390ec);
+  outline-offset: 2px;
+}
+
+.tabActiveBtn {
+  border-color: var(--tg-theme-link-color, #3390ec);
+  background: rgba(51, 144, 236, 0.15);
+}
+
+.sortLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.sortSelect {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.2));
+  background: var(--tg-theme-bg-color, #1c1c1e);
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 14px;
+}
+
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--tg-theme-button-color, #3390ec);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghostBtn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.2));
+  background: transparent;
+  color: var(--tg-theme-link-color, #3390ec);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.errorBanner {
+  color: var(--tg-theme-destructive-text-color, #ff6b6b);
+  font-size: 14px;
+}
+
+.inlineLink {
+  color: var(--tg-theme-link-color, #3390ec);
+  font-weight: 600;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.empty {
+  padding: 24px 16px;
+  border-radius: 14px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  text-align: center;
+}
+
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.card {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.12));
+  transition: border-color 0.15s ease;
+}
+
+.cardLink:focus-visible .card,
+.card:hover {
+  border-color: var(--tg-theme-link-color, #3390ec);
+}
+
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.typeBadge,
+.stateBadge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.badgeParameter {
+  background: rgba(100, 149, 237, 0.25);
+  color: #9bbcff;
+}
+
+.badgeFeature {
+  background: rgba(156, 89, 255, 0.22);
+  color: #d2b8ff;
+}
+
+.badgeTreasury {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffd666;
+}
+
+.badgeEmergency {
+  background: rgba(255, 82, 82, 0.22);
+  color: #ffb4b4;
+}
+
+.badgeNeutral {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stateActive {
+  background: rgba(46, 204, 113, 0.22);
+  color: #9fefbf;
+}
+
+.statePassed {
+  background: rgba(52, 152, 219, 0.22);
+  color: #a8daf9;
+}
+
+.stateDefeated {
+  background: rgba(231, 76, 60, 0.22);
+  color: #ffb8ae;
+}
+
+.stateQueued {
+  background: rgba(241, 196, 15, 0.2);
+  color: #ffeaa7;
+}
+
+.stateExecuted {
+  background: rgba(149, 165, 166, 0.22);
+  color: #dfe6e9;
+}
+
+.stateOther {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cardTitle {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+  margin-bottom: 10px;
+}
+
+.cardDot {
+  opacity: 0.6;
+}
+
+.miniBar {
+  position: relative;
+  display: flex;
+  height: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
+}
+
+.miniBarFor {
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+
+.miniBarAgainst {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.miniBarQuorum {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.cardVoteHint {
+  font-weight: 700;
+  color: var(--tg-theme-link-color, #3390ec);
+}
+
+.voteBarWrap {
+  margin-top: 10px;
+}
+
+.voteBarWrapCompact {
+  margin-top: 6px;
+}
+
+.voteBarTrack {
+  position: relative;
+  display: flex;
+  height: 14px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.voteBarFor {
+  background: #2ecc71;
+}
+
+.voteBarAgainst {
+  background: #e74c3c;
+}
+
+.voteBarQuorumLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.voteBarLegend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.voteBarLegendFor {
+  color: #9fefbf;
+}
+
+.voteBarLegendAgainst {
+  color: #ffb8ae;
+}
+
+.voteBarMeta {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.35));
+}
+
+.timelineStepDone .timelineDot {
+  background: #2ecc71;
+  border-color: #2ecc71;
+}
+
+.timelineStepCurrent .timelineDot {
+  border-color: var(--tg-theme-link-color, #3390ec);
+  background: rgba(51, 144, 236, 0.35);
+}
+
+.timelineStepTodo .timelineDot {
+  background: transparent;
+}
+
+.timelineLabel {
+  font-size: 14px;
+}
+
+.detailRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.backLink {
+  align-self: flex-start;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-theme-link-color, #3390ec);
+  text-decoration: none;
+}
+
+.detailHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detailBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detailTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.detailMeta {
+  margin: 0;
+  font-size: 14px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.section {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.1));
+}
+
+.h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.payloadBox {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.payloadLead {
+  margin-top: 0;
+  font-weight: 600;
+}
+
+.emergencyBadge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 82, 82, 0.25);
+  color: #ffb4b4;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.mdWrap {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mdWrap :global(p) {
+  margin: 0 0 10px;
+}
+
+.mdWrap :global(ul),
+.mdWrap :global(ol) {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.mdWrap :global(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  overflow: auto;
+}
+
+.votedLine {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.voteActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.voteForBtn,
+.voteAgainstBtn {
+  flex: 1;
+  min-width: 140px;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #fff;
+}
+
+.voteForBtn {
+  background: linear-gradient(135deg, #2ecc71, #229954);
+}
+
+.voteAgainstBtn {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.voteForBtn:disabled,
+.voteAgainstBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (min-width: 520px) {
+  .modalBackdrop {
+    align-items: center;
+  }
+}
+
+.modalSheet {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--tg-theme-bg-color, #1c1c1e);
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.14));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.modalTitle {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.modalBody {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.modalMeta {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.modalWarn {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--tg-theme-destructive-text-color, #ff9f9f);
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.createRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.stepOn {
+  font-weight: 800;
+  color: var(--tg-theme-link-color, #3390ec);
+}
+
+.stepOff {
+  opacity: 0.65;
+}
+
+.panel {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--tg-theme-secondary-bg-color, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.12));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.okBanner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(46, 204, 113, 0.15);
+  font-size: 14px;
+}
+
+.warnBanner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(231, 76, 60, 0.18);
+  font-size: 14px;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.typeCard {
+  text-align: left;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.15));
+  background: var(--tg-theme-bg-color, rgba(0, 0, 0, 0.15));
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.typeCard:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #3390ec);
+  outline-offset: 2px;
+}
+
+.typeCardTitle {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.typeCardHint {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
+.rowBetween {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.input,
+.textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(255, 255, 255, 0.2));
+  background: var(--tg-theme-bg-color, #1c1c1e);
+  color: var(--tg-theme-text-color, #fff);
+  font-size: 15px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #3390ec);
+  outline-offset: 1px;
+}

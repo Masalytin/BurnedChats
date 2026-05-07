@@ -425,6 +425,12 @@ async function postRunGetMethod(
   };
 }
 
+/** Total voting power from staking master `get_total_voting_power` (for proposal threshold UI). */
+export async function getTotalVotingPower(deps?: GovernanceDeps): Promise<bigint> {
+  const r = resolveDeps(deps);
+  return fetchTotalVotingPowerRpc(r);
+}
+
 async function fetchTotalVotingPowerRpc(r: ResolvedGovernanceDeps): Promise<bigint> {
   const { exitCode, stackUnknown } = await postRunGetMethod(
     r.rpcBaseUrl,

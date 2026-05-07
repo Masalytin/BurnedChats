@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Routes, Route } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { AuthContextProvider } from './auth';
 import { AuthType } from './auth/types';
@@ -41,6 +41,10 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { CreateProposal } from './components/Governance/CreateProposal';
+import { ProposalDetail } from './components/Governance/ProposalDetail';
+import { ProposalList } from './components/Governance/ProposalList';
+import { GovernancePage } from './pages/GovernancePage';
 import { StakingPage } from './pages/StakingPage';
 import { WalletChrome } from './components/Wallet/WalletDrawer';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
@@ -1470,6 +1474,24 @@ function AppContent() {
       handshakeResult={handshakeResult}
     />
   );
+
+  if (location.pathname.startsWith('/app/governance')) {
+    return (
+      <>
+        {walletChrome}
+        <Layout>
+          <Routes>
+            <Route path="/app/governance" element={<GovernancePage />}>
+              <Route index element={<ProposalList />} />
+              <Route path="new" element={<CreateProposal />} />
+              <Route path=":proposalId" element={<ProposalDetail />} />
+            </Route>
+          </Routes>
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
 
   if (location.pathname === '/app/staking') {
     return (
