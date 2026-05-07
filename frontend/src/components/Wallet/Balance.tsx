@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
@@ -115,6 +116,9 @@ export function Balance({
       {receiveExpanded && addr ? (
         <div className={styles.receivePanel}>
           <p className={styles.receiveHint}>{t('wallet.receiveHint')}</p>
+          <div className={styles.qrWrap} aria-label={t('wallet.receiveQrAria')}>
+            <QRCodeSVG value={tonUri} size={168} level="M" />
+          </div>
           <p className={styles.mono}>{tonUri}</p>
           <button
             type="button"

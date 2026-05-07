@@ -70,7 +70,7 @@ export function useBurnToken(): UseBurnToken {
     try {
       const [nano, txs, fees] = await Promise.all([
         getBurnBalance(walletAddress),
-        getBurnHistory(walletAddress, 30),
+        getBurnHistory(walletAddress, 50),
         getEffectiveFeeParams(),
       ]);
       setBalance(nano);

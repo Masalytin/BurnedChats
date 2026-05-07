@@ -183,6 +183,19 @@
   border: 1px dashed var(--tg-theme-hint-color, rgba(255, 255, 255, 0.2));
 }
 
+.qrWrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--tg-theme-bg-color, #121212);
+}
+
+.qrWrap svg {
+  display: block;
+}
+
 .receiveHint {
   font-size: 0.8rem;
   color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
