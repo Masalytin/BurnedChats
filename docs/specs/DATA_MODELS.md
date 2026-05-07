@@ -200,6 +200,14 @@ SADD blocked:111222333 "444555666" "777888999"
 
 Адрес в суффиксе ключа нормализуется в вид `workchain:hex` (см. `TonAddressBoc.normalizeKey`).
 
+### Phase 5: Staking (`StakingVerifier`)
+
+| Шаблон ключа | TTL | Значение |
+|--------------|-----|----------|
+| `ton:staking:profile:v1:{workchain}:{hex}` | 30 с | JSON `UserStakingProfile` |
+| `ton:staking:lock:v1:{workchain}:{hex}` | 1 ч | Адрес `StakingLock` для данного staking-master |
+| `ton:staking:tiercfg:v1:{workchain}:{hex}` | 1 ч | Кэш tier config, прочитанного с lock-контракта |
+
 ---
 
 ## Phase 2: Комнаты (Redis)

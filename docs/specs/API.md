@@ -363,9 +363,9 @@ public ResponseEntity<?> onWebhook(
 
 ---
 
-### Phase 5: BURN jetton (backend read services)
+### Phase 5: BURN jetton / staking (backend read services)
 
-Публичные REST-эндпоинты для номинала BURN **в этой итерации не добавляются**. Чтение on-chain выполняется внутри backend через **`JettonService`** (Ton Center `runGetMethod`, реактивные `Mono` / `Flux`). Для будущих HTTP-обёрток ориентировочно используются DTO `JettonInfo`, `EffectiveFeeParams`, `UserBalance` (см. `backend/.../ton/dto`).
+Публичные REST-эндпоинты для номинала BURN и стейкинга **в этой итерации не добавляются**. Чтение on-chain выполняется внутри backend через **`JettonService`** (баланс и параметры jetton) и **`StakingVerifier`** (тиры, стейки, voting power); Ton Center `runGetMethod`, реактивные `Mono` / `Flux`. Для будущих HTTP-обёрток ориентировочно используются DTO `JettonInfo`, `EffectiveFeeParams`, `UserBalance`, `StakeInfo`, `UserStakingProfile` (см. `backend/.../ton/dto`).
 
 ---
 
