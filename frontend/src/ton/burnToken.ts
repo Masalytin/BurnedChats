@@ -1,0 +1,660 @@
+import { Address, Cell, type Slice, beginCell } from '@ton/core';
+import { sendTonTransaction } from '@/ton/connector';
+import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
+import type { TxResult } from '@/ton/types';
+import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+
+export type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+
+const JETTON_TRANSFER_OP = 0x0f8a7ea5;
+
+/** Stack entry Ton Center `[type, value]` pair. */
+type StackSlot = [string, string];
+
+export type TransferParams = {
+  recipient: string;
+  amount: bigint;
+  comment?: string;
+};
+
+/** `transferBurn` requires the connected user TON address (friendly or raw). */
+export type TransferBurnParams = TransferParams & { walletAddress: string };
+
+/** Human-facing error taxonomy for BURN UX. */
+export type BurnTokenErrorCode =
+  | 'INSUFFICIENT_BALANCE'
+  | 'INSUFFICIENT_TON_GAS'
+  | 'USER_REJECTED'
+  | 'NETWORK_ERROR'
+  | 'CONFIG'
+  | 'UNKNOWN';
+
+export class BurnTokenError extends Error {
+  readonly code: BurnTokenErrorCode;
+
+  readonly retryable: boolean;
+
+  constructor(code: BurnTokenErrorCode, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'BurnTokenError';
+    this.code = code;
+    this.retryable = code === 'NETWORK_ERROR';
+  }
+}
+
+export type TransferConfirmationPhase = 'idle' | 'signing' | 'confirming' | 'confirmed' | 'timed_out' | 'failed';
+
+export interface TransferProgressPayload {
+  phase: TransferConfirmationPhase;
+  txHash?: string | null;
+  error?: BurnTokenError;
+}
+
+export interface BurnTokenDeps {
+  /** Ton Center v2 base, e.g. `https://testnet.toncenter.com/api/v2` */
+  rpcBaseUrl?: string;
+  /** BURN jetton master (user-friendly or raw). */
+  jettonMaster?: string;
+  /** Optional toncenter API key header. */
+  toncenterApiKey?: string;
+  fetchImpl?: typeof fetch;
+  sendTransactionImpl?: typeof sendTonTransaction;
+  /** Fired through signing + on-chain confirmation polling. */
+  onTransferProgress?: (p: TransferProgressPayload) => void;
+}
+
+const DEFAULT_POLL_MS = 30_000;
+const CONFIRM_POLL_INTERVAL_MS = 1_500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeApiBase(): string {
+  const raw = import.meta.env.VITE_API_URL ?? '';
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+function resolveRpcBaseUrl(override?: string): string {
+  const fromEnv = (import.meta.env.VITE_TON_RPC_URL ?? '').trim();
+  const primary = (override ?? fromEnv).trim();
+  const base =
+    primary ||
+    (resolveIsTestNet() ? 'https://testnet.toncenter.com/api/v2' : 'https://toncenter.com/api/v2');
+  return base.replace(/\/$/, '');
+}
+
+function resolveJettonMaster(override?: string): string {
+  const fromEnv = (import.meta.env.VITE_BURN_JETTON_MASTER ?? '').trim();
+  const addr = override ?? fromEnv;
+  if (!addr) {
+    throw new BurnTokenError('CONFIG', 'BURN jetton master address is not configured (VITE_BURN_JETTON_MASTER)');
+  }
+  return addr;
+}
+
+function resolveIsTestNet(): boolean {
+  const raw = String(import.meta.env.VITE_TON_NETWORK ?? 'testnet').toLowerCase();
+  return raw === 'testnet' || raw === 'true' || raw === '1';
+}
+
+function resolveApiKey(override?: string): string | undefined {
+  const k = (override ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
+  return k || undefined;
+}
+
+function defaultFetch(): typeof fetch {
+  if (typeof globalThis.fetch !== 'function') {
+    throw new BurnTokenError('NETWORK_ERROR', 'fetch is not available in this environment');
+  }
+  return globalThis.fetch.bind(globalThis);
+}
+
+export function addressToSliceStackBoc(userAddress: string): string {
+  const addr = Address.parse(userAddress.trim());
+  return beginCell().storeAddress(addr).endCell().toBoc({ idx: false }).toString('base64');
+}
+
+function decodeAddressFromSliceBoc(b64: string, testOnly: boolean): string {
+  const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0]!;
+  const s = cell.beginParse();
+  const a = s.loadAddress();
+  return a.toString({ bounceable: true, testOnly, urlSafe: true });
+}
+
+function parseStackSlots(stack: unknown): StackSlot[] {
+  if (!Array.isArray(stack)) {
+    return [];
+  }
+  const out: StackSlot[] = [];
+  for (const row of stack) {
+    if (Array.isArray(row) && row.length >= 2 && typeof row[0] === 'string' && typeof row[1] === 'string') {
+      out.push([row[0], row[1]]);
+    }
+  }
+  return out;
+}
+
+function parseNumHex(hex: string): bigint {
+  const s = hex.trim();
+  const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
+  return BigInt(withPrefix);
+}
+
+function firstStackNum(stack: unknown): bigint | null {
+  const slots = parseStackSlots(stack);
+  for (const [t, v] of slots) {
+    if (t === 'num') {
+      return parseNumHex(v);
+    }
+  }
+  return null;
+}
+
+function firstStackSliceCellB64(stack: unknown): string | null {
+  const slots = parseStackSlots(stack);
+  for (const [t, v] of slots) {
+    if (t === 'tvm.Slice') {
+      return v;
+    }
+  }
+  return null;
+}
+
+async function postRunGetMethod(
+  rpcBase: string,
+  address: string,
+  method: string,
+  stack: StackSlot[],
+  fetchImpl: typeof fetch,
+  apiKey?: string,
+): Promise<{ exitCode: number; stackUnknown: unknown }> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+  let response: Response;
+  try {
+    response = await fetchImpl(`${rpcBase}/runGetMethod`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ address: address.trim(), method, stack }),
+    });
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', 'TON runGetMethod request failed', { cause: e });
+  }
+  if (!response.ok) {
+    throw new BurnTokenError('NETWORK_ERROR', `TON runGetMethod HTTP ${response.status}`);
+  }
+  let body: { ok?: boolean; result?: { exit_code?: number; stack?: unknown }; error?: string };
+  try {
+    body = (await response.json()) as typeof body;
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', 'TON runGetMethod invalid JSON body', { cause: e });
+  }
+  if (!body.ok || body.result === undefined || body.result === null) {
+    throw new BurnTokenError('NETWORK_ERROR', body.error ?? 'TON runGetMethod error');
+  }
+  return {
+    exitCode: body.result.exit_code ?? 0,
+    stackUnknown: body.result.stack ?? [],
+  };
+}
+
+async function getJsonViaGet(url: string, fetchImpl: typeof fetch, apiKey?: string): Promise<unknown> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { headers });
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', 'TON GET request failed', { cause: e });
+  }
+  if (!response.ok) {
+    throw new BurnTokenError('NETWORK_ERROR', `TON GET HTTP ${response.status}`);
+  }
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', 'TON GET invalid JSON', { cause: e });
+  }
+}
+
+async function getUserJettonWalletAddress(ownerAddress: string, deps: ResolvedDeps): Promise<string> {
+  const master = resolveJettonMaster(deps.jettonMaster);
+  const sliceB64 = addressToSliceStackBoc(ownerAddress);
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    deps.rpcBaseUrl,
+    master,
+    'get_wallet_address',
+    [['tvm.Slice', sliceB64]],
+    deps.fetchImpl,
+    deps.apiKey,
+  );
+  if (exitCode !== 0) {
+    return ''; // undeployed / no jetton wallet
+  }
+  const b64 = firstStackSliceCellB64(stackUnknown);
+  if (!b64) {
+    return '';
+  }
+  try {
+    return decodeAddressFromSliceBoc(b64, resolveIsTestNet());
+  } catch {
+    return '';
+  }
+}
+
+async function fetchBurnBalanceNanoRpc(ownerAddress: string, deps: ResolvedDeps): Promise<bigint> {
+  const jw = await getUserJettonWalletAddress(ownerAddress, deps);
+  if (!jw) {
+    return 0n;
+  }
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    deps.rpcBaseUrl,
+    jw,
+    'get_wallet_data',
+    [],
+    deps.fetchImpl,
+    deps.apiKey,
+  );
+  if (exitCode !== 0) {
+    return 0n;
+  }
+  const n = firstStackNum(stackUnknown);
+  return n ?? 0n;
+}
+
+async function tryBackendBurnBalance(address: string, fetchImpl: typeof fetch): Promise<bigint | null> {
+  const base = normalizeApiBase();
+  if (!base) {
+    return null;
+  }
+  const url = `${base}/api/wallet/burn-balance?address=${encodeURIComponent(address)}`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+  } catch {
+    return null;
+  }
+  if (response.status === 404 || response.status === 501) {
+    return null;
+  }
+  if (!response.ok) {
+    return null;
+  }
+  try {
+    const body = (await response.json()) as unknown;
+    if (typeof body === 'string' && /^-?\d+$/.test(body)) {
+      return BigInt(body);
+    }
+    if (body && typeof body === 'object') {
+      const r = body as Record<string, unknown>;
+      const nano = r.balanceNano ?? r.nano ?? r.balance;
+      if (typeof nano === 'string' && /^-?\d+$/.test(nano)) {
+        return BigInt(nano);
+      }
+      if (typeof nano === 'number' && Number.isFinite(nano)) {
+        return BigInt(Math.trunc(nano));
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * BURN jetton balance in nano units (1 BURN = 1e9 nano).
+ * Tries backend `/api/wallet/burn-balance` when available, otherwise Ton Center RPC.
+ */
+export async function getBurnBalance(address: string, deps?: BurnTokenDeps): Promise<bigint> {
+  const r = resolveDeps(deps);
+  const viaBackend = await tryBackendBurnBalance(address, r.fetchImpl);
+  if (viaBackend !== null) {
+    return viaBackend;
+  }
+  return fetchBurnBalanceNanoRpc(address, r);
+}
+
+async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<EffectiveFeeParams> {
+  const master = resolveJettonMaster(deps.jettonMaster);
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    deps.rpcBaseUrl,
+    master,
+    'get_effective_fee_params',
+    [],
+    deps.fetchImpl,
+    deps.apiKey,
+  );
+  if (exitCode !== 0) {
+    return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+  }
+  const slots = parseStackSlots(stackUnknown);
+  const nums: bigint[] = [];
+  for (const [t, v] of slots) {
+    if (t === 'num') {
+      nums.push(parseNumHex(v));
+    }
+  }
+  if (nums.length < 3) {
+    return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+  }
+  return {
+    burnBps: Number(nums[0]),
+    stakingBps: Number(nums[1]),
+    treasuryBps: Number(nums[2]),
+  };
+}
+
+/**
+ * Dynamic fee params from jetton master `get_effective_fee_params` (fallback: TOKENOMICS static split).
+ */
+export async function getEffectiveFeeParams(deps?: BurnTokenDeps): Promise<EffectiveFeeParams> {
+  const r = resolveDeps(deps);
+  try {
+    return await fetchEffectiveFeeParamsRpc(r);
+  } catch (e) {
+    if (e instanceof BurnTokenError && e.code === 'NETWORK_ERROR') {
+      return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+    }
+    throw e;
+  }
+}
+
+interface TonCenterTx {
+  utime?: number;
+  transaction_id?: { lt?: string; hash?: string };
+  in_msg?: {
+    source?: string;
+    destination?: string;
+    msg_data?: { body?: string; '@type'?: string };
+  };
+  out_msgs?: Array<{
+    destination?: string;
+    source?: string;
+    msg_data?: { body?: string };
+  }>;
+}
+
+function tryDecodeJettonTransferAmount(bodyB64: string | undefined): bigint | null {
+  if (!bodyB64) {
+    return null;
+  }
+  try {
+    const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0]!;
+    const s = cell.beginParse();
+    const op = s.loadUint(32);
+    if (op !== JETTON_TRANSFER_OP) {
+      return null;
+    }
+    s.loadUintBig(64);
+    return s.loadCoins();
+  } catch {
+    return null;
+  }
+}
+
+function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
+  const hash = tx.transaction_id?.hash ?? '';
+  const tsMs = typeof tx.utime === 'number' ? tx.utime * 1000 : 0;
+
+  let type: BurnTransaction['type'] = 'send';
+  let amount = 0n;
+  let counterparty = '';
+
+  const bodyIn = tx.in_msg?.msg_data?.body;
+
+  let recvAmount = tryDecodeJettonTransferAmount(bodyIn);
+  const out = Array.isArray(tx.out_msgs) ? tx.out_msgs : [];
+  let sendAmount: bigint | null = null;
+  for (const m of out) {
+    sendAmount = tryDecodeJettonTransferAmount(m.msg_data?.body);
+    if (sendAmount !== null) {
+      counterparty = m.destination ?? m.source ?? '';
+      break;
+    }
+  }
+
+  if (recvAmount !== null) {
+    type = 'receive';
+    amount = recvAmount;
+    counterparty = tx.in_msg?.source ?? '';
+  } else if (sendAmount !== null) {
+    type = 'send';
+    amount = sendAmount;
+    counterparty = counterparty || (tx.in_msg?.destination ?? '');
+  } else {
+    type = 'burn';
+    amount = 0n;
+    counterparty = tx.in_msg?.source ?? '';
+  }
+
+  return {
+    hash,
+    type,
+    amount,
+    counterparty,
+    timestamp: tsMs,
+    fee: null,
+    status: hash ? 'confirmed' : 'failed',
+  };
+}
+
+async function fetchTransactionsCenter(address: string, limit: number, deps: ResolvedDeps): Promise<TonCenterTx[]> {
+  const capped = Math.max(1, Math.min(limit, 100));
+  const url = `${deps.rpcBaseUrl}/getTransactions?address=${encodeURIComponent(address.trim())}&limit=${capped}`;
+  const raw = await getJsonViaGet(url, deps.fetchImpl, deps.apiKey);
+  if (!raw || typeof raw !== 'object') {
+    return [];
+  }
+  const root = raw as Record<string, unknown>;
+  if (!root.ok || !Array.isArray(root.result)) {
+    return [];
+  }
+  return root.result.filter((x) => x && typeof x === 'object') as TonCenterTx[];
+}
+
+/**
+ * Latest jetton-wallet activity for `address` owner's BURN transfers (decoded when possible).
+ */
+export async function getBurnHistory(ownerAddress: string, limit = 20, deps?: BurnTokenDeps): Promise<BurnTransaction[]> {
+  const r = resolveDeps(deps);
+  const jw = await getUserJettonWalletAddress(ownerAddress, r);
+  if (!jw) {
+    return [];
+  }
+  const rows = await fetchTransactionsCenter(jw, limit, r);
+  return rows.map(mapCenterTxToBurnRow);
+}
+
+interface TxCursor {
+  lt: bigint;
+  hash: string;
+}
+
+async function readLatestTxCursor(tonWallet: string, deps: ResolvedDeps): Promise<TxCursor | null> {
+  const txs = await fetchTransactionsCenter(tonWallet, 1, deps);
+  if (txs.length === 0) {
+    return null;
+  }
+  const t = txs[0]!;
+  const ltRaw = t.transaction_id?.lt;
+  const hash = t.transaction_id?.hash ?? '';
+  if (!ltRaw) {
+    return null;
+  }
+  try {
+    return { lt: BigInt(ltRaw), hash };
+  } catch {
+    return null;
+  }
+}
+
+async function pollForWalletTxHash(
+  tonWallet: string,
+  beforeLt: bigint,
+  timeoutMs: number,
+  deps: ResolvedDeps,
+): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const txs = await fetchTransactionsCenter(tonWallet, 8, deps);
+    for (const tx of txs) {
+      const ltRaw = tx.transaction_id?.lt;
+      const hash = tx.transaction_id?.hash;
+      if (!ltRaw || !hash) {
+        continue;
+      }
+      try {
+        if (BigInt(ltRaw) > beforeLt) {
+          return hash;
+        }
+      } catch {
+        continue;
+      }
+    }
+    await sleep(CONFIRM_POLL_INTERVAL_MS);
+  }
+  return null;
+}
+
+export function txResultToBurnError(tx: Exclude<TxResult, { ok: true }>): BurnTokenError {
+  if (tx.kind === 'user_rejected') {
+    return new BurnTokenError('USER_REJECTED', tx.message ?? 'User rejected wallet send');
+  }
+  if (tx.kind === 'insufficient_ton') {
+    return new BurnTokenError('INSUFFICIENT_TON_GAS', tx.message ?? 'Not enough TON for gas');
+  }
+  if (tx.kind === 'network') {
+    return new BurnTokenError('NETWORK_ERROR', tx.message ?? 'Network error while sending tx');
+  }
+  return new BurnTokenError('UNKNOWN', tx.message ?? 'Transaction failed');
+}
+
+function encodeCommentForwardPayload(comment: string): Slice {
+  // Simple text forwarding — opcode 0 + tail; receivers that ignore extras still succeed.
+  return beginCell().storeUint(0, 32).storeStringTail(comment).endCell().asSlice();
+}
+
+type ResolvedDeps = {
+  rpcBaseUrl: string;
+  jettonMaster?: string;
+  apiKey?: string | undefined;
+  fetchImpl: typeof fetch;
+  sendTransactionImpl: typeof sendTonTransaction;
+  onTransferProgress?: (p: TransferProgressPayload) => void;
+};
+
+function resolveDeps(deps?: BurnTokenDeps): ResolvedDeps {
+  return {
+    rpcBaseUrl: resolveRpcBaseUrl(deps?.rpcBaseUrl),
+    jettonMaster: deps?.jettonMaster,
+    apiKey: resolveApiKey(deps?.toncenterApiKey),
+    fetchImpl: deps?.fetchImpl ?? defaultFetch(),
+    sendTransactionImpl: deps?.sendTransactionImpl ?? sendTonTransaction,
+    onTransferProgress: deps?.onTransferProgress,
+  };
+}
+
+function emptySlice(): Slice {
+  return beginCell().storeUint(0, 1).endCell().asSlice();
+}
+
+/**
+ * Transfer BURN via connected wallet (Ton Connect signature + polling user wallet for inclusion).
+ *
+ * Caller must already be connected (`sendTonTransaction` checks this).
+ *
+ * Confirmation: poll Ton Center `/getTransactions` on the owner's TON wallet for up to 30 seconds.
+ *
+ * Returned `TxResult` matches {@link TxResult}: success carries only the outbound BOC; track on-chain hash
+ * via hook state (`confirmationHash`) using {@link TransferProgressPayload}.
+ */
+export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenDeps): Promise<TxResult> {
+  const r = resolveDeps(deps);
+  const emit = (p: TransferProgressPayload) => r.onTransferProgress?.(p);
+
+  emit({ phase: 'signing', txHash: null });
+
+  const balance = await getBurnBalance(params.walletAddress, deps);
+  if (params.amount > balance) {
+    const err = new BurnTokenError('INSUFFICIENT_BALANCE', 'BURN jetton balance is insufficient for this transfer');
+    emit({ phase: 'failed', error: err });
+    throw err;
+  }
+
+  let userJettonWallet: string;
+  try {
+    userJettonWallet = await getUserJettonWalletAddress(params.walletAddress, r);
+  } catch (e) {
+    const wrapped =
+      e instanceof BurnTokenError
+        ? e
+        : new BurnTokenError('NETWORK_ERROR', 'Failed to resolve jetton wallet', { cause: e });
+    emit({ phase: 'failed', error: wrapped });
+    throw wrapped;
+  }
+  if (!userJettonWallet) {
+    const err = new BurnTokenError('UNKNOWN', 'Jetton wallet not deployed for this address');
+    emit({ phase: 'failed', error: err });
+    throw err;
+  }
+
+  const recipient = Address.parse(params.recipient.trim());
+  const jettonWalletAddr = Address.parse(userJettonWallet);
+  const forwardPayload = params.comment ? encodeCommentForwardPayload(params.comment) : emptySlice();
+
+  const msg = buildJettonTransferMsg({
+    jettonWallet: jettonWalletAddr,
+    recipient,
+    amount: params.amount,
+    forwardPayload,
+  });
+
+  let beforeLt = 0n;
+  try {
+    const cur = await readLatestTxCursor(params.walletAddress, r);
+    beforeLt = cur?.lt ?? 0n;
+  } catch {
+    beforeLt = 0n;
+  }
+
+  const tx = await r.sendTransactionImpl([msg]);
+  if (!tx.ok) {
+    const mapped = txResultToBurnError(tx);
+    emit({ phase: 'failed', error: mapped });
+    return tx;
+  }
+
+  emit({ phase: 'confirming', txHash: null });
+
+  let hash: string | null = null;
+  try {
+    hash = await pollForWalletTxHash(params.walletAddress, beforeLt, DEFAULT_POLL_MS, r);
+  } catch (e) {
+    const net = new BurnTokenError('NETWORK_ERROR', 'Confirmation polling failed', { cause: e });
+    emit({ phase: 'failed', error: net });
+    return { ok: false, kind: 'network', message: net.message };
+  }
+
+  if (hash) {
+    emit({ phase: 'confirmed', txHash: hash });
+  } else {
+    emit({
+      phase: 'timed_out',
+      txHash: null,
+      error: new BurnTokenError(
+        'UNKNOWN',
+        'Transaction was signed but not observed on-chain within the confirmation window',
+      ),
+    });
+  }
+
+  return tx;
+}
