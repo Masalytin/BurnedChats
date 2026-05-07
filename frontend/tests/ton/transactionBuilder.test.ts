@@ -1,0 +1,159 @@
+import { Address, Cell, beginCell, toNano } from '@ton/core';
+import { TonConnectUIError, type TonConnectUI } from '@tonconnect/ui';
+import { describe, expect, it, vi } from 'vitest';
+import { sendTonTransaction } from '@/ton/connector';
+import type { TransactionMessage } from '@/ton/types';
+import {
+  buildClaimMsg,
+  buildCreateProposalMsg,
+  buildJettonTransferMsg,
+  buildStakeMsg,
+  buildUnstakeMsg,
+  buildVoteMsg,
+} from '@/ton/transactionBuilder';
+
+/** Placeholder basechain user-friendly address for layout tests. */
+const ADDR = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+
+function firstBocCellBase64(base64: string): Cell {
+  return Cell.fromBoc(Buffer.from(base64, 'base64'))[0]!;
+}
+
+describe('transactionBuilder payload encoding', () => {
+  it('buildJettonTransferMsg uses TEP-74 jetton transfer opcode', () => {
+    const msg = buildJettonTransferMsg({
+      jettonWallet: ADDR,
+      recipient: ADDR,
+      amount: 1_000_000_000n,
+      attachedTon: toNano('0.05'),
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x0f8a7ea5);
+  });
+
+  it('buildStakeMsg wraps StakeForward (0x5a020010) under jetton transfer forward_payload', () => {
+    const msg = buildStakeMsg({
+      stakingMaster: ADDR,
+      userJettonWallet: ADDR,
+      amount: 5n * 10n ** 9n,
+      tier: 2,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x0f8a7ea5);
+    s.loadUintBig(64);
+    s.loadCoins();
+    s.loadAddress();
+    s.loadMaybeAddress();
+    expect(s.loadBit()).toBe(false);
+    s.loadCoins();
+    expect(s.preloadUint(1)).toBe(1);
+    expect(s.loadUint(1)).toBe(1);
+    const fwdRef = s.loadRef();
+    const inner = fwdRef.beginParse();
+    expect(inner.loadUint(32)).toBe(0x5a020010);
+    expect(inner.loadUint(8)).toBe(2);
+  });
+
+  it('buildUnstakeMsg encodes UnstakeJetton (0x5a020002)', () => {
+    const msg = buildUnstakeMsg({ stakingMaster: ADDR, tier: 1, amount: 10n ** 9n });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x5a020002);
+    s.loadUintBig(64);
+    expect(s.loadUint(8)).toBe(1);
+    expect(s.loadCoins()).toBe(10n ** 9n);
+  });
+
+  it('buildClaimMsg encodes ClaimRewards (0x5a020003)', () => {
+    const msg = buildClaimMsg({ stakingMaster: ADDR, tier: 3 });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x5a020003);
+    s.loadUintBig(64);
+    expect(s.loadUint(8)).toBe(3);
+  });
+
+  it('buildVoteMsg encodes CastVote (0x5a040102)', () => {
+    const msg = buildVoteMsg({
+      governor: ADDR,
+      proposalId: 7n,
+      support: true,
+      claimedVp: 12345n,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x5a040102);
+    s.loadUintBig(64);
+    expect(s.loadUintBig(64)).toBe(7n);
+    expect(s.loadBit()).toBe(true);
+    expect(s.loadIntBig(257)).toBe(12345n);
+  });
+
+  it('buildCreateProposalMsg encodes CreateProposal (0x5a040101)', () => {
+    const payload = beginCell().storeUint(42, 8).endCell();
+    const msg = buildCreateProposalMsg({
+      governor: ADDR,
+      proposalType: 2,
+      payload,
+      totalVpAtSnapshot: 1_000_000n,
+      claimedVp: 50_000n,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x5a040101);
+    s.loadUintBig(64);
+    expect(s.loadUint(32)).toBe(2);
+    const ref = s.loadRef();
+    expect(ref.beginParse().loadUint(8)).toBe(42);
+    expect(s.loadIntBig(257)).toBe(1_000_000n);
+    expect(s.loadIntBig(257)).toBe(50_000n);
+  });
+});
+
+const minimalTxMessage = (): TransactionMessage => ({
+  address: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+  amount: '50000000',
+  payload: 'te6cckEBAQEAAgAAAA==',
+});
+
+describe('sendTonTransaction (injected TonConnectUI)', () => {
+  it('returns user_rejected when the wallet UI aborts signing', async () => {
+    const send = vi.fn().mockRejectedValue(new TonConnectUIError('Transaction was not sent'));
+    const mockUi = {
+      connected: true,
+      wallet: { account: { balance: '10000000000' } },
+      sendTransaction: send,
+    } as unknown as TonConnectUI;
+
+    const result = await sendTonTransaction([minimalTxMessage()], () => mockUi);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('user_rejected');
+    }
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns insufficient_ton when balance is below requested + buffer', async () => {
+    const send = vi.fn();
+    const mockUi = {
+      connected: true,
+      wallet: { account: { balance: '1000' } },
+      sendTransaction: send,
+    } as unknown as TonConnectUI;
+
+    const result = await sendTonTransaction([minimalTxMessage()], () => mockUi);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('insufficient_ton');
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('returns boc on success', async () => {
+    const send = vi.fn().mockResolvedValue({ boc: 'signed-boc-abc' });
+    const mockUi = {
+      connected: true,
+      wallet: { account: {} },
+      sendTransaction: send,
+    } as unknown as TonConnectUI;
+
+    const result = await sendTonTransaction([minimalTxMessage()], () => mockUi);
+    expect(result).toEqual({ ok: true, boc: 'signed-boc-abc' });
+  });
+});

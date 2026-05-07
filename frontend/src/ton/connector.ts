@@ -8,7 +8,8 @@ import {
   toUserFriendlyAddress,
 } from '@tonconnect/sdk';
 import type { ConnectedWallet } from '@tonconnect/ui';
-import { TonConnectUI } from '@tonconnect/ui';
+import { TonConnectUI, TonConnectUIError } from '@tonconnect/ui';
+import type { TransactionMessage, TxResult } from './types';
 
 let tonConnectUiSingleton: TonConnectUI | null = null;
 
@@ -133,4 +134,126 @@ function assertWalletTonProof(wallet: ConnectedWallet): void {
   if (!isTonProofSuccess(proof)) {
     throw new Error('Wallet connection completed without a valid ton_proof');
   }
+}
+
+const TX_VALID_UNTIL_SEC = 600;
+const GAS_BUFFER_NANOTON = 10_000_000n;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sumRequestedNanoton(messages: TransactionMessage[]): bigint {
+  return messages.reduce((acc, m) => acc + BigInt(m.amount), 0n);
+}
+
+function readConnectedBalanceNanoton(ui: TonConnectUI): bigint | null {
+  const acc = ui.wallet?.account as { balance?: string | number } | undefined;
+  const raw = acc?.balance;
+  if (raw === undefined) {
+    return null;
+  }
+  try {
+    return BigInt(String(raw));
+  } catch {
+    return null;
+  }
+}
+
+function isUserRejection(err: unknown): boolean {
+  if (err instanceof TonConnectUIError) {
+    const m = err.message.toLowerCase();
+    return m.includes('not sent') || m.includes('cancel') || m.includes('reject') || m.includes('denied');
+  }
+  if (err instanceof Error) {
+    const m = err.message.toLowerCase();
+    return m.includes('user rejected') || m.includes('user rejects') || m.includes('declined');
+  }
+  return false;
+}
+
+function isTransientNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const m = err.message.toLowerCase();
+  return (
+    m.includes('network') ||
+    m.includes('fetch') ||
+    m.includes('timeout') ||
+    m.includes('failed to load') ||
+    m.includes('econnreset')
+  );
+}
+
+/**
+ * Sends a signed transaction via the shared {@link getTonConnectUI} instance (wallet popup / TWA flow).
+ *
+ * @param resolveUi - Override for tests; production code should omit (defaults to {@link getTonConnectUI}).
+ * @returns Discriminated result — user decline is `ok: false` / `user_rejected` (no throw).
+ */
+export async function sendTonTransaction(
+  messages: TransactionMessage[],
+  resolveUi: () => TonConnectUI = getTonConnectUI,
+): Promise<TxResult> {
+  const ui = resolveUi();
+  if (!ui.connected) {
+    return { ok: false, kind: 'unknown', message: 'Connect wallet to send a transaction.' };
+  }
+  if (messages.length === 0) {
+    return { ok: false, kind: 'unknown', message: 'At least one message is required' };
+  }
+
+  const required = sumRequestedNanoton(messages);
+  const balance = readConnectedBalanceNanoton(ui);
+  if (balance !== null && balance < required + GAS_BUFFER_NANOTON) {
+    return {
+      ok: false,
+      kind: 'insufficient_ton',
+      message: 'Not enough TON balance for attached value and gas reserve',
+    };
+  }
+
+  const tx = {
+    validUntil: Math.floor(Date.now() / 1000) + TX_VALID_UNTIL_SEC,
+    messages: messages.map((m) => ({
+      address: m.address,
+      amount: m.amount,
+      payload: m.payload,
+      stateInit: m.stateInit,
+    })),
+  };
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const raw = await ui.sendTransaction(tx);
+      const rec = raw as { boc?: string };
+      const boc = rec?.boc;
+      if (!boc) {
+        return { ok: false, kind: 'unknown', message: 'Transaction response missing boc' };
+      }
+      return { ok: true, boc };
+    } catch (err) {
+      lastError = err;
+      if (isUserRejection(err)) {
+        return {
+          ok: false,
+          kind: 'user_rejected',
+          message: err instanceof Error ? err.message : undefined,
+        };
+      }
+      if (attempt < 2 && isTransientNetworkError(err)) {
+        await sleep(200 * 2 ** attempt);
+        continue;
+      }
+      break;
+    }
+  }
+
+  return {
+    ok: false,
+    kind: isTransientNetworkError(lastError) ? 'network' : 'unknown',
+    message: lastError instanceof Error ? lastError.message : String(lastError),
+  };
 }

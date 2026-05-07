@@ -4,8 +4,10 @@ import {
   accountToFriendlyAddress,
   connectWalletWithTonProof,
   getTonConnectUI,
+  sendTonTransaction,
   serializeTonProofFromWallet,
 } from '@/ton/connector';
+import type { TransactionMessage, TxResult } from '@/ton/types';
 
 export interface UseTonConnectResult {
   connect: () => Promise<void>;
@@ -13,6 +15,7 @@ export interface UseTonConnectResult {
   isConnected: boolean;
   walletAddress: string | null;
   tonProof: string | undefined;
+  sendTransaction: (messages: TransactionMessage[]) => Promise<TxResult>;
 }
 
 /**
@@ -48,11 +51,14 @@ export function useTonConnect(): UseTonConnectResult {
     await getTonConnectUI().disconnect();
   }, []);
 
+  const sendTransaction = useCallback(async (messages: TransactionMessage[]) => sendTonTransaction(messages), []);
+
   return {
     connect,
     disconnect,
     isConnected: Boolean(wallet?.account),
     walletAddress,
     tonProof,
+    sendTransaction,
   };
 }
