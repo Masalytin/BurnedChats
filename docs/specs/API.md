@@ -363,9 +363,21 @@ public ResponseEntity<?> onWebhook(
 
 ---
 
-### Phase 5: BURN jetton / staking (backend read services)
+### Phase 5: BURN jetton / staking / governance (backend read services)
 
-Публичные REST-эндпоинты для номинала BURN и стейкинга **в этой итерации не добавляются**. Чтение on-chain выполняется внутри backend через **`JettonService`** (баланс и параметры jetton) и **`StakingVerifier`** (тиры, стейки, voting power); Ton Center `runGetMethod`, реактивные `Mono` / `Flux`. Для будущих HTTP-обёрток ориентировочно используются DTO `JettonInfo`, `EffectiveFeeParams`, `UserBalance`, `StakeInfo`, `UserStakingProfile` (см. `backend/.../ton/dto`).
+Публичные **read-only** GET для governance Mini App (кэш + TON RPC через `GovernanceVerifier`):
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/governance/active-proposals` | `Flux<ProposalSummary>` — предложения в состоянии `ACTIVE` |
+| `GET` | `/api/governance/recent-proposals?limit=` | Последние N предложений по id (убывание) |
+| `GET` | `/api/governance/proposals/{id}` | `ProposalDetail` (summary + декодированный payload + кворум / порог bps) |
+| `GET` | `/api/governance/proposals/{proposalId}/vote?address=` | `UserVote` или **404**, если пользователь не голосовал |
+| `GET` | `/api/governance/voting-power?address=` | `{ "votingPower": "<bigint string>" }` — VP через `StakingVerifier` |
+
+Тела соответствуют `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Перечисления Jackson сериализует как строки (`PARAMETER_CHANGE`, …).
+
+Чтение jetton / staking on-chain по-прежнему внутри **`JettonService`** и **`StakingVerifier`**; отдельные HTTP-обёртки для баланса/стейкинга в этой итерации могут отсутствовать (см. `backend/.../ton/dto`).
 
 ---
 

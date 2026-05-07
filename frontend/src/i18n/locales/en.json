@@ -266,6 +266,25 @@
     }
   },
 
+  "governance": {
+    "proposalType": {
+      "parameterChange": "Parameter change",
+      "featurePriority": "Feature priority",
+      "treasurySpend": "Treasury spend",
+      "emergency": "Emergency",
+      "unknown": "Unknown type"
+    },
+    "proposalState": {
+      "active": "Active",
+      "succeeded": "Passed",
+      "defeated": "Defeated",
+      "queued": "Queued",
+      "executed": "Executed",
+      "cancelled": "Cancelled",
+      "unknown": "Unknown"
+    }
+  },
+
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",

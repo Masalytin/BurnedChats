@@ -274,6 +274,25 @@
     }
   },
 
+  "governance": {
+    "proposalType": {
+      "parameterChange": "Изменение параметра",
+      "featurePriority": "Приоритет функции",
+      "treasurySpend": "Расход казны",
+      "emergency": "Чрезвычайное",
+      "unknown": "Неизвестный тип"
+    },
+    "proposalState": {
+      "active": "Активно",
+      "succeeded": "Принято",
+      "defeated": "Отклонено",
+      "queued": "В очереди",
+      "executed": "Исполнено",
+      "cancelled": "Отменено",
+      "unknown": "Неизвестно"
+    }
+  },
+
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",

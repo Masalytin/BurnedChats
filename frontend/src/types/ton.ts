@@ -47,3 +47,61 @@ export interface TierConfig {
   lockDurationSec: number;
   rewardSharePercent: number;
 }
+
+/** On-chain governance proposal category (`governance-payload.tact` / backend `ProposalType`). */
+export enum ProposalType {
+  ParameterChange = 0,
+  FeaturePriority = 1,
+  TreasurySpend = 2,
+  Emergency = 3,
+}
+
+/** Proposal lifecycle state (`proposal.tact` / backend `ProposalState`). */
+export enum ProposalState {
+  Active = 0,
+  Succeeded = 1,
+  Defeated = 2,
+  Queued = 3,
+  Executed = 4,
+  Cancelled = 5,
+  Unknown = 255,
+}
+
+/** List / row view with quorum thresholds from chain (`get_quorum_required`, `get_threshold_bps`). */
+export interface ProposalSummary {
+  id: number;
+  type: ProposalType;
+  proposer: string;
+  title: string;
+  startTime: number;
+  endTime: number;
+  state: ProposalState;
+  forVotes: bigint;
+  againstVotes: bigint;
+  quorumRequired: bigint;
+  /** Basis points: 10_000 = 100%. */
+  thresholdRequired: bigint;
+}
+
+export interface ProposalDetail {
+  summary: ProposalSummary;
+  decodedPayload: unknown;
+  quorumRequired: bigint;
+  thresholdRequired: bigint;
+  totalVoters: number;
+}
+
+export interface UserVote {
+  proposalId: number;
+  support: boolean | null;
+  vp: bigint;
+  voteTimestamp: number;
+}
+
+export interface ProposalProgress {
+  quorumMet: boolean;
+  thresholdMet: boolean;
+  forPercent: number;
+  againstPercent: number;
+  timeRemainingSec: number;
+}
