@@ -40,6 +40,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { WalletChrome } from './components/Wallet/WalletDrawer';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
@@ -1391,40 +1392,65 @@ function AppContent() {
     }
   }, [keyRefreshSessionId, clearKeyRefresh, startHandshake]);
 
+  const showWalletChrome =
+    isReady &&
+    !isAuthLoading &&
+    isAuthenticated &&
+    !initError &&
+    !(wsError && !wsError.recoverable);
+
+  const walletChrome = showWalletChrome ? <WalletChrome /> : null;
+
   // Loading state
   if (!isReady || isAuthLoading) {
-    return <LoadingOverlay message="Loading BurnedChats..." />
+    return (
+      <>
+        {walletChrome}
+        <LoadingOverlay message="Loading BurnedChats..." />
+      </>
+    );
   }
 
   if (environment === 'browser' && !isAuthenticated) {
-    return <WalletLoginScreen />;
+    return (
+      <>
+        {walletChrome}
+        <WalletLoginScreen />
+      </>
+    );
   }
 
   // Initialization error
   if (initError) {
     return (
-      <div className="error-screen">
-        <div className="error-icon">&#9888;&#65039;</div>
-        <h2>Cannot Start App</h2>
-        <p>{initError}</p>
-      </div>
+      <>
+        {walletChrome}
+        <div className="error-screen">
+          <div className="error-icon">&#9888;&#65039;</div>
+          <h2>Cannot Start App</h2>
+          <p>{initError}</p>
+        </div>
+      </>
     );
   }
 
   // Non-recoverable WebSocket error
   if (wsError && !wsError.recoverable) {
     return (
-      <div className="error-screen">
-        <div className="error-icon">&#128274;</div>
-        <h2>Connection Error</h2>
-        <p>{wsError.message}</p>
-        <button 
-          className="retry-button"
-          onClick={() => window.location.reload()}
-        >
-          Restart App
-        </button>
-      </div>
+      <>
+        {walletChrome}
+        <div className="error-screen">
+          <div className="error-icon">&#128274;</div>
+          <h2>Connection Error</h2>
+          <p>{wsError.message}</p>
+          <button 
+            className="retry-button"
+            onClick={() => window.location.reload()}
+          >
+            Restart App
+          </button>
+        </div>
+      </>
     );
   }
 
@@ -1446,6 +1472,7 @@ function AppContent() {
   if (currentView === 'pending-request' && pendingSession) {
     return (
       <>
+        {walletChrome}
         <Layout>
           <PendingRequestView
             session={pendingSession}
@@ -1461,6 +1488,7 @@ function AppContent() {
   if (currentView === 'incoming-request' && activeIncomingRequest) {
     return (
       <>
+        {walletChrome}
         <Layout>
           <IncomingRequestView
             request={activeIncomingRequest}
@@ -1481,6 +1509,7 @@ function AppContent() {
   if (currentView === 'handshake') {
     return (
       <>
+        {walletChrome}
         <Layout>
           <HandshakeView
             result={handshakeResult}
@@ -1498,6 +1527,7 @@ function AppContent() {
   if (currentView === 'chat' && activeChat && telegramUserId !== null) {
     return (
       <>
+        {walletChrome}
         <Layout>
           <ChatViewContent
             sessionId={activeChat.sessionId}
@@ -1528,6 +1558,7 @@ function AppContent() {
   if (currentView === 'create-room') {
     return (
       <>
+        {walletChrome}
         <Layout>
           {createRoomResult.status === 'created' && createRoomResult.roomId ? (
             <RoomCreatedSuccess
@@ -1563,6 +1594,7 @@ function AppContent() {
   if (currentView === 'join-room' && inviteToken) {
     return (
       <>
+        {walletChrome}
         <Layout>
           <JoinRoomView
             token={inviteToken}
@@ -1592,6 +1624,7 @@ function AppContent() {
 
     return (
       <>
+        {walletChrome}
         <Layout>
           <RoomJoinRequestsView
             requests={visibleRequests}
@@ -1619,6 +1652,7 @@ function AppContent() {
 
     return (
       <>
+        {walletChrome}
         <Layout>
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
@@ -1646,6 +1680,7 @@ function AppContent() {
   if (currentView === 'room-manage' && activeRoomChat) {
     return (
       <>
+        {walletChrome}
         <Layout>
           <RoomManageView
             roomId={activeRoomChat.roomId}
@@ -1678,6 +1713,7 @@ function AppContent() {
   // Default: Home view
   return (
     <>
+      {walletChrome}
       <Layout>
         <HomePage 
           user={user} 
