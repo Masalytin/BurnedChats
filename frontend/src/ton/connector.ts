@@ -36,6 +36,15 @@ export function getTonConnectUI(): TonConnectUI {
   return tonConnectUiSingleton;
 }
 
+/**
+ * Drops the Ton Connect UI singleton so the next {@link getTonConnectUI} builds a fresh instance.
+ * Disconnects first to avoid leaking storage listeners from the library.
+ */
+export function resetTonConnectUI(): void {
+  void tonConnectUiSingleton?.disconnect();
+  tonConnectUiSingleton = null;
+}
+
 export function accountToFriendlyAddress(account: Account): string {
   const testOnly = account.chain === CHAIN.TESTNET;
   return toUserFriendlyAddress(account.address, testOnly);

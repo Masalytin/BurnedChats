@@ -1,9 +1,11 @@
 import type { Wallet } from '@tonconnect/sdk';
 import { useCallback, useEffect, useState } from 'react';
+import { debugLog } from '@/components/DebugPanel';
 import {
   accountToFriendlyAddress,
   connectWalletWithTonProof,
   getTonConnectUI,
+  resetTonConnectUI,
   sendTonTransaction,
   serializeTonProofFromWallet,
 } from '@/ton/connector';
@@ -29,9 +31,14 @@ export function useTonConnect(): UseTonConnectResult {
 
     const unsub = ui.onStatusChange(setWallet);
 
-    void ui.connectionRestored.then(() => {
-      setWallet(ui.wallet);
-    });
+    ui.connectionRestored
+      .then(() => {
+        setWallet(ui.wallet);
+      })
+      .catch((err) => {
+        debugLog('error', '[TonConnect] connectionRestored failed', err);
+        resetTonConnectUI();
+      });
 
     return () => {
       unsub();
