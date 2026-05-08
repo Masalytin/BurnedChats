@@ -8,9 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+node_modules/.tmp/
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
 
 # Prevent stray duplicate Vite config (single source of truth is vite.config.ts).
 vite.config.js

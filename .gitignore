@@ -149,6 +149,9 @@ logs/
 # ========================
 # Misc
 # ========================
+# Local sandbox (must not be committed)
+tmp-toncore/
+
 *.bak
 *.tmp
 *.temp
