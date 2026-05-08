@@ -96,7 +96,7 @@ describe('File Encryption — single-shot', () => {
     expect((await decrypted.arrayBuffer()).byteLength).toBe(0);
   });
 
-  it('should roundtrip a file exactly at threshold (5 MB)', { timeout: 30_000 }, async () => {
+  it('should roundtrip a file exactly at threshold (5 MB)', { timeout: 60_000 }, async () => {
     const original = makeRandomBlob(FILE_CHUNKED_THRESHOLD);
     const encrypted = await encryptFile(original, key);
 

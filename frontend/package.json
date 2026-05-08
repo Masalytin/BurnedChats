@@ -24,7 +24,6 @@
     "i18next": "^25.8.11",
     "lucide-react": "^0.468.0",
     "motion": "^12.34.2",
-    "package.json": "^2.0.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
