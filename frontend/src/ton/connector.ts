@@ -13,11 +13,14 @@ import type { TransactionMessage, TxResult } from './types';
 
 let tonConnectUiSingleton: TonConnectUI | null = null;
 
+const DEFAULT_TONCONNECT_MANIFEST_URL = 'https://burnedchats.com/tonconnect-manifest.json';
+
 function resolveManifestUrl(): string {
-  if (typeof window === 'undefined') {
-    return 'https://burnedchats.com/tonconnect-manifest.json';
+  const fromEnv = import.meta.env.VITE_TONCONNECT_MANIFEST_URL;
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
+    return fromEnv.trim();
   }
-  return `${window.location.origin}/tonconnect-manifest.json`;
+  return DEFAULT_TONCONNECT_MANIFEST_URL;
 }
 
 /**
@@ -31,6 +34,15 @@ export function getTonConnectUI(): TonConnectUI {
     });
   }
   return tonConnectUiSingleton;
+}
+
+/**
+ * Drops the Ton Connect UI singleton so the next {@link getTonConnectUI} builds a fresh instance.
+ * Disconnects first to avoid leaking storage listeners from the library.
+ */
+export function resetTonConnectUI(): void {
+  void tonConnectUiSingleton?.disconnect();
+  tonConnectUiSingleton = null;
 }
 
 export function accountToFriendlyAddress(account: Account): string {
