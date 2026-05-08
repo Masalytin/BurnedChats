@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Prevent stray duplicate Vite config (single source of truth is vite.config.ts).
+vite.config.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
