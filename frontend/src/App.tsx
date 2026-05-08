@@ -647,7 +647,6 @@ function AppContent() {
     publish,
     resetHandshake,
     fetchSessions,
-    createRoomResult.status,
     resetInviteLink,
     requestsReturnView,
   ]);
