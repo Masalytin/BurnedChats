@@ -82,7 +82,11 @@ interface UseWebSocketReturn {
   isReconnection: boolean;
   /** Initiate connection */
   connect: () => void;
-  /** Disconnect from server (clearStoredSubscriptions=true clears for full disconnect) */
+  /**
+   * Disconnect from server.
+   * @param clearStoredSubscriptions When `true` (default): clear stored reconnect subs —
+   *   use **only on logout**. When `false`: keep subs for navigation/remount reuse.
+   */
   disconnect: (clearStoredSubscriptions?: boolean) => void;
   /** Subscribe to a destination */
   subscribe: (destination: string, callback: (message: IMessage) => void) => StompSubscription | null;
@@ -444,7 +448,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     client.activate();
   }, [createClient, getCredentials, handleError]);
 
+  /**
+   * @param clearStoredSubscriptions - `true` (default) clears stored subscriptions — use **only**
+   *   on logout. For routine remounts / effect cleanup pass `false` to retain subs for reconnect.
+   */
   const disconnect = useCallback((clearStoredSubscriptions = true) => {
+    debugLog('info', 'disconnect()', { clearStoredSubscriptions });
     if (clientRef.current) {
       // Clear all active subscriptions
       subscriptionsRef.current.forEach((sub) => {

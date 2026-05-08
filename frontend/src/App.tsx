@@ -832,13 +832,36 @@ function AppContent() {
     setHeaderColor('secondary_bg_color');
   }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor]);
 
+  /** True after we've seen `isAuthenticated` — used to distinguish cold start vs logout. */
+  const wasAuthenticatedRef = useRef(false);
+
+  /**
+   * On real logout (`isAuthenticated` false after login), clear stored WS subs via
+   * `disconnect(true)`. Do not fire on initial mount while still unauthenticated.
+   *
+   * For connect-effect cleanup use `disconnect(false)` so subs stay registered for reconnect
+   * (`storedSubscriptionsRef` in `useWebSocket`).
+   */
+  useEffect(() => {
+    if (isAuthenticated) {
+      wasAuthenticatedRef.current = true;
+      return;
+    }
+    if (wasAuthenticatedRef.current) {
+      disconnect(true);
+      wasAuthenticatedRef.current = false;
+    }
+  }, [isAuthenticated, disconnect]);
+
   // Connect to WebSocket only when Telegram auth is available.
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
     connect();
 
     return () => {
-      disconnect();
+      // Routine teardown — keep stored subs for back/forward navigation and reconnect.
+      // Full wipe runs only via the logout effect above (`disconnect(true)`).
+      disconnect(false);
     };
   }, [isReady, isAuthenticated, connect, disconnect]);
 
