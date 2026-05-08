@@ -25,9 +25,11 @@ export type LinkedAccountsCredentials = LinkedAccountsAuth | LinkedAccountsWalle
 interface LinkedAccountsProps {
   credentials: LinkedAccountsCredentials | null;
   onChanged?: () => void;
+  /** Telegram MA: mount wallet chrome once a linked wallet is detected (lazy gate). */
+  onTonWalletLinkedDetected?: () => void;
 }
 
-export function LinkedAccounts({ credentials, onChanged }: LinkedAccountsProps) {
+export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetected }: LinkedAccountsProps) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<LinkedAccountsDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,6 +60,12 @@ export function LinkedAccounts({ credentials, onChanged }: LinkedAccountsProps) 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (snapshot?.walletLinked) {
+      onTonWalletLinkedDetected?.();
+    }
+  }, [snapshot?.walletLinked, onTonWalletLinkedDetected]);
 
   const onUnlinkWallet = async () => {
     if (!credentials || credentials.kind !== 'telegram') return;

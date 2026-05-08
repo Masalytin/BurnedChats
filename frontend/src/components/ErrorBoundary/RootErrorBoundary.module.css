@@ -1,0 +1,97 @@
+.root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-lg, 24px);
+  background: var(--bc-bg-base, #0f1115);
+  color: var(--bc-text-primary, #f2f4f8);
+}
+
+.card {
+  max-width: 28rem;
+  width: 100%;
+  border-radius: var(--bc-radius-lg, 12px);
+  padding: var(--bc-spacing-xl, 28px);
+  background: var(--bc-bg-elevated, #181c24);
+  border: 1px solid var(--bc-border-subtle, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.icon {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: var(--bc-spacing-md, 12px);
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 var(--bc-spacing-sm, 8px);
+}
+
+.message {
+  margin: 0 0 var(--bc-spacing-md, 12px);
+  color: var(--bc-text-muted, #a8b0c0);
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+.stack {
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--bc-spacing-sm, 8px);
+  margin: 0 0 var(--bc-spacing-md, 12px);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border-radius: var(--bc-radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--bc-border-subtle, rgba(255, 255, 255, 0.06));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-sm, 8px);
+}
+
+.primaryBtn,
+.secondaryBtn,
+.ghostBtn {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--bc-radius-sm, 8px);
+  padding: 0.55rem 1rem;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+}
+
+.primaryBtn {
+  background: var(--bc-accent, #3b82f6);
+  color: #fff;
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.05);
+}
+
+.secondaryBtn {
+  background: transparent;
+  color: var(--bc-text-primary, #f2f4f8);
+  border-color: var(--bc-border-subtle, rgba(255, 255, 255, 0.15));
+}
+
+.secondaryBtn:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.ghostBtn {
+  background: transparent;
+  color: var(--bc-text-muted, #a8b0c0);
+  border-color: transparent;
+  text-decoration: underline;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}

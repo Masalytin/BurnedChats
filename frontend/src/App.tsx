@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, Routes, Route } from 'react-router-dom';
@@ -46,7 +46,8 @@ import { ProposalDetail } from './components/Governance/ProposalDetail';
 import { ProposalList } from './components/Governance/ProposalList';
 import { GovernancePage } from './pages/GovernancePage';
 import { StakingPage } from './pages/StakingPage';
-import { WalletChrome } from './components/Wallet/WalletDrawer';
+import { LazyWalletChrome } from './components/Wallet/LazyWalletChrome';
+import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
@@ -157,6 +158,27 @@ function AppContent() {
     }
     return null;
   }, [isAuthenticated, user, environment, getCredentials]);
+
+  const [telegramWalletChromeRequested, setTelegramWalletChromeRequested] = useState(false);
+
+  const requestTelegramWalletChrome = useCallback(() => {
+    setTelegramWalletChromeRequested(true);
+  }, []);
+
+  useEffect(() => {
+    if (environment !== 'telegram') return;
+    if (user?.walletAddress) {
+      setTelegramWalletChromeRequested(true);
+    }
+  }, [environment, user?.walletAddress]);
+
+  useEffect(() => {
+    if (environment !== 'telegram') return;
+    const p = location.pathname;
+    if (p.startsWith('/app/governance') || p.startsWith('/app/staking')) {
+      setTelegramWalletChromeRequested(true);
+    }
+  }, [environment, location.pathname]);
 
   const telegramWalletLinkAttemptedRef = useRef(false);
 
@@ -1406,7 +1428,16 @@ function AppContent() {
     !initError &&
     !(wsError && !wsError.recoverable);
 
-  const walletChrome = showWalletChrome ? <WalletChrome /> : null;
+  const shouldMountWalletChromeUi =
+    showWalletChrome && (environment === 'browser' || telegramWalletChromeRequested);
+
+  const walletChrome = shouldMountWalletChromeUi ? (
+    <WalletErrorBoundary>
+      <Suspense fallback={null}>
+        <LazyWalletChrome />
+      </Suspense>
+    </WalletErrorBoundary>
+  ) : null;
 
   // Loading state
   if (!isReady || isAuthLoading) {
@@ -1778,6 +1809,7 @@ function AppContent() {
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
           linkedAccountsCredentials={linkedAccountsCredentials}
+          onTonWalletChromeNeeded={requestTelegramWalletChrome}
         />
 
         {/* Chat request dialog */}

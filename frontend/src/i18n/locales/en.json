@@ -71,6 +71,16 @@
     "retryLoad": "Try again"
   },
 
+  "errors": {
+    "rootTitle": "Something went wrong",
+    "rootMessage": "The app hit an unexpected error. Reload the page, copy technical details, or send us a report.",
+    "reload": "Reload",
+    "copyDebugInfo": "Copy debug info",
+    "copied": "Copied to clipboard",
+    "report": "Report",
+    "dismiss": "Dismiss (dev)"
+  },
+
   "wallet": {
     "connectWallet": "Connect Wallet",
     "connectWalletAria": "Connect TON wallet",
@@ -131,7 +141,9 @@
     "errAmountRequired": "Enter an amount.",
     "errAmountInvalid": "Invalid amount.",
     "errAmountPositive": "Amount must be greater than zero.",
-    "errAmountOverBalance": "Amount exceeds your BURN balance."
+    "errAmountOverBalance": "Amount exceeds your BURN balance.",
+    "errorTitle": "Wallet unavailable",
+    "errorRetry": "Try again"
   },
 
   "staking": {

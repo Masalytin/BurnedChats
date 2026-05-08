@@ -1,11 +1,19 @@
 /// <reference types="vitest" />
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
+const pkgPath = fileURLToPath(new URL('./package.json', import.meta.url));
+const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string };
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     nodePolyfills({
       include: ['buffer'],

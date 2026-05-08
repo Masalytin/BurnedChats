@@ -58,6 +58,8 @@ interface HomePageProps {
   onRefreshAll?: () => void;
   /** Linked accounts (Telegram ↔ wallet) API credentials */
   linkedAccountsCredentials?: LinkedAccountsCredentials | null;
+  /** Telegram MA: request mounting wallet chrome (lazy gate + linking flows). */
+  onTonWalletChromeNeeded?: () => void;
 }
 
 /** Default search result state */
@@ -96,6 +98,7 @@ export function HomePage({
   onRefreshRooms,
   onRefreshAll,
   linkedAccountsCredentials = null,
+  onTonWalletChromeNeeded,
 }: HomePageProps) {
   const { t } = useTranslation();
   const [localQuery, setLocalQuery] = useState('');
@@ -270,11 +273,13 @@ export function HomePage({
                 key={linkedRefresh}
                 credentials={linkedAccountsCredentials}
                 onChanged={() => setLinkedRefresh((k) => k + 1)}
+                onTonWalletLinkedDetected={onTonWalletChromeNeeded}
               />
               <AccountLinking
                 authType={user.authType}
                 credentials={linkedAccountsCredentials}
                 onLinked={() => setLinkedRefresh((k) => k + 1)}
+                onBeforeTonWalletFlow={onTonWalletChromeNeeded}
               />
             </CardContent>
           </Card>

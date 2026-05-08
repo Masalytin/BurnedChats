@@ -178,3 +178,5 @@ export function WalletChrome() {
     </>
   );
 }
+
+export default WalletChrome;

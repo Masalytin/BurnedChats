@@ -22,9 +22,11 @@ interface AccountLinkingProps {
   authType: AuthType;
   credentials: LinkedAccountsCredentials | null;
   onLinked?: () => void;
+  /** Telegram MA: ensure WalletChrome mounts before TonConnect wallet proof flow. */
+  onBeforeTonWalletFlow?: () => void;
 }
 
-export function AccountLinking({ authType, credentials, onLinked }: AccountLinkingProps) {
+export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWalletFlow }: AccountLinkingProps) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export function AccountLinking({ authType, credentials, onLinked }: AccountLinki
 
   const handleLinkWallet = useCallback(async () => {
     if (!credentials || credentials.kind !== 'telegram') return;
+    onBeforeTonWalletFlow?.();
     setBusy(true);
     setError(null);
     try {
@@ -51,7 +54,7 @@ export function AccountLinking({ authType, credentials, onLinked }: AccountLinki
     } finally {
       setBusy(false);
     }
-  }, [credentials, onLinked, t]);
+  }, [credentials, onLinked, onBeforeTonWalletFlow, t]);
 
   const handlePrepareTelegramLink = useCallback(async () => {
     if (!credentials || credentials.kind !== 'wallet') return;

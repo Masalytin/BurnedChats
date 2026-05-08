@@ -71,6 +71,16 @@
     "retryLoad": "Повторить"
   },
 
+  "errors": {
+    "rootTitle": "Что-то пошло не так",
+    "rootMessage": "Приложение столкнулось с ошибкой. Перезагрузите страницу, скопируйте технические данные или отправьте нам отчёт.",
+    "reload": "Перезагрузить",
+    "copyDebugInfo": "Копировать отладку",
+    "copied": "Скопировано в буфер",
+    "report": "Сообщить",
+    "dismiss": "Закрыть (dev)"
+  },
+
   "wallet": {
     "connectWallet": "Подключить кошелёк",
     "connectWalletAria": "Подключить TON-кошелёк",
@@ -131,7 +141,9 @@
     "errAmountRequired": "Введите сумму.",
     "errAmountInvalid": "Некорректная сумма.",
     "errAmountPositive": "Сумма должна быть больше нуля.",
-    "errAmountOverBalance": "Сумма превышает баланс BURN."
+    "errAmountOverBalance": "Сумма превышает баланс BURN.",
+    "errorTitle": "Кошелёк недоступен",
+    "errorRetry": "Попробовать снова"
   },
 
   "staking": {
