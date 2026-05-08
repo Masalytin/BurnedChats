@@ -10,7 +10,7 @@ const pkgPath = fileURLToPath(new URL('./package.json', import.meta.url));
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string };
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
@@ -43,13 +43,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Production: emit .map files for CI/Sentry but omit //# sourceMappingURL from JS.
+    sourcemap: mode === 'production' ? 'hidden' : true,
   },
   test: {
     globals: true,
     environment: 'node',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
   },
-});
+}));
 
 
