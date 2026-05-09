@@ -33,7 +33,7 @@ import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
 import { ChatRoom } from './components/Chat';
 import { RoomChatRoom } from './components/Chat/RoomChatRoom';
-import { CreateRoomView, RoomCreatedSuccess } from './components/CreateRoomView';
+import { CreateRoomView } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
 import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
 import { RoomManageView } from './components/RoomManageView';
@@ -310,13 +310,18 @@ function AppContent() {
     subscribe,
     unsubscribe,
     publish,
-    onCreated: () => {
+    onCreated: (room) => {
       notificationOccurred('success');
-      toast.success('Room created!');
+      toast.success(t('room.create.createdToast'), { duration: 4000 });
+      resetCreateRoom();
+      setActiveRoomChat({ roomId: room.id, epoch: 0, isOwner: true });
+      setCurrentView('room-chat');
     },
     onError: (errorCode) => {
       notificationOccurred('error');
-      toast.error(`Failed to create room: ${errorCode}`, { title: 'Error' });
+      toast.error(t('room.create.errorToast', { error: errorCode }), {
+        title: t('room.create.errorToastTitle'),
+      });
     },
   });
 
@@ -514,7 +519,7 @@ function AppContent() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
   // Track which view to return to from room-join-requests (P2-4.3.1)
-  const [requestsReturnView, setRequestsReturnView] = useState<'home' | 'create-room' | 'room-manage'>('home');
+  const [requestsReturnView, setRequestsReturnView] = useState<'home' | 'room-manage'>('home');
 
   // Active room chat state (P2-3.2.3)
   const [activeRoomChat, setActiveRoomChat] = useState<ActiveRoomChat | null>(null);
@@ -721,13 +726,6 @@ function AppContent() {
     debugLog('info', `[RoomManage] BURN_ROOM sent for ${activeRoomChat.roomId}`);
     // ROOM_BURNED response handled in the subscription above (fires for all members)
   }, [activeRoomChat, isConnected, publish]);
-
-  // Handle "View Requests" from RoomCreatedSuccess
-  const handleViewRequests = useCallback((roomId: string) => {
-    setActiveRoomId(roomId);
-    setRequestsReturnView('create-room');
-    setCurrentView('room-join-requests');
-  }, []);
 
   // Handle accept/reject join request (P2-2.2.5)
   const handleAcceptJoinRequest = useCallback((roomId: string, senderTgId: number) => {
@@ -1650,30 +1648,15 @@ function AppContent() {
       <>
         {walletChrome}
         <Layout>
-          {createRoomResult.status === 'created' && createRoomResult.roomId ? (
-            <RoomCreatedSuccess
-              roomId={createRoomResult.roomId}
-              inviteLink={createRoomResult.inviteUrl}
-              onViewRequests={handleViewRequests}
-              pendingRequestsCount={pendingJoinCount}
-              onEnterRoom={() => {
-                const roomId = createRoomResult.roomId!;
-                resetCreateRoom();
-                setActiveRoomChat({ roomId, epoch: 0, isOwner: true });
-                setCurrentView('room-chat');
-              }}
-            />
-          ) : (
-            <CreateRoomView
-              isLoading={isCreatingRoom}
-              error={createRoomResult.error}
-              onSubmit={handleCreateRoomSubmit}
-              onCancel={() => {
-                resetCreateRoom();
-                setCurrentView('home');
-              }}
-            />
-          )}
+          <CreateRoomView
+            isLoading={isCreatingRoom}
+            error={createRoomResult.error}
+            onSubmit={handleCreateRoomSubmit}
+            onCancel={() => {
+              resetCreateRoom();
+              setCurrentView('home');
+            }}
+          />
         </Layout>
         {debugPanelElement}
       </>

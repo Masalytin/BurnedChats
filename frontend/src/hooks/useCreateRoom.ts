@@ -40,7 +40,11 @@ interface UseCreateRoomOptions {
   subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
-  onCreated?: (room: Room) => void;
+  /**
+   * Called after ROOM_CREATED and local group key / owner keypair storage.
+   * @param inviteUrl Telegram deep-link from server, or null if missing.
+   */
+  onCreated?: (room: Room, inviteUrl: string | null) => void;
   onError?: (error: CreateRoomErrorCode) => void;
 }
 
@@ -114,7 +118,7 @@ export function useCreateRoom({
       }
 
       setResult({ status: 'created', roomId: data.roomId, inviteUrl: data.inviteUrl ?? null, error: null });
-      onCreatedRef.current?.({ id: data.roomId } as Room);
+      onCreatedRef.current?.({ id: data.roomId } as Room, data.inviteUrl ?? null);
     };
 
     handleAsync().catch(() => {
