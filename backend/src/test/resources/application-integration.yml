@@ -1,0 +1,6 @@
+# Profile: integration — STOMP + Redis integration tests (IMP-STOMP-USERDEST-07)
+# Redis host/port are overridden by Testcontainers @DynamicPropertySource.
+
+spring.data.redis:
+  host: localhost
+  port: 6379
