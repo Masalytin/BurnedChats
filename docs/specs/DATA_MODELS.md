@@ -232,7 +232,7 @@ EXPIRE room:uuid-room-1 2592000
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `ownerInternalId` | string | internalId владельца |
+| `ownerInternalId` | string | internalId владельца (UUID). При чтении из Redis: если поле пустое или содержит только цифры (legacy), нормализуется через `InternalIds.forTelegramId` там, где это безопасно согласовать с `ownerTgId` |
 | `ownerTgId` | string | Telegram ID владельца (compat для текущих DTO) |
 | `salt` | string | Salt для KDF (Base64). Пустая строка, если комната без пароля (BY_REQUEST) |
 | `passwordProofHash` | string | Хеш proof. Пустая строка, если комната без пароля |

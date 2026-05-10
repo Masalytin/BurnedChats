@@ -40,7 +40,7 @@ public class RoomService {
      *   <li>Add the owner as the first member of {@code room_members:{roomId}}.</li>
      * </ol>
      *
-     * @param ownerInternalId      Telegram ID of the room owner
+     * @param ownerTgId        Telegram ID of the room owner
      * @param salt           KDF salt (Base64), or null when creating a room without password (BY_REQUEST)
      * @param passwordProof  PBKDF2 proof (Base64), or null when room has no password
      * @param joinMode       how participants enter the room

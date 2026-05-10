@@ -1,6 +1,7 @@
 package dev.burnedchats.repository;
 
 import dev.burnedchats.model.Room;
+import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -123,16 +124,43 @@ public class RoomRepository {
         String nameEncrypted = hash.getOrDefault("nameEncrypted", "");
         String salt = hash.getOrDefault("salt", "");
         String passwordProofHash = hash.getOrDefault("passwordProofHash", "");
+        String ownerInternalRaw = hash.getOrDefault("ownerInternalId", "");
+        Long ownerTgId = parseLongOrNull(hash.get("ownerTgId"));
+        String ownerInternalId = normalizeStoredOwnerInternalId(ownerInternalRaw, ownerTgId);
         return Room.builder()
                 .id(hash.get("id"))
-                .ownerInternalId(hash.get("ownerInternalId"))
-                .ownerTgId(parseLongOrNull(hash.get("ownerTgId")))
+                .ownerInternalId(ownerInternalId)
+                .ownerTgId(ownerTgId)
                 .salt(salt.isEmpty() ? null : salt)
                 .passwordProofHash(passwordProofHash.isEmpty() ? null : passwordProofHash)
                 .joinMode(Room.JoinMode.valueOf(hash.get("joinMode")))
                 .createdAt(Long.parseLong(hash.get("createdAt")))
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)
                 .build();
+    }
+
+    /**
+     * Legacy rows may omit {@code ownerInternalId} or store a numeric Telegram id in that field.
+     */
+    private static String normalizeStoredOwnerInternalId(String raw, Long ownerTgId) {
+        if (raw != null && !raw.isBlank()) {
+            boolean allDigits = raw.chars().allMatch(Character::isDigit);
+            if (allDigits) {
+                try {
+                    long asTg = Long.parseLong(raw);
+                    if (ownerTgId == null || ownerTgId.equals(asTg)) {
+                        return InternalIds.forTelegramId(asTg);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // keep raw
+                }
+            }
+            return raw;
+        }
+        if (ownerTgId != null) {
+            return InternalIds.forTelegramId(ownerTgId);
+        }
+        return "";
     }
 
     private Long parseLongOrNull(String value) {
