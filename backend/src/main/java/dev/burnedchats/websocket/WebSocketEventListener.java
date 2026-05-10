@@ -182,7 +182,7 @@ public class WebSocketEventListener {
      * <p>This is called when a user connects to ensure they receive
      * any chat requests that arrived while they were offline.
      *
-     * @param userId the user's Telegram ID
+     * @param internalId recipient {@link dev.burnedchats.model.UnifiedUser#internalId()} (STOMP user name)
      */
     private void sendPendingRequests(String internalId) {
         requestRepository.findByRecipient(internalId)
@@ -250,27 +250,27 @@ public class WebSocketEventListener {
      * Fan out pending offline messages to the freshly-connected user.
      *
      * <p>Locates all sessions with pending messages via
-     * {@link MessageRepository#findSessionsWithPendingMessages(Long)}
+     * {@link MessageRepository#findSessionsWithPendingMessages(String)}
      * and, for each one, emits a {@link SyncMessagesEvent} over
      * {@code /user/queue/sync-messages}. The Redis queue is cleared only
      * after the event is handed off to the messaging template, so that a
      * race with a client-initiated {@code /app/message.sync} is safe
      * (the second response will simply contain {@code count: 0}).
      *
-     * @param userId the Telegram user ID that just connected
+     * @param internalId {@link dev.burnedchats.model.UnifiedUser#internalId()} of the user that just connected
      */
-    private void pushPendingMessagesFanOut(String userId) {
+    private void pushPendingMessagesFanOut(String internalId) {
         int concurrency = Math.max(1, messagesProperties.getServerPushSync().getConcurrency());
 
         AtomicInteger sessionCount = new AtomicInteger(0);
         AtomicInteger messageCount = new AtomicInteger(0);
 
         Flux.merge(
-                        messageRepository.findSessionsWithPendingMessages(userId),
-                        messageRepository.findSessionsWithPendingDeletions(userId),
-                        messageRepository.findSessionsWithPendingEdits(userId))
+                        messageRepository.findSessionsWithPendingMessages(internalId),
+                        messageRepository.findSessionsWithPendingDeletions(internalId),
+                        messageRepository.findSessionsWithPendingEdits(internalId))
                 .distinct()
-                .flatMap(sessionId -> pushPendingMessagesForSession(userId, sessionId)
+                .flatMap(sessionId -> pushPendingMessagesForSession(internalId, sessionId)
                         .doOnNext(delivered -> {
                             if (delivered > 0) {
                                 sessionCount.incrementAndGet();
@@ -281,19 +281,19 @@ public class WebSocketEventListener {
                 .subscribe(
                         v -> {},
                         error -> LOG.error(
-                                "Error during server-push sync fan-out for user {}: {}",
-                                userId, error.getMessage()),
+                                "Error during server-push sync fan-out for internalId {}: {}",
+                                internalId, error.getMessage()),
                         () -> {
                             int sessions = sessionCount.get();
                             int messages = messageCount.get();
                             if (sessions > 0) {
                                 LOG.info(
-                                        "Server-push sync: userId={}, sessions={}, messages={}",
-                                        userId, sessions, messages);
+                                        "Server-push sync: internalId={}, sessions={}, messages={}",
+                                        internalId, sessions, messages);
                             } else {
                                 LOG.debug(
-                                        "Server-push sync: userId={}, no pending messages",
-                                        userId);
+                                        "Server-push sync: internalId={}, no pending messages",
+                                        internalId);
                             }
                         }
             );
@@ -307,15 +307,15 @@ public class WebSocketEventListener {
      * (e.g. another fan-out or an explicit client sync drained it), to
      * avoid a pointless {@code count: 0} event.
      *
-     * @param userId    the recipient's Telegram user ID
+     * @param internalId recipient {@link dev.burnedchats.model.UnifiedUser#internalId()}
      * @param sessionId the session whose queue should be drained
      * @return mono of the number of messages delivered (0 if none)
      */
-    private Mono<Integer> pushPendingMessagesForSession(String userId, String sessionId) {
+    private Mono<Integer> pushPendingMessagesForSession(String internalId, String sessionId) {
         return Mono.zip(
-                messageRepository.getPendingMessages(userId, sessionId).collectList(),
-                messageRepository.getPendingEdits(userId, sessionId).collectList(),
-                messageRepository.getPendingDeletions(userId, sessionId).collectList()
+                messageRepository.getPendingMessages(internalId, sessionId).collectList(),
+                messageRepository.getPendingEdits(internalId, sessionId).collectList(),
+                messageRepository.getPendingDeletions(internalId, sessionId).collectList()
         ).flatMap(tuple -> {
             List<Message> messages = tuple.getT1();
             List<MessageEdit> pendingEdits = tuple.getT2();
@@ -339,32 +339,32 @@ public class WebSocketEventListener {
             SyncMessagesEvent event = SyncMessagesEvent.success(sessionId, syncedMessages, deletedIds, syncedEdits);
 
             messagingTemplate.convertAndSendToUser(
-                    String.valueOf(userId),
+                    internalId,
                     SYNC_MESSAGES_DESTINATION,
                     event
             );
 
-            LOG.debug("Server-push sync: {} messages, {} edits, {} deletions, user {} session {}",
-                    messages.size(), syncedEdits.size(), deletedIds.size(), userId, sessionId);
+            LOG.debug("Server-push sync: {} messages, {} edits, {} deletions, internalId {} session {}",
+                    messages.size(), syncedEdits.size(), deletedIds.size(), internalId, sessionId);
 
             Mono<Void> after = Mono.empty();
             if (!messages.isEmpty()) {
                 offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                after = after.then(messageRepository.deleteMessages(userId, sessionId).then());
+                after = after.then(messageRepository.deleteMessages(internalId, sessionId).then());
             }
             if (!pendingEdits.isEmpty()) {
                 offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_edit, pendingEdits.size());
-                after = after.then(messageRepository.deleteEdits(userId, sessionId).then());
+                after = after.then(messageRepository.deleteEdits(internalId, sessionId).then());
             }
             if (!deletions.isEmpty()) {
                 offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_deletion, deletions.size());
-                after = after.then(messageRepository.deleteDeletions(userId, sessionId).then());
+                after = after.then(messageRepository.deleteDeletions(internalId, sessionId).then());
             }
             return after.thenReturn(messages.size() + pendingEdits.size() + deletions.size());
         })
                 .onErrorResume(error -> {
-                    LOG.error("Server-push sync failed for user {} session {}: {}",
-                            userId, sessionId, error.getMessage());
+                    LOG.error("Server-push sync failed for internalId {} session {}: {}",
+                            internalId, sessionId, error.getMessage());
                     return Mono.just(0);
                 });
     }

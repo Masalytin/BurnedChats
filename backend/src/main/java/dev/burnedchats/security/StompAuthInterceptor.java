@@ -16,7 +16,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.security.Principal;
 
 /**
  * STOMP channel interceptor for Telegram Mini App authentication.
@@ -228,7 +227,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
      * <p>Wraps the validated {@link TelegramInitData} and provides
      * access to user information throughout the WebSocket session.
      */
-    public static class TelegramPrincipal implements Principal {
+    public static class TelegramPrincipal implements AppPrincipal {
 
         private final TelegramInitData initData;
         private final UnifiedUser unifiedUser;
@@ -244,12 +243,10 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
 
         /**
-         * Get the principal name (user ID as string).
+         * Principal name for Spring — {@link UnifiedUser#internalId()} (not Telegram ID).
          *
-         * <p>This is used by Spring's user destination resolution
-         * for sending messages to specific users.
-         *
-         * @return user ID as string
+         * <p>Used by Spring's user destination resolution; must match the {@code username}
+         * passed to {@code convertAndSendToUser}.
          */
         @Override
         public String getName() {
@@ -257,14 +254,20 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
 
         /**
-         * Get the Telegram user ID.
+         * Telegram numeric user id for outward-facing DTOs and legacy keys — not the STOMP session name.
          *
-         * @return user ID
+         * <p><strong>Do not use for STOMP user routing.</strong> Spring matches {@code convertAndSendToUser}
+         * to {@link #getName()} / {@link #getInternalId()} (internal UUID). For targeted delivery use
+         * {@link dev.burnedchats.messaging.StompUserMessenger} or {@link #getInternalId()}.
+         *
+         * @return telegram id, or {@code null} if missing from {@link UnifiedUser}
+         *     (wallet sessions use {@link WalletPrincipal}, not this class)
          */
         public Long getUserId() {
             return unifiedUser.telegramId();
         }
 
+        @Override
         public String getInternalId() {
             return unifiedUser.internalId();
         }
@@ -329,7 +332,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     /**
      * Principal implementation for wallet-authenticated users.
      */
-    public static class WalletPrincipal implements Principal {
+    public static class WalletPrincipal implements AppPrincipal {
 
         private final UnifiedUser unifiedUser;
 
@@ -342,6 +345,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             return unifiedUser.internalId();
         }
 
+        @Override
         public String getInternalId() {
             return unifiedUser.internalId();
         }
