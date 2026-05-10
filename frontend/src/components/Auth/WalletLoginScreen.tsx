@@ -48,7 +48,7 @@ export function WalletLoginScreen() {
   return (
     <div className="wallet-login-screen">
       <div className="wallet-login-screen__card">
-        <img className="wallet-login-screen__logo" src="/favicon.ico" alt="" width={56} height={56} />
+        <img className="wallet-login-screen__logo" src="/logo.png" alt="" width={56} height={56} />
 
         <h1 className="wallet-login-screen__title">{t('walletLogin.title')}</h1>
         <p className="wallet-login-screen__subtitle">{t('walletLogin.subtitle')}</p>
