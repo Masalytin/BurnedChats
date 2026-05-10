@@ -15,6 +15,7 @@ import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
@@ -123,6 +124,7 @@ public class RoomMessageHandler {
     private final RoomMessageRepository roomMessageRepository;
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
+    private final StompUserMessenger stompUserMessenger;
     private final SimpMessagingTemplate messagingTemplate;
     private final FileMessageRelayValidator fileMessageRelayValidator;
     private final FileBurnService fileBurnService;
@@ -149,14 +151,14 @@ public class RoomMessageHandler {
         LOG.info("ROOM_MESSAGE_EDIT: roomId={}, messageId={}, senderTgId={}", roomId, messageId, senderTgId);
 
         if (isRoomEditWindowExpired(request.getOriginalClientTimestamp(), request.getEditedAt())) {
-            sendRoomMessageEditError(senderTgId, roomId, messageId, "WINDOW_EXPIRED");
+            sendRoomMessageEditError(tp, roomId, messageId, "WINDOW_EXPIRED");
             return;
         }
 
         roomMembersRepository.isMember(roomId, senderTgId)
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        sendRoomMessageEditError(senderTgId, roomId, messageId, "NOT_MEMBER");
+                        sendRoomMessageEditError(tp, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
                     Instant editedAt = Instant.ofEpochMilli(request.getEditedAt());
@@ -189,7 +191,7 @@ public class RoomMessageHandler {
                                         return extendRoomTtlAfterMutation(roomId);
                                     }))
                             .switchIfEmpty(Mono.defer(() -> {
-                                sendRoomMessageEditError(senderTgId, roomId, messageId, "NOT_EDITABLE");
+                                sendRoomMessageEditError(tp, roomId, messageId, "NOT_EDITABLE");
                                 return Mono.empty();
                             }));
                 })
@@ -197,7 +199,7 @@ public class RoomMessageHandler {
                         v -> { },
                         error -> {
                             LOG.error("ROOM_MESSAGE_EDIT failed: roomId={}, error={}", roomId, error.getMessage());
-                            sendRoomMessageEditError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
+                            sendRoomMessageEditError(tp, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -215,32 +217,32 @@ public class RoomMessageHandler {
         roomMembersRepository.isMember(roomId, userId)
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_MEMBER");
+                        sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
                     return roomRepository.findById(roomId)
                             .switchIfEmpty(Mono.defer(() -> {
-                                sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_FOUND");
+                                sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_FOUND");
                                 return Mono.empty();
                             }))
                             .flatMap(room -> roomMessageRepository.findRoomMessageById(roomId, messageId)
                                     .flatMap(opt -> {
                                         if (opt.isEmpty()) {
-                                            sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_FOUND");
+                                            sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_FOUND");
                                             return Mono.empty();
                                         }
                                         RoomMessage rm = opt.get();
                                         boolean own = userId.equals(rm.getSenderTgId());
                                         boolean asOwner = !own && java.util.Objects.equals(userId, room.getOwnerTgId());
                                         if (!own && !asOwner) {
-                                            sendRoomMessageDeleteError(userId, roomId, messageId, "NOT_ALLOWED");
+                                            sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_ALLOWED");
                                             return Mono.empty();
                                         }
                                         return roomMessageRepository.removeRoomMessageValue(roomId, rm)
                                                 .flatMap(ok -> {
                                                     if (!ok) {
                                                         sendRoomMessageDeleteError(
-                                                                userId, roomId, messageId, "NOT_FOUND");
+                                                                tp, roomId, messageId, "NOT_FOUND");
                                                         return Mono.empty();
                                                     }
                                                     if (FileMessageRelayValidator.isFileMessage(rm.getType())) {
@@ -265,7 +267,7 @@ public class RoomMessageHandler {
                         v -> { },
                         error -> {
                             LOG.error("ROOM_MESSAGE_DELETE failed: roomId={}, error={}", roomId, error.getMessage());
-                            sendRoomMessageDeleteError(userId, roomId, messageId, "INTERNAL_ERROR");
+                            sendRoomMessageDeleteError(tp, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -286,7 +288,7 @@ public class RoomMessageHandler {
                     if (!isMember) {
                         LOG.debug("SEND_ROOM_MESSAGE rejected: user {} not a member of room {}",
                                 senderTgId, roomId);
-                        sendError(senderTgId, roomId, messageId, "NOT_MEMBER");
+                        sendError(tp, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
 
@@ -299,12 +301,12 @@ public class RoomMessageHandler {
                     }
 
                     return fileValidation
-                            .then(Mono.defer(() -> saveAndBroadcast(request, senderTgId, roomId, messageId)));
+                            .then(Mono.defer(() -> saveAndBroadcast(request, tp, roomId, messageId)));
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for room message {} in room {}: {}",
                             messageId, roomId, ex.getErrorCode());
-                    sendError(senderTgId, roomId, messageId, ex.getErrorCode());
+                    sendError(tp, roomId, messageId, ex.getErrorCode());
                     return Mono.empty();
                 })
                 .subscribe(
@@ -312,13 +314,14 @@ public class RoomMessageHandler {
                         error -> {
                             LOG.error("Error processing SEND_ROOM_MESSAGE: roomId={}, error={}",
                                     roomId, error.getMessage());
-                            sendError(senderTgId, roomId, messageId, "INTERNAL_ERROR");
+                            sendError(tp, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
 
     private Mono<Void> saveAndBroadcast(
-            SendRoomMessageRequest request, Long senderTgId, String roomId, String messageId) {
+            SendRoomMessageRequest request, TelegramPrincipal sender, String roomId, String messageId) {
+        Long senderTgId = sender.getUserId();
         Instant serverTimestamp = Instant.now();
         String type = request.getType() != null ? request.getType() : "text";
 
@@ -350,16 +353,17 @@ public class RoomMessageHandler {
                     if (!saved) {
                         LOG.warn("Failed to save room message: roomId={}, messageId={}",
                                 roomId, messageId);
-                        sendError(senderTgId, roomId, messageId, "SAVE_FAILED");
+                        sendError(sender, roomId, messageId, "SAVE_FAILED");
                         return Mono.<Void>empty();
                     }
-                    return broadcastMessage(request, senderTgId, roomId, messageId, serverTimestamp);
+                    return broadcastMessage(request, sender, roomId, messageId, serverTimestamp);
                 });
     }
 
     private Mono<Void> broadcastMessage(
-            SendRoomMessageRequest request, Long senderTgId, String roomId,
-            String messageId, Instant serverTimestamp) {
+            SendRoomMessageRequest request, TelegramPrincipal sender,
+            String roomId, String messageId, Instant serverTimestamp) {
+        Long senderTgId = sender.getUserId();
         String type = request.getType() != null ? request.getType() : "text";
 
         return userRepository.getDisplayName(senderTgId)
@@ -396,8 +400,8 @@ public class RoomMessageHandler {
                             roomId, messageId, senderTgId);
                     // Send delivery acknowledgment back to sender so the client can
                     // transition the message status from 'sending' to 'sent'.
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(senderTgId),
+                    stompUserMessenger.convertAndSendToUser(
+                            sender,
                             ROOM_MESSAGE_SENT_DESTINATION,
                             RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
                     );
@@ -439,7 +443,7 @@ public class RoomMessageHandler {
                 .flatMap(isMember -> {
                     if (!isMember) {
                         LOG.debug("SYNC_ROOM_MESSAGES rejected: user {} is not a member of room {}", userId, roomId);
-                        sendSyncError(userId, roomId, "NOT_MEMBER");
+                        sendSyncError(tp, roomId, "NOT_MEMBER");
                         return Mono.empty();
                     }
 
@@ -465,8 +469,8 @@ public class RoomMessageHandler {
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {
                                 SyncRoomMessagesEvent event = SyncRoomMessagesEvent.success(roomId, messages);
-                                messagingTemplate.convertAndSendToUser(
-                                        String.valueOf(userId),
+                                stompUserMessenger.convertAndSendToUser(
+                                        tp,
                                         ROOM_SYNC_DESTINATION,
                                         event
                                 );
@@ -481,45 +485,47 @@ public class RoomMessageHandler {
                         error -> {
                             LOG.error("Error processing SYNC_ROOM_MESSAGES: roomId={}, userId={}, error={}",
                                     roomId, userId, error.getMessage());
-                            sendSyncError(userId, roomId, "INTERNAL_ERROR");
+                            sendSyncError(tp, roomId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    private void sendError(Long senderTgId, String roomId, String messageId, String errorCode) {
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(senderTgId),
+    private void sendError(TelegramPrincipal sender, String roomId, String messageId, String errorCode) {
+        stompUserMessenger.convertAndSendToUser(
+                sender,
                 ROOM_MESSAGE_SENT_DESTINATION,
                 RoomMessageSentEvent.error(roomId, messageId, errorCode)
         );
-        LOG.trace("Sent room message error to sender {}: {}", senderTgId, errorCode);
+        LOG.trace("Sent room message error to sender tgId={}: {}", sender.getUserId(), errorCode);
     }
 
-    private void sendSyncError(Long userId, String roomId, String errorCode) {
+    private void sendSyncError(TelegramPrincipal requester, String roomId, String errorCode) {
         SyncRoomMessagesEvent event = SyncRoomMessagesEvent.error(roomId, errorCode);
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
+        stompUserMessenger.convertAndSendToUser(
+                requester,
                 ROOM_SYNC_DESTINATION,
                 event
         );
-        LOG.trace("Sent sync error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent sync error to user tgId={}: {}", requester.getUserId(), errorCode);
     }
 
-    private void sendRoomMessageEditError(Long userId, String roomId, String messageId, String errorCode) {
+    private void sendRoomMessageEditError(TelegramPrincipal requester, String roomId, String messageId,
+            String errorCode) {
         RoomMessageEditedEvent event = RoomMessageEditedEvent.builder()
                 .success(false)
                 .roomId(roomId)
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
+        stompUserMessenger.convertAndSendToUser(
+                requester,
                 ROOM_MESSAGE_EDITED_USER_DESTINATION,
                 event
         );
     }
 
-    private void sendRoomMessageDeleteError(Long userId, String roomId, String messageId, String errorCode) {
+    private void sendRoomMessageDeleteError(TelegramPrincipal requester, String roomId, String messageId,
+            String errorCode) {
         RoomMessageDeletedEvent event = RoomMessageDeletedEvent.builder()
                 .eventType("ROOM_MESSAGE_DELETED")
                 .success(false)
@@ -527,8 +533,8 @@ public class RoomMessageHandler {
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
+        stompUserMessenger.convertAndSendToUser(
+                requester,
                 ROOM_MESSAGE_DELETED_USER_DESTINATION,
                 event
         );

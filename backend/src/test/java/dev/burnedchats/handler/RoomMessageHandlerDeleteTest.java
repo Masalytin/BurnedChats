@@ -2,6 +2,7 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.RoomMessageDeletedEvent;
 import dev.burnedchats.dto.request.DeleteRoomMessageRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -49,6 +50,8 @@ class RoomMessageHandlerDeleteTest {
     private FileBurnService fileBurnService;
     @Mock
     private OfflineQueueMetrics offlineQueueMetrics;
+    @Mock
+    private StompUserMessenger stompUserMessenger;
 
     @InjectMocks
     private RoomMessageHandler roomMessageHandler;
@@ -81,7 +84,7 @@ class RoomMessageHandlerDeleteTest {
         roomMessageHandler.deleteRoomMessage(req, p);
 
         ArgumentCaptor<RoomMessageDeletedEvent> cap = ArgumentCaptor.forClass(RoomMessageDeletedEvent.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("9"), eq("/queue/room-message-deleted"), cap.capture());
+        verify(stompUserMessenger).convertAndSendToUser(eq(p), eq("/queue/room-message-deleted"), cap.capture());
         assertThat(cap.getValue().isSuccess()).isFalse();
         assertThat(cap.getValue().getErrorCode()).isEqualTo("NOT_ALLOWED");
     }
