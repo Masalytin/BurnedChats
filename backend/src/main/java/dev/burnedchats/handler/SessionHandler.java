@@ -22,9 +22,11 @@ import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.model.TelegramUser;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
@@ -35,8 +37,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
@@ -135,9 +137,39 @@ public class SessionHandler {
     private final OnlineStatusRepository onlineStatusRepository;
     private final UserMapper userMapper;
     private final SessionMapper sessionMapper;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final StompUserMessenger stompUserMessenger;
+    private final UserIdentityRepository userIdentityRepository;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
+
+    /**
+     * Resolves {@link dev.burnedchats.model.UnifiedUser#internalId()} for STOMP user delivery by Telegram id.
+     * Skips delivery with a warning when the mapping is missing.
+     */
+    private void sendStompToTelegramUser(Long telegramId, String destination, Object payload) {
+        if (telegramId == null) {
+            LOG.warn("STOMP skip: telegramId is null destination={}", destination);
+            return;
+        }
+        userIdentityRepository.findByTelegramId(telegramId)
+                .filter(StringUtils::hasText)
+                .doOnNext(internalId -> stompUserMessenger.convertAndSendToInternalId(
+                        internalId, destination, payload))
+                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
+                        "STOMP skip: no internalId for telegramId={} destination={}", telegramId, destination)))
+                .subscribe();
+    }
+
+    /**
+     * Single entry point for {@link ActiveSessionsListEvent} to the requesting user
+     * (avoids duplicated resolve/send logic).
+     */
+    private void sendActiveSessionsSnapshot(
+            TelegramPrincipal principal, ActiveSessionsListEvent event, String outcome) {
+        stompUserMessenger.convertAndSendToUser(principal, ACTIVE_SESSIONS_DESTINATION, event);
+        LOG.info("Sent active sessions list: internalId={}, telegramId={}, {}",
+                principal.getInternalId(), principal.getUserId(), outcome);
+    }
 
     /**
      * Create a new chat session request.
@@ -337,11 +369,7 @@ public class SessionHandler {
                 sessionId, senderResponse, secretQuestion, createdAt, expiresAt
         );
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(recipientId),
-                INCOMING_REQUEST_DESTINATION,
-                event
-        );
+        sendStompToTelegramUser(recipientId, INCOMING_REQUEST_DESTINATION, event);
 
         LOG.debug("Sent incoming request event to recipient {}: sessionId={}", recipientId, sessionId);
     }
@@ -382,11 +410,7 @@ public class SessionHandler {
      * Send session created event to initiator.
      */
     private void sendToInitiator(Long initiatorId, SessionCreatedEvent event) {
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(initiatorId),
-                SESSION_CREATED_DESTINATION,
-                event
-        );
+        sendStompToTelegramUser(initiatorId, SESSION_CREATED_DESTINATION, event);
 
         LOG.trace("Sent session-created event to initiator {}: success={}, error={}",
                 initiatorId, event.isSuccess(), event.getError());
@@ -409,13 +433,14 @@ public class SessionHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long userId = telegramPrincipal.getUserId();
 
-        LOG.info("Pending requests requested by user: {}", userId);
+        LOG.info("Pending requests requested: internalId={}, telegramId={}",
+                telegramPrincipal.getInternalId(), userId);
 
         requestRepository.findByRecipient(userId)
                 .flatMap(request -> buildIncomingRequestEvent(request)
                         .doOnNext(event -> {
-                            messagingTemplate.convertAndSendToUser(
-                                    String.valueOf(userId),
+                            stompUserMessenger.convertAndSendToUser(
+                                    telegramPrincipal,
                                     INCOMING_REQUEST_DESTINATION,
                                     event
                             );
@@ -595,22 +620,16 @@ public class SessionHandler {
                     // Send to initiator with responder info
                     SessionAcceptedEvent initiatorEvent = SessionAcceptedEvent.success(
                             sessionId, responderInfo, acceptedAt, expiresAt);
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(initiatorId),
-                            SESSION_ACCEPTED_DESTINATION,
-                            initiatorEvent
-                    );
+                    sendStompToTelegramUser(initiatorId, SESSION_ACCEPTED_DESTINATION, initiatorEvent);
 
                     // Send to responder with initiator info
                     SessionAcceptedEvent responderEvent = SessionAcceptedEvent.success(
                             sessionId, initiatorInfo, acceptedAt, expiresAt);
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(responderId),
-                            SESSION_ACCEPTED_DESTINATION,
-                            responderEvent
-                    );
+                    sendStompToTelegramUser(responderId, SESSION_ACCEPTED_DESTINATION, responderEvent);
 
-                    LOG.info("Session accepted: sessionId={}, initiator={}, responder={}, expiresAt={}",
+                    LOG.info(
+                            "Session accepted: sessionId={}, initiatorTelegramId={}, responderTelegramId={}, "
+                                    + "expiresAt={}",
                             sessionId, initiatorId, responderId, expiresAt);
                 })
                 .then();
@@ -632,11 +651,7 @@ public class SessionHandler {
      */
     private void sendAcceptError(Long responderId, String sessionId, String errorCode) {
         SessionAcceptedEvent event = SessionAcceptedEvent.error(sessionId, errorCode);
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(responderId),
-                SESSION_ACCEPTED_DESTINATION,
-                event
-        );
+        sendStompToTelegramUser(responderId, SESSION_ACCEPTED_DESTINATION, event);
         LOG.trace("Sent accept error to responder {}: {}", responderId, errorCode);
     }
 
@@ -662,32 +677,33 @@ public class SessionHandler {
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     // Session not found (expired or never existed)
-                    sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                    sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
                     return Mono.empty();
                 }))
                 .subscribe(
                         session -> {
                             // Validate user is participant
                             if (!session.isParticipant(userId)) {
-                                sendSessionStatus(userId, SessionStatusEvent.error(sessionId, "NOT_PARTICIPANT"));
+                                var err = SessionStatusEvent.error(sessionId, "NOT_PARTICIPANT");
+                                sendSessionStatus(telegramPrincipal, err);
                                 return;
                             }
 
                             // Check if session is expired by status
                             if (session.getStatus() == SessionStatus.EXPIRED 
                                     || session.getStatus() == SessionStatus.BURNED) {
-                                sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                                sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
                                 return;
                             }
 
                             // Check TTL expiration
                             if (session.isExpired()) {
-                                sendSessionStatus(userId, SessionStatusEvent.expired(sessionId));
+                                sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
                                 return;
                             }
 
                             // Session is active
-                            sendSessionStatus(userId, SessionStatusEvent.active(
+                            sendSessionStatus(telegramPrincipal, SessionStatusEvent.active(
                                     sessionId,
                                     session.getStatus(),
                                     session.getExpiresAt(),
@@ -696,7 +712,7 @@ public class SessionHandler {
                         },
                         error -> {
                             LOG.error("Error checking session status: {}", error.getMessage());
-                            sendSessionStatus(userId, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
+                            sendSessionStatus(telegramPrincipal, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
                         }
             );
     }
@@ -704,12 +720,8 @@ public class SessionHandler {
     /**
      * Send session status event to user.
      */
-    private void sendSessionStatus(Long userId, SessionStatusEvent event) {
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                SESSION_STATUS_DESTINATION,
-                event
-        );
+    private void sendSessionStatus(TelegramPrincipal principal, SessionStatusEvent event) {
+        stompUserMessenger.convertAndSendToUser(principal, SESSION_STATUS_DESTINATION, event);
     }
 
     // ==================== Peer Disconnect (5.1.5) ====================
@@ -729,8 +741,8 @@ public class SessionHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        LOG.info("Peer disconnect notification: sessionId={}, userId={}, reason={}",
-                sessionId, userId, request.reason());
+        LOG.info("Peer disconnect notification: sessionId={}, internalId={}, telegramId={}, reason={}",
+                sessionId, telegramPrincipal.getInternalId(), userId, request.reason());
 
         sessionRepository.findById(sessionId)
                 .subscribe(
@@ -749,14 +761,12 @@ public class SessionHandler {
 
                             // Notify peer
                             PeerDisconnectedEvent event = PeerDisconnectedEvent.appClosed(sessionId, userId);
-                            messagingTemplate.convertAndSendToUser(
-                                    String.valueOf(peerId),
-                                    PEER_DISCONNECTED_DESTINATION,
-                                    event
-                            );
+                            sendStompToTelegramUser(peerId, PEER_DISCONNECTED_DESTINATION, event);
 
-                            LOG.info("Peer {} notified about disconnect of user {} in session {}",
-                                    peerId, userId, sessionId);
+                            LOG.info(
+                                    "Peer disconnect notify: peerTelegramId={}, disconnectedInternalId={}, "
+                                            + "disconnectedTelegramId={}, sessionId={}",
+                                    peerId, telegramPrincipal.getInternalId(), userId, sessionId);
                         },
                         error -> LOG.error("Error handling peer disconnect: {}", error.getMessage())
             );
@@ -835,13 +845,9 @@ public class SessionHandler {
                 .doOnSuccess(v -> {
                     // Send rejection notification to initiator
                     SessionRejectedEvent event = SessionRejectedEvent.create(sessionId, rejectedAt);
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(initiatorId),
-                            SESSION_REJECTED_DESTINATION,
-                            event
-                    );
+                    sendStompToTelegramUser(initiatorId, SESSION_REJECTED_DESTINATION, event);
 
-                    LOG.info("Session rejected: sessionId={}, initiator={}, responder={}",
+                    LOG.info("Session rejected: sessionId={}, initiatorTelegramId={}, responderTelegramId={}",
                             sessionId, initiatorId, responderId);
                 })
                 .then();
@@ -891,7 +897,8 @@ public class SessionHandler {
         TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
         Long userId = telegramPrincipal.getUserId();
 
-        LOG.info("Getting active sessions for user: {}", userId);
+        LOG.info("Getting active sessions: internalId={}, telegramId={}",
+                telegramPrincipal.getInternalId(), userId);
 
         // Use concurrent list for thread-safe access from reactive streams
         List<String> expiredSessionIds = new ArrayList<>();
@@ -913,22 +920,16 @@ public class SessionHandler {
                                     ? ActiveSessionsListEvent.empty()
                                     : ActiveSessionsListEvent.success(sessions);
 
-                            messagingTemplate.convertAndSendToUser(
-                                    String.valueOf(userId),
-                                    ACTIVE_SESSIONS_DESTINATION,
-                                    event
-                            );
-
-                            LOG.info("Sent active sessions list to user {}: count={}", userId, sessions.size());
+                            sendActiveSessionsSnapshot(
+                                    telegramPrincipal, event, "count=" + sessions.size());
                         },
                         error -> {
                             LOG.error("Error getting active sessions for user {}: {}",
                                     userId, error.getMessage());
-                            messagingTemplate.convertAndSendToUser(
-                                    String.valueOf(userId),
-                                    ACTIVE_SESSIONS_DESTINATION,
-                                    ActiveSessionsListEvent.error("INTERNAL_ERROR")
-                            );
+                            sendActiveSessionsSnapshot(
+                                    telegramPrincipal,
+                                    ActiveSessionsListEvent.error("INTERNAL_ERROR"),
+                                    "error=INTERNAL_ERROR");
                         }
             );
     }
@@ -974,20 +975,21 @@ public class SessionHandler {
         Long userId = telegramPrincipal.getUserId();
         String sessionId = request.sessionId();
 
-        LOG.info("Session resume requested: sessionId={}, userId={}", sessionId, userId);
+        LOG.info("Session resume requested: sessionId={}, internalId={}, telegramId={}",
+                sessionId, telegramPrincipal.getInternalId(), userId);
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for resume: {}", sessionId);
-                    sendResumeError(userId, sessionId, "SESSION_NOT_FOUND");
+                    sendResumeError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndResumeSession(session, userId))
+                .flatMap(session -> validateAndResumeSession(session, telegramPrincipal))
                 .subscribe(
                         result -> {},
                         error -> {
                             LOG.error("Error resuming session {}: {}", sessionId, error.getMessage());
-                            sendResumeError(userId, sessionId, "INTERNAL_ERROR");
+                            sendResumeError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -995,20 +997,21 @@ public class SessionHandler {
     /**
      * Validate and process session resume.
      */
-    private Mono<Void> validateAndResumeSession(Session session, Long userId) {
+    private Mono<Void> validateAndResumeSession(Session session, TelegramPrincipal principal) {
+        Long userId = principal.getUserId();
         String sessionId = session.getId();
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
             LOG.debug("User {} is not participant in session {}", userId, sessionId);
-            sendResumeError(userId, sessionId, "NOT_PARTICIPANT");
+            sendResumeError(principal, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
         // Check if session is burned or expired
         if (session.getStatus() == SessionStatus.BURNED) {
             LOG.debug("Session {} is burned, cannot resume", sessionId);
-            sendResumeEvent(userId, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
+            sendResumeEvent(principal, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
             return Mono.empty();
         }
 
@@ -1016,17 +1019,18 @@ public class SessionHandler {
             LOG.debug("Session {} is expired, cannot resume", sessionId);
             // Cleanup the expired session
             return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
-                    .doOnSuccess(v -> sendResumeEvent(userId, SessionResumedEvent.expired(sessionId)))
+                    .doOnSuccess(v -> sendResumeEvent(principal, SessionResumedEvent.expired(sessionId)))
                     .then();
         }
 
-        return doResumeSession(session, userId);
+        return doResumeSession(session, principal);
     }
 
     /**
      * Process session resume after validations pass.
      */
-    private Mono<Void> doResumeSession(Session session, Long userId) {
+    private Mono<Void> doResumeSession(Session session, TelegramPrincipal principal) {
+        Long userId = principal.getUserId();
         String sessionId = session.getId();
         Long peerId = session.getPeerId(userId);
         boolean isInitiator = userId.equals(session.getInitiatorId());
@@ -1055,14 +1059,10 @@ public class SessionHandler {
                             peerOnline
                     );
 
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(userId),
-                            SESSION_RESUMED_DESTINATION,
-                            event
-                    );
+                    stompUserMessenger.convertAndSendToUser(principal, SESSION_RESUMED_DESTINATION, event);
 
-                    LOG.info("Session resumed: sessionId={}, userId={}, status={}, peerOnline={}",
-                            sessionId, userId, session.getStatus(), peerOnline);
+                    LOG.info("Session resumed: sessionId={}, internalId={}, telegramId={}, status={}, peerOnline={}",
+                            sessionId, principal.getInternalId(), userId, session.getStatus(), peerOnline);
                 })
                 .then();
     }
@@ -1070,18 +1070,14 @@ public class SessionHandler {
     /**
      * Send resume error to user.
      */
-    private void sendResumeError(Long userId, String sessionId, String errorCode) {
-        sendResumeEvent(userId, SessionResumedEvent.error(sessionId, errorCode));
+    private void sendResumeError(TelegramPrincipal principal, String sessionId, String errorCode) {
+        sendResumeEvent(principal, SessionResumedEvent.error(sessionId, errorCode));
     }
 
     /**
      * Send resume event to user.
      */
-    private void sendResumeEvent(Long userId, SessionResumedEvent event) {
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                SESSION_RESUMED_DESTINATION,
-                event
-        );
+    private void sendResumeEvent(TelegramPrincipal principal, SessionResumedEvent event) {
+        stompUserMessenger.convertAndSendToUser(principal, SESSION_RESUMED_DESTINATION, event);
     }
 }
