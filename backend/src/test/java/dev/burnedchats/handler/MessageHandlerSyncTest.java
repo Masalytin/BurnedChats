@@ -2,6 +2,7 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.SyncMessagesEvent;
 import dev.burnedchats.dto.request.SyncMessagesRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.MessageDeletion;
@@ -11,6 +12,7 @@ import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
@@ -23,7 +25,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -48,7 +49,9 @@ class MessageHandlerSyncTest {
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
     @Mock
-    private SimpMessagingTemplate messagingTemplate;
+    private UserIdentityRepository userIdentityRepository;
+    @Mock
+    private StompUserMessenger stompUserMessenger;
     @Mock
     private BurnedChatsBot telegramBot;
     @Mock
@@ -68,16 +71,18 @@ class MessageHandlerSyncTest {
         SyncMessagesRequest request = new SyncMessagesRequest(SESSION_ID);
         Session session = offlineSyncSession();
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));
-        stubOfflineQueues();
+        String internalA = InternalIds.forTelegramId(USER_A);
+        stubOfflineQueues(internalA);
         TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
         when(principal.getUserId()).thenReturn(USER_A);
+        when(principal.getInternalId()).thenReturn(internalA);
 
         messageHandler.syncMessages(request, principal);
 
         Thread.sleep(300);
 
         ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("1001"), eq("/queue/sync-messages"), eventCap.capture());
+        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/sync-messages"), eventCap.capture());
         SyncMessagesEvent ev = eventCap.getValue();
         assertThat(ev.isSuccess()).isTrue();
         assertThat(ev.getSessionId()).isEqualTo(SESSION_ID);
@@ -86,9 +91,9 @@ class MessageHandlerSyncTest {
         assertThat(ev.getEdits().get(0).getMessageId()).isEqualTo("m-tomb");
         assertThat(ev.getDeletedIds()).containsExactly("m-gone");
 
-        verify(messageRepository).deleteMessages(USER_A, SESSION_ID);
-        verify(messageRepository).deleteEdits(USER_A, SESSION_ID);
-        verify(messageRepository).deleteDeletions(USER_A, SESSION_ID);
+        verify(messageRepository).deleteMessages(internalA, SESSION_ID);
+        verify(messageRepository).deleteEdits(internalA, SESSION_ID);
+        verify(messageRepository).deleteDeletions(internalA, SESSION_ID);
     }
 
     private Session offlineSyncSession() {
@@ -102,7 +107,7 @@ class MessageHandlerSyncTest {
                 .build();
     }
 
-    private void stubOfflineQueues() {
+    private void stubOfflineQueues(String recipientInternalKey) {
         Message offlineDm = Message.builder()
                 .messageId("m-offline")
                 .sessionId(SESSION_ID)
@@ -129,14 +134,15 @@ class MessageHandlerSyncTest {
                 .deletedByTgId(USER_B)
                 .build();
 
-        when(messageRepository.getPendingMessages(USER_A, SESSION_ID)).thenReturn(Flux.just(offlineDm));
-        when(messageRepository.getPendingEdits(USER_A, SESSION_ID)).thenReturn(Flux.just(tombstoneEdit));
-        when(messageRepository.getPendingDeletions(USER_A, SESSION_ID))
+        when(messageRepository.getPendingMessages(recipientInternalKey, SESSION_ID)).thenReturn(Flux.just(offlineDm));
+        when(messageRepository.getPendingEdits(recipientInternalKey, SESSION_ID))
+                .thenReturn(Flux.just(tombstoneEdit));
+        when(messageRepository.getPendingDeletions(recipientInternalKey, SESSION_ID))
                 .thenReturn(Flux.just(tombstoneDelete));
 
-        when(messageRepository.deleteMessages(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
-        when(messageRepository.deleteEdits(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
-        when(messageRepository.deleteDeletions(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
+        when(messageRepository.deleteMessages(recipientInternalKey, SESSION_ID)).thenReturn(Mono.just(1L));
+        when(messageRepository.deleteEdits(recipientInternalKey, SESSION_ID)).thenReturn(Mono.just(1L));
+        when(messageRepository.deleteDeletions(recipientInternalKey, SESSION_ID)).thenReturn(Mono.just(1L));
     }
 
     @Test
@@ -153,6 +159,8 @@ class MessageHandlerSyncTest {
                 .build();
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));
 
+        String internalA = InternalIds.forTelegramId(USER_A);
+
         MessageEdit sameIdEdit = MessageEdit.builder()
                 .messageId("m-both")
                 .sessionId(SESSION_ID)
@@ -167,22 +175,23 @@ class MessageHandlerSyncTest {
                 .deletedByTgId(USER_B)
                 .build();
 
-        when(messageRepository.getPendingMessages(USER_A, SESSION_ID)).thenReturn(Flux.empty());
-        when(messageRepository.getPendingEdits(USER_A, SESSION_ID)).thenReturn(Flux.just(sameIdEdit));
-        when(messageRepository.getPendingDeletions(USER_A, SESSION_ID)).thenReturn(Flux.just(deletion));
+        when(messageRepository.getPendingMessages(internalA, SESSION_ID)).thenReturn(Flux.empty());
+        when(messageRepository.getPendingEdits(internalA, SESSION_ID)).thenReturn(Flux.just(sameIdEdit));
+        when(messageRepository.getPendingDeletions(internalA, SESSION_ID)).thenReturn(Flux.just(deletion));
 
-        when(messageRepository.deleteEdits(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
-        when(messageRepository.deleteDeletions(USER_A, SESSION_ID)).thenReturn(Mono.just(1L));
+        when(messageRepository.deleteEdits(internalA, SESSION_ID)).thenReturn(Mono.just(1L));
+        when(messageRepository.deleteDeletions(internalA, SESSION_ID)).thenReturn(Mono.just(1L));
 
         TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
         when(principal.getUserId()).thenReturn(USER_A);
+        when(principal.getInternalId()).thenReturn(internalA);
 
         messageHandler.syncMessages(request, principal);
 
         Thread.sleep(300);
 
         ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("1001"), eq("/queue/sync-messages"), eventCap.capture());
+        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/sync-messages"), eventCap.capture());
         assertThat(eventCap.getValue().getEdits()).isEmpty();
         assertThat(eventCap.getValue().getDeletedIds()).containsExactly("m-both");
     }

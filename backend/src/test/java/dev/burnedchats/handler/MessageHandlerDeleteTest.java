@@ -2,12 +2,14 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.MessageDeletedEvent;
 import dev.burnedchats.dto.request.DeleteMessageRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.util.InternalIds;
 import dev.burnedchats.service.FileBurnService;
@@ -20,7 +22,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +39,9 @@ class MessageHandlerDeleteTest {
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
     @Mock
-    private SimpMessagingTemplate messagingTemplate;
+    private UserIdentityRepository userIdentityRepository;
+    @Mock
+    private StompUserMessenger stompUserMessenger;
     @Mock
     private BurnedChatsBot telegramBot;
     @Mock
@@ -61,6 +64,7 @@ class MessageHandlerDeleteTest {
 
         TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
         when(principal.getUserId()).thenReturn(99L);
+        when(principal.getInternalId()).thenReturn(InternalIds.forTelegramId(99L));
 
         Session session = Session.builder()
                 .id("s1")
@@ -75,7 +79,7 @@ class MessageHandlerDeleteTest {
         messageHandler.deleteMessage(req, principal);
 
         ArgumentCaptor<MessageDeletedEvent> cap = ArgumentCaptor.forClass(MessageDeletedEvent.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("99"), eq("/queue/message-deleted"), cap.capture());
+        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/message-deleted"), cap.capture());
         assertThat(cap.getValue().isSuccess()).isFalse();
         assertThat(cap.getValue().getErrorCode()).isEqualTo("NOT_PARTICIPANT");
     }
