@@ -4,14 +4,16 @@ import dev.burnedchats.dto.event.PeerPublicKeyEvent;
 import dev.burnedchats.dto.request.PublicKeyRequest;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
@@ -90,7 +92,8 @@ public class HandshakeHandler {
     private static final int MAX_KEY_LENGTH = 256;
 
     private final SessionRepository sessionRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final StompUserMessenger stompUserMessenger;
+    private final UserIdentityRepository userIdentityRepository;
 
     /**
      * Relay a public key to the peer during handshake.
@@ -123,8 +126,8 @@ public class HandshakeHandler {
 
         // Validate public key format before processing
         if (!isValidBase64Key(publicKey)) {
-            LOG.warn("Invalid public key format from user {}: sessionId={}", senderId, sessionId);
-            sendError(senderId, sessionId, "INVALID_KEY");
+            LOG.warn("Invalid public key format from user telegramId={}: sessionId={}", senderId, sessionId);
+            sendError(telegramPrincipal, sessionId, "INVALID_KEY");
             return;
         }
 
@@ -132,16 +135,16 @@ public class HandshakeHandler {
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for handshake: {}", sessionId);
-                    sendError(senderId, sessionId, "SESSION_NOT_FOUND");
+                    sendError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndRelayKey(session, senderId, publicKey))
+                .flatMap(session -> validateAndRelayKey(session, telegramPrincipal, publicKey))
                 .subscribe(
                         result -> {},
                         error -> {
-                            LOG.error("Error relaying public key: sessionId={}, senderId={}, error={}",
+                            LOG.error("Error relaying public key: sessionId={}, senderTelegramId={}, error={}",
                                     sessionId, senderId, error.getMessage());
-                            sendError(senderId, sessionId, "INTERNAL_ERROR");
+                            sendError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -157,18 +160,19 @@ public class HandshakeHandler {
      * <p>Uses atomic Redis operations to avoid lost updates when both
      * participants submit keys simultaneously.
      *
-     * @param session   the session
-     * @param senderId  the sender's user ID
-     * @param publicKey the Base64-encoded public key
+     * @param session    the session
+     * @param principal  authenticated sender
+     * @param publicKey  the Base64-encoded public key
      * @return Mono completing when the key is processed
      */
-    private Mono<Void> validateAndRelayKey(Session session, Long senderId, String publicKey) {
+    private Mono<Void> validateAndRelayKey(Session session, TelegramPrincipal principal, String publicKey) {
+        Long senderId = principal.getUserId();
         String sessionId = session.getId();
 
         // Validate sender is a participant
         if (!session.isParticipant(senderId)) {
             LOG.debug("User {} is not a participant in session {}", senderId, sessionId);
-            sendError(senderId, sessionId, "NOT_PARTICIPANT");
+            sendError(principal, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
@@ -179,7 +183,7 @@ public class HandshakeHandler {
             String errorCode = status == SessionStatus.PENDING ? "SESSION_NOT_ACCEPTED"
                     : status == SessionStatus.BURNED ? "SESSION_BURNED"
                     : "INVALID_STATUS";
-            sendError(senderId, sessionId, errorCode);
+            sendError(principal, sessionId, errorCode);
             return Mono.empty();
         }
 
@@ -235,9 +239,9 @@ public class HandshakeHandler {
     /**
      * Send the PEER_PUBLIC_KEY event to a participant.
      *
-     * @param recipientId the recipient's user ID
+     * @param recipientId the recipient's Telegram user ID
      * @param sessionId   the session ID
-     * @param peerId      the peer's user ID (who sent the key)
+     * @param peerId      the peer's Telegram user ID (who sent the key)
      * @param publicKey   the peer's public key
      * @param timestamp   when the key was received
      */
@@ -247,33 +251,36 @@ public class HandshakeHandler {
                 sessionId, peerId, publicKey, timestamp
         );
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(recipientId),
-                PEER_KEY_DESTINATION,
-                event
-        );
-
-        LOG.debug("Sent PEER_PUBLIC_KEY to user {}: sessionId={}, peerId={}",
-                recipientId, sessionId, peerId);
+        userIdentityRepository.findByTelegramId(recipientId)
+                .filter(StringUtils::hasText)
+                .doOnNext(recipientInternalId -> {
+                    stompUserMessenger.convertAndSendToInternalId(
+                            recipientInternalId, PEER_KEY_DESTINATION, event);
+                    LOG.debug(
+                            "Sent PEER_PUBLIC_KEY: recipientTelegramId={}, recipientInternalId={}, "
+                                    + "sessionId={}, peerTelegramId={}",
+                            recipientId, recipientInternalId, sessionId, peerId);
+                })
+                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
+                        "Handshake PEER_KEY skipped: no UserIdentity for recipientTelegramId={}, sessionId={}",
+                        recipientId, sessionId)))
+                .subscribe();
     }
 
     /**
      * Send an error event to the sender.
      *
-     * @param userId    the user ID to send the error to
+     * @param principal authenticated recipient
      * @param sessionId the session ID (may be null)
      * @param errorCode the error code
      */
-    private void sendError(Long userId, String sessionId, String errorCode) {
+    private void sendError(TelegramPrincipal principal, String sessionId, String errorCode) {
         PeerPublicKeyEvent event = PeerPublicKeyEvent.error(sessionId, errorCode);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                PEER_KEY_DESTINATION,
-                event
-        );
+        stompUserMessenger.convertAndSendToUser(principal, PEER_KEY_DESTINATION, event);
 
-        LOG.trace("Sent handshake error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent handshake error to user telegramId={}, internalId={}, code={}",
+                principal.getUserId(), principal.getInternalId(), errorCode);
     }
 
     /**
@@ -292,13 +299,19 @@ public class HandshakeHandler {
                 "type", "KEY_REFRESH_NEEDED"
         );
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(peerId),
-                HANDSHAKE_REFRESH_DESTINATION,
-                notification
-        );
-
-        LOG.info("Sent key refresh notification to user {} for session {}", peerId, sessionId);
+        userIdentityRepository.findByTelegramId(peerId)
+                .filter(StringUtils::hasText)
+                .doOnNext(peerInternalId -> {
+                    stompUserMessenger.convertAndSendToInternalId(
+                            peerInternalId, HANDSHAKE_REFRESH_DESTINATION, notification);
+                    LOG.info(
+                            "Sent key refresh notification: peerTelegramId={}, peerInternalId={}, sessionId={}",
+                            peerId, peerInternalId, sessionId);
+                })
+                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
+                        "Handshake refresh skipped: no UserIdentity for peerTelegramId={}, sessionId={}",
+                        peerId, sessionId)))
+                .subscribe();
     }
 
     /**

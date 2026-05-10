@@ -4,6 +4,7 @@ import dev.burnedchats.dto.event.SearchResultEvent;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.request.SearchRequest;
 import dev.burnedchats.dto.response.UserResponse;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.UserRepository;
@@ -12,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
@@ -70,7 +70,7 @@ public class SearchHandler {
     private final UserRepository userRepository;
     private final OnlineStatusRepository onlineStatusRepository;
     private final UserMapper userMapper;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final StompUserMessenger stompUserMessenger;
 
     /**
      * Handle user search request.
@@ -92,15 +92,15 @@ public class SearchHandler {
         // Validate query format
         if (!isValidQuery(query)) {
             LOG.debug("Invalid search query format: '{}'", query);
-            sendResult(searcherTgId, SearchResultEvent.error("INVALID_QUERY"));
+            sendResult(telegramPrincipal, SearchResultEvent.error("INVALID_QUERY"));
             return;
         }
 
         // Determine search type and execute (numeric => by ID, otherwise by username)
         if (isUserIdQuery(query)) {
-            searchByUserId(query, searcherTgId);
+            searchByUserId(query, telegramPrincipal);
         } else {
-            searchByUsername(query, searcherTgId);
+            searchByUsername(query, telegramPrincipal);
         }
     }
 
@@ -108,22 +108,23 @@ public class SearchHandler {
      * Search user by Telegram user ID.
      *
      * @param query      numeric user ID string
-     * @param searcherTgId the ID of user performing search
+     * @param principal authenticated searcher
      */
-    private void searchByUserId(String query, Long searcherTgId) {
+    private void searchByUserId(String query, TelegramPrincipal principal) {
+        Long searcherTgId = principal.getUserId();
         Long targetTgId;
         try {
             targetTgId = Long.parseLong(query);
         } catch (NumberFormatException e) {
             LOG.warn("Failed to parse user ID: '{}'", query);
-            sendResult(searcherTgId, SearchResultEvent.error("INVALID_QUERY"));
+            sendResult(principal, SearchResultEvent.error("INVALID_QUERY"));
             return;
         }
 
         // Check for self-search
         if (targetTgId.equals(searcherTgId)) {
             LOG.debug("User {} attempted self-search", searcherTgId);
-            sendResult(searcherTgId, SearchResultEvent.error("SELF_SEARCH"));
+            sendResult(principal, SearchResultEvent.error("SELF_SEARCH"));
             return;
         }
 
@@ -133,15 +134,15 @@ public class SearchHandler {
                 .subscribe(
                         userResponse -> {
                             LOG.debug("Found user by ID: {} ({})", targetTgId, userResponse.getUsername());
-                            sendResult(searcherTgId, SearchResultEvent.found(userResponse));
+                            sendResult(principal, SearchResultEvent.found(userResponse));
                         },
                         error -> {
                             LOG.error("Error searching user by ID {}: {}", targetTgId, error.getMessage());
-                            sendResult(searcherTgId, SearchResultEvent.notFound());
+                            sendResult(principal, SearchResultEvent.notFound());
                         },
                         () -> {
                             LOG.debug("User not found by ID: {}", targetTgId);
-                            sendResult(searcherTgId, SearchResultEvent.notFound());
+                            sendResult(principal, SearchResultEvent.notFound());
                         }
             );
     }
@@ -149,17 +150,18 @@ public class SearchHandler {
     /**
      * Search user by Telegram username.
      *
-     * @param query      username (with or without @)
-     * @param searcherTgId the ID of user performing search
+     * @param query     username (with or without @)
+     * @param principal authenticated searcher
      */
-    private void searchByUsername(String query, Long searcherTgId) {
+    private void searchByUsername(String query, TelegramPrincipal principal) {
+        Long searcherTgId = principal.getUserId();
         // Normalize username (remove @ if present)
         String normalizedUsername = query.toLowerCase().replaceFirst("^@", "");
 
         // Check for self-search by username
         userRepository.findById(searcherTgId)
                 .map(TelegramUser::getUsername)
-                .filter(username -> username != null 
+                .filter(username -> username != null
                         && username.toLowerCase().equals(normalizedUsername))
                 .hasElement()
                 .flatMap(isSelf -> {
@@ -170,11 +172,11 @@ public class SearchHandler {
                     return searchUserByUsername(normalizedUsername);
                 })
                 .subscribe(
-                        result -> sendResult(searcherTgId, result),
+                        result -> sendResult(principal, result),
                         error -> {
-                            LOG.error("Error searching user by username '{}': {}", 
+                            LOG.error("Error searching user by username '{}': {}",
                                     normalizedUsername, error.getMessage());
-                            sendResult(searcherTgId, SearchResultEvent.notFound());
+                            sendResult(principal, SearchResultEvent.notFound());
                         }
             );
     }
@@ -212,19 +214,15 @@ public class SearchHandler {
     }
 
     /**
-     * Send search result to user.
+     * Send search result to the requesting user.
      *
-     * @param userTgId Telegram user ID
-     * @param result   search result event
+     * @param principal authenticated searcher
+     * @param result    search result event
      */
-    private void sendResult(Long userTgId, SearchResultEvent result) {
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userTgId),
-                SEARCH_RESULT_DESTINATION,
-                result
-        );
-        LOG.trace("Sent search result to user {}: found={}, error={}", 
-                userTgId, result.isFound(), result.getError());
+    private void sendResult(TelegramPrincipal principal, SearchResultEvent result) {
+        stompUserMessenger.convertAndSendToUser(principal, SEARCH_RESULT_DESTINATION, result);
+        LOG.trace("Sent search result: userTelegramId={}, internalId={}, found={}, error={}",
+                principal.getUserId(), principal.getInternalId(), result.isFound(), result.getError());
     }
 
     /**

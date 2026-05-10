@@ -2,19 +2,21 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.BurnSignalEvent;
 import dev.burnedchats.dto.request.BurnSessionRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
@@ -72,7 +74,8 @@ public class BurnHandler {
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final RequestRepository requestRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final StompUserMessenger stompUserMessenger;
+    private final UserIdentityRepository userIdentityRepository;
     private final FileBurnService fileBurnService;
 
     /**
@@ -111,15 +114,15 @@ public class BurnHandler {
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for burn: {}", sessionId);
-                    sendBurnError(userId, sessionId, "SESSION_NOT_FOUND");
+                    sendBurnError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndBurnSession(session, userId))
+                .flatMap(session -> validateAndBurnSession(session, telegramPrincipal))
                 .subscribe(
                         result -> {},
                         error -> {
                             LOG.error("Error burning session {}: {}", sessionId, error.getMessage());
-                            sendBurnError(userId, sessionId, "INTERNAL_ERROR");
+                            sendBurnError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -127,20 +130,21 @@ public class BurnHandler {
     /**
      * Validate session state and perform the burn operation.
      */
-    private Mono<Void> validateAndBurnSession(Session session, Long userId) {
+    private Mono<Void> validateAndBurnSession(Session session, TelegramPrincipal principal) {
+        Long userId = principal.getUserId();
         String sessionId = session.getId();
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
             LOG.debug("User {} is not a participant in session {}", userId, sessionId);
-            sendBurnError(userId, sessionId, "NOT_PARTICIPANT");
+            sendBurnError(principal, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
         // Validate session status - cannot burn already burned sessions
         if (session.getStatus() == SessionStatus.BURNED) {
             LOG.debug("Session {} is already burned", sessionId);
-            sendBurnError(userId, sessionId, "ALREADY_BURNED");
+            sendBurnError(principal, sessionId, "ALREADY_BURNED");
             return Mono.empty();
         }
 
@@ -251,44 +255,42 @@ public class BurnHandler {
      * @param burnedBy    the user ID who initiated the burn
      * @param burnedAt    timestamp when the burn occurred
      */
-    private void sendBurnSignalToBothParticipants(String sessionId, Long initiatorId, 
-                                                    Long responderId, Long burnedBy, 
-                                                    Instant burnedAt) {
+    private void sendBurnSignalToBothParticipants(String sessionId, Long initiatorId,
+            Long responderId, Long burnedBy, Instant burnedAt) {
         BurnSignalEvent event = BurnSignalEvent.success(sessionId, burnedBy, burnedAt);
 
-        // Send to initiator
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(initiatorId),
-                BURN_SIGNAL_DESTINATION,
-                event
-        );
-        LOG.debug("Sent burn signal to initiator: {}", initiatorId);
+        sendBurnSignalToTelegramUser(initiatorId, event);
+        sendBurnSignalToTelegramUser(responderId, event);
+    }
 
-        // Send to responder
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(responderId),
-                BURN_SIGNAL_DESTINATION,
-                event
-        );
-        LOG.debug("Sent burn signal to responder: {}", responderId);
+    private void sendBurnSignalToTelegramUser(Long participantTelegramId, BurnSignalEvent event) {
+        userIdentityRepository.findByTelegramId(participantTelegramId)
+                .filter(StringUtils::hasText)
+                .doOnNext(participantInternalId -> {
+                    stompUserMessenger.convertAndSendToInternalId(
+                            participantInternalId, BURN_SIGNAL_DESTINATION, event);
+                    LOG.debug("Sent burn signal: participantTelegramId={}, participantInternalId={}",
+                            participantTelegramId, participantInternalId);
+                })
+                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
+                        "BURN_SIGNAL skipped: no UserIdentity for participantTelegramId={}, sessionId={}",
+                        participantTelegramId, event.getSessionId())))
+                .subscribe();
     }
 
     /**
      * Send burn error event to the requesting user.
      *
-     * @param userId    the user ID to send the error to
+     * @param principal authenticated user to receive the error
      * @param sessionId the session ID that failed to burn
      * @param errorCode the error code describing the failure
      */
-    private void sendBurnError(Long userId, String sessionId, String errorCode) {
+    private void sendBurnError(TelegramPrincipal principal, String sessionId, String errorCode) {
         BurnSignalEvent event = BurnSignalEvent.error(sessionId, errorCode);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                BURN_SIGNAL_DESTINATION,
-                event
-        );
+        stompUserMessenger.convertAndSendToUser(principal, BURN_SIGNAL_DESTINATION, event);
 
-        LOG.trace("Sent burn error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent burn error: userTelegramId={}, internalId={}, code={}",
+                principal.getUserId(), principal.getInternalId(), errorCode);
     }
 }

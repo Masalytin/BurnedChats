@@ -2,16 +2,18 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.VerificationEvent;
 import dev.burnedchats.dto.request.VerificationRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
@@ -68,7 +70,8 @@ public class VerificationHandler {
     private static final String VERIFICATION_DESTINATION = "/queue/verification";
 
     private final SessionRepository sessionRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final StompUserMessenger stompUserMessenger;
+    private final UserIdentityRepository userIdentityRepository;
 
     /**
      * Confirm or deny fingerprint verification.
@@ -99,7 +102,7 @@ public class VerificationHandler {
 
         // Handle negative verification (fingerprint mismatch)
         if (!confirmed) {
-            handleMismatch(sessionId, userId);
+            handleMismatch(sessionId, telegramPrincipal);
             return;
         }
 
@@ -107,16 +110,16 @@ public class VerificationHandler {
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for verification: {}", sessionId);
-                    sendError(userId, sessionId, "SESSION_NOT_FOUND");
+                    sendError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndConfirm(session, userId))
+                .flatMap(session -> validateAndConfirm(session, telegramPrincipal))
                 .subscribe(
                         result -> {},
                         error -> {
-                            LOG.error("Error processing verification: sessionId={}, userId={}, error={}",
+                            LOG.error("Error processing verification: sessionId={}, userTelegramId={}, error={}",
                                     sessionId, userId, error.getMessage());
-                            sendError(userId, sessionId, "INTERNAL_ERROR");
+                            sendError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -124,17 +127,18 @@ public class VerificationHandler {
     /**
      * Validate session state and confirm verification.
      *
-     * @param session the session
-     * @param userId  the user's ID
+     * @param session   the session
+     * @param principal authenticated user
      * @return Mono completing when verification is processed
      */
-    private Mono<Void> validateAndConfirm(Session session, Long userId) {
+    private Mono<Void> validateAndConfirm(Session session, TelegramPrincipal principal) {
+        Long userId = principal.getUserId();
         String sessionId = session.getId();
 
         // Validate user is a participant
         if (!session.isParticipant(userId)) {
             LOG.debug("User {} is not a participant in session {}", userId, sessionId);
-            sendError(userId, sessionId, "NOT_PARTICIPANT");
+            sendError(principal, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
@@ -145,7 +149,7 @@ public class VerificationHandler {
             String errorCode = status == SessionStatus.BURNED ? "SESSION_BURNED"
                     : status == SessionStatus.PENDING ? "SESSION_NOT_READY"
                     : "SESSION_NOT_ACTIVE";
-            sendError(userId, sessionId, errorCode);
+            sendError(principal, sessionId, errorCode);
             return Mono.empty();
         }
 
@@ -169,18 +173,18 @@ public class VerificationHandler {
         return sessionRepository.save(session)
                 .doOnSuccess(savedSession -> {
                     Instant now = Instant.now();
-                    Long peerId = session.getPeerId(userId);
+                    Long peerTelegramId = session.getPeerId(userId);
 
                     // Send confirmation to the verifying user
-                    sendVerificationStatus(userId, sessionId, true, 
+                    sendVerificationStatus(principal, sessionId, true,
                             isInitiator ? wasResponderVerified : wasInitiatorVerified, now);
 
                     // Notify peer about the verification
-                    if (peerId != null) {
-                        sendPeerVerified(peerId, sessionId, bothVerified);
+                    if (peerTelegramId != null) {
+                        sendPeerVerified(peerTelegramId, sessionId, bothVerified);
                     }
 
-                    LOG.info("Verification confirmed: sessionId={}, userId={}, bothVerified={}",
+                    LOG.info("Verification confirmed: sessionId={}, userTelegramId={}, bothVerified={}",
                             sessionId, userId, bothVerified);
                 })
                 .then();
@@ -191,22 +195,22 @@ public class VerificationHandler {
      * This is a security-critical event that may indicate a MITM attack.
      *
      * @param sessionId the session ID
-     * @param userId    the reporting user's ID
+     * @param reporter  authenticated user reporting the mismatch
      */
-    private void handleMismatch(String sessionId, Long userId) {
-        LOG.warn("SECURITY: Fingerprint mismatch reported! sessionId={}, userId={}",
-                sessionId, userId);
+    private void handleMismatch(String sessionId, TelegramPrincipal reporter) {
+        Long userTelegramId = reporter.getUserId();
+        LOG.warn("SECURITY: Fingerprint mismatch reported! sessionId={}, userTelegramId={}",
+                sessionId, userTelegramId);
 
         sessionRepository.findById(sessionId)
                 .subscribe(
                         session -> {
-                            if (session != null && session.isParticipant(userId)) {
-                                Long peerId = session.getPeerId(userId);
+                            if (session != null && session.isParticipant(userTelegramId)) {
+                                Long peerTelegramId = session.getPeerId(userTelegramId);
 
-                                // Notify both parties about the mismatch
-                                sendMismatch(userId, sessionId);
-                                if (peerId != null) {
-                                    sendMismatch(peerId, sessionId);
+                                sendMismatch(reporter, sessionId);
+                                if (peerTelegramId != null) {
+                                    sendMismatchToPeer(peerTelegramId, sessionId);
                                 }
 
                                 LOG.warn("SECURITY: Mismatch notifications sent for session {}",
@@ -218,26 +222,24 @@ public class VerificationHandler {
     }
 
     /**
-     * Send verification status to a user.
+     * Send verification status to the verifying user (authenticated principal).
      */
-    private void sendVerificationStatus(Long userId, String sessionId, 
-                                         boolean verified, boolean peerVerified, Instant timestamp) {
+    private void sendVerificationStatus(TelegramPrincipal principal, String sessionId,
+            boolean verified, boolean peerVerified, Instant timestamp) {
         VerificationEvent event = VerificationEvent.success(sessionId, verified, peerVerified, timestamp);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                VERIFICATION_DESTINATION,
-                event
-        );
+        stompUserMessenger.convertAndSendToUser(principal, VERIFICATION_DESTINATION, event);
 
-        LOG.debug("Sent verification status to user {}: sessionId={}, verified={}, peerVerified={}",
-                userId, sessionId, verified, peerVerified);
+        LOG.debug(
+                "Sent verification status: userTelegramId={}, internalId={}, sessionId={}, "
+                        + "verified={}, peerVerified={}",
+                principal.getUserId(), principal.getInternalId(), sessionId, verified, peerVerified);
     }
 
     /**
-     * Notify a user that their peer has verified.
+     * Notify a peer (by Telegram id) that the other party has verified.
      */
-    private void sendPeerVerified(Long userId, String sessionId, boolean bothVerified) {
+    private void sendPeerVerified(Long peerTelegramId, String sessionId, boolean bothVerified) {
         VerificationEvent event = VerificationEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
@@ -246,43 +248,51 @@ public class VerificationHandler {
                 .verifiedAt(Instant.now())
                 .build();
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                VERIFICATION_DESTINATION,
-                event
-        );
+        sendVerificationToTelegramPeer(peerTelegramId, event);
+        LOG.debug("Sent peer verified notification: peerTelegramId={}, sessionId={}, bothVerified={}",
+                peerTelegramId, sessionId, bothVerified);
+    }
 
-        LOG.debug("Sent peer verified notification to user {}: sessionId={}, bothVerified={}",
-                userId, sessionId, bothVerified);
+    private void sendVerificationToTelegramPeer(Long peerTelegramId, VerificationEvent event) {
+        userIdentityRepository.findByTelegramId(peerTelegramId)
+                .filter(StringUtils::hasText)
+                .doOnNext(peerInternalId -> {
+                    stompUserMessenger.convertAndSendToInternalId(
+                            peerInternalId, VERIFICATION_DESTINATION, event);
+                    LOG.debug("Verification STOMP to peer: peerTelegramId={}, peerInternalId={}",
+                            peerTelegramId, peerInternalId);
+                })
+                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
+                        "Verification STOMP skipped: no UserIdentity for peerTelegramId={}", peerTelegramId)))
+                .subscribe();
     }
 
     /**
-     * Send fingerprint mismatch warning to a user.
+     * Send fingerprint mismatch warning to the reporting user.
      */
-    private void sendMismatch(Long userId, String sessionId) {
+    private void sendMismatch(TelegramPrincipal reporter, String sessionId) {
         VerificationEvent event = VerificationEvent.mismatch(sessionId);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                VERIFICATION_DESTINATION,
-                event
-        );
+        stompUserMessenger.convertAndSendToUser(reporter, VERIFICATION_DESTINATION, event);
 
-        LOG.debug("Sent mismatch warning to user {}: sessionId={}", userId, sessionId);
+        LOG.debug("Sent mismatch warning: userTelegramId={}, internalId={}, sessionId={}",
+                reporter.getUserId(), reporter.getInternalId(), sessionId);
+    }
+
+    private void sendMismatchToPeer(Long peerTelegramId, String sessionId) {
+        sendVerificationToTelegramPeer(peerTelegramId, VerificationEvent.mismatch(sessionId));
+        LOG.debug("Sent mismatch warning to peerTelegramId={}: sessionId={}", peerTelegramId, sessionId);
     }
 
     /**
-     * Send an error event to a user.
+     * Send an error event to the requesting user.
      */
-    private void sendError(Long userId, String sessionId, String errorCode) {
+    private void sendError(TelegramPrincipal principal, String sessionId, String errorCode) {
         VerificationEvent event = VerificationEvent.error(sessionId, errorCode);
 
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(userId),
-                VERIFICATION_DESTINATION,
-                event
-        );
+        stompUserMessenger.convertAndSendToUser(principal, VERIFICATION_DESTINATION, event);
 
-        LOG.trace("Sent verification error to user {}: {}", userId, errorCode);
+        LOG.trace("Sent verification error: userTelegramId={}, internalId={}, code={}",
+                principal.getUserId(), principal.getInternalId(), errorCode);
     }
 }
