@@ -31,6 +31,7 @@ export function getTonConnectUI(): TonConnectUI {
     tonConnectUiSingleton = new TonConnectUI({
       manifestUrl: resolveManifestUrl(),
       restoreConnection: true,
+      analytics: { mode: 'off' },
     });
   }
   return tonConnectUiSingleton;
