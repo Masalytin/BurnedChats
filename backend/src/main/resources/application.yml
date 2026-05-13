@@ -92,7 +92,7 @@ burnedchats:
     nonce-ttl: ${BURNEDCHATS_WALLET_NONCE_TTL:PT5M}
     proof-max-age: ${BURNEDCHATS_WALLET_PROOF_MAX_AGE:PT5M}
     session-token-ttl: ${BURNEDCHATS_WALLET_SESSION_TOKEN_TTL:PT1H}
-    domain: ${BURNEDCHATS_WALLET_DOMAIN:burnedchats.com}
+    domain: ${BURNEDCHATS_WALLET_DOMAIN:burnedchats.net}
     ton-api-base-url: ${BURNEDCHATS_TON_API_BASE_URL:https://toncenter.com/api/v2}
     ton-api-key: ${BURNEDCHATS_TON_API_KEY:}
   messages:

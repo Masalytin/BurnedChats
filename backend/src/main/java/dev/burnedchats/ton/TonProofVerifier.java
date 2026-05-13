@@ -59,7 +59,7 @@ public class TonProofVerifier {
             ReactiveRedisTemplate<String, String> redisTemplate,
             @Value("${burnedchats.wallet-auth.nonce-ttl:PT5M}") Duration nonceTtl,
             @Value("${burnedchats.wallet-auth.proof-max-age:PT5M}") Duration maxProofAge,
-            @Value("${burnedchats.wallet-auth.domain:burnedchats.com}") String expectedDomain,
+            @Value("${burnedchats.wallet-auth.domain:burnedchats.net}") String expectedDomain,
             @Value("${burnedchats.wallet-auth.ton-api-base-url:https://toncenter.com/api/v2}") String tonApiBaseUrl,
             @Value("${burnedchats.wallet-auth.ton-api-key:}") String tonApiKey) {
         this.redisTemplate = redisTemplate;

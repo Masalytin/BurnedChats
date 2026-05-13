@@ -13,7 +13,7 @@ import type { TransactionMessage, TxResult } from './types';
 
 let tonConnectUiSingleton: TonConnectUI | null = null;
 
-const DEFAULT_TONCONNECT_MANIFEST_URL = 'https://burnedchats.com/tonconnect-manifest.json';
+const DEFAULT_TONCONNECT_MANIFEST_URL = 'https://burnedchats.net/tonconnect-manifest.json';
 
 function resolveManifestUrl(): string {
   const fromEnv = import.meta.env.VITE_TONCONNECT_MANIFEST_URL;
