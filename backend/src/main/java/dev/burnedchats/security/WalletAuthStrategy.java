@@ -1,6 +1,7 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.exception.WalletProofException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
 import dev.burnedchats.repository.UserIdentityRepository;
@@ -26,9 +27,15 @@ public class WalletAuthStrategy implements AuthenticationStrategy {
         }
         return tonProofVerifier.verify(credentials)
                 .flatMap(verified -> userIdentityRepository.findOrCreateByWallet(verified.walletAddress()))
-                .onErrorMap(ex -> ex instanceof AuthenticationException
-                        ? ex
-                        : new AuthenticationException("Invalid wallet proof", ex));
+                .onErrorMap(ex -> {
+                    if (ex instanceof WalletProofException || ex instanceof AuthenticationException) {
+                        return ex;
+                    }
+                    return new WalletProofException(
+                            WalletProofException.Reason.INTERNAL,
+                            "Wallet authentication failed",
+                            ex);
+                });
     }
 
     @Override

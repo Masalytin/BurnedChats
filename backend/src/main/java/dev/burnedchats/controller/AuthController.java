@@ -2,6 +2,7 @@ package dev.burnedchats.controller;
 
 import dev.burnedchats.config.TelegramProperties;
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.exception.WalletProofException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.security.AuthAccountLinkService;
 import dev.burnedchats.security.AuthCredentials;
@@ -56,15 +57,55 @@ public class AuthController {
         if (request == null) {
             return Mono.just(error(HttpStatus.BAD_REQUEST, "Request body is required"));
         }
-        var walletCreds = AuthCredentials.wallet(request.walletProof(), request.walletAddress());
+        var walletCreds = hasWalletIdentity(request)
+                ? AuthCredentials.wallet(
+                        request.walletProof(),
+                        request.walletAddress(),
+                        request.walletPublicKey(),
+                        request.walletStateInit())
+                : AuthCredentials.wallet(request.walletProof(), request.walletAddress());
         return authenticationService.authenticate(walletCreds)
                 .flatMap(this::issueWalletResponse)
+                .onErrorResume(WalletProofException.class, e -> Mono.just(walletProofError(e)))
                 .onErrorResume(AuthenticationException.class,
                         e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
                 .onErrorResume(IllegalArgumentException.class,
                         e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
                 .onErrorResume(e -> Mono.just(
                         error(HttpStatus.INTERNAL_SERVER_ERROR, "Wallet authentication failed")));
+    }
+
+    private static boolean hasWalletIdentity(WalletAuthRequest request) {
+        boolean hasPk = request.walletPublicKey() != null && !request.walletPublicKey().isBlank();
+        boolean hasSi = request.walletStateInit() != null && !request.walletStateInit().isBlank();
+        return hasPk && hasSi;
+    }
+
+    private ResponseEntity<Map<String, Object>> walletProofError(WalletProofException ex) {
+        HttpStatus status = ex.getReason().httpStatus();
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("error", status.getReasonPhrase());
+        body.put("code", ex.getReason().name());
+        body.put("message", walletProofUserMessage(ex));
+        return ResponseEntity.status(status).body(body);
+    }
+
+    private static String walletProofUserMessage(WalletProofException ex) {
+        return switch (ex.getReason()) {
+            case INVALID_REQUEST -> "Invalid wallet authentication request";
+            case PROOF_TIMESTAMP_FUTURE -> "TON proof timestamp is in the future";
+            case PROOF_EXPIRED -> "TON proof has expired";
+            case DOMAIN_MISMATCH -> ex.getMessage() != null && ex.getMessage().contains("expected:")
+                    ? ex.getMessage()
+                    : "TON proof domain mismatch";
+            case DOMAIN_LENGTH_MISMATCH -> "TON proof domain length mismatch";
+            case NONCE_MISSING -> "TON proof nonce is required";
+            case NONCE_UNKNOWN -> "TON proof nonce is unknown or already used";
+            case ADDRESS_INVALID -> "Invalid wallet address";
+            case PUBLIC_KEY_UNAVAILABLE -> "Wallet public key is temporarily unavailable; try again";
+            case SIGNATURE_INVALID -> "TON proof signature verification failed";
+            case INTERNAL -> "Wallet authentication failed";
+        };
     }
 
     private Mono<ResponseEntity<Map<String, Object>>> issueWalletResponse(UnifiedUser user) {
@@ -280,7 +321,11 @@ public class AuthController {
         return s == null || s.isBlank();
     }
 
-    public record WalletAuthRequest(String walletAddress, String walletProof) {
+    public record WalletAuthRequest(
+            String walletAddress,
+            String walletProof,
+            String walletPublicKey,
+            String walletStateInit) {
     }
 
     public record LinkWalletRequest(String initData, String walletAddress, String walletProof) {

@@ -2,8 +2,10 @@ package dev.burnedchats.ton;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.burnedchats.exception.WalletProofException;
 import dev.burnedchats.security.AuthCredentials;
 import dev.burnedchats.util.JsonUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -13,40 +15,45 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
-import java.security.Signature;
-import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+
+import static dev.burnedchats.ton.TonProofSupport.ParsedAddress;
+import static dev.burnedchats.ton.TonProofSupport.ParsedProof;
+import static dev.burnedchats.ton.TonProofSupport.TonProof;
+import static dev.burnedchats.ton.TonProofSupport.TonProofDomain;
+import static dev.burnedchats.ton.TonProofSupport.buildSignedPayload;
+import static dev.burnedchats.ton.TonProofSupport.decodeSignature;
+import static dev.burnedchats.ton.TonProofSupport.firstNonBlank;
+import static dev.burnedchats.ton.TonProofSupport.intOrNull;
+import static dev.burnedchats.ton.TonProofSupport.longOrThrow;
+import static dev.burnedchats.ton.TonProofSupport.maskNonce;
+import static dev.burnedchats.ton.TonProofSupport.parseAddress;
+import static dev.burnedchats.ton.TonProofSupport.shortAddr;
+import static dev.burnedchats.ton.TonProofSupport.textOrNull;
+import static dev.burnedchats.ton.TonProofSupport.textOrThrow;
+import static dev.burnedchats.ton.TonProofSupport.verifyEd25519;
 
 /**
  * Verifies TON Connect ton_proof payloads and issues one-time auth nonces.
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class TonProofVerifier {
 
     private static final String NONCE_PREFIX = "auth_nonce:";
-    private static final byte[] TON_CONNECT_PREFIX = "ton-connect".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] TON_PROOF_PREFIX = "ton-proof-item-v2/".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] TON_HEADER_PREFIX = new byte[]{(byte) 0xFF, (byte) 0xFF};
-    private static final byte[] ED25519_SPKI_PREFIX = HexFormat.of().parseHex("302a300506032b6570032100");
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
+    private final WalletStateInitParser walletStateInitParser;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final Duration nonceTtl;
@@ -57,12 +64,14 @@ public class TonProofVerifier {
 
     public TonProofVerifier(
             ReactiveRedisTemplate<String, String> redisTemplate,
+            WalletStateInitParser walletStateInitParser,
             @Value("${burnedchats.wallet-auth.nonce-ttl:PT5M}") Duration nonceTtl,
             @Value("${burnedchats.wallet-auth.proof-max-age:PT5M}") Duration maxProofAge,
             @Value("${burnedchats.wallet-auth.domain:burnedchats.net}") String expectedDomain,
             @Value("${burnedchats.wallet-auth.ton-api-base-url:https://toncenter.com/api/v2}") String tonApiBaseUrl,
             @Value("${burnedchats.wallet-auth.ton-api-key:}") String tonApiKey) {
         this.redisTemplate = redisTemplate;
+        this.walletStateInitParser = walletStateInitParser;
         this.objectMapper = JsonUtils.getMapper();
         this.httpClient = HttpClient.newHttpClient();
         this.nonceTtl = nonceTtl;
@@ -91,42 +100,66 @@ public class TonProofVerifier {
     public Mono<VerifiedTonProof> verify(AuthCredentials credentials) {
         return Mono.fromCallable(() -> parseProof(credentials))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(parsed -> verifyTimestamp(parsed.proof().timestamp())
-                        .then(verifyDomain(parsed.proof().domain()))
-                        .then(assertNoncePresent(parsed.proof().payload()))
-                        .then(verifySignature(parsed))
+                .flatMap(parsed -> verifyTimestamp(parsed)
+                        .then(verifyDomain(parsed))
+                        .then(assertNoncePresent(parsed))
+                        .then(verifySignature(parsed, credentials))
                         .then(consumeNonceAfterSuccess(parsed.proof().payload()))
+                        .doOnSuccess(ignored -> LOG.debug(
+                                "ton_proof accepted: address={}",
+                                shortAddr(parsed.parsedAddress().original())))
                         .thenReturn(new VerifiedTonProof(
                                 parsed.parsedAddress().canonicalRaw(),
                                 parsed.proof().payload(),
                                 parsed.proof().timestamp())));
     }
 
-    private Mono<Void> verifyTimestamp(long timestampSec) {
+    private Mono<Void> verifyTimestamp(ParsedProof parsed) {
+        long timestampSec = parsed.proof().timestamp();
         Instant timestamp = Instant.ofEpochSecond(timestampSec);
         Instant now = Instant.now();
         if (timestamp.isAfter(now.plusSeconds(30))) {
-            return Mono.error(new IllegalArgumentException("TON proof timestamp is in the future"));
+            return reject(
+                    WalletProofException.Reason.PROOF_TIMESTAMP_FUTURE,
+                    "TON proof timestamp is in the future",
+                    parsed);
         }
         Duration age = Duration.between(timestamp, now);
         if (age.compareTo(maxProofAge) > 0) {
-            return Mono.error(new IllegalArgumentException("TON proof expired"));
+            return reject(
+                    WalletProofException.Reason.PROOF_EXPIRED,
+                    "TON proof expired",
+                    parsed);
         }
         return Mono.empty();
     }
 
-    private Mono<Void> verifyDomain(TonProofDomain domain) {
+    private Mono<Void> verifyDomain(ParsedProof parsed) {
+        TonProofDomain domain = parsed.proof().domain();
         if (domain == null || domain.value() == null || domain.value().isBlank()) {
-            return Mono.error(new IllegalArgumentException("TON proof domain is missing"));
+            return reject(
+                    WalletProofException.Reason.DOMAIN_MISMATCH,
+                    "TON proof domain is missing",
+                    parsed);
         }
         String actualDomain = domain.value().trim().toLowerCase();
         String expected = expectedDomain.trim().toLowerCase();
         if (!Objects.equals(actualDomain, expected)) {
-            return Mono.error(new IllegalArgumentException("TON proof domain mismatch"));
+            return reject(
+                    WalletProofException.Reason.DOMAIN_MISMATCH,
+                    "TON proof domain mismatch (expected: "
+                            + expectedDomain
+                            + ", got: "
+                            + domain.value().trim()
+                            + ")",
+                    parsed);
         }
         int actualLength = domain.value().getBytes(StandardCharsets.UTF_8).length;
         if (domain.lengthBytes() != null && domain.lengthBytes() != actualLength) {
-            return Mono.error(new IllegalArgumentException("TON proof domain length mismatch"));
+            return reject(
+                    WalletProofException.Reason.DOMAIN_LENGTH_MISMATCH,
+                    "TON proof domain length mismatch",
+                    parsed);
         }
         return Mono.empty();
     }
@@ -135,14 +168,21 @@ public class TonProofVerifier {
      * Ensures the nonce key exists (issued and not expired). Does not delete — avoids burning the nonce
      * on RPC/signature failure.
      */
-    private Mono<Void> assertNoncePresent(String nonce) {
+    private Mono<Void> assertNoncePresent(ParsedProof parsed) {
+        String nonce = parsed.proof().payload();
         if (nonce == null || nonce.isBlank()) {
-            return Mono.error(new IllegalArgumentException("TON proof payload nonce is required"));
+            return reject(
+                    WalletProofException.Reason.NONCE_MISSING,
+                    "TON proof payload nonce is required",
+                    parsed);
         }
         return redisTemplate.hasKey(nonceKey(nonce))
                 .flatMap(exists -> Boolean.TRUE.equals(exists)
                         ? Mono.<Void>empty()
-                        : Mono.error(new IllegalArgumentException("Unknown or already used nonce")));
+                        : reject(
+                                WalletProofException.Reason.NONCE_UNKNOWN,
+                                "Unknown or already used nonce",
+                                parsed));
     }
 
     /**
@@ -152,33 +192,134 @@ public class TonProofVerifier {
         return redisTemplate.delete(nonceKey(nonce)).then();
     }
 
-    private Mono<Void> verifySignature(ParsedProof parsed) {
-        return fetchWalletPublicKey(parsed.parsedAddress().original())
+    private Mono<Void> verifySignature(ParsedProof parsed, AuthCredentials credentials) {
+        return resolveWalletPublicKey(parsed, credentials)
                 .publishOn(Schedulers.boundedElastic())
                 .flatMap(publicKey -> Mono.fromCallable(() -> {
                     byte[] signedPayload = buildSignedPayload(parsed);
                     byte[] signatureBytes = decodeSignature(parsed.proof().signature());
                     boolean verified = verifyEd25519(publicKey, signedPayload, signatureBytes);
                     if (!verified) {
-                        throw new IllegalArgumentException("TON proof signature verification failed");
+                        throw new WalletProofException(
+                                WalletProofException.Reason.SIGNATURE_INVALID,
+                                "TON proof signature verification failed",
+                                null);
                     }
                     return true;
                 }))
+                .onErrorMap(WalletProofException.class, ex -> ex)
+                .onErrorMap(ex -> {
+                    if (ex instanceof WalletProofException) {
+                        return ex;
+                    }
+                    logRejection(
+                            WalletProofException.Reason.SIGNATURE_INVALID,
+                            parsed.parsedAddress().original(),
+                            parsed.proof().domain(),
+                            parsed.proof().payload());
+                    return new WalletProofException(
+                            WalletProofException.Reason.SIGNATURE_INVALID,
+                            "TON proof signature verification failed",
+                            ex);
+                })
                 .then();
     }
 
-    private Mono<byte[]> fetchWalletPublicKey(String walletAddress) {
-        return Mono.fromCallable(() -> {
-            String fromAddressInfo = fetchPublicKeyHex("/getAddressInformation", walletAddress);
-            if (fromAddressInfo != null) {
-                return parsePublicKeyHex(fromAddressInfo);
-            }
-            String fromWalletInfo = fetchPublicKeyHex("/getWalletInformation", walletAddress);
-            if (fromWalletInfo != null) {
-                return parsePublicKeyHex(fromWalletInfo);
-            }
-            throw new IllegalArgumentException("Unable to resolve wallet public key from TON API");
-        }).subscribeOn(Schedulers.boundedElastic());
+    private Mono<byte[]> resolveWalletPublicKey(ParsedProof parsed, AuthCredentials credentials) {
+        String publicKeyHex = credentials.walletPublicKey();
+        String stateInitB64 = credentials.walletStateInit();
+        boolean hasPublicKey = publicKeyHex != null && !publicKeyHex.isBlank();
+        boolean hasStateInit = stateInitB64 != null && !stateInitB64.isBlank();
+
+        if (hasPublicKey != hasStateInit) {
+            logRejection(
+                    WalletProofException.Reason.INVALID_REQUEST,
+                    parsed.parsedAddress().original(),
+                    parsed.proof().domain(),
+                    parsed.proof().payload());
+            return Mono.error(new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST,
+                    "walletPublicKey and walletStateInit must be provided together",
+                    null));
+        }
+
+        if (hasPublicKey) {
+            return Mono.fromCallable(() -> resolveClientProvidedKey(parsed, publicKeyHex, stateInitB64))
+                    .subscribeOn(Schedulers.boundedElastic());
+        }
+
+        LOG.warn(
+                "ton_proof verification.path=toncenter_rpc reason=client_identity_missing address={} "
+                        + "domain={} nonce={}",
+                shortAddr(parsed.parsedAddress().original()),
+                parsed.proof().domain().value(),
+                maskNonce(parsed.proof().payload()));
+        return fetchWalletPublicKey(parsed);
+    }
+
+    private byte[] resolveClientProvidedKey(ParsedProof parsed, String publicKeyHex, String stateInitB64)
+            throws IOException, InterruptedException {
+        byte[] stateInitBoc = WalletStateInitParser.decodeStateInitBoc(stateInitB64);
+        Optional<WalletStateInitParser.ParsedStateInit> parsedState = walletStateInitParser.tryParse(
+                stateInitBoc,
+                publicKeyHex,
+                parsed.parsedAddress().hashPart());
+
+        if (parsedState.isPresent()) {
+            WalletStateInitParser.ParsedStateInit state = parsedState.get();
+            LOG.info(
+                    "ton_proof verification.path=client_provided wallet.version={} address={}",
+                    state.version(),
+                    shortAddr(parsed.parsedAddress().original()));
+            return state.publicKey();
+        }
+
+        LOG.info(
+                "ton_proof verification.path=toncenter_rpc wallet.version=unknown "
+                        + "reason=unsupported_contract address={}",
+                shortAddr(parsed.parsedAddress().original()));
+        return fetchWalletPublicKeyBlocking(parsed);
+    }
+
+    private Mono<byte[]> fetchWalletPublicKey(ParsedProof parsed) {
+        return Mono.fromCallable(() -> fetchWalletPublicKeyBlocking(parsed))
+                .subscribeOn(Schedulers.boundedElastic())
+                .onErrorMap(WalletProofException.class, ex -> ex)
+                .onErrorMap(ex -> {
+                    if (ex instanceof WalletProofException) {
+                        return ex;
+                    }
+                    logRejection(
+                            WalletProofException.Reason.PUBLIC_KEY_UNAVAILABLE,
+                            parsed.parsedAddress().original(),
+                            parsed.proof().domain(),
+                            parsed.proof().payload());
+                    return new WalletProofException(
+                            WalletProofException.Reason.PUBLIC_KEY_UNAVAILABLE,
+                            "Unable to resolve wallet public key from TON API",
+                            ex);
+                });
+    }
+
+    private byte[] fetchWalletPublicKeyBlocking(ParsedProof parsed) throws IOException, InterruptedException {
+        String walletAddress = parsed.parsedAddress().original();
+        String fromAddressInfo = fetchPublicKeyHex("/getAddressInformation", walletAddress);
+        if (fromAddressInfo != null) {
+            return WalletStateInitParser.parsePublicKeyHex(fromAddressInfo);
+        }
+        String fromWalletInfo = fetchPublicKeyHex("/getWalletInformation", walletAddress);
+        if (fromWalletInfo != null) {
+            return WalletStateInitParser.parsePublicKeyHex(fromWalletInfo);
+        }
+        logRejection(
+                WalletProofException.Reason.PUBLIC_KEY_UNAVAILABLE,
+                walletAddress,
+                parsed.proof().domain(),
+                parsed.proof().payload());
+        throw new WalletProofException(
+                WalletProofException.Reason.PUBLIC_KEY_UNAVAILABLE,
+                "Unable to resolve wallet public key from TON API",
+                null);
     }
 
     private String fetchPublicKeyHex(String methodPath, String walletAddress) throws IOException, InterruptedException {
@@ -219,157 +360,80 @@ public class TonProofVerifier {
         return hex == null || hex.isBlank() ? null : hex.trim();
     }
 
-    private ParsedProof parseProof(AuthCredentials credentials) throws IOException {
+    private ParsedProof parseProof(AuthCredentials credentials) {
         if (credentials == null) {
-            throw new IllegalArgumentException("Credentials are required");
+            throw new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST, "Credentials are required", null);
         }
         String walletProof = credentials.walletProof();
         if (walletProof == null || walletProof.isBlank()) {
-            throw new IllegalArgumentException("walletProof is required");
+            throw new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST, "walletProof is required", null);
         }
 
-        JsonNode root = objectMapper.readTree(walletProof);
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(walletProof);
+        } catch (IOException ex) {
+            throw new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST, "Invalid walletProof JSON", ex);
+        }
         JsonNode proofNode = root.has("proof") ? root.get("proof") : root;
 
         String address = firstNonBlank(
                 credentials.walletAddress(),
                 textOrNull(root, "address"));
         if (address == null || address.isBlank()) {
-            throw new IllegalArgumentException("walletAddress is required");
+            throw new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST, "walletAddress is required", null);
         }
 
-        TonProof proof = new TonProof(
-                longOrThrow(proofNode, "timestamp"),
-                new TonProofDomain(
-                        textOrThrow(proofNode.path("domain"), "value"),
-                        intOrNull(proofNode.path("domain"), "lengthBytes")),
-                textOrThrow(proofNode, "signature"),
-                textOrThrow(proofNode, "payload"));
-
-        return new ParsedProof(parseAddress(address), proof);
-    }
-
-    private ParsedAddress parseAddress(String address) {
-        String trimmed = address.trim();
-        if (trimmed.contains(":")) {
-            String[] parts = trimmed.split(":", 2);
-            if (parts.length != 2) {
-                throw new IllegalArgumentException("Invalid raw TON address");
-            }
-            int workchain = Integer.parseInt(parts[0]);
-            byte[] hash = HexFormat.of().parseHex(parts[1]);
-            if (hash.length != 32) {
-                throw new IllegalArgumentException("TON address hash must be 32 bytes");
-            }
-            return new ParsedAddress(trimmed, workchain, hash, workchain + ":" + HexFormat.of().formatHex(hash));
-        }
-
-        byte[] friendly = decodeBase64Any(trimmed);
-        if (friendly.length != 36) {
-            throw new IllegalArgumentException("Invalid user-friendly TON address length");
-        }
-        byte[] body = Arrays.copyOfRange(friendly, 0, 34);
-        byte[] checksum = Arrays.copyOfRange(friendly, 34, 36);
-        byte[] expectedChecksum = crc16Xmodem(body);
-        if (!Arrays.equals(checksum, expectedChecksum)) {
-            throw new IllegalArgumentException("Invalid TON address checksum");
-        }
-
-        int workchain = body[1];
-        byte[] hash = Arrays.copyOfRange(body, 2, 34);
-        return new ParsedAddress(trimmed, workchain, hash, workchain + ":" + HexFormat.of().formatHex(hash));
-    }
-
-    private byte[] buildSignedPayload(ParsedProof parsed) throws GeneralSecurityException {
-        ParsedAddress address = parsed.parsedAddress();
-        TonProof proof = parsed.proof();
-
-        byte[] domainBytes = proof.domain().value().getBytes(StandardCharsets.UTF_8);
-        byte[] payloadBytes = proof.payload().getBytes(StandardCharsets.UTF_8);
-
-        ByteBuffer message = ByteBuffer.allocate(
-                TON_PROOF_PREFIX.length + 4 + 32 + 4 + domainBytes.length + 8 + payloadBytes.length);
-        message.put(TON_PROOF_PREFIX);
-        message.putInt(address.workchain());
-        message.put(address.hashPart());
-        message.order(ByteOrder.LITTLE_ENDIAN);
-        message.putInt(domainBytes.length);
-        message.put(domainBytes);
-        message.putLong(proof.timestamp());
-        message.put(payloadBytes);
-
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] messageHash = digest.digest(message.array());
-
-        int finalMsgLen = TON_HEADER_PREFIX.length + TON_CONNECT_PREFIX.length + messageHash.length;
-        ByteBuffer finalMessage = ByteBuffer.allocate(finalMsgLen);
-        finalMessage.put(TON_HEADER_PREFIX);
-        finalMessage.put(TON_CONNECT_PREFIX);
-        finalMessage.put(messageHash);
-
-        return digest.digest(finalMessage.array());
-    }
-
-    private static boolean verifyEd25519(byte[] rawPublicKey, byte[] message, byte[] signature)
-            throws GeneralSecurityException {
-        int encKeyLen = ED25519_SPKI_PREFIX.length + rawPublicKey.length;
-        byte[] encodedPublicKey = new byte[encKeyLen];
-        System.arraycopy(ED25519_SPKI_PREFIX, 0, encodedPublicKey, 0, ED25519_SPKI_PREFIX.length);
-        System.arraycopy(rawPublicKey, 0, encodedPublicKey, ED25519_SPKI_PREFIX.length, rawPublicKey.length);
-
-        KeyFactory keyFactory = KeyFactory.getInstance("Ed25519");
-        Signature verifier = Signature.getInstance("Ed25519");
-        verifier.initVerify(keyFactory.generatePublic(new X509EncodedKeySpec(encodedPublicKey)));
-        verifier.update(message);
-        return verifier.verify(signature);
-    }
-
-    private static byte[] parsePublicKeyHex(String value) {
-        String hex = value.startsWith("0x") || value.startsWith("0X") ? value.substring(2) : value;
-        byte[] key = HexFormat.of().parseHex(hex);
-        if (key.length != 32) {
-            throw new IllegalArgumentException("TON public key must be 32 bytes");
-        }
-        return key;
-    }
-
-    private static byte[] decodeSignature(String signature) {
-        byte[] decoded = decodeBase64Any(signature);
-        if (decoded.length != 64) {
-            throw new IllegalArgumentException("TON proof signature must be 64 bytes");
-        }
-        return decoded;
-    }
-
-    private static byte[] decodeBase64Any(String value) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Base64 value is required");
-        }
-        String normalized = value.trim();
-        int mod = normalized.length() % 4;
-        if (mod > 0) {
-            normalized = normalized + "=".repeat(4 - mod);
-        }
+        TonProof proof;
         try {
-            return Base64.getDecoder().decode(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return Base64.getUrlDecoder().decode(normalized);
+            proof = new TonProof(
+                    longOrThrow(proofNode, "timestamp"),
+                    new TonProofDomain(
+                            textOrThrow(proofNode.path("domain"), "value"),
+                            intOrNull(proofNode.path("domain"), "lengthBytes")),
+                    textOrThrow(proofNode, "signature"),
+                    textOrNull(proofNode, "payload"));
+        } catch (WalletProofException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST, "Invalid walletProof structure", ex);
         }
+
+        ParsedAddress parsedAddress;
+        try {
+            parsedAddress = parseAddress(address);
+        } catch (WalletProofException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new WalletProofException(
+                    WalletProofException.Reason.ADDRESS_INVALID, "Invalid TON wallet address", ex);
+        }
+
+        return new ParsedProof(parsedAddress, proof);
     }
 
-    private static byte[] crc16Xmodem(byte[] data) {
-        int crc = 0;
-        for (byte b : data) {
-            crc ^= (b & 0xFF) << 8;
-            for (int i = 0; i < 8; i++) {
-                if ((crc & 0x8000) != 0) {
-                    crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
-                } else {
-                    crc = (crc << 1) & 0xFFFF;
-                }
-            }
-        }
-        return new byte[]{(byte) ((crc >> 8) & 0xFF), (byte) (crc & 0xFF)};
+    private Mono<Void> reject(WalletProofException.Reason reason, String message, ParsedProof parsed) {
+        logRejection(reason, parsed.parsedAddress().original(), parsed.proof().domain(), parsed.proof().payload());
+        return Mono.error(new WalletProofException(reason, message, null));
+    }
+
+    private static void logRejection(
+            WalletProofException.Reason reason,
+            String address,
+            TonProofDomain domain,
+            String nonce) {
+        String domainValue = domain == null || domain.value() == null ? "" : domain.value();
+        LOG.warn(
+                "ton_proof rejected: reason={} address={} domain={} nonce={}",
+                reason,
+                shortAddr(address),
+                domainValue,
+                maskNonce(nonce));
     }
 
     private static String nonceKey(String nonce) {
@@ -381,61 +445,6 @@ public class TonProofVerifier {
             return "https://toncenter.com/api/v2";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private static String textOrNull(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        String text = value.asText();
-        return text == null || text.isBlank() ? null : text;
-    }
-
-    private static String textOrThrow(JsonNode node, String field) {
-        String value = textOrNull(node, field);
-        if (value == null) {
-            throw new IllegalArgumentException("Missing field: " + field);
-        }
-        return value;
-    }
-
-    private static Integer intOrNull(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        return value.asInt();
-    }
-
-    private static long longOrThrow(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        if (value == null || value.isNull()) {
-            throw new IllegalArgumentException("Missing field: " + field);
-        }
-        return value.asLong();
-    }
-
-    private static String firstNonBlank(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return first.trim();
-        }
-        if (second != null && !second.isBlank()) {
-            return second.trim();
-        }
-        return null;
-    }
-
-    private record ParsedAddress(String original, int workchain, byte[] hashPart, String canonicalRaw) {
-    }
-
-    private record ParsedProof(ParsedAddress parsedAddress, TonProof proof) {
-    }
-
-    private record TonProof(long timestamp, TonProofDomain domain, String signature, String payload) {
-    }
-
-    private record TonProofDomain(String value, Integer lengthBytes) {
     }
 
     public record VerifiedTonProof(String walletAddress, String nonce, long timestamp) {

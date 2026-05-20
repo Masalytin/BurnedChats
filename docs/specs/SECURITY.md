@@ -484,6 +484,23 @@ const aesKey = await crypto.subtle.deriveKey(
 
 ---
 
+## Wallet auth (TON Connect `ton_proof`)
+
+`POST /api/auth/wallet` принимает опциональные поля `walletPublicKey` + `walletStateInit` от TON Connect.
+Backend **не доверяет** присланному `walletPublicKey` без криптографической привязки к адресу:
+
+1. `sha256(stateInit_cell) == address.hashPart` — адрес выводится из stateInit.
+2. `extractPubkey(stateInit.data) == walletPublicKey` — pubkey зашит в data-cell контракта (v3R2 / v4 / v5).
+3. Ed25519-подпись `ton_proof` проверяется с этим pubkey (`TonProofVerifier` + `TonProofSupport`).
+
+Если клиент не прислал пару полей — fallback на toncenter RPC (`PUBLIC_KEY_UNAVAILABLE` → HTTP 502 при сбое).
+Сервер по-прежнему не хранит приватные ключи; проверка выполняется только на публичных данных кошелька.
+
+См. [API.md](./API.md) (`/api/auth/wallet`), decision logs
+`docs/improvements/wallet-auth-401/decisions/WALLET-401-02-stateinit-verification.md`.
+
+---
+
 ## Защитные механизмы
 
 ### 1. Rate Limiting (Java)

@@ -108,7 +108,7 @@ class TelegramAuthStrategyTest {
         @Test
         @DisplayName("supports omitted type when only initData is present")
         void blankTypeWithInitData() {
-            AuthCredentials credentials = new AuthCredentials("", "init=value", null, null);
+            AuthCredentials credentials = new AuthCredentials("", "init=value", null, null, null, null);
             assertTrue(strategy.supports(credentials));
         }
 
@@ -122,7 +122,7 @@ class TelegramAuthStrategyTest {
         @Test
         @DisplayName("does not support missing initData")
         void missingInitData() {
-            assertFalse(strategy.supports(new AuthCredentials("telegram", "", null, null)));
+            assertFalse(strategy.supports(new AuthCredentials("telegram", "", null, null, null, null)));
         }
 
         @Test

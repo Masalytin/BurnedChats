@@ -1,6 +1,7 @@
 import {
   accountToFriendlyAddress,
   connectWalletWithTonProof,
+  extractAccountIdentity,
   getTonConnectUI,
   serializeTonProof,
   shortenTonDisplayAddress,
@@ -31,7 +32,12 @@ export class WalletAuthProvider implements AuthProvider {
     this.proofPayload = serializeTonProof(proof);
     this.friendlyAddress = accountToFriendlyAddress(wallet.account);
 
-    const session = await this.authenticateWithBackend(this.friendlyAddress, this.proofPayload);
+    const identity = extractAccountIdentity(wallet.account);
+    const session = await this.authenticateWithBackend(
+      this.friendlyAddress,
+      this.proofPayload,
+      identity,
+    );
     this.sessionToken = session.token;
     this.internalId = session.internalId;
     this.serverDisplayName = session.displayName;
@@ -84,8 +90,17 @@ export class WalletAuthProvider implements AuthProvider {
   private async authenticateWithBackend(
     walletAddress: string,
     walletProof: string,
+    identity: { publicKey?: string; walletStateInit?: string },
   ): Promise<{ token: string; internalId: string; displayName: string }> {
     const base = this.normalizeApiBase();
+    const requestBody: Record<string, string> = {
+      walletAddress,
+      walletProof,
+    };
+    if (identity.publicKey && identity.walletStateInit) {
+      requestBody.walletPublicKey = identity.publicKey;
+      requestBody.walletStateInit = identity.walletStateInit;
+    }
     const response = await fetch(`${base}/api/auth/wallet`, {
       method: 'POST',
       credentials: 'omit',
@@ -93,30 +108,28 @@ export class WalletAuthProvider implements AuthProvider {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        walletAddress,
-        walletProof,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       throw new Error(`Wallet backend authentication failed: HTTP ${response.status}`);
     }
 
-    const body = (await response.json()) as {
+    const responseBody = (await response.json()) as {
       token?: unknown;
       user?: { internalId?: unknown; displayName?: unknown };
     };
-    if (typeof body.token !== 'string' || body.token.length === 0) {
+    if (typeof responseBody.token !== 'string' || responseBody.token.length === 0) {
       throw new Error('Wallet backend authentication response has no token');
     }
-    const internalId = body.user?.internalId;
+    const internalId = responseBody.user?.internalId;
     if (typeof internalId !== 'string' || internalId.length === 0) {
       throw new Error('Wallet backend authentication response has no internalId');
     }
-    const displayName = typeof body.user?.displayName === 'string' ? body.user.displayName : '';
+    const displayName =
+      typeof responseBody.user?.displayName === 'string' ? responseBody.user.displayName : '';
 
-    return { token: body.token, internalId, displayName };
+    return { token: responseBody.token, internalId, displayName };
   }
 
   private normalizeApiBase(): string {

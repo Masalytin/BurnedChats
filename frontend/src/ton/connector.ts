@@ -51,6 +51,34 @@ export function accountToFriendlyAddress(account: Account): string {
   return toUserFriendlyAddress(account.address, testOnly);
 }
 
+export type AccountIdentity = {
+  publicKey?: string;
+  walletStateInit?: string;
+};
+
+/**
+ * Extracts optional TON Connect account identity fields for server-side stateInit verification.
+ */
+export function extractAccountIdentity(account: Account): AccountIdentity {
+  const publicKey =
+    typeof account.publicKey === 'string' && account.publicKey.trim().length > 0
+      ? account.publicKey.trim()
+      : undefined;
+  const walletStateInit =
+    typeof account.walletStateInit === 'string' && account.walletStateInit.trim().length > 0
+      ? account.walletStateInit.trim()
+      : undefined;
+
+  if (!publicKey || !walletStateInit) {
+    console.warn(
+      '[WalletAuth] missing account.publicKey/stateInit, falling back to RPC verification',
+    );
+    return {};
+  }
+
+  return { publicKey, walletStateInit };
+}
+
 export function shortenTonDisplayAddress(friendly: string): string {
   const trimmed = friendly.trim();
   if (trimmed.length <= 13) {

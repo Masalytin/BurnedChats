@@ -143,9 +143,15 @@ GET /actuator/info
 ```json
 {
   "walletAddress": "EQBx7...",
-  "walletProof": "{\"address\":\"EQBx7...\",\"proof\":{\"timestamp\":1679312400,\"domain\":{\"value\":\"burnedchats.com\",\"lengthBytes\":16},\"signature\":\"base64...\",\"payload\":\"nonce\"}}"
+  "walletProof": "{\"address\":\"EQBx7...\",\"proof\":{\"timestamp\":1679312400,\"domain\":{\"value\":\"burnedchats.net\",\"lengthBytes\":16},\"signature\":\"base64...\",\"payload\":\"nonce\"}}",
+  "walletPublicKey": "0a1b2c3...",
+  "walletStateInit": "te6cckEC..."
 }
 ```
+
+`walletPublicKey` (hex, 32 bytes) и `walletStateInit` (base64 BoC) **опциональны**, но должны передаваться **парой**.
+Если оба присутствуют, backend верифицирует `publicKey ↔ stateInit ↔ address` локально (без RPC к toncenter).
+Если отсутствуют — используется legacy fallback через toncenter (см. `BURNEDCHATS_TON_API_KEY`).
 
 **Response `200 OK`:**
 
@@ -161,9 +167,42 @@ GET /actuator/info
 
 **Ошибки:**
 
-- `400 Bad Request` — пустой body / невалидные поля запроса.
-- `401 Unauthorized` — wallet proof не прошёл валидацию.
-- `500 Internal Server Error` — внутренняя ошибка при выдаче token.
+Тело ошибки (JSON):
+
+```json
+{
+  "error": "Unauthorized",
+  "code": "DOMAIN_MISMATCH",
+  "message": "TON proof domain mismatch (expected: burnedchats.net, got: www.burnedchats.net)"
+}
+```
+
+Поле `code` — машиночитаемая причина (`WalletProofException.Reason.name()`). Поле `error` сохранено для обратной совместимости.
+
+| HTTP | `code` (примеры) | Когда |
+|------|------------------|-------|
+| `400` | `INVALID_REQUEST`, `ADDRESS_INVALID` | Пустой/битый body, невалидный адрес или JSON proof |
+| `401` | `PROOF_EXPIRED`, `DOMAIN_MISMATCH`, `NONCE_UNKNOWN`, `SIGNATURE_INVALID`, … | Клиентская ошибка proof (см. полный список в backend `WalletProofException.Reason`) |
+| `502` | `PUBLIC_KEY_UNAVAILABLE` | toncenter недоступен / не вернул `public_key` (transient; retry имеет смысл) |
+| `500` | `INTERNAL` | Неожиданная ошибка backend |
+
+Полный список `code` → HTTP:
+
+| `code` | HTTP |
+|--------|------|
+| `INVALID_REQUEST` | 400 |
+| `ADDRESS_INVALID` | 400 |
+| `PROOF_TIMESTAMP_FUTURE` | 401 |
+| `PROOF_EXPIRED` | 401 |
+| `DOMAIN_MISMATCH` | 401 |
+| `DOMAIN_LENGTH_MISMATCH` | 401 |
+| `NONCE_MISSING` | 401 |
+| `NONCE_UNKNOWN` | 401 |
+| `SIGNATURE_INVALID` | 401 |
+| `PUBLIC_KEY_UNAVAILABLE` | 502 |
+| `INTERNAL` | 500 |
+
+- `500 Internal Server Error` — внутренняя ошибка при выдаче token (`INTERNAL` или необработанное исключение).
 
 ---
 
