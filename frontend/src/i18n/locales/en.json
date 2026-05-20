@@ -45,6 +45,12 @@
     "errorGeneric": "Something went wrong. Try again.",
     "errorRejected": "The wallet closed the request. Try again when you are ready.",
     "errorProof": "The server could not verify the wallet signature. Try reconnecting.",
+    "errorProofTimestamp": "Server clock skew detected. Please retry. If it persists, contact support.",
+    "errorProofDomain": "App domain mismatch. The wallet signed a different domain than the server expects. Reload the page and try again.",
+    "errorProofNonce": "The login challenge expired. Please reconnect the wallet.",
+    "errorProofPublicKey": "Could not verify the wallet on-chain. The wallet may be brand-new (no transactions yet). Try sending any transaction first or use a different wallet.",
+    "errorProofSignature": "Wallet signature did not match. Try reconnecting; if the issue persists — switch wallets.",
+    "errorProofRequest": "Bad login request. Please reload and try again.",
     "errorTimeout": "Connection timed out. Check your network and try again.",
     "errorNetwork": "Could not reach the server. Check your connection and API URL."
   },

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { WalletAuthError } from '../../auth/WalletAuthProvider';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { WalletConnectButton } from './WalletConnectButton';
@@ -7,6 +8,34 @@ import { WalletConnectButton } from './WalletConnectButton';
 type UiState = 'idle' | 'busy' | 'error';
 
 function mapConnectError(error: unknown, t: ReturnType<typeof useTranslation>['t']): string {
+  if (error instanceof WalletAuthError) {
+    console.error('[WalletAuth] proof rejected', {
+      code: error.code,
+      message: error.serverMessage,
+    });
+    switch (error.code) {
+      case 'PROOF_TIMESTAMP_FUTURE':
+      case 'PROOF_EXPIRED':
+        return t('walletLogin.errorProofTimestamp');
+      case 'DOMAIN_MISMATCH':
+      case 'DOMAIN_LENGTH_MISMATCH':
+        return t('walletLogin.errorProofDomain');
+      case 'NONCE_MISSING':
+      case 'NONCE_UNKNOWN':
+        return t('walletLogin.errorProofNonce');
+      case 'PUBLIC_KEY_UNAVAILABLE':
+        return t('walletLogin.errorProofPublicKey');
+      case 'SIGNATURE_INVALID':
+        return t('walletLogin.errorProofSignature');
+      case 'INVALID_REQUEST':
+      case 'ADDRESS_INVALID':
+        return t('walletLogin.errorProofRequest');
+      case 'INTERNAL':
+      default:
+        return t('walletLogin.errorProof');
+    }
+  }
+
   const msg = error instanceof Error ? error.message : '';
   const lower = msg.toLowerCase();
   if (lower.includes('cancel') || lower.includes('rejected')) {

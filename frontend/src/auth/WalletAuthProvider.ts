@@ -9,6 +9,18 @@ import {
 } from '@/ton/connector';
 import { AuthType, type AuthCredentials, type AuthProvider, type AuthResult } from './types';
 
+/** Typed error for `/api/auth/wallet` rejection with server-side `code`. */
+export class WalletAuthError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly httpStatus: number | null,
+    public readonly serverMessage: string | null,
+  ) {
+    super(serverMessage ?? `WalletAuth: ${code}`);
+    this.name = 'WalletAuthError';
+  }
+}
+
 /**
  * Wallet authentication via Ton Connect + backend-issued ton_proof nonce.
  */
@@ -112,7 +124,13 @@ export class WalletAuthProvider implements AuthProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Wallet backend authentication failed: HTTP ${response.status}`);
+      const body = (await response.clone().json().catch(() => null)) as {
+        code?: unknown;
+        message?: unknown;
+      } | null;
+      const code = typeof body?.code === 'string' ? body.code : 'UNKNOWN';
+      const msg = typeof body?.message === 'string' ? body.message : null;
+      throw new WalletAuthError(code, response.status, msg);
     }
 
     const responseBody = (await response.json()) as {
