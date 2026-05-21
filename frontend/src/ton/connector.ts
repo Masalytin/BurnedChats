@@ -13,7 +13,16 @@ import type { TransactionMessage, TxResult } from './types';
 
 let tonConnectUiSingleton: TonConnectUI | null = null;
 
+export type TonConnectUIOptions = {
+  restoreConnection?: boolean;
+};
+
 const DEFAULT_TONCONNECT_MANIFEST_URL = 'https://burnedchats.net/tonconnect-manifest.json';
+
+const WALLET_AUTH_CONNECTION_RESTORED_MS = 15_000;
+const WALLET_AUTH_FETCH_NONCE_MS = 15_000;
+const WALLET_AUTH_DISCONNECT_MS = 10_000;
+const WALLET_AUTH_CONNECT_WALLET_MS = 120_000;
 
 function resolveManifestUrl(): string {
   const fromEnv = import.meta.env.VITE_TONCONNECT_MANIFEST_URL;
@@ -24,17 +33,57 @@ function resolveManifestUrl(): string {
 }
 
 /**
+ * Races {@link promise} against a timer; rejects with a `[WalletAuth]`-prefixed error on timeout.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[WalletAuth] ${label} timed out after ${ms}ms`));
+    }, ms);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        if (err instanceof WalletAlreadyConnectedError) {
+          reject(err);
+          return;
+        }
+        reject(wrapWalletAuthStepError(err, label));
+      });
+  });
+}
+
+function wrapWalletAuthStepError(err: unknown, label: string): Error {
+  if (err instanceof Error && err.message.startsWith('[WalletAuth]')) {
+    return err;
+  }
+  const detail = err instanceof Error ? err.message : String(err);
+  return new Error(`[WalletAuth] ${label}: ${detail}`);
+}
+
+/**
  * Singleton Ton Connect UI instance (library-backed global).
  */
-export function getTonConnectUI(): TonConnectUI {
+export function getTonConnectUI(options?: TonConnectUIOptions): TonConnectUI {
   if (!tonConnectUiSingleton) {
     tonConnectUiSingleton = new TonConnectUI({
       manifestUrl: resolveManifestUrl(),
-      restoreConnection: true,
+      restoreConnection: options?.restoreConnection ?? true,
       analytics: { mode: 'off' },
     });
   }
   return tonConnectUiSingleton;
+}
+
+/**
+ * Ton Connect UI for wallet login — skips stale localStorage restore on first connect.
+ */
+export function getTonConnectUIForAuth(): TonConnectUI {
+  return getTonConnectUI({ restoreConnection: false });
 }
 
 /**
@@ -141,31 +190,78 @@ export async function fetchWalletAuthNonce(): Promise<string> {
   throw new Error('Wallet auth nonce response has no usable nonce field');
 }
 
-/**
- * Disconnects if needed, loads a fresh nonce, requests Ton Connect flow with ton_proof, returns connected wallet.
- */
-export async function connectWalletWithTonProof(): Promise<ConnectedWallet> {
-  const ui = getTonConnectUI();
-  const nonce = await fetchWalletAuthNonce();
-
-  if (ui.connected) {
-    await ui.disconnect();
-  }
-
-  ui.setConnectRequestParameters({ state: 'ready', value: { tonProof: nonce } });
-
+async function connectWalletWithTonProofOnce(
+  ui: TonConnectUI,
+  nonce: string,
+): Promise<ConnectedWallet> {
   try {
-    const wallet = await ui.connectWallet();
+    const wallet = await withTimeout(
+      ui.connectWallet(),
+      WALLET_AUTH_CONNECT_WALLET_MS,
+      'connectWallet',
+    );
     assertWalletTonProof(wallet);
     return wallet;
   } catch (err) {
     if (err instanceof WalletAlreadyConnectedError) {
-      await ui.disconnect();
+      if (ui.connected) {
+        await withTimeout(ui.disconnect(), WALLET_AUTH_DISCONNECT_MS, 'disconnect');
+        console.info('[WalletAuth] connect: disconnect done (already-connected retry)');
+      }
       ui.setConnectRequestParameters({ state: 'ready', value: { tonProof: nonce } });
-      const wallet = await ui.connectWallet();
+      const wallet = await withTimeout(
+        ui.connectWallet(),
+        WALLET_AUTH_CONNECT_WALLET_MS,
+        'connectWallet',
+      );
       assertWalletTonProof(wallet);
       return wallet;
     }
+    throw err;
+  }
+}
+
+/**
+ * Disconnects if needed, loads a fresh nonce, requests Ton Connect flow with ton_proof, returns connected wallet.
+ *
+ * @param resolveUi - Override for tests; production code should omit (defaults to {@link getTonConnectUIForAuth}).
+ * @param resolveNonce - Override for tests; production code should omit (defaults to {@link fetchWalletAuthNonce}).
+ */
+export async function connectWalletWithTonProof(
+  resolveUi: () => TonConnectUI = getTonConnectUIForAuth,
+  resolveNonce: () => Promise<string> = fetchWalletAuthNonce,
+): Promise<ConnectedWallet> {
+  console.info('[WalletAuth] connect: start');
+  const ui = resolveUi();
+
+  try {
+    await withTimeout(
+      ui.connectionRestored,
+      WALLET_AUTH_CONNECTION_RESTORED_MS,
+      'connectionRestored',
+    );
+    console.info('[WalletAuth] connect: connectionRestored done');
+
+    const nonce = await withTimeout(
+      resolveNonce(),
+      WALLET_AUTH_FETCH_NONCE_MS,
+      'fetchWalletAuthNonce',
+    );
+    console.info(`[WalletAuth] connect: nonce fetched (length=${nonce.length})`);
+
+    if (ui.connected) {
+      await withTimeout(ui.disconnect(), WALLET_AUTH_DISCONNECT_MS, 'disconnect');
+      console.info('[WalletAuth] connect: disconnect done');
+    }
+
+    ui.setConnectRequestParameters({ state: 'ready', value: { tonProof: nonce } });
+    console.info('[WalletAuth] connect: parameters set');
+
+    const wallet = await connectWalletWithTonProofOnce(ui, nonce);
+    console.info('[WalletAuth] connect: connectWallet done');
+    return wallet;
+  } catch (err) {
+    console.info('[WalletAuth] connect: failed', err instanceof Error ? err.message : err);
     throw err;
   }
 }
