@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.exception.WalletProofException;
 import dev.burnedchats.security.AuthCredentials;
 import dev.burnedchats.util.JsonUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -47,7 +46,6 @@ import static dev.burnedchats.ton.TonProofSupport.verifyEd25519;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TonProofVerifier {
 
     private static final String NONCE_PREFIX = "auth_nonce:";
