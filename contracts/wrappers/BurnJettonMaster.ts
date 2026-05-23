@@ -2,6 +2,7 @@ import {
     BurnJettonMaster as BurnJettonMasterBase,
     JettonTransferInternal,
     type AddExcluded as AddExcludedPayload,
+    type ChangeOwner as ChangeOwnerPayload,
     type Mint as MintPayload,
     type RemoveExcluded as RemoveExcludedPayload,
     type SetAutoReduceParams as SetAutoReduceParamsPayload,
@@ -90,6 +91,15 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
 
         const value = totalTonAmount + toNano('0.02');
         return this.send(provider, via, { value }, msg);
+    }
+
+    async sendChangeOwner(provider: ContractProvider, via: Sender, newOwner: Address) {
+        const msg: ChangeOwnerPayload = {
+            $$type: 'ChangeOwner',
+            queryId: 0n,
+            newOwner,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 
     async sendSetFeeParams(provider: ContractProvider, via: Sender, p: { burnBps: bigint; stakingBps: bigint; treasuryBps: bigint }) {

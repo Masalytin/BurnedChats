@@ -1,0 +1,26 @@
+# Testnet profile — activate with SPRING_PROFILES_ACTIVE=testnet
+# Contract addresses: set env vars after `npm run deploy:burn:testnet` (see contracts/deployments/testnet.json)
+
+spring:
+  profiles:
+    active: testnet
+
+app:
+  ton:
+    network: testnet
+    rpc:
+      endpoint: ${TONCENTER_ENDPOINT:https://testnet.toncenter.com/api/v2}
+      api-key: ${TONCENTER_API_KEY:}
+      timeout-ms: ${TONCENTER_TIMEOUT_MS:5000}
+      retry-attempts: ${TONCENTER_RETRY_ATTEMPTS:3}
+    cache:
+      ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
+    addresses:
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:}
+      governor: ${BURN_GOVERNOR_ADDRESS:}
+      treasury: ${BURN_TREASURY_ADDRESS:}
+
+burnedchats:
+  wallet-auth:
+    ton-api-base-url: ${BURNEDCHATS_TON_API_BASE_URL:https://testnet.toncenter.com/api/v2}
