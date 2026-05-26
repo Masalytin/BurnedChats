@@ -1,0 +1,8 @@
+{
+  "remote": {
+    "host": "prod.example.com",
+    "user": "deploy",
+    "identityFile": "~/.ssh/id_ed25519",
+    "repoPath": "/opt/burnedchats"
+  }
+}

@@ -147,6 +147,14 @@ logs/
 *.log
 
 # ========================
+# Project CLI (scripts/cli/)
+# ========================
+scripts/.log/
+scripts/cli/runner.config.json
+scripts/cli/node_modules/
+scripts/cli/dist/
+
+# ========================
 # Misc
 # ========================
 # Local sandbox (must not be committed)
