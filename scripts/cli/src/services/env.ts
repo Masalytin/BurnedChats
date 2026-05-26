@@ -7,9 +7,12 @@ import { getRepoRoot } from '../lib/paths.js';
 
 let loaded = false;
 
+export const PROD_ENV_FILE = '.env.prod';
+export const ENV_EXAMPLE_FILE = '.env.example';
+
 function resolveEnvFile(): string | null {
   const root = getRepoRoot();
-  const prod = path.join(root, '.env.prod');
+  const prod = path.join(root, PROD_ENV_FILE);
   if (fs.existsSync(prod)) {
     return prod;
   }
@@ -18,6 +21,23 @@ function resolveEnvFile(): string | null {
     return fallback;
   }
   return null;
+}
+
+/** Parses a dotenv file into a key/value map without mutating `process.env`. */
+export function parseEnvFile(filePath: string): Record<string, string> {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+  const raw = fs.readFileSync(filePath, 'utf8');
+  return dotenv.parse(raw);
+}
+
+export function getProdEnvPath(): string {
+  return path.join(getRepoRoot(), PROD_ENV_FILE);
+}
+
+export function getEnvExamplePath(): string {
+  return path.join(getRepoRoot(), ENV_EXAMPLE_FILE);
 }
 
 /** Lazily loads `.env.prod` or `.env` from the repository root. No-op when neither exists. */

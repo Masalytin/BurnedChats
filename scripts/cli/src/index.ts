@@ -7,6 +7,7 @@ import { backupMenu } from './menus/backup.js';
 import { contractsMenu } from './menus/contracts.js';
 import { deployMenu } from './menus/deploy.js';
 import { diagnosticsMenu } from './menus/diagnostics.js';
+import { envsMenu } from './menus/envs.js';
 import { logsMenu } from './menus/logs.js';
 import { redisMenu } from './menus/redis.js';
 import { remoteMenu } from './menus/remote.js';
@@ -17,6 +18,7 @@ import { webhookMenu } from './menus/webhook.js';
 type SectionValue =
   | 'stack'
   | 'deploy'
+  | 'envs'
   | 'contracts'
   | 'ssl'
   | 'webhook'
@@ -30,7 +32,8 @@ type SectionValue =
 
 const sections: { value: SectionValue; label: string }[] = [
   { value: 'stack', label: 'Stack — up / down / restart / logs / status' },
-  { value: 'deploy', label: 'Deploy & TON — rollout, switch network, envs, diagnostics' },
+  { value: 'deploy', label: 'Deploy & TON — rollout, switch network' },
+  { value: 'envs', label: 'Envs — validate / diff / build args preview' },
   { value: 'contracts', label: 'Contracts — deploy / verify / mint' },
   { value: 'ssl', label: "SSL — Let's Encrypt issue / renew" },
   { value: 'webhook', label: 'Webhook — Telegram set / info / delete' },
@@ -65,6 +68,9 @@ async function routeSection(section: SectionValue): Promise<boolean> {
       return true;
     case 'deploy':
       await deployMenu();
+      return true;
+    case 'envs':
+      await envsMenu();
       return true;
     case 'contracts':
       await contractsMenu();

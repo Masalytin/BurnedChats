@@ -93,6 +93,53 @@ Prerequisites checked before each operation:
 
 Audit log `menu` values: `stack/up`, `stack/down`, `stack/restart`, `stack/status`, `stack/logs`.
 
+## Deploy & TON
+
+Production rollout with explicit TON network selection on every deploy (not persisted to git).
+
+| Action | Description |
+|--------|-------------|
+| **Full deploy** | Prompt TON network → confirm → validate `.env.prod` → dirty-tree check → `git pull --ff-only` → `docker compose up -d --build` with one-shot env overrides → wait for healthy → smoke check |
+| **Quick rebuild** | Same as full deploy without `git pull` |
+| **Switch TON network** | Change TON network and rebuild only (no git pull) |
+
+Mainnet deploy shows an extra warning and requires a second confirmation (real funds).
+
+Env overrides (`SPRING_PROFILES_ACTIVE`, `TONCENTER_*`, `VITE_TON_*`, `VITE_BURN_*`) are merged into the compose process env for a single run only.
+
+Audit log `menu` values: `deploy/full`, `deploy/quick-rebuild`, `deploy/switch-network`, `deploy/git-status`, `deploy/git-pull`.
+
+Smoke check after deploy is non-blocking: failures show a warning with rollback hint, but the deploy flow completes.
+
+## Envs
+
+Read-only helpers for `.env.prod` (no file editing).
+
+| Action | Description |
+|--------|-------------|
+| **Validate `.env.prod`** | Required keys table with masked secrets (`••••••` + last 4 chars) |
+| **Diff against `.env.example`** | Keys present in one file but not the other |
+| **Show frontend build args** | Preview `VITE_*` / backend overrides for testnet or mainnet |
+
+Audit log `menu` values: `envs/validate`, `envs/diff`, `envs/build-args`.
+
+## Diagnostics
+
+Independent health probes against the live `DOMAIN` from `.env.prod` (uses `globalThis.fetch`, not curl).
+
+| Action | Endpoint / check |
+|--------|------------------|
+| **Backend health** | `GET /actuator/health` — status + Redis component |
+| **Build info** | `GET /api/info` — gitSha, branch, buildTime, version |
+| **ton_proof smoke** | `POST /api/auth/wallet` with intentional bad proof — expect HTTP 401 + `code` |
+| **CSP header** | `HEAD /` — `*.tonkeeper.com`, `*.toncenter.com` in CSP |
+| **Frontend bundle hash** | `GET /` — parse `/assets/index-*.js` hash |
+| **Run all** | All five checks with aggregated summary |
+
+`runSmokeCheck()` (used after deploy) runs health + build-info + ton_proof smoke only.
+
+Audit log `menu` values: `diagnostics/health`, `diagnostics/build-info`, `diagnostics/ton-proof-smoke`, `diagnostics/csp-header`, `diagnostics/frontend-bundle`.
+
 ## Development
 
 ```bash
