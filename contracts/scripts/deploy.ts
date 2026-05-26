@@ -1,14 +1,14 @@
 import { resolve } from 'node:path';
 import type { NetworkProvider } from '@ton/blueprint';
 import { deployBurnStack } from './deploy/bootstrap';
-import { isDryRun, isForceRedeploy, loadDeployEnv, resolveMnemonic, resolveToncenterApiKey } from './deploy/env';
+import { isDryRun, isForceRedeploy, applyBlueprintWalletAliases, loadDeployEnv, resolveMnemonic, resolveToncenterApiKey } from './deploy/env';
 import { syncAppConfigs } from './deploy/syncAppConfigs';
 
 /**
  * Full BURN stack deploy orchestrator (testnet/mainnet via Blueprint flags).
  *
- * Env (`.env.testnet` preferred, then `.env`):
- * - MNEMONIC or MNEMONIC_TESTNET
+ * Env (`.env.testnet` / `.env.mainnet`, then `.env` — see `.env.example`):
+ * - WALLET_MNEMONIC + WALLET_VERSION (Blueprint --mnemonic), or legacy MNEMONIC / MNEMONIC_TESTNET
  * - TONCENTER_API_KEY_TESTNET or TONCENTER_API_KEY
  * - JETTON_METADATA_URI (optional)
  * - INITIAL_MIN_PROPOSAL_VP (optional, default 0.01 BURN nano)
@@ -22,15 +22,16 @@ export async function run(provider: NetworkProvider) {
     const contractsRoot = resolve(__dirname, '..');
     const repoRoot = resolve(contractsRoot, '..');
     loadDeployEnv(contractsRoot);
+    applyBlueprintWalletAliases();
 
     const mnemonic = resolveMnemonic();
     const apiKey = resolveToncenterApiKey();
-    console.log('[deploy] MNEMONIC:', mnemonic ? '(set)' : '(missing)');
+    console.log('[deploy] wallet mnemonic:', mnemonic ? '(set)' : '(missing)');
     console.log('[deploy] TONCENTER API key:', apiKey ? '(set)' : '(missing — public RPC limits apply)');
 
     if (!isDryRun() && !mnemonic) {
         throw new Error(
-            'Set MNEMONIC (or MNEMONIC_TESTNET) in contracts/.env.testnet before deploying. Use --dry-run to only compute addresses.',
+            'Set WALLET_MNEMONIC (or MNEMONIC / MNEMONIC_TESTNET) in contracts/.env.testnet before deploying. Use --dry-run to only compute addresses.',
         );
     }
 

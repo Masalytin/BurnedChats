@@ -3,10 +3,10 @@ import { NetworkProvider } from '@ton/blueprint';
 import { BurnPlaceholder } from '../build/BurnPlaceholder/BurnPlaceholder_BurnPlaceholder';
 
 /**
- * Deploy BurnPlaceholder to mainnet. Requires MNEMONIC_MAINNET — never commit real mnemonics.
+ * Deploy BurnPlaceholder to mainnet. Requires WALLET_MNEMONIC or MNEMONIC_MAINNET — never commit real mnemonics.
  */
 export async function run(provider: NetworkProvider) {
-    console.log('[deployMainnet] Wallet must use MNEMONIC_MAINNET from .env');
+    console.log('[deployMainnet] Wallet: WALLET_MNEMONIC or MNEMONIC_MAINNET in .env.mainnet / .env');
 
     const burnPlaceholder = provider.open(await BurnPlaceholder.fromInit());
 

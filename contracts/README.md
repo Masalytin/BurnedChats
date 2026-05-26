@@ -21,8 +21,9 @@ On some setups `npm create ton@latest -- contracts ...` does not forward flags; 
 
 ```bash
 cd contracts
-cp .env.example .env
-# Fill MNEMONIC_TESTNET / TONCENTER_API_KEY as needed; never commit .env or mainnet secrets.
+cp .env.example .env.testnet
+# Set WALLET_MNEMONIC + WALLET_VERSION (or MNEMONIC_TESTNET) and TONCENTER_API_KEY_TESTNET.
+# Never commit .env, .env.testnet, or mainnet secrets.
 npm install
 ```
 
@@ -59,13 +60,16 @@ TypeScript targets ES2022 with `strict` mode (hand-written TS). Generated bindin
 
 ## Deploy scripts
 
-Requires `.env` (see `.env.example`) and a funded wallet mnemonic.
+Requires env file (see `.env.example`) and a funded wallet mnemonic.
 
 ```bash
-npm run deploy:testnet   # blueprint run deployTestnet
-npm run deploy:mainnet   # blueprint run deployMainnet — keep MNEMONIC_MAINNET empty until mainnet
-npm run verify           # verifier instructions + env check
-npm run mint             # placeholder until Jetton (P5-1-1-2)
+npm run deploy:burn:testnet   # full BURN stack — WALLET_MNEMONIC in .env.testnet
+npm run deploy:burn:mainnet   # mainnet — use .env.mainnet, never commit secrets
+npm run verify:deployment     # post-deploy checks (testnet)
+npm run deploy:testnet        # legacy BurnPlaceholder only (interactive wallet picker)
+npm run deploy:mainnet        # legacy BurnPlaceholder only
+npm run verify                # verifier instructions + env check
+npm run mint                  # placeholder until Jetton (P5-1-1-2)
 ```
 
 Interactive runner (pick any script under `scripts/`):

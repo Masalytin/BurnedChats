@@ -6,6 +6,8 @@ coverage
 .DS_Store
 package.ts
 .env
+.env.testnet
+.env.mainnet
 
 # VS Code
 .vscode/*

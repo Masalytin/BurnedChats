@@ -3,10 +3,10 @@ import { NetworkProvider } from '@ton/blueprint';
 import { BurnPlaceholder } from '../build/BurnPlaceholder/BurnPlaceholder_BurnPlaceholder';
 
 /**
- * Deploy BurnPlaceholder to testnet. Configure MNEMONIC_TESTNET and TONCENTER_API_KEY in .env.
+ * Deploy BurnPlaceholder to testnet. Set WALLET_MNEMONIC (or MNEMONIC_TESTNET) in .env.testnet.
  */
 export async function run(provider: NetworkProvider) {
-    console.log('[deployTestnet] Wallet must use MNEMONIC_TESTNET from .env');
+    console.log('[deployTestnet] Wallet: WALLET_MNEMONIC or MNEMONIC_TESTNET in .env.testnet / .env');
 
     const burnPlaceholder = provider.open(await BurnPlaceholder.fromInit());
 
