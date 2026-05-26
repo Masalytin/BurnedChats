@@ -74,6 +74,25 @@ Copy `runner.config.example.json` to `runner.config.json` (gitignored) to overri
 
 Destructive actions in later cards should use `confirm` with default `false` (`y/N`).
 
+## Stack
+
+Daily docker-compose operations for the production stack (`docker-compose.prod.yml` + `.env.prod`).
+
+| Action | Description |
+|--------|-------------|
+| **Start** | `docker compose up -d` (no rebuild — use Deploy for rollouts) |
+| **Stop** | `docker compose down` — requires `y/N` confirmation (default `N`) |
+| **Restart service** | Pick `backend` / `frontend` / `nginx` / `redis` / `all`, then confirm |
+| **Status** | `docker compose ps` (JSON table when supported) |
+| **Logs** | Pick service, tail lines (50 / 200 / 1000, default 200), optional follow; Ctrl+C returns to the Stack submenu |
+
+Prerequisites checked before each operation:
+
+- `.env.prod` must exist (`cp .env.example .env.prod`)
+- `docker compose` must be available in `PATH`
+
+Audit log `menu` values: `stack/up`, `stack/down`, `stack/restart`, `stack/status`, `stack/logs`.
+
 ## Development
 
 ```bash
