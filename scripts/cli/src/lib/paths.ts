@@ -17,3 +17,8 @@ export function getCliRoot(): string {
 export function getLogDir(): string {
   return path.join(getRepoRoot(), 'scripts', '.log');
 }
+
+/** Contracts package root (`contracts/`). */
+export function getContractsRoot(): string {
+  return path.join(getRepoRoot(), 'contracts');
+}

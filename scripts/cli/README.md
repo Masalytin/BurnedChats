@@ -140,6 +140,52 @@ Independent health probes against the live `DOMAIN` from `.env.prod` (uses `glob
 
 Audit log `menu` values: `diagnostics/health`, `diagnostics/build-info`, `diagnostics/ton-proof-smoke`, `diagnostics/csp-header`, `diagnostics/frontend-bundle`.
 
+## Contracts
+
+Blueprint smart-contract operations in `contracts/` (requires `npm ci` in that directory first).
+
+| Action | Description |
+|--------|-------------|
+| **Build** | `npm run build` (Blueprint compile all) |
+| **Deploy to testnet** | Confirm + MNEMONIC prompt → `npm run deploy:burn:testnet` |
+| **Deploy to mainnet** | Two-step confirm (including type `mainnet`) → `npm run deploy:burn:mainnet` |
+| **Dry-run deploy** | Pick network → `npm run deploy:burn:* -- --dry-run` |
+| **Verify deployment** | `npm run verify:deployment` |
+| **Mint placeholder (testnet)** | `npm run mint` |
+| **Show last deployment** | Reads `contracts/deployments/{testnet,mainnet}.json` as a table |
+
+Contract addresses are logged in plain text (public on-chain). MNEMONIC and API keys are masked by the audit logger.
+
+Audit log `menu` values: `contracts/build`, `contracts/deploy-testnet`, `contracts/deploy-mainnet`, `contracts/dry-run-testnet`, `contracts/dry-run-mainnet`, `contracts/verify`, `contracts/mint`.
+
+## SSL
+
+Let's Encrypt certificate management via `docker-compose.prod.yml --profile certbot`.
+
+| Action | Description |
+|--------|-------------|
+| **Issue certificates** | Validates `DOMAIN` in `.env.prod`, prompts for email, creates `certbot/www` + `certbot/conf`, runs temporary nginx + `certbot certonly`, then tears down certbot profile |
+| **Renew certificates** | `certbot renew` + `nginx -s reload` |
+| **Check expiry** | Reads cert expiry from nginx container; warns when &lt; 14 days remain |
+
+After first-time issue, run **Stack → Start** to bring up the full stack with the new certs.
+
+Audit log `menu` values: `ssl/issue-up`, `ssl/issue-certonly`, `ssl/issue-down`, `ssl/renew`, `ssl/renew-reload`, `ssl/check-expiry`.
+
+## Webhook
+
+Telegram Bot API webhook management (reads `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `DOMAIN` from `.env.prod`).
+
+| Action | Description |
+|--------|-------------|
+| **Set webhook** | `POST setWebhook` with `secret_token` in JSON body (not in URL) |
+| **Show webhook info** | `GET getWebhookInfo` — table of `url`, `pending_update_count`, errors, etc. |
+| **Delete webhook** | Confirm `y/N` → `POST deleteWebhook` |
+
+Bot token and webhook secret are masked in audit logs (`••••••` + last 4 chars of token in API path). On API failure the full JSON response is shown for diagnosis.
+
+Audit log `menu` values: `webhook/set`, `webhook/info`, `webhook/delete`.
+
 ## Development
 
 ```bash
