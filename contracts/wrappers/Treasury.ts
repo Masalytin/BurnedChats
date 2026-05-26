@@ -52,7 +52,7 @@ export class Treasury extends TreasuryBase {
     async getJettonBalance(provider: ContractProvider, jettonMaster: BurnJettonMaster): Promise<bigint> {
         const w = await this.getTreasuryJettonWalletAddress(provider, jettonMaster);
         const wallet = provider.open(BurnJettonWallet.fromAddress(w));
-        const data = await wallet.getGetWalletData(provider);
+        const data = await wallet.getGetWalletData();
         return data.balance;
     }
 

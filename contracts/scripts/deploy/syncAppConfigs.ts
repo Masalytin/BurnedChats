@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { DeploymentFile } from './deploy/types';
+import type { DeploymentFile } from './types';
 
 function upsertEnvLines(path: string, updates: Record<string, string>): void {
     const lines: string[] = existsSync(path) ? readFileSync(path, 'utf8').split('\n') : [];

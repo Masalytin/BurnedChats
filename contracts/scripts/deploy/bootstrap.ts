@@ -1,4 +1,4 @@
-import { Address, Contract, toNano } from '@ton/core';
+import { Address, Contract, ContractProvider, Sender, toNano } from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
@@ -40,9 +40,18 @@ function friendly(addr: Address, testnet: boolean): string {
     return addr.toString({ bounceable: true, testOnly: testnet, urlSafe: true });
 }
 
+type DeployableContract = Contract & {
+    send(
+        provider: ContractProvider,
+        via: Sender,
+        args: { value: bigint; bounce?: boolean | null },
+        message: null,
+    ): Promise<void>;
+};
+
 async function deployIfNeeded(
     provider: NetworkProvider,
-    contract: Contract,
+    contract: DeployableContract,
     value: bigint,
     label: string,
     force: boolean,
