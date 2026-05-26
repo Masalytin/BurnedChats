@@ -30,6 +30,14 @@ function formatZodError(error: z.ZodError): string {
     .join('\n');
 }
 
+export function getRunnerConfigPath(): string {
+  return configPath();
+}
+
+export function getRunnerConfigExamplePath(): string {
+  return path.join(getCliRoot(), 'runner.config.example.json');
+}
+
 export function loadRunnerConfig(options?: { strict?: boolean }): RunnerConfig {
   const file = configPath();
   if (!fs.existsSync(file)) {

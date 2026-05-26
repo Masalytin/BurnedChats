@@ -154,6 +154,9 @@ scripts/cli/runner.config.json
 scripts/cli/node_modules/
 scripts/cli/dist/
 
+# Local operator backups (Redis RDB, project snapshots)
+backups/
+
 # ========================
 # Misc
 # ========================

@@ -14,6 +14,7 @@ import { remoteMenu } from './menus/remote.js';
 import { sslMenu } from './menus/ssl.js';
 import { stackMenu } from './menus/stack.js';
 import { webhookMenu } from './menus/webhook.js';
+import { runMenuPath } from './runPath.js';
 
 type SectionValue =
   | 'stack'
@@ -47,6 +48,20 @@ const sections: { value: SectionValue; label: string }[] = [
 ];
 
 let cancelled = false;
+
+function parseCliArgs(argv: string[]): { runPath?: string; interactive: boolean } {
+  const runIndex = argv.indexOf('--run');
+  if (runIndex === -1) {
+    return { interactive: true };
+  }
+
+  const runPath = argv[runIndex + 1];
+  if (!runPath || runPath.startsWith('-')) {
+    throw new Error('Usage: ./scripts/run.sh --run <menu/path>');
+  }
+
+  return { runPath, interactive: false };
+}
 
 function cancelByUser(): never {
   cancelled = true;
@@ -107,6 +122,13 @@ async function routeSection(section: SectionValue): Promise<boolean> {
 }
 
 async function main(): Promise<void> {
+  const { runPath, interactive } = parseCliArgs(process.argv.slice(2));
+
+  if (!interactive && runPath) {
+    const exitCode = await runMenuPath(runPath);
+    process.exit(exitCode);
+  }
+
   process.on('SIGINT', () => {
     if (!cancelled) {
       cancelByUser();

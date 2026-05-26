@@ -323,6 +323,22 @@ async function stackLogs(): Promise<void> {
   await exec('docker', args, { menu: 'stack/logs' });
 }
 
+export async function runStackStatus(): Promise<number> {
+  if (!(await requireStackPrerequisites())) {
+    return 1;
+  }
+  await stackStatus();
+  return 0;
+}
+
+export async function runStackLogsNonInteractive(): Promise<number> {
+  if (!(await requireStackPrerequisites())) {
+    return 1;
+  }
+  await exec('docker', buildLogsArgs('all', 200, false), { menu: 'stack/logs' });
+  return 0;
+}
+
 export async function stackMenu(): Promise<void> {
   for (;;) {
     const action = handleCancel(

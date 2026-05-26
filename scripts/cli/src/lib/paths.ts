@@ -22,3 +22,8 @@ export function getLogDir(): string {
 export function getContractsRoot(): string {
   return path.join(getRepoRoot(), 'contracts');
 }
+
+/** Local backup directory at repository root (`backups/`). */
+export function getBackupsDir(): string {
+  return path.join(getRepoRoot(), 'backups');
+}

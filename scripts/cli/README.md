@@ -186,6 +186,79 @@ Bot token and webhook secret are masked in audit logs (`••••••` + la
 
 Audit log `menu` values: `webhook/set`, `webhook/info`, `webhook/delete`.
 
+## Redis
+
+Redis operations via `docker compose exec -T redis redis-cli` (password from `.env.prod`).
+
+| Action | Description |
+|--------|-------------|
+| **Stats** | `DBSIZE`, `INFO keyspace`, `INFO memory` (used/peak/fragmentation) |
+| **List keys by pattern** | Iterative `SCAN` (default pattern `session:*`); shows first 50 keys + total |
+| **Inspect key** | `TYPE` + value by type (`GET` / `HGETALL` / `LRANGE` / `SMEMBERS` / `ZRANGE`) + `TTL` |
+| **BGSAVE** | Async snapshot; polls `LASTSAVE` up to 60s |
+| **Copy RDB to host** | `docker compose cp redis:/data/dump.rdb ./backups/redis-<timestamp>.rdb` |
+| **FLUSHDB** | Two-step confirm: `y/N` (default `N`) + exact `DOMAIN` string from `.env.prod` |
+
+Audit log `menu` values: `redis/stats`, `redis/scan`, `redis/inspect`, `redis/bgsave`, `redis/copy-rdb`, `redis/flushdb`.
+
+## Backup
+
+Project snapshot archives under `./backups/` (gitignored).
+
+| Action | Description |
+|--------|-------------|
+| **Create snapshot** | `redis-dump.rdb`, `certbot.tar.gz`, `env-files.tar.gz`, `git-meta.txt`, `deployments.tar.gz`, `manifest.json` → `snapshot-<timestamp>.tar.gz` |
+| **List snapshots** | Table of `snapshot-*.tar.gz` with size, date, age |
+| **Rotate** | Delete archives older than N days (default 30) after confirmation |
+
+`manifest.json` includes ISO timestamp, git SHA, dirty flag, CLI version, and file sizes.
+
+Audit log `menu` values: `backup/create`, `backup/tar`, `backup/list`, `backup/rotate`.
+
+## Remote
+
+SSH remote control for operators on Windows (or any machine with OpenSSH client).
+
+Configure `scripts/cli/runner.config.json` (copy from `runner.config.example.json`):
+
+```json
+{
+  "remote": {
+    "host": "prod.burnedchats.net",
+    "user": "deploy",
+    "identityFile": "~/.ssh/burnedchats_prod",
+    "repoPath": "/opt/burnedchats"
+  }
+}
+```
+
+| Action | Description |
+|--------|-------------|
+| **Status** | Show remote config or setup instructions when missing |
+| **SSH ping** | `ssh -o BatchMode=yes … 'echo ok'` (10s timeout) |
+| **Run remote menu** | `ssh -t … 'cd $REPO && ./scripts/run.sh'` (interactive TTY) |
+| **Run single command** | `ssh … './scripts/run.sh --run <path>'` |
+| **Tail remote logs** | Follow `backend` logs (`--tail=200`) on remote host |
+| **Sync backups** | List remote `./backups/` via SSH, download selected snapshot via `scp` |
+
+Remote operations set `remote: true` in the JSONL audit log.
+
+Audit log `menu` values: `remote/ssh-ping`, `remote/run-menu`, `remote/run-command`, `remote/tail-logs`, `remote/list-backups`, `remote/sync-backup`.
+
+## Non-interactive mode (`--run`)
+
+Run a single menu action without the root prompt (used by Remote → Run single command):
+
+```bash
+./scripts/run.sh --run stack/status
+./scripts/run.sh --run stack/logs
+./scripts/run.sh --run diagnostics/health
+./scripts/run.sh --run diagnostics/build-info
+./scripts/run.sh --run diagnostics/ton-proof-smoke
+```
+
+Exit code reflects success (`0`) or failure (`1`).
+
 ## Development
 
 ```bash
