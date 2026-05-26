@@ -12,9 +12,11 @@ import {
     type SetFeeParams as SetFeeParamsPayload,
     type SyncFeeConfigToWallet as SyncFeeConfigToWalletPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
+import { BurnJettonWallet as BurnJettonWalletBase } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
 import { Address, beginCell, Cell, ContractProvider, Sender, toNano } from '@ton/core';
 
 const NANO = 10n ** 9n;
+const EMPTY_WALLET_FEE_CONFIG = beginCell().endCell();
 
 export class BurnJettonMaster extends BurnJettonMasterBase {
     /**
@@ -22,6 +24,12 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
      */
     static jettonContentFromUri(metadataUri: string): Cell {
         return beginCell().storeUint(1, 8).storeRef(beginCell().storeStringTail(metadataUri).endCell()).endCell();
+    }
+
+    /** Predict TEP-74 wallet address before master/wallet contracts are deployed on-chain. */
+    static async predictWalletAddress(jettonMaster: Address, owner: Address): Promise<Address> {
+        const wallet = await BurnJettonWalletBase.fromInit(owner, jettonMaster, 0n, EMPTY_WALLET_FEE_CONFIG);
+        return wallet.address;
     }
 
     static async fromInitDeployed(admin: Address, content: Cell, timelock: Address = admin) {

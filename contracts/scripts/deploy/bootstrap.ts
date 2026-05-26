@@ -244,7 +244,7 @@ export async function deployBurnStack(
     const addressBook: Record<keyof DeploymentAddresses, Address> = {
         jettonMaster: jettonMaster.address,
         treasury: treasuryInit.address,
-        treasuryJettonWallet: Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
+        treasuryJettonWallet: await BurnJettonMaster.predictWalletAddress(jettonMaster.address, treasuryInit.address),
         stakingPool: poolInit.address,
         stakingLock: stakingLockInit.address,
         stakingMaster: stakingMasterInit.address,
@@ -257,10 +257,6 @@ export async function deployBurnStack(
         airdropHolder,
         liquidityHolder,
     };
-
-    addressBook.treasuryJettonWallet = await provider
-        .open(jettonMaster)
-        .getGetWalletAddress(treasuryInit.address);
 
     if (opts.dryRun) {
         console.log('[deploy] dry-run only — computed addresses:');
@@ -278,9 +274,7 @@ export async function deployBurnStack(
         await poolOpened.sendWireStakingMaster(provider.sender(), stakingMasterInit.address);
         await provider.waitForLastTransaction();
 
-        const masterJw = await provider
-            .open(jettonMaster)
-            .getGetWalletAddress(stakingMasterInit.address);
+        const masterJw = await BurnJettonMaster.predictWalletAddress(jettonMaster.address, stakingMasterInit.address);
         await provider
             .open(stakingMasterInit)
             .sendSetMasterJettonWallet(provider.sender(), masterJw);
@@ -343,7 +337,10 @@ export async function deployBurnStack(
         await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
         await provider.waitForLastTransaction();
 
-        addressBook.treasuryJettonWallet = await masterOpened.getGetWalletAddress(treasuryInit.address);
+        addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
+            jettonMaster.address,
+            treasuryInit.address,
+        );
     }
 
     const serialized: DeploymentAddresses = {

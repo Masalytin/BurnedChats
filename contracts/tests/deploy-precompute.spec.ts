@@ -6,6 +6,7 @@ import { StakingLock } from '../wrappers/StakingLock';
 import { StakingMaster } from '../wrappers/StakingMaster';
 import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
 import { Timelock } from '../wrappers/Timelock';
+import { Treasury } from '../wrappers/Treasury';
 
 describe('deploy address layout (P5-6-1-1)', () => {
     it('bootstrap inits are deterministic for a fixed deployer', async () => {
@@ -44,5 +45,21 @@ describe('deploy address layout (P5-6-1-1)', () => {
         expect(pool2.address.equals(pool.address)).toBe(true);
         expect(governor.address.equals(governor.address)).toBe(true);
         expect(timelock.address.equals(timelock.address)).toBe(true);
+    });
+
+    it('predictWalletAddress matches get_wallet_address after master deploy', async () => {
+        const blockchain = await Blockchain.create();
+        const deployer = await blockchain.treasury('deployer');
+        const content = BurnJettonMaster.jettonContentFromUri('https://example.com/burn.json');
+        const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content, deployer.address);
+        const treasury = await Treasury.prepareInit(deployer.address, jetton.address);
+
+        const predicted = await BurnJettonMaster.predictWalletAddress(jetton.address, treasury.address);
+
+        const master = blockchain.openContract(jetton);
+        await master.send(deployer.getSender(), { value: 100_000_000n }, null);
+        const onChain = await master.getGetWalletAddress(treasury.address);
+
+        expect(predicted.equals(onChain)).toBe(true);
     });
 });
