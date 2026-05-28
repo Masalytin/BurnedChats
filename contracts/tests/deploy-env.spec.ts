@@ -49,7 +49,7 @@ describe('deploy env', () => {
         initDeployEnv(tempRoot);
 
         expect(process.env.WALLET_MNEMONIC).toBe('word1 word2');
-        expect(process.env.WALLET_VERSION).toBe('v4r2');
+        expect(process.env.WALLET_VERSION).toBe('v5r1');
         expect(resolveMnemonic()).toBe('word1 word2');
     });
 
@@ -73,6 +73,19 @@ describe('deploy env', () => {
         applyBlueprintWalletAliases();
 
         expect(process.env.WALLET_MNEMONIC).toBe('explicit');
+    });
+
+    it('strips inline comments from env values', () => {
+        process.argv = ['node', 'blueprint', 'run', 'deploy', '--testnet', '--mnemonic'];
+        writeFileSync(
+            join(tempRoot, '.env.testnet'),
+            'SUBWALLET_NUMBER=0           # optional, v5r1 wallets\nWALLET_NETWORK_ID=-3\n',
+        );
+
+        initDeployEnv(tempRoot);
+
+        expect(process.env.SUBWALLET_NUMBER).toBe('0');
+        expect(Number(process.env.SUBWALLET_NUMBER)).toBe(0);
     });
 
     it('network env overrides empty values from base .env', () => {

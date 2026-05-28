@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const DEFAULT_WALLET_VERSION = 'v4r2';
+const DEFAULT_WALLET_VERSION = 'v5r1';
 
 function parseEnvLine(rawLine: string): { key: string; val: string } | undefined {
     const line = rawLine.trim();
@@ -16,6 +16,11 @@ function parseEnvLine(rawLine: string): { key: string; val: string } | undefined
     let val = line.slice(eq + 1).trim();
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
+    } else {
+        const hashIdx = val.indexOf('#');
+        if (hashIdx >= 0) {
+            val = val.slice(0, hashIdx).trimEnd();
+        }
     }
     return { key, val };
 }
