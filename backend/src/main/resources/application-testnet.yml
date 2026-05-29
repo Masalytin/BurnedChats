@@ -1,9 +1,12 @@
-# Testnet profile — activate with SPRING_PROFILES_ACTIVE=testnet
-# Contract addresses: set env vars after `npm run deploy:burn:testnet` (see contracts/deployments/testnet.json)
-
-spring:
-  profiles:
-    active: testnet
+# Testnet profile.
+# Activate from OUTSIDE this file (env or CLI), typically:
+#   SPRING_PROFILES_ACTIVE=prod,testnet
+# Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects it
+# in profile-specific resources (see
+# docs/improvements/backend-testnet-profile-load-error/REPORT.md
+# and IMP-TESTNET-PROFILE-01).
+# Contract addresses: set env vars after `npm run deploy:burn:testnet`
+# (see contracts/deployments/testnet.json).
 
 app:
   ton:

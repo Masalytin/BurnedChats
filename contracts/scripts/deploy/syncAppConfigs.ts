@@ -37,12 +37,11 @@ function upsertEnvLines(path: string, updates: Record<string, string>): void {
 function patchApplicationTestnet(repoRoot: string, addresses: DeploymentFile['addresses']): void {
     const path = resolve(repoRoot, 'backend/src/main/resources/application-testnet.yml');
     const content = `# Testnet profile — sync addresses from contracts/deployments/testnet.json [P5-6-1-1]
-# Activate: SPRING_PROFILES_ACTIVE=testnet
+# Activate from env (NOT inside this file):
+#   SPRING_PROFILES_ACTIVE=prod,testnet
+# Do NOT add \`spring.profiles.active\` here — Spring Boot >= 2.4 rejects
+# it in profile-specific resources (IMP-TESTNET-PROFILE-01).
 # Last deploy sync: ${new Date().toISOString()}
-
-spring:
-  profiles:
-    active: testnet
 
 app:
   ton:
