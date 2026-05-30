@@ -12,6 +12,7 @@ import { Vesting } from '../../wrappers/Vesting';
 import { presetDurations, presetTotalNano, VESTING_PRESETS } from '../vesting/presets';
 import { saveDeployment } from './store';
 import type { DeploymentAddresses, DeploymentFile, MintAllocation } from './types';
+import { getSenderSeqno, waitForSenderSeqnoIncrement } from './wait';
 
 const NANO = 10n ** 9n;
 const MAX_SUPPLY_NANO = 1000n * NANO;
@@ -127,8 +128,9 @@ async function mintTo(
     amountNano: bigint,
 ): Promise<void> {
     const opened = provider.open(master);
+    const seqnoBefore = await getSenderSeqno(provider);
     await opened.sendMint(provider.sender(), receiver, amountNano, MINT_FORWARD, MINT_GAS);
-    await provider.waitForLastTransaction();
+    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
 }
 
 async function syncWalletFeeConfig(
@@ -137,8 +139,9 @@ async function syncWalletFeeConfig(
     owner: Address,
 ): Promise<void> {
     const opened = provider.open(master);
+    const seqnoBefore = await getSenderSeqno(provider);
     await opened.sendSyncFeeConfigToWallet(provider.sender(), owner);
-    await provider.waitForLastTransaction();
+    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
 }
 
 /**
@@ -388,8 +391,9 @@ export async function deployBurnStack(
         if (opts.force || !(await isStakingMasterWired(provider, poolInit, stakingMasterInit.address))) {
             console.log('[deploy] wireStakingMaster');
             const poolOpened = provider.open(poolInit);
+            const seqnoBefore = await getSenderSeqno(provider);
             await poolOpened.sendWireStakingMaster(provider.sender(), stakingMasterInit.address);
-            await provider.waitForLastTransaction();
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
         } else {
             console.log('[deploy] skip wireStakingMaster — pool already wired to staking master');
         }
@@ -397,10 +401,11 @@ export async function deployBurnStack(
         const masterJw = await BurnJettonMaster.predictWalletAddress(jettonMaster.address, stakingMasterInit.address);
         if (opts.force || !(await isMasterJettonWalletConfigured(provider, stakingMasterInit, masterJw))) {
             console.log('[deploy] setMasterJettonWallet');
+            const seqnoBefore = await getSenderSeqno(provider);
             await provider
                 .open(stakingMasterInit)
                 .sendSetMasterJettonWallet(provider.sender(), masterJw);
-            await provider.waitForLastTransaction();
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
         } else {
             console.log('[deploy] skip setMasterJettonWallet — staking master already configured');
         }
@@ -448,12 +453,13 @@ export async function deployBurnStack(
             ))
         ) {
             console.log('[deploy] setFeeDestinations');
+            const seqnoBefore = await getSenderSeqno(provider);
             await masterOpened.sendSetFeeDestinations(
                 provider.sender(),
                 poolInit.address,
                 treasuryInit.address,
             );
-            await provider.waitForLastTransaction();
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
         } else {
             console.log('[deploy] skip setFeeDestinations — already configured');
         }
@@ -474,8 +480,9 @@ export async function deployBurnStack(
                 continue;
             }
             console.log(`[deploy] addExcluded ${friendly(holder, testnet)}`);
+            const seqnoBefore = await getSenderSeqno(provider);
             await masterOpened.sendAddExcluded(provider.sender(), holder);
-            await provider.waitForLastTransaction();
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
         }
 
         for (const holder of excludedOwners) {
@@ -502,8 +509,9 @@ export async function deployBurnStack(
 
         if (opts.force || !(await isAdminTransferred(provider, jettonMaster, timelockInit.address))) {
             console.log(`[deploy] changeOwner → Timelock (${friendly(timelockInit.address, testnet)})`);
+            const seqnoBefore = await getSenderSeqno(provider);
             await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
-            await provider.waitForLastTransaction();
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
         } else {
             console.log('[deploy] skip changeOwner — admin already Timelock');
         }
