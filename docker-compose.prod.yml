@@ -48,6 +48,11 @@ services:
     restart: always
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      - TONCENTER_API_KEY=${TONCENTER_API_KEY}      # ключ от testnet.toncenter
+      - BURN_JETTON_MASTER_ADDRESS=${BURN_JETTON_MASTER_ADDRESS}
+      - BURN_STAKING_MASTER_ADDRESS=${BURN_STAKING_MASTER_ADDRESS}
+      - BURN_GOVERNOR_ADDRESS=${BURN_GOVERNOR_ADDRESS}
+      - BURN_TREASURY_ADDRESS=${BURN_TREASURY_ADDRESS}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -84,6 +89,14 @@ services:
         - VITE_WS_URL=https://${DOMAIN}/ws
         - VITE_TELEGRAM_BOT_URL=https://t.me/BurnedChatsBot
         - VITE_GITHUB_URL=https://github.com/Masalytin/BurnedChats
+        - VITE_TONCONNECT_MANIFEST_URL=https://${DOMAIN}/tonconnect-manifest.json
+        - VITE_TON_NETWORK=testnet
+        - VITE_TON_RPC_URL=https://testnet.toncenter.com/api/v2
+        - VITE_TONCENTER_API_KEY=${TONCENTER_API_KEY}
+        - VITE_BURN_JETTON_MASTER=${BURN_JETTON_MASTER_ADDRESS}
+        - VITE_STAKING_MASTER=${BURN_STAKING_MASTER_ADDRESS}
+        - VITE_GOVERNOR_ADDRESS=${BURN_GOVERNOR_ADDRESS}
+        - VITE_TREASURY_ADDRESS=${BURN_TREASURY_ADDRESS}
     container_name: burnedchats-frontend
     restart: always
     networks:
