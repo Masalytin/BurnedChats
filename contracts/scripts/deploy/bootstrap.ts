@@ -562,9 +562,15 @@ export async function readJettonWalletBalance(
     jettonMaster: Address,
     owner: Address,
 ): Promise<bigint> {
-    const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
-    const walletAddr = await master.getGetWalletAddress(owner);
-    const wallet = provider.open(BurnJettonWallet.fromAddress(walletAddr));
-    const data = await wallet.getGetWalletData();
-    return data.balance;
+    try {
+        const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
+        const walletAddr = await master.getGetWalletAddress(owner);
+        const wallet = provider.open(BurnJettonWallet.fromAddress(walletAddr));
+        const data = await wallet.getGetWalletData();
+        return data.balance;
+    } catch {
+        // TEP-74 jetton wallets deploy lazily on first transfer/mint. Until then
+        // the wallet address has no code (get_wallet_data → exit_code -13).
+        return 0n;
+    }
 }
