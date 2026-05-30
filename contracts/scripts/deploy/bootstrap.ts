@@ -141,6 +141,121 @@ async function syncWalletFeeConfig(
     await provider.waitForLastTransaction();
 }
 
+/**
+ * On-chain idempotency probes used by `deployBurnStack`. Each probe answers
+ * "is this post-deploy step already applied?" by reading contract state, so
+ * a re-run after a transient `LITE_SERVER_NOTREADY` (or any other crash)
+ * skips already-applied steps instead of blindly re-sending them. See
+ * `docs/improvements/contracts-deploy-resilience/REPORT.md`.
+ */
+async function isStakingMasterWired(
+    provider: NetworkProvider,
+    pool: StakingPool,
+    expectedMaster: Address,
+): Promise<boolean> {
+    const opened = provider.open(pool);
+    const wired = await opened.getGetMasterWired();
+    if (!wired) {
+        return false;
+    }
+    const current = await opened.getGetStakingMaster();
+    return current.equals(expectedMaster);
+}
+
+async function isMasterJettonWalletConfigured(
+    provider: NetworkProvider,
+    sm: StakingMaster,
+    expectedWallet: Address,
+): Promise<boolean> {
+    const opened = provider.open(sm);
+    const current = await opened.getGetStakingJettonWallet();
+    return current.equals(expectedWallet);
+}
+
+async function isFeeDestinationsConfigured(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    expectedPool: Address,
+    expectedTreasury: Address,
+): Promise<boolean> {
+    const opened = provider.open(master);
+    const fp = await opened.getGetFeeParams();
+    return (
+        fp.feeDestinationsActive === true &&
+        fp.stakingPoolOwner.equals(expectedPool) &&
+        fp.treasuryOwner.equals(expectedTreasury)
+    );
+}
+
+async function isHolderExcluded(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    holder: Address,
+): Promise<boolean> {
+    const opened = provider.open(master);
+    return await opened.getGetIsExcluded(holder);
+}
+
+/**
+ * `getGetFeeConfigActive` reverts on uninitialized jetton wallets (they are
+ * deployed lazily when the master sends the first sync). A throw therefore
+ * means "wallet not yet synced" — caller should send the sync.
+ */
+async function isWalletFeeConfigSynced(
+    provider: NetworkProvider,
+    jettonMasterAddr: Address,
+    owner: Address,
+): Promise<boolean> {
+    try {
+        const master = provider.open(BurnJettonMaster.fromAddress(jettonMasterAddr));
+        const walletAddr = await master.getGetWalletAddress(owner);
+        const wallet = provider.open(BurnJettonWallet.fromAddress(walletAddr));
+        return await wallet.getGetFeeConfigActive();
+    } catch {
+        return false;
+    }
+}
+
+async function isAdminTransferred(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    expectedAdmin: Address,
+): Promise<boolean> {
+    const opened = provider.open(master);
+    const data = await opened.getGetJettonData();
+    return data.adminAddress.equals(expectedAdmin);
+}
+
+async function ensureMint(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    jettonMasterAddr: Address,
+    alloc: MintAllocation,
+    receiver: Address,
+    testnet: boolean,
+    force: boolean,
+): Promise<void> {
+    const expected = alloc.burnAmount * NANO;
+    if (!force) {
+        const balance = await readJettonWalletBalance(provider, jettonMasterAddr, receiver);
+        if (balance === expected) {
+            console.log(
+                `[deploy] skip mint ${alloc.label} — already ${expected} BURN nano on ${friendly(receiver, testnet)}`,
+            );
+            return;
+        }
+        if (balance !== 0n) {
+            throw new Error(
+                `[deploy] mint refused for ${alloc.label}: receiver ${friendly(receiver, testnet)} ` +
+                    `balance ${balance} ≠ 0 and ≠ ${expected}. Re-running deploy after a partial mint ` +
+                    `would over-mint and break MAX_SUPPLY invariant. Reconcile manually before retrying.`,
+            );
+        }
+    }
+    console.log(`[deploy] mint ${alloc.burnAmount} BURN → ${alloc.label} (${friendly(receiver, testnet)})`);
+    await mintTo(provider, master, receiver, expected);
+}
+
 export type DeployResult = {
     filePath: string;
     deployment: DeploymentFile;
@@ -270,15 +385,25 @@ export async function deployBurnStack(
         await deployIfNeeded(provider, stakingLockInit, DEPLOY_LOCK, 'StakingLock', opts.force);
         await deployIfNeeded(provider, stakingMasterInit, DEPLOY_STAKING_MASTER, 'StakingMaster', opts.force);
 
-        const poolOpened = provider.open(poolInit);
-        await poolOpened.sendWireStakingMaster(provider.sender(), stakingMasterInit.address);
-        await provider.waitForLastTransaction();
+        if (opts.force || !(await isStakingMasterWired(provider, poolInit, stakingMasterInit.address))) {
+            console.log('[deploy] wireStakingMaster');
+            const poolOpened = provider.open(poolInit);
+            await poolOpened.sendWireStakingMaster(provider.sender(), stakingMasterInit.address);
+            await provider.waitForLastTransaction();
+        } else {
+            console.log('[deploy] skip wireStakingMaster — pool already wired to staking master');
+        }
 
         const masterJw = await BurnJettonMaster.predictWalletAddress(jettonMaster.address, stakingMasterInit.address);
-        await provider
-            .open(stakingMasterInit)
-            .sendSetMasterJettonWallet(provider.sender(), masterJw);
-        await provider.waitForLastTransaction();
+        if (opts.force || !(await isMasterJettonWalletConfigured(provider, stakingMasterInit, masterJw))) {
+            console.log('[deploy] setMasterJettonWallet');
+            await provider
+                .open(stakingMasterInit)
+                .sendSetMasterJettonWallet(provider.sender(), masterJw);
+            await provider.waitForLastTransaction();
+        } else {
+            console.log('[deploy] skip setMasterJettonWallet — staking master already configured');
+        }
 
         await deployIfNeeded(provider, timelockInit, DEPLOY_TIMELOCK, 'Timelock', opts.force);
         await deployIfNeeded(provider, governorInit, DEPLOY_GOVERNOR, 'Governor', opts.force);
@@ -298,21 +423,40 @@ export async function deployBurnStack(
         let mintedNano = 0n;
         for (const alloc of MINT_ALLOCATIONS) {
             const receiver = addressBook[alloc.receiver];
-            const amountNano = alloc.burnAmount * NANO;
-            mintedNano += amountNano;
-            console.log(`[deploy] mint ${alloc.burnAmount} BURN → ${alloc.label} (${friendly(receiver, testnet)})`);
-            await mintTo(provider, jettonMaster, receiver, amountNano);
+            mintedNano += alloc.burnAmount * NANO;
+            await ensureMint(
+                provider,
+                jettonMaster,
+                jettonMaster.address,
+                alloc,
+                receiver,
+                testnet,
+                opts.force,
+            );
         }
         if (mintedNano !== MAX_SUPPLY_NANO) {
             throw new Error(`Mint allocation mismatch: expected ${MAX_SUPPLY_NANO}, got ${mintedNano}`);
         }
 
-        await masterOpened.sendSetFeeDestinations(
-            provider.sender(),
-            poolInit.address,
-            treasuryInit.address,
-        );
-        await provider.waitForLastTransaction();
+        if (
+            opts.force ||
+            !(await isFeeDestinationsConfigured(
+                provider,
+                jettonMaster,
+                poolInit.address,
+                treasuryInit.address,
+            ))
+        ) {
+            console.log('[deploy] setFeeDestinations');
+            await masterOpened.sendSetFeeDestinations(
+                provider.sender(),
+                poolInit.address,
+                treasuryInit.address,
+            );
+            await provider.waitForLastTransaction();
+        } else {
+            console.log('[deploy] skip setFeeDestinations — already configured');
+        }
 
         const excludedOwners: Address[] = [
             treasuryInit.address,
@@ -325,17 +469,44 @@ export async function deployBurnStack(
             liquidityHolder,
         ];
         for (const holder of excludedOwners) {
+            if (!opts.force && (await isHolderExcluded(provider, jettonMaster, holder))) {
+                console.log(`[deploy] skip addExcluded ${friendly(holder, testnet)} — already excluded`);
+                continue;
+            }
+            console.log(`[deploy] addExcluded ${friendly(holder, testnet)}`);
             await masterOpened.sendAddExcluded(provider.sender(), holder);
             await provider.waitForLastTransaction();
         }
 
         for (const holder of excludedOwners) {
+            if (!opts.force && (await isWalletFeeConfigSynced(provider, jettonMaster.address, holder))) {
+                console.log(
+                    `[deploy] skip syncWalletFeeConfig ${friendly(holder, testnet)} — wallet already synced`,
+                );
+                continue;
+            }
+            console.log(`[deploy] syncWalletFeeConfig ${friendly(holder, testnet)}`);
             await syncWalletFeeConfig(provider, jettonMaster, holder);
         }
-        await syncWalletFeeConfig(provider, jettonMaster, airdropHolder);
+        if (
+            opts.force ||
+            !(await isWalletFeeConfigSynced(provider, jettonMaster.address, airdropHolder))
+        ) {
+            console.log(`[deploy] syncWalletFeeConfig ${friendly(airdropHolder, testnet)} (airdrop)`);
+            await syncWalletFeeConfig(provider, jettonMaster, airdropHolder);
+        } else {
+            console.log(
+                `[deploy] skip syncWalletFeeConfig ${friendly(airdropHolder, testnet)} (airdrop) — wallet already synced`,
+            );
+        }
 
-        await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
-        await provider.waitForLastTransaction();
+        if (opts.force || !(await isAdminTransferred(provider, jettonMaster, timelockInit.address))) {
+            console.log(`[deploy] changeOwner → Timelock (${friendly(timelockInit.address, testnet)})`);
+            await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
+            await provider.waitForLastTransaction();
+        } else {
+            console.log('[deploy] skip changeOwner — admin already Timelock');
+        }
 
         addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
             jettonMaster.address,
