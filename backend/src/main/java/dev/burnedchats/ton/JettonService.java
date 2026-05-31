@@ -165,17 +165,13 @@ public class JettonService {
 
     private JettonInfo parseJettonInfo(JsonNode result) {
         List<JsonNode> flat = flattenStack(result);
-        if (flat.size() < 6) {
+        if (flat.size() < 5) {
             throw new TonRpcException("get_jetton_data: stack too small");
         }
         BigInteger total = parseNum(flat.get(0));
         boolean mint = parseNum(flat.get(1)).compareTo(BigInteger.ZERO) != 0;
         String admin = TonAddressBoc.decodeRawAddressFromSingleRootBoc(cellBase64(flat.get(2)));
-        String timelock = TonAddressBoc.decodeRawAddressFromSingleRootBoc(cellBase64(flat.get(3)));
-        String codeB64 = cellBase64(flat.get(5));
-        if (!timelock.isBlank()) {
-            LOG.trace("jetton timelock {}", timelock);
-        }
+        String codeB64 = cellBase64(flat.get(4));
         return new JettonInfo(total, mint, admin, codeB64, "");
     }
 

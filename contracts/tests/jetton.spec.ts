@@ -36,12 +36,30 @@ describe('BurnJetton', () => {
             expect(data.totalSupply).toBe(0n);
             expect(data.mintable).toBe(true);
             expect(data.adminAddress.equals(ctx.deployer.address)).toBe(true);
+            expect('timelockAddress' in data).toBe(false);
+
             const timelock = await ctx.master.getGetTimelockAddress();
             expect(timelock.equals(ctx.deployer.address)).toBe(true);
 
             const w1 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             const w2 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             expect(w1.equals(w2)).toBe(true);
+        });
+
+        it('get_jetton_data returns TEP-74 layout (5 fields, no timelock)', async () => {
+            const data = await ctx.master.getGetJettonData();
+            const keys = Object.keys(data)
+                .filter((k) => k !== '$$type')
+                .sort();
+            expect(keys).toEqual([
+                'adminAddress',
+                'jettonContent',
+                'jettonWalletCode',
+                'mintable',
+                'totalSupply',
+            ]);
+            expect(data.jettonContent).toBeDefined();
+            expect(data.jettonWalletCode).toBeDefined();
         });
 
         it('ProvideWalletAddress returns TakeWalletAddress with predicted wallet', async () => {

@@ -140,9 +140,10 @@ class JettonServiceTest {
     @DisplayName("getJettonInfo cache hit skips HTTP")
     void jettonInfoUsesApplicationCache() throws Exception {
         String adminBoc = TonAddressBoc.addressCellToBocBase64("0:" + "bb".repeat(32));
-        String tlBoc = TonAddressBoc.addressCellToBocBase64("0:" + "cc".repeat(32));
+        String contentBoc = TonAddressBoc.addressCellToBocBase64("0:" + "cc".repeat(32));
+        String codeBoc = TonAddressBoc.addressCellToBocBase64("0:" + "dd".repeat(32));
         String adminRaw = TonAddressBoc.decodeRawAddressFromSingleRootBoc(adminBoc);
-        JettonInfo cached = new JettonInfo(BigInteger.TEN, false, adminRaw, adminBoc, "");
+        JettonInfo cached = new JettonInfo(BigInteger.TEN, false, adminRaw, codeBoc, "");
 
         AtomicInteger redisGets = new AtomicInteger();
         when(valueOps.get(anyString())).thenAnswer(inv -> {
@@ -162,11 +163,10 @@ class JettonServiceTest {
                   ["num","0x0"],
                   ["tvm.Slice","%s"],
                   ["tvm.Slice","%s"],
-                  ["tvm.Slice","%s"],
                   ["tvm.Slice","%s"]
                 ]}}
                 """
-                .formatted(adminBoc, tlBoc, adminBoc, adminBoc)
+                .formatted(adminBoc, contentBoc, codeBoc)
                 .replaceAll("\\s+", "");
 
         server.enqueue(new MockResponse().setBody(jettonData).addHeader("Content-Type", "application/json"));
