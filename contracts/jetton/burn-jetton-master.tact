@@ -10,7 +10,6 @@ struct BurnJettonMasterState {
     totalSupply: Int as coins;
     mintable: Bool;
     adminAddress: Address;
-    timelockAddress: Address;
     jettonContent: Cell;
     jettonWalletCode: Cell;
 }
@@ -246,10 +245,13 @@ contract BurnJettonMaster(
             totalSupply: self.totalSupply,
             mintable: self.mintable,
             adminAddress: self.admin,
-            timelockAddress: self.timelock,
             jettonContent: self.content,
             jettonWalletCode: codeOf BurnJettonWallet,
         };
+    }
+
+    get fun get_timelock_address(): Address {
+        return self.timelock;
     }
 
     get fun get_wallet_address(ownerAddress: Address): Address {

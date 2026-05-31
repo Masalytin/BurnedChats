@@ -1,4 +1,4 @@
-import { Address } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 import { resolve } from 'node:path';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
@@ -15,8 +15,95 @@ const MAX_SUPPLY_NANO = 1000n * NANO;
 
 type CheckResult = { ok: boolean; message: string };
 
+const TONAPI_RETRIES = 3;
+const TONAPI_RETRY_DELAY_MS = 5_000;
+
 function assertCheck(ok: boolean, message: string): CheckResult {
     return { ok, message };
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Decode TEP-64 off-chain metadata URI from on-chain jetton content cell. */
+function decodeOffChainMetadataUri(content: Cell): string {
+    const slice = content.beginParse();
+    const tag = slice.loadUint(8);
+    if (tag !== 0x01) {
+        throw new Error(`expected TEP-64 off-chain tag 0x01, got 0x${tag.toString(16)}`);
+    }
+    return slice.loadRef().beginParse().loadStringTail();
+}
+
+type MetadataJson = { name?: unknown; symbol?: unknown; decimals?: unknown };
+
+async function checkMetadataUriAlive(uri: string): Promise<CheckResult> {
+    try {
+        const res = await fetch(uri, { redirect: 'follow' });
+        if (!res.ok) {
+            return assertCheck(false, `metadata URI HTTP ${res.status}: ${uri}`);
+        }
+        const body = (await res.json()) as MetadataJson;
+        const valid =
+            typeof body.name === 'string' &&
+            body.name.length > 0 &&
+            typeof body.symbol === 'string' &&
+            body.symbol.length > 0 &&
+            (typeof body.decimals === 'number' || typeof body.decimals === 'string');
+        return assertCheck(
+            valid,
+            valid
+                ? `metadata URI alive (${uri}) — name=${body.name}, symbol=${body.symbol}`
+                : `metadata URI JSON missing name/symbol/decimals: ${uri}`,
+        );
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return assertCheck(false, `metadata URI fetch failed (${uri}): ${msg}`);
+    }
+}
+
+async function checkTonapiJettonIndexed(
+    network: 'testnet' | 'mainnet',
+    jettonMaster: Address,
+): Promise<CheckResult> {
+    if (process.env.VERIFY_SKIP_TONAPI === '1') {
+        return assertCheck(true, 'tonapi jetton indexability (skipped via VERIFY_SKIP_TONAPI=1)');
+    }
+
+    const host = network === 'testnet' ? 'https://testnet.tonapi.io' : 'https://tonapi.io';
+    const masterStr = jettonMaster.toString({ urlSafe: true, bounceable: true });
+    const url = `${host}/v2/jettons/${masterStr}`;
+
+    for (let attempt = 1; attempt <= TONAPI_RETRIES; attempt += 1) {
+        try {
+            const res = await fetch(url);
+            const body = (await res.json()) as { error?: string; metadata?: unknown; symbol?: string };
+            if (body.error === 'entity not found') {
+                if (attempt < TONAPI_RETRIES) {
+                    await sleep(TONAPI_RETRY_DELAY_MS);
+                    continue;
+                }
+                return assertCheck(false, `tonapi jetton not indexed after ${TONAPI_RETRIES} attempts: ${url}`);
+            }
+            const indexed = res.ok && (body.metadata != null || typeof body.symbol === 'string');
+            return assertCheck(
+                indexed,
+                indexed
+                    ? `tonapi jetton indexed (${url})`
+                    : `tonapi jetton response missing metadata/symbol: ${url}`,
+            );
+        } catch (err) {
+            if (attempt < TONAPI_RETRIES) {
+                await sleep(TONAPI_RETRY_DELAY_MS);
+                continue;
+            }
+            const msg = err instanceof Error ? err.message : String(err);
+            return assertCheck(false, `tonapi jetton fetch failed (${url}): ${msg}`);
+        }
+    }
+
+    return assertCheck(false, `tonapi jetton check exhausted retries: ${url}`);
 }
 
 export async function run(provider: NetworkProvider) {
@@ -132,6 +219,23 @@ export async function run(provider: NetworkProvider) {
             `vesting developer vault balance ${vestingDevBalance}`,
         ),
     );
+
+    const metadataUri =
+        deployment.metadataUri?.trim() ||
+        (() => {
+            try {
+                return decodeOffChainMetadataUri(jettonData.jettonContent);
+            } catch {
+                return '';
+            }
+        })();
+    if (metadataUri) {
+        checks.push(await checkMetadataUriAlive(metadataUri));
+    } else {
+        checks.push(assertCheck(false, 'metadata URI unavailable (deployment file + on-chain content)'));
+    }
+
+    checks.push(await checkTonapiJettonIndexed(network, jettonMaster));
 
     let failed = 0;
     console.log(`[verify-deployment] network=${network} file=deployments/${network}.json`);

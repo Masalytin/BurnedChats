@@ -35,7 +35,8 @@ describe('BurnJetton', () => {
             expect(data.totalSupply).toBe(0n);
             expect(data.mintable).toBe(true);
             expect(data.adminAddress.equals(ctx.deployer.address)).toBe(true);
-            expect(data.timelockAddress.equals(ctx.deployer.address)).toBe(true);
+            const timelock = await ctx.master.getGetTimelockAddress();
+            expect(timelock.equals(ctx.deployer.address)).toBe(true);
 
             const w1 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             const w2 = await ctx.master.getGetWalletAddress(ctx.userX.address);
