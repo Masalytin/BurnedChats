@@ -1,7 +1,7 @@
 {
     "name": "BURN Token",
-    "description": "Deflationary token of Burned Chats ecosystem",
+    "description": "Deflationary token of the Burned Chats ecosystem",
     "symbol": "BURN",
     "decimals": "9",
-    "image": "https://raw.githubusercontent.com/tact-lang/jetton/main/docs/public/jetton-icon.png"
+    "image": "https://raw.githubusercontent.com/Masalytin/BurnedChats/master/contracts/jetton/burn-icon.png"
 }
