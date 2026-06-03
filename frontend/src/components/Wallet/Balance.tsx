@@ -4,7 +4,8 @@ import { QRCodeSVG } from 'qrcode.react';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
-import { getTonConnectUI, shortenTonDisplayAddress } from '@/ton/connector';
+import { shortenTonDisplayAddress } from '@/ton/connector';
+import { getTonBalanceNano } from '@/ton/tonBalance';
 import { formatBurn } from '@/utils/format';
 
 import styles from './Wallet.module.css';
@@ -43,32 +44,41 @@ export function Balance({
 }: BalanceProps) {
   const { t } = useTranslation();
   const [tonNano, setTonNano] = useState<bigint | null>(null);
+  const [tonLoading, setTonLoading] = useState(false);
+  const [tonFailed, setTonFailed] = useState(false);
 
   useEffect(() => {
-    if (!ton.isConnected) {
+    const addr = ton.walletAddress?.trim();
+    if (!ton.isConnected || !addr) {
       setTonNano(null);
+      setTonLoading(false);
+      setTonFailed(false);
       return;
     }
-    const ui = getTonConnectUI();
-    const read = (): void => {
-      const raw = ui.wallet?.account as { balance?: string | number } | undefined;
-      const b = raw?.balance;
-      if (b === undefined) {
+
+    let cancelled = false;
+    setTonLoading(true);
+    setTonFailed(false);
+
+    void getTonBalanceNano(addr)
+      .then((nano) => {
+        if (cancelled) return;
+        setTonNano(nano);
+        setTonFailed(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
         setTonNano(null);
-        return;
-      }
-      try {
-        setTonNano(BigInt(String(b)));
-      } catch {
-        setTonNano(null);
-      }
-    };
-    read();
-    const unsub = ui.onStatusChange(() => read());
+        setTonFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setTonLoading(false);
+      });
+
     return () => {
-      unsub();
+      cancelled = true;
     };
-  }, [ton.isConnected]);
+  }, [ton.isConnected, ton.walletAddress]);
 
   const burnLine =
     burn.balance != null
@@ -79,7 +89,11 @@ export function Balance({
           ? t('wallet.balanceError')
           : '—';
 
-  const tonLine = tonNano != null ? formatTonBalance(tonNano) : t('wallet.tonBalanceUnavailable');
+  const tonLine = tonLoading
+    ? t('wallet.balanceLoading')
+    : tonFailed || tonNano == null
+      ? t('wallet.tonBalanceUnavailable')
+      : formatTonBalance(tonNano);
 
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';

@@ -1,5 +1,6 @@
 import { Address, Cell, type Slice, beginCell } from '@ton/core';
 import { sendTonTransaction } from '@/ton/connector';
+import { defaultFetch, resolveApiKey, resolveIsTestNet, resolveRpcBaseUrl } from '@/ton/rpc';
 import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
@@ -75,15 +76,6 @@ function normalizeApiBase(): string {
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
 
-function resolveRpcBaseUrl(override?: string): string {
-  const fromEnv = (import.meta.env.VITE_TON_RPC_URL ?? '').trim();
-  const primary = (override ?? fromEnv).trim();
-  const base =
-    primary ||
-    (resolveIsTestNet() ? 'https://testnet.toncenter.com/api/v2' : 'https://toncenter.com/api/v2');
-  return base.replace(/\/$/, '');
-}
-
 function resolveJettonMaster(override?: string): string {
   const fromEnv = (import.meta.env.VITE_BURN_JETTON_MASTER ?? '').trim();
   const addr = override ?? fromEnv;
@@ -91,23 +83,6 @@ function resolveJettonMaster(override?: string): string {
     throw new BurnTokenError('CONFIG', 'BURN jetton master address is not configured (VITE_BURN_JETTON_MASTER)');
   }
   return addr;
-}
-
-function resolveIsTestNet(): boolean {
-  const raw = String(import.meta.env.VITE_TON_NETWORK ?? 'testnet').toLowerCase();
-  return raw === 'testnet' || raw === 'true' || raw === '1';
-}
-
-function resolveApiKey(override?: string): string | undefined {
-  const k = (override ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
-  return k || undefined;
-}
-
-function defaultFetch(): typeof fetch {
-  if (typeof globalThis.fetch !== 'function') {
-    throw new BurnTokenError('NETWORK_ERROR', 'fetch is not available in this environment');
-  }
-  return globalThis.fetch.bind(globalThis);
 }
 
 export function addressToSliceStackBoc(userAddress: string): string {
