@@ -56,6 +56,21 @@ export function useBurnToken(): UseBurnToken {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
+  const loadHistoryAndFees = useCallback(async (addr: string) => {
+    const [historyResult, feesResult] = await Promise.allSettled([
+      getBurnHistory(addr, 50),
+      getEffectiveFeeParams(),
+    ]);
+    if (historyResult.status === 'fulfilled') {
+      setHistory(historyResult.value);
+    } else {
+      setHistory([]);
+    }
+    if (feesResult.status === 'fulfilled') {
+      setFeeParams(feesResult.value);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     if (!walletAddress) {
       setBalance(null);
@@ -68,20 +83,17 @@ export function useBurnToken(): UseBurnToken {
     setIsLoading(true);
     setError(null);
     try {
-      const [nano, txs, fees] = await Promise.all([
-        getBurnBalance(walletAddress),
-        getBurnHistory(walletAddress, 50),
-        getEffectiveFeeParams(),
-      ]);
+      const nano = await getBurnBalance(walletAddress);
       setBalance(nano);
-      setHistory(txs);
-      setFeeParams(fees);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
+      setBalance(null);
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress]);
+
+    void loadHistoryAndFees(walletAddress);
+  }, [walletAddress, loadHistoryAndFees]);
 
   useEffect(() => {
     void load();
@@ -100,6 +112,7 @@ export function useBurnToken(): UseBurnToken {
         try {
           const nano = await getBurnBalance(walletAddress);
           setBalance(nano);
+          setError(null);
         } catch {
           /* keep last snapshot to avoid flashing errors on flaky RPC */
         }
