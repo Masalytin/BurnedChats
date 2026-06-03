@@ -76,9 +76,8 @@ async function resolveDeployer(provider: NetworkProvider): Promise<Address> {
     throw new Error('Deployer wallet address is unavailable from NetworkProvider.sender()');
 }
 
-/** Off-chain TEP-64 JSON in-repo; live after push to default branch (see deployments/README.md). */
-export const DEFAULT_JETTON_METADATA_URI =
-    'https://raw.githubusercontent.com/Masalytin/BurnedChats/master/contracts/jetton/metadata.json';
+/** Off-chain TEP-64 JSON on production frontend (see deployments/README.md). */
+export const DEFAULT_JETTON_METADATA_URI = 'https://burnedchats.net/jetton-metadata.json';
 
 function resolveMetadataUri(): string {
     const fromEnv = process.env.JETTON_METADATA_URI?.trim();

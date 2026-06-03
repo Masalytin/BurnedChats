@@ -10,7 +10,7 @@ import { syncAppConfigs } from './deploy/syncAppConfigs';
  * Env (`.env.testnet` / `.env.mainnet`, then `.env` — see `.env.example`):
  * - WALLET_MNEMONIC + WALLET_VERSION (Blueprint --mnemonic), or legacy MNEMONIC / MNEMONIC_TESTNET
  * - TONCENTER_API_KEY_TESTNET or TONCENTER_API_KEY
- * - JETTON_METADATA_URI (optional; default GitHub raw contracts/jetton/metadata.json — see deployments/README.md)
+ * - JETTON_METADATA_URI (optional; default https://burnedchats.net/jetton-metadata.json — see deployments/README.md)
  * - INITIAL_MIN_PROPOSAL_VP (optional, default 0.01 BURN nano)
  * - AIRDROP_MULTISIG / LIQUIDITY_MULTISIG (optional, default deployer on testnet)
  *

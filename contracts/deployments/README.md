@@ -8,8 +8,8 @@ cp .env.example .env.testnet
 # Fund deployer (~5 TON testnet) and set:
 #   WALLET_MNEMONIC + WALLET_VERSION (or legacy MNEMONIC_TESTNET)
 #   TONCENTER_API_KEY_TESTNET
-# Optional override (default: in-repo GitHub raw metadata.json):
-#   JETTON_METADATA_URI=https://raw.githubusercontent.com/Masalytin/BurnedChats/master/contracts/jetton/metadata.json
+# Optional override (default: frontend-hosted metadata on burnedchats.net):
+#   JETTON_METADATA_URI=https://burnedchats.net/jetton-metadata.json
 npm run deploy:burn:testnet
 npm run verify:deployment
 ```
@@ -38,19 +38,25 @@ lag as failure.
 ### Jetton metadata (`JETTON_METADATA_URI`)
 
 Deploy embeds a TEP-64 off-chain URI into `BurnJettonMaster` content. If `JETTON_METADATA_URI`
-is unset, bootstrap uses the canonical file in this repo:
+is unset, bootstrap uses the canonical file on the production frontend:
 
-`https://raw.githubusercontent.com/Masalytin/BurnedChats/master/contracts/jetton/metadata.json`
+`https://burnedchats.net/jetton-metadata.json`
 
-Companion assets:
+Companion assets (source in repo, served after frontend deploy):
 
-- JSON: [`../jetton/metadata.json`](../jetton/metadata.json) (`name`, `symbol`, `decimals`, `image`)
-- Icon source: [`../../frontend/public/burn-icon.png`](../../frontend/public/burn-icon.png) — served at
-  `https://burnedchats.net/burn-icon.png` after frontend deploy (referenced in metadata `image`)
+- JSON: [`../../frontend/public/jetton-metadata.json`](../../frontend/public/jetton-metadata.json)
+  — mirror in [`../jetton/metadata.json`](../jetton/metadata.json) for contracts docs
+- Icon: [`../../frontend/public/burn-icon.png`](../../frontend/public/burn-icon.png) →
+  `https://burnedchats.net/burn-icon.png`
 
-**Before deploy:** curl metadata JSON URL and `https://burnedchats.net/burn-icon.png` — both HTTP 200.
-GitHub raw metadata links work only after push to `master`. Deploy frontend before jetton redeploy so
-the icon URL in metadata is live.
+**Before jetton deploy:** deploy frontend, then curl both URLs — HTTP 200:
+
+```bash
+curl -sfI https://burnedchats.net/jetton-metadata.json
+curl -sfI https://burnedchats.net/burn-icon.png
+```
+
+Override with `JETTON_METADATA_URI` for staging or pinned releases.
 
 **Mainnet:** prefer an immutable URL (release tag or CDN), not a floating `master` branch — set
 `JETTON_METADATA_URI` in `.env.mainnet` rather than relying on the default.
