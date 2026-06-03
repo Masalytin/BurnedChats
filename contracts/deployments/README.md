@@ -45,11 +45,12 @@ is unset, bootstrap uses the canonical file in this repo:
 Companion assets:
 
 - JSON: [`../jetton/metadata.json`](../jetton/metadata.json) (`name`, `symbol`, `decimals`, `image`)
-- Icon: [`../jetton/burn-icon.png`](../jetton/burn-icon.png)
+- Icon source: [`../../frontend/public/burn-icon.png`](../../frontend/public/burn-icon.png) — served at
+  `https://burnedchats.net/burn-icon.png` after frontend deploy (referenced in metadata `image`)
 
-**Before deploy:** curl both URLs and confirm HTTP 200. GitHub raw links work only after the
-files are pushed to the default branch (`master`). For local/server deploy before push, set
-`JETTON_METADATA_URI` explicitly (e.g. temporary CDN or fork raw URL).
+**Before deploy:** curl metadata JSON URL and `https://burnedchats.net/burn-icon.png` — both HTTP 200.
+GitHub raw metadata links work only after push to `master`. Deploy frontend before jetton redeploy so
+the icon URL in metadata is live.
 
 **Mainnet:** prefer an immutable URL (release tag or CDN), not a floating `master` branch — set
 `JETTON_METADATA_URI` in `.env.mainnet` rather than relying on the default.
