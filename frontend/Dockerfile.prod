@@ -3,16 +3,35 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments for environment variables
-ARG VITE_API_URL
-ARG VITE_WS_URL
-
-# Set environment variables for build
-ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_WS_URL=${VITE_WS_URL}
-
 # Copy package files for dependency caching
 COPY package.json package-lock.json ./
+
+# Build arguments (must match docker-compose.prod.yml frontend.build.args)
+ARG VITE_API_URL
+ARG VITE_WS_URL
+ARG VITE_TELEGRAM_BOT_URL
+ARG VITE_GITHUB_URL
+ARG VITE_TONCONNECT_MANIFEST_URL
+ARG VITE_TON_NETWORK
+ARG VITE_TON_RPC_URL
+ARG VITE_TONCENTER_API_KEY
+ARG VITE_BURN_JETTON_MASTER
+ARG VITE_STAKING_MASTER
+ARG VITE_GOVERNOR_ADDRESS
+ARG VITE_TREASURY_ADDRESS
+
+ENV VITE_API_URL=${VITE_API_URL} \
+    VITE_WS_URL=${VITE_WS_URL} \
+    VITE_TELEGRAM_BOT_URL=${VITE_TELEGRAM_BOT_URL} \
+    VITE_GITHUB_URL=${VITE_GITHUB_URL} \
+    VITE_TONCONNECT_MANIFEST_URL=${VITE_TONCONNECT_MANIFEST_URL} \
+    VITE_TON_NETWORK=${VITE_TON_NETWORK} \
+    VITE_TON_RPC_URL=${VITE_TON_RPC_URL} \
+    VITE_TONCENTER_API_KEY=${VITE_TONCENTER_API_KEY} \
+    VITE_BURN_JETTON_MASTER=${VITE_BURN_JETTON_MASTER} \
+    VITE_STAKING_MASTER=${VITE_STAKING_MASTER} \
+    VITE_GOVERNOR_ADDRESS=${VITE_GOVERNOR_ADDRESS} \
+    VITE_TREASURY_ADDRESS=${VITE_TREASURY_ADDRESS}
 
 # Install dependencies
 RUN npm ci --silent
@@ -38,9 +57,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Expose port
 EXPOSE 80
 
-# Health check
+# Health check — use IPv4 (Alpine wget resolves localhost to ::1, nginx listens on 0.0.0.0:80)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1
 
 # Run nginx
 CMD ["nginx", "-g", "daemon off;"]

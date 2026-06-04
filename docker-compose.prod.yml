@@ -10,8 +10,12 @@
 #   docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d burnedchats.net -d www.burnedchats.net -d redis.burnedchats.net --email your@email.com --agree-tos --no-eff-email
 #   docker compose -f docker-compose.prod.yml down
 #
-# Start all services:
+# Start all services (always pass --env-file for substitution + runtime secrets):
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Testnet prod defaults below (SPRING_PROFILES_ACTIVE, TONCENTER_*). For mainnet later,
+# override in .env.prod: SPRING_PROFILES_ACTIVE=prod, TONCENTER_ENDPOINT=https://toncenter.com/api/v2,
+# VITE_TON_NETWORK=mainnet, VITE_TON_RPC_URL=https://toncenter.com/api/v2
 #
 # Renew certificates (add to crontab):
 #   0 0 1 * * cd /path/to/project && docker compose -f docker-compose.prod.yml run --rm certbot renew && docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
@@ -22,6 +26,8 @@ services:
     image: redis:7-alpine
     container_name: burnedchats-redis
     restart: always
+    env_file:
+      - .env.prod
     volumes:
       - redis-data:/data
     command: >
@@ -46,9 +52,13 @@ services:
       dockerfile: backend/Dockerfile
     container_name: burnedchats-backend
     restart: always
+    env_file:
+      - .env.prod
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - TONCENTER_API_KEY=${TONCENTER_API_KEY}      # ключ от testnet.toncenter
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod,testnet}
+      - TONCENTER_API_KEY=${TONCENTER_API_KEY}
+      - TONCENTER_ENDPOINT=${TONCENTER_ENDPOINT:-https://testnet.toncenter.com/api/v2}
+      - BURNEDCHATS_TON_API_BASE_URL=${BURNEDCHATS_TON_API_BASE_URL:-https://testnet.toncenter.com/api/v2}
       - BURN_JETTON_MASTER_ADDRESS=${BURN_JETTON_MASTER_ADDRESS}
       - BURN_STAKING_MASTER_ADDRESS=${BURN_STAKING_MASTER_ADDRESS}
       - BURN_GOVERNOR_ADDRESS=${BURN_GOVERNOR_ADDRESS}
