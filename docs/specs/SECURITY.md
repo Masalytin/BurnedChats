@@ -699,6 +699,8 @@ public class SecurityConfig {
 
 Эталонная строка политики для продакшена совпадает с `add_header Content-Security-Policy` в `nginx/prod.conf` (включая `img-src ... blob:` для превью/постеров, использующих object URL для изображений).
 
+**`connect-src` (сеть из Mini App):** помимо `'self'`, API и WebSocket домена (`burnedchats.net`), `https://telegram.org`, мостов TON Connect (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` и соответствующие `wss://`) политика явно разрешает клиентский wallet RPC к Ton Center: `https://toncenter.com` (mainnet, без поддомена — wildcard `*.toncenter.com` его не покрывает), `https://testnet.toncenter.com` (testnet), а также `https://tonkeeper.com` и `https://*.tonkeeper.com` (согласованность с diagnostics CLI). Полный список origins — в строке CSP в `nginx/prod.conf` / `frontend/nginx.prod.conf`; при смене `VITE_TON_RPC_URL` или сети обновлять оба файла синхронно.
+
 ### 5. HMAC Validation для Telegram (Java)
 
 ```java
