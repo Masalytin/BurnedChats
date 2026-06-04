@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
+import { debugLog } from '@/components/DebugPanel';
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
+import { BurnTokenError } from '@/ton/burnToken';
 import { shortenTonDisplayAddress } from '@/ton/connector';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { formatBurn } from '@/utils/format';
 
+import { balanceErrorMessage, isBalanceErrorRetryable } from './balanceErrorMessage';
 import styles from './Wallet.module.css';
 
 const TON_DECIMALS = 9n;
@@ -23,7 +26,7 @@ function formatTonBalance(nano: bigint): string {
 }
 
 export interface BalanceProps {
-  burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error'>;
+  burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch'>;
   ton: Pick<UseTonConnectResult, 'walletAddress' | 'isConnected'>;
   onReceiveToggle: () => void;
   receiveExpanded: boolean;
@@ -80,13 +83,23 @@ export function Balance({
     };
   }, [ton.isConnected, ton.walletAddress]);
 
+  useEffect(() => {
+    if (!(burn.error instanceof BurnTokenError) || burn.error.code !== 'CONFIG') {
+      return;
+    }
+    const configured = Boolean((import.meta.env.VITE_BURN_JETTON_MASTER ?? '').trim());
+    debugLog('warn', '[Wallet] BURN balance CONFIG — check VITE_BURN_JETTON_MASTER', { configured });
+  }, [burn.error]);
+
+  const showBurnRetry = burn.error != null && isBalanceErrorRetryable(burn.error) && !burn.isLoading;
+
   const burnLine =
     burn.balance != null
       ? formatBurn(burn.balance)
       : burn.isLoading
         ? t('wallet.balanceLoading')
         : burn.error
-          ? t('wallet.balanceError')
+          ? balanceErrorMessage(burn.error, t)
           : '—';
 
   const tonLine = tonLoading
@@ -104,7 +117,18 @@ export function Balance({
         {t('wallet.balanceSectionTitle')}
       </h2>
       <div className={styles.balanceHero}>
-        <div className={styles.balancePrimary}>{burnLine}</div>
+        <div className={styles.balancePrimary} role={burn.error ? 'alert' : undefined}>
+          {burnLine}
+        </div>
+        {showBurnRetry ? (
+          <button
+            type="button"
+            className={styles.balanceRetryBtn}
+            onClick={() => void burn.refetch()}
+          >
+            {t('wallet.balanceRetry')}
+          </button>
+        ) : null}
         <div className={styles.balanceSecondary} aria-label={t('wallet.tonForGasAria')}>
           {t('wallet.tonForGas')}: {tonLine}
         </div>

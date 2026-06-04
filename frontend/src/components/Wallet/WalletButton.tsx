@@ -6,7 +6,7 @@ import { formatBurn } from '@/utils/format';
 import styles from './Wallet.module.css';
 
 export interface WalletButtonProps {
-  burn: Pick<UseBurnToken, 'balance' | 'isLoading'>;
+  burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error'>;
   ton: Pick<UseTonConnectResult, 'isConnected' | 'connect' | 'walletAddress'>;
   onOpenDrawer: () => void;
 }
@@ -41,7 +41,7 @@ export function WalletButton({ burn, ton, onOpenDrawer }: WalletButtonProps) {
   const balLabel =
     burn.balance != null
       ? formatBurn(burn.balance)
-      : burn.isLoading
+      : burn.isLoading && !burn.error
         ? t('wallet.balanceLoading')
         : `— ${t('wallet.burnSymbol')}`;
 

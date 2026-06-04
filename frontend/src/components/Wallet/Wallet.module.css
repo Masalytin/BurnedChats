@@ -146,6 +146,23 @@
   word-break: break-all;
 }
 
+.balanceRetryBtn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--tg-theme-link-color, #3390ec);
+  background: transparent;
+  color: var(--tg-theme-link-color, #3390ec);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.balanceRetryBtn:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #3390ec);
+  outline-offset: 2px;
+}
+
 .balanceSecondary {
   margin-top: 8px;
   font-size: 0.9rem;
