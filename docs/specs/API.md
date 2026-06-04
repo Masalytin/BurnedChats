@@ -416,7 +416,22 @@ public ResponseEntity<?> onWebhook(
 
 Тела соответствуют `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Перечисления Jackson сериализует как строки (`PARAMETER_CHANGE`, …).
 
-Чтение jetton / staking on-chain по-прежнему внутри **`JettonService`** и **`StakingVerifier`**; отдельные HTTP-обёртки для баланса/стейкинга в этой итерации могут отсутствовать (см. `backend/.../ton/dto`).
+Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance в nano; без auth |
+
+**`GET /api/wallet/burn-balance`**
+
+- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address.
+- **200 OK:** `{ "balanceNano": "<decimal string>", "address": "<trimmed query address>" }` — `balanceNano` из `BigInteger`, не JSON number.
+- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
+- **502:** `{ "message": "…" }` — сбой Ton Center / contract read (`TonRpcException`).
+
+Frontend (`burnToken.ts`) принимает поля `balanceNano`, `nano` или `balance` в теле; при `404`/`501` уходит на Ton Center RPC из браузера.
+
+Чтение staking on-chain по-прежнему внутри **`StakingVerifier`**; отдельной HTTP-обёртки для стейкинга может не быть (см. `backend/.../ton/dto`).
 
 ---
 
