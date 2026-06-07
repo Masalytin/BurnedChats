@@ -16,7 +16,6 @@ contract StakingPool(
     const MaxTier: Int = 3;
     /// TON attached to payout JettonTransfer (must cover wallet gates, see burn-jetton-wallet JettonTransfer).
     const PayRewardsTon: Int = ton("3.5");
-    const GasPoolToMasterAccrual: Int = ton("0.06");
 
     inline fun jettonRewardsWalletAddr(): Address {
         return contractAddress(
@@ -40,7 +39,7 @@ contract StakingPool(
 
         message(MessageParameters {
             to: self.stakingMaster,
-            value: self.GasPoolToMasterAccrual,
+            value: gasPoolToMasterAccrual,
             bounce: true,
             mode: SendPayGasSeparately,
             body: StakeFeeRewardsAccrue {
@@ -73,7 +72,7 @@ contract StakingPool(
 
         message(MessageParameters {
             to: self.stakingMaster,
-            value: self.GasPoolToMasterAccrual,
+            value: gasPoolToMasterAccrual,
             bounce: true,
             mode: SendPayGasSeparately,
             body: StakeFeeRewardsAccrue {

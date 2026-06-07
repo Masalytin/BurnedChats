@@ -5,6 +5,12 @@ const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
 const perInternalDeployTon: Int = ton("0.55");
+/// TON StakingPool attaches on StakeFeeRewardsAccrue (shared with staking-pool.tact).
+const gasPoolToMasterAccrual: Int = ton("0.06");
+/// Floor for staking-leg JettonNotification forward (notify handler + accrual msg).
+const gasPoolForwardMin: Int = ton("0.07");
+/// Headroom on computed pool forward for forward-fee variance.
+const gasPoolForwardEpsilon: Int = ton("0.005");
 const Basechain: Int = 0;
 const walletStateInitCells: Int = 30;
 const walletStateInitBits: Int = 20000;
@@ -535,7 +541,10 @@ contract BurnJettonWallet(
         let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
         let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
 
-        let poolFwdTon = ton("0.12");
+        let poolFwdTon = max(
+            gasPoolForwardMin,
+            gasPoolToMasterAccrual + fwd + minTonsForStorage + gasPoolForwardEpsilon,
+        );
         let poolDeliverTon = max(
             perInternalDeployTon,
             poolFwdTon + fwd + minTonsForStorage + ton("0.02"),
