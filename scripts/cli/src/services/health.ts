@@ -1,5 +1,7 @@
 import { getRepoRoot } from '../lib/paths.js';
 import { appendLog } from './logger.js';
+import { readDeployment } from './contractsDeployments.js';
+import { getProdEnvPath, parseEnvFile } from './env.js';
 
 export interface HealthResult {
   name: string;
@@ -259,4 +261,154 @@ export async function runSmokeCheck(domain: string): Promise<HealthResult[]> {
     checkBuildInfo(domain),
     checkTonProofSmoke(domain),
   ]);
+}
+
+const DEFAULT_BURN_SMOKE_OWNER = '0QBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WJPD';
+const DEFAULT_JETTON_MASTER_PREFIX = 'kQBaK-MZ';
+
+function resolveBurnSmokeOwner(): string {
+  const prod = parseEnvFile(getProdEnvPath());
+  const fromEnv = prod.BURN_SMOKE_TEST_OWNER?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_BURN_SMOKE_OWNER;
+}
+
+function resolveJettonMasterPrefix(): string {
+  const deployment = readDeployment('testnet');
+  const master = deployment?.addresses?.jettonMaster?.trim();
+  if (master && master.length >= 8) {
+    return master.slice(0, 8);
+  }
+  return DEFAULT_JETTON_MASTER_PREFIX;
+}
+
+function isNumericDecimalString(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9]+$/.test(value);
+}
+
+/** Read-only BURN transfer path smoke (burn-balance, jetton-wallet, bundle jetton master). */
+export async function checkBurnTransferSmoke(domain: string): Promise<HealthResult> {
+  const root = baseUrl(domain);
+  const owner = resolveBurnSmokeOwner();
+  const masterPrefix = resolveJettonMasterPrefix();
+  const menu = 'diagnostics/burn-transfer-smoke';
+
+  try {
+    const balanceUrl = `${root}/api/wallet/burn-balance?address=${encodeURIComponent(owner)}`;
+    const { response: balanceRes, durationMs: balanceMs } = await timedFetch(balanceUrl);
+    const balanceText = await balanceRes.text();
+    let balanceBody: Record<string, unknown> = {};
+    try {
+      balanceBody = JSON.parse(balanceText) as Record<string, unknown>;
+    } catch {
+      balanceBody = {};
+    }
+
+    if (!balanceRes.ok) {
+      await logFetch(menu, balanceUrl, 1, balanceMs);
+      return {
+        name: 'burn-transfer-smoke',
+        ok: false,
+        durationMs: balanceMs,
+        details: {
+          step: 'burn-balance',
+          httpStatus: balanceRes.status,
+          masterPrefixMatch: 'not reached',
+        },
+      };
+    }
+
+    const balanceNano = balanceBody.balanceNano;
+    if (!isNumericDecimalString(balanceNano)) {
+      await logFetch(menu, balanceUrl, 1, balanceMs);
+      return {
+        name: 'burn-transfer-smoke',
+        ok: false,
+        durationMs: balanceMs,
+        details: {
+          step: 'burn-balance',
+          httpStatus: balanceRes.status,
+          balanceNano: balanceNano ?? null,
+        },
+      };
+    }
+
+    const walletUrl = `${root}/api/wallet/jetton-wallet?address=${encodeURIComponent(owner)}`;
+    const { response: walletRes, durationMs: walletMs } = await timedFetch(walletUrl);
+    const walletText = await walletRes.text();
+    let walletBody: Record<string, unknown> = {};
+    try {
+      walletBody = JSON.parse(walletText) as Record<string, unknown>;
+    } catch {
+      walletBody = {};
+    }
+
+    const jettonWallet =
+      typeof walletBody.jettonWalletAddress === 'string' ? walletBody.jettonWalletAddress.trim() : '';
+
+    if (!walletRes.ok || jettonWallet.length === 0) {
+      await logFetch(menu, walletUrl, 1, walletMs);
+      return {
+        name: 'burn-transfer-smoke',
+        ok: false,
+        durationMs: balanceMs + walletMs,
+        details: {
+          step: 'jetton-wallet',
+          httpStatus: walletRes.status,
+          jettonWalletPresent: jettonWallet.length > 0,
+        },
+      };
+    }
+
+    const indexUrl = `${root}/`;
+    const { response: indexRes, durationMs: indexMs } = await timedFetch(indexUrl);
+    const html = await indexRes.text();
+    const bundleMatch = html.match(/<script[^>]+src="(\/assets\/index-[^"]+\.js)"/i);
+    const bundlePath = bundleMatch?.[1];
+
+    if (!indexRes.ok || !bundlePath) {
+      await logFetch(menu, indexUrl, 1, indexMs);
+      return {
+        name: 'burn-transfer-smoke',
+        ok: false,
+        durationMs: balanceMs + walletMs + indexMs,
+        details: {
+          step: 'frontend-bundle-path',
+          httpStatus: indexRes.status,
+          bundlePath: bundlePath ?? null,
+        },
+      };
+    }
+
+    const bundleUrl = `${root}${bundlePath}`;
+    const { response: bundleRes, durationMs: bundleMs } = await timedFetch(bundleUrl);
+    const bundle = await bundleRes.text();
+    const hasMasterKey = bundle.includes('VITE_BURN_JETTON_MASTER');
+    const hasMasterPrefix = bundle.includes(masterPrefix);
+    const ok = bundleRes.ok && hasMasterKey && hasMasterPrefix;
+    const totalMs = balanceMs + walletMs + indexMs + bundleMs;
+
+    await logFetch(menu, bundleUrl, ok ? 0 : 1, totalMs);
+
+    return {
+      name: 'burn-transfer-smoke',
+      ok,
+      durationMs: totalMs,
+      details: {
+        burnBalanceStatus: balanceRes.status,
+        jettonWalletStatus: walletRes.status,
+        bundlePath,
+        hasMasterKey,
+        masterPrefixMatch: hasMasterPrefix ? 'yes' : 'no',
+        masterPrefix: masterPrefix,
+      },
+    };
+  } catch (error) {
+    await logFetch(menu, root, 1, 0);
+    return {
+      name: 'burn-transfer-smoke',
+      ok: false,
+      durationMs: 0,
+      details: { error: error instanceof Error ? error.message : String(error) },
+    };
+  }
 }

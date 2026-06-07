@@ -8,6 +8,7 @@ import { getProdEnvPath, parseEnvFile, PROD_ENV_FILE } from '../services/env.js'
 import {
   checkBackendHealth,
   checkBuildInfo,
+  checkBurnTransferSmoke,
   checkCspHeader,
   checkFrontendBundle,
   checkTonProofSmoke,
@@ -68,6 +69,7 @@ async function runAllChecks(): Promise<void> {
     checkTonProofSmoke,
     checkCspHeader,
     checkFrontendBundle,
+    checkBurnTransferSmoke,
   ];
 
   const results: HealthResult[] = [];
@@ -103,6 +105,7 @@ export async function diagnosticsMenu(): Promise<void> {
           { value: 'ton-proof', label: 'ton_proof smoke (intentional-fail)' },
           { value: 'csp', label: 'CSP header' },
           { value: 'bundle', label: 'Frontend bundle hash' },
+          { value: 'burn-transfer', label: 'Burn transfer smoke' },
           { value: 'all', label: 'Run all' },
           { value: 'back', label: 'Back' },
         ],
@@ -128,6 +131,9 @@ export async function diagnosticsMenu(): Promise<void> {
         break;
       case 'bundle':
         await runSingleCheck(checkFrontendBundle);
+        break;
+      case 'burn-transfer':
+        await runSingleCheck(checkBurnTransferSmoke);
         break;
       case 'all':
         await runAllChecks();
