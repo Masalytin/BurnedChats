@@ -119,6 +119,13 @@ message(0x3c8f9013) SyncFeeConfigToWallet {
     owner: Address;
 }
 
+/// Jetton wallet asks master to push fee config to a transfer recipient (TEP-74 address unchanged).
+message(0x6a3b2c1d) PropagateFeeConfigToOwner {
+    queryId: Int as uint64;
+    sender_owner: Address;
+    recipient_owner: Address;
+}
+
 /// Master-only: update fee parameters and destination owner addresses on a wallet.
 message(0x4d7e2bc4) JettonUpdateFeeConfig {
     queryId: Int as uint64;
@@ -387,6 +394,25 @@ inline fun computeFeeParts(amount: Int, burnBps: Int, stakeBps: Int, treasBps: I
     return FeeParts { burn: b, staking: s, treasury: t, net: n };
 }
 
+inline fun requestRecipientFeeConfigSync(
+    master: Address,
+    queryId: Int,
+    senderOwner: Address,
+    recipientOwner: Address,
+) {
+    message(MessageParameters {
+        to: master,
+        value: ton("0.05"),
+        mode: SendPayGasSeparately,
+        bounce: true,
+        body: PropagateFeeConfigToOwner {
+            queryId: queryId,
+            sender_owner: senderOwner,
+            recipient_owner: recipientOwner,
+        }.toCell(),
+    });
+}
+
 inline fun checkEitherForwardPayload(forwardPayload: Slice) {
     if (forwardPayload.preloadUint(1) == 1) {
         let bitsAndRefs = calculateSliceBitsAndRefs(forwardPayload);
@@ -461,26 +487,26 @@ contract BurnJettonWallet(
             cfg.excludedCount,
         ) || isExcludedMember(msg.destination, cfg.excludedHead, cfg.excludedCount);
 
+        checkEitherForwardPayload(msg.forwardPayload);
+
+        let ctx = context();
+        let fwd = ctx.readForwardFee();
+        let recipientForwards = 1 + sign(msg.forwardTonAmount);
+        require(
+            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
+            "Insufficient amount of TON attached",
+        );
+
+        let emptyCfg = jettonWalletEmptyFeeConfig();
+        let deliverTon = max(
+            perInternalDeployTon,
+            msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
+        );
+
         if (excludedTransfer) {
             self.balance -= msg.amount;
             require(self.balance >= 0, "Incorrect balance after send");
-            checkEitherForwardPayload(msg.forwardPayload);
 
-            let ctx = context();
-            let fwd = ctx.readForwardFee();
-            let recipientForwards = 1 + sign(msg.forwardTonAmount);
-            require(
-                ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
-                "Insufficient amount of TON attached",
-            );
-
-            // Recipient wallet must afford notification forward + fees (fixed perInternalDeployTon is too low).
-            let deliverTon = max(
-                perInternalDeployTon,
-                msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
-            );
-
-            let emptyCfg = jettonWalletEmptyFeeConfig();
             deploy(DeployParameters {
                 value: deliverTon,
                 bounce: true,
@@ -495,6 +521,7 @@ contract BurnJettonWallet(
                 }.toCell(),
                 init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
             });
+            requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
             return;
         }
 
@@ -504,28 +531,10 @@ contract BurnJettonWallet(
 
         self.balance -= msg.amount;
         require(self.balance >= 0, "Incorrect balance after send");
-        checkEitherForwardPayload(msg.forwardPayload);
 
-        let ctx = context();
-        let fwd = ctx.readForwardFee();
-        let deployPart =
-            getForwardFee(walletStateInitCells, walletStateInitBits, false) +
-            2 * getComputeFee(gasForTransfer, false) +
-            minTonsForStorage;
-        let recipientForwards = 1 + sign(msg.forwardTonAmount);
-        require(
-            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
-            "Insufficient amount of TON attached",
-        );
-
-        let emptyCfg = jettonWalletEmptyFeeConfig();
         let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
         let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
 
-        let netDeliverTon = max(
-            perInternalDeployTon,
-            msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
-        );
         let poolFwdTon = ton("0.12");
         let poolDeliverTon = max(
             perInternalDeployTon,
@@ -533,7 +542,7 @@ contract BurnJettonWallet(
         );
 
         deploy(DeployParameters {
-            value: netDeliverTon,
+            value: deliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
@@ -596,6 +605,8 @@ contract BurnJettonWallet(
                 responseDestination: msg.responseDestination,
             }.toCell(),
         });
+
+        requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
     }
 
     receive(msg: JettonTransferInternal) {

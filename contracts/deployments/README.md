@@ -75,4 +75,20 @@ see `contracts/jetton/burn-jetton-wallet.tact` and
 
 Re-run with `--force` to overwrite live contracts (destructive on same addresses).
 
+### Fix «Fee destinations not configured» (exit 21507) on live wallets
+
+If a holder received BURN before fee-config propagation was deployed, their jetton wallet
+may reject sends until master pushes config:
+
+```bash
+cd contracts
+# timelock/deployer mnemonic in .env.testnet
+SYNC_FEE_OWNER=0QYourUserWallet... npm run sync:fee:testnet
+```
+
+After redeploying wallet code with fee-config propagation (see
+[`docs/improvements/jetton-transfer-fee-not-applied/REPORT.md`](../improvements/jetton-transfer-fee-not-applied/REPORT.md)),
+new P2P recipients inherit config automatically; sync is only needed for wallets that
+already exist with an empty `feeConfig`.
+
 Use `--dry-run` to compute addresses and write JSON without sending transactions (still requires Blueprint wallet for deployer address).

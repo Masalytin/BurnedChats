@@ -99,6 +99,32 @@ describe('BurnJetton', () => {
             await transferAndAssertFees(ctx, ctx.userX, ctx.userY.address, amount, burn, staking, treasury);
         });
 
+        it('propagates fee config to recipient so they can transfer without sync', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const wy = await getWallet(ctx, ctx.userY.address);
+            const amount = 10n * NANO_PER_BURN;
+
+            await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+
+            expect(await wy.getGetFeeConfigActive()).toBe(true);
+
+            const net = amount - (amount * 50n) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
+            expect((await wy.getGetWalletData()).balance).toBe(net);
+
+            await wy.sendTransfer(ctx.userY.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userX.address,
+                responseDestination: ctx.userY.address,
+                value: TRANSFER_TON,
+            });
+            expect((await wx.getGetWalletData()).balance).toBeGreaterThan(0n);
+        });
+
         it('rounds fee parts so sum matches amount (odd nano)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const amount = 10003n;

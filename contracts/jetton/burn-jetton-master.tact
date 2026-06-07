@@ -204,13 +204,23 @@ contract BurnJettonMaster(
         let ctx = context();
         require(ctx.value > ton("0.03"), "Insufficient TON for sync");
 
+        self.pushFeeConfigToOwner(msg.queryId, msg.owner);
+    }
+
+    receive(msg: PropagateFeeConfigToOwner) {
+        require(self.feeDestinationsActive, "Fee destinations not configured on master");
+        require(getBurnJettonWalletByOwner(msg.sender_owner) == sender(), "Unauthorized jetton wallet");
+        self.pushFeeConfigToOwner(msg.queryId, msg.recipient_owner);
+    }
+
+    inline fun pushFeeConfigToOwner(queryId: Int, owner: Address) {
         let low = self.totalSupply < self.autoReduceThreshold;
         let effBurn = low ? self.lowBurnBps : self.burnRateBps;
         let effStake = low ? self.lowStakingBps : self.stakingRateBps;
         let effTreas = low ? self.lowTreasuryBps : self.treasuryRateBps;
 
         let cfg = JettonUpdateFeeConfig {
-            queryId: msg.queryId,
+            queryId: queryId,
             burn_rate_bps: effBurn,
             staking_rate_bps: effStake,
             treasury_rate_bps: effTreas,
@@ -229,7 +239,7 @@ contract BurnJettonMaster(
 
         message(MessageParameters {
             body: cfg.toCell(),
-            to: getBurnJettonWalletByOwner(msg.owner),
+            to: getBurnJettonWalletByOwner(owner),
             value: 0,
             bounce: false,
             mode: SendRemainingValue | SendIgnoreErrors,
