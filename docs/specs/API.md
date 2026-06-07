@@ -226,7 +226,23 @@ GET /actuator/info
 
 **Ответ `200 OK`:** объект в форме «linked accounts» (см. `POST /api/auth/linked-accounts`).
 
-**Ошибки:** `400` — невалидное тело; `401` — initData / proof; `409` — кошелёк или другой кошелёк уже привязан к другому аккаунту / нужно сначала отвязать.
+**Ошибки:** `400` — невалидное тело; `401` — initData / proof; `409` — кошелёк или другой кошелёк уже привязан к другому аккаунту / нужно сначала отвязать; `500` — внутренняя ошибка.
+
+**Failure body (пример):**
+
+```json
+{
+  "error": "Unauthorized",
+  "code": "SIGNATURE_INVALID",
+  "message": "TON proof signature verification failed"
+}
+```
+
+| `code` | HTTP | Описание |
+|--------|------|----------|
+| `SIGNATURE_INVALID`, `PROOF_EXPIRED`, `NONCE_UNKNOWN`, … | 401 | Отклонён `ton_proof` (те же коды, что у `POST /api/auth/wallet`) |
+| `CONFLICT` | 409 | Кошелёк уже привязан к другому аккаунту или у пользователя другой кошелёк |
+| `INTERNAL` | 500 | Необработанная ошибка сервера / Redis |
 
 #### `POST /api/auth/link-telegram/challenge`
 

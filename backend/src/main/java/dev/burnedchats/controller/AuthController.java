@@ -12,6 +12,7 @@ import dev.burnedchats.security.TelegramAuthService;
 import dev.burnedchats.security.TelegramInitData;
 import dev.burnedchats.ton.TonProofVerifier;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import java.util.Map;
 /**
  * Authentication REST endpoints.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -128,13 +130,19 @@ public class AuthController {
         }
         return authAccountLinkService.linkWallet(body.initData(), body.walletAddress(), body.walletProof())
                 .map(this::linkedAccountsOk)
+                .onErrorResume(WalletProofException.class, e -> Mono.just(walletProofError(e)))
                 .onErrorResume(AuthenticationException.class,
                         e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
                 .onErrorResume(IllegalArgumentException.class,
                         e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
-                .onErrorResume(IllegalStateException.class,
-                        e -> Mono.just(error(HttpStatus.CONFLICT, e.getMessage())))
-                .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Wallet link failed")));
+                .onErrorResume(IllegalStateException.class, e -> Mono.just(conflictError(e.getMessage())))
+                .onErrorResume(e -> {
+                    LOG.warn(
+                            "link-wallet internal error: address={}",
+                            maskWalletAddress(body.walletAddress()),
+                            e);
+                    return Mono.just(internalError("Wallet link failed"));
+                });
     }
 
     /**
@@ -315,6 +323,33 @@ public class AuthController {
                 "error", status.getReasonPhrase(),
                 "message", message
         ));
+    }
+
+    private ResponseEntity<Map<String, Object>> conflictError(String message) {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+        body.put("code", "CONFLICT");
+        body.put("message", message != null && !message.isBlank() ? message : "Wallet already linked");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    private ResponseEntity<Map<String, Object>> internalError(String message) {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
+        body.put("code", "INTERNAL");
+        body.put("message", message);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    private static String maskWalletAddress(String address) {
+        if (address == null || address.isBlank()) {
+            return "";
+        }
+        String trimmed = address.trim();
+        if (trimmed.length() <= 10) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 6) + "..." + trimmed.substring(trimmed.length() - 4);
     }
 
     private static boolean blank(String s) {

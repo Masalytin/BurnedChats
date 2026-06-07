@@ -26,6 +26,18 @@ export interface TelegramLinkChallengeDto {
   message?: string;
 }
 
+/** Typed error for `/api/auth/link-wallet` rejection with server-side `code`. */
+export class AccountLinkError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly httpStatus: number,
+    public readonly serverMessage: string,
+  ) {
+    super(serverMessage);
+    this.name = 'AccountLinkError';
+  }
+}
+
 async function readBody(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return {};
@@ -34,6 +46,19 @@ async function readBody(res: Response): Promise<unknown> {
   } catch {
     return { message: text };
   }
+}
+
+function buildLinkWalletError(res: Response, body: unknown): AccountLinkError {
+  const parsed =
+    body && typeof body === 'object'
+      ? (body as { code?: unknown; message?: unknown })
+      : {};
+  const code = typeof parsed.code === 'string' ? parsed.code : 'UNKNOWN';
+  const message =
+    typeof parsed.message === 'string' && parsed.message.length > 0
+      ? parsed.message
+      : `HTTP ${res.status}`;
+  return new AccountLinkError(code, res.status, message);
 }
 
 function buildError(res: Response, body: unknown): Error {
@@ -82,7 +107,7 @@ export async function linkWalletTelegram(payload: {
     body: JSON.stringify(payload),
   });
   const body = (await readBody(res)) as LinkedAccountsDto;
-  if (!res.ok) throw buildError(res, body);
+  if (!res.ok) throw buildLinkWalletError(res, body);
   return body;
 }
 

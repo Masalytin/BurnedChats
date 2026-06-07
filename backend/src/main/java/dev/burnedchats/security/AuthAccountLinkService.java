@@ -1,6 +1,7 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.exception.WalletProofException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
 import dev.burnedchats.repository.UserIdentityRepository;
@@ -29,12 +30,46 @@ public class AuthAccountLinkService {
      * Telegram Mini App session links a verified TON wallet address to the same internal id.
      */
     public Mono<UnifiedUser> linkWallet(String initData, String walletAddress, String walletProof) {
+        String maskedAddress = maskWalletAddress(walletAddress);
         return authenticationService.authenticate(AuthCredentials.telegram(initData))
                 .flatMap(tgUser -> tonProofVerifier.verify(AuthCredentials.wallet(walletProof, walletAddress))
                         .flatMap(verified -> userIdentityRepository
                                 .linkWallet(tgUser.internalId(), verified.walletAddress())
                                 .then(userIdentityRepository.findById(tgUser.internalId()))
-                                .switchIfEmpty(Mono.error(new IllegalStateException("User not found after link")))));
+                                .switchIfEmpty(Mono.error(new IllegalStateException("User not found after link")))))
+                .doOnError(ex -> {
+                    if (ex instanceof WalletProofException) {
+                        return;
+                    }
+                    LOG.warn(
+                            "link-wallet failed: reason={} address={}",
+                            linkFailureReason(ex),
+                            maskedAddress);
+                });
+    }
+
+    private static String linkFailureReason(Throwable ex) {
+        if (ex instanceof IllegalStateException) {
+            return "CONFLICT";
+        }
+        if (ex instanceof AuthenticationException) {
+            return "UNAUTHORIZED";
+        }
+        if (ex instanceof IllegalArgumentException) {
+            return "BAD_REQUEST";
+        }
+        return "INTERNAL";
+    }
+
+    private static String maskWalletAddress(String address) {
+        if (address == null || address.isBlank()) {
+            return "";
+        }
+        String trimmed = address.trim();
+        if (trimmed.length() <= 10) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 6) + "..." + trimmed.substring(trimmed.length() - 4);
     }
 
     /**

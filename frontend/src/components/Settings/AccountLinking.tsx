@@ -5,6 +5,7 @@ import {
   linkWalletTelegram,
   requestTelegramLinkChallenge,
   telegramBotMiniAppLink,
+  AccountLinkError,
   type TelegramLinkChallengeDto,
 } from '../../services/accountLinkingApi';
 import {
@@ -148,6 +149,23 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
 }
 
 function mapLinkError(error: unknown, t: ReturnType<typeof useTranslation>['t']): string {
+  if (error instanceof AccountLinkError) {
+    if (error.code === 'CONFLICT' || error.httpStatus === 409) {
+      return error.serverMessage || t('accountLinking.conflict');
+    }
+    if (error.code === 'INTERNAL' || error.httpStatus >= 500) {
+      return error.serverMessage || t('accountLinking.linkFailed');
+    }
+    const proofMessage = mapProofCodeToMessage(error.code, t);
+    if (proofMessage) {
+      return proofMessage;
+    }
+    if (error.httpStatus === 401 || error.httpStatus === 403) {
+      return error.serverMessage || t('walletLogin.errorProof');
+    }
+    return error.serverMessage || t('accountLinking.linkFailed');
+  }
+
   const msg = error instanceof Error ? error.message : '';
   const lower = msg.toLowerCase();
   if (
@@ -164,4 +182,27 @@ function mapLinkError(error: unknown, t: ReturnType<typeof useTranslation>['t'])
     return t('walletLogin.errorRejected');
   }
   return msg || t('accountLinking.linkFailed');
+}
+
+function mapProofCodeToMessage(code: string, t: ReturnType<typeof useTranslation>['t']): string | null {
+  switch (code) {
+    case 'PROOF_TIMESTAMP_FUTURE':
+    case 'PROOF_EXPIRED':
+      return t('walletLogin.errorProofTimestamp');
+    case 'DOMAIN_MISMATCH':
+    case 'DOMAIN_LENGTH_MISMATCH':
+      return t('walletLogin.errorProofDomain');
+    case 'NONCE_MISSING':
+    case 'NONCE_UNKNOWN':
+      return t('walletLogin.errorProofNonce');
+    case 'PUBLIC_KEY_UNAVAILABLE':
+      return t('walletLogin.errorProofPublicKey');
+    case 'SIGNATURE_INVALID':
+      return t('walletLogin.errorProofSignature');
+    case 'INVALID_REQUEST':
+    case 'ADDRESS_INVALID':
+      return t('walletLogin.errorProofRequest');
+    default:
+      return null;
+  }
 }
