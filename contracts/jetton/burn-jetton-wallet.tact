@@ -404,6 +404,23 @@ inline fun computeFeeParts(amount: Int, burnBps: Int, stakeBps: Int, treasBps: I
     return FeeParts { burn: b, staking: s, treasury: t, net: n };
 }
 
+/// Return attach surplus to owner after fee/excluded transfer out msgs (IMP-JETTON-GAS-07).
+inline fun returnTransferSurplusToOwner(
+    queryId: Int,
+    responseDestination: Address?,
+    owner: Address,
+) {
+    nativeReserve(minTonsForStorage, ReserveAtMost);
+    let dest = responseDestination != null ? responseDestination!! : owner;
+    message(MessageParameters {
+        to: dest,
+        value: 0,
+        mode: SendRemainingBalance + SendIgnoreErrors,
+        bounce: false,
+        body: JettonExcesses { queryId: queryId }.toCell(),
+    });
+}
+
 inline fun requestRecipientFeeConfigSync(
     master: Address,
     queryId: Int,
@@ -533,6 +550,7 @@ contract BurnJettonWallet(
                 init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
             });
             requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
+            returnTransferSurplusToOwner(msg.queryId, msg.responseDestination, self.owner);
             return;
         }
 
@@ -621,6 +639,7 @@ contract BurnJettonWallet(
         });
 
         requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
+        returnTransferSurplusToOwner(msg.queryId, msg.responseDestination, self.owner);
     }
 
     receive(msg: JettonTransferInternal) {

@@ -303,6 +303,87 @@ describe('BurnJetton', () => {
         });
     });
 
+    describe('Sender surplus return (IMP-JETTON-GAS-07)', () => {
+        const MIN_TONS_FOR_STORAGE = toNano('0.01');
+        const SURPLUS_EPSILON = toNano('0.02');
+
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        });
+
+        it('fee path: sender JW keeps only storage minimum; owner receives bulk excess', async () => {
+            const amount = 100n * NANO_PER_BURN;
+            const burn = (5n * NANO_PER_BURN) / 10n;
+            const staking = (3n * NANO_PER_BURN) / 10n;
+            const treasury = (2n * NANO_PER_BURN) / 10n;
+            const net = amount - burn - staking - treasury;
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const wy = await getWallet(ctx, ctx.userY.address);
+            const stakeW = await getWallet(ctx, ctx.staking.address);
+            const treasW = await getWallet(ctx, ctx.treasury.address);
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            let recipientBefore = 0n;
+            try {
+                recipientBefore = (await wy.getGetWalletData()).balance;
+            } catch {
+                recipientBefore = 0n;
+            }
+            const stakeBefore = (await stakeW.getGetWalletData()).balance;
+            const treasBefore = (await treasW.getGetWalletData()).balance;
+            const ownerTonBefore = await ctx.userX.getBalance();
+
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+
+            expect((await wy.getGetWalletData()).balance).toBe(recipientBefore + net);
+            expect((await stakeW.getGetWalletData()).balance).toBe(stakeBefore + staking);
+            expect((await treasW.getGetWalletData()).balance).toBe(treasBefore + treasury);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - burn);
+
+            const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
+            expect(jwTonAfter).toBeLessThanOrEqual(MIN_TONS_FOR_STORAGE + SURPLUS_EPSILON);
+
+            const ownerDelta = (await ctx.userX.getBalance()) - ownerTonBefore;
+            const excessReturned = ownerDelta + TRANSFER_TON;
+            expect(excessReturned).toBeGreaterThanOrEqual(toNano('1.5'));
+        });
+
+        it('excluded path: surplus returned to response destination', async () => {
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const ownerTonBefore = await ctx.userX.getBalance();
+            const amount = 10n * NANO_PER_BURN;
+
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON_EXCLUDED,
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+
+            const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
+            expect(jwTonAfter).toBeLessThanOrEqual(MIN_TONS_FOR_STORAGE + SURPLUS_EPSILON);
+
+            const ownerTonAfter = await ctx.userX.getBalance();
+            expect(ownerTonAfter - ownerTonBefore).toBeGreaterThan(0n);
+
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(amount);
+        });
+    });
+
     describe('Warm wallet gas (IMP-JETTON-GAS-06)', () => {
         beforeEach(async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
