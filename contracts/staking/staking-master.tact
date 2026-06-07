@@ -544,10 +544,10 @@ contract StakingMaster(
     }
 
     /// Trusted callback from staking pool (`sender()==pool`): accrues staking fee into rewardPerShare.
+    /// Remaining TON is absorbed (no cashback) to avoid ping-pong with Pool's generic receive().
     receive(msg: StakeFeeRewardsAccrue) {
         require(sender() == self.pool, "Only pool");
         self.applyStakeFeeSlices(msg.feeAmount);
-        cashback(sender());
     }
 
     fun computeOwnerVotingPower(ownerAddr: Address): Int {

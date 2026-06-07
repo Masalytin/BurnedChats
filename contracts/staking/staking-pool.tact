@@ -24,8 +24,11 @@ contract StakingPool(
         );
     }
 
+    /// Plain TON from StakingMaster (e.g. leftover after accrual) must not bounce back — that caused Pool↔Master loops.
     receive() {
-        cashback(sender());
+        if (sender() != self.stakingMaster) {
+            cashback(sender());
+        }
     }
 
     /// Pool jetton wallet notifies Pool after incoming BURN (staking fee 0.3% or other deposits with notification).
