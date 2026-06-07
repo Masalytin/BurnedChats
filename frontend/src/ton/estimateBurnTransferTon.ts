@@ -9,6 +9,10 @@ export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.65');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
 export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
 
+/** Typical on-chain net spend for fee-path BURN transfer (until telemetry refines). */
+export const ESTIMATED_NET_FEE_MIN_NANO = 50_000_000n;
+export const ESTIMATED_NET_FEE_MAX_NANO = 100_000_000n;
+
 export const PER_INTERNAL_DEPLOY_NANO = toNano('0.55');
 export const BURN_NOTIFY_NANO = toNano('0.06');
 export const PROPAGATE_FEE_CONFIG_NANO = toNano('0.05');

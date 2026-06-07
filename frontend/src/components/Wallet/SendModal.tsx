@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Address } from '@ton/core';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
+import { useTonConnect } from '@/hooks/useTonConnect';
+import {
+  ESTIMATED_NET_FEE_MAX_NANO,
+  estimateBurnTransferTon,
+} from '@/ton/estimateBurnTransferTon';
+import { getTonBalanceNano } from '@/ton/tonBalance';
 import { parseBurn } from '@/utils/format';
 
 import { FeeBreakdown } from './FeeBreakdown';
@@ -30,12 +36,23 @@ function isPlainTonAddress(s: string): boolean {
  */
 export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const { t } = useTranslation();
+  const { walletAddress } = useTonConnect();
   const titleId = useId();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [comment, setComment] = useState('');
   const [debouncedNano, setDebouncedNano] = useState(0n);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
+
+  const gasEstimate = useMemo(() => estimateBurnTransferTon({ feePath: true }), []);
+  const tonGas = useMemo(
+    () => ({
+      attachedNano: gasEstimate.recommendedNano,
+      estimatedNetFeeNano: ESTIMATED_NET_FEE_MAX_NANO,
+    }),
+    [gasEstimate.recommendedNano],
+  );
 
   const isUsernameRecipient = recipient.trim().startsWith('@');
 
@@ -69,6 +86,27 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     }
   }, [amount]);
 
+  useEffect(() => {
+    const addr = walletAddress?.trim();
+    if (!isOpen || !addr) {
+      setTonBalanceNano(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getTonBalanceNano(addr)
+      .then((nano) => {
+        if (!cancelled) setTonBalanceNano(nano);
+      })
+      .catch(() => {
+        if (!cancelled) setTonBalanceNano(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, walletAddress]);
+
   const validationError = useMemo(() => {
     if (isUsernameRecipient) return t('wallet.usernameNotResolved');
     const r = recipient.trim();
@@ -78,8 +116,20 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     if (parsedAmountNano === null) return t('wallet.errAmountInvalid');
     if (parsedAmountNano <= 0n) return t('wallet.errAmountPositive');
     if (parsedAmountNano > maxNano) return t('wallet.errAmountOverBalance');
+    if (tonBalanceNano !== null && tonBalanceNano < gasEstimate.recommendedNano) {
+      return t('wallet.sendErrorInsufficientGas');
+    }
     return null;
-  }, [amount, recipient, isUsernameRecipient, maxNano, parsedAmountNano, t]);
+  }, [
+    amount,
+    gasEstimate.recommendedNano,
+    isUsernameRecipient,
+    maxNano,
+    parsedAmountNano,
+    recipient,
+    t,
+    tonBalanceNano,
+  ]);
 
   /** 0–10000 = 0–100.00% of balance for stable HTML range input. */
   const sliderBps = useMemo(() => {
@@ -245,11 +295,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
               />
             </div>
 
-            <FeeBreakdown amountNano={debouncedNano} feeParams={burn.feeParams} />
-
-            <p className={styles.feeHint} aria-live="polite">
-              {t('wallet.sendGasHint')}
-            </p>
+            <FeeBreakdown amountNano={debouncedNano} feeParams={burn.feeParams} tonGas={tonGas} />
 
             {(submitError || validationError) && !isUsernameRecipient ? (
               <p className={styles.errorText} role="alert">
