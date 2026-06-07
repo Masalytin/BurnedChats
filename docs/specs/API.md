@@ -437,6 +437,7 @@ public ResponseEntity<?> onWebhook(
 | Метод | Путь | Описание |
 |-------|------|----------|
 | `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance в nano; без auth |
+| `GET` | `/api/wallet/jetton-wallet?address=` | BURN jetton wallet адрес владельца; без auth |
 
 **`GET /api/wallet/burn-balance`**
 
@@ -446,6 +447,15 @@ public ResponseEntity<?> onWebhook(
 - **502:** `{ "message": "…" }` — сбой Ton Center / contract read (`TonRpcException`).
 
 Frontend (`burnToken.ts`) принимает поля `balanceNano`, `nano` или `balance` в теле; при `404`/`501` уходит на Ton Center RPC из браузера.
+
+**`GET /api/wallet/jetton-wallet`**
+
+- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address владельца (owner).
+- **200 OK:** `{ "jettonWalletAddress": "<friendly|null>", "ownerAddress": "<trimmed query address>" }` — `jettonWalletAddress` равен `null`, если jetton wallet отсутствует или не удалось вычислить адрес (non-zero contract exit / zero address); это **не** ошибка HTTP.
+- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
+- **502:** `{ "message": "…" }` — сбой Ton Center / transport (`TonRpcException`).
+
+Frontend (`burnToken.ts`) сначала вызывает этот endpoint; при `404`/`501`, `502` (после одного retry) или `jettonWalletAddress: null` переходит на Ton Center RPC из браузера (`jettonWalletResolve.ts`), сохраняя таксономию ошибок из `IMP-BURN-SEND-01`.
 
 Чтение staking on-chain по-прежнему внутри **`StakingVerifier`**; отдельной HTTP-обёртки для стейкинга может не быть (см. `backend/.../ton/dto`).
 

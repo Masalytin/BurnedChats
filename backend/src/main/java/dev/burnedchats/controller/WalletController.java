@@ -46,9 +46,36 @@ public class WalletController {
                                 .body(Map.of("message", e.getMessage()))));
     }
 
+    /**
+     * Owner's BURN jetton wallet address (public read; no auth). {@code jettonWalletAddress} is
+     * {@code null} when the wallet is absent or could not be derived (contract non-zero exit).
+     */
+    @GetMapping("/jetton-wallet")
+    public Mono<ResponseEntity<Object>> jettonWallet(@RequestParam(required = false) String address) {
+        if (address == null || address.isBlank()) {
+            return Mono.just(badRequest("address is required"));
+        }
+        String trimmed = address.trim();
+        try {
+            TonAddressBoc.parse(trimmed);
+        } catch (TonRpcException e) {
+            return Mono.just(badRequest(e.getMessage()));
+        }
+        return jettonService
+                .resolveJettonWallet(trimmed)
+                .map(jw -> ResponseEntity.<Object>ok(new JettonWalletResponse(jw, trimmed)))
+                .switchIfEmpty(Mono.just(ResponseEntity.<Object>ok(new JettonWalletResponse(null, trimmed))))
+                .onErrorResume(
+                        TonRpcException.class,
+                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
+                                .body(Map.of("message", e.getMessage()))));
+    }
+
     private static ResponseEntity<Object> badRequest(String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", message));
     }
 
     public record BurnBalanceResponse(String balanceNano, String address) {}
+
+    public record JettonWalletResponse(String jettonWalletAddress, String ownerAddress) {}
 }

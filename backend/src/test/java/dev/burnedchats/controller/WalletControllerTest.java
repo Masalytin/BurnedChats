@@ -1,6 +1,7 @@
 package dev.burnedchats.controller;
 
 import dev.burnedchats.controller.WalletController.BurnBalanceResponse;
+import dev.burnedchats.controller.WalletController.JettonWalletResponse;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.exception.TonRpcException;
 import java.math.BigInteger;
@@ -88,6 +89,73 @@ class WalletControllerTest {
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                     assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center error"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("GET /api/wallet/jetton-wallet returns 200 with jettonWalletAddress")
+    void jettonWalletHappyPath() {
+        String jettonWallet = "kQTestJettonWalletAddress__________________________________________";
+        when(jettonService.resolveJettonWallet(anyString())).thenReturn(Mono.just(jettonWallet));
+
+        StepVerifier.create(controller.jettonWallet(VALID_ADDRESS))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isInstanceOf(JettonWalletResponse.class);
+                    JettonWalletResponse body = (JettonWalletResponse) resp.getBody();
+                    assertThat(body.jettonWalletAddress()).isEqualTo(jettonWallet);
+                    assertThat(body.ownerAddress()).isEqualTo(VALID_ADDRESS);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("GET /api/wallet/jetton-wallet returns 200 with null when wallet absent")
+    void jettonWalletAbsent() {
+        when(jettonService.resolveJettonWallet(anyString())).thenReturn(Mono.empty());
+
+        StepVerifier.create(controller.jettonWallet(VALID_ADDRESS))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isInstanceOf(JettonWalletResponse.class);
+                    JettonWalletResponse body = (JettonWalletResponse) resp.getBody();
+                    assertThat(body.jettonWalletAddress()).isNull();
+                    assertThat(body.ownerAddress()).isEqualTo(VALID_ADDRESS);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-wallet missing address returns 400")
+    void jettonWalletMissingAddress() {
+        StepVerifier.create(controller.jettonWallet(null))
+                .assertNext(resp -> assertBadRequest(resp, "address is required"))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-wallet invalid address returns 400")
+    void jettonWalletInvalidAddress() {
+        StepVerifier.create(controller.jettonWallet("not-a-ton-address"))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(resp.getBody()).isInstanceOf(Map.class);
+                    assertThat(((Map<?, ?>) resp.getBody()).get("message")).isNotNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-wallet Ton RPC failure returns 502")
+    void jettonWalletRpcFailure() {
+        when(jettonService.resolveJettonWallet(anyString()))
+                .thenReturn(Mono.error(new TonRpcException("Ton Center jetton wallet error")));
+
+        StepVerifier.create(controller.jettonWallet(VALID_ADDRESS))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center jetton wallet error"));
                 })
                 .verifyComplete();
     }

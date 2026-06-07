@@ -165,7 +165,53 @@ async function getJsonViaGet(url: string, fetchImpl: typeof fetch, apiKey?: stri
   }
 }
 
+async function tryBackendJettonWallet(address: string, fetchImpl: typeof fetch): Promise<string | null> {
+  const base = normalizeApiBase();
+  if (!base) {
+    return null;
+  }
+  const url = `${base}/api/wallet/jetton-wallet?address=${encodeURIComponent(address)}`;
+  const attempts = 2;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    let response: Response;
+    try {
+      response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+    } catch {
+      return null;
+    }
+    if (response.status === 404 || response.status === 501) {
+      return null;
+    }
+    if (response.status === 502) {
+      if (attempt + 1 < attempts) {
+        continue;
+      }
+      return null;
+    }
+    if (!response.ok) {
+      return null;
+    }
+    try {
+      const body = (await response.json()) as unknown;
+      if (body && typeof body === 'object') {
+        const jw = (body as Record<string, unknown>).jettonWalletAddress;
+        if (typeof jw === 'string' && jw.trim()) {
+          return jw.trim();
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  return null;
+}
+
 async function getUserJettonWalletAddress(ownerAddress: string, deps: ResolvedDeps): Promise<string> {
+  const viaBackend = await tryBackendJettonWallet(ownerAddress, deps.fetchImpl);
+  if (viaBackend) {
+    return viaBackend;
+  }
   return resolveUserJettonWalletAddress(ownerAddress, {
     rpcBaseUrl: deps.rpcBaseUrl,
     jettonMaster: resolveJettonMaster(deps.jettonMaster),

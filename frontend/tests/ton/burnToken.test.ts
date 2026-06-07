@@ -68,6 +68,44 @@ describe('burnToken RPC helpers', () => {
     });
   });
 
+  it('getBurnBalance prefers backend jetton-wallet before Ton Center RPC', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ message: 'not found' }, 404))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          jettonWalletAddress: JETTON_USER_WALLET,
+          ownerAddress: USER,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '0x3b9aca00']] },
+        }),
+      );
+
+    const nano = await getBurnBalance(USER, {
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      jettonMaster: MASTER,
+    });
+
+    expect(nano).toBe(1_000_000_000n);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/burn-balance');
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain('/api/wallet/jetton-wallet');
+    const walletDataCall = fetchImpl.mock.calls[2]?.[1] as { body: string };
+    expect(JSON.parse(walletDataCall.body)).toMatchObject({
+      address: JETTON_USER_WALLET,
+      method: 'get_wallet_data',
+    });
+
+    vi.unstubAllEnvs();
+  });
+
   it('getEffectiveFeeParams falls back to static TOKENOMICS split on Ton error', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ ok: false, error: 'boom' }));
 

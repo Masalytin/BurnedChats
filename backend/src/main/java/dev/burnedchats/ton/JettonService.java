@@ -106,6 +106,42 @@ public class JettonService {
                         5);
     }
 
+    /**
+     * Resolves the owner's BURN jetton wallet address via master {@code get_wallet_address}.
+     * Empty mono means no wallet (undeployed / zero address / non-zero contract exit).
+     * {@link TonRpcException} is propagated for RPC / transport failures.
+     */
+    public Mono<String> resolveJettonWallet(String userAddress) {
+        return getUserJettonWalletAddress(userAddress)
+                .filter(this::isNonZeroJettonWallet)
+                .onErrorResume(TonContractException.class, e -> {
+                    LOG.debug("resolveJettonWallet contract exit → absent: {}", e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    private boolean isNonZeroJettonWallet(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        try {
+            TonAddressBoc.ParsedAddress p = TonAddressBoc.parse(raw.trim());
+            return p.workchain() != 0 || !isAllZero(p.hash());
+        } catch (TonRpcException e) {
+            LOG.debug("resolveJettonWallet unparseable address → absent: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean isAllZero(byte[] hash) {
+        for (byte b : hash) {
+            if (b != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Mono<BigInteger> fetchBurnBalanceNano(String userAddress) {
         return getUserJettonWalletAddress(userAddress)
                 .flatMap(walletAddr -> tonService.runGetMethod(walletAddr, "get_wallet_data", List.of()))
