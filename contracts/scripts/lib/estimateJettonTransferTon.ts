@@ -8,6 +8,8 @@ export const MIN_TON_FEE_PATH_NANO = toNano('2.1');
 /** Target after IMP-JETTON-GAS-02 (current on-chain gate still uses fee-path minimum). */
 export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.65');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
+/** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 decision log. */
+export const RECOMMENDED_FEE_PATH_WARM_NANO = toNano('2.3');
 export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
 
 export const PER_INTERNAL_DEPLOY_NANO = toNano('0.55');
@@ -35,8 +37,10 @@ export type JettonTransferGasEstimate = {
 export type EstimateJettonTransferTonParams = {
     feePath: boolean;
     forwardTonAmount?: bigint;
-    /** Future IMP-JETTON-GAS-06 hook; same constants until profiling lands. */
+    /** Recipient (and typical repeat: pool/treasury) jetton wallets already deployed/active. */
     recipientWalletDeployed?: boolean;
+    /** Off-chain hint: recipient JW has fee config; propagate is redundant (still sent on-chain). */
+    recipientFeeConfigActive?: boolean;
 };
 
 function recipientForwardCount(forwardTonAmount: bigint): bigint {
@@ -56,7 +60,10 @@ function gateMinimumNano(
     );
 }
 
-function feePathBreakdown(forwardTonAmount: bigint): JettonTransferGasEstimate['breakdown'] {
+function feePathBreakdown(
+    forwardTonAmount: bigint,
+    recipientFeeConfigActive: boolean,
+): JettonTransferGasEstimate['breakdown'] {
     const deployLegsNano = 3n * PER_INTERNAL_DEPLOY_NANO;
     const poolFwdNano =
         GAS_POOL_FORWARD_MIN_NANO >
@@ -73,7 +80,7 @@ function feePathBreakdown(forwardTonAmount: bigint): JettonTransferGasEstimate['
     return {
         deployLegsNano,
         burnNotifyNano: BURN_NOTIFY_NANO,
-        propagateNano: PROPAGATE_FEE_CONFIG_NANO,
+        propagateNano: recipientFeeConfigActive ? 0n : PROPAGATE_FEE_CONFIG_NANO,
         forwardNano: forwardTonAmount + poolFwdNano,
     };
 }
@@ -89,19 +96,20 @@ function excludedPathBreakdown(forwardTonAmount: bigint): JettonTransferGasEstim
 
 /**
  * Off-chain attach TON estimate for BURN `JettonTransfer`.
- * `recommendedNano` matches sandbox `TRANSFER_TON` on fee path; net spend is lower (refundable excess).
+ * `recommendedNano` matches sandbox `TRANSFER_TON` on cold fee path; warm repeat uses lower attach.
  */
 export function estimateJettonTransferTon(
     params: EstimateJettonTransferTonParams,
 ): JettonTransferGasEstimate {
     const forwardTonAmount = params.forwardTonAmount ?? 0n;
-    void params.recipientWalletDeployed;
+    const warm = params.recipientWalletDeployed === true;
+    const skipPropagateEstimate = params.recipientFeeConfigActive === true;
 
     if (params.feePath) {
         return {
             minimumNano: gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount),
-            recommendedNano: RECOMMENDED_FEE_PATH_NANO,
-            breakdown: feePathBreakdown(forwardTonAmount),
+            recommendedNano: warm ? RECOMMENDED_FEE_PATH_WARM_NANO : RECOMMENDED_FEE_PATH_NANO,
+            breakdown: feePathBreakdown(forwardTonAmount, skipPropagateEstimate),
         };
     }
 

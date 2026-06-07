@@ -4,6 +4,7 @@ import {
     MIN_TON_FEE_PATH_NANO,
     RECOMMENDED_EXCLUDED_PATH_NANO,
     RECOMMENDED_FEE_PATH_NANO,
+    RECOMMENDED_FEE_PATH_WARM_NANO,
     estimateJettonTransferTon,
 } from '../scripts/lib/estimateJettonTransferTon';
 
@@ -44,5 +45,22 @@ describe('IMP-JETTON-GAS-04 — estimateJettonTransferTon', () => {
         expect(estimate.breakdown.deployLegsNano).toBe(toNano('0.55'));
         expect(estimate.breakdown.burnNotifyNano).toBe(0n);
         expect(estimate.breakdown.propagateNano).toBe(toNano('0.05'));
+    });
+
+    it('warm fee path recommends 2.3 TON when recipient wallet already deployed (GAS-06)', () => {
+        const estimate = estimateJettonTransferTon({ feePath: true, recipientWalletDeployed: true });
+        expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
+        expect(estimate.recommendedNano).toBeLessThan(RECOMMENDED_FEE_PATH_NANO);
+        expect(estimate.recommendedNano).toBe(2_300_000_000n);
+    });
+
+    it('skips propagate in breakdown when recipient fee config already active (off-chain hint)', () => {
+        const withPropagate = estimateJettonTransferTon({ feePath: true });
+        const skipPropagate = estimateJettonTransferTon({
+            feePath: true,
+            recipientFeeConfigActive: true,
+        });
+        expect(withPropagate.breakdown.propagateNano).toBe(toNano('0.05'));
+        expect(skipPropagate.breakdown.propagateNano).toBe(0n);
     });
 });

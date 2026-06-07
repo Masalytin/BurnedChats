@@ -7,6 +7,7 @@ import { toNano } from '@ton/core';
 export const MIN_TON_FEE_PATH_NANO = toNano('2.1');
 export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.65');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
+export const RECOMMENDED_FEE_PATH_WARM_NANO = toNano('2.3');
 export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
 
 /** Typical on-chain net spend for fee-path BURN transfer (until telemetry refines). */
@@ -37,6 +38,7 @@ export type EstimateBurnTransferTonParams = {
   feePath: boolean;
   forwardTonAmount?: bigint;
   recipientWalletDeployed?: boolean;
+  recipientFeeConfigActive?: boolean;
 };
 
 function recipientForwardCount(forwardTonAmount: bigint): bigint {
@@ -53,7 +55,10 @@ function gateMinimumNano(minTonPathNano: bigint, forwardTonAmount: bigint): bigi
   );
 }
 
-function feePathBreakdown(forwardTonAmount: bigint): BurnTransferGasEstimate['breakdown'] {
+function feePathBreakdown(
+  forwardTonAmount: bigint,
+  recipientFeeConfigActive: boolean,
+): BurnTransferGasEstimate['breakdown'] {
   const deployLegsNano = 3n * PER_INTERNAL_DEPLOY_NANO;
   const poolFwdNano =
     GAS_POOL_FORWARD_MIN_NANO >
@@ -70,7 +75,7 @@ function feePathBreakdown(forwardTonAmount: bigint): BurnTransferGasEstimate['br
   return {
     deployLegsNano,
     burnNotifyNano: BURN_NOTIFY_NANO,
-    propagateNano: PROPAGATE_FEE_CONFIG_NANO,
+    propagateNano: recipientFeeConfigActive ? 0n : PROPAGATE_FEE_CONFIG_NANO,
     forwardNano: forwardTonAmount + poolFwdNano,
   };
 }
@@ -89,13 +94,14 @@ export function estimateBurnTransferTon(
   params: EstimateBurnTransferTonParams,
 ): BurnTransferGasEstimate {
   const forwardTonAmount = params.forwardTonAmount ?? 0n;
-  void params.recipientWalletDeployed;
+  const warm = params.recipientWalletDeployed === true;
+  const skipPropagateEstimate = params.recipientFeeConfigActive === true;
 
   if (params.feePath) {
     return {
       minimumNano: gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount),
-      recommendedNano: RECOMMENDED_FEE_PATH_NANO,
-      breakdown: feePathBreakdown(forwardTonAmount),
+      recommendedNano: warm ? RECOMMENDED_FEE_PATH_WARM_NANO : RECOMMENDED_FEE_PATH_NANO,
+      breakdown: feePathBreakdown(forwardTonAmount, skipPropagateEstimate),
     };
   }
 

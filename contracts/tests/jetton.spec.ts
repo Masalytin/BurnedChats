@@ -303,6 +303,48 @@ describe('BurnJetton', () => {
         });
     });
 
+    describe('Warm wallet gas (IMP-JETTON-GAS-06)', () => {
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        });
+
+        it('first transfer to new recipient succeeds (cold deploy path)', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 5n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
+            expect(await wy.getGetFeeConfigActive()).toBe(true);
+        });
+
+        it('repeat transfer to same recipient succeeds with warm-path attach floor', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 5n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+
+            const warmAttach = toNano('2.3');
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: warmAttach,
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+        });
+    });
+
     describe('Dynamic burn', () => {
         beforeEach(async () => {
             await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), true);
