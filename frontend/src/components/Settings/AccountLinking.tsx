@@ -150,6 +150,9 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
 
 function mapLinkError(error: unknown, t: ReturnType<typeof useTranslation>['t']): string {
   if (error instanceof AccountLinkError) {
+    if (error.code === 'GATEWAY_TIMEOUT' || error.httpStatus === 502 || error.httpStatus === 504) {
+      return t('wallet.linkErrorTimeout');
+    }
     if (error.code === 'CONFLICT' || error.httpStatus === 409) {
       return error.serverMessage || t('accountLinking.conflict');
     }

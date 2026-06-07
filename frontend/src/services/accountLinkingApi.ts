@@ -49,6 +49,9 @@ async function readBody(res: Response): Promise<unknown> {
 }
 
 function buildLinkWalletError(res: Response, body: unknown): AccountLinkError {
+  if (res.status === 502 || res.status === 504) {
+    return new AccountLinkError('GATEWAY_TIMEOUT', res.status, 'Gateway timeout');
+  }
   const parsed =
     body && typeof body === 'object'
       ? (body as { code?: unknown; message?: unknown })
