@@ -6,6 +6,7 @@ import type { UseBurnToken } from '@/hooks/useBurnToken';
 import { parseBurn } from '@/utils/format';
 
 import { FeeBreakdown } from './FeeBreakdown';
+import { sendErrorFromTxResult, sendErrorMessage } from './sendErrorMessage';
 import styles from './Wallet.module.css';
 
 export interface SendModalProps {
@@ -127,13 +128,11 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
       if (res.ok) {
         onSent?.();
         onClose();
-      } else if (res.kind === 'user_rejected') {
-        setSubmitError(t('wallet.sendRejected'));
       } else {
-        setSubmitError(res.message ?? t('wallet.sendFailed'));
+        setSubmitError(sendErrorFromTxResult(res, t));
       }
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : t('wallet.sendFailed'));
+      setSubmitError(sendErrorMessage(e, t));
     }
   }, [amount, burn, comment, onClose, onSent, parsedAmountNano, recipient, t, validationError]);
 
