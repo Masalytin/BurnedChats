@@ -64,6 +64,15 @@ Override with `JETTON_METADATA_URI` for staging or pinned releases.
 Env load order for `--testnet`: `.env.testnet` → `.env`. Blueprint reads `WALLET_MNEMONIC` and
 `WALLET_VERSION`; legacy `MNEMONIC_*` vars are aliased automatically via `blueprint.config.ts`.
 
+### BURN jetton transfer gas (Mini App)
+
+User-facing BURN sends attach **3.5 TON** to each `JettonTransfer` message
+(`contracts/tests/helpers.ts` → `TRANSFER_TON`; frontend
+`BURN_TRANSFER_ATTACHED_TON` in `frontend/src/ton/transactionBuilder.ts`).
+The wallet contract requires strictly more than **2.1 TON** attached plus forward fees;
+see `contracts/jetton/burn-jetton-wallet.tact` and
+[TX-A2AC8E4F-FAIL-REPORT.md](../jetton-unknown-tonviewer-balances/TX-A2AC8E4F-FAIL-REPORT.md).
+
 Re-run with `--force` to overwrite live contracts (destructive on same addresses).
 
 Use `--dry-run` to compute addresses and write JSON without sending transactions (still requires Blueprint wallet for deployer address).

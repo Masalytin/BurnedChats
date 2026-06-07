@@ -142,6 +142,8 @@
     "sendErrorJettonWalletNotDeployed": "У вашего кошелька ещё нет BURN jetton-кошелька. Сначала получите BURN, затем отправьте.",
     "sendErrorInsufficientBalance": "Недостаточно BURN для этого перевода.",
     "sendErrorInsufficientGas": "Недостаточно TON на кошельке для оплаты сетевых комиссий.",
+    "sendGasHint": "К переводу BURN к сообщению прикрепляется ~3.5 TON на on-chain газ (отдельно от сплита комиссий BURN выше). Держите достаточный запас native TON на кошельке.",
+    "linkErrorTimeout": "Привязка кошелька заняла слишком много времени. Попробуйте ещё раз — при повторных сбоях сервер может ещё проверять подпись.",
     "waitingConfirmation": "Ожидание подтверждения…",
     "usernameNotResolved": "Разрешение Telegram @username в приложении пока недоступно — укажите адрес TON.",
     "feeEnterAmount": "Введите сумму, чтобы увидеть комиссии.",

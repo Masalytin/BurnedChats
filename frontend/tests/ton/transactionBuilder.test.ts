@@ -31,13 +31,23 @@ describe('transactionBuilder payload encoding', () => {
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
   });
 
-  it('buildStakeMsg wraps StakeForward (0x5a020010) under jetton transfer forward_payload', () => {
+  it('buildJettonTransferMsg defaults attached TON to 3.5 (BURN_TRANSFER_ATTACHED_TON)', () => {
+    const msg = buildJettonTransferMsg({
+      jettonWallet: ADDR,
+      recipient: ADDR,
+      amount: 1_000_000_000n,
+    });
+    expect(msg.amount).toBe(String(3_500_000_000n));
+  });
+
+  it('buildStakeMsg still attaches 3.5 TON explicitly', () => {
     const msg = buildStakeMsg({
       stakingMaster: ADDR,
       userJettonWallet: ADDR,
       amount: 5n * 10n ** 9n,
       tier: 2,
     });
+    expect(msg.amount).toBe(String(3_500_000_000n));
     const s = firstBocCellBase64(msg.payload).beginParse();
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
     s.loadUintBig(64);

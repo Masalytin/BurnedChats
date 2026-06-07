@@ -1,7 +1,8 @@
 import { Address, Cell, type Slice, beginCell } from '@ton/core';
 import { sendTonTransaction } from '@/ton/connector';
 import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
-import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
+import { getTonBalanceNano } from '@/ton/tonBalance';
+import { BURN_TRANSFER_ATTACHED_TON, buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 
@@ -48,6 +49,8 @@ export interface BurnTokenDeps {
 
 const DEFAULT_POLL_MS = 30_000;
 const CONFIRM_POLL_INTERVAL_MS = 1_500;
+/** Extra native TON beyond message attachment (wallet fees, aligns with connector GAS_BUFFER). */
+const TON_GAS_BUFFER_NANOTON = 10_000_000n;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -584,6 +587,28 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
   const recipient = Address.parse(params.recipient.trim());
   const jettonWalletAddr = Address.parse(userJettonWallet);
   const forwardPayload = params.comment ? encodeCommentForwardPayload(params.comment) : emptySlice();
+
+  try {
+    const tonBalance = await getTonBalanceNano(params.walletAddress, {
+      rpcBaseUrl: r.rpcBaseUrl,
+      toncenterApiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    });
+    const minTon = BURN_TRANSFER_ATTACHED_TON + TON_GAS_BUFFER_NANOTON;
+    if (tonBalance < minTon) {
+      const err = new BurnTokenError(
+        'INSUFFICIENT_TON_GAS',
+        'Not enough TON for jetton transfer gas attachment and fees',
+      );
+      emit({ phase: 'failed', error: err });
+      throw err;
+    }
+  } catch (e) {
+    if (e instanceof BurnTokenError && e.code === 'INSUFFICIENT_TON_GAS') {
+      throw e;
+    }
+    /* Ton balance probe is best-effort; sendTonTransaction still guards when wallet reports balance */
+  }
 
   const msg = buildJettonTransferMsg({
     jettonWallet: jettonWalletAddr,

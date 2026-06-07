@@ -249,6 +249,13 @@
   font-weight: 700;
 }
 
+.feeHint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--tg-theme-hint-color, rgba(255, 255, 255, 0.55));
+}
+
 .field {
   margin-bottom: 14px;
 }

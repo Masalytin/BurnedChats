@@ -142,6 +142,8 @@
     "sendErrorJettonWalletNotDeployed": "Your wallet does not have a BURN jetton wallet yet. Receive BURN first, then try sending.",
     "sendErrorInsufficientBalance": "You do not have enough BURN for this transfer.",
     "sendErrorInsufficientGas": "Not enough TON in your wallet to pay network fees.",
+    "sendGasHint": "BURN transfers attach ~3.5 TON to the message for on-chain gas (separate from the BURN fee split above). Keep enough native TON in your wallet.",
+    "linkErrorTimeout": "Wallet linking took too long. Please try again — if it keeps failing, the server may still be verifying your signature.",
     "waitingConfirmation": "Waiting for confirmation…",
     "usernameNotResolved": "Resolving Telegram @username in-app is not available yet — use a TON address.",
     "feeEnterAmount": "Enter an amount to see fee breakdown.",

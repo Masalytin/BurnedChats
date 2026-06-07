@@ -14,6 +14,9 @@ const CLAIM_REWARDS_OP = 0x5a020003;
 const CREATE_PROPOSAL_OP = 0x5a040101;
 const CAST_VOTE_OP = 0x5a040102;
 
+/** Matches contracts/tests/helpers.ts TRANSFER_TON — burn-jetton-wallet requires > 2.1 TON attached. */
+export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
+
 function emptyForwardPayloadSlice(): Slice {
   return beginCell().storeUint(0, 1).endCell().asSlice();
 }
@@ -75,7 +78,7 @@ export function buildJettonTransferMsg(params: {
     forwardTonAmount,
     forwardPayload,
   });
-  const attached = params.attachedTon ?? toNano('0.05');
+  const attached = params.attachedTon ?? BURN_TRANSFER_ATTACHED_TON;
   return {
     address: params.jettonWallet.toString(),
     amount: attached.toString(),

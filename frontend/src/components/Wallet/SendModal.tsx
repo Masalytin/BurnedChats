@@ -247,6 +247,10 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
 
             <FeeBreakdown amountNano={debouncedNano} feeParams={burn.feeParams} />
 
+            <p className={styles.feeHint} aria-live="polite">
+              {t('wallet.sendGasHint')}
+            </p>
+
             {(submitError || validationError) && !isUsernameRecipient ? (
               <p className={styles.errorText} role="alert">
                 {submitError ?? validationError}
