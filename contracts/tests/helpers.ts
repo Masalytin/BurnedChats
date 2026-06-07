@@ -11,6 +11,8 @@ export const NANO_PER_BURN = 10n ** 9n;
 export const DEPLOY_TON = toNano('0.15');
 export const MINT_TON = toNano('0.25');
 export const TRANSFER_TON = toNano('3.5');
+/** Excluded-path JettonTransfer attach (post IMP-JETTON-GAS-02 gate). */
+export const TRANSFER_TON_EXCLUDED = toNano('0.7');
 
 /** Jetton forward_payload for staking master (`StakeForward` in ref, either-bit = 1). */
 export function stakeForwardPayload(tier: number): Slice {

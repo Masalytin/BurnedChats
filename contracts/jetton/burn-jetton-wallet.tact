@@ -5,6 +5,10 @@ const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
 const perInternalDeployTon: Int = ton("0.55");
+/// Minimum TON attach gate for fee-split path (5 out_msgs; tune via IMP-JETTON-GAS-06 profiling).
+const minTonFeePath: Int = ton("2.1");
+/// Minimum TON attach gate for excluded sender/recipient bypass (1 deploy + propagate).
+const minTonExcludedPath: Int = ton("0.65");
 /// TON StakingPool attaches on StakeFeeRewardsAccrue (shared with staking-pool.tact).
 const gasPoolToMasterAccrual: Int = ton("0.06");
 /// Floor for staking-leg JettonNotification forward (notify handler + accrual msg).
@@ -498,8 +502,9 @@ contract BurnJettonWallet(
         let ctx = context();
         let fwd = ctx.readForwardFee();
         let recipientForwards = 1 + sign(msg.forwardTonAmount);
+        let minTonRequired = excludedTransfer ? minTonExcludedPath : minTonFeePath;
         require(
-            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + ton("2.1"),
+            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
             "Insufficient amount of TON attached",
         );
 

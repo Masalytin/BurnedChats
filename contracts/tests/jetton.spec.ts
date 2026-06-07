@@ -16,6 +16,7 @@ import {
     NANO_PER_BURN,
     setupExcluded,
     TRANSFER_TON,
+    TRANSFER_TON_EXCLUDED,
     transferAndAssertFees,
     type JettonDeployedContext,
 } from './helpers';
@@ -192,7 +193,7 @@ describe('BurnJetton', () => {
                 jettonAmount: ten,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
+                value: TRANSFER_TON_EXCLUDED,
             });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(ten);
@@ -224,10 +225,81 @@ describe('BurnJetton', () => {
                 jettonAmount: ten,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.staking.address,
-                value: TRANSFER_TON,
+                value: TRANSFER_TON_EXCLUDED,
             });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(ten);
+        });
+
+        it('excluded transfer passes with reduced attach (0.7 TON)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const amount = 1n * NANO_PER_BURN;
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON_EXCLUDED,
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(amount);
+        });
+
+        it('excluded transfer rejects insufficient attach (0.5 TON → exit 32113)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('0.5'),
+            });
+            expect(r.transactions).toHaveTransaction({
+                success: false,
+                exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
+            });
+            expect(BurnJettonWallet_errors_backward['Insufficient amount of TON attached']).toBe(32113);
+        });
+    });
+
+    describe('Gas gates (IMP-JETTON-GAS-02)', () => {
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        });
+
+        it('fee path rejects attach below 2.1 TON gate (2.0 TON)', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('2.0'),
+            });
+            expect(r.transactions).toHaveTransaction({
+                success: false,
+                exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
+            });
+        });
+
+        it('fee path passes with TRANSFER_TON (3.5 TON)', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
         });
     });
 
