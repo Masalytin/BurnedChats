@@ -1,6 +1,7 @@
-import { Address, Cell } from '@ton/core';
+import { Address } from '@ton/core';
 
-import { addressToSliceStackBoc } from '@/ton/burnToken';
+import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
+import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 import { sendTonTransaction } from '@/ton/connector';
 import { buildClaimMsg, buildStakeMsg, buildUnstakeMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
@@ -28,6 +29,8 @@ export type StakingErrorCode =
   | 'USER_REJECTED'
   | 'NETWORK_ERROR'
   | 'CONFIG'
+  | 'JETTON_WALLET_UNRESOLVED'
+  | 'JETTON_WALLET_NOT_DEPLOYED'
   | 'UNKNOWN';
 
 export class StakingError extends Error {
@@ -39,7 +42,7 @@ export class StakingError extends Error {
     super(message, options);
     this.name = 'StakingError';
     this.code = code;
-    this.retryable = code === 'NETWORK_ERROR';
+    this.retryable = code === 'NETWORK_ERROR' || code === 'JETTON_WALLET_UNRESOLVED';
   }
 }
 
@@ -159,13 +162,6 @@ function firstStackNum(stackUnknown: unknown): bigint | null {
   return nums.length > 0 ? nums[0]! : null;
 }
 
-function decodeAddressFromSliceBoc(b64: string, testOnly: boolean): string {
-  const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0]!;
-  const s = cell.beginParse();
-  const a = s.loadAddress();
-  return a.toString({ bounceable: true, testOnly, urlSafe: true });
-}
-
 async function postRunGetMethod(
   rpcBase: string,
   address: string,
@@ -210,31 +206,32 @@ async function postRunGetMethod(
   };
 }
 
+function mapBurnTokenErrorToStaking(e: BurnTokenError): StakingError {
+  if (
+    e.code === 'JETTON_WALLET_UNRESOLVED' ||
+    e.code === 'JETTON_WALLET_NOT_DEPLOYED' ||
+    e.code === 'NETWORK_ERROR' ||
+    e.code === 'CONFIG'
+  ) {
+    return new StakingError(e.code, e.message, { cause: e });
+  }
+  return new StakingError('UNKNOWN', e.message, { cause: e });
+}
+
 async function getUserJettonWalletAddress(ownerAddress: string, r: ResolvedStakingDeps): Promise<string> {
-  const master = resolveJettonMaster(r.jettonMaster);
-  const sliceB64 = addressToSliceStackBoc(ownerAddress);
-  const { exitCode, stackUnknown } = await postRunGetMethod(
-    r.rpcBaseUrl,
-    master,
-    'get_wallet_address',
-    [['tvm.Slice', sliceB64]],
-    r.fetchImpl,
-    r.apiKey,
-  );
-  if (exitCode !== 0) {
-    return '';
-  }
-  const slots = parseStackSlots(stackUnknown);
-  for (const [t, v] of slots) {
-    if (t === 'tvm.Slice') {
-      try {
-        return decodeAddressFromSliceBoc(v, resolveIsTestNet());
-      } catch {
-        return '';
-      }
+  try {
+    return await resolveUserJettonWalletAddress(ownerAddress, {
+      rpcBaseUrl: r.rpcBaseUrl,
+      jettonMaster: resolveJettonMaster(r.jettonMaster),
+      apiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    });
+  } catch (e) {
+    if (e instanceof BurnTokenError) {
+      throw mapBurnTokenErrorToStaking(e);
     }
+    throw e;
   }
-  return '';
 }
 
 function tierFromUnknown(raw: unknown): StakingTier {
@@ -508,9 +505,6 @@ export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Pr
     const wrapped =
       e instanceof StakingError ? e : new StakingError('NETWORK_ERROR', 'Failed to resolve jetton wallet', { cause: e });
     throw wrapped;
-  }
-  if (!jw) {
-    throw new StakingError('UNKNOWN', 'Jetton wallet not deployed for this address');
   }
   const msg = buildStakeMsg({
     stakingMaster: master,

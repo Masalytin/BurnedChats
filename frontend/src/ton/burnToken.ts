@@ -1,6 +1,6 @@
 import { Address, Cell, type Slice, beginCell } from '@ton/core';
 import { sendTonTransaction } from '@/ton/connector';
-import { defaultFetch, resolveApiKey, resolveIsTestNet, resolveRpcBaseUrl } from '@/ton/rpc';
+import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
 import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
@@ -21,27 +21,9 @@ export type TransferParams = {
 /** `transferBurn` requires the connected user TON address (friendly or raw). */
 export type TransferBurnParams = TransferParams & { walletAddress: string };
 
-/** Human-facing error taxonomy for BURN UX. */
-export type BurnTokenErrorCode =
-  | 'INSUFFICIENT_BALANCE'
-  | 'INSUFFICIENT_TON_GAS'
-  | 'USER_REJECTED'
-  | 'NETWORK_ERROR'
-  | 'CONFIG'
-  | 'UNKNOWN';
-
-export class BurnTokenError extends Error {
-  readonly code: BurnTokenErrorCode;
-
-  readonly retryable: boolean;
-
-  constructor(code: BurnTokenErrorCode, message: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = 'BurnTokenError';
-    this.code = code;
-    this.retryable = code === 'NETWORK_ERROR';
-  }
-}
+export { BurnTokenError, type BurnTokenErrorCode } from '@/ton/burnTokenError';
+import { BurnTokenError } from '@/ton/burnTokenError';
+import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 
 export type TransferConfirmationPhase = 'idle' | 'signing' | 'confirming' | 'confirmed' | 'timed_out' | 'failed';
 
@@ -90,13 +72,6 @@ export function addressToSliceStackBoc(userAddress: string): string {
   return beginCell().storeAddress(addr).endCell().toBoc({ idx: false }).toString('base64');
 }
 
-function decodeAddressFromSliceBoc(b64: string, testOnly: boolean): string {
-  const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0]!;
-  const s = cell.beginParse();
-  const a = s.loadAddress();
-  return a.toString({ bounceable: true, testOnly, urlSafe: true });
-}
-
 function parseStackSlots(stack: unknown): StackSlot[] {
   if (!Array.isArray(stack)) {
     return [];
@@ -121,16 +96,6 @@ function firstStackNum(stack: unknown): bigint | null {
   for (const [t, v] of slots) {
     if (t === 'num') {
       return parseNumHex(v);
-    }
-  }
-  return null;
-}
-
-function firstStackSliceCellB64(stack: unknown): string | null {
-  const slots = parseStackSlots(stack);
-  for (const [t, v] of slots) {
-    if (t === 'tvm.Slice') {
-      return v;
     }
   }
   return null;
@@ -201,34 +166,23 @@ async function getJsonViaGet(url: string, fetchImpl: typeof fetch, apiKey?: stri
 }
 
 async function getUserJettonWalletAddress(ownerAddress: string, deps: ResolvedDeps): Promise<string> {
-  const master = resolveJettonMaster(deps.jettonMaster);
-  const sliceB64 = addressToSliceStackBoc(ownerAddress);
-  const { exitCode, stackUnknown } = await postRunGetMethod(
-    deps.rpcBaseUrl,
-    master,
-    'get_wallet_address',
-    [['tvm.Slice', sliceB64]],
-    deps.fetchImpl,
-    deps.apiKey,
-  );
-  if (exitCode !== 0) {
-    return ''; // undeployed / no jetton wallet
-  }
-  const b64 = firstStackSliceCellB64(stackUnknown);
-  if (!b64) {
-    return '';
-  }
-  try {
-    return decodeAddressFromSliceBoc(b64, resolveIsTestNet());
-  } catch {
-    return '';
-  }
+  return resolveUserJettonWalletAddress(ownerAddress, {
+    rpcBaseUrl: deps.rpcBaseUrl,
+    jettonMaster: resolveJettonMaster(deps.jettonMaster),
+    apiKey: deps.apiKey,
+    fetchImpl: deps.fetchImpl,
+  });
 }
 
 async function fetchBurnBalanceNanoRpc(ownerAddress: string, deps: ResolvedDeps): Promise<bigint> {
-  const jw = await getUserJettonWalletAddress(ownerAddress, deps);
-  if (!jw) {
-    return 0n;
+  let jw: string;
+  try {
+    jw = await getUserJettonWalletAddress(ownerAddress, deps);
+  } catch (e) {
+    if (e instanceof BurnTokenError && e.code === 'JETTON_WALLET_NOT_DEPLOYED') {
+      return 0n;
+    }
+    throw e;
   }
   const { exitCode, stackUnknown } = await postRunGetMethod(
     deps.rpcBaseUrl,
@@ -440,9 +394,14 @@ async function fetchTransactionsCenter(address: string, limit: number, deps: Res
  */
 export async function getBurnHistory(ownerAddress: string, limit = 20, deps?: BurnTokenDeps): Promise<BurnTransaction[]> {
   const r = resolveDeps(deps);
-  const jw = await getUserJettonWalletAddress(ownerAddress, r);
-  if (!jw) {
-    return [];
+  let jw: string;
+  try {
+    jw = await getUserJettonWalletAddress(ownerAddress, r);
+  } catch (e) {
+    if (e instanceof BurnTokenError && e.code === 'JETTON_WALLET_NOT_DEPLOYED') {
+      return [];
+    }
+    throw e;
   }
   const rows = await fetchTransactionsCenter(jw, limit, r);
   return rows.map(mapCenterTxToBurnRow);
@@ -574,11 +533,6 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
         : new BurnTokenError('NETWORK_ERROR', 'Failed to resolve jetton wallet', { cause: e });
     emit({ phase: 'failed', error: wrapped });
     throw wrapped;
-  }
-  if (!userJettonWallet) {
-    const err = new BurnTokenError('UNKNOWN', 'Jetton wallet not deployed for this address');
-    emit({ phase: 'failed', error: err });
-    throw err;
   }
 
   const recipient = Address.parse(params.recipient.trim());
