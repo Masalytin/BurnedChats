@@ -25,6 +25,12 @@ public class RoomMessageEditedEvent {
     private boolean success;
     private String roomId;
     private String messageId;
+    private String senderInternalId;
+
+    /**
+     * @deprecated Prefer {@link #senderInternalId}.
+     */
+    @Deprecated
     private Long senderTgId;
     private String senderName;
     private String encryptedContent;

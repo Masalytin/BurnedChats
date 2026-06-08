@@ -62,8 +62,16 @@ public class SyncRoomMessagesEvent {
         private final String messageId;
 
         /**
-         * Telegram user ID of the sender.
+         * Stable internal user id of the sender.
          */
+        private final String senderInternalId;
+
+        /**
+         * Telegram user ID when linked; null for wallet-only senders.
+         *
+         * @deprecated Prefer {@link #senderInternalId}.
+         */
+        @Deprecated
         private final Long senderTgId;
 
         /**

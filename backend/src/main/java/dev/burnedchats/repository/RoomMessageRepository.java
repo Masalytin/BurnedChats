@@ -143,10 +143,11 @@ public class RoomMessageRepository {
     /**
      * Replace ciphertext for an existing room message (same id); attachment fields unchanged.
      */
+    @SuppressWarnings("checkstyle:MethodLength")
     public Mono<RoomMessage> updateMessage(
             String roomId,
             String messageId,
-            Long senderTgId,
+            String senderInternalId,
             String newEncryptedContent,
             String newIv,
             Instant editedAt) {
@@ -176,7 +177,8 @@ public class RoomMessageRepository {
                     if (index < 0 || target == null) {
                         return Mono.empty();
                     }
-                    if (!senderTgId.equals(target.getSenderTgId())) {
+                    if (senderInternalId == null
+                            || !senderInternalId.equals(target.getSenderKey())) {
                         return Mono.empty();
                     }
                     if (target.getServerTimestamp() == null

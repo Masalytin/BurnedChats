@@ -1,5 +1,6 @@
 package dev.burnedchats.model;
 
+import dev.burnedchats.util.InternalIds;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +27,7 @@ import java.time.Instant;
  * <ul>
  *   <li>Content is encrypted with the room's group key (E2EE)</li>
  *   <li>Server stores only encrypted blobs and metadata</li>
- *   <li>senderTgId is stored for display purposes (not for decryption)</li>
+ *   <li>Sender identity is stored for display and authorization (not for decryption)</li>
  * </ul>
  */
 @Data
@@ -48,8 +49,16 @@ public class RoomMessage implements Serializable {
     private String roomId;
 
     /**
-     * Telegram user ID of the sender (for display, not for decryption).
+     * Stable internal user id of the sender (canonical identity).
      */
+    private String senderInternalId;
+
+    /**
+     * Telegram user ID of the sender when linked; null for wallet-only senders.
+     *
+     * @deprecated Use {@link #senderInternalId} for authorization and fan-out.
+     */
+    @Deprecated
     private Long senderTgId;
 
     /**
@@ -111,4 +120,17 @@ public class RoomMessage implements Serializable {
      * Server time of the last successful edit, if any.
      */
     private Instant editedAt;
+
+    /**
+     * Sender identity for membership and edit checks — falls back to deterministic TG mapping.
+     */
+    public String getSenderKey() {
+        if (senderInternalId != null && !senderInternalId.isBlank()) {
+            return senderInternalId;
+        }
+        if (senderTgId != null) {
+            return InternalIds.forTelegramId(senderTgId);
+        }
+        return null;
+    }
 }

@@ -12,11 +12,13 @@ import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.RoomMessage;
+import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.messaging.StompUserMessenger;
-import dev.burnedchats.repository.UserRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
@@ -28,6 +30,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
@@ -43,42 +46,7 @@ import java.util.List;
  * purely as a relay — it never decrypts group message content.
  * Messages are broadcast to all room subscribers and stored for offline delivery.
  *
- * <p>Message flow for SEND_ROOM_MESSAGE:
- * <ol>
- *   <li>Sender encrypts message with room group key (client-side)</li>
- *   <li>Sender sends via {@code /app/room.message.send}</li>
- *   <li>Server validates sender is a room member</li>
- *   <li>Server saves message to {@code messages:{roomId}} (TTL 24h)</li>
- *   <li>Server broadcasts {@code NEW_ROOM_MESSAGE} to {@code /topic/room/{roomId}}</li>
- * </ol>
- *
- * <p>Message flow for SYNC_ROOM_MESSAGES:
- * <ol>
- *   <li>Client connects or reconnects to a room</li>
- *   <li>Client sends via {@code /app/room.message.sync}</li>
- *   <li>Server validates user is a room member</li>
- *   <li>Server returns all stored messages from {@code messages:{roomId}}</li>
- * </ol>
- *
- * <p>Destinations handled:
- * <ul>
- *   <li>{@code /app/room.message.send} — send encrypted room message</li>
- *   <li>{@code /app/room.message.sync} — sync offline room messages</li>
- * </ul>
- *
- * <p>Events sent:
- * <ul>
- *   <li>{@code /topic/room/{roomId}} — NEW_ROOM_MESSAGE broadcast to all room subscribers</li>
- *   <li>{@code /user/queue/room-message-error} — error feedback to sender</li>
- *   <li>{@code /user/queue/room-sync-messages} — SYNC_ROOM_MESSAGES response to requester</li>
- * </ul>
- *
- * <p>Security contract:
- * <ul>
- *   <li>Sender must be a member of the room (validated against {@code room_members:{roomId}})</li>
- *   <li>Encrypted content is never decrypted by the server</li>
- *   <li>senderTgId is included in the event for display purposes only</li>
- * </ul>
+ * <p>Sender identity uses {@link AppPrincipal#getInternalId()} throughout.
  *
  * @see SendRoomMessageRequest
  * @see NewRoomMessageEvent
@@ -90,92 +58,67 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RoomMessageHandler {
 
-    /**
-     * STOMP topic for broadcasting new messages to all room subscribers.
-     */
     private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
-
-    /**
-     * STOMP destination for delivery acknowledgment sent back to the sender.
-     */
     private static final String ROOM_MESSAGE_SENT_DESTINATION = "/queue/room-message-sent";
-
-    /**
-     * STOMP destination for error events sent back to the sender.
-     */
     private static final String ROOM_MESSAGE_ERROR_DESTINATION = "/queue/room-message-error";
-
-    /**
-     * STOMP destination for sync response sent to the requesting user.
-     */
     private static final String ROOM_SYNC_DESTINATION = "/queue/room-sync-messages";
-
-    /**
-     * User-scoped room edit errors (and optional UI feedback); success is broadcast on the room topic.
-     */
     private static final String ROOM_MESSAGE_EDITED_USER_DESTINATION = "/queue/room-message-edited";
-
-    /**
-     * User-scoped room delete errors (success is broadcast on the room topic only).
-     */
     private static final String ROOM_MESSAGE_DELETED_USER_DESTINATION = "/queue/room-message-deleted";
 
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomRepository roomRepository;
-    private final UserRepository userRepository;
+    private final UserIdentityRepository userIdentityRepository;
     private final StompUserMessenger stompUserMessenger;
     private final SimpMessagingTemplate messagingTemplate;
     private final FileMessageRelayValidator fileMessageRelayValidator;
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
-    /**
-     * Handle {@code SEND_ROOM_MESSAGE} — relay an encrypted message to all room subscribers.
-     *
-     * <p>Validates that the sender is a room member, saves the message to Redis,
-     * and broadcasts a {@code NEW_ROOM_MESSAGE} event to {@code /topic/room/{roomId}}.
-     *
-     * @param request   the send message request containing encrypted content
-     * @param principal authenticated user principal
-     */
+    private record ParticipantContext(String internalId, Long telegramId) {
+    }
+
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.edit")
     public void editRoomMessage(
             @Payload @Valid EditRoomMessageRequest request, Principal principal) {
-        TelegramPrincipal tp = (TelegramPrincipal) principal;
-        Long senderTgId = tp.getUserId();
+        ParticipantContext editor = participantContext(principal);
+        if (editor == null) {
+            LOG.warn("room.message.edit: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String roomId = request.getRoomId();
         String messageId = request.getMessageId();
 
-        LOG.info("ROOM_MESSAGE_EDIT: roomId={}, messageId={}, senderTgId={}", roomId, messageId, senderTgId);
+        LOG.info("ROOM_MESSAGE_EDIT: roomId={}, messageId={}, senderInternalId={}",
+                roomId, messageId, editor.internalId());
 
         if (isRoomEditWindowExpired(request.getOriginalClientTimestamp(), request.getEditedAt())) {
-            sendRoomMessageEditError(tp, roomId, messageId, "WINDOW_EXPIRED");
+            sendRoomMessageEditError(principal, roomId, messageId, "WINDOW_EXPIRED");
             return;
         }
 
-        roomMembersRepository.isMember(roomId, senderTgId)
+        roomMembersRepository.isMember(roomId, editor.internalId())
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        sendRoomMessageEditError(tp, roomId, messageId, "NOT_MEMBER");
+                        sendRoomMessageEditError(principal, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
                     Instant editedAt = Instant.ofEpochMilli(request.getEditedAt());
                     return roomMessageRepository.updateMessage(
                                     roomId,
                                     messageId,
-                                    senderTgId,
+                                    editor.internalId(),
                                     request.getEncryptedContent(),
                                     request.getIv(),
                                     editedAt)
-                            .flatMap(rm -> userRepository.getDisplayName(senderTgId)
-                                    .defaultIfEmpty("User " + senderTgId)
+                            .flatMap(rm -> resolveDisplayName(rm.getSenderKey(), rm.getSenderTgId())
                                     .flatMap(senderName -> {
                                         RoomMessageEditedEvent ev = RoomMessageEditedEvent.builder()
                                                 .success(true)
                                                 .roomId(roomId)
                                                 .messageId(rm.getMessageId())
+                                                .senderInternalId(rm.getSenderKey())
                                                 .senderTgId(rm.getSenderTgId())
                                                 .senderName(senderName)
                                                 .encryptedContent(rm.getEncryptedContent())
@@ -191,7 +134,7 @@ public class RoomMessageHandler {
                                         return extendRoomTtlAfterMutation(roomId);
                                     }))
                             .switchIfEmpty(Mono.defer(() -> {
-                                sendRoomMessageEditError(tp, roomId, messageId, "NOT_EDITABLE");
+                                sendRoomMessageEditError(principal, roomId, messageId, "NOT_EDITABLE");
                                 return Mono.empty();
                             }));
                 })
@@ -199,7 +142,7 @@ public class RoomMessageHandler {
                         v -> { },
                         error -> {
                             LOG.error("ROOM_MESSAGE_EDIT failed: roomId={}, error={}", roomId, error.getMessage());
-                            sendRoomMessageEditError(tp, roomId, messageId, "INTERNAL_ERROR");
+                            sendRoomMessageEditError(principal, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -208,41 +151,47 @@ public class RoomMessageHandler {
     @MessageMapping("/room.message.delete")
     public void deleteRoomMessage(
             @Payload @Valid DeleteRoomMessageRequest request, Principal principal) {
-        TelegramPrincipal tp = (TelegramPrincipal) principal;
-        Long userId = tp.getUserId();
+        ParticipantContext actor = participantContext(principal);
+        if (actor == null) {
+            LOG.warn("room.message.delete: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String roomId = request.getRoomId();
         String messageId = request.getMessageId();
-        LOG.info("ROOM_MESSAGE_DELETE: roomId={}, messageId={}, userId={}", roomId, messageId, userId);
+        LOG.info("ROOM_MESSAGE_DELETE: roomId={}, messageId={}, actorInternalId={}",
+                roomId, messageId, actor.internalId());
 
-        roomMembersRepository.isMember(roomId, userId)
+        roomMembersRepository.isMember(roomId, actor.internalId())
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_MEMBER");
+                        sendRoomMessageDeleteError(principal, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
                     return roomRepository.findById(roomId)
                             .switchIfEmpty(Mono.defer(() -> {
-                                sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_FOUND");
+                                sendRoomMessageDeleteError(principal, roomId, messageId, "NOT_FOUND");
                                 return Mono.empty();
                             }))
                             .flatMap(room -> roomMessageRepository.findRoomMessageById(roomId, messageId)
                                     .flatMap(opt -> {
                                         if (opt.isEmpty()) {
-                                            sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_FOUND");
+                                            sendRoomMessageDeleteError(principal, roomId, messageId, "NOT_FOUND");
                                             return Mono.empty();
                                         }
                                         RoomMessage rm = opt.get();
-                                        boolean own = userId.equals(rm.getSenderTgId());
-                                        boolean asOwner = !own && java.util.Objects.equals(userId, room.getOwnerTgId());
+                                        boolean own = actor.internalId().equals(rm.getSenderKey());
+                                        boolean asOwner = !own
+                                                && StringUtils.hasText(room.getOwnerInternalId())
+                                                && room.getOwnerInternalId().equals(actor.internalId());
                                         if (!own && !asOwner) {
-                                            sendRoomMessageDeleteError(tp, roomId, messageId, "NOT_ALLOWED");
+                                            sendRoomMessageDeleteError(principal, roomId, messageId, "NOT_ALLOWED");
                                             return Mono.empty();
                                         }
                                         return roomMessageRepository.removeRoomMessageValue(roomId, rm)
                                                 .flatMap(ok -> {
                                                     if (!ok) {
                                                         sendRoomMessageDeleteError(
-                                                                tp, roomId, messageId, "NOT_FOUND");
+                                                                principal, roomId, messageId, "NOT_FOUND");
                                                         return Mono.empty();
                                                     }
                                                     if (FileMessageRelayValidator.isFileMessage(rm.getType())) {
@@ -254,7 +203,8 @@ public class RoomMessageHandler {
                                                             .success(true)
                                                             .roomId(roomId)
                                                             .messageId(messageId)
-                                                            .deletedByTgId(userId)
+                                                            .deletedByInternalId(actor.internalId())
+                                                            .deletedByTgId(actor.telegramId())
                                                             .deletedByOwner(!own && asOwner)
                                                             .deletedAt(Instant.now())
                                                             .build();
@@ -267,7 +217,7 @@ public class RoomMessageHandler {
                         v -> { },
                         error -> {
                             LOG.error("ROOM_MESSAGE_DELETE failed: roomId={}, error={}", roomId, error.getMessage());
-                            sendRoomMessageDeleteError(tp, roomId, messageId, "INTERNAL_ERROR");
+                            sendRoomMessageDeleteError(principal, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
@@ -275,38 +225,40 @@ public class RoomMessageHandler {
     @MessageMapping("/room.message.send")
     public void sendRoomMessage(
             @Payload @Valid SendRoomMessageRequest request, Principal principal) {
-        TelegramPrincipal tp = (TelegramPrincipal) principal;
-        Long senderTgId = tp.getUserId();
+        ParticipantContext sender = participantContext(principal);
+        if (sender == null) {
+            LOG.warn("room.message.send: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String roomId = request.getRoomId();
         String messageId = request.getMessageId();
 
-        LOG.info("SEND_ROOM_MESSAGE: roomId={}, senderTgId={}, messageId={}",
-                roomId, senderTgId, messageId);
+        LOG.info("SEND_ROOM_MESSAGE: roomId={}, senderInternalId={}, messageId={}",
+                roomId, sender.internalId(), messageId);
 
-        roomMembersRepository.isMember(roomId, senderTgId)
+        roomMembersRepository.isMember(roomId, sender.internalId())
                 .flatMap(isMember -> {
                     if (!isMember) {
                         LOG.debug("SEND_ROOM_MESSAGE rejected: user {} not a member of room {}",
-                                senderTgId, roomId);
-                        sendError(tp, roomId, messageId, "NOT_MEMBER");
+                                sender.internalId(), roomId);
+                        sendError(principal, roomId, messageId, "NOT_MEMBER");
                         return Mono.empty();
                     }
 
-                    // Validate file ownership and context for non-text messages
                     Mono<Void> fileValidation = Mono.empty();
                     if (FileMessageRelayValidator.isFileMessage(request.getType())) {
                         fileValidation = fileMessageRelayValidator.validateFileMessage(
                                 request.getFileId(), request.getThumbnailFileId(),
-                                senderTgId, roomId);
+                                sender.telegramId(), roomId);
                     }
 
                     return fileValidation
-                            .then(Mono.defer(() -> saveAndBroadcast(request, tp, roomId, messageId)));
+                            .then(Mono.defer(() -> saveAndBroadcast(request, sender, principal, roomId, messageId)));
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for room message {} in room {}: {}",
                             messageId, roomId, ex.getErrorCode());
-                    sendError(tp, roomId, messageId, ex.getErrorCode());
+                    sendError(principal, roomId, messageId, ex.getErrorCode());
                     return Mono.empty();
                 })
                 .subscribe(
@@ -314,21 +266,22 @@ public class RoomMessageHandler {
                         error -> {
                             LOG.error("Error processing SEND_ROOM_MESSAGE: roomId={}, error={}",
                                     roomId, error.getMessage());
-                            sendError(tp, roomId, messageId, "INTERNAL_ERROR");
+                            sendError(principal, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
 
     private Mono<Void> saveAndBroadcast(
-            SendRoomMessageRequest request, TelegramPrincipal sender, String roomId, String messageId) {
-        Long senderTgId = sender.getUserId();
+            SendRoomMessageRequest request, ParticipantContext sender, Principal principal,
+            String roomId, String messageId) {
         Instant serverTimestamp = Instant.now();
         String type = request.getType() != null ? request.getType() : "text";
 
         RoomMessage.RoomMessageBuilder msgBuilder = RoomMessage.builder()
                 .messageId(messageId)
                 .roomId(roomId)
-                .senderTgId(senderTgId)
+                .senderInternalId(sender.internalId())
+                .senderTgId(sender.telegramId())
                 .encryptedContent(request.getEncryptedContent())
                 .iv(request.getIv())
                 .clientTimestamp(request.getTimestamp())
@@ -353,28 +306,27 @@ public class RoomMessageHandler {
                     if (!saved) {
                         LOG.warn("Failed to save room message: roomId={}, messageId={}",
                                 roomId, messageId);
-                        sendError(sender, roomId, messageId, "SAVE_FAILED");
+                        sendError(principal, roomId, messageId, "SAVE_FAILED");
                         return Mono.<Void>empty();
                     }
-                    return broadcastMessage(request, sender, roomId, messageId, serverTimestamp);
+                    return broadcastMessage(request, sender, principal, roomId, messageId, serverTimestamp);
                 });
     }
 
     private Mono<Void> broadcastMessage(
-            SendRoomMessageRequest request, TelegramPrincipal sender,
+            SendRoomMessageRequest request, ParticipantContext sender, Principal principal,
             String roomId, String messageId, Instant serverTimestamp) {
-        Long senderTgId = sender.getUserId();
         String type = request.getType() != null ? request.getType() : "text";
 
-        return userRepository.getDisplayName(senderTgId)
-                .defaultIfEmpty("User " + senderTgId)
+        return resolveDisplayName(sender.internalId(), sender.telegramId())
                 .flatMap(senderName -> {
                     NewRoomMessageEvent.NewRoomMessageEventBuilder eventBuilder =
                             NewRoomMessageEvent.builder()
                                     .success(true)
                                     .roomId(roomId)
                                     .messageId(messageId)
-                                    .senderTgId(senderTgId)
+                                    .senderInternalId(sender.internalId())
+                                    .senderTgId(sender.telegramId())
                                     .senderName(senderName)
                                     .encryptedContent(request.getEncryptedContent())
                                     .iv(request.getIv())
@@ -396,12 +348,10 @@ public class RoomMessageHandler {
                     eventBuilder.editedAt(null);
                     NewRoomMessageEvent event = eventBuilder.build();
                     messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
-                    LOG.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderTgId={}",
-                            roomId, messageId, senderTgId);
-                    // Send delivery acknowledgment back to sender so the client can
-                    // transition the message status from 'sending' to 'sent'.
-                    stompUserMessenger.convertAndSendToUser(
-                            sender,
+                    LOG.info("NEW_ROOM_MESSAGE broadcast: roomId={}, messageId={}, senderInternalId={}",
+                            roomId, messageId, sender.internalId());
+                    stompUserMessenger.convertAndSendToUserPrincipal(
+                            principal,
                             ROOM_MESSAGE_SENT_DESTINATION,
                             RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
                     );
@@ -409,10 +359,6 @@ public class RoomMessageHandler {
                 });
     }
 
-    /**
-     * Refresh room TTL after a mutation that was already broadcast or acked.
-     * Failures must not surface as edit/send/delete errors to the client.
-     */
     private Mono<Void> extendRoomTtlAfterMutation(String roomId) {
         return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL)
                 .doOnError(err -> LOG.warn(
@@ -422,36 +368,32 @@ public class RoomMessageHandler {
                 .then();
     }
 
-    /**
-     * Handle {@code SYNC_ROOM_MESSAGES} — return all stored messages for a room.
-     *
-     * <p>Called when a client connects or reconnects to a room. Returns all messages
-     * currently in {@code messages:{roomId}}. The client deduplicates by messageId.
-     *
-     * @param request   the sync request containing roomId
-     * @param principal authenticated user principal
-     */
+    @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.sync")
     public void syncRoomMessages(@Payload SyncRoomMessagesRequest request, Principal principal) {
-        TelegramPrincipal tp = (TelegramPrincipal) principal;
-        Long userId = tp.getUserId();
+        ParticipantContext requester = participantContext(principal);
+        if (requester == null) {
+            LOG.warn("room.message.sync: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String roomId = request.roomId();
 
-        LOG.info("SYNC_ROOM_MESSAGES: roomId={}, userId={}", roomId, userId);
+        LOG.info("SYNC_ROOM_MESSAGES: roomId={}, requesterInternalId={}", roomId, requester.internalId());
 
-        roomMembersRepository.isMember(roomId, userId)
+        roomMembersRepository.isMember(roomId, requester.internalId())
                 .flatMap(isMember -> {
                     if (!isMember) {
-                        LOG.debug("SYNC_ROOM_MESSAGES rejected: user {} is not a member of room {}", userId, roomId);
-                        sendSyncError(tp, roomId, "NOT_MEMBER");
+                        LOG.debug("SYNC_ROOM_MESSAGES rejected: user {} is not a member of room {}",
+                                requester.internalId(), roomId);
+                        sendSyncError(principal, roomId, "NOT_MEMBER");
                         return Mono.empty();
                     }
 
                     return roomMessageRepository.getRoomMessages(roomId)
-                            .flatMap(msg -> userRepository.getDisplayName(msg.getSenderTgId())
-                                    .defaultIfEmpty("User " + msg.getSenderTgId())
+                            .flatMap(msg -> resolveDisplayName(msg.getSenderKey(), msg.getSenderTgId())
                                     .map(senderName -> SyncRoomMessagesEvent.SyncedRoomMessage.builder()
                                             .messageId(msg.getMessageId())
+                                            .senderInternalId(msg.getSenderKey())
                                             .senderTgId(msg.getSenderTgId())
                                             .senderName(senderName)
                                             .encryptedContent(msg.getEncryptedContent())
@@ -469,13 +411,13 @@ public class RoomMessageHandler {
                             .collectList()
                             .flatMap((List<SyncRoomMessagesEvent.SyncedRoomMessage> messages) -> {
                                 SyncRoomMessagesEvent event = SyncRoomMessagesEvent.success(roomId, messages);
-                                stompUserMessenger.convertAndSendToUser(
-                                        tp,
+                                stompUserMessenger.convertAndSendToUserPrincipal(
+                                        principal,
                                         ROOM_SYNC_DESTINATION,
                                         event
                                 );
-                                LOG.info("SYNC_ROOM_MESSAGES sent: roomId={}, userId={}, count={}",
-                                        roomId, userId, messages.size());
+                                LOG.info("SYNC_ROOM_MESSAGES sent: roomId={}, requesterInternalId={}, count={}",
+                                        roomId, requester.internalId(), messages.size());
                                 offlineQueueMetrics.recordDelivered(OfflineSessionType.room, messages.size());
                                 return Mono.empty();
                             });
@@ -483,33 +425,58 @@ public class RoomMessageHandler {
                 .subscribe(
                         result -> {},
                         error -> {
-                            LOG.error("Error processing SYNC_ROOM_MESSAGES: roomId={}, userId={}, error={}",
-                                    roomId, userId, error.getMessage());
-                            sendSyncError(tp, roomId, "INTERNAL_ERROR");
+                            LOG.error("Error processing SYNC_ROOM_MESSAGES: roomId={}, internalId={}, error={}",
+                                    roomId, requester.internalId(), error.getMessage());
+                            sendSyncError(principal, roomId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    private void sendError(TelegramPrincipal sender, String roomId, String messageId, String errorCode) {
-        stompUserMessenger.convertAndSendToUser(
+    private ParticipantContext participantContext(Principal principal) {
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            return null;
+        }
+        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
+                ? telegramPrincipal.getUserId()
+                : null;
+        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
+    }
+
+    private Mono<String> resolveDisplayName(String internalId, Long telegramIdFallback) {
+        if (!StringUtils.hasText(internalId)) {
+            return Mono.just(fallbackDisplayName(telegramIdFallback));
+        }
+        return userIdentityRepository.findById(internalId)
+                .map(UnifiedUser::displayName)
+                .defaultIfEmpty(fallbackDisplayName(telegramIdFallback));
+    }
+
+    private static String fallbackDisplayName(Long telegramId) {
+        return telegramId != null ? "User " + telegramId : "User";
+    }
+
+    private void sendError(Principal sender, String roomId, String messageId, String errorCode) {
+        stompUserMessenger.convertAndSendToUserPrincipal(
                 sender,
                 ROOM_MESSAGE_SENT_DESTINATION,
                 RoomMessageSentEvent.error(roomId, messageId, errorCode)
         );
-        LOG.trace("Sent room message error to sender tgId={}: {}", sender.getUserId(), errorCode);
+        LOG.trace("Sent room message error to sender internalId={}: {}",
+                sender instanceof AppPrincipal ap ? ap.getInternalId() : sender.getName(), errorCode);
     }
 
-    private void sendSyncError(TelegramPrincipal requester, String roomId, String errorCode) {
+    private void sendSyncError(Principal requester, String roomId, String errorCode) {
         SyncRoomMessagesEvent event = SyncRoomMessagesEvent.error(roomId, errorCode);
-        stompUserMessenger.convertAndSendToUser(
+        stompUserMessenger.convertAndSendToUserPrincipal(
                 requester,
                 ROOM_SYNC_DESTINATION,
                 event
         );
-        LOG.trace("Sent sync error to user tgId={}: {}", requester.getUserId(), errorCode);
+        LOG.trace("Sent sync error to user internalId={}: {}",
+                requester instanceof AppPrincipal ap ? ap.getInternalId() : requester.getName(), errorCode);
     }
 
-    private void sendRoomMessageEditError(TelegramPrincipal requester, String roomId, String messageId,
+    private void sendRoomMessageEditError(Principal requester, String roomId, String messageId,
             String errorCode) {
         RoomMessageEditedEvent event = RoomMessageEditedEvent.builder()
                 .success(false)
@@ -517,14 +484,14 @@ public class RoomMessageHandler {
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        stompUserMessenger.convertAndSendToUser(
+        stompUserMessenger.convertAndSendToUserPrincipal(
                 requester,
                 ROOM_MESSAGE_EDITED_USER_DESTINATION,
                 event
         );
     }
 
-    private void sendRoomMessageDeleteError(TelegramPrincipal requester, String roomId, String messageId,
+    private void sendRoomMessageDeleteError(Principal requester, String roomId, String messageId,
             String errorCode) {
         RoomMessageDeletedEvent event = RoomMessageDeletedEvent.builder()
                 .eventType("ROOM_MESSAGE_DELETED")
@@ -533,7 +500,7 @@ public class RoomMessageHandler {
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        stompUserMessenger.convertAndSendToUser(
+        stompUserMessenger.convertAndSendToUserPrincipal(
                 requester,
                 ROOM_MESSAGE_DELETED_USER_DESTINATION,
                 event

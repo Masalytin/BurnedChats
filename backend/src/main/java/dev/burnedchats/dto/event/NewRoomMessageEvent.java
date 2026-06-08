@@ -59,8 +59,16 @@ public class NewRoomMessageEvent {
     private String messageId;
 
     /**
-     * Telegram user ID of the sender (for display).
+     * Stable internal user id of the sender (canonical identity).
      */
+    private String senderInternalId;
+
+    /**
+     * Telegram user ID of the sender when linked; null for wallet-only senders.
+     *
+     * @deprecated Prefer {@link #senderInternalId}.
+     */
+    @Deprecated
     private Long senderTgId;
 
     /**

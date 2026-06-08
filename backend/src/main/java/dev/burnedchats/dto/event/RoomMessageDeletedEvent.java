@@ -20,6 +20,12 @@ public class RoomMessageDeletedEvent {
     private boolean success;
     private String roomId;
     private String messageId;
+    private String deletedByInternalId;
+
+    /**
+     * @deprecated Prefer {@link #deletedByInternalId}.
+     */
+    @Deprecated
     private Long deletedByTgId;
     private boolean deletedByOwner;
     private Instant deletedAt;

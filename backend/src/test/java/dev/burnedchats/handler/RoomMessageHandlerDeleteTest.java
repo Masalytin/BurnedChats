@@ -8,7 +8,7 @@ import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
-import dev.burnedchats.repository.UserRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
@@ -33,6 +33,9 @@ import static org.mockito.Mockito.when;
 class RoomMessageHandlerDeleteTest {
 
     private static final String ROOM = "room-1";
+    private static final String ACTOR_INTERNAL = InternalIds.forTelegramId(9L);
+    private static final String OWNER_INTERNAL = InternalIds.forTelegramId(100L);
+    private static final String SENDER_INTERNAL = InternalIds.forTelegramId(2L);
 
     @Mock
     private RoomMembersRepository roomMembersRepository;
@@ -41,7 +44,7 @@ class RoomMessageHandlerDeleteTest {
     @Mock
     private RoomRepository roomRepository;
     @Mock
-    private UserRepository userRepository;
+    private UserIdentityRepository userIdentityRepository;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
     @Mock
@@ -64,12 +67,13 @@ class RoomMessageHandlerDeleteTest {
 
         TelegramPrincipal p = org.mockito.Mockito.mock(TelegramPrincipal.class);
         when(p.getUserId()).thenReturn(9L);
+        when(p.getInternalId()).thenReturn(ACTOR_INTERNAL);
 
-        when(roomMembersRepository.isMember(ROOM, 9L)).thenReturn(Mono.just(true));
+        when(roomMembersRepository.isMember(ROOM, ACTOR_INTERNAL)).thenReturn(Mono.just(true));
         when(roomRepository.findById(ROOM))
                 .thenReturn(Mono.just(dev.burnedchats.model.Room.builder()
                         .id(ROOM)
-                        .ownerInternalId(InternalIds.forTelegramId(100L))
+                        .ownerInternalId(OWNER_INTERNAL)
                         .ownerTgId(100L)
                         .build()));
         when(roomMessageRepository.findRoomMessageById(ROOM, "mid"))
@@ -77,6 +81,7 @@ class RoomMessageHandlerDeleteTest {
                         RoomMessage.builder()
                                 .messageId("mid")
                                 .roomId(ROOM)
+                                .senderInternalId(SENDER_INTERNAL)
                                 .senderTgId(2L)
                                 .type("text")
                                 .build())));
@@ -84,7 +89,8 @@ class RoomMessageHandlerDeleteTest {
         roomMessageHandler.deleteRoomMessage(req, p);
 
         ArgumentCaptor<RoomMessageDeletedEvent> cap = ArgumentCaptor.forClass(RoomMessageDeletedEvent.class);
-        verify(stompUserMessenger).convertAndSendToUser(eq(p), eq("/queue/room-message-deleted"), cap.capture());
+        verify(stompUserMessenger).convertAndSendToUserPrincipal(
+                eq(p), eq("/queue/room-message-deleted"), cap.capture());
         assertThat(cap.getValue().isSuccess()).isFalse();
         assertThat(cap.getValue().getErrorCode()).isEqualTo("NOT_ALLOWED");
     }
