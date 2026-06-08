@@ -25,7 +25,9 @@
 
   "home": {
     "sectionSearch": "Start a Secure Chat",
-    "searchPlaceholder": "Search by @username or ID",
+    "searchPlaceholder": "@username, Telegram ID, Internal ID, or wallet",
+    "searchHint": "Share your Internal ID (in profile above) so others can find you. Search accepts @username, numeric Telegram ID, full Internal ID (UUID), or wallet address (EQ…).",
+    "internalIdLabel": "Internal ID (share to be found): {{id}}",
     "searchButton": "Search User",
     "sectionSessions": "Active Sessions",
     "noSessions": "No active sessions",
@@ -718,7 +720,8 @@
     "searching": "Searching...",
     "startChat": "Start Secure Chat",
     "notFound": "User not found",
-    "notFoundHint": "Make sure the username is correct or try searching by Telegram ID",
+    "notFoundHint": "Check @username, Telegram ID, full Internal ID, or wallet address",
+    "walletUser": "Wallet user",
     "errorHint": "Please try again or check your connection",
     "errors": {
       "SELF_SEARCH": "You can't start a chat with yourself",

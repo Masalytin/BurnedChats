@@ -55,11 +55,14 @@ export function makeReplyPreview(message: DecryptedMessage, t: TFunction = i18n.
 
 export function resolveReplyAuthor(
   message: DecryptedMessage,
-  userId: number,
+  userTelegramId: number | undefined,
   peerDisplayName: string,
   t: TFunction = i18n.t.bind(i18n),
 ): string {
-  if (message.isOwn || message.fromUserId === userId) {
+  if (
+    message.isOwn
+    || (userTelegramId != null && message.fromUserId != null && message.fromUserId === userTelegramId)
+  ) {
     return t('chat.reply.you');
   }
   const name = message.senderName?.trim();
@@ -103,7 +106,7 @@ export function enrichReplyTo(
     ...m,
     replyTo: {
       messageId: orig.id,
-      senderId: orig.fromUserId,
+      senderId: orig.fromUserId ?? 0,
       senderName: orig.senderName,
       preview: makeReplyPreview(orig, t),
       type: orig.type,
@@ -113,7 +116,7 @@ export function enrichReplyTo(
 
 export function quoteSenderLabel(
   reply: ReplyToInfo,
-  userId: number,
+  userTelegramId: number | undefined,
   peerDisplayName: string,
   t: TFunction = i18n.t.bind(i18n),
 ): string {
@@ -123,7 +126,7 @@ export function quoteSenderLabel(
   if (reply.senderName?.trim()) {
     return reply.senderName.trim();
   }
-  if (reply.senderId === userId) {
+  if (userTelegramId != null && reply.senderId === userTelegramId) {
     return t('chat.reply.you');
   }
   return peerDisplayName;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import type { SearchResult, SearchErrorCode, UserInfo } from '../types';
+import type { SearchResult, SearchErrorCode, UserInfo, WireUserResponse } from '../types';
+import { mapWireUser } from '../types';
 
 /** Destination for sending search requests */
 const SEARCH_DESTINATION = '/app/search';
@@ -57,14 +58,7 @@ const initialResult: SearchResult = {
  */
 interface ServerSearchResult {
   found: boolean;
-  user?: {
-    id: number;
-    username?: string;
-    displayName: string;
-    photoUrl?: string;
-    online: boolean;
-    premium: boolean;
-  };
+  user?: WireUserResponse;
   error?: string;
 }
 
@@ -160,15 +154,7 @@ export function useSearch({
       }
 
       if (data.found && data.user) {
-        const raw = data.user;
-        const user: UserInfo = {
-          id: Number(raw.id),
-          username: raw.username ?? undefined,
-          displayName: raw.displayName ?? `User ${raw.id}`,
-          photoUrl: raw.photoUrl ?? undefined,
-          online: Boolean(raw.online),
-          premium: Boolean(raw.premium),
-        };
+        const user = mapWireUser(data.user);
         setResult((prev) => {
           if (prev.status !== 'searching') return prev;
           return { status: 'found', user, error: null };

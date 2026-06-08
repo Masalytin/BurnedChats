@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import type { ChatRequest, UserInfo } from '../types';
+import type { ChatRequest, UserInfo, WireUserResponse } from '../types';
+import { mapWireUser } from '../types';
 
 /** Destination for incoming request events (from server) */
 const INCOMING_REQUEST_DESTINATION = '/user/queue/incoming-request';
@@ -38,14 +39,8 @@ export type ActionStatus =
 /** Incoming request from server */
 interface ServerIncomingRequestEvent {
   sessionId: string;
-  sender: {
-    id: number;
-    username?: string;
-    displayName: string;
-    photoUrl?: string;
-    online: boolean;
-    premium: boolean;
-  };
+  sender: WireUserResponse;
+  fromInternalId?: string;
   hasSecretQuestion: boolean;
   secretQuestion?: string;
   createdAt: string;
@@ -56,14 +51,7 @@ interface ServerIncomingRequestEvent {
 interface ServerSessionAcceptedEvent {
   success: boolean;
   sessionId: string;
-  peer?: {
-    id: number;
-    username?: string;
-    displayName: string;
-    photoUrl?: string;
-    online: boolean;
-    premium: boolean;
-  };
+  peer?: WireUserResponse;
   acceptedAt?: string;
   error?: string;
 }
@@ -204,11 +192,13 @@ export function useIncomingRequests({
     try {
       const data: ServerIncomingRequestEvent = JSON.parse(message.body);
 
+      const sender = mapWireUser(data.sender);
       const request: ChatRequest = {
         id: data.sessionId,
-        fromUserId: data.sender.id,
-        fromUsername: data.sender.username,
-        fromName: data.sender.displayName,
+        fromInternalId: data.fromInternalId?.trim() || sender.internalId,
+        fromUserId: sender.id,
+        fromUsername: sender.username,
+        fromName: sender.displayName,
         secretQuestion: data.secretQuestion,
         createdAt: new Date(data.createdAt).getTime(),
         expiresAt: new Date(data.expiresAt).getTime(),
@@ -260,14 +250,7 @@ export function useIncomingRequests({
         }
 
         if (data.success && data.peer) {
-          const peer: UserInfo = {
-            id: data.peer.id,
-            username: data.peer.username,
-            displayName: data.peer.displayName,
-            photoUrl: data.peer.photoUrl,
-            online: data.peer.online,
-            premium: data.peer.premium,
-          };
+          const peer = mapWireUser(data.peer);
 
           setActionResult({
             status: 'accepted',
@@ -286,14 +269,7 @@ export function useIncomingRequests({
         // We're the initiator - our request was accepted by the peer
         // This happens when someone accepts our chat request
         if (data.success && data.peer) {
-          const peer: UserInfo = {
-            id: data.peer.id,
-            username: data.peer.username,
-            displayName: data.peer.displayName,
-            photoUrl: data.peer.photoUrl,
-            online: data.peer.online,
-            premium: data.peer.premium,
-          };
+          const peer = mapWireUser(data.peer);
 
           onOurRequestAcceptedRef.current?.(sessionId, peer);
           console.log('[useIncomingRequests] Our request accepted (as initiator):', sessionId);

@@ -243,7 +243,7 @@ export function HomePage({
                 ) : null}
                 {user?.internalId ? (
                   <span className="home-profile-id-row">
-                    <span className="home-profile-id-label">Internal ID: {user.internalId}</span>
+                    <span className="home-profile-id-label">{t('home.internalIdLabel', { id: user.internalId })}</span>
                     <button
                       type="button"
                       className="home-profile-copy"
@@ -312,6 +312,7 @@ export function HomePage({
             autoCapitalize="off"
             spellCheck={false}
           />
+          <p className="home-search-hint">{t('home.searchHint')}</p>
           <Button 
             type="submit"
             fullWidth 

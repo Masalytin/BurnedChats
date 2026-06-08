@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import type { UserInfo } from '../types';
+import type { UserInfo, WireUserResponse } from '../types';
+import { mapWireUser } from '../types';
 
 /** Destination for creating session */
 const SESSION_CREATE_DESTINATION = '/app/session.create';
@@ -46,14 +47,7 @@ export interface PendingSession {
 interface ServerSessionCreatedEvent {
   success: boolean;
   sessionId?: string;
-  recipient?: {
-    id: number;
-    username?: string;
-    displayName: string;
-    photoUrl?: string;
-    online: boolean;
-    premium: boolean;
-  };
+  recipient?: WireUserResponse;
   hasSecretQuestion?: boolean;
   createdAt?: string;
   expiresAt?: string;
@@ -84,7 +78,7 @@ interface UseSessionReturn {
   /** Current creation result */
   result: CreateSessionResult;
   /** Create a new session */
-  createSession: (recipientId: number, secret?: CreateSessionSecretOptions) => void;
+  createSession: (recipientInternalId: string, secret?: CreateSessionSecretOptions) => void;
   /** Reset state */
   reset: () => void;
   /** Whether creation is in progress */
@@ -183,14 +177,7 @@ export function useSession({
       if (data.success && data.sessionId && data.recipient) {
         const session: PendingSession = {
           id: data.sessionId,
-          recipient: {
-            id: data.recipient.id,
-            username: data.recipient.username,
-            displayName: data.recipient.displayName,
-            photoUrl: data.recipient.photoUrl,
-            online: data.recipient.online,
-            premium: data.recipient.premium,
-          },
+          recipient: mapWireUser(data.recipient),
           hasSecretQuestion: data.hasSecretQuestion ?? false,
           createdAt: data.createdAt ? new Date(data.createdAt).getTime() : Date.now(),
           expiresAt: data.expiresAt ? new Date(data.expiresAt).getTime() : Date.now() + 5 * 60 * 1000,
@@ -238,7 +225,7 @@ export function useSession({
   /**
    * Create a new session request
    */
-  const createSession = useCallback((recipientId: number, secret?: CreateSessionSecretOptions) => {
+  const createSession = useCallback((recipientInternalId: string, secret?: CreateSessionSecretOptions) => {
     if (!isConnected) {
       setResult({
         status: 'error',
@@ -255,12 +242,23 @@ export function useSession({
       error: null,
     });
 
+    const trimmedId = recipientInternalId.trim();
+    if (!trimmedId) {
+      setResult({
+        status: 'error',
+        session: null,
+        error: 'RECIPIENT_NOT_FOUND',
+      });
+      onErrorRef.current?.('RECIPIENT_NOT_FOUND');
+      return;
+    }
+
     const payload: {
-      recipientId: number;
+      recipientInternalId: string;
       secretQuestion?: string;
       secretExpectedAnswer?: string;
     } = {
-      recipientId,
+      recipientInternalId: trimmedId,
     };
 
     const q = secret?.secretQuestion?.trim();
@@ -271,7 +269,7 @@ export function useSession({
     }
 
     publish(SESSION_CREATE_DESTINATION, payload);
-    console.log('[useSession] Session creation request sent:', recipientId);
+    console.log('[useSession] Session creation request sent:', trimmedId);
   }, [isConnected, publish]);
 
   /**

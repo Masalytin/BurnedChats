@@ -153,8 +153,10 @@ export interface SendFileOptions {
 interface UseMessagesOptions {
   /** Session ID to listen for messages */
   sessionId: string;
-  /** Current user's Telegram ID */
-  userId: number;
+  /** Current user's stable internal id */
+  userId: string;
+  /** Telegram numeric id when linked (legacy senderId on the wire) */
+  userTelegramId?: number;
   /** WebSocket connection from app (required – use same instance as AppContent) */
   ws: UseMessagesWebSocket;
   /** Whether WebSocket is a reconnection (5.1.2) */
@@ -262,7 +264,14 @@ const MESSAGE_DELETED_DESTINATION = '/user/queue/message-deleted';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userId, ws, onNewMessage, onStatusChange, onError, onSyncComplete, onEditError } = options;
+  const { sessionId, userTelegramId, ws, onNewMessage, onStatusChange, onError, onSyncComplete, onEditError } = options;
+
+  const isOwnWireSender = useCallback((senderId: number | null | undefined): boolean => {
+    if (senderId != null && userTelegramId != null) {
+      return senderId === userTelegramId;
+    }
+    return false;
+  }, [userTelegramId]);
   const { hiddenIds, hide: hideMessages } = useHiddenMessages('dm', sessionId);
   const { isConnected, subscribe, unsubscribe, publish, isReconnection: wsIsReconnection } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
@@ -423,7 +432,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       const localMessage: DecryptedMessage = {
         id: messageId,
         sessionId,
-        fromUserId: userId,
+        fromUserId: userTelegramId,
         content: text,
         timestamp,
         status: 'sending',
@@ -455,7 +464,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       handleError('ENCRYPTION_FAILED', errMsg);
       return { success: false, messageId: null, error: 'ENCRYPTION_FAILED' };
     }
-  }, [isConnected, sessionId, userId, publish, handleError]);
+  }, [isConnected, sessionId, userTelegramId, publish, handleError]);
 
   // ============================================
   // File Message Sending (P4-3-2-1)
@@ -526,7 +535,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       const localMessage: DecryptedFileMessage = {
         id: messageId,
         sessionId,
-        fromUserId: userId,
+        fromUserId: userTelegramId,
         content: caption || fileContentPlaceholder(messageType, file.name),
         timestamp,
         status: 'sending',
@@ -576,7 +585,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       handleError('SEND_FAILED', errMsg);
       return { success: false, messageId: null, error: 'SEND_FAILED' };
     }
-  }, [isConnected, sessionId, userId, publish, handleError]);
+  }, [isConnected, sessionId, userTelegramId, publish, handleError]);
 
   // ============================================
   // Decryption (4.2.6)
@@ -615,7 +624,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
         if (isFileMsg) {
           decryptedMsg = await decryptFileEvent(
-            event, aesKey, sessionId, userId, ts, eventType, event.replyToMessageId || undefined,
+            event, aesKey, sessionId, userTelegramId, ts, eventType, event.replyToMessageId || undefined,
           );
         } else {
           const plaintext = await decryptMessage(
@@ -632,7 +641,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             content: plaintext,
             timestamp: ts,
             status: 'delivered',
-            isOwn: event.senderId === userId,
+            isOwn: isOwnWireSender(event.senderId),
             type: 'text',
             replyToMessageId: event.replyToMessageId || undefined,
           };
@@ -654,7 +663,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse message:', parseErr);
     }
-  }, [sessionId, userId, onNewMessage, handleError]);
+  }, [sessionId, userTelegramId, isOwnWireSender, onNewMessage, handleError]);
 
   /**
    * Handle synced messages response (5.1.2).
@@ -697,7 +706,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
             if (isFileMsg) {
               const fileMsg = await decryptSyncedFileMessage(
-                syncedMsg, aesKey, sessionId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
+                syncedMsg, aesKey, sessionId, userTelegramId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
               );
               decryptedMessages.push(fileMsg);
             } else {
@@ -715,7 +724,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 content: plaintext,
                 timestamp: ts,
                 status: 'delivered',
-                isOwn: syncedMsg.senderId === userId,
+                isOwn: isOwnWireSender(syncedMsg.senderId),
                 type: 'text',
                 replyToMessageId: syncedMsg.replyToMessageId || undefined,
                 editedAt: editedAtFromServerIso(syncedMsg.editedAt),
@@ -779,7 +788,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       console.error('[useMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [sessionId, userId, onNewMessage, onSyncComplete, handleError, setSyncing]);
+  }, [sessionId, userTelegramId, isOwnWireSender, onNewMessage, onSyncComplete, handleError, setSyncing]);
 
   /**
    * Trigger message sync (5.1.2).
@@ -1161,7 +1170,7 @@ async function decryptFileEvent(
   event: NewMessageEvent,
   aesKey: CryptoKey,
   sessionId: string,
-  userId: number,
+  userTelegramId: number | undefined,
   timestamp: number,
   messageType: MessageType,
   replyToMessageId?: string,
@@ -1200,7 +1209,7 @@ async function decryptFileEvent(
     content,
     timestamp,
     status: 'delivered',
-    isOwn: event.senderId === userId,
+    isOwn: userTelegramId != null && event.senderId === userTelegramId,
     type: messageType as 'image' | 'video' | 'file',
     fileId: event.fileId!,
     fileSize: event.fileSize ?? 0,
@@ -1226,7 +1235,7 @@ async function decryptSyncedFileMessage(
   syncedMsg: SyncedMessage,
   aesKey: CryptoKey,
   sessionId: string,
-  userId: number,
+  userTelegramId: number | undefined,
   timestamp: number,
   messageType: MessageType,
   editedAt?: number,
@@ -1265,7 +1274,7 @@ async function decryptSyncedFileMessage(
     content,
     timestamp,
     status: 'delivered',
-    isOwn: syncedMsg.senderId === userId,
+    isOwn: userTelegramId != null && syncedMsg.senderId === userTelegramId,
     type: messageType as 'image' | 'video' | 'file',
     fileId: syncedMsg.fileId!,
     fileSize: syncedMsg.fileSize ?? 0,

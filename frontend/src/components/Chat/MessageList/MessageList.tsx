@@ -62,8 +62,8 @@ interface MessageListProps {
   /** Delete for everyone (server); optional per-message gate (IMP-MA-06) */
   onRequestDeleteForEveryone?: (messageIds: string[]) => void;
   canDeleteForEveryone?: (message: DecryptedMessage) => boolean;
-  /** Current user id (IMP-MA-03 quote labels) */
-  userId: number;
+  /** Current user's Telegram id when linked (quote labels) */
+  userTelegramId?: number;
   /** Peer name in DM, or a fallback in rooms when no sender is known */
   peerDisplayName: string;
   /** Start reply in composer (context menu or swipe) */
@@ -99,7 +99,7 @@ export const MessageList = memo(
   onRequestDeleteForMe,
   onRequestDeleteForEveryone,
   canDeleteForEveryone,
-  userId,
+  userTelegramId,
   peerDisplayName,
   onReplyToMessage,
   onEditMessage,
@@ -487,7 +487,7 @@ export const MessageList = memo(
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
-                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    ? quoteSenderLabel(message.replyTo, userTelegramId, peerDisplayName, t)
                     : undefined
                 }
                 onReplyQuoteClick={scrollToMessage}
@@ -522,7 +522,7 @@ export const MessageList = memo(
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
-                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    ? quoteSenderLabel(message.replyTo, userTelegramId, peerDisplayName, t)
                     : undefined
                 }
                 onReplyQuoteClick={scrollToMessage}
@@ -556,7 +556,7 @@ export const MessageList = memo(
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
-                    ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                    ? quoteSenderLabel(message.replyTo, userTelegramId, peerDisplayName, t)
                     : undefined
                 }
                 onReplyQuoteClick={scrollToMessage}
@@ -587,7 +587,7 @@ export const MessageList = memo(
             replyTo={message.replyTo}
             replySenderLabel={
               message.replyTo
-                ? quoteSenderLabel(message.replyTo, userId, peerDisplayName, t)
+                ? quoteSenderLabel(message.replyTo, userTelegramId, peerDisplayName, t)
                 : undefined
             }
             onReplyQuoteClick={scrollToMessage}

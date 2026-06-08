@@ -34,6 +34,11 @@ export interface AuthUser {
   lastName?: string;
 }
 
+/** Stable address id for DM/room routing — always {@link AuthUser.internalId}. */
+export function getAddressUserId(user: AuthUser): string {
+  return user.internalId;
+}
+
 export interface AuthProvider {
   type: AuthType;
   authenticate(): Promise<AuthResult>;

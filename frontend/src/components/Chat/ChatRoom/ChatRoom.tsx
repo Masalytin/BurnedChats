@@ -30,8 +30,8 @@ export interface FileUploadState {
 }
 
 interface ChatRoomProps {
-  /** Current user's Telegram id (IMP-MA-03 reply author labels) */
-  userId: number;
+  /** Current user's Telegram id when linked (reply author labels) */
+  userTelegramId?: number;
   /** Session ID for the chat */
   sessionId: string;
   /** Information about the peer user */
@@ -92,7 +92,7 @@ interface ChatRoomProps {
  * - File picker + preview + upload progress (P4-4-1-1 / P4-4-1-2 / P4-4-1-3)
  */
 export const ChatRoom = memo(function ChatRoom({
-  userId,
+  userTelegramId,
   sessionId: _sessionId,
   peer,
   messages,
@@ -132,11 +132,11 @@ export const ChatRoom = memo(function ChatRoom({
       return null;
     }
     return {
-      senderName: resolveReplyAuthor(replyTarget, userId, displayName, t),
+      senderName: resolveReplyAuthor(replyTarget, userTelegramId, displayName, t),
       preview: makeReplyPreview(replyTarget, t),
       type: replyTarget.type,
     };
-  }, [replyTarget, userId, displayName, t]);
+  }, [replyTarget, userTelegramId, displayName, t]);
 
   useEffect(() => {
     if (replyTarget) {
@@ -468,7 +468,7 @@ export const ChatRoom = memo(function ChatRoom({
         onRequestDeleteForMe={requestDeleteForMe}
         onRequestDeleteForEveryone={onDeleteForEveryone ? requestDeleteForEveryone : undefined}
         canDeleteForEveryone={onDeleteForEveryone ? (m) => m.isOwn : undefined}
-        userId={userId}
+        userTelegramId={userTelegramId}
         peerDisplayName={displayName}
         onReplyToMessage={handleReplyToMessage}
         onEditMessage={onEditMessage ? handleStartEdit : undefined}

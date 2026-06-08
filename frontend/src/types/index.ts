@@ -7,12 +7,48 @@
 // ============================================
 
 export interface UserInfo {
-  id: number;
+  /** Stable address id (UUID). Primary key for DM/room routing. */
+  internalId: string;
+  /** Telegram numeric ID when available (wallet-only users omit). */
+  id?: number;
   username?: string;
   displayName: string;
+  /** Normalized wallet address when known (search / display). */
+  walletAddress?: string;
   photoUrl?: string;
   online: boolean;
   premium: boolean;
+}
+
+/** Wire shape of backend {@code UserResponse} in STOMP events. */
+export interface WireUserResponse {
+  internalId?: string | null;
+  id?: number | null;
+  username?: string | null;
+  displayName?: string | null;
+  photoUrl?: string | null;
+  walletAddress?: string | null;
+  online?: boolean;
+  premium?: boolean;
+}
+
+/** Maps backend UserResponse to frontend UserInfo. */
+export function mapWireUser(raw: WireUserResponse): UserInfo {
+  const internalId = raw.internalId?.trim()
+    || (raw.id != null ? String(raw.id) : '');
+  if (!internalId) {
+    throw new Error('Wire user payload missing internalId');
+  }
+  return {
+    internalId,
+    id: raw.id ?? undefined,
+    username: raw.username ?? undefined,
+    displayName: raw.displayName?.trim() || (raw.id != null ? `User ${raw.id}` : 'User'),
+    walletAddress: raw.walletAddress ?? undefined,
+    photoUrl: raw.photoUrl ?? undefined,
+    online: Boolean(raw.online),
+    premium: Boolean(raw.premium),
+  };
 }
 
 export type SearchStatus = 
@@ -47,7 +83,9 @@ export type SessionStatus =
 
 export interface Session {
   id: string;
-  peerId: number;
+  peerInternalId: string;
+  /** @deprecated Prefer peerInternalId */
+  peerId?: number;
   peerUsername?: string;
   peerName: string;
   status: SessionStatus;
@@ -58,7 +96,9 @@ export interface Session {
 
 export interface ChatRequest {
   id: string;
-  fromUserId: number;
+  fromInternalId: string;
+  /** @deprecated Prefer fromInternalId */
+  fromUserId?: number;
   fromUsername?: string;
   fromName: string;
   secretQuestion?: string;
@@ -93,7 +133,8 @@ export type MessageStatus =
 export interface Message {
   id: string;
   sessionId: string;
-  fromUserId: number;
+  /** Telegram sender id when present on the wire (wallet senders may omit). */
+  fromUserId?: number;
   encryptedContent: string;    // Base64 encoded
   iv: string;                  // Base64 encoded initialization vector
   timestamp: number;

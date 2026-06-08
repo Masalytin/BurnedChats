@@ -25,7 +25,9 @@
 
   "home": {
     "sectionSearch": "Начать защищённый чат",
-    "searchPlaceholder": "Поиск по @username или ID",
+    "searchPlaceholder": "@username, Telegram ID, Internal ID или кошелёк",
+    "searchHint": "Поделитесь Internal ID (в профиле выше), чтобы вас нашли. Поиск: @username, числовой Telegram ID, полный Internal ID (UUID) или адрес кошелька (EQ…).",
+    "internalIdLabel": "Internal ID (для поиска): {{id}}",
     "searchButton": "Найти пользователя",
     "sectionSessions": "Активные сессии",
     "noSessions": "Нет активных сессий",
@@ -726,7 +728,8 @@
     "searching": "Поиск...",
     "startChat": "Начать защищённый чат",
     "notFound": "Пользователь не найден",
-    "notFoundHint": "Убедитесь, что username указан верно, или попробуйте поиск по Telegram ID",
+    "notFoundHint": "Проверьте @username, Telegram ID, полный Internal ID или адрес кошелька",
+    "walletUser": "Пользователь кошелька",
     "errorHint": "Попробуйте ещё раз или проверьте подключение",
     "errors": {
       "SELF_SEARCH": "Нельзя начать чат с самим собой",

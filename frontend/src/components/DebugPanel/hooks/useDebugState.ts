@@ -716,7 +716,7 @@ export function useDebugState({
         currentFlow = 'creating';
       } else if (sessionResult.status === 'created' && sessionResult.session) {
         sessionId = sessionResult.session.id;
-        peerId = sessionResult.session.recipient.id;
+        peerId = sessionResult.session.recipient.id ?? null;
         peerName = sessionResult.session.recipient.displayName;
         currentFlow = 'pending';
       } else if (sessionResult.status === 'error') {
@@ -729,7 +729,7 @@ export function useDebugState({
     if (handshakeResult && handshakeResult.stage !== 'idle') {
       sessionId = handshakeResult.sessionId;
       if (handshakeResult.peer) {
-        peerId = handshakeResult.peer.id;
+        peerId = handshakeResult.peer.id ?? null;
         peerName = handshakeResult.peer.displayName;
       }
       

@@ -76,7 +76,10 @@ function SettingsIcon() {
 interface RoomChatRoomProps {
   roomId: string;
   epoch?: number;
-  userId: number;
+  /** Current user's stable internal id (IMP-WALLETID-07) */
+  userId: string;
+  /** Telegram numeric id when linked — room message wire still uses tg id until IMP-WALLETID-08 */
+  userTelegramId?: number;
   ws: UseRoomMessagesWebSocket;
   memberCount?: number;
   isOwner?: boolean;
@@ -105,7 +108,8 @@ interface RoomChatRoomProps {
 export const RoomChatRoom = memo(function RoomChatRoom({
   roomId,
   epoch = 0,
-  userId,
+  userId: _userInternalId,
+  userTelegramId,
   ws,
   memberCount,
   isOwner = false,
@@ -130,6 +134,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const [editingMessage, setEditingMessage] = useState<DecryptedMessage | null>(null);
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const roomPeerDisplayName = t('room.chat.fallbackPeer');
+  const roomMessageUserId = userTelegramId ?? 0;
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -223,11 +228,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       return null;
     }
     return {
-      senderName: resolveReplyAuthor(replyTarget, userId, roomPeerDisplayName, t),
+      senderName: resolveReplyAuthor(replyTarget, userTelegramId, roomPeerDisplayName, t),
       preview: makeReplyPreview(replyTarget, t),
       type: replyTarget.type,
     };
-  }, [replyTarget, userId, roomPeerDisplayName, t]);
+  }, [replyTarget, userTelegramId, roomPeerDisplayName, t]);
 
   useEffect(() => {
     if (replyTarget) {
@@ -238,7 +243,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage, deleteMessage } =
     useRoomMessages({
       roomId,
-      userId,
+      userId: roomMessageUserId,
       ws,
       onError: handleRoomMessageError,
       onEditError: handleRoomEditError,
@@ -549,7 +554,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onRequestDeleteForMe={requestDeleteForMe}
             onRequestDeleteForEveryone={requestDeleteForEveryone}
             canDeleteForEveryone={m => m.isOwn || isOwner}
-            userId={userId}
+            userTelegramId={roomMessageUserId || undefined}
             peerDisplayName={roomPeerDisplayName}
             onReplyToMessage={handleReplyToMessage}
             onEditMessage={handleStartEdit}

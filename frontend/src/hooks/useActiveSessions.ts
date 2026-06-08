@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import { mapWireUser, type UserInfo, type WireUserResponse } from '../types';
 
 /** Destination for getting active sessions (4.6.1) */
 const GET_ACTIVE_SESSIONS_DESTINATION = '/app/session.active.list';
@@ -18,21 +19,14 @@ export type SessionStatus =
   | 'EXPIRED'
   | 'BURNED';
 
-/** Peer user information */
-export interface PeerInfo {
-  id: number;
-  username?: string;
-  displayName: string;
-  photoUrl?: string;
-  online: boolean;
-  premium: boolean;
-}
+/** @deprecated Use UserInfo */
+export type PeerInfo = UserInfo;
 
 /** Active session data */
 export interface ActiveSession {
   sessionId: string;
   status: SessionStatus;
-  peer: PeerInfo;
+  peer: UserInfo;
   verified: boolean;
   peerVerified: boolean;
   createdAt: number;
@@ -66,14 +60,7 @@ interface ServerActiveSessionsEvent {
   sessions: Array<{
     sessionId: string;
     status: string;
-    peer: {
-      id: number;
-      username?: string;
-      displayName: string;
-      photoUrl?: string;
-      online: boolean;
-      premium: boolean;
-    };
+    peer: WireUserResponse;
     verified: boolean;
     peerVerified: boolean;
     createdAt: string;
@@ -93,27 +80,13 @@ interface ServerSessionResumedEvent {
   session?: {
     sessionId?: string;
     status?: string;
-    peer?: {
-      id: number;
-      username?: string;
-      displayName: string;
-      photoUrl?: string;
-      online: boolean;
-      premium: boolean;
-    };
+    peer?: WireUserResponse;
     verified?: boolean;
     peerVerified?: boolean;
     createdAt?: string;
     lastActivityAt?: string;
   };
-  peer?: {
-    id: number;
-    username?: string;
-    displayName: string;
-    photoUrl?: string;
-    online: boolean;
-    premium: boolean;
-  };
+  peer?: WireUserResponse;
   verified?: boolean;
   peerVerified?: boolean;
   createdAt?: string;
@@ -241,14 +214,7 @@ export function useActiveSessions({
     return {
       sessionId: serverSession.sessionId,
       status: serverSession.status as SessionStatus,
-      peer: {
-        id: serverSession.peer.id,
-        username: serverSession.peer.username,
-        displayName: serverSession.peer.displayName,
-        photoUrl: serverSession.peer.photoUrl,
-        online: serverSession.peer.online,
-        premium: serverSession.peer.premium,
-      },
+      peer: mapWireUser(serverSession.peer),
       verified: serverSession.verified,
       peerVerified: serverSession.peerVerified,
       createdAt: new Date(serverSession.createdAt).getTime(),
@@ -314,14 +280,7 @@ export function useActiveSessions({
         const resumedSession: ActiveSession = {
           sessionId: data.sessionId,
           status: (data.status ?? sessionPayload.status ?? 'ACTIVE') as SessionStatus,
-          peer: {
-            id: peer.id,
-            username: peer.username,
-            displayName: peer.displayName,
-            photoUrl: peer.photoUrl,
-            online: peer.online,
-            premium: peer.premium,
-          },
+          peer: mapWireUser(peer),
           verified: sessionPayload.verified ?? data.verified ?? false,
           peerVerified: sessionPayload.peerVerified ?? data.peerVerified ?? false,
           createdAt: (sessionPayload.createdAt ?? data.createdAt)

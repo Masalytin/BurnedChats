@@ -76,9 +76,17 @@ export function UserSearchResult({
                     size="sm"
                   />
                 </div>
-                {user.username && (
+                {user.username ? (
                   <p className="search-result__user-username">
                     @{user.username}
+                  </p>
+                ) : user.walletAddress ? (
+                  <p className="search-result__user-username search-result__user-wallet">
+                    {user.walletAddress}
+                  </p>
+                ) : (
+                  <p className="search-result__user-username search-result__user-wallet">
+                    {t('userSearch.walletUser')}
                   </p>
                 )}
               </div>

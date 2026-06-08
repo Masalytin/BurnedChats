@@ -141,6 +141,7 @@ function AppContent() {
     },
   });
 
+  const myInternalId = user?.internalId ?? null;
   const telegramUserId = user?.telegramId ?? null;
   const environment = getEnvironment();
 
@@ -478,14 +479,7 @@ function AppContent() {
       notificationOccurred('success');
       console.log('[App] Session resumed:', session.sessionId);
       // Store peer info for potential handshake continuation
-      const peerInfo: UserInfo = {
-        id: session.peer.id,
-        username: session.peer.username,
-        displayName: session.peer.displayName,
-        photoUrl: session.peer.photoUrl,
-        online: session.peer.online,
-        premium: session.peer.premium,
-      };
+      const peerInfo: UserInfo = session.peer;
       handshakePeerRef.current = peerInfo;
       
       // Navigate based on session status
@@ -880,7 +874,7 @@ function AppContent() {
   const handleSubmitChatRequest = useCallback(
     (secret?: ChatRequestSecretPayload) => {
       if (!selectedUser) return;
-      createSession(selectedUser.id, secret);
+      createSession(selectedUser.internalId, secret);
     },
     [selectedUser, createSession]
   );
@@ -1612,7 +1606,7 @@ function AppContent() {
   }
 
   // Chat view (active chat)
-  if (currentView === 'chat' && activeChat && telegramUserId !== null) {
+  if (currentView === 'chat' && activeChat && myInternalId !== null) {
     return (
       <>
         {walletChrome}
@@ -1620,7 +1614,8 @@ function AppContent() {
           <ChatViewContent
             sessionId={activeChat.sessionId}
             peer={activeChat.peer}
-            userId={telegramUserId}
+            userId={myInternalId}
+            userTelegramId={telegramUserId ?? undefined}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
@@ -1717,7 +1712,7 @@ function AppContent() {
   }
 
   // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
-  if (currentView === 'room-chat' && activeRoomChat && telegramUserId !== null) {
+  if (currentView === 'room-chat' && activeRoomChat && myInternalId !== null) {
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
     // Fall back to the cached isOwner flag when myRooms hasn't loaded yet
     // (e.g. immediately after room creation before fetchRooms completes).
@@ -1730,7 +1725,8 @@ function AppContent() {
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}
-            userId={telegramUserId}
+            userId={myInternalId}
+            userTelegramId={telegramUserId ?? undefined}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             isOwner={isRoomOwner}
             isRequestingKey={isRequestingKey}
@@ -1849,7 +1845,10 @@ function AppContent() {
 interface ChatViewContentProps {
   sessionId: string;
   peer: UserInfo;
-  userId: number;
+  /** Current user's stable internal id */
+  userId: string;
+  /** Telegram numeric id when linked (legacy DM senderId wire events) */
+  userTelegramId?: number;
   ws: UseMessagesWebSocket;
   onBack: () => void;
   onBurn: () => void;
@@ -1861,7 +1860,7 @@ interface ChatViewContentProps {
   syncMessagesRef?: MutableRefObject<(() => void) | null>;
 }
 
-function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMessagesRef }: ChatViewContentProps) {
+function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, onBurn, syncMessagesRef }: ChatViewContentProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const handleMessageError = useCallback((
@@ -1891,6 +1890,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
   const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage, deleteMessage } = useMessages({
     sessionId,
     userId,
+    userTelegramId,
     ws,
     onError: handleMessageError,
     onEditError: handleDmEditError,
@@ -1930,7 +1930,7 @@ function ChatViewContent({ sessionId, peer, userId, ws, onBack, onBurn, syncMess
 
   return (
     <ChatRoom
-      userId={userId}
+      userTelegramId={userTelegramId}
       sessionId={sessionId}
       peer={peer}
       messages={messages}
