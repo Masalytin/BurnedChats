@@ -20,7 +20,12 @@ import {
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { parseBurn } from '@/utils/format';
 
-import { FeeBreakdown } from './FeeBreakdown';
+import {
+  DEFAULT_WALLET_FEE_PARAMS,
+  FeeBreakdown,
+  grossFromNetRecipientAmount,
+  splitBurnFees,
+} from './FeeBreakdown';
 import { nanoToAmountString, tryApplyMaxBurnAmount } from './sendModalGasReserve';
 import { sendErrorFromTxResult, sendErrorMessage } from './sendErrorMessage';
 import styles from './Wallet.module.css';
@@ -44,6 +49,20 @@ function isPlainTonAddress(s: string): boolean {
   }
 }
 
+type AmountInputMode = 'gross' | 'net';
+
+function tryParseBurnNano(input: string): bigint | null {
+  const core = input.trim();
+  if (!core) {
+    return null;
+  }
+  try {
+    return parseBurn(input);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * BURN transfer form with live fee breakdown and Ton Connect signing.
  */
@@ -53,6 +72,8 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const titleId = useId();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [recipientAmount, setRecipientAmount] = useState('');
+  const [amountInputMode, setAmountInputMode] = useState<AmountInputMode>('gross');
   const [comment, setComment] = useState('');
   const [debouncedNano, setDebouncedNano] = useState(0n);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -68,6 +89,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const recipientWalletDeployed = recipientPreflight?.walletDeployed === true;
   const excludedTransfer = senderExcluded || recipientExcluded;
   const gasPreflightLoading = preflightLoading || excludedPreflightLoading;
+  const effectiveFeeParams = burn.feeParams ?? DEFAULT_WALLET_FEE_PARAMS;
 
   const gasEstimate = useMemo(
     () =>
@@ -271,15 +293,65 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     return Math.min(10000, Math.max(0, Math.round(v)));
   }, [maxNano, parsedAmountNano]);
 
+  const syncRecipientAmountFromGross = useCallback(
+    (grossValue: string) => {
+      const grossNano = tryParseBurnNano(grossValue);
+      if (grossNano === null) {
+        setRecipientAmount('');
+        return;
+      }
+      const netNano = excludedTransfer
+        ? grossNano
+        : splitBurnFees(grossNano, effectiveFeeParams).recipientGets;
+      setRecipientAmount(nanoToAmountString(netNano));
+    },
+    [effectiveFeeParams, excludedTransfer],
+  );
+
+  const syncGrossAmountFromNet = useCallback(
+    (netValue: string) => {
+      const netNano = tryParseBurnNano(netValue);
+      if (netNano === null) {
+        setAmount('');
+        return;
+      }
+      const grossNano = excludedTransfer
+        ? netNano
+        : grossFromNetRecipientAmount(netNano, effectiveFeeParams);
+      setAmount(nanoToAmountString(grossNano));
+    },
+    [effectiveFeeParams, excludedTransfer],
+  );
+
   useEffect(() => {
     if (!isOpen) {
       setRecipient('');
       setAmount('');
+      setRecipientAmount('');
+      setAmountInputMode('gross');
       setComment('');
       setSubmitError(null);
       setTonReserveHintVisible(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (amountInputMode === 'gross') {
+      syncRecipientAmountFromGross(amount);
+      return;
+    }
+    syncGrossAmountFromNet(recipientAmount);
+  }, [
+    amount,
+    amountInputMode,
+    effectiveFeeParams,
+    excludedTransfer,
+    isOpen,
+    recipientAmount,
+    syncGrossAmountFromNet,
+    syncRecipientAmountFromGross,
+  ]);
 
   const applyMaxAmount = useCallback(() => {
     const result = tryApplyMaxBurnAmount({
@@ -293,9 +365,12 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     }
     setTonReserveHintVisible(false);
     if (result.applied) {
-      setAmount(nanoToAmountString(maxNano));
+      setAmountInputMode('gross');
+      const nextAmount = nanoToAmountString(maxNano);
+      setAmount(nextAmount);
+      syncRecipientAmountFromGross(nextAmount);
     }
-  }, [gasEstimate.recommendedNano, maxNano, tonBalanceNano]);
+  }, [gasEstimate.recommendedNano, maxNano, syncRecipientAmountFromGross, tonBalanceNano]);
 
   const applySliderBps = useCallback(
     (bps: bigint) => {
@@ -312,15 +387,21 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
         }
         setTonReserveHintVisible(false);
         if (result.applied) {
-          setAmount(nanoToAmountString(maxNano));
+          setAmountInputMode('gross');
+          const nextAmount = nanoToAmountString(maxNano);
+          setAmount(nextAmount);
+          syncRecipientAmountFromGross(nextAmount);
         }
         return;
       }
       setTonReserveHintVisible(false);
+      setAmountInputMode('gross');
       const nano = (maxNano * bps) / 10000n;
-      setAmount(nanoToAmountString(nano));
+      const nextAmount = nanoToAmountString(nano);
+      setAmount(nextAmount);
+      syncRecipientAmountFromGross(nextAmount);
     },
-    [gasEstimate.recommendedNano, maxNano, tonBalanceNano],
+    [gasEstimate.recommendedNano, maxNano, syncRecipientAmountFromGross, tonBalanceNano],
   );
 
   useEffect(() => {
@@ -420,7 +501,12 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
                 id="wallet-send-amount"
                 className={styles.input}
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmountInputMode('gross');
+                  const nextAmount = e.target.value;
+                  setAmount(nextAmount);
+                  syncRecipientAmountFromGross(nextAmount);
+                }}
                 inputMode="decimal"
                 placeholder="0.0"
               />
@@ -453,6 +539,29 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
                   })}
                 </p>
               ) : null}
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="wallet-send-recipient-amount">
+                {t('wallet.fieldAmountNet')}
+              </label>
+              <input
+                id="wallet-send-recipient-amount"
+                className={styles.input}
+                value={recipientAmount}
+                onChange={(e) => {
+                  setAmountInputMode('net');
+                  const nextRecipientAmount = e.target.value;
+                  setRecipientAmount(nextRecipientAmount);
+                  syncGrossAmountFromNet(nextRecipientAmount);
+                }}
+                inputMode="decimal"
+                placeholder="0.0"
+                aria-describedby="wallet-send-recipient-amount-hint"
+              />
+              <p id="wallet-send-recipient-amount-hint" className={styles.feeHint}>
+                {excludedTransfer ? t('wallet.fieldAmountNetExcludedHint') : t('wallet.fieldAmountNetHint')}
+              </p>
             </div>
 
             <div className={styles.field}>

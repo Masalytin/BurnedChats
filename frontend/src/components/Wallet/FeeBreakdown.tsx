@@ -59,6 +59,42 @@ export function splitBurnFees(amountNano: bigint, fee: EffectiveFeeParams): {
   return { burn, staking, treasury, recipientGets };
 }
 
+/** Total BURN fee basis points (burn + staking + treasury). */
+export function totalBurnFeeBps(fee: EffectiveFeeParams): number {
+  return fee.burnBps + fee.stakingBps + fee.treasuryBps;
+}
+
+/**
+ * Minimum gross send amount so `splitBurnFees(gross).recipientGets >= netNano`.
+ * Matches on-chain integer bps rounding (separate floors per leg).
+ */
+export function grossFromNetRecipientAmount(netNano: bigint, fee: EffectiveFeeParams): bigint {
+  if (netNano <= 0n) {
+    return 0n;
+  }
+  const totalBps = totalBurnFeeBps(fee);
+  if (totalBps <= 0) {
+    return netNano;
+  }
+  if (totalBps >= 10000) {
+    return netNano;
+  }
+
+  let low = netNano;
+  let high = (netNano * 10000n) / (10000n - BigInt(totalBps)) + 2n;
+
+  while (low < high) {
+    const mid = (low + high) / 2n;
+    const { recipientGets } = splitBurnFees(mid, fee);
+    if (recipientGets >= netNano) {
+      high = mid;
+    } else {
+      low = mid + 1n;
+    }
+  }
+  return low;
+}
+
 type TonBreakdownRow = {
   key: string;
   label: string;
