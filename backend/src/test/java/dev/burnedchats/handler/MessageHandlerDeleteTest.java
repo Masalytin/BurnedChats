@@ -79,7 +79,8 @@ class MessageHandlerDeleteTest {
         messageHandler.deleteMessage(req, principal);
 
         ArgumentCaptor<MessageDeletedEvent> cap = ArgumentCaptor.forClass(MessageDeletedEvent.class);
-        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/message-deleted"), cap.capture());
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(InternalIds.forTelegramId(99L)), eq("/queue/message-deleted"), cap.capture());
         assertThat(cap.getValue().isSuccess()).isFalse();
         assertThat(cap.getValue().getErrorCode()).isEqualTo("NOT_PARTICIPANT");
     }

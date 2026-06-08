@@ -274,9 +274,9 @@ public class SessionHandler {
                         error -> {
                             LOG.error("Error creating session: initiator={}, error={}",
                                     initiator.internalId(), error.getMessage());
-                            sendToInitiator(initiator.internalId(), SessionCreatedEvent.error("INTERNAL_ERROR"));
-                        }
-                );
+                            sendToInitiator(initiator.internalId(),
+                                    SessionCreatedEvent.error("INTERNAL_ERROR"));
+                        });
     }
 
     private Mono<String> resolveRecipientInternalId(CreateSessionRequest request) {
@@ -409,6 +409,7 @@ public class SessionHandler {
                 null);
     }
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     private static Session newPendingSession(String sessionId,
                                              String initiatorInternalId,
                                              Long initiatorTelegramId,
@@ -808,7 +809,8 @@ public class SessionHandler {
                             sendStompToInternalId(peerInternalId, PEER_DISCONNECTED_DESTINATION, event);
 
                             LOG.info(
-                                    "Peer disconnect notify: peerInternalId={}, disconnectedInternalId={}, sessionId={}",
+                                    "Peer disconnect notify: peerInternalId={}, "
+                                            + "disconnectedInternalId={}, sessionId={}",
                                     peerInternalId, participant.internalId(), sessionId);
                         },
                         error -> LOG.error("Error handling peer disconnect: {}", error.getMessage())

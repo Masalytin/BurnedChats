@@ -248,10 +248,6 @@ public class UserRepository {
                 .build();
     }
 
-    private Map<String, String> userToMap(TelegramUser user) {
-        return userToMap(user, null);
-    }
-
     private Map<String, String> userToMap(TelegramUser user, String internalId) {
         Map<String, String> map = new HashMap<>();
 
