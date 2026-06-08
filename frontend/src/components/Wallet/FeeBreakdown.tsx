@@ -28,7 +28,12 @@ export const DEFAULT_WALLET_FEE_PARAMS: EffectiveFeeParams = {
 export interface FeeBreakdownProps {
   amountNano: bigint;
   feeParams: EffectiveFeeParams | null;
-  tonGas?: { attachedNano: bigint; estimatedNetFeeNano: bigint };
+  tonGas?: {
+    attachedNano: bigint;
+    estimatedNetFeeNano: bigint;
+    warmPath?: boolean;
+    preflightLoading?: boolean;
+  };
 }
 
 /**
@@ -100,16 +105,28 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
       {tonGas ? (
         <div className={styles.feeTonSection}>
           <div className={styles.feeRow}>
-            <span title={t('wallet.sendGasNetFeeHint')}>{t('wallet.feeTonNetwork')}</span>
-            <span>{formatTonAmount(tonGas.attachedNano)} TON</span>
+            <span title={t('wallet.sendGasNetFeeHint')}>
+              {tonGas.preflightLoading ? t('wallet.sendGasChecking') : t('wallet.feeTonNetwork')}
+            </span>
+            <span>
+              {tonGas.preflightLoading ? '…' : `${formatTonAmount(tonGas.attachedNano)} TON`}
+            </span>
           </div>
-          <p className={styles.feeHint}>
-            {t('wallet.sendGasDepositHint', {
-              attach: formatTonAmount(tonGas.attachedNano),
-              netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
-              netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
-            })}
-          </p>
+          {!tonGas.preflightLoading ? (
+            <p className={styles.feeHint}>
+              {tonGas.warmPath
+                ? t('wallet.sendGasWarmHint', {
+                    attach: formatTonAmount(tonGas.attachedNano),
+                    netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
+                    netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                  })
+                : t('wallet.sendGasColdHint', {
+                    attach: formatTonAmount(tonGas.attachedNano),
+                    netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
+                    netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                  })}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

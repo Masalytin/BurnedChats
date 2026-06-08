@@ -8,6 +8,11 @@ import {
   ESTIMATED_NET_FEE_MAX_NANO,
   estimateBurnTransferTon,
 } from '@/ton/estimateBurnTransferTon';
+import {
+  createRecipientPreflightDeps,
+  preflightRecipientJetton,
+  type RecipientJettonPreflight,
+} from '@/ton/recipientJettonPreflight';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { parseBurn } from '@/utils/format';
 
@@ -44,17 +49,68 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const [debouncedNano, setDebouncedNano] = useState(0n);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
+  const [recipientPreflight, setRecipientPreflight] = useState<RecipientJettonPreflight | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
 
-  const gasEstimate = useMemo(() => estimateBurnTransferTon({ feePath: true }), []);
+  const gasEstimate = useMemo(
+    () =>
+      estimateBurnTransferTon({
+        feePath: true,
+        recipientWalletDeployed: recipientPreflight?.walletDeployed === true,
+        recipientFeeConfigActive: recipientPreflight?.feeConfigActive === true,
+      }),
+    [recipientPreflight?.feeConfigActive, recipientPreflight?.walletDeployed],
+  );
   const tonGas = useMemo(
     () => ({
       attachedNano: gasEstimate.recommendedNano,
       estimatedNetFeeNano: ESTIMATED_NET_FEE_MAX_NANO,
+      warmPath: recipientPreflight?.walletDeployed === true,
+      preflightLoading,
     }),
-    [gasEstimate.recommendedNano],
+    [gasEstimate.recommendedNano, preflightLoading, recipientPreflight?.walletDeployed],
   );
 
   const isUsernameRecipient = recipient.trim().startsWith('@');
+
+  useEffect(() => {
+    const r = recipient.trim();
+    if (!r || isUsernameRecipient || !isPlainTonAddress(r)) {
+      setRecipientPreflight(null);
+      setPreflightLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timerId = window.setTimeout(() => {
+      const deps = createRecipientPreflightDeps();
+      if (!deps) {
+        setRecipientPreflight(null);
+        setPreflightLoading(false);
+        return;
+      }
+
+      setPreflightLoading(true);
+      void preflightRecipientJetton(r, deps)
+        .then((result) => {
+          if (!cancelled) {
+            setRecipientPreflight(result);
+            setPreflightLoading(false);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setRecipientPreflight(null);
+            setPreflightLoading(false);
+          }
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [isUsernameRecipient, recipient]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -174,6 +230,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
         recipient: recipient.trim(),
         amount: nano,
         comment: comment.trim() || undefined,
+        attachedTon: gasEstimate.recommendedNano,
       });
       if (res.ok) {
         onSent?.();
@@ -184,7 +241,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     } catch (e) {
       setSubmitError(sendErrorMessage(e, t));
     }
-  }, [amount, burn, comment, onClose, onSent, parsedAmountNano, recipient, t, validationError]);
+  }, [burn, comment, gasEstimate.recommendedNano, onClose, onSent, parsedAmountNano, recipient, t, validationError]);
 
   if (!isOpen) {
     return null;

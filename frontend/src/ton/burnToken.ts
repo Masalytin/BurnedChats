@@ -2,9 +2,14 @@ import { Address, Cell, type Slice, beginCell } from '@ton/core';
 import { sendTonTransaction } from '@/ton/connector';
 import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
 import { getTonBalanceNano } from '@/ton/tonBalance';
-import { BURN_TRANSFER_ATTACHED_TON, buildJettonTransferMsg } from '@/ton/transactionBuilder';
+import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
+import {
+  createRecipientPreflightDeps,
+  preflightRecipientJetton,
+} from '@/ton/recipientJettonPreflight';
 
 export type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 
@@ -17,6 +22,8 @@ export type TransferParams = {
   recipient: string;
   amount: bigint;
   comment?: string;
+  /** TON attach for jetton transfer msg; defaults to estimate from recipient preflight. */
+  attachedTon?: bigint;
 };
 
 /** `transferBurn` requires the connected user TON address (friendly or raw). */
@@ -588,13 +595,32 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
   const jettonWalletAddr = Address.parse(userJettonWallet);
   const forwardPayload = params.comment ? encodeCommentForwardPayload(params.comment) : emptySlice();
 
+  let attachedTon = params.attachedTon;
+  if (attachedTon === undefined) {
+    const preflightDeps = createRecipientPreflightDeps({
+      rpcBaseUrl: r.rpcBaseUrl,
+      jettonMaster: resolveJettonMaster(r.jettonMaster),
+      apiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    });
+    const preflight =
+      preflightDeps !== null
+        ? await preflightRecipientJetton(params.recipient.trim(), preflightDeps)
+        : { jettonWalletAddress: null, walletDeployed: false, feeConfigActive: false };
+    attachedTon = estimateBurnTransferTon({
+      feePath: true,
+      recipientWalletDeployed: preflight.walletDeployed,
+      recipientFeeConfigActive: preflight.feeConfigActive,
+    }).recommendedNano;
+  }
+
   try {
     const tonBalance = await getTonBalanceNano(params.walletAddress, {
       rpcBaseUrl: r.rpcBaseUrl,
       toncenterApiKey: r.apiKey,
       fetchImpl: r.fetchImpl,
     });
-    const minTon = BURN_TRANSFER_ATTACHED_TON + TON_GAS_BUFFER_NANOTON;
+    const minTon = attachedTon + TON_GAS_BUFFER_NANOTON;
     if (tonBalance < minTon) {
       const err = new BurnTokenError(
         'INSUFFICIENT_TON_GAS',
@@ -615,6 +641,7 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
     recipient,
     amount: params.amount,
     forwardPayload,
+    attachedTon,
   });
 
   let beforeLt = 0n;

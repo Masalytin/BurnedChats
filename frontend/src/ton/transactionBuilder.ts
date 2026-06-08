@@ -14,7 +14,7 @@ const CLAIM_REWARDS_OP = 0x5a020003;
 const CREATE_PROPOSAL_OP = 0x5a040101;
 const CAST_VOTE_OP = 0x5a040102;
 
-/** Matches contracts/tests/helpers.ts TRANSFER_TON — burn-jetton-wallet requires > 2.1 TON attached. */
+/** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
 export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
 
 function emptyForwardPayloadSlice(): Slice {
@@ -78,6 +78,7 @@ export function buildJettonTransferMsg(params: {
     forwardTonAmount,
     forwardPayload,
   });
+  /** Dynamic warm/cold attach from {@link estimateBurnTransferTon}; defaults to cold 3.5 TON. */
   const attached = params.attachedTon ?? BURN_TRANSFER_ATTACHED_TON;
   return {
     address: params.jettonWallet.toString(),
