@@ -474,7 +474,7 @@ const aesKey = await crypto.subtle.deriveKey(
 │ Уровень атаки            │ Что видит                           │
 ├──────────────────────────┼──────────────────────────────────────┤
 │ Telegram (MITM в app)    │ Только открытие Mini App            │
-│ Наш сервер               │ TG IDs + encrypted blobs            │
+│ Наш сервер               │ internalIds + TG IDs (if linked) + encrypted blobs │
 │ Сетевой перехват         │ TLS encrypted WebSocket             │
 │ Redis breach             │ Encrypted messages + metadata       │
 │ Физический доступ (off)  │ sessionStorage пуст после закрытия  │
@@ -498,6 +498,41 @@ Backend **не доверяет** присланному `walletPublicKey` бе�
 
 См. [API.md](./API.md) (`/api/auth/wallet`), decision logs
 `docs/improvements/wallet-auth-401/decisions/WALLET-401-02-stateinit-verification.md`.
+
+---
+
+## Дискаверабилити пользователей (wallet-only identity)
+
+> Реализация: [IMP-WALLETID-02](../improvements/wallet-only-identity/decisions/IMP-WALLETID-02-discoverability.md).
+> STOMP-контракт: [API.md](./API.md#search_user-appsearch).
+
+Wallet-only пользователи не имеют Telegram username / numeric ID. Их можно найти для начала DM по:
+
+| Идентификатор | Формат | Политика |
+|---------------|--------|----------|
+| `internalId` | UUID v4 (36 символов) | **Exact match** — полная строка после trim |
+| Wallet address | `EQ…` / `UQ…` (TON friendly) | **Exact match** после lowercase-normalize |
+
+Telegram-пользователи по-прежнему находятся по `@username` или numeric TG ID (exact match по полному имени / ID).
+
+### Запрет enumeration
+
+- Частичный UUID, префикс wallet address, «похожие» строки → `INVALID_QUERY` или `NOT_FOUND`, **не** список кандидатов.
+- Валидация формата на уровне `SearchHandler` / `SearchRequest` — до обращения к Redis.
+- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `rate:search:{internalId}`), в т.ч. для wallet-сессий (IMP-WALLETID-01).
+
+### Zero-knowledge инвариант
+
+Миграция на `internalId` **не нарушает** zero-knowledge модель сервера:
+
+- `internalId` — серверный идентификатор сессии/маршрутизации, уже хранился до миграции (`auth_tg:`, `auth_wallet:`).
+- Поиск возвращает только **публичный профиль** (display name, avatar, online) — те же классы данных, что для Telegram-поиска.
+- E2EE payload (сообщения, group keys, file blobs) по-прежнему opaque; сервер не получает ключей шифрования.
+- Wallet address в поиске — публичный on-chain идентификатор, добровольно привязанный пользователем при wallet-auth.
+
+### Приватность vs UX
+
+Пользователь **копирует** свой `internalId` из профиля (`HomePage`) и передаёт собеседнику out-of-band — как публичный contact handle. Сервер не публикует каталог всех wallet-юзеров и не поддерживает wildcard/prefix search.
 
 ---
 

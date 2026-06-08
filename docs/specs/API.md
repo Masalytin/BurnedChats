@@ -467,6 +467,32 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 
 Подписки вида `/user/queue/...` маршрутизируются Spring по **имени принципала** STOMP-сессии. После миграции идентичности это имя — **`UnifiedUser.internalId()`** (UUID-строка), то же значение, что возвращает `Principal#getName()` для `TelegramPrincipal` / `WalletPrincipal`. **Нельзя** передавать в `SimpMessagingTemplate#convertAndSendToUser` первым аргументом числовой Telegram ID или `String.valueOf(telegramId)` — сообщение не дойдёт до клиента. Серверная отправка на персональные очереди должна использовать **`internalId`** (в т.ч. через компонент `StompUserMessenger`).
 
+### Единая идентичность (`internalId`)
+
+> Реализация: improvement [wallet-only-identity](../improvements/wallet-only-identity/README.md) (карточки IMP-WALLETID-02–06). Decision-логи: `docs/improvements/wallet-only-identity/decisions/`.
+
+**Канонический адресный идентификатор на проводе — `internalId` (UUID-строка).** Числовой Telegram ID (`Long`) остаётся опциональным полем для Telegram-linked пользователей и **не используется** для маршрутизации STOMP.
+
+| Принципал | STOMP auth | `Principal#getName()` | `telegramId` |
+|-----------|------------|----------------------|--------------|
+| `TelegramPrincipal` | `X-Auth-Type: telegram` + initData | `internalId` | есть |
+| `WalletPrincipal` | `X-Auth-Type: wallet` + session token | `internalId` (случайный UUID) | **нет** |
+
+**Правила контрактов (additive vs break):**
+
+| Область | Политика | Примечание |
+|---------|----------|------------|
+| Поиск, DM-сессии, join-flow | **Additive** — новые `*InternalId` + optional deprecated `*TgId` / `recipientId` | Старые Telegram-клиенты продолжают работать до миграции frontend |
+| Групповые ключи (KEY_BUNDLE, REKEY) | **Break** — только `recipientInternalId` | Wallet-only члены не имеют TG ID |
+| Room-сообщения | **Additive** — `senderInternalId` primary, `senderTgId` optional | Legacy Redis-записи читаются через `getSenderKey()` |
+
+**Telegram-only деградация (best-effort, без ошибки для клиента):**
+
+- Бот-уведомления offline DM / chat request — только при `telegramId != null`.
+- File upload в комнатах — валидация по `uploaderTgId` (wallet file messages — вне scope миграции).
+
+Хендлеры используют `AppPrincipal` / `internalId`; каст `(TelegramPrincipal)` в бизнес-логике **запрещён**.
+
 ### Подключение
 
 ```typescript
@@ -520,43 +546,58 @@ client.activate();
 
 ## Клиентские события (Client → Server)
 
-### `SEARCH_USER`
+### `SEARCH_USER` (`/app/search`)
 
-Поиск пользователя по Telegram username или ID.
+Поиск пользователя для начала DM. Доступен **любому** аутентифицированному STOMP-принципалу (`TelegramPrincipal` или `WalletPrincipal`).
 
-**Frontend:**
-```typescript
-client.publish({
-  destination: '/app/search',
-  body: JSON.stringify({
-    query: '@username' // или '123456789'
-  })
-});
+**Запрос** (`SearchRequest`):
 
-// Подписка на результат
-client.subscribe('/user/queue/search-result', (message) => {
-  const result = JSON.parse(message.body);
-  // { found: boolean, user?: UserInfo, error?: string }
-});
-```
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `query` | string (1–64) | Да | Строка поиска — см. форматы ниже |
 
-**Backend Controller:**
-```java
-@MessageMapping("/search")
-public void searchUser(@Payload SearchRequest request, 
-                       Principal principal) {
-    String tgId = principal.getName();
-    
-    userService.searchUser(request.getQuery(), tgId)
-        .subscribe(result -> {
-            messagingTemplate.convertAndSendToUser(
-                tgId,
-                "/queue/search-result",
-                result
-            );
-        });
+**Поддерживаемые форматы `query` (exact match):**
+
+| Формат | Пример | Резолв |
+|--------|--------|--------|
+| `@username` | `@alice` | `UserRepository` (Telegram cache) |
+| `username` | `alice` | то же (без `@`) |
+| Numeric TG ID | `123456789` | `UserRepository` + `auth_tg:` → `internalId` |
+| `internalId` (UUID) | `550e8400-e29b-41d4-a716-446655440000` | `UserIdentityRepository.findById` |
+| Wallet address | `EQBx7...` / `UQ...` | `auth_wallet:` → `internalId` (normalized lowercase) |
+
+Неподходящая строка → `INVALID_QUERY`. Частичный UUID / префикс wallet → **не** enumeration (см. [SECURITY.md](./SECURITY.md)).
+
+**Ответ** — `/user/queue/search-result` (`SearchResultEvent`):
+
+```json
+{
+  "found": true,
+  "user": {
+    "internalId": "550e8400-e29b-41d4-a716-446655440000",
+    "id": 123456789,
+    "username": "alice",
+    "displayName": "Alice",
+    "photoUrl": "https://...",
+    "online": true,
+    "premium": false
+  }
 }
 ```
+
+| Поле `user` | Тип | Описание |
+|-------------|-----|----------|
+| `internalId` | string | **Primary** — передаётся в `session.create` как `recipientInternalId` |
+| `id` | number \| null | Telegram numeric ID; `null` для wallet-only |
+| `username` | string? | Telegram username (без `@`) |
+| `displayName` | string | Имя для UI |
+| `photoUrl` | string? | Аватар |
+| `online` | boolean | Статус heartbeat |
+| `premium` | boolean | Telegram Premium |
+
+**Ошибки:** `NOT_FOUND`, `INVALID_QUERY`, `SELF_SEARCH`, `RATE_LIMITED`.
+
+**Backend:** `SearchHandler` — `@MessageMapping("/search")`, доставка через `StompUserMessenger` по `internalId` инициатора поиска.
 
 ---
 
@@ -566,29 +607,46 @@ public void searchUser(@Payload SearchRequest request,
 
 **Нормализация секретного ответа** (инициатор и получатель должны совпадать по смыслу): `trim` → `toLowerCase()` на строке → UTF-8 → SHA-256 → Base64 (см. `SecretAnswerHasher` на сервере).
 
-**Frontend:**
+**Запрос** (`CreateSessionRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `recipientInternalId` | string (UUID) | Да* | Primary address key из `UserResponse.internalId` поиска |
+| `recipientId` | number | Нет (deprecated) | Legacy Telegram ID; резолвится в `internalId` через `auth_tg:` |
+| `secretQuestion` | string (≤256) | Нет | Секретный вопрос |
+| `secretExpectedAnswer` | string (≤256) | Если есть вопрос | Ожидаемый ответ; не логировать |
+
+\* Обязателен один из `recipientInternalId` или `recipientId` (legacy). Новые клиенты передают только `recipientInternalId`.
+
 ```typescript
 client.publish({
   destination: '/app/session.create',
   body: JSON.stringify({
-    recipientId: 444555666,
-    secretQuestion: 'Как звали моего кота?', // опционально; если задан — нужен secretExpectedAnswer
-    secretExpectedAnswer: 'Барсик' // обязателен, если secretQuestion непустой; не логировать
+    recipientInternalId: '550e8400-e29b-41d4-a716-446655440000',
+    secretQuestion: 'Как звали моего кота?',
+    secretExpectedAnswer: 'Барсик'
   })
 });
-
-// Результат — `/user/queue/session-created` (SessionCreatedEvent)
-client.subscribe('/user/queue/session-created', (message) => {
-  const data = JSON.parse(message.body);
-  // success, sessionId, recipient, hasSecretQuestion, createdAt, expiresAt | error
-});
-
-// Коды ошибок создания (поле error при success: false), в т.ч.:
-// EXPECTED_ANSWER_REQUIRED — вопрос задан без ожидаемого ответа или пустой ответ
-// EXPECTED_ANSWER_TOO_LONG — ответ длиннее 256 символов
 ```
 
-**Backend:** `SessionHandler` — `@MessageMapping("/session.create")`, ответы на `/user/queue/session-created` (`SessionCreatedEvent`).
+**Ответ инициатору** — `/user/queue/session-created` (`SessionCreatedEvent`).
+
+**Уведомление получателю** — `/user/queue/incoming-request` (`IncomingRequestEvent`):
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `sessionId` | string | UUID сессии |
+| `sender` | `UserResponse` | Профиль отправителя (вкл. `sender.internalId`) |
+| `fromInternalId` | string | Дублирует `sender.internalId` для явного доступа |
+| `hasSecretQuestion` | boolean | Есть ли секретный вопрос |
+| `secretQuestion` | string? | Текст вопроса |
+| `createdAt`, `expiresAt` | ISO-8601 | TTL запроса (5 мин) |
+
+Очередь pending: Redis `request:{recipientInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
+
+**Коды ошибок** (`success: false`): `USER_NOT_FOUND`, `SELF_CHAT`, `USER_BLOCKED`, `EXPECTED_ANSWER_REQUIRED`, `EXPECTED_ANSWER_TOO_LONG`, `RATE_LIMITED`.
+
+**Backend:** `SessionHandler` — `@MessageMapping("/session.create")`. Доставка по `StompUserMessenger.convertAndSendToInternalId`. Telegram-бот offline — best-effort при `telegramId` получателя.
 
 ---
 
@@ -978,47 +1036,44 @@ private void relayTypingStatus(String sessionId, String senderTgId, boolean isTy
 | `encryptedMeta` | Base64: зашифрованный JSON `{ fileName, mimeType }` |
 | `fileSize` | Размер **исходного** файла в байтах (plaintext size) |
 
-### Session
+### UserResponse (поиск, incoming-request, session events)
 
 ```java
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+public class UserResponse {
+    private String internalId;   // primary address key (always set)
+    private Long id;             // Telegram ID; null for wallet-only
+    private String username;
+    private String displayName;
+    private String photoUrl;
+    private boolean online;
+    private boolean premium;
+}
+```
+
+### Session (Redis + handler logic)
+
+Участники адресуются по **`initiatorInternalId` / `responderInternalId`**. Optional `initiatorTelegramId` / `responderTelegramId` — для отображения и Telegram-only веток.
+
+```java
 public class Session {
     private String id;
-    private List<String> participants;  // Telegram IDs
-    private SessionStatus status;       // WAITING, ACTIVE, BURNED
-    private Long createdAt;
-    private boolean hasSecretQuestion;
-    private Map<String, Boolean> verified;  // participantId -> verified
+    private String initiatorInternalId;
+    private Long initiatorTelegramId;   // null for wallet-only
+    private String responderInternalId;
+    private Long responderTelegramId;   // null for wallet-only
+    private SessionStatus status;       // PENDING, HANDSHAKE, ACTIVE, BURNED
+    // secretQuestion, secretAnswerHash, initiatorVerified, responderVerified, ...
     
-    public String getOtherParticipant(String tgId) {
-        return participants.stream()
-            .filter(p -> !p.equals(tgId))
-            .findFirst()
-            .orElseThrow();
-    }
-    
-    public boolean isBothVerified() {
-        return verified.values().stream().allMatch(v -> v);
-    }
+    public boolean isParticipant(String internalId) { ... }
+    public String getPeerInternalId(String myInternalId) { ... }
 }
 ```
 
-### PeerInfo
+DM-доставка peer-событий (handshake, message, verify, burn): `StompUserMessenger.convertAndSendToInternalId(peerInternalId, ...)`. Numeric `senderId` / `peerId` в событиях — best-effort при наличии `telegramId`.
 
-```java
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class PeerInfo {
-    private String tgId;
-    private String username;
-    private String firstName;
-    private String lastName;
-    private String photoUrl;
-}
-```
+### PeerInfo / frontend peer display
+
+Клиенты IMP-WALLETID-07+ используют `internalId` как primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated на frontend.
 
 ---
 
@@ -1276,6 +1331,93 @@ client.activate();
 | `inviteToken` | string | Да | Токен из deep link |
 | `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
 | `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
+
+**Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `roomId` | string | UUID комнаты |
+| `senderInternalId` | string | **Primary** — идентификатор заявителя |
+| `senderTgId` | number? | Deprecated; `null` для wallet-only |
+| `senderDisplayName` | string | Имя из каталога `user:{internalId}` |
+| `senderUsername` | string? | Telegram username, если есть |
+| `senderPublicKey` | string? | Base64 ECDH pubkey для KEY_BUNDLE |
+| `requestedAt` | number | Unix ms |
+| `autoApproved` | boolean | `true` при BY_PASSWORD без ожидания |
+
+Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
+
+---
+
+### ACCEPT_ROOM_JOIN / REJECT_ROOM_JOIN
+
+**Destinations:** `/app/room.acceptJoin`, `/app/room.rejectJoin`  
+**Запрос** (`RoomJoinDecisionRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `senderInternalId` | string | Да* | Заявитель из `RoomJoinRequestEvent` |
+| `senderTgId` | number | Нет (deprecated) | Legacy; резолвится в `senderInternalId` |
+
+\* Только владелец (`ownerInternalId`). После accept владелец отправляет KEY_BUNDLE.
+
+---
+
+### SEND_KEY_BUNDLE (`/app/room.sendKeyBundle`)
+
+Владелец передаёт зашифрованный групповой ключ новому члену.
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `recipientInternalId` | string | Да | **Break** — только internalId (не TG ID) |
+| `epoch` | number | Да | Текущая эпоха ключа (0 для новой комнаты) |
+| `ephemeralPublicKey` | string (Base64) | Да | Ephemeral ECDH P-256 |
+| `encryptedKey` | string (Base64) | Да | AES-GCM ciphertext wrapped group key |
+| `iv` | string (Base64) | Да | 12-byte GCM IV |
+
+**Доставка** — `/user/queue/key-bundle` получателю по `recipientInternalId`.
+
+---
+
+### REKEY (`/app/room.rekey`)
+
+Владелец ротирует групповой ключ после ухода члена.
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `newEpoch` | number | Да | `currentEpoch + 1` |
+| `bundles` | array | Да | По одному bundle на оставшегося члена |
+| `bundles[].recipientInternalId` | string | Да | Получатель bundle |
+| `bundles[].ephemeralPublicKey` | string | Да | Base64 |
+| `bundles[].encryptedKey` | string | Да | Base64 |
+| `bundles[].iv` | string | Да | Base64 |
+
+Каждый bundle доставляется на `/user/queue/key-bundle` соответствующему `recipientInternalId`.
+
+---
+
+### ROOM_MESSAGES (текст / медиа)
+
+**Отправка:** `/app/room.message.send` (`SendRoomMessageRequest` — те же файловые поля, что у DM).
+
+**Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `senderInternalId` | string | **Primary** — canonical sender |
+| `senderTgId` | number? | Deprecated; `null` для wallet-only |
+| `senderName` | string? | Display name из каталога |
+| `messageId`, `roomId`, `encryptedContent`, `iv` | — | Как у DM |
+| `type`, `fileId`, … | — | Медиа-поля при `type != text` |
+
+**Sync:** `/app/room.message.sync` → `/user/queue/sync-room-messages` (`SyncRoomMessagesEvent` с `senderInternalId`).
+
+**Edit/delete:** события `RoomMessageEditedEvent`, `RoomMessageDeletedEvent` с `deletedByInternalId` (+ optional `deletedByTgId`).
+
+Проверка членства: `roomMembersRepository.isMember(roomId, internalId)`.
 
 ---
 

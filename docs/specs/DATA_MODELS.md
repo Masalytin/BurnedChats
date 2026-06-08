@@ -40,36 +40,38 @@
 
 ### `session:{sessionId}`
 
-Метаданные активной сессии чата.
+Метаданные активной DM-сессии. Участники адресуются по **`internalId`** (UUID-строка).
 
 ```redis
 HSET session:abc123
-  participant1    "111222333"
-  participant2    "444555666"
-  status          "active"
-  createdAt       "1704067200000"
-  hasQuestion     "true"
-  questionHash    "e3b0c44298fc1c149..."
-  verified1       "true"
-  verified2       "false"
+  id                      "abc123"
+  initiatorInternalId     "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
+  initiatorTelegramId     "111222333"
+  responderInternalId     "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
+  responderTelegramId     ""
+  status                  "active"
+  createdAt               "1704067200000"
+  lastActivityAt          "1704067300000"
+  secretQuestion          "Как звали моего кота?"
+  secretAnswerHash        "e3b0c44298fc1c149..."
+  initiatorVerified       "true"
+  responderVerified       "false"
 
-EXPIRE session:abc123 3600
+EXPIRE session:abc123 86400
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `participant1` | string | Telegram ID создателя |
-| `participant2` | string | Telegram ID получателя |
-| `status` | enum | `waiting` \| `active` \| `burned` |
-| `createdAt` | number | Unix timestamp в мс |
-| `hasQuestion` | boolean | Есть ли секретный вопрос |
-| `questionHash` | string? | SHA-256 хеш вопроса (для проверки) |
-| `verified1` | boolean | Подтвердил ли participant1 fingerprint |
-| `verified2` | boolean | Подтвердил ли participant2 fingerprint |
+| `initiatorInternalId` | string | internalId создателя заявки |
+| `initiatorTelegramId` | string? | Telegram ID создателя; пусто для wallet-only |
+| `responderInternalId` | string | internalId получателя |
+| `responderTelegramId` | string? | Telegram ID получателя; пусто для wallet-only |
+| `status` | enum | `pending` \| `handshake` \| `active` \| `burned` |
+| `secretAnswerHash` | string? | Base64(SHA-256) нормализованного ожидаемого ответа (`trim` → `toLowerCase`) |
 
-**Соответствие коду (`SessionRepository` / `Session`):** фактический hash-ключ `session:{uuid}` хранит `id`, `initiatorId`, `responderId`, `status`, `createdAt`, `lastActivityAt`, при необходимости `secretQuestion` и `secretAnswerHash`. Поле `secretAnswerHash` — Base64(SHA-256) от **нормализованного ожидаемого ответа** инициатора (`trim`, затем `toLowerCase`, UTF-8); задаётся при создании заявки с секретным вопросом, открытый текст не сохраняется. Ответ получателя при accept хэшируется тем же алгоритмом и сравнивается с сохранённым значением (constant-time).
+Проверка участника: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
 
-**TTL:** по умолчанию 24 часа (`session.active.ttl` в `application.yml`), автоочистка неактивных сессий.
+**TTL:** по умолчанию 24 часа (`session.active.ttl` в `application.yml`).
 
 ---
 
@@ -88,21 +90,25 @@ EXPIRE session:abc123 3600
 
 ### `request:{recipientInternalId}`
 
-Очередь входящих запросов на чат.
+Очередь входящих запросов на чат. Ключ — **`recipientInternalId`** (UUID получателя), не Telegram ID.
 
 ```redis
-LPUSH request:444555666 '{
+LPUSH request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 '{
   "sessionId": "abc123",
-  "senderTgId": "111222333",
+  "senderInternalId": "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33",
+  "senderTgId": 111222333,
   "senderUsername": "alice",
   "senderFirstName": "Alice",
+  "recipientInternalId": "f74f67a1-2b3c-4d5e-8f90-abcdef123456",
   "hasQuestion": true,
   "question": "Как звали моего кота?",
-  "createdAt": 1704067200000
+  "createdAt": "2024-01-15T10:30:00Z"
 }'
 
-EXPIRE request:444555666 300
+EXPIRE request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 300
 ```
+
+`ChatRequest.getRecipientKey()` всегда возвращает `recipientInternalId`. Legacy записи с ключом `request:{tgId}` не мигрируются (TTL 5 мин).
 
 **TTL:** 5 минут (запрос истекает)
 
@@ -121,9 +127,9 @@ EXPIRE online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 30
 
 ---
 
-### `user:{internalId}`
+### `user:{internalId}` — канонический каталог (`UserIdentityRepository`)
 
-Кеш информации о пользователе.
+Единый профиль пользователя под stable `internalId`. Заполняется при REST wallet-auth и STOMP CONNECT **любого** типа принципала.
 
 ```redis
 HSET user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
@@ -137,6 +143,19 @@ HSET user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
 
 EXPIRE user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 7776000
 ```
+
+Wallet-only пример (`authType: WALLET`, `telegramId` пуст):
+
+```redis
+HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  internalId    "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  authType      "WALLET"
+  displayName   "EQBx...7JfP"
+  telegramId    ""
+  walletAddress "EQBx7..."
+```
+
+**Legacy Telegram cache** (`UserRepository`): отдельный hash `user:{tgId}` для быстрого поиска по `@username` / TG ID. Содержит optional поле `internalId` для обогащения `UserResponse`. Wallet-only записи **не** дублируются в `user:{tgId}`.
 
 **TTL:** 90 дней (обновляется при каждом входе)
 
@@ -267,24 +286,42 @@ EXPIRE invite:abc123token 604800
 
 **TTL:** по expiresAt или 7 дней
 
-### `room_join_request:{roomId}`
+### `room_join_request:{roomId}:{senderInternalId}`
 
-Заявки на вход в комнату (режим by_request).
+Заявка на вход в комнату (режим `by_request`). Hash на одного заявителя; индекс `room_join_requests:{roomId}` (Set of `senderInternalId`).
 
 ```redis
-LPUSH room_join_request:uuid-room-1 '{"senderTgId":"444555666","createdAt":1704067200000}'
-EXPIRE room_join_request:uuid-room-1 86400
+HSET room_join_request:uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456
+  roomId             "uuid-room-1"
+  senderInternalId   "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
+  senderTgId         ""
+  username           ""
+  firstName          "Wallet User"
+  publicKey          "base64..."
+  createdAt          "1704067200000"
+
+EXPIRE room_join_request:uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456 86400
 ```
+
+Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не мигрируются — TTL 24 ч.
 
 **TTL:** 24 часа
 
 ### `room_keys:{roomId}:{epoch}`
 
-Зашифрованные копии группового ключа для участников (opaque blobs). Сервер не расшифровывает.
+Зашифрованные копии группового ключа для участников (opaque blobs). Индекс получателя — `recipientInternalId` в `EncryptedKeyBundle`. Сервер не расшифровывает.
 
 ### `messages:{roomId}`
 
-Очередь зашифрованных сообщений комнаты. Формат — `RoomMessage` (E2EE), с `senderTgId` в метаданных для отображения. Переполнение: `max-size-per-room` в `burnedchats.messages.offline-queue` (по умолчанию 500, trim с головы). **TTL:** тот же `burnedchats.messages.offline-queue.ttl` (по умолчанию 24 ч).
+Очередь зашифрованных сообщений комнаты. Формат — `RoomMessage` (E2EE):
+
+| Поле | Описание |
+|------|----------|
+| `senderInternalId` | **Primary** — canonical sender (обязателен для новых записей) |
+| `senderTgId` | Deprecated; best-effort для Telegram-отправителя |
+| `encryptedContent`, `iv`, `messageId`, … | Opaque ciphertext |
+
+`RoomMessage.getSenderKey()` резолвит identity для edit/delete и legacy JSON (только `senderTgId`). Переполнение: `max-size-per-room` (по умолчанию 500). **TTL:** `burnedchats.messages.offline-queue.ttl` (24 ч).
 
 ---
 
@@ -330,65 +367,44 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 ### Session Entity
 
 ```java
-// model/Session.java
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+// model/Session.java — участники по internalId
 public class Session {
-    
     private String id;
-    private List<String> participants;
-    private SessionStatus status;
-    private Long createdAt;
-    private boolean hasSecretQuestion;
-    private String questionHash;
-    private Map<String, Boolean> verified;
-    
-    public String getOtherParticipant(String tgId) {
-        return participants.stream()
-            .filter(p -> !p.equals(tgId))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Participant not found"));
-    }
-    
-    public boolean hasParticipant(String tgId) {
-        return participants.contains(tgId);
-    }
-    
-    public boolean isVerified(String tgId) {
-        return Boolean.TRUE.equals(verified.get(tgId));
-    }
-    
-    public boolean isBothVerified() {
-        return verified.values().stream().allMatch(v -> v);
-    }
-}
+    private String initiatorInternalId;
+    private Long initiatorTelegramId;    // null for wallet-only
+    private String responderInternalId;
+    private Long responderTelegramId;    // null for wallet-only
+    private SessionStatus status;        // PENDING, HANDSHAKE, ACTIVE, BURNED
+    private Instant createdAt;
+    private Instant lastActivityAt;
+    private String secretQuestion;
+    private String secretAnswerHash;
+    private boolean initiatorVerified;
+    private boolean responderVerified;
 
-// model/enums/SessionStatus.java
-public enum SessionStatus {
-    WAITING,
-    ACTIVE,
-    BURNED
+    public boolean isParticipant(String internalId) { ... }
+    public String getPeerInternalId(String myInternalId) { ... }
 }
 ```
 
 ### Chat Request
 
 ```java
-// model/ChatRequest.java
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+// model/ChatRequest.java — Redis request:{recipientInternalId}
 public class ChatRequest {
     private String sessionId;
-    private String senderTgId;
+    private String senderInternalId;
+    private Long senderTgId;              // null for wallet-only
     private String senderUsername;
     private String senderFirstName;
+    private String recipientInternalId;
+    @Deprecated private Long recipientTgId;
     private boolean hasQuestion;
     private String question;
-    private Long createdAt;
+    private Instant createdAt;
+
+    public String getRecipientKey();  // always recipientInternalId
+    public String getSenderKey();
 }
 ```
 
@@ -514,16 +530,30 @@ public class SearchRequest {
 // dto/request/CreateSessionRequest.java
 @Data
 public class CreateSessionRequest {
-    @NotNull
+    @Size(min = 36, max = 36)
+    private String recipientInternalId;   // primary
+
+    @Deprecated
     @Positive
-    private Long recipientId;
+    private Long recipientId;           // legacy Telegram ID
 
     @Size(max = 256)
     private String secretQuestion;
 
-    /** Обязателен, если secretQuestion непустой после trim; max 256 */
     @Size(max = 256)
     private String secretExpectedAnswer;
+}
+
+// dto/response/UserResponse.java
+@Data
+public class UserResponse {
+    private String internalId;   // always set
+    private Long id;             // Telegram ID; null for wallet-only
+    private String username;
+    private String displayName;
+    private String photoUrl;
+    private boolean online;
+    private boolean premium;
 }
 
 // dto/request/AcceptRequestDto.java
@@ -758,7 +788,8 @@ type MessageStatus =
 interface Message {
   id: string;
   sessionId: string;
-  fromUserId: number;
+  fromUserInternalId: string;  // primary (IMP-WALLETID-07+)
+  fromUserId?: number;         // deprecated Telegram ID
   encryptedContent: string;
   iv: string;
   timestamp: number;
@@ -814,7 +845,8 @@ interface VerificationStatus {
 }
 
 interface PeerInfo {
-  tgId: string;
+  internalId: string;          // primary
+  tgId?: string;             // deprecated
   username?: string;
   firstName: string;
   lastName?: string;
@@ -842,7 +874,8 @@ type VisualFingerprint = [
 
 interface IncomingRequest {
   sessionId: string;
-  sender: PeerInfo;
+  sender: PeerInfo;            // includes internalId
+  fromInternalId: string;
   hasQuestion: boolean;
   question?: string;
   expiresAt: number;
