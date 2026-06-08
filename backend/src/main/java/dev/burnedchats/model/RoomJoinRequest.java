@@ -10,7 +10,7 @@ import java.io.Serializable;
 /**
  * Join request stored in Redis when a user asks to enter a room in {@code BY_REQUEST} mode.
  *
- * <p>Key pattern: {@code room_join_request:{roomId}:{senderTgId}} — Hash, TTL {@value #TTL_HOURS} hours.
+ * <p>Key pattern: {@code room_join_request:{roomId}:{senderInternalId}} — Hash, TTL {@value #TTL_HOURS} hours.
  * An index Set {@code room_join_requests:{roomId}} keeps track of all pending sender IDs for a room.
  *
  * <p>Stores only minimal sender identity — enough for the owner to make an
@@ -30,7 +30,15 @@ public class RoomJoinRequest implements Serializable {
     /** UUID of the room the user wants to join. */
     private String roomId;
 
-    /** Telegram ID of the user sending the join request. */
+    /** Internal ID of the user sending the join request. */
+    private String senderInternalId;
+
+    /**
+     * Telegram ID when the sender is Telegram-linked; null for wallet-only users.
+     *
+     * @deprecated Use {@link #senderInternalId} for join request identity.
+     */
+    @Deprecated
     private Long senderTgId;
 
     /** Telegram username of the sender — may be null. */

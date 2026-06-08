@@ -36,10 +36,29 @@ public class InviteTokenService {
     /**
      * Generate a new invite token for the given room, only if the requester is the owner.
      *
-     * @param roomId      the room UUID
-     * @param requesterTgId Telegram ID of the user requesting the link (must be owner)
+     * @param roomId               the room UUID
+     * @param requesterInternalId  internal id of the user requesting the link (must be owner)
      * @return Mono with the invite URL, or error if not owner / room not found
      */
+    public Mono<String> generateInviteLink(String roomId, String requesterInternalId) {
+        return roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (room.getOwnerInternalId() == null
+                            || !room.getOwnerInternalId().equals(requesterInternalId)) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return saveInviteToken(roomId, room.getOwnerTgId());
+                })
+                .doOnSuccess(url -> LOG.info("Invite link generated for room={} by internalId={}",
+                        roomId, requesterInternalId))
+                .doOnError(e -> LOG.warn("Failed to generate invite link for room={}: {}", roomId, e.getMessage()));
+    }
+
+    /**
+     * @deprecated Use {@link #generateInviteLink(String, String)}.
+     */
+    @Deprecated
     public Mono<String> generateInviteLink(String roomId, Long requesterTgId) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
@@ -47,25 +66,28 @@ public class InviteTokenService {
                     if (!java.util.Objects.equals(room.getOwnerTgId(), requesterTgId)) {
                         return Mono.error(new SecurityException("NOT_OWNER"));
                     }
-
-                    String tokenValue = generateSecureToken();
-                    long expiresAt = Instant.now()
-                            .plus(InviteToken.DEFAULT_TTL_DAYS, ChronoUnit.DAYS)
-                            .toEpochMilli();
-
-                    InviteToken token = InviteToken.builder()
-                            .token(tokenValue)
-                            .roomId(roomId)
-                            .createdBy(requesterTgId)
-                            .expiresAt(expiresAt)
-                            .usedCount(0)
-                            .build();
-
-                    return inviteTokenRepository.save(token)
-                            .thenReturn(buildInviteUrl(tokenValue));
+                    return saveInviteToken(roomId, requesterTgId);
                 })
                 .doOnSuccess(url -> LOG.info("Invite link generated for room={} by tgId={}", roomId, requesterTgId))
                 .doOnError(e -> LOG.warn("Failed to generate invite link for room={}: {}", roomId, e.getMessage()));
+    }
+
+    private Mono<String> saveInviteToken(String roomId, Long createdByTgId) {
+        String tokenValue = generateSecureToken();
+        long expiresAt = Instant.now()
+                .plus(InviteToken.DEFAULT_TTL_DAYS, ChronoUnit.DAYS)
+                .toEpochMilli();
+
+        InviteToken token = InviteToken.builder()
+                .token(tokenValue)
+                .roomId(roomId)
+                .createdBy(createdByTgId)
+                .expiresAt(expiresAt)
+                .usedCount(0)
+                .build();
+
+        return inviteTokenRepository.save(token)
+                .thenReturn(buildInviteUrl(tokenValue));
     }
 
     /**

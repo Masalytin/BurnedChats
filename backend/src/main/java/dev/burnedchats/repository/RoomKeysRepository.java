@@ -77,14 +77,14 @@ public class RoomKeysRepository {
         String value = serialise(bundle);
 
         return redisTemplate.opsForHash()
-                .put(key, bundle.getRecipientTgId(), value)
+                .put(key, bundle.getRecipientInternalId(), value)
                 .then(redisTemplate.expire(key, KEY_BUNDLE_TTL))
                 .doOnSuccess(ok -> LOG.debug(
                         "Stored key bundle for member {} in room {} epoch {}",
-                        bundle.getRecipientTgId(), bundle.getRoomId(), bundle.getEpoch()))
+                        bundle.getRecipientInternalId(), bundle.getRoomId(), bundle.getEpoch()))
                 .onErrorResume(e -> {
                     LOG.error("Failed to store key bundle for member {} in room {}: {}",
-                            bundle.getRecipientTgId(), bundle.getRoomId(), e.getMessage());
+                            bundle.getRecipientInternalId(), bundle.getRoomId(), e.getMessage());
                     return Mono.just(false);
                 });
     }
@@ -94,21 +94,23 @@ public class RoomKeysRepository {
      *
      * @param roomId the room UUID
      * @param epoch  the key epoch
-     * @param tgId   the recipient's Telegram ID (as string)
+     * @param recipientInternalId the recipient's internal ID
      * @return Mono with the bundle, or empty if not found
      */
-    public Mono<EncryptedKeyBundle> getEncryptedKey(String roomId, int epoch, String tgId) {
+    public Mono<EncryptedKeyBundle> getEncryptedKey(String roomId, int epoch, String recipientInternalId) {
         String key = keysKeyFor(roomId, epoch);
 
         return redisTemplate.opsForHash()
-                .get(key, (Object) tgId)
+                .get(key, (Object) recipientInternalId)
                 .filter(v -> v != null)
                 .map(v -> String.valueOf(v))
                 .filter(v -> !v.isBlank())
-                .map(v -> deserialise(v, roomId, epoch, tgId))
-                .doOnNext(b -> LOG.debug("Fetched key bundle for member {} in room {} epoch {}", tgId, roomId, epoch))
+                .map(v -> deserialise(v, roomId, epoch, recipientInternalId))
+                .doOnNext(b -> LOG.debug("Fetched key bundle for member {} in room {} epoch {}",
+                        recipientInternalId, roomId, epoch))
                 .onErrorResume(e -> {
-                    LOG.error("Failed to fetch key bundle for member {} in room {}: {}", tgId, roomId, e.getMessage());
+                    LOG.error("Failed to fetch key bundle for member {} in room {}: {}",
+                            recipientInternalId, roomId, e.getMessage());
                     return Mono.empty();
                 });
     }
@@ -248,12 +250,12 @@ public class RoomKeysRepository {
     /**
      * Deserialise a pipe-delimited bundle string back to an {@link EncryptedKeyBundle}.
      */
-    private EncryptedKeyBundle deserialise(String value, String roomId, int epoch, String tgId) {
+    private EncryptedKeyBundle deserialise(String value, String roomId, int epoch, String recipientInternalId) {
         String[] parts = value.split("\\|", 3);
         return EncryptedKeyBundle.builder()
                 .roomId(roomId)
                 .epoch(epoch)
-                .recipientTgId(tgId)
+                .recipientInternalId(recipientInternalId)
                 .ephemeralPublicKey(parts.length > 0 ? parts[0] : "")
                 .encryptedKey(parts.length > 1 ? parts[1] : "")
                 .iv(parts.length > 2 ? parts[2] : "")
@@ -267,7 +269,7 @@ public class RoomKeysRepository {
     public Map<String, String> toBundleMap(java.util.List<EncryptedKeyBundle> bundles) {
         Map<String, String> map = new HashMap<>();
         for (EncryptedKeyBundle b : bundles) {
-            map.put(b.getRecipientTgId(), serialise(b));
+            map.put(b.getRecipientInternalId(), serialise(b));
         }
         return map;
     }

@@ -9,8 +9,6 @@ import lombok.NoArgsConstructor;
  * Event pushed to the room owner when a user requests to join in {@code BY_REQUEST} mode.
  *
  * <p>Destination: {@code /user/queue/room-join-requests}
- *
- * <p>Contains minimal sender identity so the owner can make an accept/reject decision.
  */
 @Data
 @Builder
@@ -18,56 +16,62 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RoomJoinRequestEvent {
 
-    /** UUID of the room. */
     private String roomId;
 
-    /** Telegram ID of the user requesting to join. */
+    /** Internal ID of the user requesting to join. */
+    private String senderInternalId;
+
+    /**
+     * Telegram ID when linked; null for wallet-only requesters.
+     *
+     * @deprecated Prefer {@link #senderInternalId}.
+     */
+    @Deprecated
     private Long senderTgId;
 
-    /** Telegram username — may be null if the user has no username. */
     private String senderUsername;
 
-    /** First name of the requesting user. */
+    /** Display name for the owner UI (from catalog or Telegram first name). */
+    private String senderDisplayName;
+
+    /**
+     * @deprecated Use {@link #senderDisplayName}.
+     */
+    @Deprecated
     private String senderFirstName;
 
-    /** Unix timestamp (ms) when the request was created. */
     private Long requestedAt;
 
-    /**
-     * ECDH P-256 public key of the sender — Base64 SPKI-encoded.
-     * Provided so the owner can immediately wrap the group key when accepting the request.
-     * May be null if the client did not send a public key.
-     */
     private String senderPublicKey;
 
-    /**
-     * True when the join was auto-approved by the server (BY_PASSWORD mode).
-     * The owner's client should immediately wrap and send the KEY_BUNDLE without user interaction.
-     */
     private boolean autoApproved;
 
-    public static RoomJoinRequestEvent of(String roomId, Long senderTgId,
-                                          String senderUsername, String senderFirstName,
+    public static RoomJoinRequestEvent of(String roomId, String senderInternalId, Long senderTgId,
+                                          String senderUsername, String senderDisplayName,
                                           Long requestedAt, String senderPublicKey) {
         return RoomJoinRequestEvent.builder()
                 .roomId(roomId)
+                .senderInternalId(senderInternalId)
                 .senderTgId(senderTgId)
                 .senderUsername(senderUsername)
-                .senderFirstName(senderFirstName)
+                .senderDisplayName(senderDisplayName)
+                .senderFirstName(senderDisplayName)
                 .requestedAt(requestedAt)
                 .senderPublicKey(senderPublicKey)
                 .autoApproved(false)
                 .build();
     }
 
-    public static RoomJoinRequestEvent autoApproved(String roomId, Long senderTgId,
-                                                     String senderUsername, String senderFirstName,
-                                                     Long requestedAt, String senderPublicKey) {
+    public static RoomJoinRequestEvent autoApproved(String roomId, String senderInternalId, Long senderTgId,
+                                                    String senderUsername, String senderDisplayName,
+                                                    Long requestedAt, String senderPublicKey) {
         return RoomJoinRequestEvent.builder()
                 .roomId(roomId)
+                .senderInternalId(senderInternalId)
                 .senderTgId(senderTgId)
                 .senderUsername(senderUsername)
-                .senderFirstName(senderFirstName)
+                .senderDisplayName(senderDisplayName)
+                .senderFirstName(senderDisplayName)
                 .requestedAt(requestedAt)
                 .senderPublicKey(senderPublicKey)
                 .autoApproved(true)

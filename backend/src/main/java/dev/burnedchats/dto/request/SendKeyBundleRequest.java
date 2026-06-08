@@ -26,9 +26,9 @@ public class SendKeyBundleRequest {
     @NotBlank
     private String roomId;
 
-    /** Telegram ID of the recipient (the newly accepted member). */
-    @NotNull
-    private Long recipientTgId;
+    /** Internal ID of the recipient (the newly accepted member). */
+    @NotBlank
+    private String recipientInternalId;
 
     /** Current key epoch (typically 0 for a fresh room; incremented after rekey). */
     @NotNull

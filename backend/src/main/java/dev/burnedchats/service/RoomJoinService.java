@@ -7,26 +7,16 @@ import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomRepository;
-import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 
 /**
  * Business logic for room join flow: request, accept, and reject.
- *
- * <h2>Flow overview</h2>
- * <ul>
- *   <li><b>BY_PASSWORD mode</b>: user submits proof → verified → added to {@code room_members} immediately.</li>
- *   <li><b>BY_REQUEST mode</b>: user submits proof → verified → join request stored in Redis →
- *       owner is notified via STOMP → owner calls accept or reject.</li>
- * </ul>
- *
- * <p>Security contract: plaintext password is never received. Only the PBKDF2 proof
- * (pre-derived on the client) is accepted and verified via {@link PasswordProofService}.
  */
 @Slf4j
 @Service
@@ -41,55 +31,15 @@ public class RoomJoinService {
     private final PasswordProofService passwordProofService;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
 
-    // -------------------------------------------------------------------------
-    // Sealed result types for requestJoin
-    // -------------------------------------------------------------------------
-
-    /**
-     * Result of {@link #requestJoin} — either the user joined immediately or a request is pending.
-     */
     public sealed interface JoinResult permits JoinResult.Approved, JoinResult.Pending {
 
-        /**
-         * User was added to the room immediately (BY_PASSWORD mode).
-         *
-         * @param roomId           new room id
-         * @param ownerInternalId  {@link Room#getOwnerInternalId()} (string internal id); may be derived for legacy rows
-         * @param ownerTgId        {@link Room#getOwnerTgId()} — used to resolve canonical STOMP destination id
-         */
-        record Approved(String roomId, String ownerInternalId, Long ownerTgId) implements JoinResult {}
+        record Approved(String roomId, String ownerInternalId) implements JoinResult {}
 
-        /**
-         * A join request was created; the owner must accept it (BY_REQUEST mode).
-         * Contains the request so the handler can notify the owner.
-         *
-         * @param request          pending join payload
-         * @param ownerInternalId  {@link Room#getOwnerInternalId()} (string); fallback if identity mapping is missing
-         * @param ownerTgId        {@link Room#getOwnerTgId()} — preferred anchor for {@code UserIdentityRepository}
-         */
-        record Pending(RoomJoinRequest request, String ownerInternalId, Long ownerTgId) implements JoinResult {}
+        record Pending(RoomJoinRequest request, String ownerInternalId) implements JoinResult {}
     }
 
-    /**
-     * Process a join request from a user.
-     *
-     * <ol>
-     *   <li>Resolve the invite token → roomId.</li>
-     *   <li>Load the room and verify the password proof.</li>
-     *   <li>Reject if already a member.</li>
-     *   <li>{@code BY_PASSWORD}: add to {@code room_members}, return {@link JoinResult.Approved}.</li>
-     *   <li>{@code BY_REQUEST}: create {@link RoomJoinRequest}, return {@link JoinResult.Pending}.</li>
-     * </ol>
-     *
-     * @param senderTgId      Telegram ID of the requesting user
-     * @param senderUsername  Telegram username (may be null)
-     * @param senderFirstName first name from initData
-     * @param inviteToken     token from the deep link
-     * @param passwordProof   PBKDF2 proof derived client-side; may be null when the room has no password (BY_REQUEST)
-     * @param senderPublicKey Base64 SPKI ECDH public key of the sender (may be null)
-     * @return Mono with {@link JoinResult}; errors signal with descriptive messages used as error codes
-     */
-    public Mono<JoinResult> requestJoin(Long senderTgId,
+    public Mono<JoinResult> requestJoin(String senderInternalId,
+                                        Long senderTgId,
                                         String senderUsername,
                                         String senderFirstName,
                                         String inviteToken,
@@ -115,93 +65,68 @@ public class RoomJoinService {
                             return Mono.error(new SecurityException("WRONG_PASSWORD"));
                         }
                     }
-                    return roomMembersRepository.isMember(room.getId(), senderTgId)
+                    return roomMembersRepository.isMember(room.getId(), senderInternalId)
                             .flatMap(alreadyMember -> {
                                 if (alreadyMember) {
                                     return Mono.error(new IllegalStateException("ALREADY_MEMBER"));
                                 }
                                 if (room.getJoinMode() == Room.JoinMode.BY_PASSWORD) {
-                                    return joinByPassword(room, senderTgId, senderPublicKey);
-                                } else {
-                                    return joinByRequest(room, senderTgId, senderUsername,
-                                            senderFirstName, senderPublicKey);
+                                    return joinByPassword(room, senderInternalId, senderTgId, senderPublicKey);
                                 }
+                                return joinByRequest(room, senderInternalId, senderTgId, senderUsername,
+                                        senderFirstName, senderPublicKey);
                             });
                 });
     }
 
-    /**
-     * Accept a pending join request (owner only).
-     *
-     * <p>Adds the requester to {@code room_members}, stores their public key,
-     * and removes the join request.
-     *
-     * @param ownerTgId   Telegram ID of the room owner (must match {@link Room#getOwnerTgId()})
-     * @param roomId     UUID of the room
-     * @param senderTgId Telegram ID of the user to accept
-     * @return Mono completing on success; errors for NOT_OWNER / ROOM_NOT_FOUND / REQUEST_NOT_FOUND
-     */
-    public Mono<Void> acceptJoin(Long ownerTgId, String roomId, Long senderTgId) {
-        return loadRoomAsOwner(ownerTgId, roomId)
-                .then(joinRequestRepository.findByRoomAndSender(roomId, senderTgId))
+    public Mono<Void> acceptJoin(String ownerInternalId, String roomId, String senderInternalId) {
+        return loadRoomAsOwner(ownerInternalId, roomId)
+                .then(joinRequestRepository.findByRoomAndSender(roomId, senderInternalId))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND")))
-                .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderTgId)
-                        .then(memberPublicKeyRepository.put(roomId, senderTgId, joinRequest.getPublicKey()))
-                        .then(joinRequestRepository.remove(roomId, senderTgId))
+                .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderInternalId)
+                        .then(memberPublicKeyRepository.put(roomId, senderInternalId, joinRequest.getPublicKey()))
+                        .then(joinRequestRepository.remove(roomId, senderInternalId))
                         .then(roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL))
-                        .then()
-                )
-                .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderTgId={}, ownerTgId={}",
-                        roomId, senderTgId, ownerTgId));
+                        .then())
+                .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderInternalId={}, ownerInternalId={}",
+                        roomId, senderInternalId, ownerInternalId));
     }
 
-    /**
-     * Reject a pending join request (owner only).
-     *
-     * <p>Removes the request without adding the requester to the room.
-     *
-     * @param ownerTgId   Telegram ID of the room owner
-     * @param roomId     UUID of the room
-     * @param senderTgId Telegram ID of the user to reject
-     * @return Mono completing on success; errors for NOT_OWNER / ROOM_NOT_FOUND / REQUEST_NOT_FOUND
-     */
-    public Mono<Void> rejectJoin(Long ownerTgId, String roomId, Long senderTgId) {
-        return loadRoomAsOwner(ownerTgId, roomId)
-                .then(joinRequestRepository.exists(roomId, senderTgId))
+    public Mono<Void> rejectJoin(String ownerInternalId, String roomId, String senderInternalId) {
+        return loadRoomAsOwner(ownerInternalId, roomId)
+                .then(joinRequestRepository.exists(roomId, senderInternalId))
                 .flatMap(exists -> {
                     if (!exists) {
                         return Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND"));
                     }
-                    return joinRequestRepository.remove(roomId, senderTgId);
+                    return joinRequestRepository.remove(roomId, senderInternalId);
                 })
-                .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderTgId={}, ownerTgId={}",
-                        roomId, senderTgId, ownerTgId));
+                .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderInternalId={}, ownerInternalId={}",
+                        roomId, senderInternalId, ownerInternalId));
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    private Mono<JoinResult> joinByPassword(Room room, Long senderTgId, String senderPublicKey) {
-        return roomMembersRepository.add(room.getId(), senderTgId)
-                .then(memberPublicKeyRepository.put(room.getId(), senderTgId, senderPublicKey))
+    private Mono<JoinResult> joinByPassword(Room room, String senderInternalId, Long senderTgId,
+                                            String senderPublicKey) {
+        return roomMembersRepository.add(room.getId(), senderInternalId)
+                .then(memberPublicKeyRepository.put(room.getId(), senderInternalId, senderPublicKey))
                 .then(roomRepository.extendTtl(room.getId(), RoomRepository.DEFAULT_TTL))
                 .thenReturn((JoinResult) new JoinResult.Approved(
-                        room.getId(), ownerInternalIdOrDerive(room), room.getOwnerTgId()))
+                        room.getId(), ownerInternalIdOrEmpty(room)))
                 .doOnSuccess(r -> LOG.info("User {} joined room {} directly (BY_PASSWORD)",
-                        senderTgId, room.getId()));
+                        senderInternalId, room.getId()));
     }
 
-    private Mono<JoinResult> joinByRequest(Room room, Long senderTgId,
-                                            String senderUsername, String senderFirstName,
-                                            String senderPublicKey) {
-        return joinRequestRepository.exists(room.getId(), senderTgId)
+    private Mono<JoinResult> joinByRequest(Room room, String senderInternalId, Long senderTgId,
+                                           String senderUsername, String senderFirstName,
+                                           String senderPublicKey) {
+        return joinRequestRepository.exists(room.getId(), senderInternalId)
                 .flatMap(alreadyRequested -> {
                     if (alreadyRequested) {
                         return Mono.error(new IllegalStateException("REQUEST_PENDING"));
                     }
                     RoomJoinRequest request = RoomJoinRequest.builder()
                             .roomId(room.getId())
+                            .senderInternalId(senderInternalId)
                             .senderTgId(senderTgId)
                             .username(senderUsername)
                             .firstName(senderFirstName)
@@ -210,36 +135,23 @@ public class RoomJoinService {
                             .build();
                     return joinRequestRepository.save(request)
                             .thenReturn((JoinResult) new JoinResult.Pending(
-                                    request, ownerInternalIdOrDerive(room), room.getOwnerTgId()))
+                                    request, ownerInternalIdOrEmpty(room)))
                             .doOnSuccess(r -> LOG.info(
-                                    "Join request created: roomId={}, senderTgId={}, ownerTgId={}, ownerInternalId={}",
-                                    room.getId(), senderTgId, room.getOwnerTgId(), ownerInternalIdOrDerive(room)));
+                                    "Join request created: roomId={}, senderInternalId={}, ownerInternalId={}",
+                                    room.getId(), senderInternalId, ownerInternalIdOrEmpty(room)));
                 });
     }
 
-    /**
-     * Owner id string for {@link JoinResult} when the room row may omit {@link Room#getOwnerInternalId()}.
-     */
-    private static String ownerInternalIdOrDerive(Room room) {
-        if (room.getOwnerInternalId() != null && !room.getOwnerInternalId().isBlank()) {
-            return room.getOwnerInternalId();
-        }
-        if (room.getOwnerTgId() != null) {
-            return InternalIds.forTelegramId(room.getOwnerTgId());
-        }
-        return "";
+    private static String ownerInternalIdOrEmpty(Room room) {
+        return room.getOwnerInternalId() != null ? room.getOwnerInternalId() : "";
     }
 
-    /**
-     * Load a room and verify that {@code ownerTgId} is its owner (Telegram id).
-     *
-     * @return Mono with the {@link Room}, or error signals for ROOM_NOT_FOUND / NOT_OWNER
-     */
-    private Mono<Room> loadRoomAsOwner(Long ownerTgId, String roomId) {
+    private Mono<Room> loadRoomAsOwner(String ownerInternalId, String roomId) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
-                    if (!room.getOwnerTgId().equals(ownerTgId)) {
+                    if (!StringUtils.hasText(room.getOwnerInternalId())
+                            || !room.getOwnerInternalId().equals(ownerInternalId)) {
                         return Mono.error(new SecurityException("NOT_OWNER"));
                     }
                     return Mono.just(room);

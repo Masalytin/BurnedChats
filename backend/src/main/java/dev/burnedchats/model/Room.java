@@ -43,9 +43,15 @@ public class Room implements Serializable {
     /** Unique room identifier (UUID v4). */
     private String id;
 
-    /** Internal ID of the room owner. */
+    /** Internal ID of the room owner — canonical owner identity. */
     private String ownerInternalId;
-    /** Telegram ID kept for compatibility in current DTO/event flow. */
+
+    /**
+     * Telegram ID of the owner when linked; null for wallet-only owners.
+     *
+     * @deprecated Use {@link #ownerInternalId} for authorization and membership checks.
+     */
+    @Deprecated
     private Long ownerTgId;
 
     /**

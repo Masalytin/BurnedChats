@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
  *   <li>AES-256-GCM wrapKey(groupKey) → encryptedKey</li>
  * </ol>
  *
- * <p>Key pattern: {@code room_keys:{roomId}:{epoch}} — Hash field {@code tgId} → serialised bundle.
+ * <p>Key pattern: {@code room_keys:{roomId}:{epoch}} — Hash field {@code internalId} → serialised bundle.
  */
 @Data
 @Builder
@@ -31,8 +31,8 @@ public class EncryptedKeyBundle {
     /** Key epoch (0 = initial, incremented on rekey after a member leaves). */
     private int epoch;
 
-    /** Telegram ID of the intended recipient. */
-    private String recipientTgId;
+    /** Internal ID of the intended recipient. */
+    private String recipientInternalId;
 
     /** Base64-encoded ephemeral ECDH P-256 public key (65 bytes, uncompressed). */
     private String ephemeralPublicKey;
