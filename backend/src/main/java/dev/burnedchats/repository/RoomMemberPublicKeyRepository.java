@@ -62,6 +62,8 @@ public class RoomMemberPublicKeyRepository {
                 });
     }
 
+    /** @deprecated Use {@link #put(String, String, String)}. */
+    @Deprecated
     public Mono<Void> put(String roomId, Long telegramId, String publicKey) {
         return put(roomId, InternalIds.forTelegramId(telegramId), publicKey);
     }
@@ -85,6 +87,8 @@ public class RoomMemberPublicKeyRepository {
                 });
     }
 
+    /** @deprecated Use {@link #get(String, String)}. */
+    @Deprecated
     public Mono<String> get(String roomId, Long telegramId) {
         return get(roomId, InternalIds.forTelegramId(telegramId));
     }
@@ -123,6 +127,8 @@ public class RoomMemberPublicKeyRepository {
                 .doOnSuccess(v -> LOG.debug("Removed public key for member {} in room {}", internalId, roomId));
     }
 
+    /** @deprecated Use {@link #remove(String, String)}. */
+    @Deprecated
     public Mono<Void> remove(String roomId, Long telegramId) {
         return remove(roomId, InternalIds.forTelegramId(telegramId));
     }

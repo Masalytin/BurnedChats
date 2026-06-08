@@ -3,6 +3,7 @@ package dev.burnedchats.controller;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.TonAddressBoc;
 import dev.burnedchats.ton.exception.TonRpcException;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,7 +28,7 @@ public class WalletController {
      * BURN jetton balance in nano units (decimal string). Public read; no auth.
      */
     @GetMapping("/burn-balance")
-    public Mono<ResponseEntity<Object>> burnBalance(@RequestParam(required = false) String address) {
+    public Mono<ResponseEntity<Object>> burnBalance(@RequestParam(required = false) @Nullable String address) {
         if (address == null || address.isBlank()) {
             return Mono.just(badRequest("address is required"));
         }
@@ -51,7 +52,7 @@ public class WalletController {
      * {@code null} when the wallet is absent or could not be derived (contract non-zero exit).
      */
     @GetMapping("/jetton-wallet")
-    public Mono<ResponseEntity<Object>> jettonWallet(@RequestParam(required = false) String address) {
+    public Mono<ResponseEntity<Object>> jettonWallet(@RequestParam(required = false) @Nullable String address) {
         if (address == null || address.isBlank()) {
             return Mono.just(badRequest("address is required"));
         }
@@ -77,5 +78,5 @@ public class WalletController {
 
     public record BurnBalanceResponse(String balanceNano, String address) {}
 
-    public record JettonWalletResponse(String jettonWalletAddress, String ownerAddress) {}
+    public record JettonWalletResponse(@Nullable String jettonWalletAddress, String ownerAddress) {}
 }

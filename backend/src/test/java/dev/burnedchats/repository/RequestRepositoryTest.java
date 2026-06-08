@@ -53,6 +53,8 @@ class RequestRepositoryTest {
     private static final String TEST_SESSION_ID = "session-123";
     private static final Long SENDER_ID = 111111111L;
     private static final Long RECIPIENT_ID = 222222222L;
+    private static final String SENDER_INTERNAL_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    private static final String RECIPIENT_INTERNAL_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
     @BeforeEach
     void setUp() {
@@ -72,10 +74,12 @@ class RequestRepositoryTest {
     private ChatRequest createTestRequest() {
         return ChatRequest.builder()
                 .sessionId(TEST_SESSION_ID)
+                .senderInternalId(SENDER_INTERNAL_ID)
                 .senderTgId(SENDER_ID)
                 .senderUsername("alice")
                 .senderFirstName("Alice")
                 .senderLastName("Smith")
+                .recipientInternalId(RECIPIENT_INTERNAL_ID)
                 .recipientTgId(RECIPIENT_ID)
                 .hasQuestion(false)
                 .createdAt(Instant.now().minusSeconds(30)) // 30 seconds ago, well within 5-minute TTL
@@ -99,7 +103,7 @@ class RequestRepositoryTest {
         void shouldSaveRequest() {
             // Given
             ChatRequest request = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
 
             when(listOperations.leftPush(eq(key), anyString())).thenReturn(Mono.just(1L));
             when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
@@ -120,7 +124,7 @@ class RequestRepositoryTest {
             ChatRequest request = createTestRequest();
             request.setHasQuestion(true);
             request.setQuestion("What is the secret code?");
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
 
             when(listOperations.leftPush(eq(key), anyString())).thenReturn(Mono.just(1L));
             when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
@@ -141,13 +145,13 @@ class RequestRepositoryTest {
         void shouldReturnRequestsForRecipient() {
             // Given
             ChatRequest request = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             String json = toJson(request);
 
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(json));
 
             // When & Then
-            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_INTERNAL_ID))
                     .assertNext(found -> {
                         assertEquals(TEST_SESSION_ID, found.getSessionId());
                         assertEquals(SENDER_ID, found.getSenderTgId());
@@ -160,11 +164,11 @@ class RequestRepositoryTest {
         @DisplayName("should return empty when no requests")
         void shouldReturnEmptyWhenNoRequests() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.empty());
 
             // When & Then
-            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_INTERNAL_ID))
                     .verifyComplete();
         }
 
@@ -178,12 +182,12 @@ class RequestRepositoryTest {
             ChatRequest validRequest = createTestRequest();
             validRequest.setSessionId("session-456");
 
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1))
                     .thenReturn(Flux.just(toJson(expiredRequest), toJson(validRequest)));
 
             // When & Then
-            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_INTERNAL_ID))
                     .assertNext(found -> assertEquals("session-456", found.getSessionId()))
                     .verifyComplete();
         }
@@ -193,13 +197,13 @@ class RequestRepositoryTest {
         void shouldSkipInvalidJson() {
             // Given
             ChatRequest validRequest = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
 
             when(listOperations.range(key, 0, -1))
                     .thenReturn(Flux.just("invalid-json", toJson(validRequest)));
 
             // When & Then
-            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.findByRecipient(RECIPIENT_INTERNAL_ID))
                     .assertNext(found -> assertEquals(TEST_SESSION_ID, found.getSessionId()))
                     .verifyComplete();
         }
@@ -217,12 +221,12 @@ class RequestRepositoryTest {
             ChatRequest request2 = createTestRequest();
             request2.setSessionId("other-session");
 
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1))
                     .thenReturn(Flux.just(toJson(request1), toJson(request2)));
 
             // When & Then
-            StepVerifier.create(requestRepository.findBySessionId(RECIPIENT_ID, TEST_SESSION_ID))
+            StepVerifier.create(requestRepository.findBySessionId(RECIPIENT_INTERNAL_ID, TEST_SESSION_ID))
                     .assertNext(found -> {
                         assertEquals(TEST_SESSION_ID, found.getSessionId());
                         assertEquals(SENDER_ID, found.getSenderTgId());
@@ -235,11 +239,11 @@ class RequestRepositoryTest {
         void shouldReturnEmptyWhenSessionNotFound() {
             // Given
             ChatRequest request = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(request)));
 
             // When & Then
-            StepVerifier.create(requestRepository.findBySessionId(RECIPIENT_ID, "non-existent"))
+            StepVerifier.create(requestRepository.findBySessionId(RECIPIENT_INTERNAL_ID, "non-existent"))
                     .verifyComplete();
         }
     }
@@ -253,13 +257,13 @@ class RequestRepositoryTest {
         void shouldDeleteRequest() {
             // Given
             ChatRequest request = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
 
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(request)));
             when(listOperations.remove(eq(key), eq(1L), anyString())).thenReturn(Mono.just(1L));
 
             // When & Then
-            StepVerifier.create(requestRepository.delete(RECIPIENT_ID, TEST_SESSION_ID))
+            StepVerifier.create(requestRepository.delete(RECIPIENT_INTERNAL_ID, TEST_SESSION_ID))
                     .expectNext(true)
                     .verifyComplete();
         }
@@ -268,11 +272,11 @@ class RequestRepositoryTest {
         @DisplayName("should return false when request not found")
         void shouldReturnFalseWhenNotFound() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.empty());
 
             // When & Then
-            StepVerifier.create(requestRepository.delete(RECIPIENT_ID, TEST_SESSION_ID))
+            StepVerifier.create(requestRepository.delete(RECIPIENT_INTERNAL_ID, TEST_SESSION_ID))
                     .expectNext(false)
                     .verifyComplete();
         }
@@ -286,11 +290,11 @@ class RequestRepositoryTest {
         @DisplayName("should delete all requests for recipient")
         void shouldDeleteAllRequests() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(redisTemplate.delete(key)).thenReturn(Mono.just(1L));
 
             // When & Then
-            StepVerifier.create(requestRepository.deleteAll(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.deleteAll(RECIPIENT_INTERNAL_ID))
                     .expectNext(1L)
                     .verifyComplete();
 
@@ -306,11 +310,11 @@ class RequestRepositoryTest {
         @DisplayName("should return request count")
         void shouldReturnCount() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.size(key)).thenReturn(Mono.just(5L));
 
             // When & Then
-            StepVerifier.create(requestRepository.countByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.countByRecipient(RECIPIENT_INTERNAL_ID))
                     .expectNext(5L)
                     .verifyComplete();
         }
@@ -319,11 +323,11 @@ class RequestRepositoryTest {
         @DisplayName("should return zero when no requests")
         void shouldReturnZeroWhenNoRequests() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.size(key)).thenReturn(Mono.just(0L));
 
             // When & Then
-            StepVerifier.create(requestRepository.countByRecipient(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.countByRecipient(RECIPIENT_INTERNAL_ID))
                     .expectNext(0L)
                     .verifyComplete();
         }
@@ -338,11 +342,11 @@ class RequestRepositoryTest {
         void shouldReturnTrueWhenExists() {
             // Given
             ChatRequest request = createTestRequest();
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(request)));
 
             // When & Then
-            StepVerifier.create(requestRepository.existsBetween(SENDER_ID, RECIPIENT_ID))
+            StepVerifier.create(requestRepository.existsBetween(SENDER_INTERNAL_ID, RECIPIENT_INTERNAL_ID))
                     .expectNext(true)
                     .verifyComplete();
         }
@@ -352,12 +356,13 @@ class RequestRepositoryTest {
         void shouldReturnFalseWhenNotExists() {
             // Given
             ChatRequest request = createTestRequest();
+            request.setSenderInternalId("cccccccc-cccc-cccc-cccc-cccccccccccc");
             request.setSenderTgId(999999999L); // Different sender
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(request)));
 
             // When & Then
-            StepVerifier.create(requestRepository.existsBetween(SENDER_ID, RECIPIENT_ID))
+            StepVerifier.create(requestRepository.existsBetween(SENDER_INTERNAL_ID, RECIPIENT_INTERNAL_ID))
                     .expectNext(false)
                     .verifyComplete();
         }
@@ -371,11 +376,11 @@ class RequestRepositoryTest {
         @DisplayName("should refresh TTL")
         void shouldRefreshTtl() {
             // Given
-            String key = "request:" + RECIPIENT_ID;
+            String key = "request:" + RECIPIENT_INTERNAL_ID;
             when(redisTemplate.expire(key, Duration.ofMinutes(5))).thenReturn(Mono.just(true));
 
             // When & Then
-            StepVerifier.create(requestRepository.refreshTtl(RECIPIENT_ID))
+            StepVerifier.create(requestRepository.refreshTtl(RECIPIENT_INTERNAL_ID))
                     .expectNext(true)
                     .verifyComplete();
         }

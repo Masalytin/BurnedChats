@@ -17,6 +17,7 @@ import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
@@ -72,6 +73,7 @@ public class WebSocketEventListener {
     private final OnlineStatusRepository onlineStatusRepository;
     private final RequestRepository requestRepository;
     private final UserRepository userRepository;
+    private final UserIdentityRepository userIdentityRepository;
     private final MessageRepository messageRepository;
     private final UserMapper userMapper;
     private final SimpMessagingTemplate messagingTemplate;
@@ -220,8 +222,19 @@ public class WebSocketEventListener {
      */
     private reactor.core.publisher.Mono<IncomingRequestEvent> buildIncomingRequestEvent(
             ChatRequest request) {
-        return userRepository.findById(request.getSenderTgId())
-                .map(sender -> userMapper.toResponse(sender, true))
+        String senderInternalId = request.getSenderKey();
+        if (senderInternalId == null || senderInternalId.isBlank()) {
+            return reactor.core.publisher.Mono.just(IncomingRequestEvent.create(
+                    request.getSessionId(),
+                    buildPlaceholderSender(request),
+                    request.getQuestion(),
+                    request.getCreatedAt(),
+                    request.getExpiresAt()
+            ));
+        }
+        return userIdentityRepository.findById(senderInternalId)
+                .flatMap(sender -> onlineStatusRepository.isOnline(senderInternalId)
+                        .map(online -> userMapper.toResponse(sender, online)))
                 .defaultIfEmpty(buildPlaceholderSender(request))
                 .map(senderResponse -> IncomingRequestEvent.create(
                         request.getSessionId(),
@@ -232,12 +245,6 @@ public class WebSocketEventListener {
                 ));
     }
 
-    /**
-     * Build a placeholder sender response when user info is not cached.
-     *
-     * @param request the chat request with sender info
-     * @return placeholder UserResponse
-     */
     private UserResponse buildPlaceholderSender(ChatRequest request) {
         String displayName = request.getSenderFirstName();
         if (request.getSenderLastName() != null) {
@@ -245,6 +252,7 @@ public class WebSocketEventListener {
         }
 
         return UserResponse.builder()
+                .internalId(request.getSenderInternalId())
                 .id(request.getSenderTgId())
                 .username(request.getSenderUsername())
                 .displayName(displayName)

@@ -45,9 +45,9 @@ public class RekeyRequest {
     @Data
     public static class BundleItem {
 
-        /** Telegram ID of the recipient. */
-        @NotNull
-        private Long recipientTgId;
+        /** Internal ID of the recipient. */
+        @NotBlank
+        private String recipientInternalId;
 
         /** Base64-encoded ephemeral ECDH P-256 public key (65 bytes raw). */
         @NotBlank

@@ -82,7 +82,8 @@ class MessageHandlerSyncTest {
         Thread.sleep(300);
 
         ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
-        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/sync-messages"), eventCap.capture());
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(internalA), eq("/queue/sync-messages"), eventCap.capture());
         SyncMessagesEvent ev = eventCap.getValue();
         assertThat(ev.isSuccess()).isTrue();
         assertThat(ev.getSessionId()).isEqualTo(SESSION_ID);
@@ -191,7 +192,8 @@ class MessageHandlerSyncTest {
         Thread.sleep(300);
 
         ArgumentCaptor<SyncMessagesEvent> eventCap = ArgumentCaptor.forClass(SyncMessagesEvent.class);
-        verify(stompUserMessenger).convertAndSendToUser(eq(principal), eq("/queue/sync-messages"), eventCap.capture());
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(internalA), eq("/queue/sync-messages"), eventCap.capture());
         assertThat(eventCap.getValue().getEdits()).isEmpty();
         assertThat(eventCap.getValue().getDeletedIds()).containsExactly("m-both");
     }

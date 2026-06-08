@@ -56,6 +56,11 @@ public class IncomingRequestEvent {
     private UserResponse sender;
 
     /**
+     * Internal id of the sender (same as {@code sender.internalId} when present).
+     */
+    private String fromInternalId;
+
+    /**
      * Whether this request includes a secret question
      * that must be answered before accepting.
      */
@@ -91,9 +96,11 @@ public class IncomingRequestEvent {
     public static IncomingRequestEvent create(String sessionId, UserResponse sender,
                                                String secretQuestion,
                                                Instant createdAt, Instant expiresAt) {
+        String fromInternalId = sender != null ? sender.getInternalId() : null;
         return IncomingRequestEvent.builder()
                 .sessionId(sessionId)
                 .sender(sender)
+                .fromInternalId(fromInternalId)
                 .hasSecretQuestion(secretQuestion != null && !secretQuestion.isBlank())
                 .secretQuestion(secretQuestion)
                 .createdAt(createdAt)

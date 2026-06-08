@@ -13,7 +13,11 @@
     <!-- Exclude test classes from certain checks -->
     <Match>
         <Class name="~.*Test"/>
-        <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+        <Or>
+            <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+            <!-- Direct controller unit tests pass null for optional @RequestParam -->
+            <Bug pattern="NP_NONNULL_PARAM_VIOLATION"/>
+        </Or>
     </Match>
 
     <!--

@@ -50,6 +50,10 @@ public class RoomMembersRepository {
                 .doOnSuccess(n -> LOG.debug("Added member {} to room {} (added={})", internalId, roomId, n));
     }
 
+    /**
+     * @deprecated Use {@link #add(String, String)} with {@link dev.burnedchats.security.AppPrincipal#getInternalId()}.
+     */
+    @Deprecated
     public Mono<Long> add(String roomId, Long telegramId) {
         return add(roomId, InternalIds.forTelegramId(telegramId));
     }
@@ -70,6 +74,8 @@ public class RoomMembersRepository {
                 .doOnSuccess(n -> LOG.debug("Removed member {} from room {} (removed={})", internalId, roomId, n));
     }
 
+    /** @deprecated Use {@link #remove(String, String)}. */
+    @Deprecated
     public Mono<Long> remove(String roomId, Long telegramId) {
         return remove(roomId, InternalIds.forTelegramId(telegramId));
     }
@@ -98,6 +104,8 @@ public class RoomMembersRepository {
                 .doOnComplete(() -> LOG.debug("Fetched rooms for member {}", internalId));
     }
 
+    /** @deprecated Use {@link #getRoomsForMember(String)}. */
+    @Deprecated
     public Flux<String> getRoomsForMember(Long telegramId) {
         return getRoomsForMember(InternalIds.forTelegramId(telegramId));
     }
@@ -114,6 +122,8 @@ public class RoomMembersRepository {
                 .isMember(keyFor(roomId), (Object) internalId);
     }
 
+    /** @deprecated Use {@link #isMember(String, String)}. */
+    @Deprecated
     public Mono<Boolean> isMember(String roomId, Long telegramId) {
         return isMember(roomId, InternalIds.forTelegramId(telegramId));
     }

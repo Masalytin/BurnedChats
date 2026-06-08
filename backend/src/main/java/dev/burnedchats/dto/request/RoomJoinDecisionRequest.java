@@ -1,7 +1,6 @@
 package dev.burnedchats.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
@@ -21,8 +20,15 @@ public class RoomJoinDecisionRequest {
     @NotBlank
     private String roomId;
 
-    /** Telegram ID of the user whose join request is being decided. */
-    @NotNull
+    /** Internal ID of the user whose join request is being decided. */
+    private String senderInternalId;
+
+    /**
+     * Legacy Telegram ID of the requester — resolved to {@link #senderInternalId} when the latter is absent.
+     *
+     * @deprecated Prefer {@link #senderInternalId}.
+     */
+    @Deprecated
     @Positive
     private Long senderTgId;
 }

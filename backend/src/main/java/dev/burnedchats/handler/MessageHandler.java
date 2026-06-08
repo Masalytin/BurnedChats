@@ -21,7 +21,7 @@ import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
-import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
@@ -42,44 +42,12 @@ import java.security.Principal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * STOMP handler for encrypted message relay.
- *
- * <p>Handles message exchange between chat participants. The server acts
- * purely as a relay - it never decrypts or stores message content permanently.
- * Messages are only temporarily queued if the recipient is offline.
- *
- * <p>Message flow:
- * <ol>
- *   <li>Sender encrypts message client-side with shared AES key</li>
- *   <li>Sender sends encrypted message via {@code /app/message.send}</li>
- *   <li>Server validates session and participant</li>
- *   <li>If recipient online: relay immediately via NEW_MESSAGE event</li>
- *   <li>If recipient offline: queue message and send Telegram notification</li>
- *   <li>Send acknowledgment to sender via MESSAGE_SENT event</li>
- * </ol>
- *
- * <p>Destinations:
- * <ul>
- *   <li>{@code /app/message.send} - send encrypted message</li>
- * </ul>
- *
- * <p>Events sent:
- * <ul>
- *   <li>{@code /user/queue/new-message} - new message for recipient</li>
- *   <li>{@code /user/queue/message-sent} - acknowledgment for sender</li>
- * </ul>
- *
- * <p>Security notes:
- * <ul>
- *   <li>Messages are encrypted end-to-end with AES-256-GCM</li>
- *   <li>Server only validates session membership, not content</li>
- *   <li>Offline messages are stored encrypted, TTL from {@code burnedchats.messages.offline-queue}</li>
- *   <li>Messages are deleted immediately after delivery</li>
- * </ul>
  *
  * @see SendMessageRequest
  * @see NewMessageEvent
@@ -91,29 +59,15 @@ import java.util.stream.Collectors;
 @Validated
 public class MessageHandler {
 
-    /**
-     * STOMP destination for new message events (sent to recipient).
-     */
     private static final String NEW_MESSAGE_DESTINATION = "/queue/new-message";
-
-    /**
-     * STOMP destination for message sent acknowledgment (sent to sender).
-     */
     private static final String MESSAGE_SENT_DESTINATION = "/queue/message-sent";
-
-    /**
-     * STOMP destination for synced messages (sent to requester).
-     */
     private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
-
     private static final String MESSAGE_EDITED_DESTINATION = "/queue/message-edited";
-
     private static final String MESSAGE_DELETED_DESTINATION = "/queue/message-deleted";
 
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
-    private final UserIdentityRepository userIdentityRepository;
     private final StompUserMessenger stompUserMessenger;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
@@ -121,110 +75,103 @@ public class MessageHandler {
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
-    /**
-     * Relay an encrypted message to the peer.
-     *
-     * <p>This method receives an encrypted message from a sender and either:
-     * <ul>
-     *   <li>Relays it immediately if the recipient is online</li>
-     *   <li>Queues it for later delivery if the recipient is offline</li>
-     * </ul>
-     *
-     * <p>In both cases, a Telegram notification is sent to the recipient
-     * if they are offline to alert them of the new message.
-     *
-     * @param request   the send message request containing encrypted content
-     * @param principal authenticated user principal
-     */
+    private record ParticipantContext(String internalId, Long telegramId) {
+    }
+
+    private ParticipantContext participantContext(Principal principal) {
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            return null;
+        }
+        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
+                ? telegramPrincipal.getUserId()
+                : null;
+        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
+    }
+
     @MessageMapping("/message.edit")
     public void editMessage(@Payload @Valid EditMessageRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long senderId = telegramPrincipal.getUserId();
+        ParticipantContext editor = participantContext(principal);
+        if (editor == null) {
+            LOG.warn("message.edit: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String sessionId = request.getSessionId();
         String messageId = request.getMessageId();
-        LOG.info("DM message edit: sessionId={}, messageId={}, senderTelegramId={}, internalId={}",
-                sessionId, messageId, senderId, telegramPrincipal.getInternalId());
+        LOG.info("DM message edit: sessionId={}, messageId={}, internalId={}, telegramId={}",
+                sessionId, messageId, editor.internalId(), editor.telegramId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    sendMessageEditError(telegramPrincipal, sessionId, messageId, "NOT_EDITABLE");
+                    sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
                     return Mono.empty();
                 }))
-                .flatMap(session -> applyDmEdit(session, telegramPrincipal, request))
+                .flatMap(session -> applyDmEdit(session, editor, request))
                 .subscribe(
                         v -> { },
                         error -> {
                             LOG.error("editMessage: sessionId={}, error={}", sessionId, error.getMessage());
-                            sendMessageEditError(telegramPrincipal, sessionId, messageId, "INTERNAL_ERROR");
+                            sendMessageEditError(editor, sessionId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
 
     @MessageMapping("/message.send")
     public void relayMessage(@Payload SendMessageRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long senderId = telegramPrincipal.getUserId();
+        ParticipantContext sender = participantContext(principal);
+        if (sender == null) {
+            LOG.warn("message.send: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String sessionId = request.getSessionId();
         String messageId = request.getMessageId();
 
-        LOG.info("Message relay requested: sessionId={}, senderId={}, messageId={}",
-                sessionId, senderId, messageId);
+        LOG.info("Message relay requested: sessionId={}, internalId={}, messageId={}",
+                sessionId, sender.internalId(), messageId);
 
-        // Validate session and relay message
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for message: {}", sessionId);
-                    sendError(telegramPrincipal, sessionId, messageId, "SESSION_NOT_FOUND");
+                    sendError(sender, sessionId, messageId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndRelayMessage(session, telegramPrincipal, request))
+                .flatMap(session -> validateAndRelayMessage(session, sender, request))
                 .subscribe(
-                        result -> {},
+                        result -> { },
                         error -> {
-                            LOG.error("Error relaying message: sessionId={}, senderTelegramId={}, error={}",
-                                    sessionId, senderId, error.getMessage());
-                            sendError(telegramPrincipal, sessionId, messageId, "INTERNAL_ERROR");
+                            LOG.error("Error relaying message: sessionId={}, internalId={}, error={}",
+                                    sessionId, sender.internalId(), error.getMessage());
+                            sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    /**
-     * Sync pending messages after reconnection (5.1.2).
-     *
-     * <p>Called when a client reconnects and needs to retrieve messages
-     * that were queued while offline. Returns all pending messages for
-     * the specified session.
-     *
-     * @param request   the sync request containing session ID
-     * @param principal authenticated user principal
-     */
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/message.sync")
     public void syncMessages(@Payload SyncMessagesRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
-        String internalId = telegramPrincipal.getInternalId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            LOG.warn("message.sync: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
+        String internalId = participant.internalId();
         String sessionId = request.sessionId();
 
-        LOG.info("Sync messages requested: sessionId={}, telegramId={}, internalId={}",
-                sessionId, userId, internalId);
+        LOG.info("Sync messages requested: sessionId={}, internalId={}, telegramId={}",
+                sessionId, internalId, participant.telegramId());
 
-        // Validate session and sync messages
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for sync: {}", sessionId);
-                    sendSyncError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
+                    sendSyncError(participant, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
                 .flatMap(session -> {
-                    // Validate user is participant
-                    if (!session.isParticipant(userId)) {
-                        LOG.debug("User {} is not a participant in session {}", userId, sessionId);
-                        sendSyncError(telegramPrincipal, sessionId, "NOT_PARTICIPANT");
+                    if (!session.isParticipant(internalId)) {
+                        LOG.debug("User {} is not a participant in session {}", internalId, sessionId);
+                        sendSyncError(participant, sessionId, "NOT_PARTICIPANT");
                         return Mono.empty();
                     }
 
-                    // Pending messages, tombstone edits, and tombstone deletions
                     return Mono.zip(
                             messageRepository.getPendingMessages(internalId, sessionId).collectList(),
                             messageRepository.getPendingEdits(internalId, sessionId).collectList(),
@@ -253,17 +200,12 @@ public class MessageHandler {
 
                         SyncMessagesEvent event = SyncMessagesEvent.success(
                                 sessionId, syncedMessages, deletedIds, syncedEdits);
-                        stompUserMessenger.convertAndSendToUser(
-                                telegramPrincipal,
-                                SYNC_MESSAGES_DESTINATION,
-                                event
-                        );
+                        stompUserMessenger.convertAndSendToInternalId(
+                                internalId, SYNC_MESSAGES_DESTINATION, event);
 
                         LOG.info(
-                                "Synced {} messages, {} edits, {} deletions for telegramId={}, "
-                                        + "internalId={} in session {}",
-                                syncedMessages.size(), syncedEdits.size(), deletedIds.size(), userId, internalId,
-                                sessionId);
+                                "Synced {} messages, {} edits, {} deletions for internalId={} in session {}",
+                                syncedMessages.size(), syncedEdits.size(), deletedIds.size(), internalId, sessionId);
 
                         Mono<Void> after = Mono.empty();
                         if (!messages.isEmpty()) {
@@ -282,100 +224,111 @@ public class MessageHandler {
                     });
                 })
                 .subscribe(
-                        result -> {},
+                        result -> { },
                         error -> {
-                            LOG.error("Error syncing messages: sessionId={}, telegramId={}, internalId={}, error={}",
-                                    sessionId, userId, internalId, error.getMessage());
-                            sendSyncError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
+                            LOG.error("Error syncing messages: sessionId={}, internalId={}, error={}",
+                                    sessionId, internalId, error.getMessage());
+                            sendSyncError(participant, sessionId, "INTERNAL_ERROR");
                         }
             );
-    }
-
-    /**
-     * Send sync error event to user.
-     */
-    private void sendSyncError(TelegramPrincipal recipient, String sessionId, String errorCode) {
-        SyncMessagesEvent event = SyncMessagesEvent.error(sessionId, errorCode);
-        stompUserMessenger.convertAndSendToUser(recipient, SYNC_MESSAGES_DESTINATION, event);
     }
 
     @MessageMapping("/message.delete")
     public void deleteMessage(@Payload @Valid DeleteMessageRequest request, Principal principal) {
-        TelegramPrincipal tp = (TelegramPrincipal) principal;
-        Long deleterId = tp.getUserId();
+        ParticipantContext deleter = participantContext(principal);
+        if (deleter == null) {
+            LOG.warn("message.delete: unsupported principal type {}", principal.getClass().getName());
+            return;
+        }
         String sessionId = request.getSessionId();
         String messageId = request.getMessageId();
-        LOG.info("DM message delete: sessionId={}, messageId={}, deleterTelegramId={}, internalId={}",
-                sessionId, messageId, deleterId, tp.getInternalId());
+        LOG.info("DM message delete: sessionId={}, messageId={}, internalId={}, telegramId={}",
+                sessionId, messageId, deleter.internalId(), deleter.telegramId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    sendMessageDeletedError(tp, sessionId, messageId, "NOT_FOUND");
+                    sendMessageDeletedError(deleter, sessionId, messageId, "NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> runDmDelete(session, tp, deleterId, messageId))
+                .flatMap(session -> runDmDelete(session, deleter, messageId))
                 .subscribe(
                         v -> { },
                         error -> {
                             LOG.error("deleteMessage: sessionId={}, error={}", sessionId, error.getMessage());
-                            sendMessageDeletedError(tp, sessionId, messageId, "INTERNAL_ERROR");
+                            sendMessageDeletedError(deleter, sessionId, messageId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    private Mono<Void> runDmDelete(Session session, TelegramPrincipal deleterPrincipal, Long deleterId,
-            String messageId) {
+    private Mono<Void> runDmDelete(Session session, ParticipantContext deleter, String messageId) {
         String sessionId = session.getId();
-        if (!session.isParticipant(deleterId)) {
-            sendMessageDeletedError(deleterPrincipal, sessionId, messageId, "NOT_PARTICIPANT");
+        if (!session.isParticipant(deleter.internalId())) {
+            sendMessageDeletedError(deleter, sessionId, messageId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
         if (session.getStatus() != SessionStatus.ACTIVE) {
-            String err = errorCodeForNonActiveMessageSession(session.getStatus());
-            sendMessageDeletedError(deleterPrincipal, sessionId, messageId, err);
+            sendMessageDeletedError(deleter, sessionId, messageId,
+                    errorCodeForNonActiveMessageSession(session.getStatus()));
             return Mono.empty();
         }
-        Long peerId = session.getPeerId(deleterId);
-        if (peerId == null) {
-            sendMessageDeletedError(deleterPrincipal, sessionId, messageId, "INTERNAL_ERROR");
+        String peerInternalId = session.getPeerInternalId(deleter.internalId());
+        if (!StringUtils.hasText(peerInternalId)) {
+            sendMessageDeletedError(deleter, sessionId, messageId, "INTERNAL_ERROR");
             return Mono.empty();
         }
-        return messageRepository.removeMessageFromQueue(peerId, sessionId, messageId)
+        return messageRepository.removeMessageFromQueue(peerInternalId, sessionId, messageId)
                 .flatMap(removed -> {
                     if (removed.isPresent()) {
-                        if (!deleterId.equals(removed.get().getSenderId())) {
-                            sendMessageDeletedError(deleterPrincipal, sessionId, messageId, "NOT_ALLOWED");
+                        if (!isMessageSender(removed.get(), deleter)) {
+                            sendMessageDeletedError(deleter, sessionId, messageId, "NOT_ALLOWED");
                             return Mono.empty();
                         }
                         return finalizeDmDeleteFromQueue(
-                                session, deleterPrincipal, peerId, deleterId, messageId, removed.get());
+                                session, deleter, peerInternalId, messageId, removed.get());
                     }
-                    return assertDeleterOwnsMessage(sessionId, messageId, deleterId)
+                    return assertDeleterOwnsMessage(sessionId, messageId, deleter)
                             .flatMap(code -> {
                                 if (!"OK".equals(code)) {
-                                    sendMessageDeletedError(deleterPrincipal, sessionId, messageId, code);
+                                    sendMessageDeletedError(deleter, sessionId, messageId, code);
                                     return Mono.empty();
                                 }
                                 return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
                                         .switchIfEmpty(Mono.just(DmMessageEditableMeta.builder().build()))
                                         .flatMap(meta -> finalizeDmDeleteDelivered(
-                                                session, deleterPrincipal, peerId, deleterId, messageId, meta));
+                                                session, deleter, peerInternalId, messageId, meta));
                             });
                 });
     }
 
-    private Mono<String> assertDeleterOwnsMessage(String sessionId, String messageId, Long deleterId) {
+    private static boolean isMessageSender(Message message, ParticipantContext participant) {
+        if (message.getSenderInternalId() != null) {
+            return message.getSenderInternalId().equals(participant.internalId());
+        }
+        return participant.telegramId() != null
+                && Objects.equals(message.getSenderId(), participant.telegramId());
+    }
+
+    private Mono<String> assertDeleterOwnsMessage(String sessionId, String messageId,
+            ParticipantContext deleter) {
         return messageRepository.getMessageSenderIndex(sessionId, messageId)
-                .map(sid -> deleterId.equals(sid) ? "OK" : "NOT_ALLOWED")
+                .map(sid -> deleter.telegramId() != null && deleter.telegramId().equals(sid)
+                        ? "OK" : "NOT_ALLOWED")
                 .switchIfEmpty(
                         messageRepository.getDmMessageEditableMeta(sessionId, messageId)
-                                .map(m -> deleterId.equals(m.getSenderId()) ? "OK" : "NOT_ALLOWED")
+                                .map(m -> ownsDeliveredMessage(m, deleter) ? "OK" : "NOT_ALLOWED")
                                 .switchIfEmpty(Mono.just("NOT_FOUND"))
                 );
     }
 
+    private static boolean ownsDeliveredMessage(DmMessageEditableMeta meta, ParticipantContext deleter) {
+        if (deleter.telegramId() != null && meta.getSenderId() != null) {
+            return deleter.telegramId().equals(meta.getSenderId());
+        }
+        return false;
+    }
+
     private Mono<Void> finalizeDmDeleteFromQueue(
-            Session session, TelegramPrincipal deleterPrincipal, Long peerId, Long deleterId, String messageId,
+            Session session, ParticipantContext deleter, String peerInternalId, String messageId,
             Message fromQueue) {
         String sessionId = session.getId();
         if (FileMessageRelayValidator.isFileMessage(fromQueue.getType())) {
@@ -383,11 +336,11 @@ public class MessageHandler {
         }
         return messageRepository.removeMessageSenderIndex(sessionId, messageId)
                 .then(messageRepository.deleteDmMessageEditableMeta(sessionId, messageId))
-                .then(broadcastDmDeleted(session, deleterPrincipal, peerId, deleterId, messageId));
+                .then(broadcastDmDeleted(session, deleter, peerInternalId, messageId));
     }
 
     private Mono<Void> finalizeDmDeleteDelivered(
-            Session session, TelegramPrincipal deleterPrincipal, Long peerId, Long deleterId, String messageId,
+            Session session, ParticipantContext deleter, String peerInternalId, String messageId,
             DmMessageEditableMeta meta) {
         String sessionId = session.getId();
         if (meta != null && meta.getFileId() != null) {
@@ -395,63 +348,44 @@ public class MessageHandler {
         }
         return messageRepository.removeMessageSenderIndex(sessionId, messageId)
                 .then(messageRepository.deleteDmMessageEditableMeta(sessionId, messageId))
-                .then(broadcastDmDeleted(session, deleterPrincipal, peerId, deleterId, messageId));
+                .then(broadcastDmDeleted(session, deleter, peerInternalId, messageId));
     }
 
     private Mono<Void> broadcastDmDeleted(
-            Session session, TelegramPrincipal deleterPrincipal, Long peerId, Long deleterId, String messageId) {
+            Session session, ParticipantContext deleter, String peerInternalId, String messageId) {
         String sessionId = session.getId();
         Instant deletedAt = Instant.now();
         MessageDeletedEvent ev = MessageDeletedEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
                 .messageId(messageId)
-                .deletedByTgId(deleterId)
+                .deletedByTgId(deleter.telegramId())
                 .deletedByOwner(false)
                 .deletedAt(deletedAt)
                 .build();
-        sendDmMessageDeletedEvent(deleterPrincipal, deleterId, ev);
+        sendDmMessageDeletedEvent(deleter, ev);
         MessageDeletion tomb = MessageDeletion.builder()
                 .messageId(messageId)
-                .deletedByTgId(deleterId)
+                .deletedByTgId(deleter.telegramId())
                 .deletedAt(deletedAt)
                 .build();
-        return onlineStatusRepository.isOnline(peerId)
+        return onlineStatusRepository.isOnline(peerInternalId)
                 .flatMap(online -> {
                     if (Boolean.TRUE.equals(online)) {
-                        return userIdentityRepository.findByTelegramId(peerId)
-                                .filter(StringUtils::hasText)
-                                .doOnNext(recipientInternalId -> {
-                                    LOG.debug("DM delete STOMP: peerTelegramId={}, peerInternalId={}, sessionId={}",
-                                            peerId, recipientInternalId, sessionId);
-                                    stompUserMessenger.convertAndSendToInternalId(
-                                            recipientInternalId, MESSAGE_DELETED_DESTINATION, ev);
-                                })
-                                .hasElement()
-                                .flatMap(sent -> {
-                                    if (Boolean.TRUE.equals(sent)) {
-                                        return Mono.<Void>empty();
-                                    }
-                                    LOG.debug(
-                                            "DM delete: peerTelegramId={} has no "
-                                                    + "UserIdentity mapping; tombstone queued",
-                                            peerId);
-                                    return messageRepository.queueDeletion(peerId, sessionId, tomb).then();
-                                });
+                        stompUserMessenger.convertAndSendToInternalId(
+                                peerInternalId, MESSAGE_DELETED_DESTINATION, ev);
+                        return Mono.<Void>empty();
                     }
-                    return messageRepository.queueDeletion(peerId, sessionId, tomb)
-                            .then(Mono.empty());
+                    return messageRepository.queueDeletion(peerInternalId, sessionId, tomb).then();
                 });
     }
 
-    private void sendDmMessageDeletedEvent(TelegramPrincipal deleterPrincipal, Long deleterTelegramId,
-            MessageDeletedEvent event) {
-        stompUserMessenger.convertAndSendToUser(deleterPrincipal, MESSAGE_DELETED_DESTINATION, event);
-        LOG.trace("DM delete STOMP to deleter telegramId={}, internalId={}",
-                deleterTelegramId, deleterPrincipal.getInternalId());
+    private void sendDmMessageDeletedEvent(ParticipantContext deleter, MessageDeletedEvent event) {
+        stompUserMessenger.convertAndSendToInternalId(
+                deleter.internalId(), MESSAGE_DELETED_DESTINATION, event);
     }
 
-    private void sendMessageDeletedError(TelegramPrincipal recipient, String sessionId, String messageId,
+    private void sendMessageDeletedError(ParticipantContext recipient, String sessionId, String messageId,
             String errorCode) {
         MessageDeletedEvent event = MessageDeletedEvent.builder()
                 .success(false)
@@ -459,93 +393,92 @@ public class MessageHandler {
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        stompUserMessenger.convertAndSendToUser(recipient, MESSAGE_DELETED_DESTINATION, event);
+        stompUserMessenger.convertAndSendToInternalId(
+                recipient.internalId(), MESSAGE_DELETED_DESTINATION, event);
     }
 
-    /**
-     * Validate session state and relay/queue the message.
-     */
+    private void sendSyncError(ParticipantContext recipient, String sessionId, String errorCode) {
+        SyncMessagesEvent event = SyncMessagesEvent.error(sessionId, errorCode);
+        stompUserMessenger.convertAndSendToInternalId(
+                recipient.internalId(), SYNC_MESSAGES_DESTINATION, event);
+    }
+
     @SuppressWarnings("checkstyle:MethodLength")
-    private Mono<Void> validateAndRelayMessage(Session session, TelegramPrincipal senderPrincipal,
+    private Mono<Void> validateAndRelayMessage(Session session, ParticipantContext sender,
                                                SendMessageRequest request) {
-        Long senderId = senderPrincipal.getUserId();
+        String senderInternalId = sender.internalId();
         String sessionId = session.getId();
         String messageId = request.getMessageId();
 
-        // Validate sender is a participant
-        if (!session.isParticipant(senderId)) {
-            LOG.debug("User {} is not a participant in session {}", senderId, sessionId);
-            sendError(senderPrincipal, sessionId, messageId, "NOT_PARTICIPANT");
+        if (!session.isParticipant(senderInternalId)) {
+            LOG.debug("User {} is not a participant in session {}", senderInternalId, sessionId);
+            sendError(sender, sessionId, messageId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
-        // Validate session status - must be ACTIVE
         SessionStatus status = session.getStatus();
         if (status != SessionStatus.ACTIVE) {
             LOG.debug("Session {} is not active, status: {}", sessionId, status);
-            sendError(senderPrincipal, sessionId, messageId, errorCodeForNonActiveMessageSession(status));
+            sendError(sender, sessionId, messageId, errorCodeForNonActiveMessageSession(status));
             return Mono.empty();
         }
 
-        // Get recipient ID
-        Long recipientId = session.getPeerId(senderId);
-        if (recipientId == null) {
-            LOG.error("Could not determine recipient for sender {} in session {}", senderId, sessionId);
-            sendError(senderPrincipal, sessionId, messageId, "INTERNAL_ERROR");
+        String recipientInternalId = session.getPeerInternalId(senderInternalId);
+        if (!StringUtils.hasText(recipientInternalId)) {
+            LOG.error("Could not determine recipient for sender {} in session {}",
+                    senderInternalId, sessionId);
+            sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
             return Mono.empty();
         }
+        Long recipientTelegramId = session.isInitiator(senderInternalId)
+                ? session.getResponderTelegramId()
+                : session.getInitiatorTelegramId();
 
         logReplyToIfPresent(request, sessionId);
 
-        // File validation for non-text messages
         Mono<Void> fileValidation = Mono.empty();
         if (FileMessageRelayValidator.isFileMessage(request.getType())) {
             fileValidation = fileMessageRelayValidator.validateFileMessage(
-                    request.getFileId(), request.getThumbnailFileId(), senderId, sessionId);
+                    request.getFileId(), request.getThumbnailFileId(), sender.telegramId(), sessionId);
         }
 
-        // Update session last activity
         session.touch();
 
         return fileValidation
                 .then(sessionRepository.save(session))
-                .then(onlineStatusRepository.isOnline(recipientId))
+                .then(onlineStatusRepository.isOnline(recipientInternalId))
                 .flatMap(isRecipientOnline -> {
                     Instant serverTimestamp = Instant.now();
-
-                    if (isRecipientOnline) {
+                    if (Boolean.TRUE.equals(isRecipientOnline)) {
                         return deliverMessageImmediately(
-                                session, senderPrincipal, senderId, recipientId, request, serverTimestamp);
-                    } else {
-                        return queueMessageForOfflineDelivery(
-                                session, senderPrincipal, senderId, recipientId, request, serverTimestamp);
+                                session, sender, recipientInternalId, recipientTelegramId,
+                                request, serverTimestamp);
                     }
+                    return queueMessageForOfflineDelivery(
+                            session, sender, recipientInternalId, recipientTelegramId,
+                            request, serverTimestamp);
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for message {} in session {}: {}",
                             messageId, sessionId, ex.getErrorCode());
-                    sendError(senderPrincipal, sessionId, messageId, ex.getErrorCode());
+                    sendError(sender, sessionId, messageId, ex.getErrorCode());
                     return Mono.empty();
                 });
     }
 
-    /**
-     * Deliver message immediately to online recipient.
-     */
     @SuppressWarnings("checkstyle:MethodLength")
-    private Mono<Void> deliverMessageImmediately(Session session, TelegramPrincipal senderPrincipal,
-                                                   Long senderId, Long recipientId,
-                                                   SendMessageRequest request, Instant serverTimestamp) {
+    private Mono<Void> deliverMessageImmediately(Session session, ParticipantContext sender,
+            String recipientInternalId, Long recipientTelegramId,
+            SendMessageRequest request, Instant serverTimestamp) {
         String sessionId = session.getId();
         String messageId = request.getMessageId();
         String type = request.getType() != null ? request.getType() : "text";
 
-        // Build NEW_MESSAGE event with file fields when applicable
         NewMessageEvent.NewMessageEventBuilder eventBuilder = NewMessageEvent.builder()
                 .success(true)
                 .sessionId(sessionId)
                 .messageId(messageId)
-                .senderId(senderId)
+                .senderId(sender.telegramId())
                 .encryptedContent(request.getEncryptedContent())
                 .iv(request.getIv())
                 .clientTimestamp(request.getTimestamp())
@@ -566,80 +499,51 @@ public class MessageHandler {
         NewMessageEvent newMessageEvent = eventBuilder.build();
         MessageSentEvent sentEvent = MessageSentEvent.delivered(sessionId, messageId, serverTimestamp);
 
-        return userIdentityRepository.findByTelegramId(recipientId)
-                .filter(StringUtils::hasText)
-                .flatMap(recipientInternalId -> {
-                    stompUserMessenger.convertAndSendToInternalId(
-                            recipientInternalId, NEW_MESSAGE_DESTINATION, newMessageEvent);
-                    stompUserMessenger.convertAndSendToUser(senderPrincipal, MESSAGE_SENT_DESTINATION, sentEvent);
+        stompUserMessenger.convertAndSendToInternalId(
+                recipientInternalId, NEW_MESSAGE_DESTINATION, newMessageEvent);
+        stompUserMessenger.convertAndSendToInternalId(
+                sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
 
-                    LOG.info(
-                            "Message delivered immediately: sessionId={}, messageId={}, type={}, "
-                                    + "senderTelegramId={}, recipientTelegramId={}, recipientInternalId={}",
-                            sessionId, messageId, type, senderId, recipientId, recipientInternalId);
+        LOG.info(
+                "Message delivered immediately: sessionId={}, messageId={}, type={}, "
+                        + "senderInternalId={}, recipientInternalId={}, recipientTelegramId={}",
+                sessionId, messageId, type, sender.internalId(), recipientInternalId, recipientTelegramId);
 
-                    String fileId = FileMessageRelayValidator.isFileMessage(type) ? request.getFileId() : null;
-                    String thumbId = FileMessageRelayValidator.isFileMessage(type)
-                            ? request.getThumbnailFileId()
-                            : null;
-                    return messageRepository.putDmMessageEditableMeta(
-                                    sessionId, messageId, senderId, serverTimestamp, fileId, thumbId)
-                            .then(messageRepository.putMessageSenderIndex(sessionId, messageId, senderId))
-                            .then();
-                })
-                .switchIfEmpty(Mono.defer(() -> {
-                    LOG.debug(
-                            "Online recipient telegramId={} has no UserIdentity mapping; falling back "
-                                    + "to offline queue sessionId={}, messageId={}",
-                            recipientId, sessionId, messageId);
-                    return queueMessageForOfflineDelivery(
-                            session, senderPrincipal, senderId, recipientId, request, serverTimestamp);
-                }));
+        String fileId = FileMessageRelayValidator.isFileMessage(type) ? request.getFileId() : null;
+        String thumbId = FileMessageRelayValidator.isFileMessage(type)
+                ? request.getThumbnailFileId()
+                : null;
+        return messageRepository.putDmMessageEditableMeta(
+                        sessionId, messageId, sender.telegramId(), serverTimestamp, fileId, thumbId)
+                .then(messageRepository.putMessageSenderIndex(sessionId, messageId, sender.telegramId()))
+                .then();
     }
 
-    /**
-     * Queue message for offline delivery and send Telegram notification.
-     */
-    private Mono<Void> queueMessageForOfflineDelivery(Session session, TelegramPrincipal senderPrincipal,
-                                                        Long senderId, Long recipientId,
-                                                        SendMessageRequest request, Instant serverTimestamp) {
+    private Mono<Void> queueMessageForOfflineDelivery(Session session, ParticipantContext sender,
+            String recipientInternalId, Long recipientTelegramId,
+            SendMessageRequest request, Instant serverTimestamp) {
         String sessionId = session.getId();
         String messageId = request.getMessageId();
-
-        // Create message for queue — use file-aware factory for non-text types
-        Message message;
-        if (FileMessageRelayValidator.isFileMessage(request.getType())) {
-            message = Message.fromFileRequest(
-                    sessionId, senderId, recipientId, messageId,
-                    request.getEncryptedContent(), request.getIv(), request.getTimestamp(),
-                    request.getType(), request.getFileId(), request.getThumbnailFileId(),
-                    request.getEncryptedMeta(), request.getFileSize(), request.getReplyToMessageId());
-        } else {
-            message = Message.fromRequest(
-                    sessionId, senderId, recipientId, messageId,
-                    request.getEncryptedContent(), request.getIv(), request.getTimestamp(),
-                    request.getReplyToMessageId());
-        }
+        Message message = buildQueuedMessage(session, sender, recipientInternalId, recipientTelegramId, request);
 
         return messageRepository.queueMessage(message)
                 .flatMap(queued -> {
                     if (!queued) {
                         LOG.warn("Failed to queue message: sessionId={}, messageId={}", sessionId, messageId);
-                        sendError(senderPrincipal, sessionId, messageId, "QUEUE_FAILED");
+                        sendError(sender, sessionId, messageId, "QUEUE_FAILED");
                         return Mono.<Void>empty();
                     }
 
-                    // Send Telegram notification to offline recipient
-                    sendOfflineNotification(senderId, recipientId, sessionId);
+                    sendOfflineNotificationIfLinked(sender.telegramId(), recipientTelegramId, sessionId);
 
-                    // Send acknowledgment to sender
                     MessageSentEvent sentEvent = MessageSentEvent.queued(sessionId, messageId, serverTimestamp);
-                    stompUserMessenger.convertAndSendToUser(senderPrincipal, MESSAGE_SENT_DESTINATION, sentEvent);
+                    stompUserMessenger.convertAndSendToInternalId(
+                            sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
 
                     LOG.info(
                             "Message queued for offline delivery: sessionId={}, messageId={}, "
-                                    + "senderTelegramId={}, recipientTelegramId={}, senderInternalId={}",
-                            sessionId, messageId, senderId, recipientId, senderPrincipal.getInternalId());
+                                    + "senderInternalId={}, recipientInternalId={}",
+                            sessionId, messageId, sender.internalId(), recipientInternalId);
 
                     String queuedType = request.getType() != null ? request.getType() : "text";
                     String fileId = FileMessageRelayValidator.isFileMessage(queuedType) ? request.getFileId() : null;
@@ -647,39 +551,59 @@ public class MessageHandler {
                             ? request.getThumbnailFileId()
                             : null;
                     return messageRepository
-                            .putDmMessageEditableMeta(sessionId, messageId, senderId, serverTimestamp, fileId, thumbId)
-                            .then(messageRepository.putMessageSenderIndex(sessionId, messageId, senderId))
+                            .putDmMessageEditableMeta(sessionId, messageId, sender.telegramId(),
+                                    serverTimestamp, fileId, thumbId)
+                            .then(messageRepository.putMessageSenderIndex(
+                                    sessionId, messageId, sender.telegramId()))
                             .then();
                 });
     }
 
-    /**
-     * Send Telegram notification to offline recipient about new message.
-     *
-     * <p>The notification includes:
-     * <ul>
-     *   <li>Information about who sent the message</li>
-     *   <li>Button to open Mini App and read messages</li>
-     * </ul>
-     *
-     * @param senderId    Telegram user ID of sender
-     * @param recipientId Telegram user ID of recipient
-     * @param sessionId   the session ID for deep linking
-     */
-    private void sendOfflineNotification(Long senderId, Long recipientId, String sessionId) {
-        botMessages.getForUser("bot.notify.newMessage", recipientId)
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    private Message buildQueuedMessage(Session session, ParticipantContext sender,
+            String recipientInternalId, Long recipientTelegramId, SendMessageRequest request) {
+        String type = request.getType() != null ? request.getType() : "text";
+        Message.MessageBuilder builder = Message.builder()
+                .messageId(request.getMessageId())
+                .sessionId(session.getId())
+                .senderId(sender.telegramId())
+                .senderInternalId(sender.internalId())
+                .recipientId(recipientTelegramId)
+                .recipientInternalId(recipientInternalId)
+                .encryptedContent(request.getEncryptedContent())
+                .iv(request.getIv())
+                .clientTimestamp(request.getTimestamp())
+                .serverTimestamp(Instant.now())
+                .type(type)
+                .replyToMessageId(request.getReplyToMessageId());
+        if (FileMessageRelayValidator.isFileMessage(type)) {
+            builder
+                    .fileId(request.getFileId())
+                    .thumbnailFileId(request.getThumbnailFileId())
+                    .encryptedMeta(request.getEncryptedMeta())
+                    .fileSize(request.getFileSize());
+        }
+        return builder.build();
+    }
+
+    private void sendOfflineNotificationIfLinked(Long senderTelegramId, Long recipientTelegramId,
+            String sessionId) {
+        if (recipientTelegramId == null) {
+            LOG.debug("Telegram notification skip: recipient has no telegramId sessionId={}", sessionId);
+            return;
+        }
+        botMessages.getForUser("bot.notify.newMessage", recipientTelegramId)
                 .subscribe(notificationText -> {
                     boolean sent = telegramBot.sendNotificationWithButton(
-                            recipientId,
+                            recipientTelegramId,
                             notificationText,
                             sessionId
                     );
-
                     if (sent) {
                         LOG.info("Telegram notification sent to offline recipient {}: sessionId={}",
-                                recipientId, sessionId);
+                                recipientTelegramId, sessionId);
                     } else {
-                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientId);
+                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientTelegramId);
                     }
                 });
     }
@@ -694,14 +618,12 @@ public class MessageHandler {
         };
     }
 
-    /**
-     * Send error event to the sender.
-     */
-    private void sendError(TelegramPrincipal sender, String sessionId, String messageId, String errorCode) {
+    private void sendError(ParticipantContext sender, String sessionId, String messageId, String errorCode) {
         MessageSentEvent event = MessageSentEvent.error(sessionId, messageId, errorCode);
-        stompUserMessenger.convertAndSendToUser(sender, MESSAGE_SENT_DESTINATION, event);
-        LOG.trace("Sent message error to sender telegramId={}, internalId={}, code={}",
-                sender.getUserId(), sender.getInternalId(), errorCode);
+        stompUserMessenger.convertAndSendToInternalId(
+                sender.internalId(), MESSAGE_SENT_DESTINATION, event);
+        LOG.trace("Sent message error to internalId={}, telegramId={}, code={}",
+                sender.internalId(), sender.telegramId(), errorCode);
     }
 
     private void logReplyToIfPresent(SendMessageRequest request, String sessionId) {
@@ -712,85 +634,80 @@ public class MessageHandler {
     }
 
     @SuppressWarnings("checkstyle:MethodLength")
-    private Mono<Void> applyDmEdit(Session session, TelegramPrincipal editorPrincipal, EditMessageRequest req) {
-        Long senderId = editorPrincipal.getUserId();
+    private Mono<Void> applyDmEdit(Session session, ParticipantContext editor, EditMessageRequest req) {
+        String editorInternalId = editor.internalId();
         String sessionId = session.getId();
         String messageId = req.getMessageId();
-        if (!session.isParticipant(senderId)) {
-            sendMessageEditError(editorPrincipal, sessionId, messageId, "NOT_PARTICIPANT");
+        if (!session.isParticipant(editorInternalId)) {
+            sendMessageEditError(editor, sessionId, messageId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
         if (session.getStatus() != SessionStatus.ACTIVE) {
-            String err = errorCodeForNonActiveMessageSession(session.getStatus());
-            sendMessageEditError(editorPrincipal, sessionId, messageId, err);
+            sendMessageEditError(editor, sessionId, messageId,
+                    errorCodeForNonActiveMessageSession(session.getStatus()));
             return Mono.empty();
         }
-        Long recipientId = session.getPeerId(senderId);
-        if (recipientId == null) {
-            sendMessageEditError(editorPrincipal, sessionId, messageId, "INTERNAL_ERROR");
+        String recipientInternalId = session.getPeerInternalId(editorInternalId);
+        if (!StringUtils.hasText(recipientInternalId)) {
+            sendMessageEditError(editor, sessionId, messageId, "INTERNAL_ERROR");
             return Mono.empty();
         }
         Instant editedAt = Instant.ofEpochMilli(req.getEditedAt());
         if (isClientEditTimeImplausible(req.getOriginalClientTimestamp(), req.getEditedAt())) {
-            sendMessageEditError(editorPrincipal, sessionId, messageId, "WINDOW_EXPIRED");
+            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
             return Mono.empty();
         }
 
-        return onlineStatusRepository.isOnline(recipientId)
+        return onlineStatusRepository.isOnline(recipientInternalId)
                 .flatMap(online -> messageRepository.updateMessageInQueue(
-                                recipientId, sessionId, messageId, senderId,
+                                recipientInternalId, sessionId, messageId, editor.telegramId(),
                                 req.getEncryptedContent(), req.getIv(), editedAt)
                         .flatMap(updated -> {
                             if (Boolean.TRUE.equals(updated)) {
                                 sendEditSuccessBoth(sessionId, messageId, req, editedAt,
-                                        editorPrincipal, recipientId, online);
+                                        editor, recipientInternalId, online);
                                 return Mono.<Void>empty();
                             }
                             return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
                                     .flatMap(meta -> {
-                                        if (!meta.getSenderId().equals(senderId)) {
-                                            sendMessageEditError(editorPrincipal, sessionId, messageId, "NOT_OWNER");
+                                        if (!ownsDeliveredMessage(meta, editor)) {
+                                            sendMessageEditError(editor, sessionId, messageId, "NOT_OWNER");
                                             return Mono.<Void>empty();
                                         }
                                         if (isOutsideEditWindow(meta.getServerTimestamp())) {
-                                            sendMessageEditError(
-                                                    editorPrincipal, sessionId, messageId, "WINDOW_EXPIRED");
+                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
                                             return Mono.<Void>empty();
                                         }
-                                        if (online) {
+                                        if (Boolean.TRUE.equals(online)) {
                                             sendEditSuccessBoth(sessionId, messageId, req, editedAt,
-                                                    editorPrincipal, recipientId, true);
+                                                    editor, recipientInternalId, true);
                                             return Mono.<Void>empty();
                                         }
                                         MessageEdit edit = MessageEdit.builder()
                                                 .messageId(messageId)
                                                 .sessionId(sessionId)
-                                                .senderId(senderId)
+                                                .senderId(editor.telegramId())
                                                 .encryptedContent(req.getEncryptedContent())
                                                 .iv(req.getIv())
                                                 .editedAt(editedAt)
                                                 .build();
-                                        return messageRepository.queueEdit(recipientId, sessionId, edit)
+                                        return messageRepository.queueEdit(recipientInternalId, sessionId, edit)
                                                 .flatMap(ok -> {
                                                     if (!Boolean.TRUE.equals(ok)) {
                                                         sendMessageEditError(
-                                                                editorPrincipal, sessionId, messageId,
-                                                                "INTERNAL_ERROR");
+                                                                editor, sessionId, messageId, "INTERNAL_ERROR");
                                                         return Mono.<Void>empty();
                                                     }
-                                                    sendMessageEditSuccess(
-                                                            editorPrincipal, sessionId, messageId, req, editedAt);
+                                                    sendMessageEditSuccess(editor, sessionId, messageId, req, editedAt);
                                                     return Mono.<Void>empty();
                                                 });
                                     })
                                     .switchIfEmpty(Mono.defer(() -> {
                                         long orig = req.getOriginalClientTimestamp();
                                         if (isOutsideEditWindow(Instant.ofEpochMilli(orig))) {
-                                            sendMessageEditError(
-                                                    editorPrincipal, sessionId, messageId, "WINDOW_EXPIRED");
+                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
                                         } else {
-                                            sendMessageEditError(
-                                                    editorPrincipal, sessionId, messageId, "NOT_EDITABLE");
+                                            sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
                                         }
                                         return Mono.<Void>empty();
                                     }));
@@ -800,11 +717,12 @@ public class MessageHandler {
 
     private void sendEditSuccessBoth(
             String sessionId, String messageId, EditMessageRequest req, Instant editedAt,
-            TelegramPrincipal editorPrincipal, Long recipientTelegramId, boolean recipientOnline) {
+            ParticipantContext editor, String recipientInternalId, boolean recipientOnline) {
         MessageEditedEvent ok = buildMessageEditSuccess(sessionId, messageId, req, editedAt);
-        stompUserMessenger.convertAndSendToUser(editorPrincipal, MESSAGE_EDITED_DESTINATION, ok);
+        stompUserMessenger.convertAndSendToInternalId(editor.internalId(), MESSAGE_EDITED_DESTINATION, ok);
         if (recipientOnline) {
-            sendMessageEditedToTelegramRecipient(recipientTelegramId, ok);
+            stompUserMessenger.convertAndSendToInternalId(
+                    recipientInternalId, MESSAGE_EDITED_DESTINATION, ok);
         }
     }
 
@@ -821,28 +739,15 @@ public class MessageHandler {
     }
 
     private void sendMessageEditSuccess(
-            TelegramPrincipal editor, String sessionId, String messageId, EditMessageRequest req, Instant editedAt) {
-        stompUserMessenger.convertAndSendToUser(
-                editor, MESSAGE_EDITED_DESTINATION, buildMessageEditSuccess(sessionId, messageId, req, editedAt));
+            ParticipantContext editor, String sessionId, String messageId,
+            EditMessageRequest req, Instant editedAt) {
+        stompUserMessenger.convertAndSendToInternalId(
+                editor.internalId(),
+                MESSAGE_EDITED_DESTINATION,
+                buildMessageEditSuccess(sessionId, messageId, req, editedAt));
     }
 
-    private void sendMessageEditedToTelegramRecipient(Long recipientTelegramId, MessageEditedEvent event) {
-        userIdentityRepository.findByTelegramId(recipientTelegramId)
-                .filter(StringUtils::hasText)
-                .doOnNext(recipientInternalId -> {
-                    LOG.debug(
-                            "DM edit STOMP to peer: telegramId={}, internalId={}",
-                            recipientTelegramId, recipientInternalId);
-                    stompUserMessenger.convertAndSendToInternalId(
-                            recipientInternalId, MESSAGE_EDITED_DESTINATION, event);
-                })
-                .switchIfEmpty(Mono.fromRunnable(() -> LOG.warn(
-                        "DM edit peer STOMP skipped: no UserIdentity for telegramId={}, messageId={}",
-                        recipientTelegramId, event.getMessageId())))
-                .subscribe();
-    }
-
-    private void sendMessageEditError(TelegramPrincipal recipient, String sessionId,
+    private void sendMessageEditError(ParticipantContext recipient, String sessionId,
             String messageId, String errorCode) {
         MessageEditedEvent event = MessageEditedEvent.builder()
                 .success(false)
@@ -850,7 +755,8 @@ public class MessageHandler {
                 .messageId(messageId)
                 .errorCode(errorCode)
                 .build();
-        stompUserMessenger.convertAndSendToUser(recipient, MESSAGE_EDITED_DESTINATION, event);
+        stompUserMessenger.convertAndSendToInternalId(
+                recipient.internalId(), MESSAGE_EDITED_DESTINATION, event);
     }
 
     private static boolean isClientEditTimeImplausible(long originalClient, long editedAt) {
@@ -865,5 +771,4 @@ public class MessageHandler {
         }
         return baseServerOrClient.plus(15, ChronoUnit.MINUTES).isBefore(Instant.now());
     }
-
 }

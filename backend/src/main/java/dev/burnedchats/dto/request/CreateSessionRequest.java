@@ -1,6 +1,5 @@
 package dev.burnedchats.dto.request;
 
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -17,15 +16,15 @@ import lombok.NoArgsConstructor;
  * <p>Example payload:
  * <pre>{@code
  * {
+ *   "recipientInternalId": "550e8400-e29b-41d4-a716-446655440000",
  *   "recipientId": 123456789,
  *   "secretQuestion": "What was our secret code?",
  *   "secretExpectedAnswer": "Blue boat"
  * }
  * }</pre>
  *
- * <p>The secretQuestion is optional. If it is non-empty after trim,
- * {@code secretExpectedAnswer} is required (same length limits). The server
- * stores only a hash of the expected answer, not the plaintext.
+ * <p>{@link #recipientInternalId} is the primary address key. {@link #recipientId} is
+ * optional and retained for legacy Telegram clients until frontend migration (IMP-WALLETID-07).
  *
  * @see dev.burnedchats.handler.SessionHandler
  */
@@ -36,11 +35,20 @@ import lombok.NoArgsConstructor;
 public class CreateSessionRequest {
 
     /**
-     * Telegram user ID of the recipient.
-     *
-     * <p>Must be a positive number representing a valid Telegram user ID.
+     * Stable internal id (UUID) of the recipient — primary address key.
      */
-    @NotNull(message = "Recipient ID is required")
+    @Size(min = 36, max = 36, message = "Recipient internal id must be a UUID")
+    private String recipientInternalId;
+
+    /**
+     * Legacy Telegram user ID of the recipient.
+     *
+     * <p>Optional when {@link #recipientInternalId} is provided. Resolved server-side
+     * to internal id via {@code auth_tg:} mapping.
+     *
+     * @deprecated Prefer {@link #recipientInternalId}
+     */
+    @Deprecated
     @Positive(message = "Recipient ID must be positive")
     private Long recipientId;
 

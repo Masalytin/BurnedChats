@@ -40,12 +40,21 @@ public class RoomMemberLeftEvent {
     /** The room UUID from which the member left. */
     private String roomId;
 
-    /** Telegram ID of the member who left. */
+    /** Internal ID of the member who left. */
+    private String leftInternalId;
+
+    /**
+     * Telegram ID when linked; null for wallet-only members.
+     *
+     * @deprecated Prefer {@link #leftInternalId}.
+     */
+    @Deprecated
     private Long leftTgId;
 
-    public static RoomMemberLeftEvent of(String roomId, Long leftTgId) {
+    public static RoomMemberLeftEvent of(String roomId, String leftInternalId, Long leftTgId) {
         return RoomMemberLeftEvent.builder()
                 .roomId(roomId)
+                .leftInternalId(leftInternalId)
                 .leftTgId(leftTgId)
                 .build();
     }

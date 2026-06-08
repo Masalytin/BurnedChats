@@ -1,10 +1,12 @@
 package dev.burnedchats.repository;
 
 import dev.burnedchats.model.RoomJoinRequest;
+import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,12 +19,9 @@ import java.util.Map;
  *
  * <p>Two key types are used together:
  * <ul>
- *   <li>{@code room_join_request:{roomId}:{senderTgId}} — Hash with request data, TTL 24 h.</li>
- *   <li>{@code room_join_requests:{roomId}} — Set of {@code senderTgId} strings (index), TTL 24 h.</li>
+ *   <li>{@code room_join_request:{roomId}:{senderInternalId}} — Hash with request data, TTL 24 h.</li>
+ *   <li>{@code room_join_requests:{roomId}} — Set of {@code senderInternalId} strings (index), TTL 24 h.</li>
  * </ul>
- *
- * <p>The index Set allows listing all pending requests for a room without a Redis SCAN.
- * Hash and index entry share the same TTL; both are removed on {@link #remove}.
  */
 @Slf4j
 @Repository
@@ -35,62 +34,37 @@ public class RoomJoinRequestRepository {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
-    /**
-     * Persist a new join request (Hash) and add the sender to the room's index Set.
-     *
-     * @param request the join request to store
-     * @return Mono completing when both writes succeed
-     */
     public Mono<Void> save(RoomJoinRequest request) {
-        String hashKey = hashKey(request.getRoomId(), request.getSenderTgId());
+        String senderInternalId = request.getSenderInternalId();
+        String hashKey = hashKey(request.getRoomId(), senderInternalId);
         String indexKey = indexKey(request.getRoomId());
-        String senderStr = String.valueOf(request.getSenderTgId());
 
         return redisTemplate.opsForHash()
                 .putAll(hashKey, toHash(request))
                 .then(redisTemplate.expire(hashKey, TTL))
-                .then(redisTemplate.opsForSet().add(indexKey, senderStr))
+                .then(redisTemplate.opsForSet().add(indexKey, senderInternalId))
                 .then(redisTemplate.expire(indexKey, TTL))
                 .then()
-                .doOnSuccess(v -> LOG.debug("Saved join request: roomId={}, senderTgId={}",
-                        request.getRoomId(), request.getSenderTgId()))
+                .doOnSuccess(v -> LOG.debug("Saved join request: roomId={}, senderInternalId={}",
+                        request.getRoomId(), senderInternalId))
                 .onErrorResume(e -> {
-                    LOG.error("Failed to save join request: roomId={}, senderTgId={}: {}",
-                            request.getRoomId(), request.getSenderTgId(), e.getMessage());
+                    LOG.error("Failed to save join request: roomId={}, senderInternalId={}: {}",
+                            request.getRoomId(), senderInternalId, e.getMessage());
                     return Mono.error(e);
                 });
     }
 
-    /**
-     * List all pending join requests for a room.
-     *
-     * <p>Reads sender IDs from the index Set and fetches each request Hash.
-     * Requests whose Hash has expired (but the index entry remains) are silently skipped.
-     *
-     * @param roomId the room UUID
-     * @return Flux of pending join requests (may be empty)
-     */
     public Flux<RoomJoinRequest> listByRoom(String roomId) {
         String indexKey = indexKey(roomId);
 
         return redisTemplate.opsForSet()
                 .members(indexKey)
-                .flatMap(senderStr -> {
-                    Long senderTgId = Long.parseLong(senderStr);
-                    return findByRoomAndSender(roomId, senderTgId);
-                })
+                .flatMap(senderInternalId -> findByRoomAndSender(roomId, senderInternalId))
                 .doOnComplete(() -> LOG.debug("Listed join requests for room {}", roomId));
     }
 
-    /**
-     * Find a single join request by room + sender.
-     *
-     * @param roomId     the room UUID
-     * @param senderTgId sender's Telegram ID
-     * @return Mono with the request, or empty if not found
-     */
-    public Mono<RoomJoinRequest> findByRoomAndSender(String roomId, Long senderTgId) {
-        String hashKey = hashKey(roomId, senderTgId);
+    public Mono<RoomJoinRequest> findByRoomAndSender(String roomId, String senderInternalId) {
+        String hashKey = hashKey(roomId, senderInternalId);
 
         return redisTemplate.opsForHash()
                 .entries(hashKey)
@@ -103,60 +77,60 @@ public class RoomJoinRequestRepository {
     }
 
     /**
-     * Check whether a join request exists for the given room + sender.
-     *
-     * @param roomId     the room UUID
-     * @param senderTgId sender's Telegram ID
-     * @return Mono with {@code true} if a request exists
+     * @deprecated Use {@link #findByRoomAndSender(String, String)}.
      */
-    public Mono<Boolean> exists(String roomId, Long senderTgId) {
-        return redisTemplate.hasKey(hashKey(roomId, senderTgId));
+    @Deprecated
+    public Mono<RoomJoinRequest> findByRoomAndSender(String roomId, Long senderTgId) {
+        return findByRoomAndSender(roomId, InternalIds.forTelegramId(senderTgId));
+    }
+
+    public Mono<Boolean> exists(String roomId, String senderInternalId) {
+        return redisTemplate.hasKey(hashKey(roomId, senderInternalId));
     }
 
     /**
-     * Remove a join request (both Hash and index Set entry).
-     *
-     * @param roomId     the room UUID
-     * @param senderTgId sender's Telegram ID
-     * @return Mono completing when removed
+     * @deprecated Use {@link #exists(String, String)}.
      */
-    public Mono<Void> remove(String roomId, Long senderTgId) {
-        String hashKey = hashKey(roomId, senderTgId);
+    @Deprecated
+    public Mono<Boolean> exists(String roomId, Long senderTgId) {
+        return exists(roomId, InternalIds.forTelegramId(senderTgId));
+    }
+
+    public Mono<Void> remove(String roomId, String senderInternalId) {
+        String hashKey = hashKey(roomId, senderInternalId);
         String indexKey = indexKey(roomId);
-        String senderStr = String.valueOf(senderTgId);
 
         return redisTemplate.delete(hashKey)
-                .then(redisTemplate.opsForSet().remove(indexKey, senderStr))
+                .then(redisTemplate.opsForSet().remove(indexKey, senderInternalId))
                 .then()
-                .doOnSuccess(v -> LOG.debug("Removed join request: roomId={}, senderTgId={}", roomId, senderTgId))
+                .doOnSuccess(v -> LOG.debug("Removed join request: roomId={}, senderInternalId={}",
+                        roomId, senderInternalId))
                 .onErrorResume(e -> {
-                    LOG.error("Failed to remove join request: roomId={}, senderTgId={}: {}",
-                            roomId, senderTgId, e.getMessage());
+                    LOG.error("Failed to remove join request: roomId={}, senderInternalId={}: {}",
+                            roomId, senderInternalId, e.getMessage());
                     return Mono.error(e);
                 });
     }
 
     /**
-     * Delete all join requests for a room (called when burning the room).
-     *
-     * @param roomId the room UUID
-     * @return Mono completing when both keys are deleted
+     * @deprecated Use {@link #remove(String, String)}.
      */
+    @Deprecated
+    public Mono<Void> remove(String roomId, Long senderTgId) {
+        return remove(roomId, InternalIds.forTelegramId(senderTgId));
+    }
+
     public Mono<Void> deleteAll(String roomId) {
         return redisTemplate.opsForSet()
                 .members(indexKey(roomId))
-                .flatMap(senderStr -> redisTemplate.delete(hashKey(roomId, Long.parseLong(senderStr))))
+                .flatMap(senderInternalId -> redisTemplate.delete(hashKey(roomId, senderInternalId)))
                 .then(redisTemplate.delete(indexKey(roomId)))
                 .then()
                 .doOnSuccess(v -> LOG.debug("Deleted all join requests for room {}", roomId));
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private String hashKey(String roomId, Long senderTgId) {
-        return HASH_PREFIX + roomId + ":" + senderTgId;
+    private String hashKey(String roomId, String senderInternalId) {
+        return HASH_PREFIX + roomId + ":" + senderInternalId;
     }
 
     private String indexKey(String roomId) {
@@ -166,7 +140,10 @@ public class RoomJoinRequestRepository {
     private Map<String, String> toHash(RoomJoinRequest request) {
         Map<String, String> map = new HashMap<>();
         map.put("roomId", request.getRoomId());
-        map.put("senderTgId", String.valueOf(request.getSenderTgId()));
+        map.put("senderInternalId", request.getSenderInternalId());
+        if (request.getSenderTgId() != null) {
+            map.put("senderTgId", String.valueOf(request.getSenderTgId()));
+        }
         map.put("username", request.getUsername() != null ? request.getUsername() : "");
         map.put("firstName", request.getFirstName() != null ? request.getFirstName() : "");
         map.put("createdAt", String.valueOf(request.getCreatedAt()));
@@ -178,9 +155,18 @@ public class RoomJoinRequestRepository {
         String username = hash.getOrDefault("username", "");
         String firstName = hash.getOrDefault("firstName", "");
         String publicKey = hash.getOrDefault("publicKey", "");
+        String senderInternalId = hash.get("senderInternalId");
+        if (!StringUtils.hasText(senderInternalId) && hash.containsKey("senderTgId")) {
+            senderInternalId = InternalIds.forTelegramId(Long.parseLong(hash.get("senderTgId")));
+        }
+        Long senderTgId = null;
+        if (hash.containsKey("senderTgId") && StringUtils.hasText(hash.get("senderTgId"))) {
+            senderTgId = Long.parseLong(hash.get("senderTgId"));
+        }
         return RoomJoinRequest.builder()
                 .roomId(hash.get("roomId"))
-                .senderTgId(Long.parseLong(hash.get("senderTgId")))
+                .senderInternalId(senderInternalId)
+                .senderTgId(senderTgId)
                 .username(username.isBlank() ? null : username)
                 .firstName(firstName.isBlank() ? null : firstName)
                 .createdAt(Long.parseLong(hash.get("createdAt")))
