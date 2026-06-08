@@ -77,7 +77,7 @@ export async function generateGroupKey(): Promise<CryptoKey> {
  *
  * @param groupKey - AES-256-GCM group key (must be extractable)
  * @param peerPublicKey - Recipient's ECDH P-256 public key (CryptoKey)
- * @param recipientTgId - Telegram ID of the recipient (for bundle identification)
+ * @param recipientInternalId - Internal ID of the recipient (for bundle identification)
  * @param roomId - Room identifier
  * @param epoch - Current key epoch (starts at 0)
  * @returns KeyBundle to send via STOMP to the recipient
@@ -85,7 +85,7 @@ export async function generateGroupKey(): Promise<CryptoKey> {
 export async function wrapGroupKey(
   groupKey: CryptoKey,
   peerPublicKey: CryptoKey,
-  recipientTgId: string,
+  recipientInternalId: string,
   roomId: string,
   epoch: number
 ): Promise<KeyBundle> {
@@ -139,7 +139,7 @@ export async function wrapGroupKey(
   return {
     roomId,
     epoch,
-    recipientTgId,
+    recipientInternalId,
     ephemeralPublicKey: toBase64(ephemeralPubRaw),
     encryptedKey: toBase64(wrappedKey),
     iv: toBase64(iv),

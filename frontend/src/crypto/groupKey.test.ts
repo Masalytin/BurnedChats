@@ -70,7 +70,7 @@ describe('wrapGroupKey() / unwrapGroupKey() round-trip', () => {
 
     expect(bundle.roomId).toBe('room-test-1');
     expect(bundle.epoch).toBe(0);
-    expect(bundle.recipientTgId).toBe('12345678');
+    expect(bundle.recipientInternalId).toBe('12345678');
     expect(typeof bundle.ephemeralPublicKey).toBe('string');
     expect(typeof bundle.encryptedKey).toBe('string');
     expect(typeof bundle.iv).toBe('string');
@@ -136,7 +136,7 @@ describe('wrapGroupKey() / unwrapGroupKey() round-trip', () => {
     );
 
     expect(bundle.epoch).toBe(epoch);
-    expect(bundle.recipientTgId).toBe('777');
+    expect(bundle.recipientInternalId).toBe('777');
     expect(bundle.roomId).toBe('room-meta');
 
     // iv should be 12 bytes → base64 length = ceil(12/3)*4 = 16 chars

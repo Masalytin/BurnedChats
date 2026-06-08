@@ -26,7 +26,7 @@ interface UseRoomMembersReturn {
 }
 
 /**
- * Hook for fetching the list of member tgIds for a room.
+ * Hook for fetching the list of member internalIds for a room.
  *
  * Sends GET_ROOM_MEMBERS to /app/room.getMembers and listens on
  * /user/queue/room-members for the response.

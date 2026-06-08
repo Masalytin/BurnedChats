@@ -405,7 +405,7 @@ function AppContent() {
     subscribe,
     unsubscribe,
     publish,
-    myTgId: telegramUserId,
+    myId: myInternalId,
     onRekeyCompleted: (roomId, newEpoch) => {
       debugLog('success', `[Rekey] Rekey completed for room ${roomId} epoch ${newEpoch}`);
       // Update epoch for the active room chat
@@ -722,13 +722,13 @@ function AppContent() {
   }, [activeRoomChat, isConnected, publish]);
 
   // Handle accept/reject join request (P2-2.2.5)
-  const handleAcceptJoinRequest = useCallback((roomId: string, senderTgId: number) => {
-    const key = `${roomId}:${senderTgId}`;
+  const handleAcceptJoinRequest = useCallback((roomId: string, senderInternalId: string) => {
+    const key = `${roomId}:${senderInternalId}`;
     setProcessingJoinKeys(prev => new Set(prev).add(key));
-    acceptJoinRequest(roomId, senderTgId);
+    acceptJoinRequest(roomId, senderInternalId);
     // Optimistically remove from list after a short delay
     setTimeout(() => {
-      removeJoinRequest(roomId, senderTgId);
+      removeJoinRequest(roomId, senderInternalId);
       setProcessingJoinKeys(prev => {
         const next = new Set(prev);
         next.delete(key);
@@ -739,13 +739,13 @@ function AppContent() {
     }, 500);
   }, [acceptJoinRequest, removeJoinRequest, notificationOccurred, toast]);
 
-  const handleRejectJoinRequest = useCallback((roomId: string, senderTgId: number) => {
-    const key = `${roomId}:${senderTgId}`;
+  const handleRejectJoinRequest = useCallback((roomId: string, senderInternalId: string) => {
+    const key = `${roomId}:${senderInternalId}`;
     setProcessingJoinKeys(prev => new Set(prev).add(key));
-    rejectJoinRequest(roomId, senderTgId);
+    rejectJoinRequest(roomId, senderInternalId);
     // Optimistically remove from list after a short delay
     setTimeout(() => {
-      removeJoinRequest(roomId, senderTgId);
+      removeJoinRequest(roomId, senderInternalId);
       setProcessingJoinKeys(prev => {
         const next = new Set(prev);
         next.delete(key);
@@ -1321,6 +1321,8 @@ function AppContent() {
       try {
         const data = JSON.parse(message.body) as {
           roomId?: string;
+          leftInternalId?: string;
+          /** @deprecated Prefer leftInternalId. */
           leftTgId?: number;
         };
         const deps = roomLeftDepsRef.current;
@@ -1328,9 +1330,11 @@ function AppContent() {
         if (!data.roomId) return;
 
         const roomId = data.roomId;
+        const leftMemberId = data.leftInternalId?.trim()
+          || (data.leftTgId != null ? String(data.leftTgId) : undefined);
         const isOwner = deps.myRooms.find(r => r.roomId === roomId)?.role === 'owner';
 
-        debugLog('info', `[RoomChat] ROOM_MEMBER_LEFT: room=${roomId}, leftTgId=${data.leftTgId}, isOwner=${isOwner}`);
+        debugLog('info', `[RoomChat] ROOM_MEMBER_LEFT: room=${roomId}, leftInternalId=${leftMemberId}, isOwner=${isOwner}`);
 
         if (isOwner) {
           // Owner must rotate the group key so the departed member loses access

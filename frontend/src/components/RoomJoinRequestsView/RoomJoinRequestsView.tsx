@@ -6,8 +6,8 @@ import './RoomJoinRequestsView.css';
 
 interface RoomJoinRequestCardProps {
   request: RoomJoinRequest;
-  onAccept: (roomId: string, senderTgId: number) => void;
-  onReject: (roomId: string, senderTgId: number) => void;
+  onAccept: (roomId: string, senderInternalId: string) => void;
+  onReject: (roomId: string, senderInternalId: string) => void;
   isProcessing?: boolean;
 }
 
@@ -37,7 +37,7 @@ function RoomJoinRequestCard({
       <div className="room-join-request-card__actions">
         <Button
           variant="primary"
-          onClick={() => onAccept(request.roomId, request.senderTgId)}
+          onClick={() => onAccept(request.roomId, request.senderInternalId)}
           disabled={isProcessing}
           className="room-join-request-card__btn room-join-request-card__btn--accept"
         >
@@ -45,7 +45,7 @@ function RoomJoinRequestCard({
         </Button>
         <Button
           variant="secondary"
-          onClick={() => onReject(request.roomId, request.senderTgId)}
+          onClick={() => onReject(request.roomId, request.senderInternalId)}
           disabled={isProcessing}
           className="room-join-request-card__btn room-join-request-card__btn--reject"
         >
@@ -59,12 +59,12 @@ function RoomJoinRequestCard({
 interface RoomJoinRequestsViewProps {
   /** All pending join requests for the owner. */
   requests: RoomJoinRequest[];
-  /** Set of `${roomId}:${senderTgId}` keys currently being processed. */
+  /** Set of `${roomId}:${senderInternalId}` keys currently being processed. */
   processingKeys?: Set<string>;
   /** Called when the owner accepts a request. */
-  onAccept: (roomId: string, senderTgId: number) => void;
+  onAccept: (roomId: string, senderInternalId: string) => void;
   /** Called when the owner rejects a request. */
-  onReject: (roomId: string, senderTgId: number) => void;
+  onReject: (roomId: string, senderInternalId: string) => void;
   /** Called when the owner navigates back. */
   onBack?: () => void;
 }
@@ -89,15 +89,15 @@ export function RoomJoinRequestsView({
   const { t } = useTranslation();
 
   const handleAccept = useCallback(
-    (roomId: string, senderTgId: number) => {
-      onAccept(roomId, senderTgId);
+    (roomId: string, senderInternalId: string) => {
+      onAccept(roomId, senderInternalId);
     },
     [onAccept]
   );
 
   const handleReject = useCallback(
-    (roomId: string, senderTgId: number) => {
-      onReject(roomId, senderTgId);
+    (roomId: string, senderInternalId: string) => {
+      onReject(roomId, senderInternalId);
     },
     [onReject]
   );
@@ -122,11 +122,11 @@ export function RoomJoinRequestsView({
         ) : (
           requests.map(request => (
             <RoomJoinRequestCard
-              key={`${request.roomId}:${request.senderTgId}`}
+              key={`${request.roomId}:${request.senderInternalId}`}
               request={request}
               onAccept={handleAccept}
               onReject={handleReject}
-              isProcessing={processingKeys?.has(`${request.roomId}:${request.senderTgId}`)}
+              isProcessing={processingKeys?.has(`${request.roomId}:${request.senderInternalId}`)}
             />
           ))
         )}

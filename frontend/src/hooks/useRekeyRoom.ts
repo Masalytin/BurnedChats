@@ -46,7 +46,8 @@ interface UseRekeyRoomOptions {
   subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
-  myTgId: number | null;
+  /** Owner's internalId — excluded from bundle wrapping (owner updates key directly). */
+  myId: string | null;
   onRekeyCompleted?: (roomId: string, newEpoch: number) => void;
   onRekeyReceived?: (roomId: string, newEpoch: number) => void;
 }
@@ -57,9 +58,6 @@ export interface UseRekeyRoomReturn {
    * Initiate a rekey for the given room (owner only).
    * Fetches member public keys, generates a new group key,
    * wraps it for each remaining member, and sends REKEY to the server.
-   *
-   * @param roomId    room to rekey
-   * @param myTgId    owner's Telegram ID (excluded from bundle wrapping — owner updates key directly)
    */
   rekeyRoom: (roomId: string) => void;
   reset: () => void;
@@ -86,7 +84,7 @@ export function useRekeyRoom({
   subscribe,
   unsubscribe,
   publish,
-  myTgId,
+  myId,
   onRekeyCompleted,
   onRekeyReceived,
 }: UseRekeyRoomOptions): UseRekeyRoomReturn {
@@ -150,14 +148,13 @@ export function useRekeyRoom({
         storeGroupKey(roomId, newEpoch, newGroupKey);
 
         // Wrap for each other member (skip self)
-        const myTgIdStr = myTgId !== null ? String(myTgId) : null;
         const bundlePromises = Object.entries(data.publicKeys)
-          .filter(([tgId]) => tgId !== myTgIdStr)
-          .map(async ([tgId, publicKeyBase64]) => {
+          .filter(([memberInternalId]) => memberInternalId !== myId)
+          .map(async ([memberInternalId, publicKeyBase64]) => {
             const peerPubKey = await importPublicKey(publicKeyBase64);
-            const bundle = await wrapGroupKey(newGroupKey, peerPubKey, tgId, roomId, newEpoch);
+            const bundle = await wrapGroupKey(newGroupKey, peerPubKey, memberInternalId, roomId, newEpoch);
             return {
-              recipientTgId: Number(tgId),
+              recipientInternalId: memberInternalId,
               ephemeralPublicKey: bundle.ephemeralPublicKey,
               encryptedKey: bundle.encryptedKey,
               iv: bundle.iv,
@@ -189,7 +186,7 @@ export function useRekeyRoom({
     };
 
     handleAsync();
-  }, [publish, myTgId]);
+  }, [publish, myId]);
 
   // ----------------------------------------
   // ROOM_REKEY broadcast handler (non-owner members)

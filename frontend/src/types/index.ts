@@ -288,6 +288,9 @@ export type RoomJoinMode = 'BY_PASSWORD' | 'BY_REQUEST';
 
 export interface Room {
   id: string;
+  /** Stable owner id (primary). */
+  ownerInternalId?: string;
+  /** @deprecated Prefer {@link ownerInternalId}. Present for Telegram-linked owners. */
   ownerTgId?: number;
   joinMode?: RoomJoinMode;
   createdAt?: number;
@@ -303,8 +306,8 @@ export interface Room {
 export interface KeyBundle {
   roomId: string;
   epoch: number;
-  /** Telegram ID of the intended recipient. */
-  recipientTgId: string;
+  /** Internal ID of the intended recipient (local wrap metadata; not on wire KEY_BUNDLE event). */
+  recipientInternalId: string;
   /** Base64-encoded ephemeral ECDH P-256 public key (65 bytes, uncompressed). */
   ephemeralPublicKey: string;
   /** Base64-encoded AES-256-GCM ciphertext of the group key (32 bytes + 16-byte tag). */
@@ -316,7 +319,7 @@ export interface KeyBundle {
 /** Pending join request visible to the room owner. */
 export interface RoomJoinRequest {
   roomId: string;
-  senderTgId: number;
+  senderInternalId: string;
   senderUsername: string | null;
   senderFirstName: string;
   requestedAt: number;

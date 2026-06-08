@@ -24,17 +24,32 @@ const SEND_KEY_BUNDLE_DESTINATION = '/app/room.sendKeyBundle';
 
 interface ServerJoinRequestEvent {
   roomId: string;
-  senderTgId: number;
+  senderInternalId?: string;
+  /** @deprecated Prefer senderInternalId. */
+  senderTgId?: number | null;
   senderUsername: string | null;
-  senderFirstName: string;
+  senderDisplayName?: string;
+  /** @deprecated Prefer senderDisplayName. */
+  senderFirstName?: string;
   requestedAt: number;
   senderPublicKey?: string | null;
   /** True when the server auto-approved a BY_PASSWORD join — owner must send KEY_BUNDLE immediately. */
   autoApproved?: boolean;
 }
 
-/** In-memory map of senderTgId → senderPublicKey, keyed as "{roomId}:{senderTgId}". */
+/** In-memory map of senderInternalId → senderPublicKey, keyed as "{roomId}:{senderInternalId}". */
 const pendingPublicKeys = new Map<string, string>();
+
+function resolveSenderInternalId(data: ServerJoinRequestEvent): string | null {
+  const fromInternal = data.senderInternalId?.trim();
+  if (fromInternal) {
+    return fromInternal;
+  }
+  if (data.senderTgId != null) {
+    return String(data.senderTgId);
+  }
+  return null;
+}
 
 interface UseRoomJoinRequestsOptions {
   isConnected: boolean;
@@ -48,11 +63,11 @@ export interface UseRoomJoinRequestsReturn {
   /** All pending join requests received since connecting. */
   requests: RoomJoinRequest[];
   /** Accept a join request — sends ACCEPT_ROOM_JOIN to server. */
-  acceptRequest: (roomId: string, senderTgId: number) => void;
+  acceptRequest: (roomId: string, senderInternalId: string) => void;
   /** Reject a join request — sends REJECT_ROOM_JOIN to server. */
-  rejectRequest: (roomId: string, senderTgId: number) => void;
+  rejectRequest: (roomId: string, senderInternalId: string) => void;
   /** Remove a request from the local list (e.g. after accepting/rejecting). */
-  removeRequest: (roomId: string, senderTgId: number) => void;
+  removeRequest: (roomId: string, senderInternalId: string) => void;
   /** Total count of pending requests. */
   pendingCount: number;
 }
@@ -88,10 +103,15 @@ export function useRoomJoinRequests({
   const handleJoinRequest = useCallback((message: IMessage) => {
     try {
       const data: ServerJoinRequestEvent = JSON.parse(message.body);
+      const senderInternalId = resolveSenderInternalId(data);
+      if (!senderInternalId) {
+        console.warn('[useRoomJoinRequests] Join request missing senderInternalId');
+        return;
+      }
 
       // Store sender's public key so we can wrap the group key when accepting
       if (data.senderPublicKey) {
-        pendingPublicKeys.set(`${data.roomId}:${data.senderTgId}`, data.senderPublicKey);
+        pendingPublicKeys.set(`${data.roomId}:${senderInternalId}`, data.senderPublicKey);
       }
 
       if (data.autoApproved) {
@@ -103,9 +123,9 @@ export function useRoomJoinRequests({
             console.warn('[useRoomJoinRequests] autoApproved: no group key for room', data.roomId);
             return;
           }
-          const senderPublicKeyBase64 = pendingPublicKeys.get(`${data.roomId}:${data.senderTgId}`);
+          const senderPublicKeyBase64 = pendingPublicKeys.get(`${data.roomId}:${senderInternalId}`);
           if (!senderPublicKeyBase64) {
-            console.warn('[useRoomJoinRequests] autoApproved: no public key for sender', data.senderTgId);
+            console.warn('[useRoomJoinRequests] autoApproved: no public key for sender', senderInternalId);
             return;
           }
           try {
@@ -113,20 +133,20 @@ export function useRoomJoinRequests({
             const bundle = await wrapGroupKey(
               groupKeyEntry.key,
               senderPubKey,
-              String(data.senderTgId),
+              senderInternalId,
               data.roomId,
               groupKeyEntry.epoch,
             );
             publishRef.current(SEND_KEY_BUNDLE_DESTINATION, {
               roomId: bundle.roomId,
-              recipientTgId: data.senderTgId,
+              recipientInternalId: senderInternalId,
               epoch: bundle.epoch,
               ephemeralPublicKey: bundle.ephemeralPublicKey,
               encryptedKey: bundle.encryptedKey,
               iv: bundle.iv,
             });
-            pendingPublicKeys.delete(`${data.roomId}:${data.senderTgId}`);
-            console.info('[useRoomJoinRequests] KEY_BUNDLE sent to auto-approved member', data.senderTgId);
+            pendingPublicKeys.delete(`${data.roomId}:${senderInternalId}`);
+            console.info('[useRoomJoinRequests] KEY_BUNDLE sent to auto-approved member', senderInternalId);
           } catch (err) {
             console.error('[useRoomJoinRequests] Failed to send KEY_BUNDLE for auto-approved member:', err);
           }
@@ -137,16 +157,16 @@ export function useRoomJoinRequests({
 
       const request: RoomJoinRequest = {
         roomId: data.roomId,
-        senderTgId: data.senderTgId,
+        senderInternalId,
         senderUsername: data.senderUsername ?? null,
-        senderFirstName: data.senderFirstName,
+        senderFirstName: data.senderDisplayName ?? data.senderFirstName ?? 'Unknown',
         requestedAt: data.requestedAt,
       };
 
       setRequests(prev => {
         // Deduplicate: replace existing request from same sender in same room
         const filtered = prev.filter(
-          r => !(r.roomId === request.roomId && r.senderTgId === request.senderTgId)
+          r => !(r.roomId === request.roomId && r.senderInternalId === request.senderInternalId)
         );
         return [...filtered, request];
       });
@@ -178,11 +198,11 @@ export function useRoomJoinRequests({
   // ----------------------------------------
 
   const acceptRequest = useCallback(
-    (roomId: string, senderTgId: number) => {
+    (roomId: string, senderInternalId: string) => {
       if (!isConnected) return;
 
       // Send ACCEPT_ROOM_JOIN to the server
-      publish(ACCEPT_JOIN_DESTINATION, { roomId, senderTgId });
+      publish(ACCEPT_JOIN_DESTINATION, { roomId, senderInternalId });
 
       // Wrap the current group key for the new member and send KEY_BUNDLE
       const sendBundle = async () => {
@@ -192,9 +212,9 @@ export function useRoomJoinRequests({
           return;
         }
 
-        const senderPublicKeyBase64 = pendingPublicKeys.get(`${roomId}:${senderTgId}`);
+        const senderPublicKeyBase64 = pendingPublicKeys.get(`${roomId}:${senderInternalId}`);
         if (!senderPublicKeyBase64) {
-          console.warn('[useRoomJoinRequests] No public key for sender', senderTgId);
+          console.warn('[useRoomJoinRequests] No public key for sender', senderInternalId);
           return;
         }
 
@@ -203,14 +223,14 @@ export function useRoomJoinRequests({
           const bundle = await wrapGroupKey(
             groupKeyEntry.key,
             senderPubKey,
-            String(senderTgId),
+            senderInternalId,
             roomId,
             groupKeyEntry.epoch
           );
 
           publish(SEND_KEY_BUNDLE_DESTINATION, {
             roomId: bundle.roomId,
-            recipientTgId: senderTgId,
+            recipientInternalId: senderInternalId,
             epoch: bundle.epoch,
             ephemeralPublicKey: bundle.ephemeralPublicKey,
             encryptedKey: bundle.encryptedKey,
@@ -218,7 +238,7 @@ export function useRoomJoinRequests({
           });
 
           // Clean up the stored public key
-          pendingPublicKeys.delete(`${roomId}:${senderTgId}`);
+          pendingPublicKeys.delete(`${roomId}:${senderInternalId}`);
         } catch (err) {
           console.error('[useRoomJoinRequests] Failed to send key bundle:', err);
         }
@@ -230,17 +250,17 @@ export function useRoomJoinRequests({
   );
 
   const rejectRequest = useCallback(
-    (roomId: string, senderTgId: number) => {
+    (roomId: string, senderInternalId: string) => {
       if (!isConnected) return;
-      publish(REJECT_JOIN_DESTINATION, { roomId, senderTgId });
+      publish(REJECT_JOIN_DESTINATION, { roomId, senderInternalId });
     },
     [isConnected, publish]
   );
 
-  const removeRequest = useCallback((roomId: string, senderTgId: number) => {
-    pendingPublicKeys.delete(`${roomId}:${senderTgId}`);
+  const removeRequest = useCallback((roomId: string, senderInternalId: string) => {
+    pendingPublicKeys.delete(`${roomId}:${senderInternalId}`);
     setRequests(prev =>
-      prev.filter(r => !(r.roomId === roomId && r.senderTgId === senderTgId))
+      prev.filter(r => !(r.roomId === roomId && r.senderInternalId === senderInternalId))
     );
   }, []);
 
