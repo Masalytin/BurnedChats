@@ -186,6 +186,10 @@ docker-compose.override.yml
 docs/_build/
 site/
 
+# Temporary docs artifacts (agent/debug dumps — do not commit)
+docs/_tmp_*
+docs/**/_tmp_*
+
 # SSL certificates for development (keep README)
 certs/*.pem
 certs/*.key
