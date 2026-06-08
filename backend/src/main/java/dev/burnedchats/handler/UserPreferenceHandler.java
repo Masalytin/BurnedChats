@@ -2,7 +2,7 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.request.SetLanguageRequest;
 import dev.burnedchats.repository.LanguagePreferenceRepository;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.security.AppPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -37,8 +37,13 @@ public class UserPreferenceHandler {
      */
     @MessageMapping("/user.setLanguage")
     public void setLanguage(@Payload SetLanguageRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        String userId = telegramPrincipal.getInternalId();
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            LOG.warn("setLanguage from unsupported principal type: {}",
+                    principal != null ? principal.getClass().getName() : "null");
+            return;
+        }
+
+        String userId = appPrincipal.getInternalId();
 
         languagePreferenceRepository.save(userId, request.getLanguageCode())
                 .subscribe(

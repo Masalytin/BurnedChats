@@ -1,7 +1,7 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.repository.OnlineStatusRepository;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.security.AppPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -43,15 +43,19 @@ public class HeartbeatHandler {
      */
     @MessageMapping("/heartbeat")
     public void heartbeat(Principal principal) {
-        if (principal instanceof TelegramPrincipal telegramPrincipal) {
-            Long userId = telegramPrincipal.getUserId();
-
-            onlineStatusRepository.setOnline(userId)
-                    .subscribe(
-                            result -> LOG.trace("Heartbeat received: userId={}", userId),
-                            error -> LOG.warn("Failed to process heartbeat for user {}: {}",
-                                    userId, error.getMessage())
-                );
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            LOG.warn("Heartbeat from unsupported principal type: {}",
+                    principal != null ? principal.getClass().getName() : "null");
+            return;
         }
+
+        String internalId = appPrincipal.getInternalId();
+
+        onlineStatusRepository.setOnline(internalId)
+                .subscribe(
+                        result -> LOG.trace("Heartbeat received: internalId={}", internalId),
+                        error -> LOG.warn("Failed to process heartbeat for user {}: {}",
+                                internalId, error.getMessage())
+            );
     }
 }

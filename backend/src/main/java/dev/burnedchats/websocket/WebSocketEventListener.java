@@ -18,6 +18,7 @@ import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.UserRepository;
+import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -100,31 +101,36 @@ public class WebSocketEventListener {
             return;
         }
 
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            LOG.warn("Session connected with unsupported principal type: sessionId={}, type={}",
+                    accessor.getSessionId(), principal.getClass().getName());
+            return;
+        }
+
+        String internalId = appPrincipal.getInternalId();
+        String sessionId = accessor.getSessionId();
+        Long telegramUserId = principal instanceof TelegramPrincipal telegramPrincipal
+                ? telegramPrincipal.getUserId()
+                : null;
+
+        LOG.info("User connected: internalId={}, telegramId={}, sessionId={}",
+                internalId, telegramUserId, sessionId);
+
+        onlineStatusRepository.setOnline(internalId)
+                .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
+                .subscribe();
+
         if (principal instanceof TelegramPrincipal telegramPrincipal) {
-            Long telegramUserId = telegramPrincipal.getUserId();
-            String internalId = telegramPrincipal.getInternalId();
-            String sessionId = accessor.getSessionId();
-
-            LOG.info("User connected: internalId={}, telegramId={}, sessionId={}",
-                    internalId, telegramUserId, sessionId);
-
-            // Mark user as online
-            onlineStatusRepository.setOnline(internalId)
-                    .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
-                    .subscribe();
-
-            // Cache user info if not already cached
             cacheUserInfo(telegramPrincipal);
+        } else {
+            LOG.debug("Skipping Telegram user cache for wallet-only principal: internalId={}",
+                    internalId);
+        }
 
-            // Send pending requests to the user (Task 3.4.1)
-            sendPendingRequests(internalId);
+        sendPendingRequests(internalId);
 
-            // Server-initiated fan-out sync of pending offline messages
-            // (FIX-SYNC-4) — guards against clients that fail to request
-            // /app/message.sync themselves.
-            if (messagesProperties.getServerPushSync().isEnabled()) {
-                pushPendingMessagesFanOut(internalId);
-            }
+        if (messagesProperties.getServerPushSync().isEnabled()) {
+            pushPendingMessagesFanOut(internalId);
         }
     }
 
@@ -144,16 +150,18 @@ public class WebSocketEventListener {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
         Principal principal = accessor.getUser();
 
-        if (principal instanceof TelegramPrincipal telegramPrincipal) {
-            String internalId = telegramPrincipal.getInternalId();
+        if (principal instanceof AppPrincipal appPrincipal) {
+            String internalId = appPrincipal.getInternalId();
 
             LOG.info("User disconnected: internalId={}, sessionId={}, closeStatus={}",
                     internalId, event.getSessionId(), event.getCloseStatus());
 
-            // Mark user as offline
             onlineStatusRepository.setOffline(internalId)
                     .doOnSuccess(v -> LOG.debug("User {} marked as offline", internalId))
                     .subscribe();
+        } else if (principal != null) {
+            LOG.warn("Session disconnected with unsupported principal type: sessionId={}, type={}",
+                    event.getSessionId(), principal.getClass().getName());
         }
     }
 

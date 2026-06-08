@@ -105,8 +105,8 @@ public class RateLimitInterceptor implements ChannelInterceptor {
      * Extract user ID from principal.
      */
     private String extractUserId(Principal principal) {
-        if (principal instanceof StompAuthInterceptor.TelegramPrincipal telegramPrincipal) {
-            return telegramPrincipal.getInternalId();
+        if (principal instanceof AppPrincipal appPrincipal) {
+            return appPrincipal.getInternalId();
         }
         return null;
     }
