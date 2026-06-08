@@ -35,7 +35,8 @@ export interface FeeBreakdownProps {
     attachedNano: bigint;
     estimatedNetFeeNano: bigint;
     breakdown?: BurnTransferGasEstimate['breakdown'];
-    path?: 'cold' | 'warm';
+    path?: 'cold' | 'warm' | 'excluded';
+    excludedPath?: boolean;
     propagateSkippedHint?: boolean;
     preflightLoading?: boolean;
   };
@@ -70,13 +71,14 @@ function buildTonBreakdownRows(
   breakdown: BurnTransferGasEstimate['breakdown'],
   t: (key: string) => string,
   propagateSkippedHint: boolean,
+  excludedPath: boolean,
 ): TonBreakdownRow[] {
   const rows: TonBreakdownRow[] = [];
 
   if (breakdown.deployLegsNano > 0n) {
     rows.push({
       key: 'deploy',
-      label: t('wallet.feeTonDeployLegs'),
+      label: excludedPath ? t('wallet.feeTonDeployLegExcluded') : t('wallet.feeTonDeployLegs'),
       nano: breakdown.deployLegsNano,
     });
   }
@@ -114,7 +116,9 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const p = feeParams ?? DEFAULT_WALLET_FEE_PARAMS;
+  const excludedPath = tonGas?.excludedPath === true;
   const { burn, staking, treasury, recipientGets } = splitBurnFees(amountNano, p);
+  const displayRecipientGets = excludedPath ? amountNano : recipientGets;
 
   if (amountNano <= 0n) {
     return (
@@ -128,7 +132,12 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
 
   const tonBreakdownRows =
     tonGas?.breakdown && !tonGas.preflightLoading
-      ? buildTonBreakdownRows(tonGas.breakdown, t, tonGas.propagateSkippedHint === true)
+      ? buildTonBreakdownRows(
+          tonGas.breakdown,
+          t,
+          tonGas.propagateSkippedHint === true,
+          excludedPath,
+        )
       : [];
 
   return (
@@ -137,30 +146,39 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
         <span>{t('wallet.feeYouSend')}</span>
         <span>{formatBurn(amountNano)}</span>
       </div>
-      <div className={styles.feeRow}>
-        <span>
-          <span aria-hidden="true">🔥 </span>
-          {t('wallet.feeBurnLine', { pct: (p.burnBps / 100).toFixed(1) })}
-        </span>
-        <span>−{formatBurn(burn)}</span>
-      </div>
-      <div className={styles.feeRow}>
-        <span>
-          <span aria-hidden="true">💰 </span>
-          {t('wallet.feeStakingLine', { pct: (p.stakingBps / 100).toFixed(1) })}
-        </span>
-        <span>−{formatBurn(staking)}</span>
-      </div>
-      <div className={styles.feeRow}>
-        <span>
-          <span aria-hidden="true">🏦 </span>
-          {t('wallet.feeTreasuryLine', { pct: (p.treasuryBps / 100).toFixed(1) })}
-        </span>
-        <span>−{formatBurn(treasury)}</span>
-      </div>
+      {excludedPath ? (
+        <div className={styles.feeRow}>
+          <span>{t('wallet.feeExcludedTransfer')}</span>
+          <span>{t('wallet.feeExcludedNoSplit')}</span>
+        </div>
+      ) : (
+        <>
+          <div className={styles.feeRow}>
+            <span>
+              <span aria-hidden="true">🔥 </span>
+              {t('wallet.feeBurnLine', { pct: (p.burnBps / 100).toFixed(1) })}
+            </span>
+            <span>−{formatBurn(burn)}</span>
+          </div>
+          <div className={styles.feeRow}>
+            <span>
+              <span aria-hidden="true">💰 </span>
+              {t('wallet.feeStakingLine', { pct: (p.stakingBps / 100).toFixed(1) })}
+            </span>
+            <span>−{formatBurn(staking)}</span>
+          </div>
+          <div className={styles.feeRow}>
+            <span>
+              <span aria-hidden="true">🏦 </span>
+              {t('wallet.feeTreasuryLine', { pct: (p.treasuryBps / 100).toFixed(1) })}
+            </span>
+            <span>−{formatBurn(treasury)}</span>
+          </div>
+        </>
+      )}
       <div className={`${styles.feeRow} ${styles.feeRowTotal}`}>
         <span>{t('wallet.feeRecipientGets')}</span>
-        <span>{formatBurn(recipientGets)}</span>
+        <span>{formatBurn(displayRecipientGets)}</span>
       </div>
       {tonGas ? (
         <div className={styles.feeTonSection}>
@@ -170,10 +188,18 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
               {!tonGas.preflightLoading && tonGas.path ? (
                 <span
                   className={
-                    tonGas.path === 'warm' ? styles.feeTonPathBadgeWarm : styles.feeTonPathBadgeCold
+                    tonGas.path === 'warm'
+                      ? styles.feeTonPathBadgeWarm
+                      : tonGas.path === 'excluded'
+                        ? styles.feeTonPathBadgeCold
+                        : styles.feeTonPathBadgeCold
                   }
                 >
-                  {tonGas.path === 'warm' ? t('wallet.feeTonPathWarm') : t('wallet.feeTonPathCold')}
+                  {tonGas.path === 'warm'
+                    ? t('wallet.feeTonPathWarm')
+                    : tonGas.path === 'excluded'
+                      ? t('wallet.feeTonPathExcluded')
+                      : t('wallet.feeTonPathCold')}
                 </span>
               ) : null}
             </span>
@@ -215,17 +241,21 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
           ) : null}
           {!tonGas.preflightLoading ? (
             <p className={styles.feeHint}>
-              {tonGas.path === 'warm'
-                ? t('wallet.sendGasWarmHint', {
+              {tonGas.path === 'excluded'
+                ? t('wallet.sendGasExcludedHint', {
                     attach: formatTonAmount(tonGas.attachedNano),
-                    netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
-                    netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
                   })
-                : t('wallet.sendGasColdHint', {
-                    attach: formatTonAmount(tonGas.attachedNano),
-                    netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
-                    netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
-                  })}
+                : tonGas.path === 'warm'
+                  ? t('wallet.sendGasWarmHint', {
+                      attach: formatTonAmount(tonGas.attachedNano),
+                      netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
+                      netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                    })
+                  : t('wallet.sendGasColdHint', {
+                      attach: formatTonAmount(tonGas.attachedNano),
+                      netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
+                      netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                    })}
             </p>
           ) : null}
         </div>

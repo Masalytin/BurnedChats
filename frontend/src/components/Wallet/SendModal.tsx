@@ -9,6 +9,10 @@ import {
   estimateBurnTransferTon,
 } from '@/ton/estimateBurnTransferTon';
 import {
+  createExcludedPreflightDeps,
+  isExcludedBurnHolder,
+} from '@/ton/excludedTransferPreflight';
+import {
   createRecipientPreflightDeps,
   preflightRecipientJetton,
   type RecipientJettonPreflight,
@@ -55,33 +59,43 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
   const [recipientPreflight, setRecipientPreflight] = useState<RecipientJettonPreflight | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [senderExcluded, setSenderExcluded] = useState(false);
+  const [recipientExcluded, setRecipientExcluded] = useState(false);
+  const [excludedPreflightLoading, setExcludedPreflightLoading] = useState(false);
   const [tonReserveHintVisible, setTonReserveHintVisible] = useState(false);
 
   const recipientFeeConfigActive = recipientPreflight?.feeConfigActive === true;
   const recipientWalletDeployed = recipientPreflight?.walletDeployed === true;
+  const excludedTransfer = senderExcluded || recipientExcluded;
+  const gasPreflightLoading = preflightLoading || excludedPreflightLoading;
 
   const gasEstimate = useMemo(
     () =>
       estimateBurnTransferTon({
-        feePath: true,
-        recipientWalletDeployed,
-        recipientFeeConfigActive,
+        feePath: !excludedTransfer,
+        recipientWalletDeployed: excludedTransfer ? false : recipientWalletDeployed,
+        recipientFeeConfigActive: excludedTransfer ? false : recipientFeeConfigActive,
       }),
-    [recipientFeeConfigActive, recipientWalletDeployed],
+    [excludedTransfer, recipientFeeConfigActive, recipientWalletDeployed],
   );
   const tonGas = useMemo(
     () => ({
       attachedNano: gasEstimate.recommendedNano,
       estimatedNetFeeNano: ESTIMATED_NET_FEE_MAX_NANO,
       breakdown: gasEstimate.breakdown,
-      path: (recipientWalletDeployed ? 'warm' : 'cold') as 'cold' | 'warm',
+      path: (excludedTransfer ? 'excluded' : recipientWalletDeployed ? 'warm' : 'cold') as
+        | 'cold'
+        | 'warm'
+        | 'excluded',
+      excludedPath: excludedTransfer,
       propagateSkippedHint: recipientFeeConfigActive,
-      preflightLoading,
+      preflightLoading: gasPreflightLoading,
     }),
     [
+      excludedTransfer,
       gasEstimate.breakdown,
       gasEstimate.recommendedNano,
-      preflightLoading,
+      gasPreflightLoading,
       recipientFeeConfigActive,
       recipientWalletDeployed,
     ],
@@ -90,36 +104,81 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const isUsernameRecipient = recipient.trim().startsWith('@');
 
   useEffect(() => {
+    const addr = walletAddress?.trim();
+    if (!isOpen || !addr) {
+      setSenderExcluded(false);
+      setExcludedPreflightLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const deps = createExcludedPreflightDeps();
+    if (!deps) {
+      setSenderExcluded(false);
+      setExcludedPreflightLoading(false);
+      return;
+    }
+
+    setExcludedPreflightLoading(true);
+    void isExcludedBurnHolder(addr, deps)
+      .then((excluded) => {
+        if (!cancelled) {
+          setSenderExcluded(excluded);
+          setExcludedPreflightLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSenderExcluded(false);
+          setExcludedPreflightLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, walletAddress]);
+
+  useEffect(() => {
     const r = recipient.trim();
     if (!r || isUsernameRecipient || !isPlainTonAddress(r)) {
       setRecipientPreflight(null);
+      setRecipientExcluded(false);
       setPreflightLoading(false);
       return;
     }
 
     let cancelled = false;
     const timerId = window.setTimeout(() => {
-      const deps = createRecipientPreflightDeps();
-      if (!deps) {
+      const recipientDeps = createRecipientPreflightDeps();
+      const excludedDeps = createExcludedPreflightDeps();
+      if (!recipientDeps) {
         setRecipientPreflight(null);
+        setRecipientExcluded(false);
         setPreflightLoading(false);
         return;
       }
 
       setPreflightLoading(true);
-      void preflightRecipientJetton(r, deps)
-        .then((result) => {
+      void (async () => {
+        try {
+          const [result, recipientIsExcluded] = await Promise.all([
+            preflightRecipientJetton(r, recipientDeps),
+            excludedDeps ? isExcludedBurnHolder(r, excludedDeps) : Promise.resolve(false),
+          ]);
           if (!cancelled) {
             setRecipientPreflight(result);
+            setRecipientExcluded(recipientIsExcluded);
             setPreflightLoading(false);
           }
-        })
-        .catch(() => {
+        } catch {
           if (!cancelled) {
             setRecipientPreflight(null);
+            setRecipientExcluded(false);
             setPreflightLoading(false);
           }
-        });
+        }
+      })();
     }, 300);
 
     return () => {

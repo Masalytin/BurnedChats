@@ -7,6 +7,10 @@ import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import {
+  createExcludedPreflightDeps,
+  isExcludedTransfer,
+} from '@/ton/excludedTransferPreflight';
+import {
   createRecipientPreflightDeps,
   preflightRecipientJetton,
 } from '@/ton/recipientJettonPreflight';
@@ -603,14 +607,24 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
       apiKey: r.apiKey,
       fetchImpl: r.fetchImpl,
     });
+    const excludedDeps = createExcludedPreflightDeps({
+      rpcBaseUrl: r.rpcBaseUrl,
+      jettonMaster: resolveJettonMaster(r.jettonMaster),
+      apiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    });
     const preflight =
       preflightDeps !== null
         ? await preflightRecipientJetton(params.recipient.trim(), preflightDeps)
         : { jettonWalletAddress: null, walletDeployed: false, feeConfigActive: false };
+    const excluded =
+      excludedDeps !== null
+        ? await isExcludedTransfer(params.walletAddress, params.recipient.trim(), excludedDeps)
+        : false;
     attachedTon = estimateBurnTransferTon({
-      feePath: true,
-      recipientWalletDeployed: preflight.walletDeployed,
-      recipientFeeConfigActive: preflight.feeConfigActive,
+      feePath: !excluded,
+      recipientWalletDeployed: excluded ? false : preflight.walletDeployed,
+      recipientFeeConfigActive: excluded ? false : preflight.feeConfigActive,
     }).recommendedNano;
   }
 
