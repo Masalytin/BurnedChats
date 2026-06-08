@@ -17,8 +17,12 @@ import { getTonBalanceNano } from '@/ton/tonBalance';
 import { parseBurn } from '@/utils/format';
 
 import { FeeBreakdown } from './FeeBreakdown';
+import { nanoToAmountString, tryApplyMaxBurnAmount } from './sendModalGasReserve';
 import { sendErrorFromTxResult, sendErrorMessage } from './sendErrorMessage';
 import styles from './Wallet.module.css';
+
+export { canAffordGasReserve, tryApplyMaxBurnAmount } from './sendModalGasReserve';
+export type { ApplyMaxBurnAmountResult } from './sendModalGasReserve';
 
 export interface SendModalProps {
   isOpen: boolean;
@@ -51,24 +55,36 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
   const [recipientPreflight, setRecipientPreflight] = useState<RecipientJettonPreflight | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [tonReserveHintVisible, setTonReserveHintVisible] = useState(false);
+
+  const recipientFeeConfigActive = recipientPreflight?.feeConfigActive === true;
+  const recipientWalletDeployed = recipientPreflight?.walletDeployed === true;
 
   const gasEstimate = useMemo(
     () =>
       estimateBurnTransferTon({
         feePath: true,
-        recipientWalletDeployed: recipientPreflight?.walletDeployed === true,
-        recipientFeeConfigActive: recipientPreflight?.feeConfigActive === true,
+        recipientWalletDeployed,
+        recipientFeeConfigActive,
       }),
-    [recipientPreflight?.feeConfigActive, recipientPreflight?.walletDeployed],
+    [recipientFeeConfigActive, recipientWalletDeployed],
   );
   const tonGas = useMemo(
     () => ({
       attachedNano: gasEstimate.recommendedNano,
       estimatedNetFeeNano: ESTIMATED_NET_FEE_MAX_NANO,
-      warmPath: recipientPreflight?.walletDeployed === true,
+      breakdown: gasEstimate.breakdown,
+      path: (recipientWalletDeployed ? 'warm' : 'cold') as 'cold' | 'warm',
+      propagateSkippedHint: recipientFeeConfigActive,
       preflightLoading,
     }),
-    [gasEstimate.recommendedNano, preflightLoading, recipientPreflight?.walletDeployed],
+    [
+      gasEstimate.breakdown,
+      gasEstimate.recommendedNano,
+      preflightLoading,
+      recipientFeeConfigActive,
+      recipientWalletDeployed,
+    ],
   );
 
   const isUsernameRecipient = recipient.trim().startsWith('@');
@@ -202,8 +218,51 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
       setAmount('');
       setComment('');
       setSubmitError(null);
+      setTonReserveHintVisible(false);
     }
   }, [isOpen]);
+
+  const applyMaxAmount = useCallback(() => {
+    const result = tryApplyMaxBurnAmount({
+      maxNano,
+      tonBalanceNano,
+      recommendedNano: gasEstimate.recommendedNano,
+    });
+    if (result.showTonReserveHint) {
+      setTonReserveHintVisible(true);
+      return;
+    }
+    setTonReserveHintVisible(false);
+    if (result.applied) {
+      setAmount(nanoToAmountString(maxNano));
+    }
+  }, [gasEstimate.recommendedNano, maxNano, tonBalanceNano]);
+
+  const applySliderBps = useCallback(
+    (bps: bigint) => {
+      if (maxNano <= 0n) return;
+      if (bps >= 10000n) {
+        const result = tryApplyMaxBurnAmount({
+          maxNano,
+          tonBalanceNano,
+          recommendedNano: gasEstimate.recommendedNano,
+        });
+        if (result.showTonReserveHint) {
+          setTonReserveHintVisible(true);
+          return;
+        }
+        setTonReserveHintVisible(false);
+        if (result.applied) {
+          setAmount(nanoToAmountString(maxNano));
+        }
+        return;
+      }
+      setTonReserveHintVisible(false);
+      const nano = (maxNano * bps) / 10000n;
+      setAmount(nanoToAmountString(nano));
+    },
+    [gasEstimate.recommendedNano, maxNano, tonBalanceNano],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -316,27 +375,25 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
                   value={sliderBps}
                   disabled={maxNano <= 0n}
                   onChange={(e) => {
-                    const bps = BigInt(e.target.value);
-                    const nano = maxNano > 0n ? (maxNano * bps) / 10000n : 0n;
-                    const whole = nano / 10n ** 9n;
-                    const frac = (nano % 10n ** 9n).toString().padStart(9, '0').replace(/0+$/, '');
-                    setAmount(frac.length ? `${whole}.${frac}` : `${whole}`);
+                    applySliderBps(BigInt(e.target.value));
                   }}
                   aria-label={t('wallet.amountSliderAria')}
                 />
                 <button
                   type="button"
                   className={styles.actionBtn}
-                  onClick={() => {
-                    if (maxNano <= 0n) return;
-                    const whole = maxNano / 10n ** 9n;
-                    const frac = (maxNano % 10n ** 9n).toString().padStart(9, '0').replace(/0+$/, '');
-                    setAmount(frac.length ? `${whole}.${frac}` : `${whole}`);
-                  }}
+                  onClick={applyMaxAmount}
                 >
                   {t('wallet.max')}
                 </button>
               </div>
+              {tonReserveHintVisible ? (
+                <p className={styles.feeHint} role="status">
+                  {t('wallet.sendMaxTonReserveHint', {
+                    attach: nanoToAmountString(gasEstimate.recommendedNano),
+                  })}
+                </p>
+              ) : null}
             </div>
 
             <div className={styles.field}>

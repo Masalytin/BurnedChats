@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   ESTIMATED_NET_FEE_MAX_NANO,
   ESTIMATED_NET_FEE_MIN_NANO,
+  PROPAGATE_FEE_CONFIG_NANO,
+  type BurnTransferGasEstimate,
 } from '@/ton/estimateBurnTransferTon';
 import type { EffectiveFeeParams } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
@@ -31,7 +34,9 @@ export interface FeeBreakdownProps {
   tonGas?: {
     attachedNano: bigint;
     estimatedNetFeeNano: bigint;
-    warmPath?: boolean;
+    breakdown?: BurnTransferGasEstimate['breakdown'];
+    path?: 'cold' | 'warm';
+    propagateSkippedHint?: boolean;
     preflightLoading?: boolean;
   };
 }
@@ -53,11 +58,61 @@ export function splitBurnFees(amountNano: bigint, fee: EffectiveFeeParams): {
   return { burn, staking, treasury, recipientGets };
 }
 
+type TonBreakdownRow = {
+  key: string;
+  label: string;
+  nano: bigint;
+  skipped?: boolean;
+  skippedLabel?: string;
+};
+
+function buildTonBreakdownRows(
+  breakdown: BurnTransferGasEstimate['breakdown'],
+  t: (key: string) => string,
+  propagateSkippedHint: boolean,
+): TonBreakdownRow[] {
+  const rows: TonBreakdownRow[] = [];
+
+  if (breakdown.deployLegsNano > 0n) {
+    rows.push({
+      key: 'deploy',
+      label: t('wallet.feeTonDeployLegs'),
+      nano: breakdown.deployLegsNano,
+    });
+  }
+  if (breakdown.burnNotifyNano > 0n) {
+    rows.push({
+      key: 'burnNotify',
+      label: t('wallet.feeTonBurnNotify'),
+      nano: breakdown.burnNotifyNano,
+    });
+  }
+  if (breakdown.propagateNano > 0n || propagateSkippedHint) {
+    rows.push({
+      key: 'propagate',
+      label: t('wallet.feeTonPropagate'),
+      nano: propagateSkippedHint ? PROPAGATE_FEE_CONFIG_NANO : breakdown.propagateNano,
+      skipped: propagateSkippedHint,
+      skippedLabel: propagateSkippedHint ? t('wallet.feeTonPropagateSkipped') : undefined,
+    });
+  }
+  if (breakdown.forwardNano > 0n) {
+    rows.push({
+      key: 'forward',
+      label: t('wallet.feeTonForward'),
+      nano: breakdown.forwardNano,
+    });
+  }
+
+  return rows;
+}
+
 /**
  * Real-time BURN transfer fee visualization (matches TOKENOMICS 0.5% / 0.3% / 0.2% defaults).
  */
 export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProps) {
   const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const p = feeParams ?? DEFAULT_WALLET_FEE_PARAMS;
   const { burn, staking, treasury, recipientGets } = splitBurnFees(amountNano, p);
 
@@ -70,6 +125,11 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
       </div>
     );
   }
+
+  const tonBreakdownRows =
+    tonGas?.breakdown && !tonGas.preflightLoading
+      ? buildTonBreakdownRows(tonGas.breakdown, t, tonGas.propagateSkippedHint === true)
+      : [];
 
   return (
     <div className={styles.feeBox} aria-live="polite" aria-label={t('wallet.feeBreakdownAria')}>
@@ -105,16 +165,57 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
       {tonGas ? (
         <div className={styles.feeTonSection}>
           <div className={styles.feeRow}>
-            <span title={t('wallet.sendGasNetFeeHint')}>
+            <span className={styles.feeTonNetworkLabel} title={t('wallet.sendGasNetFeeHint')}>
               {tonGas.preflightLoading ? t('wallet.sendGasChecking') : t('wallet.feeTonNetwork')}
+              {!tonGas.preflightLoading && tonGas.path ? (
+                <span
+                  className={
+                    tonGas.path === 'warm' ? styles.feeTonPathBadgeWarm : styles.feeTonPathBadgeCold
+                  }
+                >
+                  {tonGas.path === 'warm' ? t('wallet.feeTonPathWarm') : t('wallet.feeTonPathCold')}
+                </span>
+              ) : null}
             </span>
             <span>
               {tonGas.preflightLoading ? '…' : `${formatTonAmount(tonGas.attachedNano)} TON`}
             </span>
           </div>
+          {!tonGas.preflightLoading && tonBreakdownRows.length > 0 ? (
+            <div className={styles.feeTonDetails}>
+              <button
+                type="button"
+                className={styles.feeTonDetailsToggle}
+                aria-expanded={detailsOpen}
+                onClick={() => setDetailsOpen((open) => !open)}
+              >
+                {t('wallet.feeTonDetails')}
+              </button>
+              {detailsOpen ? (
+                <div className={styles.feeTonSubRows}>
+                  {tonBreakdownRows.map((row) => (
+                    <div key={row.key} className={styles.feeTonSubRow}>
+                      <span className={styles.feeTonSubLabel}>
+                        {row.label}
+                        {row.skippedLabel ? (
+                          <span className={styles.feeTonSkippedHint}> ({row.skippedLabel})</span>
+                        ) : null}
+                      </span>
+                      <span className={row.skipped ? styles.feeTonSkippedAmount : undefined}>
+                        {formatTonAmount(row.nano)} TON
+                      </span>
+                    </div>
+                  ))}
+                  {tonGas.propagateSkippedHint ? (
+                    <p className={styles.feeTonFootnote}>{t('wallet.feeTonPropagateSkippedFootnote')}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {!tonGas.preflightLoading ? (
             <p className={styles.feeHint}>
-              {tonGas.warmPath
+              {tonGas.path === 'warm'
                 ? t('wallet.sendGasWarmHint', {
                     attach: formatTonAmount(tonGas.attachedNano),
                     netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
