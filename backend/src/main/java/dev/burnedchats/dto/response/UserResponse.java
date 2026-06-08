@@ -18,7 +18,12 @@ import lombok.NoArgsConstructor;
 public class UserResponse {
 
     /**
-     * Telegram user ID.
+     * Stable internal identity id (UUID string). Primary address key for DM/rooms.
+     */
+    private String internalId;
+
+    /**
+     * Telegram user ID (null for wallet-only users).
      */
     private Long id;
 

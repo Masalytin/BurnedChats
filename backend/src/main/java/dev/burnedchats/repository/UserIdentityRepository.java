@@ -266,7 +266,26 @@ public class UserIdentityRepository {
         return walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length() - 4);
     }
 
-    private String normalizeWallet(String walletAddress) {
+    /**
+     * Normalizes wallet address for index keys and exact-match search.
+     */
+    public String normalizeWallet(String walletAddress) {
         return walletAddress == null ? "" : walletAddress.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Whether the query looks like a full TON user-friendly wallet address (exact-match only).
+     */
+    public boolean isWalletAddressQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+        String normalized = normalizeWallet(query);
+        if (normalized.length() != 48) {
+            return false;
+        }
+        char prefix = normalized.charAt(0);
+        return (prefix == 'e' || prefix == 'u' || prefix == 'k' || prefix == '0')
+                && normalized.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_' || c == '-');
     }
 }

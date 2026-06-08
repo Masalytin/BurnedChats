@@ -20,11 +20,13 @@ import lombok.NoArgsConstructor;
  * }
  * }</pre>
  *
- * <p>Supported query formats:
+ * <p>Supported query formats (exact match for internalId and wallet address):
  * <ul>
  *   <li>{@code @username} - search by Telegram username</li>
  *   <li>{@code username} - search by Telegram username (without @)</li>
  *   <li>{@code 123456789} - search by Telegram user ID</li>
+ *   <li>{@code f3a2b1c0-....} - search by internal UUID</li>
+ *   <li>{@code EQ...} / {@code UQ...} - search by TON wallet address</li>
  * </ul>
  */
 @Data

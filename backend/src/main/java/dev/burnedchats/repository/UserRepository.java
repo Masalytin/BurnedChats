@@ -116,12 +116,19 @@ public class UserRepository {
      * @return true if saved
      */
     public Mono<Boolean> save(TelegramUser user) {
+        return save(user, null);
+    }
+
+    /**
+     * Save or update Telegram user cache, optionally storing linked internal id.
+     */
+    public Mono<Boolean> save(TelegramUser user, String internalId) {
         if (user.getId() == null) {
             return Mono.error(new IllegalArgumentException("User ID cannot be null"));
         }
 
         String key = keyFor(user.getId());
-        Map<String, String> hash = userToMap(user);
+        Map<String, String> hash = userToMap(user, internalId);
 
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
@@ -217,6 +224,17 @@ public class UserRepository {
         return KEY_PREFIX + tgId;
     }
 
+    /**
+     * Read cached internal id for a Telegram user, if present.
+     */
+    public Mono<String> findCachedInternalId(Long tgId) {
+        String key = keyFor(tgId);
+        return redisTemplate.opsForHash()
+                .get(key, "internalId")
+                .map(Object::toString)
+                .filter(value -> !value.isBlank());
+    }
+
     private TelegramUser mapToUser(Map<String, String> hash) {
         return TelegramUser.builder()
                 .id(parseLongOrNull(hash.get("id")))
@@ -231,10 +249,17 @@ public class UserRepository {
     }
 
     private Map<String, String> userToMap(TelegramUser user) {
+        return userToMap(user, null);
+    }
+
+    private Map<String, String> userToMap(TelegramUser user, String internalId) {
         Map<String, String> map = new HashMap<>();
 
         if (user.getId() != null) {
             map.put("id", user.getId().toString());
+        }
+        if (internalId != null && !internalId.isBlank()) {
+            map.put("internalId", internalId);
         }
         if (user.getUsername() != null) {
             map.put("username", user.getUsername());
