@@ -20,6 +20,9 @@ import java.util.concurrent.TimeoutException;
 public final class StompTestSupport {
 
     private static final String INIT_DATA_HEADER = "X-Telegram-Init-Data";
+    private static final String AUTH_TYPE_HEADER = "X-Auth-Type";
+    private static final String AUTH_TOKEN_HEADER = "X-Auth-Token";
+    private static final String AUTH_TYPE_WALLET = "wallet";
 
     private StompTestSupport() {
     }
@@ -59,5 +62,32 @@ public final class StompTestSupport {
                 });
 
         return future.get(20, TimeUnit.SECONDS);
+    }
+
+    /**
+     * CONNECT to {@code /ws} with wallet session token ({@code WalletPrincipal}).
+     */
+    @SuppressWarnings("deprecation")
+    public static StompSession connectWallet(WebSocketStompClient stompClient, int serverPort, String sessionToken)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        String url = "ws://127.0.0.1:" + serverPort + "/ws";
+        WebSocketHttpHeaders handshakeHeaders = new WebSocketHttpHeaders();
+        StompHeaders connectHeaders = new StompHeaders();
+        connectHeaders.add(AUTH_TYPE_HEADER, AUTH_TYPE_WALLET);
+        connectHeaders.add(AUTH_TOKEN_HEADER, sessionToken);
+
+        ListenableFuture<StompSession> future = stompClient.connect(
+                url,
+                handshakeHeaders,
+                connectHeaders,
+                new StompSessionHandlerAdapter() {
+                });
+
+        return future.get(20, TimeUnit.SECONDS);
+    }
+
+    /** Minimal pause so SUBSCRIBE frames are processed before SEND (Spring user-dest routing). */
+    public static void awaitSubscriptionProcessed() throws InterruptedException {
+        Thread.sleep(300);
     }
 }

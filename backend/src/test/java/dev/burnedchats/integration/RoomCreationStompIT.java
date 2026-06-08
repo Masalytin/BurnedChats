@@ -45,7 +45,7 @@ class RoomCreationStompIT extends StompIntegrationTestBase {
             BlockingQueue<RoomCreatedEvent> events = new LinkedBlockingQueue<>();
             session.subscribe("/user/queue/room-created", roomCreatedHandler(events));
 
-            awaitSubscriptionProcessed();
+            StompTestSupport.awaitSubscriptionProcessed();
 
             CreateRoomRequest request = new CreateRoomRequest();
             request.setJoinMode(Room.JoinMode.BY_REQUEST);
@@ -58,10 +58,6 @@ class RoomCreationStompIT extends StompIntegrationTestBase {
         } finally {
             stompClient.stop();
         }
-    }
-
-    private static void awaitSubscriptionProcessed() throws InterruptedException {
-        Thread.sleep(300);
     }
 
     private static StompFrameHandler roomCreatedHandler(BlockingQueue<RoomCreatedEvent> sink) {
