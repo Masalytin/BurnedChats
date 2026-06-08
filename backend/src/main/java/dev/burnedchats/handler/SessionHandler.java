@@ -21,13 +21,13 @@ import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
-import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
-import dev.burnedchats.repository.UserRepository;
+import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
@@ -47,6 +47,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * STOMP handler for chat session management.
@@ -131,9 +132,14 @@ public class SessionHandler {
      */
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
 
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+
+    private record ParticipantContext(String internalId, Long telegramId) {
+    }
+
     private final SessionRepository sessionRepository;
     private final RequestRepository requestRepository;
-    private final UserRepository userRepository;
     private final OnlineStatusRepository onlineStatusRepository;
     private final UserMapper userMapper;
     private final SessionMapper sessionMapper;
@@ -143,9 +149,45 @@ public class SessionHandler {
     private final BotMessageService botMessages;
 
     /**
+     * Resolves authenticated participant context from any {@link AppPrincipal}.
+     */
+    private ParticipantContext participantContext(Principal principal) {
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            return null;
+        }
+        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
+                ? telegramPrincipal.getUserId()
+                : null;
+        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
+    }
+
+    private void sendStompToInternalId(String internalId, String destination, Object payload) {
+        if (!StringUtils.hasText(internalId)) {
+            LOG.warn("STOMP skip: internalId is blank destination={}", destination);
+            return;
+        }
+        stompUserMessenger.convertAndSendToInternalId(internalId, destination, payload);
+    }
+
+    /**
+     * Best-effort Telegram bot notification when recipient has a linked telegram id.
+     */
+    private void sendTelegramNotificationIfLinked(Long recipientTelegramId, UnifiedUser recipient,
+                                                   UnifiedUser sender, String sessionId) {
+        if (recipientTelegramId == null) {
+            LOG.debug("Telegram notification skip: recipient has no telegramId sessionId={}", sessionId);
+            return;
+        }
+        sendTelegramNotification(recipientTelegramId, recipient, sender, sessionId);
+    }
+
+    /**
      * Resolves {@link dev.burnedchats.model.UnifiedUser#internalId()} for STOMP user delivery by Telegram id.
      * Skips delivery with a warning when the mapping is missing.
+     *
+     * @deprecated Prefer {@link #sendStompToInternalId}
      */
+    @Deprecated
     private void sendStompToTelegramUser(Long telegramId, String destination, Object payload) {
         if (telegramId == null) {
             LOG.warn("STOMP skip: telegramId is null destination={}", destination);
@@ -165,10 +207,11 @@ public class SessionHandler {
      * (avoids duplicated resolve/send logic).
      */
     private void sendActiveSessionsSnapshot(
-            TelegramPrincipal principal, ActiveSessionsListEvent event, String outcome) {
+            AppPrincipal principal, ActiveSessionsListEvent event, String outcome) {
         stompUserMessenger.convertAndSendToUser(principal, ACTIVE_SESSIONS_DESTINATION, event);
+        Long telegramId = principal instanceof TelegramPrincipal tp ? tp.getUserId() : null;
         LOG.info("Sent active sessions list: internalId={}, telegramId={}, {}",
-                principal.getInternalId(), principal.getUserId(), outcome);
+                principal.getInternalId(), telegramId, outcome);
     }
 
     /**
@@ -189,36 +232,66 @@ public class SessionHandler {
      */
     @MessageMapping("/session.create")
     public void createSession(@Payload CreateSessionRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long initiatorId = telegramPrincipal.getUserId();
-        Long recipientId = request.getRecipientId();
-        String secretQuestion = normalizeOptionalText(request.getSecretQuestion());
-        String secretExpectedAnswer = normalizeOptionalText(request.getSecretExpectedAnswer());
-
-        LOG.info("Session creation requested: initiator={}, recipient={}, hasQuestion={}",
-                initiatorId, recipientId, secretQuestion != null);
-
-        // Validate: cannot create session with self
-        if (initiatorId.equals(recipientId)) {
-            LOG.debug("Self-request rejected for user {}", initiatorId);
-            sendToInitiator(initiatorId, SessionCreatedEvent.error("SELF_REQUEST"));
+        ParticipantContext initiator = participantContext(principal);
+        if (initiator == null) {
+            LOG.warn("Session create rejected: unsupported principal type {}",
+                    principal == null ? "null" : principal.getClass().getName());
             return;
         }
 
-        if (secretQuestion != null) {
-            if (secretExpectedAnswer == null) {
-                LOG.debug("Secret question present without expected answer: initiator={}", initiatorId);
-                sendToInitiator(initiatorId, SessionCreatedEvent.error("EXPECTED_ANSWER_REQUIRED"));
-                return;
-            }
-            if (secretExpectedAnswer.length() > 256) {
-                sendToInitiator(initiatorId, SessionCreatedEvent.error("EXPECTED_ANSWER_TOO_LONG"));
-                return;
-            }
-        }
+        String secretQuestion = normalizeOptionalText(request.getSecretQuestion());
+        String secretExpectedAnswer = normalizeOptionalText(request.getSecretExpectedAnswer());
 
-        // Validate and create session
-        validateAndCreateSession(initiatorId, recipientId, secretQuestion, secretExpectedAnswer);
+        LOG.info("Session creation requested: initiatorInternalId={}, recipientInternalId={}, "
+                        + "legacyRecipientId={}, hasQuestion={}",
+                initiator.internalId(), request.getRecipientInternalId(), request.getRecipientId(),
+                secretQuestion != null);
+
+        resolveRecipientInternalId(request)
+                .flatMap(recipientInternalId -> {
+                    if (initiator.internalId().equals(recipientInternalId)) {
+                        LOG.debug("Self-request rejected for user {}", initiator.internalId());
+                        return Mono.just(SessionCreatedEvent.error("SELF_REQUEST"));
+                    }
+
+                    if (secretQuestion != null) {
+                        if (secretExpectedAnswer == null) {
+                            LOG.debug("Secret question present without expected answer: initiator={}",
+                                    initiator.internalId());
+                            return Mono.just(SessionCreatedEvent.error("EXPECTED_ANSWER_REQUIRED"));
+                        }
+                        if (secretExpectedAnswer.length() > 256) {
+                            return Mono.just(SessionCreatedEvent.error("EXPECTED_ANSWER_TOO_LONG"));
+                        }
+                    }
+
+                    return validateAndCreateSession(initiator, recipientInternalId, secretQuestion,
+                            secretExpectedAnswer);
+                })
+                .switchIfEmpty(Mono.fromSupplier(() -> SessionCreatedEvent.error("INVALID_RECIPIENT")))
+                .subscribe(
+                        event -> sendToInitiator(initiator.internalId(), event),
+                        error -> {
+                            LOG.error("Error creating session: initiator={}, error={}",
+                                    initiator.internalId(), error.getMessage());
+                            sendToInitiator(initiator.internalId(), SessionCreatedEvent.error("INTERNAL_ERROR"));
+                        }
+                );
+    }
+
+    private Mono<String> resolveRecipientInternalId(CreateSessionRequest request) {
+        if (StringUtils.hasText(request.getRecipientInternalId())) {
+            String trimmed = request.getRecipientInternalId().trim();
+            if (UUID_PATTERN.matcher(trimmed).matches()) {
+                return Mono.just(trimmed);
+            }
+            return Mono.empty();
+        }
+        if (request.getRecipientId() != null) {
+            return userIdentityRepository.findByTelegramId(request.getRecipientId())
+                    .switchIfEmpty(Mono.just(InternalIds.forTelegramId(request.getRecipientId())));
+        }
+        return Mono.empty();
     }
 
     /**
@@ -232,91 +305,83 @@ public class SessionHandler {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    /**
-     * Validate constraints and create session if all checks pass.
-     */
-    private void validateAndCreateSession(Long initiatorId, Long recipientId, String secretQuestion,
-                                          String secretExpectedAnswer) {
-        // Check if initiator already has an active session
-        sessionRepository.findActiveByParticipant(initiatorId)
+    private Mono<SessionCreatedEvent> validateAndCreateSession(ParticipantContext initiator,
+                                                               String recipientInternalId,
+                                                               String secretQuestion,
+                                                               String secretExpectedAnswer) {
+        return sessionRepository.findActiveByParticipant(initiator.internalId())
                 .flatMap(existingSession -> {
                     LOG.debug("Initiator {} already has active session: {}",
-                            initiatorId, existingSession.getId());
+                            initiator.internalId(), existingSession.getId());
                     return Mono.just(SessionCreatedEvent.error("ALREADY_HAS_SESSION"));
                 })
                 .switchIfEmpty(
-                        // Check if recipient already has an active session
-                        sessionRepository.findActiveByParticipant(recipientId)
+                        sessionRepository.findActiveByParticipant(recipientInternalId)
                                 .flatMap(existingSession -> {
                                     LOG.debug("Recipient {} already has active session: {}",
-                                            recipientId, existingSession.getId());
+                                            recipientInternalId, existingSession.getId());
                                     return Mono.just(SessionCreatedEvent.error("RECIPIENT_HAS_SESSION"));
                                 })
                                 .switchIfEmpty(
-                                        // Check if there's already a pending request to this recipient from initiator
-                                        requestRepository.existsBetween(initiatorId, recipientId)
+                                        requestRepository.existsBetween(initiator.internalId(), recipientInternalId)
                                                 .flatMap(exists -> {
                                                     if (exists) {
                                                         LOG.debug("Pending request already exists: {} -> {}",
-                                                                initiatorId, recipientId);
+                                                                initiator.internalId(), recipientInternalId);
                                                         return Mono.just(SessionCreatedEvent.error(
                                                                 "PENDING_REQUEST_EXISTS"));
                                                     }
-                                                    // All validations passed - create session
-                                                    return doCreateSession(initiatorId, recipientId, secretQuestion,
-                                                            secretExpectedAnswer);
+                                                    return doCreateSession(initiator, recipientInternalId,
+                                                            secretQuestion, secretExpectedAnswer);
                                                 })
                                 )
-                )
-                .subscribe(
-                        event -> sendToInitiator(initiatorId, event),
-                        error -> {
-                            LOG.error("Error creating session: initiator={}, recipient={}, error={}",
-                                    initiatorId, recipientId, error.getMessage());
-                            sendToInitiator(initiatorId, SessionCreatedEvent.error("INTERNAL_ERROR"));
-                        }
-            );
+                );
     }
 
-    /**
-     * Create the session and related entities after all validations pass.
-     */
-    private Mono<SessionCreatedEvent> doCreateSession(Long initiatorId, Long recipientId,
-                                                      String secretQuestion, String secretExpectedAnswer) {
-        // Get both users from cache
+    private Mono<SessionCreatedEvent> doCreateSession(ParticipantContext initiator,
+                                                      String recipientInternalId,
+                                                      String secretQuestion,
+                                                      String secretExpectedAnswer) {
         return Mono.zip(
-                userRepository.findById(initiatorId)
-                        .switchIfEmpty(Mono.error(new IllegalStateException("Initiator not found in cache"))),
-                userRepository.findById(recipientId)
-                        .switchIfEmpty(Mono.just(createPlaceholderUser(recipientId)))
+                loadParticipant(initiator.internalId()),
+                loadParticipant(recipientInternalId)
         ).flatMap(users -> {
-            TelegramUser initiator = users.getT1();
-            TelegramUser recipient = users.getT2();
+            UnifiedUser initiatorUser = users.getT1();
+            UnifiedUser recipientUser = users.getT2();
             String sessionId = UUID.randomUUID().toString();
             Instant now = Instant.now();
             Session session = newPendingSession(
-                    sessionId, initiatorId, recipientId, now, secretQuestion, secretExpectedAnswer);
-            ChatRequest chatRequest = ChatRequest.fromSender(sessionId, initiator, recipientId, secretQuestion);
+                    sessionId,
+                    initiator.internalId(),
+                    initiator.telegramId(),
+                    recipientInternalId,
+                    recipientUser.telegramId(),
+                    now,
+                    secretQuestion,
+                    secretExpectedAnswer);
+            ChatRequest chatRequest = ChatRequest.fromParticipants(
+                    sessionId,
+                    initiatorUser,
+                    recipientInternalId,
+                    recipientUser.telegramId(),
+                    secretQuestion);
 
-            // Save session and request
             return sessionRepository.save(session)
                     .then(requestRepository.save(chatRequest))
-                    .then(onlineStatusRepository.isOnline(recipientId))
+                    .then(onlineStatusRepository.isOnline(recipientInternalId))
                     .flatMap(isRecipientOnline -> {
-                        // Send incoming request event to recipient
-                        sendIncomingRequestToRecipient(recipientId, sessionId, initiator,
+                        sendIncomingRequestToRecipient(recipientInternalId, sessionId, initiatorUser,
                                 secretQuestion, now, chatRequest.getExpiresAt());
 
-                        // Send Telegram notification if recipient is not online
                         if (!isRecipientOnline) {
-                            sendTelegramNotification(recipientId, recipient, initiator, sessionId);
+                            sendTelegramNotificationIfLinked(
+                                    recipientUser.telegramId(), recipientUser, initiatorUser, sessionId);
                         }
 
-                        // Build response for initiator
-                        UserResponse recipientResponse = userMapper.toResponse(recipient, isRecipientOnline);
+                        UserResponse recipientResponse = userMapper.toResponse(recipientUser, isRecipientOnline);
 
                         LOG.info("Session created successfully: sessionId={}, initiator={}, recipient={}, online={}",
-                                sessionId, initiatorId, recipientId, isRecipientOnline);
+                                sessionId, initiator.internalId(), recipientInternalId, isRecipientOnline);
 
                         return Mono.just(SessionCreatedEvent.success(
                                 sessionId,
@@ -329,14 +394,35 @@ public class SessionHandler {
         });
     }
 
-    private static Session newPendingSession(String sessionId, Long initiatorId, Long recipientId, Instant now,
-            String secretQuestion, String secretExpectedAnswer) {
+    private Mono<UnifiedUser> loadParticipant(String internalId) {
+        return userIdentityRepository.findById(internalId)
+                .switchIfEmpty(Mono.just(placeholderUnifiedUser(internalId)));
+    }
+
+    private static UnifiedUser placeholderUnifiedUser(String internalId) {
+        return new UnifiedUser(
+                internalId,
+                dev.burnedchats.model.enums.AuthType.WALLET,
+                "User",
+                null,
+                null,
+                null);
+    }
+
+    private static Session newPendingSession(String sessionId,
+                                             String initiatorInternalId,
+                                             Long initiatorTelegramId,
+                                             String recipientInternalId,
+                                             Long recipientTelegramId,
+                                             Instant now,
+                                             String secretQuestion,
+                                             String secretExpectedAnswer) {
         return Session.builder()
                 .id(sessionId)
-                .initiatorInternalId(InternalIds.forTelegramId(initiatorId))
-                .initiatorTelegramId(initiatorId)
-                .responderInternalId(InternalIds.forTelegramId(recipientId))
-                .responderTelegramId(recipientId)
+                .initiatorInternalId(initiatorInternalId)
+                .initiatorTelegramId(initiatorTelegramId)
+                .responderInternalId(recipientInternalId)
+                .responderTelegramId(recipientTelegramId)
                 .status(SessionStatus.PENDING)
                 .createdAt(now)
                 .lastActivityAt(now)
@@ -347,73 +433,46 @@ public class SessionHandler {
                 .build();
     }
 
-    /**
-     * Create a placeholder user for recipients not in cache.
-     * This allows session creation even if we don't have cached user data.
-     */
-    private TelegramUser createPlaceholderUser(Long userId) {
-        return TelegramUser.builder()
-                .id(userId)
-                .firstName("User")
-                .build();
-    }
-
-    /**
-     * Send incoming request event to recipient via WebSocket.
-     */
-    private void sendIncomingRequestToRecipient(Long recipientId, String sessionId,
-                                                 TelegramUser sender, String secretQuestion,
+    private void sendIncomingRequestToRecipient(String recipientInternalId, String sessionId,
+                                                 UnifiedUser sender, String secretQuestion,
                                                  Instant createdAt, Instant expiresAt) {
-        UserResponse senderResponse = userMapper.toResponse(sender, true); // sender is online
+        UserResponse senderResponse = userMapper.toResponse(sender, true);
         IncomingRequestEvent event = IncomingRequestEvent.create(
                 sessionId, senderResponse, secretQuestion, createdAt, expiresAt
         );
 
-        sendStompToTelegramUser(recipientId, INCOMING_REQUEST_DESTINATION, event);
+        sendStompToInternalId(recipientInternalId, INCOMING_REQUEST_DESTINATION, event);
 
-        LOG.debug("Sent incoming request event to recipient {}: sessionId={}", recipientId, sessionId);
+        LOG.debug("Sent incoming request event to recipient {}: sessionId={}", recipientInternalId, sessionId);
     }
 
     /**
-     * Send Telegram notification to offline recipient.
-     *
-     * <p>The notification includes:
-     * <ul>
-     *   <li>Information about who sent the request</li>
-     *   <li>Button to open Mini App with session context</li>
-     * </ul>
-     *
-     * @param recipientId Telegram user ID of recipient
-     * @param recipient   recipient's user info (used for language detection)
-     * @param sender      sender's user info
-     * @param sessionId   the session ID for deep linking
+     * Send Telegram notification to offline recipient with a linked Telegram account.
      */
-    private void sendTelegramNotification(Long recipientId, TelegramUser recipient,
-                                           TelegramUser sender, String sessionId) {
-        botMessages.getForUser("bot.notify.chatRequest", recipientId)
+    private void sendTelegramNotification(Long recipientTelegramId, UnifiedUser recipient,
+                                           UnifiedUser sender, String sessionId) {
+        botMessages.getForUser("bot.notify.chatRequest", recipientTelegramId)
                 .subscribe(notificationText -> {
                     boolean sent = telegramBot.sendNotificationWithButton(
-                            recipientId,
+                            recipientTelegramId,
                             notificationText,
                             sessionId
                     );
 
                     if (sent) {
-                        LOG.info("Telegram notification sent to recipient {}: sessionId={}", recipientId, sessionId);
+                        LOG.info("Telegram notification sent to recipient {}: sessionId={}",
+                                recipientTelegramId, sessionId);
                     } else {
-                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientId);
+                        LOG.warn("Failed to send Telegram notification to recipient {}", recipientTelegramId);
                     }
                 });
     }
 
-    /**
-     * Send session created event to initiator.
-     */
-    private void sendToInitiator(Long initiatorId, SessionCreatedEvent event) {
-        sendStompToTelegramUser(initiatorId, SESSION_CREATED_DESTINATION, event);
+    private void sendToInitiator(String initiatorInternalId, SessionCreatedEvent event) {
+        sendStompToInternalId(initiatorInternalId, SESSION_CREATED_DESTINATION, event);
 
         LOG.trace("Sent session-created event to initiator {}: success={}, error={}",
-                initiatorId, event.isSuccess(), event.getError());
+                initiatorInternalId, event.isSuccess(), event.getError());
     }
 
     // ==================== Pending Requests (Fix: race condition on connect) ====================
@@ -430,38 +489,50 @@ public class SessionHandler {
      */
     @MessageMapping("/session.pending")
     public void getPendingRequests(Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            LOG.warn("Pending requests rejected: unsupported principal");
+            return;
+        }
 
         LOG.info("Pending requests requested: internalId={}, telegramId={}",
-                telegramPrincipal.getInternalId(), userId);
+                participant.internalId(), participant.telegramId());
 
-        requestRepository.findByRecipient(userId)
+        requestRepository.findByRecipient(participant.internalId())
                 .flatMap(request -> buildIncomingRequestEvent(request)
                         .doOnNext(event -> {
-                            stompUserMessenger.convertAndSendToUser(
-                                    telegramPrincipal,
+                            stompUserMessenger.convertAndSendToInternalId(
+                                    participant.internalId(),
                                     INCOMING_REQUEST_DESTINATION,
                                     event
                             );
                             LOG.debug("Sent pending request to user {}: sessionId={}",
-                                    userId, event.getSessionId());
+                                    participant.internalId(), event.getSessionId());
                         }))
                 .subscribe(
                         event -> {},
                         error -> LOG.error("Error sending pending requests to user {}: {}",
-                                userId, error.getMessage()),
-                        () -> LOG.debug("Finished sending pending requests to user {}", userId)
+                                participant.internalId(), error.getMessage()),
+                        () -> LOG.debug("Finished sending pending requests to user {}",
+                                participant.internalId())
             );
     }
 
-    /**
-     * Build an IncomingRequestEvent from a ChatRequest.
-     */
     private reactor.core.publisher.Mono<IncomingRequestEvent> buildIncomingRequestEvent(
-            dev.burnedchats.model.ChatRequest request) {
-        return userRepository.findById(request.getSenderTgId())
-                .map(sender -> userMapper.toResponse(sender, true))
+            ChatRequest request) {
+        String senderInternalId = request.getSenderKey();
+        if (!StringUtils.hasText(senderInternalId)) {
+            return Mono.just(IncomingRequestEvent.create(
+                    request.getSessionId(),
+                    buildPlaceholderSender(request),
+                    request.getQuestion(),
+                    request.getCreatedAt(),
+                    request.getExpiresAt()
+            ));
+        }
+        return loadParticipant(senderInternalId)
+                .flatMap(sender -> onlineStatusRepository.isOnline(senderInternalId)
+                        .map(online -> userMapper.toResponse(sender, online)))
                 .defaultIfEmpty(buildPlaceholderSender(request))
                 .map(senderResponse -> IncomingRequestEvent.create(
                         request.getSessionId(),
@@ -472,17 +543,14 @@ public class SessionHandler {
                 ));
     }
 
-    /**
-     * Build a placeholder sender response when user info is not cached.
-     */
-    private dev.burnedchats.dto.response.UserResponse buildPlaceholderSender(
-            dev.burnedchats.model.ChatRequest request) {
+    private UserResponse buildPlaceholderSender(ChatRequest request) {
         String displayName = request.getSenderFirstName();
         if (request.getSenderLastName() != null) {
             displayName += " " + request.getSenderLastName();
         }
 
-        return dev.burnedchats.dto.response.UserResponse.builder()
+        return UserResponse.builder()
+                .internalId(request.getSenderInternalId())
                 .id(request.getSenderTgId())
                 .username(request.getSenderUsername())
                 .displayName(displayName)
@@ -512,147 +580,129 @@ public class SessionHandler {
      */
     @MessageMapping("/session.accept")
     public void acceptRequest(@Payload AcceptSessionRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long responderId = telegramPrincipal.getUserId();
+        ParticipantContext responder = participantContext(principal);
+        if (responder == null) {
+            LOG.warn("Session accept rejected: unsupported principal");
+            return;
+        }
         String sessionId = request.getSessionId();
 
-        LOG.info("Session accept requested: sessionId={}, responderId={}", sessionId, responderId);
+        LOG.info("Session accept requested: sessionId={}, responderInternalId={}",
+                sessionId, responder.internalId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found: {}", sessionId);
-                    sendAcceptError(responderId, sessionId, "SESSION_NOT_FOUND");
+                    sendAcceptError(responder.internalId(), sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndAcceptSession(session, responderId, request))
+                .flatMap(session -> validateAndAcceptSession(session, responder, request))
                 .subscribe(
                         result -> {},
                         error -> {
                             LOG.error("Error accepting session {}: {}", sessionId, error.getMessage());
-                            sendAcceptError(responderId, sessionId, "INTERNAL_ERROR");
+                            sendAcceptError(responder.internalId(), sessionId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    /**
-     * Validate and process session acceptance.
-     */
-    private Mono<Void> validateAndAcceptSession(Session session, Long responderId,
+    private Mono<Void> validateAndAcceptSession(Session session, ParticipantContext responder,
                                                  AcceptSessionRequest request) {
         String sessionId = session.getId();
 
-        // Validate user is the responder
-        if (!responderId.equals(session.getResponderId())) {
-            LOG.debug("User {} is not responder for session {}", responderId, sessionId);
-            sendAcceptError(responderId, sessionId, "NOT_RESPONDER");
+        if (!session.isResponder(responder.internalId())) {
+            LOG.debug("User {} is not responder for session {}", responder.internalId(), sessionId);
+            sendAcceptError(responder.internalId(), sessionId, "NOT_RESPONDER");
             return Mono.empty();
         }
 
-        // Validate session status
         if (session.getStatus() != SessionStatus.PENDING) {
             LOG.debug("Session {} is not pending, status: {}", sessionId, session.getStatus());
             String errorCode = session.getStatus() == SessionStatus.HANDSHAKE
                     || session.getStatus() == SessionStatus.ACTIVE
                     ? "ALREADY_ACCEPTED" : "SESSION_EXPIRED";
-            sendAcceptError(responderId, sessionId, errorCode);
+            sendAcceptError(responder.internalId(), sessionId, errorCode);
             return Mono.empty();
         }
 
-        // Check for secret question validation
-        return requestRepository.findBySessionId(responderId, sessionId)
+        return requestRepository.findBySessionId(responder.internalId(), sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Request not found for session: {}", sessionId);
-                    sendAcceptError(responderId, sessionId, "REQUEST_EXPIRED");
+                    sendAcceptError(responder.internalId(), sessionId, "REQUEST_EXPIRED");
                     return Mono.empty();
                 }))
                 .flatMap(chatRequest -> {
-                    // Validate secret answer if question exists
                     if (chatRequest.isHasQuestion()) {
                         String providedAnswer = request.getSecretAnswer();
                         if (providedAnswer == null || providedAnswer.isBlank()) {
                             LOG.debug("Secret answer required but not provided for session {}", sessionId);
-                            sendAcceptError(responderId, sessionId, "ANSWER_REQUIRED");
+                            sendAcceptError(responder.internalId(), sessionId, "ANSWER_REQUIRED");
                             return Mono.empty();
                         }
                         String expectedHash = session.getSecretAnswerHash();
                         if (expectedHash == null || expectedHash.isBlank()) {
                             LOG.warn("Session {} has secret question but missing expected answer hash", sessionId);
-                            sendAcceptError(responderId, sessionId, "INTERNAL_ERROR");
+                            sendAcceptError(responder.internalId(), sessionId, "INTERNAL_ERROR");
                             return Mono.empty();
                         }
                         String providedHash = SecretAnswerHasher.hash(providedAnswer);
                         if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
                             LOG.debug("Wrong secret answer for session {}", sessionId);
-                            sendAcceptError(responderId, sessionId, "WRONG_ANSWER");
+                            sendAcceptError(responder.internalId(), sessionId, "WRONG_ANSWER");
                             return Mono.empty();
                         }
-                        return doAcceptSession(session, chatRequest, responderId);
+                        return doAcceptSession(session, responder);
                     }
-                    return doAcceptSession(session, chatRequest, responderId);
+                    return doAcceptSession(session, responder);
                 });
     }
 
-    /**
-     * Process the acceptance after all validations pass.
-     */
-    private Mono<Void> doAcceptSession(Session session, ChatRequest chatRequest, Long responderId) {
+    private Mono<Void> doAcceptSession(Session session, ParticipantContext responder) {
         String sessionId = session.getId();
-        Long initiatorId = session.getInitiatorId();
+        String initiatorInternalId = session.getInitiatorInternalId();
         Instant acceptedAt = Instant.now();
 
-        // Update session status
         session.setStatus(SessionStatus.HANDSHAKE);
         session.setLastActivityAt(acceptedAt);
 
         return sessionRepository.save(session)
-                .then(requestRepository.delete(responderId, sessionId))
+                .then(requestRepository.delete(responder.internalId(), sessionId))
                 .then(Mono.zip(
-                        getUserResponse(initiatorId),
-                        getUserResponse(responderId)
+                        getUserResponseByInternalId(initiatorInternalId),
+                        getUserResponseByInternalId(responder.internalId())
                 ))
                 .doOnSuccess(users -> {
                     UserResponse initiatorInfo = users.getT1();
                     UserResponse responderInfo = users.getT2();
-
-                    // Calculate session expiration (5.1.4)
                     Instant expiresAt = session.getExpiresAt();
 
-                    // Send to initiator with responder info
                     SessionAcceptedEvent initiatorEvent = SessionAcceptedEvent.success(
                             sessionId, responderInfo, acceptedAt, expiresAt);
-                    sendStompToTelegramUser(initiatorId, SESSION_ACCEPTED_DESTINATION, initiatorEvent);
+                    sendStompToInternalId(initiatorInternalId, SESSION_ACCEPTED_DESTINATION, initiatorEvent);
 
-                    // Send to responder with initiator info
                     SessionAcceptedEvent responderEvent = SessionAcceptedEvent.success(
                             sessionId, initiatorInfo, acceptedAt, expiresAt);
-                    sendStompToTelegramUser(responderId, SESSION_ACCEPTED_DESTINATION, responderEvent);
+                    sendStompToInternalId(responder.internalId(), SESSION_ACCEPTED_DESTINATION, responderEvent);
 
                     LOG.info(
-                            "Session accepted: sessionId={}, initiatorTelegramId={}, responderTelegramId={}, "
+                            "Session accepted: sessionId={}, initiatorInternalId={}, responderInternalId={}, "
                                     + "expiresAt={}",
-                            sessionId, initiatorId, responderId, expiresAt);
+                            sessionId, initiatorInternalId, responder.internalId(), expiresAt);
                 })
                 .then();
     }
 
-    /**
-     * Get user response for a participant.
-     */
-    private Mono<UserResponse> getUserResponse(Long userId) {
+    private Mono<UserResponse> getUserResponseByInternalId(String internalId) {
         return Mono.zip(
-                userRepository.findById(userId)
-                        .defaultIfEmpty(createPlaceholderUser(userId)),
-                onlineStatusRepository.isOnline(userId)
+                loadParticipant(internalId),
+                onlineStatusRepository.isOnline(internalId)
         ).map(tuple -> userMapper.toResponse(tuple.getT1(), tuple.getT2()));
     }
 
-    /**
-     * Send accept error to responder.
-     */
-    private void sendAcceptError(Long responderId, String sessionId, String errorCode) {
+    private void sendAcceptError(String responderInternalId, String sessionId, String errorCode) {
         SessionAcceptedEvent event = SessionAcceptedEvent.error(sessionId, errorCode);
-        sendStompToTelegramUser(responderId, SESSION_ACCEPTED_DESTINATION, event);
-        LOG.trace("Sent accept error to responder {}: {}", responderId, errorCode);
+        sendStompToInternalId(responderInternalId, SESSION_ACCEPTED_DESTINATION, event);
+        LOG.trace("Sent accept error to responder {}: {}", responderInternalId, errorCode);
     }
 
     // ==================== Session Status (5.1.4) ====================
@@ -668,42 +718,38 @@ public class SessionHandler {
      */
     @MessageMapping("/session.status")
     public void checkSessionStatus(@Payload SessionStatusRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            return;
+        }
         String sessionId = request.sessionId();
 
-        LOG.debug("Session status check: sessionId={}, userId={}", sessionId, userId);
+        LOG.debug("Session status check: sessionId={}, internalId={}", sessionId, participant.internalId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
-                    // Session not found (expired or never existed)
-                    sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
+                    sendSessionStatus(participant, SessionStatusEvent.expired(sessionId));
                     return Mono.empty();
                 }))
                 .subscribe(
                         session -> {
-                            // Validate user is participant
-                            if (!session.isParticipant(userId)) {
-                                var err = SessionStatusEvent.error(sessionId, "NOT_PARTICIPANT");
-                                sendSessionStatus(telegramPrincipal, err);
+                            if (!session.isParticipant(participant.internalId())) {
+                                sendSessionStatus(participant, SessionStatusEvent.error(sessionId, "NOT_PARTICIPANT"));
                                 return;
                             }
 
-                            // Check if session is expired by status
-                            if (session.getStatus() == SessionStatus.EXPIRED 
+                            if (session.getStatus() == SessionStatus.EXPIRED
                                     || session.getStatus() == SessionStatus.BURNED) {
-                                sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
+                                sendSessionStatus(participant, SessionStatusEvent.expired(sessionId));
                                 return;
                             }
 
-                            // Check TTL expiration
                             if (session.isExpired()) {
-                                sendSessionStatus(telegramPrincipal, SessionStatusEvent.expired(sessionId));
+                                sendSessionStatus(participant, SessionStatusEvent.expired(sessionId));
                                 return;
                             }
 
-                            // Session is active
-                            sendSessionStatus(telegramPrincipal, SessionStatusEvent.active(
+                            sendSessionStatus(participant, SessionStatusEvent.active(
                                     sessionId,
                                     session.getStatus(),
                                     session.getExpiresAt(),
@@ -712,16 +758,13 @@ public class SessionHandler {
                         },
                         error -> {
                             LOG.error("Error checking session status: {}", error.getMessage());
-                            sendSessionStatus(telegramPrincipal, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
+                            sendSessionStatus(participant, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
                         }
             );
     }
 
-    /**
-     * Send session status event to user.
-     */
-    private void sendSessionStatus(TelegramPrincipal principal, SessionStatusEvent event) {
-        stompUserMessenger.convertAndSendToUser(principal, SESSION_STATUS_DESTINATION, event);
+    private void sendSessionStatus(ParticipantContext participant, SessionStatusEvent event) {
+        sendStompToInternalId(participant.internalId(), SESSION_STATUS_DESTINATION, event);
     }
 
     // ==================== Peer Disconnect (5.1.5) ====================
@@ -737,36 +780,36 @@ public class SessionHandler {
      */
     @MessageMapping("/peer.disconnect")
     public void handlePeerDisconnect(@Payload PeerDisconnectRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            return;
+        }
         String sessionId = request.sessionId();
 
-        LOG.info("Peer disconnect notification: sessionId={}, internalId={}, telegramId={}, reason={}",
-                sessionId, telegramPrincipal.getInternalId(), userId, request.reason());
+        LOG.info("Peer disconnect notification: sessionId={}, internalId={}, reason={}",
+                sessionId, participant.internalId(), request.reason());
 
         sessionRepository.findById(sessionId)
                 .subscribe(
                         session -> {
-                            // Validate user is participant
-                            if (!session.isParticipant(userId)) {
-                                LOG.debug("User {} is not participant in session {}", userId, sessionId);
+                            if (!session.isParticipant(participant.internalId())) {
+                                LOG.debug("User {} is not participant in session {}",
+                                        participant.internalId(), sessionId);
                                 return;
                             }
 
-                            // Get peer ID
-                            Long peerId = session.getPeerId(userId);
-                            if (peerId == null) {
+                            String peerInternalId = session.getPeerInternalId(participant.internalId());
+                            if (peerInternalId == null) {
                                 return;
                             }
 
-                            // Notify peer
-                            PeerDisconnectedEvent event = PeerDisconnectedEvent.appClosed(sessionId, userId);
-                            sendStompToTelegramUser(peerId, PEER_DISCONNECTED_DESTINATION, event);
+                            PeerDisconnectedEvent event = PeerDisconnectedEvent.appClosed(
+                                    sessionId, participant.telegramId());
+                            sendStompToInternalId(peerInternalId, PEER_DISCONNECTED_DESTINATION, event);
 
                             LOG.info(
-                                    "Peer disconnect notify: peerTelegramId={}, disconnectedInternalId={}, "
-                                            + "disconnectedTelegramId={}, sessionId={}",
-                                    peerId, telegramPrincipal.getInternalId(), userId, sessionId);
+                                    "Peer disconnect notify: peerInternalId={}, disconnectedInternalId={}, sessionId={}",
+                                    peerInternalId, participant.internalId(), sessionId);
                         },
                         error -> LOG.error("Error handling peer disconnect: {}", error.getMessage())
             );
@@ -791,71 +834,64 @@ public class SessionHandler {
      */
     @MessageMapping("/session.reject")
     public void rejectRequest(@Payload RejectSessionRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long responderId = telegramPrincipal.getUserId();
+        ParticipantContext responder = participantContext(principal);
+        if (responder == null) {
+            return;
+        }
         String sessionId = request.getSessionId();
 
-        LOG.info("Session reject requested: sessionId={}, responderId={}", sessionId, responderId);
+        LOG.info("Session reject requested: sessionId={}, responderInternalId={}",
+                sessionId, responder.internalId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for rejection: {}", sessionId);
-                    // Silent fail - session may have already expired
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndRejectSession(session, responderId))
+                .flatMap(session -> validateAndRejectSession(session, responder))
                 .subscribe(
                         result -> {},
                         error -> LOG.error("Error rejecting session {}: {}", sessionId, error.getMessage())
             );
     }
 
-    /**
-     * Validate and process session rejection.
-     */
-    private Mono<Void> validateAndRejectSession(Session session, Long responderId) {
+    private Mono<Void> validateAndRejectSession(Session session, ParticipantContext responder) {
         String sessionId = session.getId();
 
-        // Validate user is the responder
-        if (!responderId.equals(session.getResponderId())) {
-            LOG.debug("User {} is not responder for session {}, cannot reject", responderId, sessionId);
+        if (!session.isResponder(responder.internalId())) {
+            LOG.debug("User {} is not responder for session {}, cannot reject",
+                    responder.internalId(), sessionId);
             return Mono.empty();
         }
 
-        // Validate session status - only PENDING sessions can be rejected
         if (session.getStatus() != SessionStatus.PENDING) {
             LOG.debug("Session {} is not pending, cannot reject. Status: {}", sessionId, session.getStatus());
             return Mono.empty();
         }
 
-        return doRejectSession(session, responderId);
+        return doRejectSession(session, responder);
     }
 
-    /**
-     * Process the rejection after all validations pass.
-     */
-    private Mono<Void> doRejectSession(Session session, Long responderId) {
+    private Mono<Void> doRejectSession(Session session, ParticipantContext responder) {
         String sessionId = session.getId();
-        Long initiatorId = session.getInitiatorId();
+        String initiatorInternalId = session.getInitiatorInternalId();
         Instant rejectedAt = Instant.now();
 
-        // Update session status to EXPIRED
         return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
-                .then(requestRepository.delete(responderId, sessionId))
+                .then(requestRepository.delete(responder.internalId(), sessionId))
                 .doOnSuccess(v -> {
-                    // Send rejection notification to initiator
                     SessionRejectedEvent event = SessionRejectedEvent.create(sessionId, rejectedAt);
-                    sendStompToTelegramUser(initiatorId, SESSION_REJECTED_DESTINATION, event);
+                    sendStompToInternalId(initiatorInternalId, SESSION_REJECTED_DESTINATION, event);
 
-                    LOG.info("Session rejected: sessionId={}, initiatorTelegramId={}, responderTelegramId={}",
-                            sessionId, initiatorId, responderId);
+                    LOG.info("Session rejected: sessionId={}, initiatorInternalId={}, responderInternalId={}",
+                            sessionId, initiatorInternalId, responder.internalId());
                 })
                 .then();
     }
 
     // ==================== Active Sessions (4.6.1, 4.6.2, 4.6.4) ====================
 
-    private Mono<SessionResponse> mapSessionToListResponse(Session session, Long userId,
+    private Mono<SessionResponse> mapSessionToListResponse(Session session, String userInternalId,
             List<String> expiredSessionIds) {
         if (session.isExpired()) {
             synchronized (expiredSessionIds) {
@@ -865,49 +901,29 @@ public class SessionHandler {
             return Mono.<SessionResponse>empty();
         }
 
-        Long peerId = session.getPeerId(userId);
-        boolean isInitiator = userId.equals(session.getInitiatorId());
+        String peerInternalId = session.getPeerInternalId(userInternalId);
+        boolean isInitiator = session.isInitiator(userInternalId);
 
-        return Mono.zip(
-                userRepository.findById(peerId)
-                        .defaultIfEmpty(createPlaceholderUser(peerId)),
-                onlineStatusRepository.isOnline(peerId)
-        ).map(tuple -> {
-            UserResponse peerResponse = userMapper.toResponse(tuple.getT1(), tuple.getT2());
-            return sessionMapper.toResponse(session, peerResponse, isInitiator);
-        });
+        return getUserResponseByInternalId(peerInternalId)
+                .map(peerResponse -> sessionMapper.toResponse(session, peerResponse, isInitiator));
     }
 
-    /**
-     * Get list of active sessions for the authenticated user (4.6.1).
-     *
-     * <p>Returns all sessions where the user is a participant and the session
-     * is not burned or expired. Also performs cleanup of expired sessions (4.6.4).
-     *
-     * <p>Destinations:
-     * <ul>
-     *   <li>Input: {@code /app/session.active.list}</li>
-     *   <li>Output: {@code /user/queue/active-sessions}</li>
-     * </ul>
-     *
-     * @param principal authenticated user principal
-     */
     @MessageMapping("/session.active.list")
     public void getActiveSessions(Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            return;
+        }
 
         LOG.info("Getting active sessions: internalId={}, telegramId={}",
-                telegramPrincipal.getInternalId(), userId);
+                participant.internalId(), participant.telegramId());
 
-        // Use concurrent list for thread-safe access from reactive streams
         List<String> expiredSessionIds = new ArrayList<>();
 
-        sessionRepository.findAllActiveByParticipant(userId)
-                .flatMap(session -> mapSessionToListResponse(session, userId, expiredSessionIds))
+        sessionRepository.findAllActiveByParticipant(participant.internalId())
+                .flatMap(session -> mapSessionToListResponse(session, participant.internalId(), expiredSessionIds))
                 .collectList()
                 .doOnSuccess(sessions -> {
-                    // 4.6.4: Cleanup expired sessions
                     synchronized (expiredSessionIds) {
                         if (!expiredSessionIds.isEmpty()) {
                             cleanupExpiredSessions(new ArrayList<>(expiredSessionIds));
@@ -920,16 +936,19 @@ public class SessionHandler {
                                     ? ActiveSessionsListEvent.empty()
                                     : ActiveSessionsListEvent.success(sessions);
 
-                            sendActiveSessionsSnapshot(
-                                    telegramPrincipal, event, "count=" + sessions.size());
+                            if (principal instanceof AppPrincipal appPrincipal) {
+                                sendActiveSessionsSnapshot(appPrincipal, event, "count=" + sessions.size());
+                            }
                         },
                         error -> {
                             LOG.error("Error getting active sessions for user {}: {}",
-                                    userId, error.getMessage());
-                            sendActiveSessionsSnapshot(
-                                    telegramPrincipal,
-                                    ActiveSessionsListEvent.error("INTERNAL_ERROR"),
-                                    "error=INTERNAL_ERROR");
+                                    participant.internalId(), error.getMessage());
+                            if (principal instanceof AppPrincipal appPrincipal) {
+                                sendActiveSessionsSnapshot(
+                                        appPrincipal,
+                                        ActiveSessionsListEvent.error("INTERNAL_ERROR"),
+                                        "error=INTERNAL_ERROR");
+                            }
                         }
             );
     }
@@ -971,83 +990,65 @@ public class SessionHandler {
      */
     @MessageMapping("/session.resume")
     public void resumeSession(@Payload ResumeSessionRequest request, Principal principal) {
-        TelegramPrincipal telegramPrincipal = (TelegramPrincipal) principal;
-        Long userId = telegramPrincipal.getUserId();
+        ParticipantContext participant = participantContext(principal);
+        if (participant == null) {
+            return;
+        }
         String sessionId = request.sessionId();
 
         LOG.info("Session resume requested: sessionId={}, internalId={}, telegramId={}",
-                sessionId, telegramPrincipal.getInternalId(), userId);
+                sessionId, participant.internalId(), participant.telegramId());
 
         sessionRepository.findById(sessionId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("Session not found for resume: {}", sessionId);
-                    sendResumeError(telegramPrincipal, sessionId, "SESSION_NOT_FOUND");
+                    sendResumeError(participant, sessionId, "SESSION_NOT_FOUND");
                     return Mono.empty();
                 }))
-                .flatMap(session -> validateAndResumeSession(session, telegramPrincipal))
+                .flatMap(session -> validateAndResumeSession(session, participant))
                 .subscribe(
                         result -> {},
                         error -> {
                             LOG.error("Error resuming session {}: {}", sessionId, error.getMessage());
-                            sendResumeError(telegramPrincipal, sessionId, "INTERNAL_ERROR");
+                            sendResumeError(participant, sessionId, "INTERNAL_ERROR");
                         }
             );
     }
 
-    /**
-     * Validate and process session resume.
-     */
-    private Mono<Void> validateAndResumeSession(Session session, TelegramPrincipal principal) {
-        Long userId = principal.getUserId();
+    private Mono<Void> validateAndResumeSession(Session session, ParticipantContext participant) {
         String sessionId = session.getId();
 
-        // Validate user is a participant
-        if (!session.isParticipant(userId)) {
-            LOG.debug("User {} is not participant in session {}", userId, sessionId);
-            sendResumeError(principal, sessionId, "NOT_PARTICIPANT");
+        if (!session.isParticipant(participant.internalId())) {
+            LOG.debug("User {} is not participant in session {}", participant.internalId(), sessionId);
+            sendResumeError(participant, sessionId, "NOT_PARTICIPANT");
             return Mono.empty();
         }
 
-        // Check if session is burned or expired
         if (session.getStatus() == SessionStatus.BURNED) {
             LOG.debug("Session {} is burned, cannot resume", sessionId);
-            sendResumeEvent(principal, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
+            sendResumeEvent(participant, SessionResumedEvent.error(sessionId, "SESSION_BURNED"));
             return Mono.empty();
         }
 
         if (session.getStatus() == SessionStatus.EXPIRED || session.isExpired()) {
             LOG.debug("Session {} is expired, cannot resume", sessionId);
-            // Cleanup the expired session
             return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
-                    .doOnSuccess(v -> sendResumeEvent(principal, SessionResumedEvent.expired(sessionId)))
+                    .doOnSuccess(v -> sendResumeEvent(participant, SessionResumedEvent.expired(sessionId)))
                     .then();
         }
 
-        return doResumeSession(session, principal);
+        return doResumeSession(session, participant);
     }
 
-    /**
-     * Process session resume after validations pass.
-     */
-    private Mono<Void> doResumeSession(Session session, TelegramPrincipal principal) {
-        Long userId = principal.getUserId();
+    private Mono<Void> doResumeSession(Session session, ParticipantContext participant) {
         String sessionId = session.getId();
-        Long peerId = session.getPeerId(userId);
-        boolean isInitiator = userId.equals(session.getInitiatorId());
+        String peerInternalId = session.getPeerInternalId(participant.internalId());
+        boolean isInitiator = session.isInitiator(participant.internalId());
 
-        // Update last activity and refresh TTL
         return sessionRepository.updateLastActivity(sessionId)
                 .then(sessionRepository.refreshTtl(sessionId))
-                .then(Mono.zip(
-                        userRepository.findById(peerId)
-                                .defaultIfEmpty(createPlaceholderUser(peerId)),
-                        onlineStatusRepository.isOnline(peerId)
-                ))
-                .doOnSuccess(tuple -> {
-                    TelegramUser peerUser = tuple.getT1();
-                    boolean peerOnline = tuple.getT2();
-
-                    UserResponse peerResponse = userMapper.toResponse(peerUser, peerOnline);
+                .then(getUserResponseByInternalId(peerInternalId))
+                .doOnSuccess(peerResponse -> {
                     SessionResponse sessionResponse = sessionMapper.toResponse(session, peerResponse, isInitiator);
 
                     SessionResumedEvent event = SessionResumedEvent.success(
@@ -1056,28 +1057,22 @@ public class SessionHandler {
                             session.getStatus(),
                             session.getExpiresAt(),
                             session.getRemainingSeconds(),
-                            peerOnline
+                            peerResponse.isOnline()
                     );
 
-                    stompUserMessenger.convertAndSendToUser(principal, SESSION_RESUMED_DESTINATION, event);
+                    sendStompToInternalId(participant.internalId(), SESSION_RESUMED_DESTINATION, event);
 
-                    LOG.info("Session resumed: sessionId={}, internalId={}, telegramId={}, status={}, peerOnline={}",
-                            sessionId, principal.getInternalId(), userId, session.getStatus(), peerOnline);
+                    LOG.info("Session resumed: sessionId={}, internalId={}, status={}, peerOnline={}",
+                            sessionId, participant.internalId(), session.getStatus(), peerResponse.isOnline());
                 })
                 .then();
     }
 
-    /**
-     * Send resume error to user.
-     */
-    private void sendResumeError(TelegramPrincipal principal, String sessionId, String errorCode) {
-        sendResumeEvent(principal, SessionResumedEvent.error(sessionId, errorCode));
+    private void sendResumeError(ParticipantContext participant, String sessionId, String errorCode) {
+        sendResumeEvent(participant, SessionResumedEvent.error(sessionId, errorCode));
     }
 
-    /**
-     * Send resume event to user.
-     */
-    private void sendResumeEvent(TelegramPrincipal principal, SessionResumedEvent event) {
-        stompUserMessenger.convertAndSendToUser(principal, SESSION_RESUMED_DESTINATION, event);
+    private void sendResumeEvent(ParticipantContext participant, SessionResumedEvent event) {
+        sendStompToInternalId(participant.internalId(), SESSION_RESUMED_DESTINATION, event);
     }
 }

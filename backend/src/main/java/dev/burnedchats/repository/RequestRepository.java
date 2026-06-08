@@ -3,6 +3,7 @@ package dev.burnedchats.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.model.ChatRequest;
+import dev.burnedchats.util.InternalIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -56,13 +57,17 @@ public class RequestRepository {
      * @return position in list
      */
     public Mono<Long> save(ChatRequest request) {
-        String key = keyFor(String.valueOf(request.getRecipientTgId()));
+        String recipientKey = request.getRecipientKey();
+        if (recipientKey == null || recipientKey.isBlank()) {
+            return Mono.error(new IllegalArgumentException("ChatRequest recipient internal id is required"));
+        }
+        String key = keyFor(recipientKey);
 
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(request))
                 .flatMap(json -> redisTemplate.opsForList().leftPush(key, json))
                 .flatMap(size -> redisTemplate.expire(key, DEFAULT_TTL).thenReturn(size))
                 .doOnSuccess(size -> LOG.debug("Saved request for recipient {}, session {}, queue size: {}",
-                        request.getRecipientTgId(), request.getSessionId(), size))
+                        recipientKey, request.getSessionId(), size))
                 .onErrorResume(JsonProcessingException.class, e -> {
                     LOG.error("Failed to serialize chat request: {}", e.getMessage());
                     return Mono.error(new RuntimeException("Failed to serialize request", e));
@@ -204,20 +209,24 @@ public class RequestRepository {
     }
 
     /**
-     * Check if a request exists between sender and recipient.
-     *
-     * @param senderTgId sender's Telegram ID
-     * @param recipientTgId recipient's Telegram ID
-     * @return true if request exists
+     * Check if a request exists between sender and recipient (by internal ids).
      */
-    public Mono<Boolean> existsBetween(Long senderTgId, String recipientInternalId) {
+    public Mono<Boolean> existsBetween(String senderInternalId, String recipientInternalId) {
         return findByRecipient(recipientInternalId)
-                .filter(request -> senderTgId.equals(request.getSenderTgId()))
+                .filter(request -> senderInternalId.equals(request.getSenderKey()))
                 .hasElements();
     }
 
+    public Mono<Boolean> existsBetween(Long senderTgId, String recipientInternalId) {
+        return existsBetween(InternalIds.forTelegramId(senderTgId), recipientInternalId);
+    }
+
+    /**
+     * @deprecated Prefer {@link #existsBetween(String, String)}
+     */
+    @Deprecated
     public Mono<Boolean> existsBetween(Long senderTgId, Long recipientTgId) {
-        return existsBetween(senderTgId, String.valueOf(recipientTgId));
+        return existsBetween(InternalIds.forTelegramId(senderTgId), InternalIds.forTelegramId(recipientTgId));
     }
 
     /**

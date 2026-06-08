@@ -1,5 +1,6 @@
 package dev.burnedchats.model;
 
+import dev.burnedchats.util.InternalIds;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,16 +15,6 @@ import java.time.Instant;
  * <p>Represents a request to start an encrypted chat session.
  * Requests have a short TTL (5 minutes) and are automatically
  * expired by Redis.
- *
- * <p>Example:
- * <pre>{@code
- * ChatRequest request = ChatRequest.builder()
- *     .sessionId("uuid-here")
- *     .senderTgId(123456789L)
- *     .senderUsername("alice")
- *     .senderFirstName("Alice")
- *     .build();
- * }</pre>
  */
 @Data
 @Builder
@@ -44,7 +35,12 @@ public class ChatRequest implements Serializable {
     private String sessionId;
 
     /**
-     * Telegram user ID of the sender.
+     * Internal id of the sender (UUID).
+     */
+    private String senderInternalId;
+
+    /**
+     * Telegram user ID of the sender (null for wallet-only senders).
      */
     private Long senderTgId;
 
@@ -55,7 +51,7 @@ public class ChatRequest implements Serializable {
     private String senderUsername;
 
     /**
-     * Sender's first name.
+     * Sender's first name or display name fragment.
      */
     private String senderFirstName;
 
@@ -90,9 +86,43 @@ public class ChatRequest implements Serializable {
     private Instant createdAt = Instant.now();
 
     /**
-     * Telegram user ID of the recipient.
+     * Internal id of the recipient (UUID).
      */
+    private String recipientInternalId;
+
+    /**
+     * Telegram user ID of the recipient (null for wallet-only recipients).
+     *
+     * @deprecated Use {@link #recipientInternalId} for queue keys and routing.
+     */
+    @Deprecated
     private Long recipientTgId;
+
+    /**
+     * Redis queue key recipient id — always {@link #recipientInternalId}.
+     */
+    public String getRecipientKey() {
+        if (recipientInternalId != null && !recipientInternalId.isBlank()) {
+            return recipientInternalId;
+        }
+        if (recipientTgId != null) {
+            return InternalIds.forTelegramId(recipientTgId);
+        }
+        return null;
+    }
+
+    /**
+     * Sender internal id for deduplication — falls back to deterministic TG mapping.
+     */
+    public String getSenderKey() {
+        if (senderInternalId != null && !senderInternalId.isBlank()) {
+            return senderInternalId;
+        }
+        if (senderTgId != null) {
+            return InternalIds.forTelegramId(senderTgId);
+        }
+        return null;
+    }
 
     /**
      * Calculate expiration timestamp based on creation time.
@@ -113,23 +143,43 @@ public class ChatRequest implements Serializable {
     }
 
     /**
-     * Create a ChatRequest from sender's TelegramUser info.
-     *
-     * @param sessionId session ID
-     * @param sender sender's user info
-     * @param recipientTgId recipient's Telegram ID
-     * @param question optional secret question
-     * @return configured ChatRequest
+     * Create a ChatRequest from sender profile and recipient ids.
      */
+    public static ChatRequest fromParticipants(String sessionId, UnifiedUser sender,
+                                               String recipientInternalId, Long recipientTelegramId,
+                                               String question) {
+        String senderDisplay = sender.displayName() != null ? sender.displayName() : "User";
+        return ChatRequest.builder()
+                .sessionId(sessionId)
+                .senderInternalId(sender.internalId())
+                .senderTgId(sender.telegramId())
+                .senderFirstName(senderDisplay)
+                .senderPhotoUrl(sender.avatarUrl())
+                .recipientInternalId(recipientInternalId)
+                .recipientTgId(recipientTelegramId)
+                .hasQuestion(question != null && !question.isBlank())
+                .question(question)
+                .createdAt(Instant.now())
+                .build();
+    }
+
+    /**
+     * Legacy factory for Telegram-only cached users.
+     *
+     * @deprecated Prefer {@link #fromParticipants}
+     */
+    @Deprecated
     public static ChatRequest fromSender(String sessionId, TelegramUser sender,
                                          Long recipientTgId, String question) {
         return ChatRequest.builder()
                 .sessionId(sessionId)
+                .senderInternalId(InternalIds.forTelegramId(sender.getId()))
                 .senderTgId(sender.getId())
                 .senderUsername(sender.getUsername())
                 .senderFirstName(sender.getFirstName())
                 .senderLastName(sender.getLastName())
                 .senderPhotoUrl(sender.getPhotoUrl())
+                .recipientInternalId(InternalIds.forTelegramId(recipientTgId))
                 .recipientTgId(recipientTgId)
                 .hasQuestion(question != null && !question.isBlank())
                 .question(question)
