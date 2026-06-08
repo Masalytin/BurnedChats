@@ -83,6 +83,44 @@ describe('BurnJetton', () => {
         });
     });
 
+    describe('Bootstrap mint fee sync', () => {
+        it('non-excluded holder minted directly has fee config after SyncFeeConfigToWallet', async () => {
+            const amount = 50n * NANO_PER_BURN;
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userY.address, amount, 1n, MINT_TON);
+
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(amount);
+            expect(await wy.getGetFeeConfigActive()).toBe(false);
+
+            const sync = await ctx.master.sendSyncFeeConfigToWallet(
+                ctx.deployer.getSender(),
+                ctx.userY.address,
+            );
+            expect(sync.transactions).toHaveTransaction({ success: true });
+            expect(await wy.getGetFeeConfigActive()).toBe(true);
+        });
+
+        it('excluded mint receiver sync is idempotent and does not change exclusion', async () => {
+            await setupExcluded(ctx, [ctx.staking.address]);
+            const amount = 10n * NANO_PER_BURN;
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, amount, 1n, MINT_TON);
+
+            const ws = await getWallet(ctx, ctx.staking.address);
+            expect(await ctx.master.getGetIsExcluded(ctx.staking.address)).toBe(true);
+            expect(await ws.getGetFeeConfigActive()).toBe(false);
+
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
+            expect(await ws.getGetFeeConfigActive()).toBe(true);
+
+            const resync = await ctx.master.sendSyncFeeConfigToWallet(
+                ctx.deployer.getSender(),
+                ctx.staking.address,
+            );
+            expect(resync.transactions).toHaveTransaction({ success: true });
+            expect(await ws.getGetFeeConfigActive()).toBe(true);
+        });
+    });
+
     describe('Fee distribution', () => {
         beforeEach(async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);

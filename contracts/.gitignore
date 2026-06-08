@@ -14,6 +14,10 @@ package.ts
 .history/
 *.vsix
 
+# Deployment manifest backups (testnet.json is tracked; ignore manual copies)
+deployments/*.bak*
+deployments/*.bak-*
+
 # IDEA files
 .idea
 

@@ -15,6 +15,7 @@
         "deploy:burn:testnet": "blueprint run deploy --testnet --mnemonic",
         "deploy:burn:mainnet": "blueprint run deploy --mainnet --mnemonic",
         "verify:deployment": "blueprint run verify-deployment --testnet --mnemonic",
+        "verify:fee-split:testnet": "blueprint run verify-fee-split-testnet --testnet --mnemonic",
         "sync:fee:testnet": "blueprint run syncFeeConfig --testnet --mnemonic",
         "sync:fee:mainnet": "blueprint run syncFeeConfig --mainnet --mnemonic",
         "deploy:mainnet": "blueprint run deployMainnet",

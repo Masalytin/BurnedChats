@@ -37,6 +37,11 @@ export const MINT_ALLOCATIONS: MintAllocation[] = [
     { label: 'Reserve vesting', burnAmount: 43n, receiver: 'vestingReserve' },
 ];
 
+/** Mint receivers not on master excluded list — bootstrap syncs fee config after mint (IMP-JETTON-FEE-03). */
+export const NON_EXCLUDED_MINT_RECEIVER_KEYS: ReadonlySet<MintAllocation['receiver']> = new Set([
+    'airdropHolder',
+]);
+
 function friendly(addr: Address, testnet: boolean): string {
     return addr.toString({ bounceable: true, testOnly: testnet, urlSafe: true });
 }
@@ -145,6 +150,25 @@ async function syncWalletFeeConfig(
     const seqnoBefore = await getSenderSeqno(provider);
     await opened.sendSyncFeeConfigToWallet(provider.sender(), owner);
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+}
+
+async function ensureWalletFeeConfigSynced(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    jettonMasterAddr: Address,
+    owner: Address,
+    testnet: boolean,
+    label: string,
+    force: boolean,
+): Promise<void> {
+    if (!force && (await isWalletFeeConfigSynced(provider, jettonMasterAddr, owner))) {
+        console.log(
+            `[deploy] skip syncWalletFeeConfig ${friendly(owner, testnet)} (${label}) — wallet already synced`,
+        );
+        return;
+    }
+    console.log(`[deploy] syncWalletFeeConfig ${friendly(owner, testnet)} (${label})`);
+    await syncWalletFeeConfig(provider, master, owner);
 }
 
 /**
@@ -489,24 +513,30 @@ export async function deployBurnStack(
         }
 
         for (const holder of excludedOwners) {
-            if (!opts.force && (await isWalletFeeConfigSynced(provider, jettonMaster.address, holder))) {
-                console.log(
-                    `[deploy] skip syncWalletFeeConfig ${friendly(holder, testnet)} — wallet already synced`,
-                );
+            await ensureWalletFeeConfigSynced(
+                provider,
+                jettonMaster,
+                jettonMaster.address,
+                holder,
+                testnet,
+                'excluded holder',
+                opts.force,
+            );
+        }
+
+        for (const alloc of MINT_ALLOCATIONS) {
+            if (!NON_EXCLUDED_MINT_RECEIVER_KEYS.has(alloc.receiver)) {
                 continue;
             }
-            console.log(`[deploy] syncWalletFeeConfig ${friendly(holder, testnet)}`);
-            await syncWalletFeeConfig(provider, jettonMaster, holder);
-        }
-        if (
-            opts.force ||
-            !(await isWalletFeeConfigSynced(provider, jettonMaster.address, airdropHolder))
-        ) {
-            console.log(`[deploy] syncWalletFeeConfig ${friendly(airdropHolder, testnet)} (airdrop)`);
-            await syncWalletFeeConfig(provider, jettonMaster, airdropHolder);
-        } else {
-            console.log(
-                `[deploy] skip syncWalletFeeConfig ${friendly(airdropHolder, testnet)} (airdrop) — wallet already synced`,
+            const owner = addressBook[alloc.receiver];
+            await ensureWalletFeeConfigSynced(
+                provider,
+                jettonMaster,
+                jettonMaster.address,
+                owner,
+                testnet,
+                alloc.label,
+                opts.force,
             );
         }
 

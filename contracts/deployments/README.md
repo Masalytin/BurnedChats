@@ -64,6 +64,28 @@ Override with `JETTON_METADATA_URI` for staging or pinned releases.
 Env load order for `--testnet`: `.env.testnet` → `.env`. Blueprint reads `WALLET_MNEMONIC` and
 `WALLET_VERSION`; legacy `MNEMONIC_*` vars are aliased automatically via `blueprint.config.ts`.
 
+### Multisig holders and fee smoke wallets
+
+| Env var | Purpose |
+|---------|---------|
+| `LIQUIDITY_MULTISIG` | LP allocation holder (300 BURN mint). **Excluded** from transfer fees by design. Set to a dedicated address — not the deployer — so deployer is not both liquidity holder and smoke sender. |
+| `AIRDROP_MULTISIG` | Community airdrop holder (200 BURN). Non-excluded; bootstrap syncs `feeConfig` after mint (IMP-JETTON-FEE-03). |
+| `BURN_SMOKE_TEST_OWNER` | Non-excluded wallet for post-deploy burn transfer smoke (`scripts/post-deploy-burn-transfer-smoke.sh`). Root `.env.example`. |
+| `FEE_TEST_SENDER` | Optional alias for fee-split verification scripts (IMP-JETTON-FEE-02). |
+
+Without `LIQUIDITY_MULTISIG`, deployer becomes liquidity holder → `addExcluded` → fee smoke from deployer
+wallet shows 100% to recipient (misleading «fee not working»). Use `BURN_SMOKE_TEST_OWNER` or a separate
+airdrop/non-excluded wallet for fee verification.
+
+See also [jetton-transfer-fee-not-applied/REPORT.md §6](../improvements/jetton-transfer-fee-not-applied/REPORT.md).
+
+Post-deploy fee-split regression:
+
+```bash
+cd contracts
+npm run verify:fee-split:testnet
+```
+
 ### BURN jetton transfer gas (Mini App)
 
 User-facing BURN sends attach **3.5 TON** to each `JettonTransfer` message
