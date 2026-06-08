@@ -7,9 +7,13 @@ import org.junit.jupiter.api.Test;
 import org.ton.ton4j.cell.Cell;
 import org.ton.ton4j.cell.CellBuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,6 +82,44 @@ class WalletStateInitParserTest {
                 WalletStateInitParser.WalletVersion.V4R1,
                 WalletStateInitParser.WalletVersion.V4R2,
                 WalletStateInitParser.WalletVersion.V5);
+    }
+
+    @Test
+    @DisplayName("parses a real v4R2 wallet stateInit and extracts the public key")
+    void parsesRealV4R2Wallet() {
+        assertParsesFixture("v4r2", WalletStateInitParser.WalletVersion.V4R2);
+    }
+
+    @Test
+    @DisplayName("parses a real v5R1 (W5) wallet stateInit and extracts the public key")
+    void parsesRealV5R1Wallet() {
+        assertParsesFixture("v5r1", WalletStateInitParser.WalletVersion.V5);
+    }
+
+    private void assertParsesFixture(String walletKey, WalletStateInitParser.WalletVersion expected) {
+        Properties fixtures = loadFixtures();
+        String pubKeyHex = fixtures.getProperty("publicKey");
+        byte[] stateInitBoc = Base64.getDecoder().decode(fixtures.getProperty(walletKey + ".stateInitBoc"));
+        byte[] addressHash = HexFormat.of().parseHex(fixtures.getProperty(walletKey + ".addressHash"));
+
+        Optional<WalletStateInitParser.ParsedStateInit> parsed =
+                parser.tryParse(stateInitBoc, pubKeyHex, addressHash);
+
+        assertThat(parsed).isPresent();
+        assertThat(parsed.get().version()).isEqualTo(expected);
+        assertThat(HexFormat.of().formatHex(parsed.get().publicKey())).isEqualTo(pubKeyHex);
+    }
+
+    private static Properties loadFixtures() {
+        Properties props = new Properties();
+        try (InputStream in = WalletStateInitParserTest.class.getClassLoader()
+                .getResourceAsStream("ton/wallet-state-init-fixtures.properties")) {
+            assertThat(in).as("wallet-state-init-fixtures.properties on test classpath").isNotNull();
+            props.load(in);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to load wallet stateInit fixtures", ex);
+        }
+        return props;
     }
 
     private static byte[] buildStateInitWithUnknownCode(byte[] publicKey) {

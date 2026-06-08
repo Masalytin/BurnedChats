@@ -28,9 +28,9 @@ public class WalletStateInitParser {
     /** Wallet v4R2 code hash. */
     private static final String CODE_HASH_V4R2 =
             "feb5ff6820e2ff0d9483e7e0d62c817d846789fb4ae580c878866d959dabd5c0";
-    /** Wallet v5 (W5) code hash. */
+    /** Wallet v5R1 (W5) code hash — current Tonkeeper default. */
     private static final String CODE_HASH_V5 =
-            "20834b7b72b2845e15b13a0eebd2c8810b54c1bb4068a3a4dc5ba2ffe57c19c8";
+            "20834b7b72b112147e1b2fb457b84e74d1a30f04f737d4f62a668e9552d2b72f";
 
     private static final Map<String, WalletVersion> CODE_HASH_TO_VERSION = Map.of(
             CODE_HASH_V3R2, WalletVersion.V3R2,
