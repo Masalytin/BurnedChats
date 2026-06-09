@@ -116,6 +116,11 @@ public class StakingVerifier {
                 .thenMany(Flux.fromIterable(userAddresses).flatMap(this::profileForUser, 5));
     }
 
+    /** Single-address convenience wrapper over {@link #getStakingProfiles(List)} (Redis TTL 30 s). */
+    public Mono<UserStakingProfile> getStakingProfile(String userAddress) {
+        return getStakingProfiles(List.of(userAddress)).next();
+    }
+
     /**
      * Warms {@code StakingLock} multiplier map in Redis (TTL {@value #TIER_CFG_TTL} hours) when missing.
      */

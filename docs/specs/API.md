@@ -438,6 +438,7 @@ public ResponseEntity<?> onWebhook(
 |-------|------|----------|
 | `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance в nano; без auth |
 | `GET` | `/api/wallet/jetton-wallet?address=` | BURN jetton wallet адрес владельца; без auth |
+| `GET` | `/api/wallet/staking-profile?address=` | Staking-профиль кошелька (stakes, voting power); без auth |
 
 **`GET /api/wallet/burn-balance`**
 
@@ -457,7 +458,17 @@ Frontend (`burnToken.ts`) принимает поля `balanceNano`, `nano` ил
 
 Frontend (`burnToken.ts`) сначала вызывает этот endpoint; при `404`/`501`, `502` (после одного retry) или `jettonWalletAddress: null` переходит на Ton Center RPC из браузера (`jettonWalletResolve.ts`), сохраняя таксономию ошибок из `IMP-BURN-SEND-01`.
 
-Чтение staking on-chain по-прежнему внутри **`StakingVerifier`**; отдельной HTTP-обёртки для стейкинга может не быть (см. `backend/.../ton/dto`).
+**`GET /api/wallet/staking-profile`**
+
+- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address владельца.
+- **200 OK:** `UserStakingProfile` — `{ "address", "highestTier", "totalStakedNano", "votingPowerNano", "stakes": [ … ] }`.
+  - `highestTier`: `"FLEXIBLE"` | `"SILVER"` | `"GOLD"` | `"DIAMOND"` | `null` (нет активных стейков).
+  - `totalStakedNano`, `votingPowerNano`, `stakes[].amount`, `stakes[].pendingRewards` — decimal string или JSON number (парсятся фронтом через `bigIntFromJsonField`).
+  - Каждый элемент `stakes[]`: `{ "tier", "amount", "startTime", "unlockTime", "lastClaimTime", "pendingRewards" }` — формат, который читает `mapBackendStake` в `staking.ts`.
+- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
+- **502:** `{ "message": "…" }` — сбой Ton Center / contract read (`TonRpcException`).
+
+Реализация: `WalletController` → `StakingVerifier.getStakingProfile` (Redis-кэш профиля, TTL 30 с). Frontend (`staking.ts` → `tryBackendStakes`) при `200` использует `stakes`; при `404`/`501` уходит на Ton Center RPC из браузера.
 
 ---
 
