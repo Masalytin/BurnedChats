@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
@@ -7,7 +8,7 @@ import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult
 import { RoomCard } from '../components/RoomCard';
 import { AccountLinking } from '../components/Settings/AccountLinking';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
-import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon } from '../icons';
+import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon, LockIcon } from '../icons';
 import './HomePage.css';
 import '../components/Settings/LinkedAccounts.css';
 
@@ -101,6 +102,7 @@ export function HomePage({
   onTonWalletChromeNeeded,
 }: HomePageProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
   const [linkedRefresh, setLinkedRefresh] = useState(0);
@@ -173,6 +175,14 @@ export function HomePage({
     setQuery('');
     onClearSearch?.();
   }, [setQuery, onClearSearch]);
+
+  const handleBurnNav = useCallback(
+    (path: '/app/staking' | '/app/governance') => {
+      onTonWalletChromeNeeded?.();
+      navigate(path);
+    },
+    [navigate, onTonWalletChromeNeeded],
+  );
 
   // Show clear button when there's text or results
   const showClearButton = query.length > 0 || searchResult.status !== 'idle';
@@ -285,6 +295,40 @@ export function HomePage({
           </Card>
         </section>
       ) : null}
+
+      {/* BURN Token — Staking & Governance entry points (IMP-STKGOV-01) */}
+      <section className="home-section animate-slide-up" style={{ animationDelay: '90ms' }}>
+        <h3 className="home-section-title">{t('home.burnSection.title')}</h3>
+        <p className="home-burn-section-subtitle">{t('home.burnSection.subtitle')}</p>
+        <div className="home-burn-actions">
+          <button
+            type="button"
+            className="home-burn-action"
+            onClick={() => handleBurnNav('/app/staking')}
+          >
+            <span className="home-burn-action-icon home-burn-action-icon--staking" aria-hidden="true">
+              <LockIcon size={20} />
+            </span>
+            <span className="home-burn-action-text">
+              <span className="home-burn-action-title">{t('home.burnSection.staking')}</span>
+              <span className="home-burn-action-desc">{t('home.burnSection.stakingDesc')}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="home-burn-action"
+            onClick={() => handleBurnNav('/app/governance')}
+          >
+            <span className="home-burn-action-icon home-burn-action-icon--governance" aria-hidden="true">
+              <ShieldIcon size={20} />
+            </span>
+            <span className="home-burn-action-text">
+              <span className="home-burn-action-title">{t('home.burnSection.governance')}</span>
+              <span className="home-burn-action-desc">{t('home.burnSection.governanceDesc')}</span>
+            </span>
+          </button>
+        </div>
+      </section>
 
       {/* Search Section */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '100ms' }}>
