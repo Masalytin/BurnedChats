@@ -174,6 +174,84 @@
   gap: var(--bc-spacing-sm);
 }
 
+/* BURN section — Staking & Governance entry points */
+.home-burn-section-subtitle {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: calc(-1 * var(--bc-spacing-xs)) 0 0;
+  line-height: var(--bc-leading-relaxed);
+}
+
+.home-burn-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.home-burn-action {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-md);
+  width: 100%;
+  padding: var(--bc-spacing-md);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-lg);
+  background: var(--bc-bg-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+
+.home-burn-action:hover {
+  border-color: var(--bc-brand-primary);
+  background: var(--bc-bg-elevated);
+}
+
+.home-burn-action:active {
+  transform: scale(0.98);
+}
+
+.home-burn-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--bc-radius-md);
+  flex-shrink: 0;
+}
+
+.home-burn-action-icon svg {
+  color: white;
+}
+
+.home-burn-action-icon--staking {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+}
+
+.home-burn-action-icon--governance {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+}
+
+.home-burn-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-burn-action-title {
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+}
+
+.home-burn-action-desc {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  line-height: var(--bc-leading-relaxed);
+}
+
 /* Search */
 .home-search {
   display: flex;

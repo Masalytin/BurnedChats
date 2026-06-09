@@ -35,7 +35,15 @@
     "featureE2eeTitle": "Сквозное шифрование",
     "featureE2eeDesc": "Сообщения шифруются на вашем устройстве. Даже мы не можем их прочитать.",
     "featureBurnTitle": "Сгорание после прочтения",
-    "featureBurnDesc": "Уничтожьте все следы переписки одним нажатием."
+    "featureBurnDesc": "Уничтожьте все следы переписки одним нажатием.",
+    "burnSection": {
+      "title": "Токен BURN",
+      "subtitle": "Стейкинг для наград и участие в управлении протоколом через on-chain governance.",
+      "staking": "Стейкинг",
+      "stakingDesc": "Заблокируйте BURN, чтобы получать награды и усилить voting power.",
+      "governance": "Governance",
+      "governanceDesc": "Голосуйте за proposals и создавайте новые."
+    }
   },
 
   "walletLogin": {

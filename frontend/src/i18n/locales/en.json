@@ -35,7 +35,15 @@
     "featureE2eeTitle": "End-to-End Encrypted",
     "featureE2eeDesc": "Messages are encrypted on your device. Even we can't read them.",
     "featureBurnTitle": "Burn After Reading",
-    "featureBurnDesc": "Destroy all traces of your conversation with one tap."
+    "featureBurnDesc": "Destroy all traces of your conversation with one tap.",
+    "burnSection": {
+      "title": "BURN Token",
+      "subtitle": "Stake for rewards and shape the protocol through on-chain governance.",
+      "staking": "Staking",
+      "stakingDesc": "Lock BURN to earn rewards and boost voting power.",
+      "governance": "Governance",
+      "governanceDesc": "Vote on proposals and create new ones."
+    }
   },
 
   "walletLogin": {
