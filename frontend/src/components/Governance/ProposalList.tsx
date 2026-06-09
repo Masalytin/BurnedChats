@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useTonConnect } from '@/hooks/useTonConnect';
-import { getRecentProposals } from '@/ton/governance';
+import { GovernanceError, getRecentProposals } from '@/ton/governance';
 import { type ProposalSummary } from '@/types/ton';
 
 import { ProposalCard } from './ProposalCard';
@@ -86,6 +86,7 @@ export function ProposalList() {
   };
 
   const listBusy = isLoading || (tab === 'recent' && recentLoading);
+  const notConfigured = error instanceof GovernanceError && error.code === 'CONFIG';
 
   return (
     <div className={styles.listRoot}>
@@ -123,43 +124,52 @@ export function ProposalList() {
         </label>
       </div>
 
-      <div className={styles.actionsRow}>
-        <Link className={styles.primaryBtn} to="/app/governance/new">
-          {t('governance.newProposal')}
-        </Link>
-        <button type="button" className={styles.ghostBtn} onClick={() => void refetch()}>
-          {t('governance.refresh')}
-        </button>
-      </div>
-
-      {error ? (
-        <p className={styles.errorBanner} role="alert">
-          {t('governance.errorLoad')}{' '}
-          <button type="button" className={styles.inlineLink} onClick={() => void refetch()}>
-            {t('governance.retry')}
-          </button>
-        </p>
-      ) : null}
-
-      {listBusy ? <p className={styles.muted}>{t('governance.loadingList')}</p> : null}
-
-      {!listBusy && filtered.length === 0 ? (
+      {notConfigured ? (
         <div className={styles.empty}>
-          <p>{emptyCopy()}</p>
-          {showStakeHint && tab === 'active' ? (
-            <Link className={styles.primaryBtn} to="/app/governance/new">
-              {t('governance.emptyCreateCta')}
-            </Link>
-          ) : null}
+          <p style={{ fontWeight: 600 }}>{t('governance.notConfiguredTitle')}</p>
+          <p className={styles.muted}>{t('governance.notConfiguredHint')}</p>
         </div>
       ) : (
-        <ul className={styles.cardList}>
-          {filtered.map((p) => (
-            <li key={p.id}>
-              <ProposalCard proposal={p} userVote={userVotes.get(p.id)} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <div className={styles.actionsRow}>
+            <Link className={styles.primaryBtn} to="/app/governance/new">
+              {t('governance.newProposal')}
+            </Link>
+            <button type="button" className={styles.ghostBtn} onClick={() => void refetch()}>
+              {t('governance.refresh')}
+            </button>
+          </div>
+
+          {error ? (
+            <p className={styles.errorBanner} role="alert">
+              {t('governance.errorLoad')}{' '}
+              <button type="button" className={styles.inlineLink} onClick={() => void refetch()}>
+                {t('governance.retry')}
+              </button>
+            </p>
+          ) : null}
+
+          {listBusy ? <p className={styles.muted}>{t('governance.loadingList')}</p> : null}
+
+          {!listBusy && filtered.length === 0 ? (
+            <div className={styles.empty}>
+              <p>{emptyCopy()}</p>
+              {showStakeHint && tab === 'active' ? (
+                <Link className={styles.primaryBtn} to="/app/governance/new">
+                  {t('governance.emptyCreateCta')}
+                </Link>
+              ) : null}
+            </div>
+          ) : (
+            <ul className={styles.cardList}>
+              {filtered.map((p) => (
+                <li key={p.id}>
+                  <ProposalCard proposal={p} userVote={userVotes.get(p.id)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

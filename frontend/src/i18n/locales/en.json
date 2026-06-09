@@ -219,6 +219,8 @@
     "multiplierShort": "{{value}}× VP",
     "back": "Back",
     "pageTitle": "Staking",
+    "notConfiguredTitle": "Staking will be available soon",
+    "notConfiguredHint": "On-chain contracts are not configured in this environment yet. Addresses are filled in after testnet deployment.",
     "connectHint": "Connect your TON wallet to view positions and stake BURN.",
     "connectWallet": "Connect wallet",
     "retry": "Retry",
@@ -346,6 +348,8 @@
       "unknown": "Unknown"
     },
     "pageTitle": "Governance",
+    "notConfiguredTitle": "Governance will be available soon",
+    "notConfiguredHint": "Governor and related contracts are not configured in this environment yet. Addresses are filled in after testnet deployment.",
     "yourVp": "Your voting power",
     "vpUnavailable": "Connect wallet to see VP",
     "backToList": "All proposals",

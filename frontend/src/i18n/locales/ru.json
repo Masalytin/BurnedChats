@@ -227,6 +227,8 @@
     "multiplierShort": "{{value}}× VP",
     "back": "Назад",
     "pageTitle": "Стейкинг",
+    "notConfiguredTitle": "Стейкинг скоро будет доступен",
+    "notConfiguredHint": "On-chain контракты в этой среде ещё не настроены. Адреса заполняются после деплоя в testnet.",
     "connectHint": "Подключите TON-кошелёк, чтобы видеть позиции и стейкать BURN.",
     "connectWallet": "Подключить кошелёк",
     "retry": "Повторить",
@@ -354,6 +356,8 @@
       "unknown": "Неизвестно"
     },
     "pageTitle": "Governance",
+    "notConfiguredTitle": "Governance скоро будет доступен",
+    "notConfiguredHint": "Governor и связанные контракты в этой среде ещё не настроены. Адреса заполняются после деплоя в testnet.",
     "yourVp": "Ваша сила голоса",
     "vpUnavailable": "Подключите кошелёк, чтобы видеть VP",
     "backToList": "Все предложения",

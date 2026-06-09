@@ -9,6 +9,7 @@ import { useTonConnect } from '@/hooks/useTonConnect';
 import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 import { formatTimeRemaining, formatTierName } from '@/utils/staking-format';
+import { StakingError } from '@/ton/staking';
 import type { TxResult } from '@/ton/types';
 
 import { ApyCalculator } from './ApyCalculator';
@@ -197,6 +198,26 @@ export function StakingDashboard() {
   }, [stakes]);
 
   const stakeModalExisting = stakeByTier.get(stakeModalTier)?.amount ?? 0n;
+  const notConfigured = error instanceof StakingError && error.code === 'CONFIG';
+
+  if (notConfigured) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.topBar}>
+          <button type="button" className={styles.backBtn} onClick={() => navigate('/app')}>
+            {t('staking.back')}
+          </button>
+          <h1 className={styles.title}>{t('staking.pageTitle')}</h1>
+        </div>
+        <div className={styles.banner} role="status">
+          <p style={{ margin: 0, fontWeight: 600 }}>{t('staking.notConfiguredTitle')}</p>
+          <p className={styles.muted} style={{ marginBottom: 0 }}>
+            {t('staking.notConfiguredHint')}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
