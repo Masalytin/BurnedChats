@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ProposalState, type ProposalSummary } from '@/types/ton';
 
+import { formatEndsInRemaining } from './governanceUi';
 import styles from './Governance.module.css';
 
 interface StepSpec {
@@ -14,7 +15,13 @@ interface StepSpec {
 /**
  * Vertical lifecycle hints aligned with {@link ProposalState}.
  */
-export function ProposalTimeline({ proposal }: { proposal: ProposalSummary }) {
+export function ProposalTimeline({
+  proposal,
+  executeAfterSec,
+}: {
+  proposal: ProposalSummary;
+  executeAfterSec?: number;
+}) {
   const { t } = useTranslation();
   const now = Math.floor(Date.now() / 1000);
 
@@ -65,6 +72,13 @@ export function ProposalTimeline({ proposal }: { proposal: ProposalSummary }) {
     },
   ];
 
+  const timelockEta =
+    executeAfterSec !== undefined && executeAfterSec > now && proposal.state !== ProposalState.Executed
+      ? t('governance.timelineTimelockEta', {
+          remaining: formatEndsInRemaining(executeAfterSec, t, now),
+        })
+      : null;
+
   return (
     <ol className={styles.timeline}>
       {steps.map((s) => (
@@ -75,7 +89,12 @@ export function ProposalTimeline({ proposal }: { proposal: ProposalSummary }) {
           }
         >
           <span className={styles.timelineDot} aria-hidden />
-          <span className={styles.timelineLabel}>{s.label}</span>
+          <span className={styles.timelineLabel}>
+            {s.label}
+            {s.key === 'queued' && timelockEta ? (
+              <span className={styles.timelineEta}> — {timelockEta}</span>
+            ) : null}
+          </span>
         </li>
       ))}
     </ol>

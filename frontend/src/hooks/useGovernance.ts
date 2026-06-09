@@ -5,9 +5,11 @@ import type { Cell } from '@ton/core';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import {
   createProposal as createProposalTx,
+  executeProposal as executeProposalTx,
   getActiveProposals,
   getUserVote,
   getUserVotingPower,
+  queueProposal as queueProposalTx,
   vote as voteTx,
   type GovernanceDeps,
 } from '@/ton/governance';
@@ -25,6 +27,8 @@ export interface UseGovernance {
   error: Error | null;
   refetch(): Promise<void>;
   vote(params: { proposalId: number; support: boolean }): Promise<TxResult>;
+  queue(params: { proposalId: number }): Promise<TxResult>;
+  execute(params: { proposalId: number; proposalType: ProposalType }): Promise<TxResult>;
   createProposal(params: { type: ProposalType; payload: Cell; period?: number }): Promise<TxResult>;
 }
 
@@ -127,6 +131,39 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     [walletAddress, votingPower, load],
   );
 
+  const queue = useCallback(
+    async (params: { proposalId: number }): Promise<TxResult> => {
+      const addr = walletAddress?.trim();
+      if (!addr) {
+        return { ok: false, kind: 'unknown', message: 'Connect wallet to queue a proposal.' };
+      }
+      const result = await queueProposalTx({ proposalId: params.proposalId, walletAddress: addr }, depsRef.current);
+      if (result.ok) {
+        await load();
+      }
+      return result;
+    },
+    [walletAddress, load],
+  );
+
+  const execute = useCallback(
+    async (params: { proposalId: number; proposalType: ProposalType }): Promise<TxResult> => {
+      const addr = walletAddress?.trim();
+      if (!addr) {
+        return { ok: false, kind: 'unknown', message: 'Connect wallet to execute a proposal.' };
+      }
+      const result = await executeProposalTx(
+        { proposalId: params.proposalId, proposalType: params.proposalType, walletAddress: addr },
+        depsRef.current,
+      );
+      if (result.ok) {
+        await load();
+      }
+      return result;
+    },
+    [walletAddress, load],
+  );
+
   const createProposal = useCallback(
     async (params: { type: ProposalType; payload: Cell; period?: number }): Promise<TxResult> => {
       void params.period;
@@ -147,6 +184,8 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     error,
     refetch,
     vote,
+    queue,
+    execute,
     createProposal,
   };
 }

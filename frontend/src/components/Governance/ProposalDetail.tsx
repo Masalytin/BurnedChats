@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { getProposal } from '@/ton/governance';
+import { getProposal, getProposalLifecycleMeta, type ProposalLifecycleMeta } from '@/ton/governance';
 import { ProposalState, ProposalType, type ProposalDetail as ProposalDetailDto } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 import { useTonConnect } from '@/hooks/useTonConnect';
+import { useToast } from '@/components/Toast';
 
 import { ProposalTimeline } from './ProposalTimeline';
 import { VoteModal } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
-import { truncateMiddle } from './governanceUi';
+import { formatEndsInRemaining, truncateMiddle } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
@@ -122,12 +123,16 @@ export function ProposalDetail() {
   const { proposalId: rawId } = useParams();
   const id = Number(rawId ?? 'NaN');
   const { isConnected } = useTonConnect();
-  const { userVotes, refetch } = useGovernanceState();
+  const toast = useToast();
+  const { userVotes, refetch, queue, execute } = useGovernanceState();
   const [detail, setDetail] = useState<ProposalDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [voteOpen, setVoteOpen] = useState(false);
   const [voteSupport, setVoteSupport] = useState(true);
+  const [lifecycle, setLifecycle] = useState<ProposalLifecycleMeta | null>(null);
+  const [queueBusy, setQueueBusy] = useState(false);
+  const [executeBusy, setExecuteBusy] = useState(false);
 
   useEffect(() => {
     if (!Number.isFinite(id) || id < 0) {
@@ -158,18 +163,126 @@ export function ProposalDetail() {
     };
   }, [id, t]);
 
+  useEffect(() => {
+    if (!Number.isFinite(id) || id < 0) {
+      return;
+    }
+    const state = detail?.summary.state;
+    if (
+      state === undefined ||
+      state === ProposalState.Active ||
+      state === ProposalState.Defeated ||
+      state === ProposalState.Cancelled ||
+      state === ProposalState.Executed
+    ) {
+      setLifecycle(null);
+      return;
+    }
+    let cancelled = false;
+    void getProposalLifecycleMeta(id)
+      .then((meta) => {
+        if (!cancelled) setLifecycle(meta);
+      })
+      .catch(() => {
+        if (!cancelled) setLifecycle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, detail?.summary.state]);
+
   const summary = detail?.summary;
   const userVote = summary ? userVotes.get(summary.id) : undefined;
+
+  const nowSec = Math.floor(Date.now() / 1000);
 
   const canVote = useMemo(() => {
     if (!summary) return false;
     return (
       isConnected &&
       summary.state === ProposalState.Active &&
-      Math.floor(Date.now() / 1000) < summary.endTime &&
+      nowSec < summary.endTime &&
       (userVote === undefined || userVote.support === null)
     );
-  }, [summary, userVote, isConnected]);
+  }, [summary, userVote, isConnected, nowSec]);
+
+  const executeAfterSec = useMemo(() => {
+    if (!lifecycle) return 0;
+    return lifecycle.succeededAt + lifecycle.timelockDelaySec;
+  }, [lifecycle]);
+
+  const timelockReady = useMemo(() => {
+    if (!summary) return false;
+    if (summary.type === ProposalType.FeaturePriority || summary.type === ProposalType.Emergency) {
+      return true;
+    }
+    if (!lifecycle || executeAfterSec <= 0) {
+      return false;
+    }
+    return nowSec >= executeAfterSec;
+  }, [summary, lifecycle, executeAfterSec, nowSec]);
+
+  const canQueue = useMemo(() => {
+    if (!summary) return false;
+    return isConnected && summary.state === ProposalState.Active && nowSec > summary.endTime;
+  }, [summary, isConnected, nowSec]);
+
+  const canExecute = useMemo(() => {
+    if (!summary) return false;
+    return (
+      isConnected &&
+      (summary.state === ProposalState.Succeeded || summary.state === ProposalState.Queued) &&
+      timelockReady
+    );
+  }, [summary, isConnected, timelockReady]);
+
+  const showExecuteWaiting = useMemo(() => {
+    if (!summary || !isConnected) return false;
+    return (
+      (summary.state === ProposalState.Succeeded || summary.state === ProposalState.Queued) &&
+      !timelockReady &&
+      executeAfterSec > nowSec
+    );
+  }, [summary, isConnected, timelockReady, executeAfterSec, nowSec]);
+
+  const refreshDetail = useCallback((): void => {
+    void refetch();
+    void getProposal(id)
+      .then(setDetail)
+      .catch(() => {});
+  }, [refetch, id]);
+
+  const handleQueue = async (): Promise<void> => {
+    if (!summary) return;
+    setQueueBusy(true);
+    try {
+      const res = await queue({ proposalId: summary.id });
+      if (res.ok) {
+        toast.success(t('governance.queueSuccess'));
+        refreshDetail();
+      } else {
+        toast.error(res.message && res.message.length > 0 ? res.message : t('governance.queueFail'));
+      }
+    } finally {
+      setQueueBusy(false);
+    }
+  };
+
+  const handleExecute = async (): Promise<void> => {
+    if (!summary) return;
+    setExecuteBusy(true);
+    try {
+      const res = await execute({ proposalId: summary.id, proposalType: summary.type });
+      if (res.ok) {
+        toast.success(t('governance.executeSuccess'));
+        refreshDetail();
+      } else {
+        toast.error(res.message && res.message.length > 0 ? res.message : t('governance.executeFail'));
+      }
+    } finally {
+      setExecuteBusy(false);
+    }
+  };
 
   const openVote = (support: boolean): void => {
     setVoteSupport(support);
@@ -319,9 +432,47 @@ export function ProposalDetail() {
         ) : null}
       </section>
 
+      {(canQueue || canExecute || showExecuteWaiting) && (
+        <section className={styles.section} aria-labelledby="timelock-heading">
+          <h2 id="timelock-heading" className={styles.h2}>
+            {t('governance.timelockSectionTitle')}
+          </h2>
+          <div className={styles.voteActions}>
+            {canQueue ? (
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                disabled={queueBusy}
+                onClick={() => void handleQueue()}
+              >
+                {queueBusy ? t('governance.queueSubmitting') : t('governance.queueProposal')}
+              </button>
+            ) : null}
+            {canExecute ? (
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                disabled={executeBusy}
+                onClick={() => void handleExecute()}
+              >
+                {executeBusy ? t('governance.executeSubmitting') : t('governance.executeProposal')}
+              </button>
+            ) : null}
+          </div>
+          {showExecuteWaiting ? (
+            <p className={styles.muted}>
+              {t('governance.executeWaiting', {
+                remaining: formatEndsInRemaining(executeAfterSec, t, nowSec),
+              })}
+            </p>
+          ) : null}
+          {!isConnected ? <p className={styles.muted}>{t('governance.timelockDisabledNeedWallet')}</p> : null}
+        </section>
+      )}
+
       <section className={styles.section}>
         <h2 className={styles.h2}>{t('governance.detailTimeline')}</h2>
-        <ProposalTimeline proposal={summary} />
+        <ProposalTimeline proposal={summary} executeAfterSec={executeAfterSec > 0 ? executeAfterSec : undefined} />
       </section>
 
       <section className={styles.section} aria-labelledby="comments-heading">
@@ -339,12 +490,7 @@ export function ProposalDetail() {
         proposalId={summary.id}
         support={voteSupport}
         onClose={() => setVoteOpen(false)}
-        onComplete={() => {
-          void refetch();
-          void getProposal(id)
-            .then(setDetail)
-            .catch(() => {});
-        }}
+        onComplete={refreshDetail}
       />
     </div>
   );

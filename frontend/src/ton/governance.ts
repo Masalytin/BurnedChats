@@ -1,7 +1,14 @@
-import { Address, type Cell } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 
 import { sendTonTransaction } from '@/ton/connector';
-import { buildCreateProposalMsg, buildVoteMsg } from '@/ton/transactionBuilder';
+import { resolveIsTestNet } from '@/ton/rpc';
+import {
+  buildCreateProposalMsg,
+  buildExecuteMsg,
+  buildQueueMsg,
+  buildTimelockExecuteMsg,
+  buildVoteMsg,
+} from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import {
   ProposalState,
@@ -57,11 +64,6 @@ type ResolvedGovernanceDeps = {
 function normalizeApiBase(override?: string): string {
   const raw = (override ?? import.meta.env.VITE_API_URL ?? '').trim();
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
-}
-
-function resolveIsTestNet(): boolean {
-  const raw = String(import.meta.env.VITE_TON_NETWORK ?? 'testnet').toLowerCase();
-  return raw === 'testnet' || raw === 'true' || raw === '1';
 }
 
 function resolveRpcBaseUrl(override?: string): string {
@@ -445,6 +447,122 @@ async function fetchTotalVotingPowerRpc(r: ResolvedGovernanceDeps): Promise<bigi
   }
   const nums = numsFromStack(stackUnknown);
   return nums[0] ?? 0n;
+}
+
+function numStackArg(n: bigint): StackSlot {
+  return ['num', `0x${n.toString(16)}`];
+}
+
+function decodeAddressFromSliceBoc(b64: string): string {
+  const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0]!;
+  const a = cell.beginParse().loadAddress();
+  return a.toString({ bounceable: true, testOnly: resolveIsTestNet(), urlSafe: true });
+}
+
+function firstStackSliceCellB64(stack: unknown): string | null {
+  const slots = parseStackSlots(stack);
+  for (const [t, v] of slots) {
+    if (t === 'tvm.Slice') {
+      return v;
+    }
+  }
+  return null;
+}
+
+async function fetchProposalContractAddress(r: ResolvedGovernanceDeps, proposalId: number): Promise<string> {
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    r.governorAddress,
+    'get_proposal',
+    [numStackArg(BigInt(proposalId))],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new GovernanceError('NETWORK', 'get_proposal returned non-zero exit code');
+  }
+  const b64 = firstStackSliceCellB64(stackUnknown);
+  if (!b64) {
+    throw new GovernanceError('NETWORK', 'get_proposal returned empty address');
+  }
+  return decodeAddressFromSliceBoc(b64);
+}
+
+async function fetchTimelockAddress(r: ResolvedGovernanceDeps): Promise<string> {
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    r.governorAddress,
+    'get_timelock_addr',
+    [],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new GovernanceError('NETWORK', 'get_timelock_addr returned non-zero exit code');
+  }
+  const b64 = firstStackSliceCellB64(stackUnknown);
+  if (!b64) {
+    throw new GovernanceError('NETWORK', 'get_timelock_addr returned empty address');
+  }
+  return decodeAddressFromSliceBoc(b64);
+}
+
+export type ProposalLifecycleMeta = {
+  proposalContract: string;
+  succeededAt: number;
+  timelockDelaySec: number;
+};
+
+/** On-chain finalize / timelock timing from Proposal getters (for execute ETA). */
+export async function getProposalLifecycleMeta(
+  proposalId: number,
+  deps?: GovernanceDeps,
+): Promise<ProposalLifecycleMeta> {
+  const r = resolveDeps(deps);
+  const proposalContract = await fetchProposalContractAddress(r, proposalId);
+  const [succeededRes, delayRes] = await Promise.all([
+    postRunGetMethod(r.rpcBaseUrl, proposalContract, 'get_succeeded_at', [], r.fetchImpl, r.apiKey),
+    postRunGetMethod(r.rpcBaseUrl, proposalContract, 'get_timelock_delay', [], r.fetchImpl, r.apiKey),
+  ]);
+  if (succeededRes.exitCode !== 0 || delayRes.exitCode !== 0) {
+    throw new GovernanceError('NETWORK', 'proposal lifecycle getters failed');
+  }
+  const succeededNums = numsFromStack(succeededRes.stackUnknown);
+  const delayNums = numsFromStack(delayRes.stackUnknown);
+  return {
+    proposalContract,
+    succeededAt: Number(succeededNums[0] ?? 0n),
+    timelockDelaySec: Number(delayNums[0] ?? 0n),
+  };
+}
+
+/** Finalize voting — triggers automatic Timelock queue on success. */
+export async function queueProposal(
+  params: { proposalId: number; walletAddress: string },
+  deps?: GovernanceDeps,
+): Promise<TxResult> {
+  void params.walletAddress;
+  const r = resolveDeps(deps);
+  const proposalContract = await fetchProposalContractAddress(r, params.proposalId);
+  const msg = buildQueueMsg({ proposalAddress: Address.parse(proposalContract.trim()) });
+  return r.sendTransactionImpl([msg]);
+}
+
+/** Execute passed proposal — Governor path (Feature) or Timelock path (others). */
+export async function executeProposal(
+  params: { proposalId: number; proposalType: ProposalType; walletAddress: string },
+  deps?: GovernanceDeps,
+): Promise<TxResult> {
+  void params.walletAddress;
+  const r = resolveDeps(deps);
+  const gov = Address.parse(r.governorAddress.trim());
+  const id = BigInt(params.proposalId);
+  if (params.proposalType === ProposalType.FeaturePriority) {
+    return r.sendTransactionImpl([buildExecuteMsg({ governor: gov, proposalId: id })]);
+  }
+  const timelockAddr = await fetchTimelockAddress(r);
+  const timelock = Address.parse(timelockAddr.trim());
+  return r.sendTransactionImpl([buildTimelockExecuteMsg({ timelock, proposalId: id })]);
 }
 
 export async function vote(

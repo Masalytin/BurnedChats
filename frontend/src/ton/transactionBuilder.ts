@@ -13,6 +13,9 @@ const CLAIM_REWARDS_OP = 0x5a020003;
 
 const CREATE_PROPOSAL_OP = 0x5a040101;
 const CAST_VOTE_OP = 0x5a040102;
+const PROPOSAL_FINALIZE_OP = 0x5a040012;
+const EXECUTE_PROPOSAL_OP = 0x5a040103;
+const TIMELOCK_EXECUTE_OP = 0x5a040202;
 
 /** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
 export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
@@ -198,6 +201,59 @@ export function buildCreateProposalMsg(params: {
   return {
     address: params.governor.toString(),
     amount: toNano('0.5').toString(),
+    payload: body.toBoc({ idx: false }).toString('base64'),
+  };
+}
+
+/**
+ * Finalize voting on a Proposal child — on success Governor auto-queues Timelock (`ProposalFinalize`).
+ * UI label: "Queue".
+ */
+export function buildQueueMsg(params: {
+  proposalAddress: Address;
+  queryId?: bigint;
+}): TransactionMessage {
+  void params.queryId;
+  const body = beginCell().storeUint(PROPOSAL_FINALIZE_OP, 32).endCell();
+  return {
+    address: params.proposalAddress.toString(),
+    amount: toNano('0.06').toString(),
+    payload: body.toBoc({ idx: false }).toString('base64'),
+  };
+}
+
+/** `ExecuteProposal` on Governor — FeaturePriority off-chain execution path. */
+export function buildExecuteMsg(params: {
+  governor: Address;
+  proposalId: bigint;
+  queryId?: bigint;
+}): TransactionMessage {
+  const body = beginCell()
+    .storeUint(EXECUTE_PROPOSAL_OP, 32)
+    .storeUint(params.queryId ?? 0n, 64)
+    .storeUint(params.proposalId, 64)
+    .endCell();
+  return {
+    address: params.governor.toString(),
+    amount: toNano('0.11').toString(),
+    payload: body.toBoc({ idx: false }).toString('base64'),
+  };
+}
+
+/** `TimelockExecutePending` after timelock delay (Parameter / Treasury / Emergency). */
+export function buildTimelockExecuteMsg(params: {
+  timelock: Address;
+  proposalId: bigint;
+  queryId?: bigint;
+}): TransactionMessage {
+  const body = beginCell()
+    .storeUint(TIMELOCK_EXECUTE_OP, 32)
+    .storeUint(params.queryId ?? 0n, 64)
+    .storeUint(params.proposalId, 64)
+    .endCell();
+  return {
+    address: params.timelock.toString(),
+    amount: toNano('0.25').toString(),
     payload: body.toBoc({ idx: false }).toString('base64'),
   };
 }

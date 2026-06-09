@@ -424,6 +424,11 @@
   font-size: 14px;
 }
 
+.timelineEta {
+  color: var(--tg-theme-hint-color, #8b8b8b);
+  font-weight: 400;
+}
+
 .detailRoot {
   display: flex;
   flex-direction: column;
