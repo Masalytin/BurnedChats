@@ -5,9 +5,9 @@ import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
 import {
   calculateApy as calculateApyOnChain,
   claimTx,
+  getPendingRewards,
   getStakes,
   getTierConfigs,
-  getPendingReward,
   stakeTx,
   unstakeTx,
 } from '@/ton/staking';
@@ -16,6 +16,9 @@ import { useTonConnect } from './useTonConnect';
 
 const PENDING_POLL_MS = 15_000;
 const OPTIMISTIC_CLEAR_MS = 8_000;
+const TX_REFRESH_INITIAL_MS = 5_000;
+const TX_REFRESH_RETRY_MS = 3_000;
+const TX_REFRESH_ATTEMPTS = 3;
 
 const ALL_TIERS: StakingTier[] = [
   StakingTier.Flexible,
@@ -57,11 +60,23 @@ function mergeOptimistic(chain: StakeInfo[], extra: Partial<Record<StakingTier, 
   });
 }
 
+function applyPendingToStakes(
+  stakes: StakeInfo[],
+  pendingRewards: Partial<Record<StakingTier, bigint>>,
+): StakeInfo[] {
+  return stakes.map((s) => {
+    const next = pendingRewards[s.tier];
+    return next !== undefined ? { ...s, pendingReward: next } : { ...s, pendingReward: 0n };
+  });
+}
+
 /** Reactive staking state + Ton Connect–backed write operations. */
 export interface UseStaking {
   stakes: StakeInfo[];
   tierConfigs: TierConfig[];
   pendingRewards: Partial<Record<StakingTier, bigint>>;
+  /** True while pending rewards are being refreshed (poll or post-tx). */
+  rewardsRefreshing: boolean;
   isLoading: boolean;
   error: Error | null;
   refetch(): Promise<void>;
@@ -80,11 +95,13 @@ export function useStaking(): UseStaking {
   const [chainStakes, setChainStakes] = useState<StakeInfo[]>([]);
   const [tierConfigs, setTierConfigs] = useState<TierConfig[]>([]);
   const [pendingRewards, setPendingRewards] = useState<Partial<Record<StakingTier, bigint>>>({});
+  const [rewardsRefreshing, setRewardsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [optimisticByTier, setOptimisticByTier] = useState<Partial<Record<StakingTier, bigint>>>({});
 
   const visibleRef = useRef(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
+  const txRefreshTimersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -96,6 +113,51 @@ export function useStaking(): UseStaking {
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const id of txRefreshTimersRef.current) {
+        window.clearTimeout(id);
+      }
+      txRefreshTimersRef.current = [];
+    };
+  }, []);
+
+  const refreshPendingOnly = useCallback(async (): Promise<void> => {
+    if (!walletAddress) {
+      return;
+    }
+    setRewardsRefreshing(true);
+    try {
+      const pr = await getPendingRewards(walletAddress);
+      setPendingRewards(pr);
+      setChainStakes((prev) => applyPendingToStakes(prev, pr));
+    } catch {
+      /* keep last snapshot on flaky RPC */
+    } finally {
+      setRewardsRefreshing(false);
+    }
+  }, [walletAddress]);
+
+  const scheduleTxTriggeredRefresh = useCallback(() => {
+    for (const id of txRefreshTimersRef.current) {
+      window.clearTimeout(id);
+    }
+    txRefreshTimersRef.current = [];
+
+    let attempt = 0;
+    const runRefresh = (): void => {
+      attempt += 1;
+      void refreshPendingOnly();
+      if (attempt < TX_REFRESH_ATTEMPTS) {
+        const retryId = window.setTimeout(runRefresh, TX_REFRESH_RETRY_MS);
+        txRefreshTimersRef.current.push(retryId);
+      }
+    };
+
+    const initialId = window.setTimeout(runRefresh, TX_REFRESH_INITIAL_MS);
+    txRefreshTimersRef.current.push(initialId);
+  }, [refreshPendingOnly]);
 
   const loadCore = useCallback(async (): Promise<void> => {
     if (!walletAddress) {
@@ -112,17 +174,10 @@ export function useStaking(): UseStaking {
       const [stakes, cfgs] = await Promise.all([getStakes(walletAddress), getTierConfigs()]);
       setChainStakes(stakes);
       setTierConfigs(cfgs);
-
-      const rewardEntries = await Promise.all(
-        ALL_TIERS.map(async (tier) => {
-          const v = await getPendingReward(walletAddress, tier);
-          return [tier, v] as const;
-        }),
-      );
       const pr: Partial<Record<StakingTier, bigint>> = {};
-      for (const [tier, v] of rewardEntries) {
-        if (v > 0n) {
-          pr[tier] = v;
+      for (const s of stakes) {
+        if (s.pendingReward > 0n) {
+          pr[s.tier] = s.pendingReward;
         }
       }
       setPendingRewards(pr);
@@ -136,36 +191,6 @@ export function useStaking(): UseStaking {
   useEffect(() => {
     void loadCore();
   }, [walletAddress, loadCore]);
-
-  const refreshPendingOnly = useCallback(async (): Promise<void> => {
-    if (!walletAddress) {
-      return;
-    }
-    try {
-      const rewardEntries = await Promise.all(
-        ALL_TIERS.map(async (tier) => {
-          const v = await getPendingReward(walletAddress, tier);
-          return [tier, v] as const;
-        }),
-      );
-      const pr: Partial<Record<StakingTier, bigint>> = {};
-      for (const [tier, v] of rewardEntries) {
-        if (v > 0n) {
-          pr[tier] = v;
-        }
-      }
-      setPendingRewards(pr);
-
-      setChainStakes((prev) =>
-        prev.map((s) => {
-          const next = pr[s.tier];
-          return next !== undefined ? { ...s, pendingReward: next } : { ...s, pendingReward: 0n };
-        }),
-      );
-    } catch {
-      /* keep last snapshot on flaky RPC */
-    }
-  }, [walletAddress]);
 
   useEffect(() => {
     if (!walletAddress || !isConnected) {
@@ -198,11 +223,12 @@ export function useStaking(): UseStaking {
           ...prev,
           [params.tier]: (prev[params.tier] ?? 0n) + params.amount,
         }));
+        scheduleTxTriggeredRefresh();
         scheduleOptimisticClear();
       }
       return tx;
     },
-    [walletAddress, scheduleOptimisticClear],
+    [walletAddress, scheduleOptimisticClear, scheduleTxTriggeredRefresh],
   );
 
   const unstake = useCallback(
@@ -212,11 +238,12 @@ export function useStaking(): UseStaking {
       }
       const tx = await unstakeTx({ ...params, walletAddress });
       if (tx.ok) {
-        void loadCore();
+        scheduleTxTriggeredRefresh();
+        window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
       }
       return tx;
     },
-    [walletAddress, loadCore],
+    [walletAddress, loadCore, scheduleTxTriggeredRefresh],
   );
 
   const claim = useCallback(
@@ -226,11 +253,12 @@ export function useStaking(): UseStaking {
       }
       const tx = await claimTx({ ...params, walletAddress });
       if (tx.ok) {
-        void loadCore();
+        scheduleTxTriggeredRefresh();
+        window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
       }
       return tx;
     },
-    [walletAddress, loadCore],
+    [walletAddress, loadCore, scheduleTxTriggeredRefresh],
   );
 
   const calculateApy = useCallback((tier: StakingTier, stakeAmount: bigint): number => {
@@ -251,6 +279,7 @@ export function useStaking(): UseStaking {
     stakes,
     tierConfigs,
     pendingRewards,
+    rewardsRefreshing,
     isLoading,
     error,
     refetch: loadCore,

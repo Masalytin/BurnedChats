@@ -296,6 +296,23 @@ function mapBackendStake(row: BackendStakeRow): StakeInfo | null {
   };
 }
 
+const ALL_STAKING_TIERS: StakingTier[] = [
+  StakingTier.Flexible,
+  StakingTier.Silver,
+  StakingTier.Gold,
+  StakingTier.Diamond,
+];
+
+function pendingRewardsMapFromStakes(stakes: StakeInfo[]): Partial<Record<StakingTier, bigint>> {
+  const pr: Partial<Record<StakingTier, bigint>> = {};
+  for (const s of stakes) {
+    if (s.pendingReward > 0n) {
+      pr[s.tier] = s.pendingReward;
+    }
+  }
+  return pr;
+}
+
 async function tryBackendStakes(address: string, fetchImpl: typeof fetch): Promise<StakeInfo[] | null> {
   const base = normalizeApiBase();
   if (!base) {
@@ -452,6 +469,34 @@ async function fetchPendingRewardResolved(
     return 0n;
   }
   return firstStackNum(stackUnknown) ?? 0n;
+}
+
+/**
+ * Pending rewards per tier. Prefer backend `/api/wallet/staking-profile` when deployed; per-tier RPC fallback.
+ */
+export async function getPendingRewards(
+  address: string,
+  deps?: StakingDeps,
+): Promise<Partial<Record<StakingTier, bigint>>> {
+  const r = resolveDeps(deps);
+  const trimmed = address.trim();
+  const viaBackend = await tryBackendStakes(trimmed, r.fetchImpl);
+  if (viaBackend !== null) {
+    return pendingRewardsMapFromStakes(viaBackend);
+  }
+  const rewardEntries = await Promise.all(
+    ALL_STAKING_TIERS.map(async (tier) => {
+      const v = await fetchPendingRewardResolved(trimmed, tier, r);
+      return [tier, v] as const;
+    }),
+  );
+  const pr: Partial<Record<StakingTier, bigint>> = {};
+  for (const [tier, v] of rewardEntries) {
+    if (v > 0n) {
+      pr[tier] = v;
+    }
+  }
+  return pr;
 }
 
 /**

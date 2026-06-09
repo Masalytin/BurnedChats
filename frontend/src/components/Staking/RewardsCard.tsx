@@ -65,6 +65,8 @@ export interface RewardsCardProps {
   busyAll: boolean;
   /** When true, pending reward values just animated */
   highlight?: boolean;
+  /** When true, rewards are being refreshed (poll or post-tx). */
+  refreshing?: boolean;
 }
 
 const ORDER: StakingTier[] = [
@@ -84,6 +86,7 @@ export function RewardsCard({
   busyTier,
   busyAll,
   highlight,
+  refreshing,
 }: RewardsCardProps) {
   const { t } = useTranslation();
   const [history, setHistory] = useState<ClaimLogEntry[]>(() => readClaimLog());
@@ -111,8 +114,14 @@ export function RewardsCard({
     setHistory(readClaimLog());
   }, [onClaimAll, rows]);
 
+  const valueAnimating = highlight || refreshing;
+
   return (
-    <section className={styles.rewardsCard} aria-labelledby="staking-rewards-heading">
+    <section
+      className={styles.rewardsCard}
+      aria-labelledby="staking-rewards-heading"
+      aria-busy={refreshing || undefined}
+    >
       <h2 id="staking-rewards-heading" className={styles.sectionTitle} style={{ marginTop: 0 }}>
         {t('staking.rewardsTitle')}
       </h2>
@@ -127,7 +136,7 @@ export function RewardsCard({
               <div>
                 <div>{formatTierName(r.tier, t)}</div>
                 <div
-                  className={highlight ? styles.pulse : undefined}
+                  className={valueAnimating ? styles.pulse : undefined}
                   style={{ fontWeight: 700 }}
                   aria-live="polite"
                 >

@@ -73,6 +73,7 @@ export function StakingDashboard() {
     stakes,
     tierConfigs,
     pendingRewards,
+    rewardsRefreshing,
     isLoading,
     error,
     refetch,
@@ -303,6 +304,7 @@ export function StakingDashboard() {
         busyTier={busyClaimTier}
         busyAll={busyClaimAll}
         highlight={rewardHighlight}
+        refreshing={rewardsRefreshing}
       />
 
       <h2 className={styles.sectionTitle}>{t('staking.tiersSection')}</h2>
