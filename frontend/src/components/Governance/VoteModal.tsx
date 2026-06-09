@@ -64,6 +64,7 @@ export function VoteModal({
         className={styles.modalSheet}
         role="dialog"
         aria-modal="true"
+        aria-label={t('governance.ariaModalVote')}
         aria-labelledby="vote-modal-title"
         aria-describedby="vote-modal-desc"
       >
