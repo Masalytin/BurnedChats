@@ -17,4 +17,8 @@
   padding-bottom: calc(var(--bc-spacing-md) + env(safe-area-inset-bottom, 0px));
 }
 
+.layout--with-nav .layout-main {
+  padding-bottom: var(--bc-spacing-md);
+}
+
 

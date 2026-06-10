@@ -15,6 +15,12 @@
     "hidePassword": "Hide password"
   },
 
+  "nav": {
+    "home": "Home",
+    "wallet": "Wallet",
+    "settings": "Settings"
+  },
+
   "status": {
     "online": "online",
     "offline": "offline",

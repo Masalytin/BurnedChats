@@ -1,5 +1,7 @@
 // Layout
 export { Layout } from './Layout';
+export { BottomNavBar } from './BottomNavBar';
+export type { BottomNavItem } from './BottomNavBar';
 
 // UI Components
 export { Avatar } from './Avatar';

@@ -15,6 +15,12 @@
     "hidePassword": "Скрыть пароль"
   },
 
+  "nav": {
+    "home": "Главная",
+    "wallet": "Кошелёк",
+    "settings": "Настройки"
+  },
+
   "status": {
     "online": "в сети",
     "offline": "не в сети",

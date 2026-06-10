@@ -61,6 +61,8 @@ interface UseTelegramReturn {
   setClosingConfirmation: (enabled: boolean) => void;
   /** Set header color */
   setHeaderColor: (color: 'bg_color' | 'secondary_bg_color' | string) => void;
+  /** Set native Telegram bottom bar color (Bot API 7.10+) */
+  setBottomBarColor: (color: 'bg_color' | 'secondary_bg_color' | string) => void;
   /** Set background color */
   setBackgroundColor: (color: string) => void;
   /** Open external link */
@@ -176,6 +178,18 @@ export function useTelegram(): UseTelegramReturn {
     WebApp.setHeaderColor(color as 'bg_color' | 'secondary_bg_color');
   }, []);
 
+  const setBottomBarColor = useCallback((color: 'bg_color' | 'secondary_bg_color' | string) => {
+    if (!isInTelegram || !WebApp.isVersionAtLeast('7.10')) {
+      return;
+    }
+
+    // @twa-dev/sdk may not type setBottomBarColor yet (Bot API 7.10+)
+    const webAppWithBottomBar = WebApp as typeof WebApp & {
+      setBottomBarColor?: (value: 'bg_color' | 'secondary_bg_color' | string) => void;
+    };
+    webAppWithBottomBar.setBottomBarColor?.(color);
+  }, [isInTelegram]);
+
   const setBackgroundColor = useCallback((color: string) => {
     WebApp.setBackgroundColor(color as `#${string}`);
   }, []);
@@ -242,6 +256,7 @@ export function useTelegram(): UseTelegramReturn {
     expand,
     setClosingConfirmation,
     setHeaderColor,
+    setBottomBarColor,
     setBackgroundColor,
     openLink,
     openTelegramLink,
