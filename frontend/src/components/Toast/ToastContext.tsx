@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, useState, type ReactNode } from 'react';
+import { shouldShowToast } from '@/preferences/preferencesStorage';
 import { ToastContainer, type ToastData, type ToastType } from './Toast';
 
 interface ToastOptions {
@@ -98,17 +99,25 @@ export function ToastProvider({
     return id;
   }, [maxToasts]);
 
-  const success = useCallback((message: string, options?: ToastOptions) => 
-    toast('success', message, options), [toast]);
-    
-  const error = useCallback((message: string, options?: ToastOptions) => 
+  const success = useCallback((message: string, options?: ToastOptions) => {
+    if (!shouldShowToast('success')) {
+      return '';
+    }
+    return toast('success', message, options);
+  }, [toast]);
+
+  const error = useCallback((message: string, options?: ToastOptions) =>
     toast('error', message, options), [toast]);
-    
-  const warning = useCallback((message: string, options?: ToastOptions) => 
+
+  const warning = useCallback((message: string, options?: ToastOptions) =>
     toast('warning', message, options), [toast]);
-    
-  const info = useCallback((message: string, options?: ToastOptions) => 
-    toast('info', message, options), [toast]);
+
+  const info = useCallback((message: string, options?: ToastOptions) => {
+    if (!shouldShowToast('info')) {
+      return '';
+    }
+    return toast('info', message, options);
+  }, [toast]);
 
   const value: ToastContextValue = {
     toast,

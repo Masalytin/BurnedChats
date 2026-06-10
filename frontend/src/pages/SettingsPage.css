@@ -77,3 +77,203 @@
   font-size: var(--bc-text-base);
   color: var(--bc-text-primary);
 }
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+  min-height: 44px;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--bc-border-color);
+}
+
+.settings-row--static {
+  cursor: default;
+}
+
+.settings-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-row__label {
+  font-size: var(--bc-text-base);
+  color: var(--bc-text-primary);
+  display: block;
+}
+
+.settings-row__description {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: var(--bc-spacing-xs) 0 0;
+}
+
+.settings-row__value {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* Telegram-style switch */
+.settings-toggle {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.settings-toggle__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.settings-toggle__track {
+  display: block;
+  width: 51px;
+  height: 31px;
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-elevated);
+  border: 1px solid var(--bc-border-color);
+  transition: background var(--bc-transition-fast), border-color var(--bc-transition-fast);
+  position: relative;
+}
+
+.settings-toggle__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: var(--bc-shadow-sm);
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-toggle__input:checked + .settings-toggle__track {
+  background: var(--tg-theme-button-color, var(--bc-brand-primary));
+  border-color: transparent;
+}
+
+.settings-toggle__input:checked + .settings-toggle__track::after {
+  transform: translateX(20px);
+}
+
+.settings-toggle__input:focus-visible + .settings-toggle__track {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-toggle__track,
+  .settings-toggle__track::after {
+    transition: none;
+  }
+}
+
+.settings-appearance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.settings-theme-options {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+}
+
+.settings-theme-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-md);
+  border: 1px solid var(--bc-border-color);
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--bc-transition-fast), color var(--bc-transition-fast),
+    background var(--bc-transition-fast);
+}
+
+.settings-theme-option--active {
+  border-color: var(--bc-text-accent);
+  color: var(--bc-text-accent);
+  background: rgba(255, 107, 53, 0.12);
+}
+
+.settings-theme-option__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.settings-theme-option__label {
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+}
+
+.settings-security {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+}
+
+.settings-security__hint {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: 0;
+  line-height: var(--bc-leading-normal);
+}
+
+.settings-security__button {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-error-muted);
+  color: var(--bc-destructive);
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--bc-transition-fast);
+}
+
+.settings-security__button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.settings-security__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

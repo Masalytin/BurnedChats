@@ -57,6 +57,7 @@ import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
+import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
@@ -112,6 +113,7 @@ const IMMERSIVE_VIEWS: AppView[] = [
  */
 function AppContent() {
   const toast = useToast();
+  const { prefs } = usePreferences();
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1625,8 +1627,7 @@ function AppContent() {
     );
   }
 
-  // Debug panel props (shared across all views)
-  const debugPanelElement = (
+  const debugPanelElement = prefs.debugPanelEnabled ? (
     <DebugPanel
       isConnected={isConnected}
       isConnecting={isConnecting}
@@ -1637,7 +1638,7 @@ function AppContent() {
       sessionResult={sessionResult}
       handshakeResult={handshakeResult}
     />
-  );
+  ) : null;
 
   if (location.pathname.startsWith('/app/governance')) {
     return (
@@ -2100,11 +2101,13 @@ function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, 
  */
 function App() {
   return (
-    <ToastProvider position="bottom" maxToasts={3}>
-      <AuthContextProvider>
-        <AppContent />
-      </AuthContextProvider>
-    </ToastProvider>
+    <PreferencesProvider>
+      <ToastProvider position="bottom" maxToasts={3}>
+        <AuthContextProvider>
+          <AppContent />
+        </AuthContextProvider>
+      </ToastProvider>
+    </PreferencesProvider>
   );
 }
 

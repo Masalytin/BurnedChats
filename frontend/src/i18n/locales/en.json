@@ -27,7 +27,31 @@
     "section": {
       "profile": "Profile",
       "language": "Language",
-      "accounts": "Linked accounts"
+      "accounts": "Linked accounts",
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "security": "Security",
+      "developer": "Developer"
+    },
+    "appearance": {
+      "themeLabel": "Theme",
+      "themeTelegram": "Telegram theme",
+      "themeDark": "Dark"
+    },
+    "notifications": {
+      "haptics": "Haptic feedback",
+      "toasts": "Pop-up notifications",
+      "toastsHint": "Info and success only; errors are always shown"
+    },
+    "security": {
+      "keysHint": "Encryption keys stay only on this device. Clearing them removes local session and room keys — active chats will need a new secure handshake.",
+      "clearKeys": "Clear local keys",
+      "clearKeysConfirm": "Clear all encryption keys stored on this device? Active chats will require re-handshake.",
+      "clearKeysSuccess": "Local encryption keys cleared"
+    },
+    "developer": {
+      "version": "App version",
+      "debugPanel": "Debug panel"
     }
   },
 

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { isTelegramMiniApp } from '../env/detector';
+import { areHapticsEnabled } from '../preferences/preferencesStorage';
 
 export interface TelegramUser {
   id: number;
@@ -222,19 +223,19 @@ export function useTelegram(): UseTelegramReturn {
 
   // Haptic feedback shortcuts
   const impactOccurred = useCallback((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => {
-    if (isInTelegram) {
+    if (isInTelegram && areHapticsEnabled()) {
       WebApp.HapticFeedback.impactOccurred(style);
     }
   }, [isInTelegram]);
 
   const notificationOccurred = useCallback((type: 'error' | 'success' | 'warning') => {
-    if (isInTelegram) {
+    if (isInTelegram && areHapticsEnabled()) {
       WebApp.HapticFeedback.notificationOccurred(type);
     }
   }, [isInTelegram]);
 
   const selectionChanged = useCallback(() => {
-    if (isInTelegram) {
+    if (isInTelegram && areHapticsEnabled()) {
       WebApp.HapticFeedback.selectionChanged();
     }
   }, [isInTelegram]);

@@ -1,0 +1,18 @@
+/**
+ * Forced dark theme — overrides --bc-* tokens only (not --tg-theme-*).
+ * Applied when user selects themeMode: 'dark' in Settings.
+ */
+html[data-bc-theme='dark'] {
+  --bc-bg-primary: #0f0f0f;
+  --bc-bg-secondary: #1a1a1a;
+  --bc-bg-elevated: #242424;
+  --bc-text-primary: #ffffff;
+  --bc-text-secondary: #7d7d7d;
+  --bc-text-muted: #7d7d7d;
+  --bc-border-color: rgba(255, 255, 255, 0.08);
+  --bc-border-color-strong: rgba(255, 255, 255, 0.16);
+  --bc-message-incoming-bg: #242424;
+  --bc-message-incoming-text: #ffffff;
+  --bc-button-secondary-bg: #242424;
+  --bc-button-secondary-text: #ffffff;
+}
