@@ -157,18 +157,26 @@ export const MessageList = memo(
   }, []);
 
   /**
-   * Scroll to bottom of list
+   * Scroll to bottom of list (container-only — avoids scrolling page ancestors)
    */
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    bottomRef.current?.scrollIntoView({ behavior });
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior });
   }, []);
 
   const scrollToMessage = useCallback((messageId: string) => {
-    const root = listRef.current;
-    if (!root) return;
-    const el = root.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+    const list = listRef.current;
+    if (!list) return;
+    const el = list.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
     if (!el) return;
-    el.scrollIntoView({ block: 'center' });
+    const top =
+      el.getBoundingClientRect().top -
+      list.getBoundingClientRect().top +
+      list.scrollTop -
+      list.clientHeight / 2 +
+      el.clientHeight / 2;
+    list.scrollTo({ top: Math.max(0, top) });
     el.classList.add('message--highlighted');
     if (highlightTimeoutRef.current) {
       clearTimeout(highlightTimeoutRef.current);

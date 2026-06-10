@@ -1,8 +1,7 @@
 .layout {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
   background-color: var(--bc-bg-primary);
 }
@@ -19,6 +18,15 @@
 
 .layout--with-nav .layout-main {
   padding-bottom: var(--bc-spacing-md);
+}
+
+.layout--full-bleed .layout-main {
+  padding: 0;
+  overflow: hidden;
+}
+
+.layout--full-bleed.layout--with-nav .layout-main {
+  padding-bottom: 0;
 }
 
 

@@ -8,6 +8,7 @@ import { AuthType } from './auth/types';
 import { getEnvironment } from './env/detector';
 import { useAuth } from './hooks/useAuth';
 import { useTelegram } from './hooks/useTelegram';
+import { useTelegramViewport } from './hooks/useTelegramViewport';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
@@ -128,6 +129,8 @@ function AppContent() {
     notificationOccurred,
     startParam,
   } = useTelegram();
+
+  useTelegramViewport();
   
   const { 
     isConnected,
@@ -1758,7 +1761,7 @@ function AppContent() {
     return (
       <>
         {walletChrome}
-        <Layout>
+        <Layout fullBleed>
           <ChatViewContent
             sessionId={activeChat.sessionId}
             peer={activeChat.peer}
@@ -1869,7 +1872,7 @@ function AppContent() {
     return (
       <>
         {walletChrome}
-        <Layout>
+        <Layout fullBleed>
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}

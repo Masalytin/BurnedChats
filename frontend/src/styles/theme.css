@@ -127,6 +127,11 @@
   --bc-z-modal: 300;
   --bc-z-toast: 400;
   --bc-z-tooltip: 500;
+
+  /* App shell height — Telegram SDK sets --tg-viewport-stable-height in TMA */
+  --app-height: 100vh;
+  --app-height: 100dvh;
+  --app-height: var(--tg-viewport-stable-height, 100dvh);
 }
 
 /* ============================================
@@ -143,6 +148,8 @@
 
 html {
   font-size: 16px;
+  height: 100%;
+  overflow: hidden;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -153,16 +160,15 @@ body {
   line-height: var(--bc-leading-normal);
   color: var(--bc-text-primary);
   background-color: var(--bc-bg-primary);
-  min-height: 100vh;
-  min-height: 100dvh;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
