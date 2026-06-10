@@ -21,6 +21,16 @@
     "settings": "Настройки"
   },
 
+  "settings": {
+    "title": "Настройки",
+    "languageLabel": "Язык приложения",
+    "section": {
+      "profile": "Профиль",
+      "language": "Язык",
+      "accounts": "Привязанные аккаунты"
+    }
+  },
+
   "status": {
     "online": "в сети",
     "offline": "не в сети",

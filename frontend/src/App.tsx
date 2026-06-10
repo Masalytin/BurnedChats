@@ -1956,7 +1956,6 @@ function AppContent() {
           onRoomClick={handleRoomClick}
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
-          linkedAccountsCredentials={linkedAccountsCredentials}
           onTonWalletChromeNeeded={requestTelegramWalletChrome}
         />
 

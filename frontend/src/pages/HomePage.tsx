@@ -4,13 +4,10 @@ import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, LanguageSwitcher } from '../components';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
 import { RoomCard } from '../components/RoomCard';
-import { AccountLinking } from '../components/Settings/AccountLinking';
-import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon, LockIcon } from '../icons';
 import './HomePage.css';
-import '../components/Settings/LinkedAccounts.css';
 
 interface HomePageProps {
   user: AuthUser | null;
@@ -57,9 +54,7 @@ interface HomePageProps {
   onRefreshRooms?: () => void;
   /** Callback to refresh all data (rooms + sessions) */
   onRefreshAll?: () => void;
-  /** Linked accounts (Telegram ↔ wallet) API credentials */
-  linkedAccountsCredentials?: LinkedAccountsCredentials | null;
-  /** Telegram MA: request mounting wallet chrome (lazy gate + linking flows). */
+  /** Telegram MA: request mounting wallet chrome (staking/governance navigation). */
   onTonWalletChromeNeeded?: () => void;
 }
 
@@ -98,14 +93,12 @@ export function HomePage({
   onRoomClick,
   onRefreshRooms,
   onRefreshAll,
-  linkedAccountsCredentials = null,
   onTonWalletChromeNeeded,
 }: HomePageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
-  const [linkedRefresh, setLinkedRefresh] = useState(0);
 
   // Show FAB after scrolling down 150px (scroll container is .layout-main)
   useEffect(() => {
@@ -206,7 +199,6 @@ export function HomePage({
                 {t('common.retry', { count: reconnectAttempt })}
               </span>
             )}
-            <LanguageSwitcher />
           </div>
         </div>
       </header>
@@ -270,31 +262,6 @@ export function HomePage({
           </div>
         </CardContent>
       </Card>
-
-      {linkedAccountsCredentials && user ? (
-        <section className="home-section animate-slide-up" style={{ animationDelay: '80ms' }}>
-          <h3 className="home-section-title">{t('accountLinking.sectionTitle')}</h3>
-          <p className="linked-accounts-muted" style={{ marginBottom: 'var(--bc-spacing-md, 12px)' }}>
-            {t('accountLinking.sectionSubtitle')}
-          </p>
-          <Card>
-            <CardContent>
-              <LinkedAccounts
-                key={linkedRefresh}
-                credentials={linkedAccountsCredentials}
-                onChanged={() => setLinkedRefresh((k) => k + 1)}
-                onTonWalletLinkedDetected={onTonWalletChromeNeeded}
-              />
-              <AccountLinking
-                authType={user.authType}
-                credentials={linkedAccountsCredentials}
-                onLinked={() => setLinkedRefresh((k) => k + 1)}
-                onBeforeTonWalletFlow={onTonWalletChromeNeeded}
-              />
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
 
       {/* BURN Token — Staking & Governance entry points (IMP-STKGOV-01) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '90ms' }}>

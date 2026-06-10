@@ -21,6 +21,16 @@
     "settings": "Settings"
   },
 
+  "settings": {
+    "title": "Settings",
+    "languageLabel": "App language",
+    "section": {
+      "profile": "Profile",
+      "language": "Language",
+      "accounts": "Linked accounts"
+    }
+  },
+
   "status": {
     "online": "online",
     "offline": "offline",
