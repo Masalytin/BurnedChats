@@ -114,6 +114,10 @@
   },
 
   "wallet": {
+    "segment": {
+      "staking": "Стейкинг",
+      "governance": "Governance"
+    },
     "connectWallet": "Подключить кошелёк",
     "connectWalletAria": "Подключить TON-кошелёк",
     "openWalletAria": "Открыть кошелёк, адрес {{address}}, баланс {{balance}}",

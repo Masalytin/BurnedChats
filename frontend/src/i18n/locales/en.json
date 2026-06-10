@@ -114,6 +114,10 @@
   },
 
   "wallet": {
+    "segment": {
+      "staking": "Staking",
+      "governance": "Governance"
+    },
     "connectWallet": "Connect Wallet",
     "connectWalletAria": "Connect TON wallet",
     "openWalletAria": "Open wallet, address {{address}}, balance {{balance}}",
