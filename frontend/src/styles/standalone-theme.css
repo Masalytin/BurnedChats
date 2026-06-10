@@ -1,3 +1,8 @@
+/*
+ * Browser / wallet standalone palette — literal --tg-theme-* values (no self-reference).
+ * Loaded after theme.css; :root.standalone-mode is set by env/initializer.ts for non-TMA.
+ * Telegram inline injection still wins in Mini App (higher specificity / later cascade).
+ */
 :root.standalone-mode {
   --tg-theme-bg-color: #f7f8fa;
   --tg-theme-text-color: #111827;

@@ -1,47 +1,29 @@
 /*
  * BurnedChats Theme - Telegram Mini App CSS Variables
- * 
- * These variables map Telegram's theme to our app.
- * Telegram injects CSS variables automatically when running in Mini App context.
- * We provide fallbacks for development/testing outside Telegram.
+ *
+ * Telegram SDK injects --tg-theme-* inline on :root/body in Mini App context.
+ * Browser standalone mode sets them in standalone-theme.css (:root.standalone-mode).
+ * App tokens --bc-* reference --tg-theme-* with literal fallbacks for dev/testing
+ * when neither source is present — never redeclare --tg-theme-* here (circular refs).
  */
 
 :root {
-  /* ============================================
-   * TELEGRAM THEME VARIABLES (with fallbacks)
-   * ============================================ */
-  
-  /* Primary colors - from Telegram theme */
-  --tg-theme-bg-color: var(--tg-theme-bg-color, #0f0f0f);
-  --tg-theme-text-color: var(--tg-theme-text-color, #ffffff);
-  --tg-theme-hint-color: var(--tg-theme-hint-color, #7d7d7d);
-  --tg-theme-link-color: var(--tg-theme-link-color, #5eaaff);
-  --tg-theme-button-color: var(--tg-theme-button-color, #ff6b35);
-  --tg-theme-button-text-color: var(--tg-theme-button-text-color, #ffffff);
-  --tg-theme-secondary-bg-color: var(--tg-theme-secondary-bg-color, #1a1a1a);
-  --tg-theme-header-bg-color: var(--tg-theme-header-bg-color, #0f0f0f);
-  --tg-theme-accent-text-color: var(--tg-theme-accent-text-color, #ff6b35);
-  --tg-theme-section-bg-color: var(--tg-theme-section-bg-color, #1a1a1a);
-  --tg-theme-section-header-text-color: var(--tg-theme-section-header-text-color, #7d7d7d);
-  --tg-theme-subtitle-text-color: var(--tg-theme-subtitle-text-color, #7d7d7d);
-  --tg-theme-destructive-text-color: var(--tg-theme-destructive-text-color, #ff4444);
-
   /* ============================================
    * APPLICATION THEME VARIABLES
    * ============================================ */
   
   /* Background layers */
-  --bc-bg-primary: var(--tg-theme-bg-color);
-  --bc-bg-secondary: var(--tg-theme-secondary-bg-color);
+  --bc-bg-primary: var(--tg-theme-bg-color, #0f0f0f);
+  --bc-bg-secondary: var(--tg-theme-secondary-bg-color, #1a1a1a);
   --bc-bg-elevated: #242424;
   --bc-bg-overlay: rgba(0, 0, 0, 0.6);
   
   /* Text colors */
-  --bc-text-primary: var(--tg-theme-text-color);
-  --bc-text-secondary: var(--tg-theme-hint-color);
-  --bc-text-muted: var(--tg-theme-subtitle-text-color);
-  --bc-text-link: var(--tg-theme-link-color);
-  --bc-text-accent: var(--tg-theme-accent-text-color);
+  --bc-text-primary: var(--tg-theme-text-color, #ffffff);
+  --bc-text-secondary: var(--tg-theme-hint-color, #7d7d7d);
+  --bc-text-muted: var(--tg-theme-subtitle-text-color, #7d7d7d);
+  --bc-text-link: var(--tg-theme-link-color, #5eaaff);
+  --bc-text-accent: var(--tg-theme-accent-text-color, #ff6b35);
   
   /* Brand colors - "Burned" theme */
   --bc-brand-primary: #ff6b35;
@@ -57,7 +39,7 @@
   --bc-warning-muted: rgba(255, 204, 0, 0.15);
   --bc-error: #ff4444;
   --bc-error-muted: rgba(255, 68, 68, 0.15);
-  --bc-destructive: var(--tg-theme-destructive-text-color);
+  --bc-destructive: var(--tg-theme-destructive-text-color, #ff4444);
   
   /* Message bubbles */
   --bc-message-outgoing-bg: var(--bc-brand-primary);
@@ -67,7 +49,7 @@
   
   /* Interactive elements */
   --bc-button-primary-bg: var(--tg-theme-button-color, var(--bc-brand-primary));
-  --bc-button-primary-text: var(--tg-theme-button-text-color);
+  --bc-button-primary-text: var(--tg-theme-button-text-color, #ffffff);
   --bc-button-secondary-bg: var(--bc-bg-elevated);
   --bc-button-secondary-text: var(--bc-text-primary);
   
