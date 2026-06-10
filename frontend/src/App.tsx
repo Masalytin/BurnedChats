@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, Routes, Route } from 'react-router-dom';
+import { useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { AuthContextProvider } from './auth';
 import { AuthType } from './auth/types';
@@ -25,6 +25,8 @@ import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { Layout } from './components/Layout/Layout';
+import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
+import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
 import { ChatRequestDialog, type ChatRequestSecretPayload } from './components/ChatRequestDialog';
 import { WalletLoginScreen } from './components/Auth/WalletLoginScreen';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
@@ -41,6 +43,8 @@ import { ToastProvider, useToast } from './components/Toast';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
+import { WalletPage } from './pages/WalletPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { CreateProposal } from './components/Governance/CreateProposal';
 import { ProposalDetail } from './components/Governance/ProposalDetail';
 import { ProposalList } from './components/Governance/ProposalList';
@@ -87,6 +91,22 @@ interface ActiveChat {
   fingerprint: string;
 }
 
+/** Bottom navigation tab identifiers */
+type TabId = 'home' | 'wallet' | 'settings';
+
+/** Views where bottom nav is hidden (Telegram BackButton handles navigation) */
+const IMMERSIVE_VIEWS: AppView[] = [
+  'pending-request',
+  'incoming-request',
+  'handshake',
+  'chat',
+  'create-room',
+  'join-room',
+  'room-join-requests',
+  'room-chat',
+  'room-manage',
+];
+
 /**
  * Main application content with toast integration
  */
@@ -94,6 +114,7 @@ function AppContent() {
   const toast = useToast();
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isLoading: isAuthLoading, isAuthenticated, getCredentials } = useAuth();
   const { 
     isReady, 
@@ -101,6 +122,7 @@ function AppContent() {
     expand, 
     setClosingConfirmation, 
     setHeaderColor,
+    setBottomBarColor,
     notificationOccurred,
     startParam,
   } = useTelegram();
@@ -176,7 +198,7 @@ function AppContent() {
   useEffect(() => {
     if (environment !== 'telegram') return;
     const p = location.pathname;
-    if (p.startsWith('/app/governance') || p.startsWith('/app/staking')) {
+    if (p.startsWith('/app/governance') || p.startsWith('/app/staking') || p.startsWith('/app/wallet')) {
       setTelegramWalletChromeRequested(true);
     }
   }, [environment, location.pathname]);
@@ -650,11 +672,103 @@ function AppContent() {
     requestsReturnView,
   ]);
 
-  // Show back button on all non-home views
+  // Show back button on all non-home views (wallet/settings stay on currentView === 'home')
   useBackButton({
     visible: currentView !== 'home' || showChatRequestDialog,
     onBack: handleBackButton,
   });
+
+  const activeTabId = useMemo((): TabId => {
+    const path = location.pathname;
+    if (
+      path.startsWith('/app/wallet') ||
+      path.startsWith('/app/governance') ||
+      path === '/app/staking'
+    ) {
+      return 'wallet';
+    }
+    if (path.startsWith('/app/settings')) {
+      return 'settings';
+    }
+    return 'home';
+  }, [location.pathname]);
+
+  const homeBadgeCount = useMemo(() => {
+    const now = Date.now();
+    const validIncoming = incomingRequests.filter((request) => request.expiresAt > now).length;
+    return validIncoming + pendingJoinCount;
+  }, [incomingRequests, pendingJoinCount]);
+
+  const isTopLevelPath = useMemo(() => {
+    const path = location.pathname;
+    return (
+      path.startsWith('/app/wallet') ||
+      path.startsWith('/app/governance') ||
+      path === '/app/staking' ||
+      path.startsWith('/app/settings')
+    );
+  }, [location.pathname]);
+
+  const showBottomNav =
+    !showChatRequestDialog &&
+    !IMMERSIVE_VIEWS.includes(currentView) &&
+    (isTopLevelPath || currentView === 'home');
+
+  const handleNavSelect = useCallback(
+    (id: string) => {
+      switch (id) {
+        case 'home':
+          navigate('/app');
+          break;
+        case 'wallet':
+          navigate('/app/wallet');
+          break;
+        case 'settings':
+          navigate('/app/settings');
+          break;
+        default:
+          break;
+      }
+    },
+    [navigate],
+  );
+
+  const handleNavReselect = useCallback(() => {
+    document.querySelector('.layout-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const bottomNavItems = useMemo((): BottomNavItem[] => [
+    {
+      id: 'home',
+      icon: <HomeIcon size={24} />,
+      labelKey: 'nav.home',
+      badgeCount: homeBadgeCount > 0 ? homeBadgeCount : undefined,
+    },
+    {
+      id: 'wallet',
+      icon: <WalletIcon size={24} />,
+      labelKey: 'nav.wallet',
+    },
+    {
+      id: 'settings',
+      icon: <SettingsGearIcon size={24} />,
+      labelKey: 'nav.settings',
+    },
+  ], [homeBadgeCount]);
+
+  const bottomNavElement = useMemo(
+    () => (
+      <BottomNavBar
+        items={bottomNavItems}
+        activeId={activeTabId}
+        onSelect={handleNavSelect}
+        onReselect={handleNavReselect}
+      />
+    ),
+    [bottomNavItems, activeTabId, handleNavSelect, handleNavReselect],
+  );
+
+  const layoutBottomNav = showBottomNav ? bottomNavElement : undefined;
 
   // Expose rekeyRoom for future use (owner rekey after member leaves — P2-4.3.4)
   // Ref ensures the callback is stable and doesn't cause re-renders
@@ -821,7 +935,8 @@ function AppContent() {
     expand();
     setClosingConfirmation(true);
     setHeaderColor('secondary_bg_color');
-  }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor]);
+    setBottomBarColor('secondary_bg_color');
+  }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor, setBottomBarColor]);
 
   /** True after we've seen `isAuthenticated` — used to distinguish cold start vs logout. */
   const wasAuthenticatedRef = useRef(false);
@@ -1528,7 +1643,7 @@ function AppContent() {
     return (
       <>
         {walletChrome}
-        <Layout>
+        <Layout bottomNav={layoutBottomNav}>
           <Routes>
             <Route path="/app/governance" element={<GovernancePage />}>
               <Route index element={<ProposalList />} />
@@ -1546,8 +1661,36 @@ function AppContent() {
     return (
       <>
         {walletChrome}
-        <Layout>
+        <Layout bottomNav={layoutBottomNav}>
           <StakingPage />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  if (location.pathname.startsWith('/app/wallet')) {
+    return (
+      <>
+        {walletChrome}
+        <Layout bottomNav={layoutBottomNav}>
+          <WalletPage />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  if (location.pathname.startsWith('/app/settings')) {
+    return (
+      <>
+        {walletChrome}
+        <Layout bottomNav={layoutBottomNav}>
+          <SettingsPage
+            user={user}
+            linkedAccountsCredentials={linkedAccountsCredentials}
+            onTonWalletChromeNeeded={requestTelegramWalletChrome}
+          />
         </Layout>
         {debugPanelElement}
       </>
@@ -1787,8 +1930,8 @@ function AppContent() {
   return (
     <>
       {walletChrome}
-      <Layout>
-        <HomePage 
+      <Layout bottomNav={layoutBottomNav}>
+        <HomePage
           user={user} 
           isConnected={isConnected}
           isConnecting={isConnecting}
