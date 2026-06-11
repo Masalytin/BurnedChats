@@ -133,6 +133,72 @@ describe('getStakes RPC', () => {
     expect(stakes[0]?.amount).toBe(1_000n * 1_000_000_000n);
     expect(stakes[0]?.pendingReward).toBe(1_000_000_000n);
   });
+
+  it('parses real Ton Center v2 shape: StakeInfoView? as ["tuple", {elements}] / null as ["list", {elements: []}]', async () => {
+    const numEl = (dec: string) => ({
+      '@type': 'tvm.stackEntryNumber',
+      number: { '@type': 'tvm.numberDecimal', number: dec },
+    });
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+
+      if (method === 'get_stake') {
+        const tierHex = String(body.stack?.[1]?.[1] ?? '0x0');
+        const tier = Number.parseInt(tierHex.replace(/^0x/i, ''), 16);
+        if (tier === StakingTier.Gold) {
+          return jsonResponse({
+            ok: true,
+            result: {
+              exit_code: 0,
+              stack: [
+                [
+                  'tuple',
+                  {
+                    '@type': 'tvm.tuple',
+                    elements: [
+                      numEl('1000000000'),
+                      numEl('2'),
+                      numEl('100'),
+                      numEl('200'),
+                      numEl('1000'),
+                    ],
+                  },
+                ],
+              ],
+            },
+          });
+        }
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['list', { '@type': 'tvm.list', elements: [] }]] },
+        });
+      }
+
+      if (method === 'get_pending_reward') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '0x0']] },
+        });
+      }
+
+      return jsonResponse({ ok: false, error: `unexpected ${method}` }, 500);
+    });
+
+    const stakes = await getStakes(USER, {
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      stakingMaster: STAKING_MASTER,
+      jettonMaster: JETTON_MASTER,
+    });
+
+    expect(stakes).toHaveLength(1);
+    expect(stakes[0]?.tier).toBe(StakingTier.Gold);
+    expect(stakes[0]?.amount).toBe(1_000_000_000n);
+    expect(stakes[0]?.startTime).toBe(100);
+    expect(stakes[0]?.unlockTime).toBe(1000);
+  });
 });
 
 describe('getTierConfigs cache', () => {

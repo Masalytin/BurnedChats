@@ -220,11 +220,15 @@ public class StakingVerifier {
         }
         if (stack.size() == 1 && stack.get(0).isArray()) {
             JsonNode sole = stack.get(0);
-            if (sole.size() >= 2 && "tuple".equalsIgnoreCase(sole.get(0).asText(""))) {
+            String soleType = sole.size() >= 2 ? sole.get(0).asText("") : "";
+            if ("tuple".equalsIgnoreCase(soleType) || "list".equalsIgnoreCase(soleType)) {
                 JsonNode tuple = sole.get(1);
                 List<JsonNode> out = new ArrayList<>();
-                if (tuple != null && tuple.isArray()) {
-                    for (JsonNode n : tuple) {
+                // Ton Center v2 wraps tuple/list values as {"@type":"tvm.tuple","elements":[...]};
+                // a bare JSON array is kept for relay/test compatibility.
+                JsonNode elements = tuple != null && tuple.isObject() ? tuple.get("elements") : tuple;
+                if (elements != null && elements.isArray()) {
+                    for (JsonNode n : elements) {
                         out.add(n);
                     }
                 }
@@ -279,6 +283,10 @@ public class StakingVerifier {
         String raw;
         if (item.isArray() && item.size() >= 2) {
             raw = item.get(1).asText();
+        } else if (item.has("number")) {
+            // tvm.stackEntryNumber tuple element: {"number":{"@type":"tvm.numberDecimal","number":"<dec>"}}
+            JsonNode n = item.get("number");
+            raw = n.isObject() && n.has("number") ? n.get("number").asText() : n.asText();
         } else if (item.has("value")) {
             raw = item.get("value").asText();
         } else {

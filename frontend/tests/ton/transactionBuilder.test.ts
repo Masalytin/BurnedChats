@@ -40,22 +40,26 @@ describe('transactionBuilder payload encoding', () => {
     expect(msg.amount).toBe(String(3_500_000_000n));
   });
 
-  it('buildStakeMsg still attaches 3.5 TON explicitly', () => {
+  it('buildStakeMsg attaches 7.6 TON, forwards 5 TON, routes excess to the user wallet', () => {
+    const userWallet = Address.parse(`0:${'33'.repeat(32)}`);
     const msg = buildStakeMsg({
       stakingMaster: ADDR,
       userJettonWallet: ADDR,
       amount: 5n * 10n ** 9n,
       tier: 2,
+      responseAddress: userWallet,
     });
-    expect(msg.amount).toBe(String(3_500_000_000n));
+    expect(msg.amount).toBe(String(7_600_000_000n));
     const s = firstBocCellBase64(msg.payload).beginParse();
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
     s.loadUintBig(64);
     s.loadCoins();
     s.loadAddress();
-    s.loadMaybeAddress();
+    const responseDest = s.loadMaybeAddress();
+    expect(responseDest?.equals(userWallet)).toBe(true);
     expect(s.loadBit()).toBe(false);
-    s.loadCoins();
+    // forward_ton_amount must fund StakingMaster GasForwardStakeJetton (3.5) + pool legs.
+    expect(s.loadCoins()).toBe(5_000_000_000n);
     expect(s.preloadUint(1)).toBe(1);
     expect(s.loadUint(1)).toBe(1);
     const fwdRef = s.loadRef();

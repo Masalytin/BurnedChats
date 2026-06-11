@@ -20,6 +20,20 @@ const TIMELOCK_EXECUTE_OP = 0x5a040202;
 /** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
 export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
 
+/**
+ * forward_ton_amount for stake deposits: funds StakingMaster's notify handler out-messages —
+ * `GasForwardStakeJetton` (3.5) + `GasToPool` ×2 (0.12) + optional `GasPayRewards` leg on restake.
+ * Mirrors `contracts/tests/staking-helpers.ts` `stakeViaTransfer` (forwardTonAmount 5 TON).
+ */
+export const STAKE_FORWARD_TON = toNano('5');
+
+/**
+ * Total attach for stake: must pass the BurnJettonWallet gate
+ * `value > forwardTonAmount + fwd_fees + minTonFeePath(2.1)`; unspent TON returns to
+ * `response_destination` (the user) as TEP-74 Excesses.
+ */
+export const STAKE_ATTACHED_TON = toNano('7.6');
+
 function emptyForwardPayloadSlice(): Slice {
   return beginCell().storeUint(0, 1).endCell().asSlice();
 }
@@ -92,24 +106,29 @@ export function buildJettonTransferMsg(params: {
 
 /**
  * Stake: jetton transfer to the staking master with `StakeForward` in forward_payload.
- * Uses ~3.5 TON attachment (see staking-master `GasForwardStakeJetton` / sandbox tests).
+ *
+ * `responseAddress` MUST be the user's wallet: TEP-74 Excesses go there. Routing excess to the
+ * staking master bounces (no receiver for 0xd53276db) and loses the refund.
  */
 export function buildStakeMsg(params: {
   stakingMaster: Address;
   userJettonWallet: Address;
   amount: bigint;
   tier: number;
+  /** User wallet receiving TEP-74 Excesses refund. */
+  responseAddress: Address;
   forwardTon?: bigint;
 }): TransactionMessage {
   const forwardPayload = stakeForwardPayloadSlice(params.tier);
-  const forwardTon = params.forwardTon ?? toNano('0.1');
+  const forwardTon = params.forwardTon ?? STAKE_FORWARD_TON;
   return buildJettonTransferMsg({
     jettonWallet: params.userJettonWallet,
     recipient: params.stakingMaster,
     amount: params.amount,
     forwardPayload,
     forwardAmount: forwardTon,
-    attachedTon: toNano('3.5'),
+    responseAddress: params.responseAddress,
+    attachedTon: STAKE_ATTACHED_TON,
   });
 }
 

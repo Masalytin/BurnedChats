@@ -127,31 +127,59 @@ function resolveDeps(deps?: StakingDeps): ResolvedStakingDeps {
   };
 }
 
-function parseStackSlots(stack: unknown): StackSlot[] {
-  if (!Array.isArray(stack)) {
-    return [];
-  }
-  const out: StackSlot[] = [];
-  for (const row of stack) {
-    if (Array.isArray(row) && row.length >= 2 && typeof row[0] === 'string' && typeof row[1] === 'string') {
-      out.push([row[0], row[1]]);
-    }
-  }
-  return out;
-}
-
 function parseNumHex(hex: string): bigint {
   const s = hex.trim();
   const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
   return BigInt(withPrefix);
 }
 
+/** `tvm.stackEntryNumber` element inside a Ton Center v2 `tvm.tuple` / `tvm.list` value. */
+function numFromTupleElement(el: unknown): bigint | null {
+  if (Array.isArray(el) && el.length >= 2 && el[0] === 'num' && typeof el[1] === 'string') {
+    return parseNumHex(el[1]);
+  }
+  if (el !== null && typeof el === 'object') {
+    const numberNode = (el as { number?: unknown }).number;
+    if (numberNode !== null && typeof numberNode === 'object') {
+      const raw = (numberNode as { number?: unknown }).number;
+      if (typeof raw === 'string' && /^-?\d+$/.test(raw.trim())) {
+        return BigInt(raw.trim());
+      }
+    }
+    if (typeof numberNode === 'string' && /^-?\d+$/.test(numberNode.trim())) {
+      return BigInt(numberNode.trim());
+    }
+  }
+  return null;
+}
+
+/**
+ * Collects integers from a Ton Center v2 response stack. Optional-struct getters
+ * (e.g. `get_stake(): StakeInfoView?`) return one `["tuple", {elements: [...]}]` entry
+ * (or `["list", {elements: []}]` for null) — unwrap those alongside flat `["num", hex]` slots.
+ */
 function numsFromStack(stackUnknown: unknown): bigint[] {
-  const slots = parseStackSlots(stackUnknown);
+  if (!Array.isArray(stackUnknown)) {
+    return [];
+  }
   const nums: bigint[] = [];
-  for (const [t, v] of slots) {
-    if (t === 'num') {
+  for (const row of stackUnknown) {
+    if (!Array.isArray(row) || row.length < 2 || typeof row[0] !== 'string') {
+      continue;
+    }
+    const [t, v] = row as [string, unknown];
+    if (t === 'num' && typeof v === 'string') {
       nums.push(parseNumHex(v));
+    } else if (t === 'tuple' || t === 'list') {
+      const elements = v !== null && typeof v === 'object' ? (v as { elements?: unknown }).elements : v;
+      if (Array.isArray(elements)) {
+        for (const el of elements) {
+          const n = numFromTupleElement(el);
+          if (n !== null) {
+            nums.push(n);
+          }
+        }
+      }
     }
   }
   return nums;
@@ -556,6 +584,7 @@ export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Pr
     userJettonWallet: Address.parse(jw),
     amount: params.amount,
     tier: params.tier,
+    responseAddress: Address.parse(params.walletAddress.trim()),
   });
   return r.sendTransactionImpl([msg]);
 }
