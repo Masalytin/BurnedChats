@@ -1,54 +1,52 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useBurnToken } from '@/hooks/useBurnToken';
-import { useTonConnect } from '@/hooks/useTonConnect';
+import { useBackButton } from '@/hooks/useBackButton';
 
-import { WalletButton } from './WalletButton';
 import { WalletPanel } from './WalletPanel';
+import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
-export interface WalletDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  burn: ReturnType<typeof useBurnToken>;
-  ton: ReturnType<typeof useTonConnect>;
-}
-
 /**
- * Bottom-sheet style wallet panel (FAB flow until IMP-WSURF-04 removes WalletChrome).
+ * Context-driven bottom-sheet wallet surface with focus-trap and Telegram BackButton.
  */
-export function WalletDrawer({ open, onClose, burn, ton }: WalletDrawerProps) {
+export function WalletSheet() {
   const { t } = useTranslation();
+  const { sheetOpen, closeSheet } = useWallet();
   const titleId = useId();
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState('');
   const [sendOpen, setSendOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      setSendOpen(false);
-    }
-  }, [open]);
+  useBackButton({
+    visible: sheetOpen,
+    onBack: closeSheet,
+  });
 
   useEffect(() => {
-    if (!open) return;
+    if (!sheetOpen) {
+      setSendOpen(false);
+    }
+  }, [sheetOpen]);
+
+  useEffect(() => {
+    if (!sheetOpen) return;
     const onKey = (e: globalThis.KeyboardEvent): void => {
-      if (e.key === 'Escape' && !sendOpen) onClose();
+      if (e.key === 'Escape' && !sendOpen) closeSheet();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, sendOpen]);
+  }, [sheetOpen, closeSheet, sendOpen]);
 
   useEffect(() => {
-    if (open) {
+    if (sheetOpen) {
       closeBtnRef.current?.focus();
     }
-  }, [open]);
+  }, [sheetOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!sheetOpen) return;
     const root = sheetRef.current;
     if (!root) return;
 
@@ -73,9 +71,9 @@ export function WalletDrawer({ open, onClose, burn, ton }: WalletDrawerProps) {
     };
     root.addEventListener('keydown', handleKey);
     return () => root.removeEventListener('keydown', handleKey);
-  }, [open, sendOpen]);
+  }, [sheetOpen, sendOpen]);
 
-  if (!open) {
+  if (!sheetOpen) {
     return null;
   }
 
@@ -84,7 +82,7 @@ export function WalletDrawer({ open, onClose, burn, ton }: WalletDrawerProps) {
       className={styles.backdrop}
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !sendOpen) onClose();
+        if (e.target === e.currentTarget && !sendOpen) closeSheet();
       }}
     >
       <div
@@ -102,39 +100,16 @@ export function WalletDrawer({ open, onClose, burn, ton }: WalletDrawerProps) {
             ref={closeBtnRef}
             type="button"
             className={styles.iconBtn}
-            onClick={onClose}
+            onClick={closeSheet}
             aria-label={t('aria.closeDialog')}
           >
             ✕
           </button>
         </header>
         <div className={styles.sheetBody}>
-          <WalletPanel
-            burn={burn}
-            ton={ton}
-            onTitleChange={setTitle}
-            onSendOpenChange={setSendOpen}
-          />
+          <WalletPanel onTitleChange={setTitle} onSendOpenChange={setSendOpen} />
         </div>
       </div>
     </div>
   );
 }
-
-/**
- * Single-flight BURN wallet UI (one `useBurnToken` instance, header chip + drawer).
- */
-export function WalletChrome() {
-  const burn = useBurnToken();
-  const ton = useTonConnect();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  return (
-    <>
-      <WalletButton burn={burn} ton={ton} onOpenDrawer={() => setDrawerOpen(true)} />
-      <WalletDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} burn={burn} ton={ton} />
-    </>
-  );
-}
-
-export default WalletChrome;

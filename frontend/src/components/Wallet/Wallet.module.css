@@ -564,6 +564,20 @@
   margin-bottom: 12px;
 }
 
+.panelConnectWrap {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.panelEmbedded {
+  padding: 0;
+}
+
+.panelEmbedded .sheetBody {
+  padding: 0;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

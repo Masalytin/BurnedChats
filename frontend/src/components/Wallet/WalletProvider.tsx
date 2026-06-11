@@ -10,6 +10,8 @@ import {
 import { useBurnToken, type UseBurnToken } from '@/hooks/useBurnToken';
 import { useTonConnect, type UseTonConnectResult } from '@/hooks/useTonConnect';
 
+import { WalletSheet } from './WalletSheet';
+
 export interface WalletContextValue {
   burn: UseBurnToken;
   ton: UseTonConnectResult;
@@ -19,6 +21,8 @@ export interface WalletContextValue {
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
+
+export { WalletContext };
 
 /** Shared burn/ton state and sheet visibility for all wallet surfaces. */
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -39,7 +43,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [burn, ton, sheetOpen, openSheet, closeSheet],
   );
 
-  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+  return (
+    <WalletContext.Provider value={value}>
+      {children}
+      <WalletSheet />
+    </WalletContext.Provider>
+  );
 }
 
 export function useWallet(): WalletContextValue {
