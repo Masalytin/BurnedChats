@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useToast } from '@/components/Toast';
+import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sendModalGasReserve';
+import { useTonConnect } from '@/hooks/useTonConnect';
+import { estimateStakeTon } from '@/ton/estimateStakeTon';
+import { getTonBalanceNano } from '@/ton/tonBalance';
 import { StakingTier, type TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
 import { formatLockDuration } from '@/utils/staking-format';
@@ -25,6 +30,8 @@ export interface StakeModalProps {
   walletBalanceNano: bigint | null;
   /** Current on-chain stake in the selected tier (excludes the amount being typed). */
   existingStakeInTierNano: bigint;
+  /** Accrued pending reward in the selected tier (restake gas premium when > 0). */
+  pendingRewardInTierNano?: bigint;
   onConfirmStake: (tier: StakingTier, amount: bigint) => Promise<{ ok: boolean }>;
 }
 
@@ -38,11 +45,16 @@ export function StakeModal({
   tierConfigs,
   walletBalanceNano,
   existingStakeInTierNano,
+  pendingRewardInTierNano = 0n,
   onConfirmStake,
 }: StakeModalProps) {
   const { t } = useTranslation();
+  const toast = useToast();
+  const { walletAddress } = useTonConnect();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
 
   const [tier, setTier] = useState<StakingTier>(initialTier);
   const [amountStr, setAmountStr] = useState('0');
@@ -71,6 +83,39 @@ export function StakeModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, phase]);
+
+  useEffect(() => {
+    const addr = walletAddress?.trim();
+    if (!open || !addr) {
+      setTonBalanceNano(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getTonBalanceNano(addr)
+      .then((nano) => {
+        if (!cancelled) setTonBalanceNano(nano);
+      })
+      .catch(() => {
+        if (!cancelled) setTonBalanceNano(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, walletAddress]);
+
+  const tonEstimate = useMemo(
+    () =>
+      estimateStakeTon({
+        hasExistingStakeInTier: existingStakeInTierNano > 0n,
+        hasPendingReward: pendingRewardInTierNano > 0n,
+      }),
+    [existingStakeInTierNano, pendingRewardInTierNano],
+  );
+
+  const insufficientTon =
+    tonBalanceNano !== null && !canAffordGasReserve(tonBalanceNano, tonEstimate.recommendedNano);
 
   const cfgByTier = useMemo(() => {
     const m = new Map<StakingTier, TierConfig>();
@@ -140,6 +185,14 @@ export function StakeModal({
       setError(t('staking.amountOverBalance'));
       return;
     }
+    if (insufficientTon) {
+      const msg = t('staking.insufficientTonForStake', {
+        attach: nanoToAmountString(tonEstimate.recommendedNano),
+      });
+      setError(msg);
+      toast.error(msg, { title: t('staking.stakeFailed') });
+      return;
+    }
     setPhase('signing');
     const res = await onConfirmStake(tier, nano);
     if (res.ok) {
@@ -147,7 +200,13 @@ export function StakeModal({
     } else {
       setPhase('edit');
     }
-  }, [amountStr, balance, onConfirmStake, t, tier]);
+  }, [amountStr, balance, insufficientTon, onConfirmStake, t, tier, toast, tonEstimate.recommendedNano]);
+
+  const confirmDisabled =
+    balance <= 0n ||
+    insufficientTon ||
+    amountNano <= 0n ||
+    amountNano > balance;
 
   if (!open) {
     return null;
@@ -247,7 +306,18 @@ export function StakeModal({
             </div>
             <div id="stake-balance-hint" className={styles.muted} style={{ fontSize: 12, marginTop: 6 }}>
               {t('staking.walletBalance', { amount: formatBurn(balance) })}
+              {tonBalanceNano !== null ? (
+                <>
+                  {' · '}
+                  {t('staking.tonBalanceLabel', { amount: nanoToAmountString(tonBalanceNano) })}
+                </>
+              ) : null}
             </div>
+            <p className={styles.muted} style={{ fontSize: 12, marginTop: 6 }} role="status">
+              {t('staking.tonGasDepositHint', {
+                attach: nanoToAmountString(tonEstimate.recommendedNano),
+              })}
+            </p>
             <input
               type="range"
               className={styles.slider}
@@ -280,9 +350,12 @@ export function StakeModal({
               />
             ) : null}
 
-            {error ? (
+            {error || insufficientTon ? (
               <p id="stake-amount-error" className={styles.errText} role="alert">
-                {error}
+                {error ??
+                  t('staking.insufficientTonForStake', {
+                    attach: nanoToAmountString(tonEstimate.recommendedNano),
+                  })}
               </p>
             ) : null}
 
@@ -290,6 +363,7 @@ export function StakeModal({
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               style={{ width: '100%', marginTop: 16 }}
+              disabled={confirmDisabled}
               onClick={() => void validateAndSubmit()}
             >
               {t('staking.stakeConfirm')}

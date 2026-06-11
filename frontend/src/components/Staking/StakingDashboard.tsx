@@ -202,6 +202,7 @@ export function StakingDashboard() {
   }, [stakes]);
 
   const stakeModalExisting = stakeByTier.get(stakeModalTier)?.amount ?? 0n;
+  const stakeModalPending = stakeByTier.get(stakeModalTier)?.pendingReward ?? 0n;
   const notConfigured = error instanceof StakingError && error.code === 'CONFIG';
 
   if (notConfigured) {
@@ -428,6 +429,7 @@ export function StakingDashboard() {
         tierConfigs={tierConfigs}
         walletBalanceNano={burn.balance}
         existingStakeInTierNano={stakeModalExisting}
+        pendingRewardInTierNano={stakeModalPending}
         onConfirmStake={onConfirmStake}
       />
 
