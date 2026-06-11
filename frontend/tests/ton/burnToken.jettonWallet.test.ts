@@ -93,6 +93,26 @@ describe('resolveUserJettonWalletAddress', () => {
     expect(resolved).toBe(JETTON_USER_WALLET);
   });
 
+  it('resolves when Ton Center v2 returns the slice as ["cell", {bytes}] (real response shape)', async () => {
+    const { addressToSliceStackBoc } = await import('@/ton/burnToken');
+    const sliceB64 = addressToSliceStackBoc(JETTON_USER_WALLET);
+
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: { exit_code: 0, stack: [['cell', { bytes: sliceB64 }]] },
+      }),
+    );
+
+    const resolved = await resolveUserJettonWalletAddress(USER, {
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      jettonMaster: MASTER,
+    });
+
+    expect(resolved).toBe(JETTON_USER_WALLET);
+  });
+
   it('maps fetch failure to NETWORK_ERROR', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('timeout'));
 

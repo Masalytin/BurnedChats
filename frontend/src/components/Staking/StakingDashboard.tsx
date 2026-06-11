@@ -164,7 +164,11 @@ export function StakingDashboard() {
     async (tierParam: StakingTier, amount: bigint) => {
       const r = await stake({ tier: tierParam, amount });
       if (!r.ok) {
-        toast.error(txFailMessage(r, t('staking.txFailed')), { title: t('staking.stakeFailed') });
+        const message =
+          r.code === 'JETTON_WALLET_NOT_DEPLOYED'
+            ? t('staking.noJettonWallet')
+            : txFailMessage(r, t('staking.txFailed'));
+        toast.error(message, { title: t('staking.stakeFailed') });
         return { ok: false };
       }
       void burn.refetch();

@@ -334,6 +334,7 @@
     "unstakeLocked": "Позиция ещё заблокирована.",
     "unstakeOverStake": "Сумма больше вашего стейка.",
     "txFailed": "Транзакция не выполнена.",
+    "noJettonWallet": "У вас ещё нет кошелька токена BURN. Получите BURN на свой адрес, затем повторите попытку.",
     "claimFailed": "Не удалось получить награду",
     "claimSuccess": "Claim отправлен",
     "claimAllSuccess": "Все claim отправлены",

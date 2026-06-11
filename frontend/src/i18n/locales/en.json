@@ -326,6 +326,7 @@
     "unstakeLocked": "This position is still locked.",
     "unstakeOverStake": "Amount exceeds your stake.",
     "txFailed": "Transaction was not completed.",
+    "noJettonWallet": "You don't have a BURN token wallet yet. Receive some BURN to your address first, then try again.",
     "claimFailed": "Claim failed",
     "claimSuccess": "Claim submitted",
     "claimAllSuccess": "All claims submitted",

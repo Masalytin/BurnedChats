@@ -15,7 +15,7 @@ export interface TransactionMessage {
 
 export type TxResult =
   | { ok: true; boc: string }
-  | { ok: false; kind: 'user_rejected'; message?: string }
-  | { ok: false; kind: 'insufficient_ton'; message?: string }
-  | { ok: false; kind: 'network'; message?: string }
-  | { ok: false; kind: 'unknown'; message?: string };
+  | { ok: false; kind: 'user_rejected'; message?: string; code?: string }
+  | { ok: false; kind: 'insufficient_ton'; message?: string; code?: string }
+  | { ok: false; kind: 'network'; message?: string; code?: string }
+  | { ok: false; kind: 'unknown'; message?: string; code?: string };

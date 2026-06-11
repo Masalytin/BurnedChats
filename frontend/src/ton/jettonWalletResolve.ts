@@ -39,24 +39,38 @@ function maskAddress(addr: string): string {
   return `${t.slice(0, 4)}…${t.slice(-4)}`;
 }
 
-function parseStackSlots(stack: unknown): StackSlot[] {
-  if (!Array.isArray(stack)) {
-    return [];
+const SLICE_LIKE_STACK_TYPES = new Set(['tvm.Slice', 'slice', 'tvm.Cell', 'cell']);
+
+function sliceCellB64FromValue(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value;
   }
-  const out: StackSlot[] = [];
-  for (const row of stack) {
-    if (Array.isArray(row) && row.length >= 2 && typeof row[0] === 'string' && typeof row[1] === 'string') {
-      out.push([row[0], row[1]]);
+  if (value !== null && typeof value === 'object') {
+    const bytes = (value as { bytes?: unknown }).bytes;
+    if (typeof bytes === 'string') {
+      return bytes;
     }
   }
-  return out;
+  return null;
 }
 
-function firstStackSliceCellB64(stack: unknown): string | null {
-  const slots = parseStackSlots(stack);
-  for (const [t, v] of slots) {
-    if (t === 'tvm.Slice') {
-      return v;
+/**
+ * Extracts the first slice/cell BoC (base64) from a Ton Center `runGetMethod` response stack.
+ *
+ * Ton Center API v2 serializes slice results as `["cell", {"bytes": "<b64>"}]` —
+ * NOT as the `["tvm.Slice", "<b64>"]` shape used for request stacks. Both shapes
+ * (plus plain-string values) are accepted here for relay/test compatibility.
+ */
+export function firstStackSliceCellB64(stack: unknown): string | null {
+  if (!Array.isArray(stack)) {
+    return null;
+  }
+  for (const row of stack) {
+    if (Array.isArray(row) && row.length >= 2 && typeof row[0] === 'string' && SLICE_LIKE_STACK_TYPES.has(row[0])) {
+      const b64 = sliceCellB64FromValue(row[1]);
+      if (b64) {
+        return b64;
+      }
     }
   }
   return null;

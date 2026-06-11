@@ -1,6 +1,6 @@
 import { Address, beginCell, Cell } from '@ton/core';
 
-import type { JettonWalletResolveDeps } from '@/ton/jettonWalletResolve';
+import { firstStackSliceCellB64, type JettonWalletResolveDeps } from '@/ton/jettonWalletResolve';
 import { defaultFetch, resolveApiKey, resolveIsTestNet, resolveRpcBaseUrl } from '@/ton/rpc';
 
 export type RecipientJettonPreflight = {
@@ -41,16 +41,6 @@ function parseStackSlots(stack: unknown): StackSlot[] {
     }
   }
   return out;
-}
-
-function firstStackSliceCellB64(stack: unknown): string | null {
-  const slots = parseStackSlots(stack);
-  for (const [t, v] of slots) {
-    if (t === 'tvm.Slice') {
-      return v;
-    }
-  }
-  return null;
 }
 
 function parseNumHex(hex: string): bigint {

@@ -1,6 +1,7 @@
 import { Address, Cell } from '@ton/core';
 
 import { sendTonTransaction } from '@/ton/connector';
+import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { resolveIsTestNet } from '@/ton/rpc';
 import {
   buildCreateProposalMsg,
@@ -457,16 +458,6 @@ function decodeAddressFromSliceBoc(b64: string): string {
   const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0]!;
   const a = cell.beginParse().loadAddress();
   return a.toString({ bounceable: true, testOnly: resolveIsTestNet(), urlSafe: true });
-}
-
-function firstStackSliceCellB64(stack: unknown): string | null {
-  const slots = parseStackSlots(stack);
-  for (const [t, v] of slots) {
-    if (t === 'tvm.Slice') {
-      return v;
-    }
-  }
-  return null;
 }
 
 async function fetchProposalContractAddress(r: ResolvedGovernanceDeps, proposalId: number): Promise<string> {

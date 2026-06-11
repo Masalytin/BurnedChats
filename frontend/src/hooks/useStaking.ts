@@ -10,6 +10,7 @@ import {
   getTierConfigs,
   stakeTx,
   unstakeTx,
+  StakingError,
 } from '@/ton/staking';
 
 import { useTonConnect } from './useTonConnect';
@@ -58,6 +59,28 @@ function mergeOptimistic(chain: StakeInfo[], extra: Partial<Record<StakingTier, 
     const s = byTier.get(t);
     return s !== undefined && s.amount > 0n ? [s] : [];
   });
+}
+
+/**
+ * Staking tx builders throw {@link StakingError} (e.g. jetton wallet resolve failures)
+ * before reaching Ton Connect; fold those into the `TxResult` failure contract so UI
+ * surfaces a toast instead of an unhandled promise rejection.
+ */
+function txResultFromError(e: unknown): TxResult {
+  if (e instanceof StakingError) {
+    switch (e.code) {
+      case 'USER_REJECTED':
+        return { ok: false, kind: 'user_rejected', message: e.message, code: e.code };
+      case 'INSUFFICIENT_TON_GAS':
+        return { ok: false, kind: 'insufficient_ton', message: e.message, code: e.code };
+      case 'NETWORK_ERROR':
+      case 'JETTON_WALLET_UNRESOLVED':
+        return { ok: false, kind: 'network', message: e.message, code: e.code };
+      default:
+        return { ok: false, kind: 'unknown', message: e.message, code: e.code };
+    }
+  }
+  return { ok: false, kind: 'unknown', message: e instanceof Error ? e.message : String(e) };
 }
 
 function applyPendingToStakes(
@@ -217,7 +240,12 @@ export function useStaking(): UseStaking {
       if (!walletAddress) {
         return { ok: false, kind: 'unknown', message: 'Connect wallet before staking' };
       }
-      const tx = await stakeTx({ ...params, walletAddress });
+      let tx: TxResult;
+      try {
+        tx = await stakeTx({ ...params, walletAddress });
+      } catch (e) {
+        return txResultFromError(e);
+      }
       if (tx.ok) {
         setOptimisticByTier((prev) => ({
           ...prev,
@@ -236,7 +264,12 @@ export function useStaking(): UseStaking {
       if (!walletAddress) {
         return { ok: false, kind: 'unknown', message: 'Connect wallet before unstaking' };
       }
-      const tx = await unstakeTx({ ...params, walletAddress });
+      let tx: TxResult;
+      try {
+        tx = await unstakeTx({ ...params, walletAddress });
+      } catch (e) {
+        return txResultFromError(e);
+      }
       if (tx.ok) {
         scheduleTxTriggeredRefresh();
         window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
@@ -251,7 +284,12 @@ export function useStaking(): UseStaking {
       if (!walletAddress) {
         return { ok: false, kind: 'unknown', message: 'Connect wallet before claiming' };
       }
-      const tx = await claimTx({ ...params, walletAddress });
+      let tx: TxResult;
+      try {
+        tx = await claimTx({ ...params, walletAddress });
+      } catch (e) {
+        return txResultFromError(e);
+      }
       if (tx.ok) {
         scheduleTxTriggeredRefresh();
         window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
