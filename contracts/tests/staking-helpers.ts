@@ -141,6 +141,28 @@ export async function jettonStakeToMaster(
     });
 }
 
+/** Stake via user's jetton wallet with custom forward TON (for gas guard tests). */
+export async function stakeAsWithForward(
+    env: StakingTestEnv,
+    user: SandboxContract<TreasuryContract>,
+    tier: number,
+    amountNano: bigint,
+    forwardTonNano: bigint,
+    attachTonNano = toNano('10'),
+) {
+    const userJw = env.blockchain.openContract(
+        BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+    );
+    return userJw.sendTransfer(user.getSender(), {
+        jettonAmount: amountNano,
+        destinationOwner: env.stakingMaster.address,
+        responseDestination: user.address,
+        forwardTonAmount: forwardTonNano,
+        forwardPayload: stakeForwardPayload(tier),
+        value: attachTonNano,
+    });
+}
+
 /** Stake via user's jetton wallet (TransferNotification → StakingMaster). */
 export async function stakeAs(
     env: StakingTestEnv,

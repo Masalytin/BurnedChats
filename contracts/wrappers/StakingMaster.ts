@@ -93,4 +93,13 @@ export class StakingMaster extends StakingMasterBase {
         };
         return this.send(provider, via, { value: toNano('4') }, msg);
     }
+
+    async sendJettonExcesses(provider: ContractProvider, via: Sender, queryId = 0n, value = toNano('0.5')) {
+        return this.send(
+            provider,
+            via,
+            { value },
+            { $$type: 'JettonExcesses' as const, queryId },
+        );
+    }
 }

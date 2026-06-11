@@ -18,6 +18,7 @@ import {
     mintAndSyncUser,
     setupStakingEnvironment,
     stakeAs,
+    stakeAsWithForward,
     tickEmissionViaMicroUnstake,
     wireMasterJettonWallet,
     EMISSION_NANO_PER_SEC,
@@ -985,6 +986,62 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
             assertPendingRewardCloseToNano(silverY, 1_332_921_600n, 5_000n);
             assertPendingRewardCloseToNano(goldY, 3_332_304_000n, 5_000n);
             assertPendingRewardCloseToNano(diaY, 6_664_608_000n, 5_000n);
+        });
+    });
+});
+
+describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
+    it('rejects JettonNotification with insufficient forward TON (no stake recorded)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stake-gas01-lowfwd.json');
+        const user = await env.blockchain.treasury('low-fwd');
+        const amt = MIN_STAKE_NANO * 2n;
+        await mintAndSyncUser(env, user, amt);
+
+        const tx = await stakeAsWithForward(env, user, 0, amt, toNano('0.1'));
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: false,
+            exitCode: StakingMaster_errors_backward['Low TON stake'],
+        });
+        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
+        expect(await env.pool.getGetTotalStake(0n)).toBe(0n);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const jwBal = (await masterJw.getGetWalletData()).balance;
+        expect(jwBal).toBeGreaterThanOrEqual(amt);
+        expect(jwBal).toBeLessThan(amt + MIN_STAKE_NANO);
+    });
+
+    it('accepts stake with sufficient forward TON (5 TON profile)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stake-gas01-ok.json');
+        const user = await env.blockchain.treasury('ok-fwd');
+        const amt = MIN_STAKE_NANO * 3n;
+        await mintAndSyncUser(env, user, amt);
+
+        const tx = await stakeAs(env, user, 0, amt);
+        expect(tx.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(amt);
+        expect(await env.pool.getGetTotalStake(0n)).toBe(amt);
+    });
+
+    it('JettonExcesses on Master returns TON to sender (no exit 130)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stake-gas01-excess.json');
+        const sender = await env.blockchain.treasury('excess-sender');
+        const excessValue = toNano('0.55');
+
+        const tx = await env.stakingMaster.sendJettonExcesses(sender.getSender(), 42n, excessValue);
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            op: 0xd53276db,
+            success: true,
+            exitCode: 0,
+        });
+        expect(tx.transactions).toHaveTransaction({
+            from: env.stakingMaster.address,
+            to: sender.address,
+            success: true,
         });
     });
 });

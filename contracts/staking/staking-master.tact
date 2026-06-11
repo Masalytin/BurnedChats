@@ -323,6 +323,19 @@ contract StakingMaster(
         self.lastEmitTime = nowTs;
     }
 
+    /// Minimum TON on JettonNotification (forward from user JW). Mirrors UnstakeJetton guard pattern.
+    inline fun minStakeNotifyTon(staker: Address, tier: Int): Int {
+        let minNotify = self.GasForwardStakeJetton + self.GasToPool * 2 + ton("0.08");
+        let oldOpt = self.stakesMapGet(tier, staker);
+        if (oldOpt != null) {
+            let pendingOld = self.calculatePendingRewardFor(staker, tier);
+            if (pendingOld > 0) {
+                minNotify = minNotify + self.GasPayRewards;
+            }
+        }
+        return minNotify;
+    }
+
     fun parseStakeTier(forwardPayload: Slice): Int {
         require(forwardPayload.preloadUint(1) == 1, "Stake payload required");
         let br = calculateSliceBitsAndRefs(forwardPayload);
@@ -372,6 +385,10 @@ contract StakingMaster(
         cashback(sender());
     }
 
+    receive(msg: JettonExcesses) {
+        cashback(sender());
+    }
+
     receive(msg: SetMasterJettonWallet) {
         require(sender() == self.bootstrapOwner, "Only bootstrap");
         require(!self.jwConfigured, "JW already set");
@@ -392,10 +409,11 @@ contract StakingMaster(
             return;
         }
 
-        self.tickEmission();
-
         let tierAsInt = self.parseStakeTier(msg.forwardPayload);
         let staker = msg.sender;
+        require(context().value >= self.minStakeNotifyTon(staker, tierAsInt), "Low TON stake");
+
+        self.tickEmission();
 
         let oldOpt = self.stakesMapGet(tierAsInt, staker);
         let start = now();
