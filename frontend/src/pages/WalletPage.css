@@ -34,6 +34,17 @@
   z-index: 0;
 }
 
+.wallet-page__panel {
+  margin-top: var(--bc-spacing-xs);
+}
+
+.wallet-page__panel-loading {
+  margin: var(--bc-spacing-md) 0 0;
+  text-align: center;
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-sm);
+}
+
 .wallet-segment__tab {
   position: relative;
   z-index: 1;

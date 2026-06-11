@@ -139,6 +139,7 @@
 
   "wallet": {
     "segment": {
+      "wallet": "Кошелёк",
       "staking": "Стейкинг",
       "governance": "Governance"
     },

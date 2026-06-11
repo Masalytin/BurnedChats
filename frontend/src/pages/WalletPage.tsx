@@ -1,24 +1,28 @@
-import { useCallback, useLayoutEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useContext, useLayoutEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { WalletPanel } from '@/components/Wallet/WalletPanel';
+import { WalletContext } from '@/components/Wallet/WalletProvider';
 import { useTelegram } from '../hooks/useTelegram';
 import { StakingPage } from './StakingPage';
 import './WalletPage.css';
 
 const WALLET_SEGMENT_KEY = 'bc:wallet:segment';
 
-type WalletSegment = 'staking' | 'governance';
+type WalletSegment = 'wallet' | 'staking' | 'governance';
+
+const SEGMENT_ORDER: WalletSegment[] = ['wallet', 'staking', 'governance'];
 
 function readWalletSegment(): WalletSegment {
   try {
     const value = sessionStorage.getItem(WALLET_SEGMENT_KEY);
-    if (value === 'staking' || value === 'governance') {
+    if (value === 'wallet' || value === 'staking' || value === 'governance') {
       return value;
     }
   } catch {
     // sessionStorage unavailable (SSR / private mode)
   }
-  return 'staking';
+  return 'wallet';
 }
 
 function writeWalletSegment(segment: WalletSegment): void {
@@ -29,6 +33,10 @@ function writeWalletSegment(segment: WalletSegment): void {
   }
 }
 
+function segmentIndex(segment: WalletSegment): number {
+  return SEGMENT_ORDER.indexOf(segment);
+}
+
 interface WalletSegmentControlProps {
   activeSegment: WalletSegment;
   onChange: (segment: WalletSegment) => void;
@@ -36,19 +44,16 @@ interface WalletSegmentControlProps {
 
 function WalletSegmentControl({ activeSegment, onChange }: WalletSegmentControlProps) {
   const { t } = useTranslation();
-  const activeIndex = activeSegment === 'governance' ? 1 : 0;
 
   const pillStyle = {
-    '--pill-index': activeIndex,
-    '--pill-count': 2,
+    '--pill-index': segmentIndex(activeSegment),
+    '--pill-count': SEGMENT_ORDER.length,
   } as CSSProperties;
-
-  const segments: WalletSegment[] = ['staking', 'governance'];
 
   return (
     <div className="wallet-segment" role="tablist" aria-label={t('nav.wallet')}>
       <div className="wallet-segment__pill" style={pillStyle} aria-hidden="true" />
-      {segments.map((segment) => {
+      {SEGMENT_ORDER.map((segment) => {
         const isActive = segment === activeSegment;
         return (
           <button
@@ -67,8 +72,23 @@ function WalletSegmentControl({ activeSegment, onChange }: WalletSegmentControlP
   );
 }
 
+function WalletPanelSection() {
+  const { t } = useTranslation();
+  const walletCtx = useContext(WalletContext);
+
+  if (!walletCtx) {
+    return <p className="wallet-page__panel-loading">{t('wallet.balanceLoading')}</p>;
+  }
+
+  return (
+    <div className="wallet-page__panel">
+      <WalletPanel />
+    </div>
+  );
+}
+
 /**
- * Wallet tab: segmented Staking | Governance entry (IMP-NAV-03).
+ * Wallet tab: Wallet | Staking | Governance segments (IMP-WSURF-03).
  * Governance navigates to `/app/governance`; segment choice persists in sessionStorage.
  */
 export function WalletPage() {
@@ -107,8 +127,8 @@ export function WalletPage() {
   return (
     <div className="wallet-page">
       <h1 className="wallet-page__title">{t('nav.wallet')}</h1>
-      <WalletSegmentControl activeSegment="staking" onChange={handleSegmentChange} />
-      <StakingPage />
+      <WalletSegmentControl activeSegment={segment} onChange={handleSegmentChange} />
+      {segment === 'wallet' ? <WalletPanelSection /> : <StakingPage />}
     </div>
   );
 }
