@@ -1,25 +1,20 @@
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { UseBurnToken } from '@/hooks/useBurnToken';
-import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { useToast } from '@/components/Toast';
 
 import { Balance } from './Balance';
 import { History } from './History';
 import { SendModal } from './SendModal';
-import { WalletContext } from './WalletProvider';
+import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
 type Panel = 'main' | 'history';
 
 export interface WalletPanelProps {
-  /** Transitional: WalletDrawer renders outside WalletProvider until IMP-WSURF-04. */
-  burn?: UseBurnToken;
-  ton?: UseTonConnectResult;
-  /** Sheet/drawer shell uses this for the dialog title. */
+  /** Sheet shell uses this for the dialog title. */
   onTitleChange?: (title: string) => void;
-  /** Sheet/drawer shell blocks close while send modal is open. */
+  /** Sheet shell blocks close while send modal is open. */
   onSendOpenChange?: (open: boolean) => void;
 }
 
@@ -27,18 +22,10 @@ export interface WalletPanelProps {
  * Core wallet UI: balance, history, send/receive, connect CTA — embeddable without modal chrome.
  */
 export function WalletPanel({
-  burn: burnProp,
-  ton: tonProp,
   onTitleChange,
   onSendOpenChange,
 }: WalletPanelProps) {
-  const walletCtx = useContext(WalletContext);
-  const burn = burnProp ?? walletCtx?.burn;
-  const ton = tonProp ?? walletCtx?.ton;
-
-  if (!burn || !ton) {
-    throw new Error('WalletPanel requires burn/ton from WalletProvider or explicit props');
-  }
+  const { burn, ton } = useWallet();
 
   const { t } = useTranslation();
   const toast = useToast();

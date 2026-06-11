@@ -51,7 +51,6 @@ import { ProposalDetail } from './components/Governance/ProposalDetail';
 import { ProposalList } from './components/Governance/ProposalList';
 import { GovernancePage } from './pages/GovernancePage';
 import { StakingPage } from './pages/StakingPage';
-import { LazyWalletChrome } from './components/Wallet/LazyWalletChrome';
 import { LazyWalletProvider } from './components/Wallet/LazyWalletProvider';
 import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
@@ -1560,26 +1559,18 @@ function AppContent() {
     }
   }, [keyRefreshSessionId, clearKeyRefresh, startHandshake]);
 
-  const showWalletChrome =
+  const showWalletProvider =
     isReady &&
     !isAuthLoading &&
     isAuthenticated &&
     !initError &&
     !(wsError && !wsError.recoverable);
 
-  const shouldMountWalletChromeUi =
-    showWalletChrome && (environment === 'browser' || telegramWalletChromeRequested);
-
-  const walletChrome = shouldMountWalletChromeUi ? (
-    <WalletErrorBoundary>
-      <Suspense fallback={null}>
-        <LazyWalletChrome />
-      </Suspense>
-    </WalletErrorBoundary>
-  ) : null;
+  const shouldMountWalletProvider =
+    showWalletProvider && (environment === 'browser' || telegramWalletChromeRequested);
 
   const wrapWalletProvider = (children: ReactNode): ReactNode => {
-    if (!shouldMountWalletChromeUi) {
+    if (!shouldMountWalletProvider) {
       return children;
     }
     return (
@@ -1591,16 +1582,9 @@ function AppContent() {
     );
   };
 
-  const withWalletUi = (main: ReactNode): ReactNode => (
-    <>
-      {walletChrome}
-      {wrapWalletProvider(main)}
-    </>
-  );
-
   // Loading state
   if (!isReady || isAuthLoading) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <LoadingOverlay message="Loading BurnedChats..." />
       </>
@@ -1608,7 +1592,7 @@ function AppContent() {
   }
 
   if (environment === 'browser' && !isAuthenticated) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <WalletLoginScreen />
       </>
@@ -1617,7 +1601,7 @@ function AppContent() {
 
   // Initialization error
   if (initError) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <div className="error-screen">
           <div className="error-icon">&#9888;&#65039;</div>
@@ -1630,7 +1614,7 @@ function AppContent() {
 
   // Non-recoverable WebSocket error
   if (wsError && !wsError.recoverable) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <div className="error-screen">
           <div className="error-icon">&#128274;</div>
@@ -1661,7 +1645,7 @@ function AppContent() {
   ) : null;
 
   if (location.pathname.startsWith('/app/governance')) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout bottomNav={layoutBottomNav}>
           <Routes>
@@ -1678,7 +1662,7 @@ function AppContent() {
   }
 
   if (location.pathname === '/app/staking') {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout bottomNav={layoutBottomNav}>
           <StakingPage />
@@ -1689,7 +1673,7 @@ function AppContent() {
   }
 
   if (location.pathname.startsWith('/app/wallet')) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout bottomNav={layoutBottomNav}>
           <WalletPage />
@@ -1700,7 +1684,7 @@ function AppContent() {
   }
 
   if (location.pathname.startsWith('/app/settings')) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout bottomNav={layoutBottomNav}>
           <SettingsPage
@@ -1716,7 +1700,7 @@ function AppContent() {
 
   // Pending request view (waiting for recipient to accept)
   if (currentView === 'pending-request' && pendingSession) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <PendingRequestView
@@ -1731,7 +1715,7 @@ function AppContent() {
 
   // Incoming request view (someone wants to chat with us)
   if (currentView === 'incoming-request' && activeIncomingRequest) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <IncomingRequestView
@@ -1751,7 +1735,7 @@ function AppContent() {
 
   // Handshake view (establishing encrypted connection)
   if (currentView === 'handshake') {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <HandshakeView
@@ -1768,7 +1752,7 @@ function AppContent() {
 
   // Chat view (active chat)
   if (currentView === 'chat' && activeChat && myInternalId !== null) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout fullBleed>
           <ChatViewContent
@@ -1799,7 +1783,7 @@ function AppContent() {
 
   // Create room view
   if (currentView === 'create-room') {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <CreateRoomView
@@ -1819,7 +1803,7 @@ function AppContent() {
 
   // Join room view (opened via Telegram invite deep link) — P2-2.2.4
   if (currentView === 'join-room' && inviteToken) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <JoinRoomView
@@ -1848,7 +1832,7 @@ function AppContent() {
       ? joinRequests.filter(r => r.roomId === activeRoomId)
       : joinRequests;
 
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <RoomJoinRequestsView
@@ -1875,7 +1859,7 @@ function AppContent() {
     // (e.g. immediately after room creation before fetchRooms completes).
     const isRoomOwner = activeRoom ? activeRoom.role === 'owner' : (activeRoomChat.isOwner ?? false);
 
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout fullBleed>
           <RoomChatRoom
@@ -1903,7 +1887,7 @@ function AppContent() {
 
   // Room manage view (P2-4.3.1) — owner only
   if (currentView === 'room-manage' && activeRoomChat) {
-    return withWalletUi(
+    return wrapWalletProvider(
       <>
         <Layout>
           <RoomManageView
@@ -1935,7 +1919,7 @@ function AppContent() {
   }
 
   // Default: Home view
-  return withWalletUi(
+  return wrapWalletProvider(
     <>
       <Layout bottomNav={layoutBottomNav}>
         <HomePage
