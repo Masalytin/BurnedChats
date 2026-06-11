@@ -1,0 +1,40 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(220px, 40vw);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--bc-border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--bc-bg-secondary, rgba(255, 255, 255, 0.08));
+  color: var(--bc-text-primary, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--bc-brand-primary, #3390ec);
+  outline-offset: 2px;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bc-brand-primary, #3390ec);
+  color: var(--bc-text-on-brand, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}

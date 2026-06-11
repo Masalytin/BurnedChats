@@ -6,6 +6,7 @@ import type { ActiveSession } from '../hooks/useActiveSessions';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
 import { RoomCard } from '../components/RoomCard';
+import { BalanceChip } from '../components/Wallet/BalanceChip';
 import { FlameIcon, SearchIcon, ShieldIcon, CloseIcon, CopyIcon, RefreshIcon, ArrowUpIcon, LockIcon } from '../icons';
 import './HomePage.css';
 
@@ -190,6 +191,7 @@ export function HomePage({
             <h1 className="home-title">BurnedChats</h1>
           </div>
           <div className="home-status">
+            <BalanceChip />
             <StatusBadge 
               status={connectionStatus} 
               size="sm"
