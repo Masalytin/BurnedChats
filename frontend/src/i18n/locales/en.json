@@ -88,7 +88,7 @@
 
   "walletLogin": {
     "title": "Burned Chats",
-    "subtitle": "Connect your TON wallet to sign in in the browser.",
+    "subtitle": "Connect your TON wallet to sign in from your browser.",
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — via QR or deep link",
     "connect": "Connect TON wallet",
     "busy": "Waiting for wallet…",

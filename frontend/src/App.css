@@ -84,7 +84,7 @@
 
 .wallet-login-screen {
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-height);
   display: grid;
   place-items: center;
   padding: var(--bc-spacing-xl);
@@ -99,30 +99,35 @@
   box-shadow: var(--bc-shadow-md);
   padding: var(--bc-spacing-xl);
   text-align: center;
+  animation: slideUp var(--bc-transition-slow) var(--bc-ease-out) both;
 }
 
 .wallet-login-screen__logo {
   width: 56px;
   height: 56px;
-  border-radius: var(--bc-radius-md);
   margin-bottom: var(--bc-spacing-md);
+  color: var(--bc-brand-primary);
+  filter: drop-shadow(var(--bc-shadow-glow));
 }
 
 .wallet-login-screen__title {
   margin: 0 0 var(--bc-spacing-sm);
   color: var(--bc-text-primary);
   font-size: var(--bc-text-2xl);
+  text-wrap: balance;
 }
 
 .wallet-login-screen__subtitle {
   margin: 0 0 var(--bc-spacing-md);
   color: var(--bc-text-secondary);
+  text-wrap: balance;
 }
 
 .wallet-login-screen__wallets {
   margin: 0 0 var(--bc-spacing-lg);
-  color: var(--bc-text-tertiary, var(--bc-text-secondary));
+  color: var(--bc-text-muted);
   font-size: var(--bc-text-sm);
+  text-wrap: balance;
 }
 
 .wallet-connect-button {
@@ -131,23 +136,30 @@
   justify-content: center;
   gap: var(--bc-spacing-sm);
   min-width: 220px;
+  min-height: var(--bc-touch-target);
   padding: var(--bc-spacing-md) var(--bc-spacing-lg);
   border: none;
   border-radius: var(--bc-radius-md);
   background: var(--bc-brand-primary);
-  color: var(--bc-bg-primary);
+  color: var(--bc-on-brand);
   font-size: var(--bc-text-base);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background var(--bc-transition-fast),
+    transform var(--bc-transition-fast),
+    box-shadow var(--bc-transition-fast);
 }
 
 .wallet-connect-button:hover:not(:disabled) {
-  background: var(--bc-brand-secondary);
+  background: var(--bc-brand-primary-hover);
+  box-shadow: var(--bc-shadow-glow);
+  transform: translateY(-1px);
 }
 
 .wallet-connect-button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  box-shadow: none;
 }
 
 .wallet-connect-button:disabled {

@@ -31,6 +31,8 @@
   --bc-brand-primary-active: #e55a2a;
   --bc-brand-secondary: #ff9f1c;
   --bc-brand-gradient: linear-gradient(135deg, #ff6b35 0%, #ff9f1c 100%);
+  /* Text/icons placed on top of brand-colored surfaces — theme-independent */
+  --bc-on-brand: #ffffff;
   
   /* Semantic colors */
   --bc-success: #34c759;
@@ -103,10 +105,21 @@
   --bc-radius-xl: 1.5rem;     /* 24px */
   --bc-radius-full: 9999px;
   
+  /* Layout containers & breakpoints.
+   * CSS vars cannot be used inside @media — breakpoints are documented here
+   * and must be used as literals: 768px (tablet), 1024px (desktop). */
+  --bc-content-max: 640px;
+  --bc-touch-target: 44px;
+
   /* ============================================
    * ANIMATION
    * ============================================ */
-  
+
+  /* Easing tokens — entrances decelerate, exits accelerate */
+  --bc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --bc-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --bc-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
   --bc-transition-fast: 150ms ease;
   --bc-transition-normal: 250ms ease;
   --bc-transition-slow: 400ms ease;
@@ -325,6 +338,21 @@ body {
 
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+/* ============================================
+ * REDUCED MOTION
+ * ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 
