@@ -873,6 +873,8 @@
       "retryKey": "Retry",
       "memberCount": "{{count}} members",
       "memberCount_one": "1 member",
+      "epochSubtitle": "E2EE · epoch {{epoch}}",
+      "encryptedTitle": "End-to-end encrypted",
       "sendError": "Failed to send message",
       "keyLoadError": "Failed to load encryption key"
     },

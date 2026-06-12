@@ -58,6 +58,10 @@
   /* Borders & separators */
   --bc-border-color: rgba(255, 255, 255, 0.08);
   --bc-border-color-strong: rgba(255, 255, 255, 0.16);
+  --bc-border: var(--bc-border-color);
+
+  /* Interactive surfaces */
+  --bc-bg-hover: color-mix(in srgb, var(--bc-text-primary) 8%, var(--bc-bg-elevated));
   
   /* Shadows */
   --bc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -110,6 +114,8 @@
    * and must be used as literals: 768px (tablet), 1024px (desktop). */
   --bc-content-max: 640px;
   --bc-touch-target: 44px;
+  --bc-header-height: 3.5rem;
+  --bc-icon-display-size: 2.25rem;
 
   /* iOS-style toggle dimensions */
   --bc-toggle-width: 3.1875rem;   /* 51px */

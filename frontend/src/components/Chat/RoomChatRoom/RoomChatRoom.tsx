@@ -467,7 +467,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const subtitle = hasKey
     ? memberCount != null
       ? t('room.chat.memberCount', { count: memberCount })
-      : `E2EE · epoch ${epoch}`
+      : t('room.chat.epochSubtitle', { epoch })
     : t('room.chat.loadingKey');
 
   const headerLeft = (
@@ -478,7 +478,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           {roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId}
         </span>
         {hasKey && (
-          <span className="room-chat-room-encrypted" title="End-to-End Encrypted">
+          <span
+            className="room-chat-room-encrypted"
+            title={t('room.chat.encryptedTitle')}
+            aria-label={t('room.chat.encryptedTitle')}
+          >
             🔒
           </span>
         )}
@@ -493,7 +497,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       {isOwner && onManage && (
         <button
           type="button"
-          className="room-chat-room-manage"
+          className="chat-screen-icon-btn room-chat-room-manage"
           onClick={onManage}
           aria-label={t('room.manage.title')}
         >
@@ -503,7 +507,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       {!isOwner && onLeave && (
         <button
           type="button"
-          className="room-chat-room-leave"
+          className="chat-screen-icon-btn room-chat-room-leave"
           onClick={handleLeaveClick}
           aria-label={t('room.manage.leaveButton')}
         >
@@ -598,11 +602,15 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             {!isOwner && onRequestKey && (
               <button
                 type="button"
-                className="room-chat-room-retry-btn"
+                className={`room-chat-room-retry-btn${isRequestingKey ? ' room-chat-room-retry-btn--loading' : ''}`}
                 onClick={onRequestKey}
                 disabled={isRequestingKey}
+                aria-busy={isRequestingKey}
               >
-                {t('room.chat.retryKey')}
+                {isRequestingKey && (
+                  <span className="room-chat-room-retry-btn__spinner" aria-hidden />
+                )}
+                {isRequestingKey ? t('room.chat.requestingKey') : t('room.chat.retryKey')}
               </button>
             )}
           </div>

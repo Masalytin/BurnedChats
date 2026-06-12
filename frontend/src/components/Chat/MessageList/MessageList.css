@@ -99,7 +99,8 @@
 }
 
 .message-list-empty-icon {
-  font-size: 3rem;
+  font-size: var(--bc-text-3xl);
+  line-height: 1;
   margin-bottom: var(--bc-spacing-sm);
 }
 

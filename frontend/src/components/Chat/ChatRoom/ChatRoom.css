@@ -11,6 +11,7 @@
 .chat-room-peer-info {
   display: flex;
   flex-direction: column;
+  gap: var(--bc-spacing-xs);
   min-width: 0;
   justify-content: center;
 }
@@ -49,12 +50,11 @@
   font-size: var(--bc-text-xs);
   line-height: var(--bc-leading-tight);
   color: var(--bc-text-muted);
-  margin-top: 2px;
 }
 
 .chat-room-typing {
   color: var(--bc-brand-primary);
-  animation: chat-room-pulse 1.5s ease-in-out infinite;
+  animation: chat-room-pulse var(--bc-transition-slow) ease-in-out infinite;
 }
 
 .chat-room-online {
@@ -65,44 +65,24 @@
   color: var(--bc-text-muted);
 }
 
-/* Burn Button — destructive, icon-only (Telegram-style) */
+/* Burn Button — destructive icon control (extends shared touch target) */
 .chat-room-burn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  border: none;
-  background: transparent;
   color: var(--bc-destructive);
-  cursor: pointer;
   border-radius: var(--bc-radius-md);
-  transition: background var(--bc-transition-fast), transform var(--bc-transition-fast);
 }
 
-.chat-room-burn:hover {
-  background: color-mix(in srgb, var(--bc-destructive) 14%, transparent);
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .chat-room-burn:hover {
+    background: color-mix(in srgb, var(--bc-destructive) 14%, transparent);
+  }
 }
 
-.chat-room-burn:active {
-  transform: scale(0.95);
+.chat-room-burn:focus-visible {
+  outline: 2px solid var(--bc-destructive);
+  outline-offset: 2px;
 }
 
-.chat-room-burn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.chat-room-burn:disabled:hover {
-  background: transparent;
-  transform: none;
-}
-
-/* Error banner — compact, icon + text */
+/* Error banner — compact alert strip */
 .chat-room-error-banner {
   display: flex;
   align-items: center;
@@ -110,12 +90,25 @@
   flex-shrink: 0;
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
   background: var(--bc-error-muted);
   color: var(--bc-error);
+  border-bottom: 1px solid color-mix(in srgb, var(--bc-error) 24%, transparent);
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(calc(var(--bc-spacing-xs) * -1));
+  }
 }
 
 .chat-room-error-banner-icon {
   flex-shrink: 0;
+  color: var(--bc-error);
 }
 
 /* Animations */
@@ -125,5 +118,18 @@
   }
   50% {
     opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-room-typing {
+    animation: none;
+  }
+
+  .chat-room-error-banner {
+    @starting-style {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

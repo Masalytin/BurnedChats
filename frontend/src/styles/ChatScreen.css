@@ -13,7 +13,7 @@
   background: var(--bc-bg-primary);
 }
 
-/* Fixed header at top — Telegram-style (~56px, 8–16px padding) */
+/* Fixed header at top */
 .chat-screen-header {
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   background: var(--bc-bg-secondary);
   border-bottom: 1px solid var(--bc-border-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--bc-shadow-sm);
   flex-shrink: 0;
-  min-height: 56px;
+  min-height: var(--bc-header-height);
   z-index: 1;
 }
 
@@ -38,31 +38,60 @@
 .chat-screen-header-right {
   display: flex;
   align-items: center;
-  gap: var(--bc-spacing-sm);
+  gap: var(--bc-spacing-xs);
   flex-shrink: 0;
 }
 
-.chat-screen-back {
-  display: flex;
+/* Shared icon-only header control — 44px hit area, smaller visual glyph */
+.chat-screen-icon-btn {
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--bc-text-primary);
   cursor: pointer;
   border-radius: var(--bc-radius-full);
-  transition: background var(--bc-transition-fast);
-  flex-shrink: 0;
+  transition:
+    background-color var(--bc-transition-fast),
+    color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out),
+    opacity var(--bc-transition-fast);
 }
 
-.chat-screen-back:hover {
-  background: var(--bc-bg-elevated);
+@media (hover: hover) and (pointer: fine) {
+  .chat-screen-icon-btn:hover {
+    background: var(--bc-bg-hover);
+  }
 }
 
-.chat-screen-back:active {
-  transform: scale(0.95);
+.chat-screen-icon-btn:active {
+  transform: scale(0.97);
+}
+
+.chat-screen-icon-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.chat-screen-icon-btn:disabled {
+  opacity: var(--bc-disabled-opacity);
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chat-screen-icon-btn:disabled:hover {
+    background: transparent;
+  }
 }
 
 /* Scrollable messages area — fills space between header and input */
@@ -71,7 +100,7 @@
   min-height: 0;
 }
 
-/* Fixed input bar at bottom (like CodePen chat footer) */
+/* Fixed input bar at bottom */
 .chat-screen-input {
   flex-shrink: 0;
   z-index: 1;

@@ -887,6 +887,8 @@
       "retryKey": "Повторить",
       "memberCount": "{{count}} участников",
       "memberCount_one": "1 участник",
+      "epochSubtitle": "E2EE · эпоха {{epoch}}",
+      "encryptedTitle": "Сквозное шифрование",
       "sendError": "Не удалось отправить сообщение",
       "keyLoadError": "Не удалось загрузить ключ шифрования"
     },

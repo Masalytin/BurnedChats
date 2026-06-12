@@ -402,7 +402,7 @@ export const ChatRoom = memo(function ChatRoom({
   const headerRight = onBurn ? (
     <button
       type="button"
-      className="chat-room-burn"
+      className="chat-screen-icon-btn chat-room-burn"
       onClick={handleBurnClick}
       disabled={disabled}
       aria-label={t('chat.burnButtonLabel')}

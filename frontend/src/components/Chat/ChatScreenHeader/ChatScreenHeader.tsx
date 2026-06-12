@@ -26,7 +26,7 @@ export function ChatScreenHeader({
         {onBack && (
           <button
             type="button"
-            className="chat-screen-back"
+            className="chat-screen-icon-btn chat-screen-back"
             onClick={onBack}
             aria-label={backAriaLabel}
           >

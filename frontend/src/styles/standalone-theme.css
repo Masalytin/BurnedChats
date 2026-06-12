@@ -19,6 +19,7 @@
   --tg-theme-destructive-text-color: #dc2626;
 
   --bc-bg-elevated: #ffffff;
+  --bc-bg-hover: color-mix(in srgb, var(--bc-text-primary) 6%, var(--bc-bg-elevated));
   --bc-bg-overlay: rgba(17, 24, 39, 0.4);
   --bc-border-color: rgba(17, 24, 39, 0.08);
   --bc-border-color-strong: rgba(17, 24, 39, 0.16);
@@ -46,6 +47,7 @@
     --tg-theme-destructive-text-color: #f87171;
 
     --bc-bg-elevated: #1e293b;
+    --bc-bg-hover: color-mix(in srgb, var(--bc-text-primary) 8%, var(--bc-bg-elevated));
     --bc-bg-overlay: rgba(15, 23, 42, 0.66);
     --bc-border-color: rgba(148, 163, 184, 0.18);
     --bc-border-color-strong: rgba(148, 163, 184, 0.28);
