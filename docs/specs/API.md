@@ -204,6 +204,23 @@ GET /actuator/info
 
 - `500 Internal Server Error` — внутренняя ошибка при выдаче token (`INTERNAL` или необработанное исключение).
 
+#### `POST /api/auth/dev-login` (только dev-профиль)
+
+> **В проде отсутствует.** Контроллер существует только под Spring-профилем
+> `dev` И при `DEV_AUTH_ENABLED=true` (по умолчанию `false`). Прод работает на
+> `prod,testnet` — эндпоинт возвращает 404. Назначение: автономная авторизация
+> ИИ-агентов для UI-тестирования, см.
+> [dev-auth-provider](../improvements/dev-auth-provider/README.md).
+
+Выдаёт обычный opaque session token для синтетической identity `dev-{label}`
+без проверки `ton_proof`. Контракт ответа идентичен `POST /api/auth/wallet`.
+
+**Request body:** `{ "label": "agent-a" }` — `label` соответствует `[a-z0-9-]{1,32}`.
+
+**Response `200 OK`:** `{ "token": "<opaque>", "user": { "internalId": "<uuid>", "displayName": "dev-...nt-a" } }`
+
+**Ошибки:** `400` — невалидный `label`; `404` — выключено флагом или прод-профиль; `500` — ошибка Redis.
+
 ---
 
 ### Account linking (Phase 3): Telegram ↔ TON wallet
