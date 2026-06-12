@@ -114,6 +114,26 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
           setIsAuthenticated(false);
         }
       } else {
+        // Dev-only agent login: statically eliminated from production builds
+        // (`import.meta.env.DEV` is replaced with `false` by `vite build`).
+        if (import.meta.env.DEV) {
+          const { DevAuthProvider, isDevAuthRequested } = await import('./DevAuthProvider');
+          const label = isDevAuthRequested();
+          if (label) {
+            const devProvider = new DevAuthProvider(label);
+            try {
+              const result = await devProvider.authenticate();
+              setProvider(devProvider);
+              setUser(buildWalletUser(result));
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              return;
+            } catch (e) {
+              console.warn('[DevAuth] dev login failed, falling back to wallet login', e);
+            }
+          }
+        }
+
         const walletProvider = new WalletAuthProvider();
         setProvider(walletProvider);
         setUser(null);
@@ -124,7 +144,7 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
     };
 
     void bootstrap();
-  }, [buildTelegramUser]);
+  }, [buildTelegramUser, buildWalletUser]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
