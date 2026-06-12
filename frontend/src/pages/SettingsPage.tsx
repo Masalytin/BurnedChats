@@ -210,11 +210,12 @@ export function SettingsPage({
           <p className="settings-security__hint">{t('settings.security.keysHint')}</p>
           <button
             type="button"
-            className="settings-security__button"
+            className={`settings-security__button${isClearingKeys ? ' settings-security__button--loading' : ''}`}
             onClick={() => void handleClearLocalKeys()}
             disabled={isClearingKeys}
+            aria-busy={isClearingKeys}
           >
-            {t('settings.security.clearKeys')}
+            {isClearingKeys ? t('common.loading') : t('settings.security.clearKeys')}
           </button>
         </div>
       </section>

@@ -1,7 +1,7 @@
 .linked-accounts-card {
   display: flex;
   flex-direction: column;
-  gap: var(--bc-spacing-md, 12px);
+  gap: var(--bc-spacing-md);
 }
 
 .linked-accounts-list {
@@ -10,47 +10,49 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--bc-spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
 }
 
 .linked-account-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--bc-spacing-md, 12px);
+  gap: var(--bc-spacing-md);
   flex-wrap: wrap;
+  min-height: var(--bc-touch-target);
 }
 
 .linked-account-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bc-spacing-xs);
   min-width: 0;
 }
 
 .linked-account-kind {
-  font-size: 0.75rem;
+  font-size: var(--bc-text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.72;
+  letter-spacing: var(--bc-tracking-section);
+  color: var(--bc-text-muted);
 }
 
 .linked-account-value {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
+  font-family: var(--bc-font-mono);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
   word-break: break-all;
 }
 
 .account-linking-actions {
   display: flex;
   flex-direction: column;
-  gap: var(--bc-spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
 }
 
 .account-linking-hint {
-  font-size: 0.875rem;
-  line-height: 1.35;
-  opacity: 0.85;
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-secondary);
 }
 
 .account-linking-link-btn {
@@ -58,6 +60,6 @@
 }
 
 .linked-accounts-muted {
-  font-size: 0.875rem;
-  opacity: 0.75;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-muted);
 }

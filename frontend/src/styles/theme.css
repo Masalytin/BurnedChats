@@ -111,6 +111,23 @@
   --bc-content-max: 640px;
   --bc-touch-target: 44px;
 
+  /* iOS-style toggle dimensions */
+  --bc-toggle-width: 3.1875rem;   /* 51px */
+  --bc-toggle-height: 1.9375rem; /* 31px */
+  --bc-toggle-thumb-size: 1.5625rem; /* 25px */
+  --bc-toggle-padding: 2px;
+  --bc-toggle-travel: 1.25rem;    /* 20px */
+  --bc-toggle-thumb-bg: #ffffff;
+
+  /* Accent surface tint (selected chips, theme pills) */
+  --bc-accent-muted: rgba(255, 107, 53, 0.12);
+
+  /* Interactive disabled state */
+  --bc-disabled-opacity: 0.5;
+
+  /* Section label letter-spacing */
+  --bc-tracking-section: 0.05em;
+
   /* ============================================
    * ANIMATION
    * ============================================ */

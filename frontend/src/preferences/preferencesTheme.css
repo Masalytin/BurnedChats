@@ -15,4 +15,5 @@ html[data-bc-theme='dark'] {
   --bc-message-incoming-text: #ffffff;
   --bc-button-secondary-bg: #242424;
   --bc-button-secondary-text: #ffffff;
+  --bc-accent-muted: rgba(255, 107, 53, 0.16);
 }
