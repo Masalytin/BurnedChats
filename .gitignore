@@ -199,3 +199,6 @@ certs/*.p12
 
 # SSH keys
 .ssh/*
+
+# Python cache (skill scripts)
+__pycache__/
