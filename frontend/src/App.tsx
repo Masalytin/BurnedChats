@@ -1649,7 +1649,7 @@ function AppContent() {
       <>
         <Layout bottomNav={layoutBottomNav}>
           <Routes>
-            <Route path="/app/governance" element={<GovernancePage />}>
+            <Route path="governance" element={<GovernancePage />}>
               <Route index element={<ProposalList />} />
               <Route path="new" element={<CreateProposal />} />
               <Route path=":proposalId" element={<ProposalDetail />} />
