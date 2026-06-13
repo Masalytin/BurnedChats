@@ -126,6 +126,12 @@
   --bc-toggle-travel: 1.25rem;    /* 20px */
   --bc-toggle-thumb-bg: #ffffff;
 
+  /* Staking tier icon tones */
+  --bc-tier-diamond: var(--bc-text-link);
+  --bc-tier-gold: var(--bc-brand-secondary);
+  --bc-tier-silver: var(--bc-text-secondary);
+  --bc-tier-flexible: var(--bc-success);
+
   /* Accent surface tint (selected chips, theme pills) */
   --bc-accent-muted: rgba(255, 107, 53, 0.12);
 

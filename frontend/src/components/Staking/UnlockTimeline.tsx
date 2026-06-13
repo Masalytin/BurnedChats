@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { StakeInfo } from '@/types/ton';
 import { formatTierName } from '@/utils/staking-format';
 
-import { tierEmoji } from './TierBadge';
 import { barScaleStyle } from './barScale';
+import { TierIcon } from './TierIcon';
 import styles from './Staking.module.css';
 
 function pct(now: number, start: number, end: number): number {
@@ -44,12 +44,14 @@ export function UnlockTimeline({ stakes }: UnlockTimelineProps) {
         {t('staking.timelineTitle')}
       </div>
       {locked.map((s) => {
-        const label = `${tierEmoji(s.tier)} ${formatTierName(s.tier, t)}`;
         const width = pct(now, s.startTime, s.unlockTime);
         return (
           <div key={s.tier} className={styles.timelineRow}>
             <div className={styles.timelineLabel}>
-              <span>{label}</span>
+              <span className={styles.timelineLabelTier}>
+                <TierIcon tier={s.tier} size={16} />
+                {formatTierName(s.tier, t)}
+              </span>
               <span className={styles.muted}>
                 {new Date(s.unlockTime * 1000).toLocaleString(undefined, {
                   dateStyle: 'medium',

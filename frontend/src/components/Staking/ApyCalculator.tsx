@@ -13,9 +13,7 @@ import {
   calculateApyForInput,
   type NetworkActivityPreset,
 } from '@/utils/apy';
-import { formatLockDuration } from '@/utils/staking-format';
-
-import { TierBadge } from './TierBadge';
+import { TierPickGrid } from './TierPickGrid';
 import { TierComparisonChart } from './TierComparisonChart';
 import styles from './Staking.module.css';
 
@@ -221,26 +219,12 @@ export function ApyCalculator({
           ⓘ
         </span>
       </div>
-      <div className={styles.tierPickGrid}>
-        {sortedConfigs.map((c) => (
-          <button
-            key={c.tier}
-            type="button"
-            className={`${styles.tierPick} ${c.tier === tier ? styles.tierPickSelected : ''}`}
-            onClick={() => setTier(c.tier)}
-            aria-pressed={c.tier === tier}
-            aria-labelledby="calc-tier-lbl"
-          >
-            <TierBadge tier={c.tier} config={c} showLockHint />
-            <div className={`${styles.muted} ${styles.tierPickHint}`}>
-              {t('staking.tierPickHint', {
-                mult: c.multiplier.toFixed(1),
-                lock: formatLockDuration(c.lockDurationSec, t),
-              })}
-            </div>
-          </button>
-        ))}
-      </div>
+      <TierPickGrid
+        tierConfigs={sortedConfigs}
+        selectedTier={tier}
+        onSelect={setTier}
+        ariaLabelledBy="calc-tier-lbl"
+      />
 
       <div className={styles.calcResults}>
         {debouncedAmount <= 0n ? (

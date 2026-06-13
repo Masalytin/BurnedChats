@@ -8,10 +8,9 @@ import { estimateStakeTon } from '@/ton/estimateStakeTon';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { StakingTier, type TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
-import { formatLockDuration } from '@/utils/staking-format';
 
+import { TierPickGrid } from './TierPickGrid';
 import { StakeMiniApyBlock } from './StakeMiniApy';
-import { TierBadge } from './TierBadge';
 import styles from './Staking.module.css';
 
 const TIER_ORDER: StakingTier[] = [
@@ -266,25 +265,7 @@ export function StakeModal({
             <p className={`${styles.muted} ${styles.mt0}`}>
               {t('staking.stakePickTier')}
             </p>
-            <div className={styles.tierPickGrid}>
-              {sortedConfigs.map((c) => (
-                <button
-                  key={c.tier}
-                  type="button"
-                  className={`${styles.tierPick} ${c.tier === tier ? styles.tierPickSelected : ''}`}
-                  onClick={() => setTier(c.tier)}
-                  aria-pressed={c.tier === tier}
-                >
-                  <TierBadge tier={c.tier} config={c} showLockHint />
-                  <div className={`${styles.muted} ${styles.tierPickHint}`}>
-                    {t('staking.tierPickHint', {
-                      mult: c.multiplier.toFixed(1),
-                      lock: formatLockDuration(c.lockDurationSec, t),
-                    })}
-                  </div>
-                </button>
-              ))}
-            </div>
+            <TierPickGrid tierConfigs={sortedConfigs} selectedTier={tier} onSelect={setTier} />
 
             <label className={styles.fieldLabel} htmlFor="stake-amount-input">
               {t('staking.amountLabel')}
