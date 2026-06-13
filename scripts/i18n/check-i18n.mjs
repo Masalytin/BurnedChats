@@ -9,24 +9,47 @@
  *   - cross_platform: keys shared between frontend and backend (same logical name) and
  *                     any per-language gaps between the two platforms
  *
- * The result is written as a structured JSON report intended to be consumed by
- * another AI agent that auto-fills the gaps.
+ * Full report — audit / CI. Compact task report — small JSON for AI agents.
  *
  * Usage:
  *   node scripts/i18n/check-i18n.mjs
- *   node scripts/i18n/check-i18n.mjs --out i18n-report.json
- *   node scripts/i18n/check-i18n.mjs --pretty --strict
+ *   node scripts/i18n/check-i18n.mjs --out reports/i18n-full.json
+ *   node scripts/i18n/check-i18n.mjs --summary-only --out reports/i18n-summary.json
+ *
+ * Compact task for one agent batch:
+ *   node scripts/i18n/check-i18n.mjs --task --platform frontend --lang ru --limit 20 \
+ *     --out reports/i18n-task-frontend-ru.json
+ *
+ * Emit task files for every language with gaps:
+ *   node scripts/i18n/check-i18n.mjs --emit-tasks --langs en,ru --limit 20 \
+ *     --task-dir reports/i18n-tasks
  *
  * Flags:
- *   --out <path>   Output report path (default: i18n-report.json in repo root)
- *   --pretty       Pretty-print JSON (default: on)
- *   --compact      Minified JSON output
- *   --strict       Exit with code 1 if any missing key or empty value is found
- *   --quiet        Suppress the human-readable console summary
+ *   --out <path>        Output path (default: i18n-report.json in repo root)
+ *   --task              Write compact agent task JSON instead of full report
+ *   --emit-tasks        Write one compact task file per platform/language with gaps
+ *   --task-dir <path>   Directory for --emit-tasks (default: reports/i18n-tasks)
+ *   --platform <name>   frontend | backend (required with --task)
+ *   --lang <code>       Target language for --task (e.g. ru, en, default)
+ *   --langs <a,b,c>     Filter languages for --emit-tasks or --summary-only stats
+ *   --limit <n>         Max keys per task batch (default: 20)
+ *   --prefix <dot.path> Only include keys whose family/path starts with this prefix
+ *   --summary-only      Full report without key arrays — counts only (small context)
+ *   --pretty            Pretty-print JSON (default: on)
+ *   --compact           Minified JSON output
+ *   --strict            Exit with code 1 if any missing key or empty value is found
+ *   --quiet             Suppress the human-readable console summary
+ *   --no-plural-grouping  Disable plural-family grouping (debug)
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
-import { join, basename } from "node:path";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  readdirSync,
+  mkdirSync,
+} from "node:fs";
+import { join, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -35,10 +58,15 @@ const REPO_ROOT = join(__dirname, "..", "..");
 const FRONTEND_DIR = join(REPO_ROOT, "frontend", "src", "i18n", "locales");
 const BACKEND_DIR = join(REPO_ROOT, "backend", "src", "main", "resources", "i18n");
 
+const FRONTEND_SOURCE = "frontend/src/i18n/locales/en.json";
+const BACKEND_SOURCE = "backend/src/main/resources/i18n/messages.properties";
+
+/** Default language priority when auto-picking batches for agents. */
+const LANG_PRIORITY = ["en", "ru", "uk", "de", "fr", "es", "ar", "zh", "default"];
+
 /**
  * Language code aliasing across platforms.
  * Frontend uses BCP-47-ish codes (e.g. "zh-CN"), backend uses Spring suffixes (e.g. "zh").
- * The map normalizes both sides to a single canonical code for cross-platform comparison.
  */
 const LANG_ALIASES = {
   "zh-cn": "zh",
@@ -51,12 +79,6 @@ const LANG_ALIASES = {
 /** Backend default bundle (messages.properties) is treated as this pseudo-language. */
 const BACKEND_DEFAULT_LANG = "default";
 
-/**
- * i18next / CLDR plural-category suffixes. Different languages use different
- * categories (English: one/other; Russian/Ukrainian: one/few/many/other), so a
- * per-category key must NOT be reported as "missing" in a language whose plural
- * rules don't use that category. Keys are grouped into a base "family" instead.
- */
 const PLURAL_SUFFIX_RE = /_(zero|one|two|few|many|other|plural)$/;
 
 // --------------------------------------------------------------------------
@@ -71,11 +93,31 @@ function flagValue(name, fallback) {
   return fallback;
 }
 
+function parseLangList(raw) {
+  if (!raw) return null;
+  return sortedUnique(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(canonicalLang),
+  );
+}
+
 const OUT_PATH = join(REPO_ROOT, flagValue("--out", "i18n-report.json"));
+const TASK_DIR = join(REPO_ROOT, flagValue("--task-dir", "reports/i18n-tasks"));
 const PRETTY = !args.includes("--compact");
 const STRICT = args.includes("--strict");
 const QUIET = args.includes("--quiet");
 const NO_PLURAL_GROUPING = args.includes("--no-plural-grouping");
+const TASK_MODE = args.includes("--task");
+const EMIT_TASKS = args.includes("--emit-tasks");
+const SUMMARY_ONLY = args.includes("--summary-only");
+const PLATFORM = flagValue("--platform", null);
+const TASK_LANG = flagValue("--lang", null);
+const LANG_FILTER = parseLangList(flagValue("--langs", null));
+const KEY_PREFIX = flagValue("--prefix", null);
+const TASK_LIMIT = Math.max(1, parseInt(flagValue("--limit", "20"), 10) || 20);
 
 // --------------------------------------------------------------------------
 // Helpers
@@ -89,7 +131,6 @@ function canonicalLang(lang) {
 function isEmptyValue(value) {
   if (value === null || value === undefined) return true;
   if (typeof value === "string") return value.trim().length === 0;
-  // numbers / booleans are considered non-empty leaves
   return false;
 }
 
@@ -97,12 +138,17 @@ function sortedUnique(arr) {
   return [...new Set(arr)].sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * Reduce a concrete key to its logical "family":
- *   - a plural-category key (e.g. "x.count_few") -> { family: "x.count", isPlural: true }
- *   - any other key                              -> { family: key,       isPlural: false }
- * When plural grouping is disabled, every key is its own family.
- */
+function sortLangs(langs) {
+  return [...langs].sort((a, b) => {
+    const ai = LANG_PRIORITY.indexOf(a);
+    const bi = LANG_PRIORITY.indexOf(b);
+    const ar = ai === -1 ? 999 : ai;
+    const br = bi === -1 ? 999 : bi;
+    if (ar !== br) return ar - br;
+    return a.localeCompare(b);
+  });
+}
+
 function keyFamily(key) {
   if (!NO_PLURAL_GROUPING && PLURAL_SUFFIX_RE.test(key)) {
     return { family: key.replace(PLURAL_SUFFIX_RE, ""), isPlural: true };
@@ -110,10 +156,11 @@ function keyFamily(key) {
   return { family: key, isPlural: false };
 }
 
-/**
- * Flatten a nested JSON object into a flat map of dot-delimited keys -> leaf value.
- * Arrays are indexed (key.0, key.1, ...).
- */
+function matchesPrefix(key, prefix) {
+  if (!prefix) return true;
+  return key === prefix || key.startsWith(`${prefix}.`);
+}
+
 function flattenJson(obj, prefix = "", out = new Map()) {
   if (Array.isArray(obj)) {
     obj.forEach((item, i) => flattenJson(item, prefix ? `${prefix}.${i}` : String(i), out));
@@ -125,40 +172,23 @@ function flattenJson(obj, prefix = "", out = new Map()) {
     }
     return out;
   }
-  // leaf
   out.set(prefix, obj);
   return out;
 }
 
-/**
- * Parse a Java .properties file into a Map of key -> value.
- * Handles:
- *   - comment lines (# or !)
- *   - separators '=', ':', or whitespace
- *   - line continuations (trailing odd number of backslashes)
- *   - leading whitespace trimming
- * Unicode escapes (\\uXXXX) inside values are left as-is; only emptiness matters for values.
- */
 function parseProperties(content) {
   const map = new Map();
   const rawLines = content.split(/\r?\n/);
-
-  // Merge physical lines into logical lines via backslash continuation.
   const logicalLines = [];
   let buffer = "";
   for (let line of rawLines) {
     if (buffer === "") {
-      // strip leading whitespace only for fresh logical lines
       line = line.replace(/^\s+/, "");
-      // skip standalone comment/blank lines (only when not continuing)
-      if (line === "" || line.startsWith("#") || line.startsWith("!")) {
-        continue;
-      }
+      if (line === "" || line.startsWith("#") || line.startsWith("!")) continue;
     }
     const combined = buffer + line;
     const trailingBackslashes = (combined.match(/\\*$/)?.[0] ?? "").length;
     if (trailingBackslashes % 2 === 1) {
-      // continuation: drop the final backslash, trim leading ws of next physical line later
       buffer = combined.slice(0, -1);
     } else {
       logicalLines.push(combined);
@@ -169,18 +199,14 @@ function parseProperties(content) {
 
   for (const logical of logicalLines) {
     const { key, value } = splitPropertyLine(logical);
-    if (key !== null && key.length > 0) {
-      map.set(key, value);
-    }
+    if (key !== null && key.length > 0) map.set(key, value);
   }
   return map;
 }
 
-/** Split a single logical properties line into key/value at the first unescaped separator. */
 function splitPropertyLine(line) {
   let key = "";
   let i = 0;
-  // accumulate key until first unescaped '=', ':' or whitespace
   for (; i < line.length; i++) {
     const ch = line[i];
     if (ch === "\\") {
@@ -188,29 +214,42 @@ function splitPropertyLine(line) {
       i++;
       continue;
     }
-    if (ch === "=" || ch === ":" || ch === " " || ch === "\t" || ch === "\f") {
-      break;
-    }
+    if (ch === "=" || ch === ":" || ch === " " || ch === "\t" || ch === "\f") break;
     key += ch;
   }
-  // skip whitespace, then a single '=' or ':' separator, then trailing whitespace
   while (i < line.length && /[ \t\f]/.test(line[i])) i++;
   if (i < line.length && (line[i] === "=" || line[i] === ":")) {
     i++;
     while (i < line.length && /[ \t\f]/.test(line[i])) i++;
   }
-  const value = line.slice(i);
-  return { key: key.trim(), value };
+  return { key: key.trim(), value: line.slice(i) };
+}
+
+function writeJson(path, data) {
+  const json = JSON.stringify(data, null, PRETTY ? 2 : 0);
+  writeFileSync(path, json + (PRETTY ? "\n" : ""), "utf8");
+}
+
+function platformTargetPath(platform, lang, files) {
+  if (platform === "frontend") {
+    const file = files[lang] ?? `${lang}.json`;
+    return `frontend/src/i18n/locales/${file}`;
+  }
+  if (lang === BACKEND_DEFAULT_LANG) {
+    return "backend/src/main/resources/i18n/messages.properties";
+  }
+  const file = files[lang] ?? `messages_${lang}.properties`;
+  return `backend/src/main/resources/i18n/${file}`;
+}
+
+function platformSourcePath(platform) {
+  return platform === "frontend" ? FRONTEND_SOURCE : BACKEND_SOURCE;
 }
 
 // --------------------------------------------------------------------------
 // Loaders
 // --------------------------------------------------------------------------
 
-/**
- * @returns {{ langs: Record<string, Map<string,unknown>>, files: Record<string,string>, errors: string[] }}
- *   langs keyed by canonical language code -> flat key/value map
- */
 function loadFrontend() {
   const langs = {};
   const files = {};
@@ -234,9 +273,6 @@ function loadFrontend() {
   return { langs, files, errors };
 }
 
-/**
- * @returns same shape as loadFrontend()
- */
 function loadBackend() {
   const langs = {};
   const files = {};
@@ -264,24 +300,12 @@ function loadBackend() {
 // Analysis
 // --------------------------------------------------------------------------
 
-/**
- * Analyze one platform: build a plural-aware reference of key families, then per
- * language compute missing families and empty values.
- *
- * Missing detection works at the family level so a language is never flagged for
- * lacking a plural category (e.g. "_few") it legitimately doesn't use. A family is
- * reported missing only when the language has no concrete key for that family.
- */
 function analyzePlatform(platform) {
   const { langs } = platform;
   const languageCodes = Object.keys(langs).sort();
-
-  // Every concrete key seen anywhere (informational) and every logical family.
   const referenceKeys = new Set();
   const referenceFamilies = new Set();
   const pluralFamilies = new Set();
-
-  // Per-language set of families the language actually has at least one key for.
   const langFamilies = {};
 
   for (const lang of languageCodes) {
@@ -303,17 +327,14 @@ function analyzePlatform(platform) {
   for (const lang of languageCodes) {
     const keyMap = langs[lang];
     const have = langFamilies[lang];
-
     const missing = [];
     for (const family of referenceFamilies) {
       if (!have.has(family)) missing.push(family);
     }
-
     const empty = [];
     for (const [key, value] of keyMap.entries()) {
       if (isEmptyValue(value)) empty.push(key);
     }
-
     missing_keys[lang] = sortedUnique(missing);
     empty_values[lang] = sortedUnique(empty);
     stats[lang] = {
@@ -332,36 +353,29 @@ function analyzePlatform(platform) {
     missing_keys,
     empty_values,
     stats,
-    _referenceKeys: referenceKeys, // internal, stripped before serialization
+    _referenceKeys: referenceKeys,
   };
 }
 
-/**
- * Cross-platform check: which keys are shared by both platforms (same logical name),
- * and per shared language, where one side is missing the key.
- */
 function analyzeCrossPlatform(frontend, backend) {
   const feKeys = frontend._referenceKeys;
   const beKeys = backend._referenceKeys;
-
   const shared_keys = sortedUnique([...feKeys].filter((k) => beKeys.has(k)));
-
   const feLangs = new Set(frontend.languages);
   const beLangs = new Set(backend.languages.filter((l) => l !== BACKEND_DEFAULT_LANG));
   const commonLangs = sortedUnique([...feLangs].filter((l) => beLangs.has(l)));
 
-  // For shared keys, report per-language presence gaps between the platforms.
   const mismatches = {};
   for (const lang of commonLangs) {
-    const fe = frontend && frontendHasLang(frontend, lang);
-    const be = backend && backendHasLang(backend, lang);
+    const fe = frontend.__langsRef?.[lang];
+    const be = backend.__langsRef?.[lang];
     const onlyFrontend = [];
     const onlyBackend = [];
     for (const key of shared_keys) {
       const inFe = fe?.has(key) && !isEmptyValue(fe.get(key));
       const inBe = be?.has(key) && !isEmptyValue(be.get(key));
-      if (inFe && !inBe) onlyBackend.push(key); // missing on backend side
-      else if (!inFe && inBe) onlyFrontend.push(key); // missing on frontend side
+      if (inFe && !inBe) onlyBackend.push(key);
+      else if (!inFe && inBe) onlyFrontend.push(key);
     }
     mismatches[lang] = {
       missing_on_frontend: sortedUnique(onlyFrontend),
@@ -375,55 +389,6 @@ function analyzeCrossPlatform(frontend, backend) {
     shared_keys,
     mismatches,
   };
-}
-
-function frontendHasLang(platform, lang) {
-  return platform.__langsRef?.[lang];
-}
-function backendHasLang(platform, lang) {
-  return platform.__langsRef?.[lang];
-}
-
-// --------------------------------------------------------------------------
-// Main
-// --------------------------------------------------------------------------
-
-function main() {
-  const feRaw = loadFrontend();
-  const beRaw = loadBackend();
-
-  const frontend = analyzePlatform(feRaw);
-  const backend = analyzePlatform(beRaw);
-  // attach language maps for cross-platform value lookups
-  frontend.__langsRef = feRaw.langs;
-  backend.__langsRef = beRaw.langs;
-
-  const cross_platform = analyzeCrossPlatform(frontend, backend);
-
-  const report = {
-    generated_at: new Date().toISOString(),
-    summary: buildSummary(frontend, backend, cross_platform, feRaw, beRaw),
-    frontend: stripInternal(frontend),
-    backend: stripInternal(backend),
-    cross_platform,
-    parse_errors: {
-      frontend: feRaw.errors,
-      backend: beRaw.errors,
-    },
-  };
-
-  const json = JSON.stringify(report, null, PRETTY ? 2 : 0);
-  writeFileSync(OUT_PATH, json + (PRETTY ? "\n" : ""), "utf8");
-
-  if (!QUIET) printSummary(report, OUT_PATH);
-
-  const hasIssues =
-    report.summary.total_missing_keys > 0 ||
-    report.summary.total_empty_values > 0 ||
-    feRaw.errors.length > 0 ||
-    beRaw.errors.length > 0;
-
-  if (STRICT && hasIssues) process.exit(1);
 }
 
 function stripInternal(platform) {
@@ -455,10 +420,170 @@ function buildSummary(frontend, backend, cross, feRaw, beRaw) {
   };
 }
 
-function printSummary(report, outPath) {
+function buildReport() {
+  const feRaw = loadFrontend();
+  const beRaw = loadBackend();
+  const frontend = analyzePlatform(feRaw);
+  const backend = analyzePlatform(beRaw);
+  frontend.__langsRef = feRaw.langs;
+  backend.__langsRef = beRaw.langs;
+  const cross_platform = analyzeCrossPlatform(frontend, backend);
+
+  return {
+    generated_at: new Date().toISOString(),
+    summary: buildSummary(frontend, backend, cross_platform, feRaw, beRaw),
+    frontend: stripInternal(frontend),
+    backend: stripInternal(backend),
+    cross_platform,
+    parse_errors: { frontend: feRaw.errors, backend: beRaw.errors },
+  };
+}
+
+// --------------------------------------------------------------------------
+// Compact task reports (for AI agents)
+// --------------------------------------------------------------------------
+
+function filterKeys(keys, prefix) {
+  if (!prefix) return keys;
+  return keys.filter((k) => matchesPrefix(k, prefix));
+}
+
+/**
+ * Pick up to `limit` keys for one agent batch.
+ * Priority: empty_values first (quick wins), then missing_keys alphabetically.
+ */
+function pickBatchKeys(emptyAll, missingAll, limit, prefix) {
+  const empty = filterKeys(emptyAll, prefix);
+  const missing = filterKeys(missingAll, prefix);
+
+  const batchEmpty = empty.slice(0, limit);
+  const remaining = limit - batchEmpty.length;
+  const batchMissing = remaining > 0 ? missing.slice(0, remaining) : [];
+
+  return {
+    empty_values: batchEmpty,
+    missing_keys: batchMissing,
+    totals: {
+      empty: empty.length,
+      missing: missing.length,
+    },
+    truncated: batchEmpty.length + batchMissing.length < empty.length + missing.length,
+    remaining: {
+      empty: Math.max(0, empty.length - batchEmpty.length),
+      missing: Math.max(0, missing.length - batchMissing.length),
+    },
+  };
+}
+
+function pluralFamiliesInBatch(keys, pluralFamilies) {
+  const pluralSet = new Set(pluralFamilies);
+  return sortedUnique(keys.filter((k) => pluralSet.has(k)));
+}
+
+function buildTaskReport(report, platformName, lang, options = {}) {
+  const { limit = TASK_LIMIT, prefix = KEY_PREFIX } = options;
+  const platform = report[platformName];
+  if (!platform) throw new Error(`Unknown platform: ${platformName}`);
+
+  const langCode = canonicalLang(lang);
+  if (!platform.languages.includes(langCode)) {
+    throw new Error(
+      `Language "${langCode}" not found in ${platformName}. Available: ${platform.languages.join(", ")}`,
+    );
+  }
+
+  const batch = pickBatchKeys(
+    platform.empty_values[langCode] ?? [],
+    platform.missing_keys[langCode] ?? [],
+    limit,
+    prefix,
+  );
+
+  const allBatchKeys = [...batch.empty_values, ...batch.missing_keys];
+
+  return {
+    task: "fill-i18n",
+    generated_at: report.generated_at,
+    platform: platformName,
+    language: langCode,
+    source: platformSourcePath(platformName),
+    target: platformTargetPath(platformName, langCode, platform.files),
+    limit,
+    prefix: prefix ?? null,
+    truncated: batch.truncated,
+    remaining: batch.remaining,
+    totals: batch.totals,
+    missing_keys: batch.missing_keys,
+    empty_values: batch.empty_values,
+    plural_families: pluralFamiliesInBatch(allBatchKeys, platform.plural_families),
+    agent_notes: [
+      "Fill empty_values first, then missing_keys.",
+      "Use source file as reference text; preserve {{placeholders}} and HTML tags.",
+      "For plural_families, add only plural categories valid for the target language (i18next).",
+      "After edits run: node scripts/i18n/check-i18n.mjs --task --platform ... --lang ...",
+    ],
+    parse_errors: report.parse_errors[platformName] ?? [],
+  };
+}
+
+function langsWithGaps(platform, langFilter) {
+  const langs = sortLangs(platform.languages).filter((lang) => {
+    if (langFilter && !langFilter.includes(lang)) return false;
+    const miss = platform.missing_keys[lang]?.length ?? 0;
+    const empty = platform.empty_values[lang]?.length ?? 0;
+    return miss > 0 || empty > 0;
+  });
+  return langs;
+}
+
+function shrinkFullReport(report, langFilter) {
+  if (!SUMMARY_ONLY && !langFilter) return report;
+
+  const shrinkPlatform = (platform) => {
+    const langs = langFilter
+      ? platform.languages.filter((l) => langFilter.includes(l))
+      : platform.languages;
+
+    const missing_keys = {};
+    const empty_values = {};
+    const stats = {};
+    for (const lang of langs) {
+      stats[lang] = platform.stats[lang];
+      if (!SUMMARY_ONLY) {
+        missing_keys[lang] = platform.missing_keys[lang];
+        empty_values[lang] = platform.empty_values[lang];
+      }
+    }
+
+    return {
+      languages: langs,
+      files: Object.fromEntries(langs.map((l) => [l, platform.files[l]])),
+      reference_key_count: platform.reference_key_count,
+      reference_family_count: platform.reference_family_count,
+      ...(SUMMARY_ONLY ? {} : { plural_families: platform.plural_families }),
+      ...(SUMMARY_ONLY ? {} : { missing_keys, empty_values }),
+      stats,
+    };
+  };
+
+  return {
+    ...report,
+    mode: SUMMARY_ONLY ? "summary-only" : "filtered",
+    ...(langFilter ? { lang_filter: langFilter } : {}),
+    frontend: shrinkPlatform(report.frontend),
+    backend: shrinkPlatform(report.backend),
+  };
+}
+
+// --------------------------------------------------------------------------
+// Output / console
+// --------------------------------------------------------------------------
+
+function printSummary(report, outPath, extra = "") {
   const s = report.summary;
   const line = (label, val) => console.log(`  ${label.padEnd(28)} ${val}`);
   console.log("\ni18n integrity report");
+  if (extra) console.log(extra);
   console.log("─".repeat(48));
   line("Frontend languages:", s.frontend_languages.join(", "));
   line("Backend languages:", s.backend_languages.join(", "));
@@ -471,23 +596,137 @@ function printSummary(report, outPath) {
 
   const detail = (platformName, platform) => {
     for (const lang of platform.languages) {
-      const miss = platform.missing_keys[lang].length;
-      const emp = platform.empty_values[lang].length;
-      if (miss || emp) {
-        console.log(`  ${platformName}/${lang}: ${miss} missing, ${emp} empty`);
-      }
+      const miss = platform.missing_keys[lang]?.length ?? platform.stats[lang]?.missing_count ?? 0;
+      const emp = platform.empty_values[lang]?.length ?? platform.stats[lang]?.empty_count ?? 0;
+      if (miss || emp) console.log(`  ${platformName}/${lang}: ${miss} missing, ${emp} empty`);
     }
   };
   console.log("─".repeat(48));
   detail("frontend", report.frontend);
   detail("backend", report.backend);
-
   console.log("─".repeat(48));
   console.log(`Report written to: ${outPath}`);
   if (s.total_missing_keys === 0 && s.total_empty_values === 0 && s.parse_errors === 0) {
     console.log("All translation sets are consistent.");
   }
   console.log("");
+}
+
+function printTaskSummary(task, outPath) {
+  console.log("\ni18n agent task");
+  console.log("─".repeat(48));
+  console.log(`  Platform:                   ${task.platform}`);
+  console.log(`  Language:                   ${task.language}`);
+  console.log(`  Target:                     ${task.target}`);
+  console.log(`  Batch missing:              ${task.missing_keys.length} / ${task.totals.missing}`);
+  console.log(`  Batch empty:                ${task.empty_values.length} / ${task.totals.empty}`);
+  console.log(`  Truncated:                  ${task.truncated ? "yes (run again for next batch)" : "no"}`);
+  if (task.prefix) console.log(`  Prefix filter:              ${task.prefix}`);
+  console.log("─".repeat(48));
+  console.log(`Task written to: ${outPath}`);
+  console.log("");
+}
+
+// --------------------------------------------------------------------------
+// Main
+// --------------------------------------------------------------------------
+
+function validateTaskArgs() {
+  if (!PLATFORM || !["frontend", "backend"].includes(PLATFORM)) {
+    console.error("Error: --task requires --platform frontend|backend");
+    process.exit(2);
+  }
+  if (!TASK_LANG) {
+    console.error("Error: --task requires --lang <code> (e.g. ru, en, default)");
+    process.exit(2);
+  }
+}
+
+function runTaskMode(report) {
+  validateTaskArgs();
+  const task = buildTaskReport(report, PLATFORM, TASK_LANG, {
+    limit: TASK_LIMIT,
+    prefix: KEY_PREFIX,
+  });
+  writeJson(OUT_PATH, task);
+  if (!QUIET) printTaskSummary(task, OUT_PATH);
+
+  const hasBatchWork =
+    task.missing_keys.length > 0 ||
+    task.empty_values.length > 0 ||
+    task.parse_errors.length > 0;
+  if (STRICT && hasBatchWork) process.exit(1);
+}
+
+function runEmitTasksMode(report) {
+  mkdirSync(TASK_DIR, { recursive: true });
+  const written = [];
+
+  for (const platformName of ["frontend", "backend"]) {
+    const platform = report[platformName];
+    for (const lang of langsWithGaps(platform, LANG_FILTER)) {
+      const task = buildTaskReport(report, platformName, lang, {
+        limit: TASK_LIMIT,
+        prefix: KEY_PREFIX,
+      });
+      if (task.missing_keys.length === 0 && task.empty_values.length === 0) continue;
+
+      const suffix = KEY_PREFIX ? `-${KEY_PREFIX.replace(/\./g, "-")}` : "";
+      const fileName = `${platformName}-${lang}${suffix}.json`;
+      const filePath = join(TASK_DIR, fileName);
+      writeJson(filePath, task);
+      written.push(relative(REPO_ROOT, filePath));
+    }
+  }
+
+  if (!QUIET) {
+    console.log("\ni18n agent tasks emitted");
+    console.log("─".repeat(48));
+    console.log(`  Directory:                  ${relative(REPO_ROOT, TASK_DIR)}`);
+    console.log(`  Limit per task:             ${TASK_LIMIT}`);
+    console.log(`  Lang filter:                ${LANG_FILTER?.join(", ") ?? "all with gaps"}`);
+    console.log(`  Files written:              ${written.length}`);
+    for (const f of written) console.log(`    ${f}`);
+    console.log("─".repeat(48));
+    if (written.length === 0) console.log("No gaps found for selected languages.");
+    console.log("");
+  }
+
+  if (STRICT && written.length > 0) process.exit(1);
+}
+
+function main() {
+  const report = buildReport();
+
+  if (TASK_MODE) {
+    runTaskMode(report);
+    return;
+  }
+
+  if (EMIT_TASKS) {
+    runEmitTasksMode(report);
+    return;
+  }
+
+  const output = shrinkFullReport(report, LANG_FILTER);
+  writeJson(OUT_PATH, output);
+
+  if (!QUIET) {
+    const modeNote = SUMMARY_ONLY
+      ? "(summary-only — no key arrays)"
+      : LANG_FILTER
+        ? `(filtered langs: ${LANG_FILTER.join(", ")})`
+        : "";
+    printSummary(output, OUT_PATH, modeNote);
+  }
+
+  const hasIssues =
+    report.summary.total_missing_keys > 0 ||
+    report.summary.total_empty_values > 0 ||
+    report.parse_errors.frontend.length > 0 ||
+    report.parse_errors.backend.length > 0;
+
+  if (STRICT && hasIssues) process.exit(1);
 }
 
 main();
