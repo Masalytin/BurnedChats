@@ -1,0 +1,50 @@
+{
+  "task": "fill-i18n",
+  "generated_at": "2026-06-13T18:09:08.373Z",
+  "platform": "frontend",
+  "language": "uk",
+  "source": "frontend/src/i18n/locales/en.json",
+  "target": "frontend/src/i18n/locales/uk.json",
+  "limit": 20,
+  "prefix": null,
+  "truncated": true,
+  "remaining": {
+    "empty": 0,
+    "missing": 562
+  },
+  "totals": {
+    "empty": 0,
+    "missing": 582
+  },
+  "missing_keys": [
+    "accountLinking.challengeFailed",
+    "accountLinking.conflict",
+    "accountLinking.linkFailed",
+    "accountLinking.linkWallet",
+    "accountLinking.loadFailed",
+    "accountLinking.notLinked",
+    "accountLinking.openBot",
+    "accountLinking.openTelegram",
+    "accountLinking.prepareTelegramLink",
+    "accountLinking.retryLoad",
+    "accountLinking.sectionSubtitle",
+    "accountLinking.sectionTitle",
+    "accountLinking.telegram",
+    "accountLinking.telegramCompleteHint",
+    "accountLinking.telegramLinkedToast",
+    "accountLinking.tonWallet",
+    "accountLinking.unlink",
+    "accountLinking.unlinkFailed",
+    "accountLinking.walletInstructions",
+    "aria.closeDialog"
+  ],
+  "empty_values": [],
+  "plural_families": [],
+  "agent_notes": [
+    "Fill empty_values first, then missing_keys.",
+    "Use source file as reference text; preserve {{placeholders}} and HTML tags.",
+    "For plural_families, add only plural categories valid for the target language (i18next).",
+    "After edits run: node scripts/i18n/check-i18n.mjs --task --platform ... --lang ..."
+  ],
+  "parse_errors": []
+}

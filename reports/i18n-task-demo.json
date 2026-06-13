@@ -1,0 +1,21 @@
+{
+  "task": "fill-frontend-i18n",
+  "platform": "frontend",
+  "language": "ru",
+  "source": "frontend/src/i18n/locales/en.json",
+  "reference": "frontend/src/i18n/locales/de.json",
+  "target": "frontend/src/i18n/locales/ru.json",
+  "missing_keys": [
+    "chat.mediaViewer.close",
+    "chat.mediaViewer.error",
+    "chat.mediaViewer.save"
+  ],
+  "empty_values": [
+    "files.error.aborted"
+  ],
+  "notes": {
+    "source_of_truth": "en.json must also get chat.mediaViewer block (missing in en too). Use English strings in en.json; translate to Russian in ru.json.",
+    "aborted_en": "files.error.aborted is empty in en.json too — fill both en and ru with appropriate user-facing text.",
+    "verify": "node scripts/i18n/check-i18n.mjs --out reports/i18n-report-after.json --quiet"
+  }
+}

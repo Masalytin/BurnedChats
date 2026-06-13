@@ -1,0 +1,32 @@
+{
+  "task": "fill-i18n",
+  "generated_at": "2026-06-13T17:46:00.920Z",
+  "platform": "backend",
+  "language": "de",
+  "source": "backend/src/main/resources/i18n/messages.properties",
+  "target": "backend/src/main/resources/i18n/messages_de.properties",
+  "limit": 20,
+  "prefix": null,
+  "truncated": false,
+  "remaining": {
+    "empty": 0,
+    "missing": 0
+  },
+  "totals": {
+    "empty": 0,
+    "missing": 2
+  },
+  "missing_keys": [
+    "bot.notify.newFile",
+    "bot.notify.newFile.button"
+  ],
+  "empty_values": [],
+  "plural_families": [],
+  "agent_notes": [
+    "Fill empty_values first, then missing_keys.",
+    "Use source file as reference text; preserve {{placeholders}} and HTML tags.",
+    "For plural_families, add only plural categories valid for the target language (i18next).",
+    "After edits run: node scripts/i18n/check-i18n.mjs --task --platform ... --lang ..."
+  ],
+  "parse_errors": []
+}

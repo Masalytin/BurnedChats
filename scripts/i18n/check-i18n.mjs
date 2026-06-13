@@ -596,8 +596,10 @@ function printSummary(report, outPath, extra = "") {
 
   const detail = (platformName, platform) => {
     for (const lang of platform.languages) {
-      const miss = platform.missing_keys[lang]?.length ?? platform.stats[lang]?.missing_count ?? 0;
-      const emp = platform.empty_values[lang]?.length ?? platform.stats[lang]?.empty_count ?? 0;
+      const miss =
+        platform.missing_keys?.[lang]?.length ?? platform.stats[lang]?.missing_count ?? 0;
+      const emp =
+        platform.empty_values?.[lang]?.length ?? platform.stats[lang]?.empty_count ?? 0;
       if (miss || emp) console.log(`  ${platformName}/${lang}: ${miss} missing, ${emp} empty`);
     }
   };

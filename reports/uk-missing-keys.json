@@ -1,0 +1,2366 @@
+[
+  {
+    "key": "accountLinking.challengeFailed",
+    "value": "Could not create Telegram link."
+  },
+  {
+    "key": "accountLinking.conflict",
+    "value": "This Telegram account or wallet is already linked elsewhere."
+  },
+  {
+    "key": "accountLinking.linkFailed",
+    "value": "Linking failed."
+  },
+  {
+    "key": "accountLinking.linkWallet",
+    "value": "Link TON wallet"
+  },
+  {
+    "key": "accountLinking.loadFailed",
+    "value": "Could not load linked accounts."
+  },
+  {
+    "key": "accountLinking.notLinked",
+    "value": "Not linked"
+  },
+  {
+    "key": "accountLinking.openBot",
+    "value": "Open Telegram bot"
+  },
+  {
+    "key": "accountLinking.openTelegram",
+    "value": "Open in Telegram"
+  },
+  {
+    "key": "accountLinking.prepareTelegramLink",
+    "value": "Prepare Telegram link"
+  },
+  {
+    "key": "accountLinking.retryLoad",
+    "value": "Try again"
+  },
+  {
+    "key": "accountLinking.sectionSubtitle",
+    "value": "Connect Telegram and your TON wallet to the same account."
+  },
+  {
+    "key": "accountLinking.sectionTitle",
+    "value": "Linked accounts"
+  },
+  {
+    "key": "accountLinking.telegram",
+    "value": "Telegram"
+  },
+  {
+    "key": "accountLinking.telegramCompleteHint",
+    "value": "Mini App opens with a pending link — we finish when this screen loads."
+  },
+  {
+    "key": "accountLinking.telegramLinkedToast",
+    "value": "Telegram linked to your wallet account."
+  },
+  {
+    "key": "accountLinking.tonWallet",
+    "value": "TON wallet"
+  },
+  {
+    "key": "accountLinking.unlink",
+    "value": "Unlink"
+  },
+  {
+    "key": "accountLinking.unlinkFailed",
+    "value": "Could not unlink."
+  },
+  {
+    "key": "accountLinking.walletInstructions",
+    "value": "Your browser profile is wallet-only. Create a secure link from here, open it inside Telegram Mini App once, and the app completes the bind automatically."
+  },
+  {
+    "key": "aria.closeDialog",
+    "value": "Close dialog"
+  },
+  {
+    "key": "chat.a11y.messageDeleted",
+    "value": "Message removed"
+  },
+  {
+    "key": "chat.a11y.messageEdited",
+    "value": "Message updated"
+  },
+  {
+    "key": "chat.a11y.selectedCount",
+    "value": "{{count}} messages selected"
+  },
+  {
+    "key": "chat.a11y.selectionModeEntered",
+    "value": "Selection mode, messages can be selected"
+  },
+  {
+    "key": "chat.a11y.selectionToolbar",
+    "value": "Selected messages toolbar"
+  },
+  {
+    "key": "chat.actions.copy",
+    "value": "Copy"
+  },
+  {
+    "key": "chat.actions.copyFailed",
+    "value": "Could not copy"
+  },
+  {
+    "key": "chat.actions.copyToast",
+    "value": "Copied"
+  },
+  {
+    "key": "chat.actions.deleteForEveryone",
+    "value": "Delete for everyone"
+  },
+  {
+    "key": "chat.actions.deleteForMe",
+    "value": "Delete for me"
+  },
+  {
+    "key": "chat.actions.edit",
+    "value": "Edit"
+  },
+  {
+    "key": "chat.actions.reply",
+    "value": "Reply"
+  },
+  {
+    "key": "chat.actions.select",
+    "value": "Select"
+  },
+  {
+    "key": "chat.aria.messageList",
+    "value": "Chat messages"
+  },
+  {
+    "key": "chat.aria.ownMessagePreview",
+    "value": "Your message: {{preview}}"
+  },
+  {
+    "key": "chat.aria.peerMessagePreview",
+    "value": "Message from {{name}}: {{preview}}"
+  },
+  {
+    "key": "chat.aria.sendMessage",
+    "value": "Send message"
+  },
+  {
+    "key": "chat.aria.typeMessage",
+    "value": "Type a message"
+  },
+  {
+    "key": "chat.composerFallback",
+    "value": "Message"
+  },
+  {
+    "key": "chat.delete.confirmDescriptionAsOwner",
+    "value": "You are removing another member's message for everyone in this room. Attachments are deleted from the server."
+  },
+  {
+    "key": "chat.delete.confirmDescriptionForEveryone",
+    "value": "This removes the message for all participants. File attachments are deleted from the server."
+  },
+  {
+    "key": "chat.delete.confirmDescriptionForMe",
+    "value": "This will only remove the message from your device. The other {{context}} will still see it."
+  },
+  {
+    "key": "chat.delete.confirmTitleForEveryone",
+    "value": "Delete for everyone?"
+  },
+  {
+    "key": "chat.delete.confirmTitleForMe",
+    "value": "Delete messages?"
+  },
+  {
+    "key": "chat.delete.contextPeer",
+    "value": "participant"
+  },
+  {
+    "key": "chat.delete.contextRoom",
+    "value": "room members"
+  },
+  {
+    "key": "chat.delete.deleteForEveryoneDisabledHint",
+    "value": "You can only delete for everyone on your own messages, or as room owner for any message."
+  },
+  {
+    "key": "chat.delete.deleteForEveryoneLabel",
+    "value": "Delete for everyone"
+  },
+  {
+    "key": "chat.delete.deleteForMeLabel",
+    "value": "Delete for me"
+  },
+  {
+    "key": "chat.delete.failed",
+    "value": "Could not delete message on the server"
+  },
+  {
+    "key": "chat.delete.forEveryoneDone",
+    "value": "Message deleted for everyone"
+  },
+  {
+    "key": "chat.delete.hidden",
+    "value": "Hidden on this device"
+  },
+  {
+    "key": "chat.delete.mixedSelection",
+    "value": "Select only your own messages, or as owner you may include any"
+  },
+  {
+    "key": "chat.delete.removedByOwner",
+    "value": "A moderator removed your message"
+  },
+  {
+    "key": "chat.edit.cancel",
+    "value": "Cancel"
+  },
+  {
+    "key": "chat.edit.editChipLabel",
+    "value": "Editing message"
+  },
+  {
+    "key": "chat.edit.editedLabel",
+    "value": "edited"
+  },
+  {
+    "key": "chat.edit.failed",
+    "value": "Failed to edit message"
+  },
+  {
+    "key": "chat.edit.notEditable",
+    "value": "This message cannot be edited"
+  },
+  {
+    "key": "chat.edit.save",
+    "value": "Save"
+  },
+  {
+    "key": "chat.edit.windowExpired",
+    "value": "Edit window has expired (15 min limit)"
+  },
+  {
+    "key": "chat.emptyHint",
+    "value": "Send a message to start the conversation"
+  },
+  {
+    "key": "chat.emptyMessages",
+    "value": "No messages yet"
+  },
+  {
+    "key": "chat.errorBannerLabel",
+    "value": "Chat error"
+  },
+  {
+    "key": "chat.loadingMessages",
+    "value": "Loading messages..."
+  },
+  {
+    "key": "chat.messageActions.cancel",
+    "value": "Cancel"
+  },
+  {
+    "key": "chat.messageActions.copy",
+    "value": "Copy"
+  },
+  {
+    "key": "chat.messageActions.delete",
+    "value": "Delete"
+  },
+  {
+    "key": "chat.messageActions.deleteForEveryone",
+    "value": "Delete for everyone"
+  },
+  {
+    "key": "chat.messageActions.deleteForMe",
+    "value": "Delete for me"
+  },
+  {
+    "key": "chat.messageActions.edit",
+    "value": "Edit"
+  },
+  {
+    "key": "chat.messageActions.reply",
+    "value": "Reply"
+  },
+  {
+    "key": "chat.messageActions.select",
+    "value": "Select"
+  },
+  {
+    "key": "chat.messageStatus.delivered",
+    "value": "Delivered"
+  },
+  {
+    "key": "chat.messageStatus.failed",
+    "value": "Failed to send"
+  },
+  {
+    "key": "chat.messageStatus.read",
+    "value": "Read"
+  },
+  {
+    "key": "chat.messageStatus.sending",
+    "value": "Sending"
+  },
+  {
+    "key": "chat.messageStatus.sent",
+    "value": "Sent"
+  },
+  {
+    "key": "chat.premiumTitle",
+    "value": "Premium user"
+  },
+  {
+    "key": "chat.reply.cancelAriaLabel",
+    "value": "Cancel reply"
+  },
+  {
+    "key": "chat.reply.chipLabel",
+    "value": "Replying to {{name}}"
+  },
+  {
+    "key": "chat.reply.deletedOriginal",
+    "value": "Original message is unavailable"
+  },
+  {
+    "key": "chat.reply.fileShort",
+    "value": "File"
+  },
+  {
+    "key": "chat.reply.imageShort",
+    "value": "Image"
+  },
+  {
+    "key": "chat.reply.unknownSender",
+    "value": "Unknown"
+  },
+  {
+    "key": "chat.reply.videoShort",
+    "value": "Video"
+  },
+  {
+    "key": "chat.reply.you",
+    "value": "You"
+  },
+  {
+    "key": "chat.select.countSelected",
+    "value": "{{count}} selected"
+  },
+  {
+    "key": "chat.select.countSelected_one",
+    "value": "1 selected"
+  },
+  {
+    "key": "chat.select.exit",
+    "value": "Exit selection"
+  },
+  {
+    "key": "chat.selectionCount",
+    "value": "{{count}} selected"
+  },
+  {
+    "key": "chat.selectionCount_one",
+    "value": "1 selected"
+  },
+  {
+    "key": "chat.selectionModeToolbar",
+    "value": "Message selection"
+  },
+  {
+    "key": "chat.temporarilyUnavailable",
+    "value": "Chat temporarily unavailable"
+  },
+  {
+    "key": "chatRequest.charCount",
+    "value": "{{count}}/{{max}} characters"
+  },
+  {
+    "key": "chatRequest.errors.ALREADY_HAS_SESSION",
+    "value": "You already have an active chat session"
+  },
+  {
+    "key": "chatRequest.errors.CONNECTION_ERROR",
+    "value": "Connection error. Please check your network"
+  },
+  {
+    "key": "chatRequest.errors.DEFAULT",
+    "value": "An error occurred. Please try again"
+  },
+  {
+    "key": "chatRequest.errors.INTERNAL_ERROR",
+    "value": "Something went wrong. Please try again"
+  },
+  {
+    "key": "chatRequest.errors.PENDING_REQUEST_EXISTS",
+    "value": "You already sent a request to this user"
+  },
+  {
+    "key": "chatRequest.errors.RATE_LIMITED",
+    "value": "Too many requests. Please wait a moment"
+  },
+  {
+    "key": "chatRequest.errors.RECIPIENT_HAS_SESSION",
+    "value": "This user already has an active chat session"
+  },
+  {
+    "key": "chatRequest.errors.RECIPIENT_NOT_FOUND",
+    "value": "User not found"
+  },
+  {
+    "key": "chatRequest.errors.SELF_REQUEST",
+    "value": "You can't start a chat with yourself"
+  },
+  {
+    "key": "chatRequest.expectedAnswerHint",
+    "value": "Only the recipient types this when accepting; you set the answer the server will check against (plain text in the app for v1)."
+  },
+  {
+    "key": "chatRequest.expectedAnswerLabel",
+    "value": "Expected answer"
+  },
+  {
+    "key": "chatRequest.expectedAnswerPlaceholder",
+    "value": "Answer your contact should give"
+  },
+  {
+    "key": "chatRequest.secretHint",
+    "value": "Recipient must answer to accept the request. If you enable this, both the question and the expected answer are required — they must match what only your contact knows (max {{max}} characters each)."
+  },
+  {
+    "key": "chatRequest.secretQuestionLabel",
+    "value": "Secret question"
+  },
+  {
+    "key": "chatRequest.secretQuestionPlaceholder",
+    "value": "e.g. What's our shared memory?"
+  },
+  {
+    "key": "chatRequest.secretToggle",
+    "value": "Add secret question"
+  },
+  {
+    "key": "chatRequest.securityNote",
+    "value": "End-to-end encrypted. We can't read your messages."
+  },
+  {
+    "key": "chatRequest.sendButton",
+    "value": "Send Request"
+  },
+  {
+    "key": "chatRequest.subtitle",
+    "value": "Send an encrypted chat request"
+  },
+  {
+    "key": "chatRequest.title",
+    "value": "Start Secure Chat"
+  },
+  {
+    "key": "chatRequest.validation.answerRequired",
+    "value": "Enter the expected answer"
+  },
+  {
+    "key": "chatRequest.validation.questionRequired",
+    "value": "Enter a secret question"
+  },
+  {
+    "key": "common.date.today",
+    "value": "Today"
+  },
+  {
+    "key": "common.date.yesterday",
+    "value": "Yesterday"
+  },
+  {
+    "key": "errors.copied",
+    "value": "Copied to clipboard"
+  },
+  {
+    "key": "errors.copyDebugInfo",
+    "value": "Copy debug info"
+  },
+  {
+    "key": "errors.dismiss",
+    "value": "Dismiss (dev)"
+  },
+  {
+    "key": "errors.reload",
+    "value": "Reload"
+  },
+  {
+    "key": "errors.report",
+    "value": "Report"
+  },
+  {
+    "key": "errors.rootMessage",
+    "value": "The app hit an unexpected error. Reload the page, copy technical details, or send us a report."
+  },
+  {
+    "key": "errors.rootTitle",
+    "value": "Something went wrong"
+  },
+  {
+    "key": "files.bubble.document",
+    "value": "Document"
+  },
+  {
+    "key": "files.bubble.photo",
+    "value": "Photo"
+  },
+  {
+    "key": "files.bubble.retry",
+    "value": "Retry"
+  },
+  {
+    "key": "files.bubble.sizeBytes",
+    "value": "{{size}} B"
+  },
+  {
+    "key": "files.bubble.sizeKb",
+    "value": "{{size}} KB"
+  },
+  {
+    "key": "files.bubble.sizeMb",
+    "value": "{{size}} MB"
+  },
+  {
+    "key": "files.bubble.video",
+    "value": "Video"
+  },
+  {
+    "key": "files.download.decrypting",
+    "value": "Decrypting..."
+  },
+  {
+    "key": "files.download.downloading",
+    "value": "Downloading..."
+  },
+  {
+    "key": "files.download.failed",
+    "value": "Download failed"
+  },
+  {
+    "key": "files.download.fetch",
+    "value": "Download"
+  },
+  {
+    "key": "files.download.open",
+    "value": "Open"
+  },
+  {
+    "key": "files.download.save",
+    "value": "Save"
+  },
+  {
+    "key": "files.error.aborted",
+    "value": "Upload cancelled."
+  },
+  {
+    "key": "files.error.decryptFailed",
+    "value": "Decryption error"
+  },
+  {
+    "key": "files.error.empty",
+    "value": "This file is empty."
+  },
+  {
+    "key": "files.error.expired",
+    "value": "File expired"
+  },
+  {
+    "key": "files.error.forbidden",
+    "value": "You don't have access to this file."
+  },
+  {
+    "key": "files.error.nameTooLong",
+    "value": "File name is too long (max {{max}} characters)."
+  },
+  {
+    "key": "files.error.network",
+    "value": "Network error. Check your connection and try again."
+  },
+  {
+    "key": "files.error.payloadTooLarge",
+    "value": "File is too large for the server."
+  },
+  {
+    "key": "files.error.rateLimited",
+    "value": "Too many uploads. Please wait a moment."
+  },
+  {
+    "key": "files.error.serverError",
+    "value": "Something went wrong. Please try again."
+  },
+  {
+    "key": "files.error.tooLarge",
+    "value": "File too large (max {{size}})"
+  },
+  {
+    "key": "files.error.unauthorized",
+    "value": "Authorization failed. Try reopening the mini app."
+  },
+  {
+    "key": "files.error.unsupportedType",
+    "value": "Unsupported file type"
+  },
+  {
+    "key": "files.error.uploadIncomplete",
+    "value": "Upload did not finish. Please try again."
+  },
+  {
+    "key": "files.preview.attach",
+    "value": "Attach file"
+  },
+  {
+    "key": "files.preview.cancel",
+    "value": "Cancel"
+  },
+  {
+    "key": "files.preview.captionPlaceholder",
+    "value": "Add a caption..."
+  },
+  {
+    "key": "files.preview.send",
+    "value": "Send"
+  },
+  {
+    "key": "files.preview.title",
+    "value": "Preview"
+  },
+  {
+    "key": "files.upload.encrypting",
+    "value": "Encrypting..."
+  },
+  {
+    "key": "files.upload.failed",
+    "value": "Upload failed"
+  },
+  {
+    "key": "files.upload.retry",
+    "value": "Retry"
+  },
+  {
+    "key": "files.upload.sending",
+    "value": "Sending..."
+  },
+  {
+    "key": "files.upload.uploading",
+    "value": "Uploading..."
+  },
+  {
+    "key": "files.viewer.close",
+    "value": "Close"
+  },
+  {
+    "key": "files.viewer.saveToDevice",
+    "value": "Save to device"
+  },
+  {
+    "key": "governance.ariaModalVote",
+    "value": "Confirm governance vote"
+  },
+  {
+    "key": "governance.ariaProposalTabs",
+    "value": "Proposal filters"
+  },
+  {
+    "key": "governance.ariaSortProposals",
+    "value": "Sort proposals"
+  },
+  {
+    "key": "governance.ariaVoteProgress",
+    "value": "Voting results bar chart"
+  },
+  {
+    "key": "governance.backToList",
+    "value": "All proposals"
+  },
+  {
+    "key": "governance.commentsHint",
+    "value": "Continue the conversation in Telegram (opens chat)."
+  },
+  {
+    "key": "governance.commentsOpen",
+    "value": "Open Telegram"
+  },
+  {
+    "key": "governance.commentsTitle",
+    "value": "Discuss"
+  },
+  {
+    "key": "governance.createAmount",
+    "value": "Amount (BURN)"
+  },
+  {
+    "key": "governance.createArgsCell",
+    "value": "Optional argument cell (Base64 BOC)"
+  },
+  {
+    "key": "governance.createBack",
+    "value": "Back"
+  },
+  {
+    "key": "governance.createChooseType",
+    "value": "Choose proposal type"
+  },
+  {
+    "key": "governance.createCidOptional",
+    "value": "Optional IPFS CID / content id"
+  },
+  {
+    "key": "governance.createDescriptionFeature",
+    "value": "Full description (Markdown supported)"
+  },
+  {
+    "key": "governance.createEmergencyReason",
+    "value": "Emergency justification"
+  },
+  {
+    "key": "governance.createFail",
+    "value": "Could not create proposal"
+  },
+  {
+    "key": "governance.createMethodId",
+    "value": "Method id (uint32)"
+  },
+  {
+    "key": "governance.createNext",
+    "value": "Continue"
+  },
+  {
+    "key": "governance.createReason",
+    "value": "Reason"
+  },
+  {
+    "key": "governance.createRecipient",
+    "value": "Recipient TON address"
+  },
+  {
+    "key": "governance.createReviewPayload",
+    "value": "Payload preview"
+  },
+  {
+    "key": "governance.createStakeMore",
+    "value": "You need at least {{minVp}} VP to create a proposal (1% of total VP). Stake more BURN to participate."
+  },
+  {
+    "key": "governance.createStepForm",
+    "value": "Details"
+  },
+  {
+    "key": "governance.createStepReview",
+    "value": "Review"
+  },
+  {
+    "key": "governance.createStepType",
+    "value": "Type"
+  },
+  {
+    "key": "governance.createSubmit",
+    "value": "Submit proposal"
+  },
+  {
+    "key": "governance.createSubmitting",
+    "value": "Submitting…"
+  },
+  {
+    "key": "governance.createSuccess",
+    "value": "Proposal transaction sent"
+  },
+  {
+    "key": "governance.createTarget",
+    "value": "Target contract"
+  },
+  {
+    "key": "governance.createTitleFeature",
+    "value": "Short title"
+  },
+  {
+    "key": "governance.createTitlePlaceholder",
+    "value": "Max {{max}} characters"
+  },
+  {
+    "key": "governance.createTreasury",
+    "value": "Treasury address"
+  },
+  {
+    "key": "governance.createTypeHintEmergency",
+    "value": "Fast-track parameter change — use only for incidents."
+  },
+  {
+    "key": "governance.createTypeHintFeature",
+    "value": "Prioritize a product feature with a written rationale."
+  },
+  {
+    "key": "governance.createTypeHintParameter",
+    "value": "Adjust protocol parameters via controlled contract calls."
+  },
+  {
+    "key": "governance.createTypeHintTreasury",
+    "value": "Spend treasury BURN to a recipient with an on-chain reason."
+  },
+  {
+    "key": "governance.createVpLoading",
+    "value": "Checking voting thresholds…"
+  },
+  {
+    "key": "governance.createVpOk",
+    "value": "Your VP meets the minimum (≥ {{minVp}})."
+  },
+  {
+    "key": "governance.customAddressLabel",
+    "value": "Contract address"
+  },
+  {
+    "key": "governance.detailTimeline",
+    "value": "Timeline"
+  },
+  {
+    "key": "governance.emptyActive",
+    "value": "No active proposals right now."
+  },
+  {
+    "key": "governance.emptyCreateCta",
+    "value": "Create first proposal"
+  },
+  {
+    "key": "governance.emptyMyProposals",
+    "value": "You have not created any proposals in this list."
+  },
+  {
+    "key": "governance.emptyMyVotes",
+    "value": "You have not voted on any proposals in this list."
+  },
+  {
+    "key": "governance.emptyRecent",
+    "value": "No recent proposals loaded."
+  },
+  {
+    "key": "governance.ended",
+    "value": "Ended"
+  },
+  {
+    "key": "governance.endsIn",
+    "value": "Ends in {{parts}}"
+  },
+  {
+    "key": "governance.errorLoad",
+    "value": "Could not load governance data."
+  },
+  {
+    "key": "governance.executeFail",
+    "value": "Could not execute proposal"
+  },
+  {
+    "key": "governance.executeProposal",
+    "value": "Execute proposal"
+  },
+  {
+    "key": "governance.executeSubmitting",
+    "value": "Executing…"
+  },
+  {
+    "key": "governance.executeSuccess",
+    "value": "Proposal execution submitted"
+  },
+  {
+    "key": "governance.executeWaiting",
+    "value": "Timelock active — executable {{remaining}}"
+  },
+  {
+    "key": "governance.loadingDetail",
+    "value": "Loading proposal…"
+  },
+  {
+    "key": "governance.loadingList",
+    "value": "Loading proposals…"
+  },
+  {
+    "key": "governance.newProposal",
+    "value": "New proposal"
+  },
+  {
+    "key": "governance.notConfiguredHint",
+    "value": "Governor and related contracts are not configured in this environment yet. Addresses are filled in after testnet deployment."
+  },
+  {
+    "key": "governance.notConfiguredTitle",
+    "value": "Governance will be available soon"
+  },
+  {
+    "key": "governance.openProposal",
+    "value": "Open proposal {{id}}"
+  },
+  {
+    "key": "governance.pageTitle",
+    "value": "Governance"
+  },
+  {
+    "key": "governance.payloadArgsNote",
+    "value": "Arguments attached as an extra cell (see explorer for raw data)."
+  },
+  {
+    "key": "governance.payloadCid",
+    "value": "Content reference"
+  },
+  {
+    "key": "governance.payloadEmergency",
+    "value": "Emergency parameter change on {{target}} — method #{{method}}."
+  },
+  {
+    "key": "governance.payloadEmergencyReason",
+    "value": "Emergency reason"
+  },
+  {
+    "key": "governance.payloadFeatureBody",
+    "value": "Feature description"
+  },
+  {
+    "key": "governance.payloadParameterLine",
+    "value": "Change parameter on {{target}} — method #{{method}}."
+  },
+  {
+    "key": "governance.payloadTreasury",
+    "value": "Spend {{amount}} from treasury to {{recipient}}."
+  },
+  {
+    "key": "governance.payloadTreasuryReason",
+    "value": "Reason"
+  },
+  {
+    "key": "governance.progressAgainst",
+    "value": "Against"
+  },
+  {
+    "key": "governance.progressFor",
+    "value": "For"
+  },
+  {
+    "key": "governance.progressQuorum",
+    "value": "Quorum"
+  },
+  {
+    "key": "governance.progressThreshold",
+    "value": "Threshold"
+  },
+  {
+    "key": "governance.progressVotesCast",
+    "value": "Votes cast"
+  },
+  {
+    "key": "governance.proposalState.active",
+    "value": "Active"
+  },
+  {
+    "key": "governance.proposalState.cancelled",
+    "value": "Cancelled"
+  },
+  {
+    "key": "governance.proposalState.defeated",
+    "value": "Defeated"
+  },
+  {
+    "key": "governance.proposalState.executed",
+    "value": "Executed"
+  },
+  {
+    "key": "governance.proposalState.queued",
+    "value": "Queued"
+  },
+  {
+    "key": "governance.proposalState.succeeded",
+    "value": "Passed"
+  },
+  {
+    "key": "governance.proposalState.unknown",
+    "value": "Unknown"
+  },
+  {
+    "key": "governance.proposalType.emergency",
+    "value": "Emergency"
+  },
+  {
+    "key": "governance.proposalType.featurePriority",
+    "value": "Feature"
+  },
+  {
+    "key": "governance.proposalType.parameterChange",
+    "value": "Parameter"
+  },
+  {
+    "key": "governance.proposalType.treasurySpend",
+    "value": "Treasury"
+  },
+  {
+    "key": "governance.proposalType.unknown",
+    "value": "Unknown type"
+  },
+  {
+    "key": "governance.queueFail",
+    "value": "Could not queue proposal"
+  },
+  {
+    "key": "governance.queueProposal",
+    "value": "Queue proposal"
+  },
+  {
+    "key": "governance.queueSubmitting",
+    "value": "Queueing…"
+  },
+  {
+    "key": "governance.queueSuccess",
+    "value": "Proposal queued in timelock"
+  },
+  {
+    "key": "governance.refresh",
+    "value": "Refresh"
+  },
+  {
+    "key": "governance.retry",
+    "value": "Retry"
+  },
+  {
+    "key": "governance.sortEndingSoon",
+    "value": "Ending soon"
+  },
+  {
+    "key": "governance.sortLabel",
+    "value": "Sort"
+  },
+  {
+    "key": "governance.sortMostVoted",
+    "value": "Most voted"
+  },
+  {
+    "key": "governance.sortNewest",
+    "value": "Newest"
+  },
+  {
+    "key": "governance.tabActive",
+    "value": "Active"
+  },
+  {
+    "key": "governance.tabMyProposals",
+    "value": "My proposals"
+  },
+  {
+    "key": "governance.tabMyVotes",
+    "value": "My votes"
+  },
+  {
+    "key": "governance.tabRecent",
+    "value": "Recent"
+  },
+  {
+    "key": "governance.targetCustom",
+    "value": "Custom address"
+  },
+  {
+    "key": "governance.targetGovernor",
+    "value": "Governor"
+  },
+  {
+    "key": "governance.targetJetton",
+    "value": "Jetton master"
+  },
+  {
+    "key": "governance.targetStaking",
+    "value": "Staking master"
+  },
+  {
+    "key": "governance.targetStakingLock",
+    "value": "Staking lock"
+  },
+  {
+    "key": "governance.targetTreasury",
+    "value": "Treasury"
+  },
+  {
+    "key": "governance.timePartDay_one",
+    "value": "1 day"
+  },
+  {
+    "key": "governance.timePartDay_other",
+    "value": "{{count}} days"
+  },
+  {
+    "key": "governance.timePartHour_one",
+    "value": "1 hour"
+  },
+  {
+    "key": "governance.timePartHour_other",
+    "value": "{{count}} hours"
+  },
+  {
+    "key": "governance.timePartMinute_one",
+    "value": "1 min"
+  },
+  {
+    "key": "governance.timePartMinute_other",
+    "value": "{{count}} min"
+  },
+  {
+    "key": "governance.timelineCreated",
+    "value": "Created"
+  },
+  {
+    "key": "governance.timelineExecuted",
+    "value": "Executed"
+  },
+  {
+    "key": "governance.timelineFinalized",
+    "value": "Finalized"
+  },
+  {
+    "key": "governance.timelineQueued",
+    "value": "Queued"
+  },
+  {
+    "key": "governance.timelineTimelockEta",
+    "value": "Executable {{remaining}}"
+  },
+  {
+    "key": "governance.timelineVoting",
+    "value": "Voting"
+  },
+  {
+    "key": "governance.timelockDisabledNeedWallet",
+    "value": "Connect wallet to queue or execute"
+  },
+  {
+    "key": "governance.timelockSectionTitle",
+    "value": "Timelock"
+  },
+  {
+    "key": "governance.voteAgainst",
+    "value": "Vote AGAINST"
+  },
+  {
+    "key": "governance.voteAlready",
+    "value": "You voted {{side}} with {{vp}} VP."
+  },
+  {
+    "key": "governance.voteDisabledEnded",
+    "value": "Voting ended"
+  },
+  {
+    "key": "governance.voteDisabledNeedWallet",
+    "value": "Connect wallet to vote"
+  },
+  {
+    "key": "governance.voteFail",
+    "value": "Vote failed"
+  },
+  {
+    "key": "governance.voteFor",
+    "value": "Vote FOR"
+  },
+  {
+    "key": "governance.voteModalCancel",
+    "value": "Cancel"
+  },
+  {
+    "key": "governance.voteModalConfirm",
+    "value": "Confirm vote"
+  },
+  {
+    "key": "governance.voteModalFinalWarning",
+    "value": "Your vote is final and cannot be changed."
+  },
+  {
+    "key": "governance.voteModalSending",
+    "value": "Sending transaction…"
+  },
+  {
+    "key": "governance.voteModalSide",
+    "value": "You are voting {{side}}"
+  },
+  {
+    "key": "governance.voteModalTitle",
+    "value": "Confirm vote"
+  },
+  {
+    "key": "governance.voteModalVp",
+    "value": "Your voting power"
+  },
+  {
+    "key": "governance.voteSideAgainst",
+    "value": "AGAINST"
+  },
+  {
+    "key": "governance.voteSideFor",
+    "value": "FOR"
+  },
+  {
+    "key": "governance.voteSuccess",
+    "value": "Vote submitted"
+  },
+  {
+    "key": "governance.votesSummary",
+    "value": "{{forAmount}} for · {{againstAmount}} against"
+  },
+  {
+    "key": "governance.vpUnavailable",
+    "value": "Connect wallet to see VP"
+  },
+  {
+    "key": "governance.yourVp",
+    "value": "Your voting power"
+  },
+  {
+    "key": "home.burnSection.governance",
+    "value": "Governance"
+  },
+  {
+    "key": "home.burnSection.governanceDesc",
+    "value": "Vote on proposals and create new ones."
+  },
+  {
+    "key": "home.burnSection.staking",
+    "value": "Staking"
+  },
+  {
+    "key": "home.burnSection.stakingDesc",
+    "value": "Lock BURN to earn rewards and boost voting power."
+  },
+  {
+    "key": "home.burnSection.subtitle",
+    "value": "Stake for rewards and shape the protocol through on-chain governance."
+  },
+  {
+    "key": "home.burnSection.title",
+    "value": "BURN Token"
+  },
+  {
+    "key": "home.internalIdLabel",
+    "value": "Internal ID (share to be found): {{id}}"
+  },
+  {
+    "key": "home.searchHint",
+    "value": "Share your Internal ID (in profile above) so others can find you. Search accepts @username, numeric Telegram ID, full Internal ID (UUID), or wallet address (EQ…)."
+  },
+  {
+    "key": "nav.home",
+    "value": "Home"
+  },
+  {
+    "key": "nav.settings",
+    "value": "Settings"
+  },
+  {
+    "key": "nav.wallet",
+    "value": "Wallet"
+  },
+  {
+    "key": "room.chat.encryptedTitle",
+    "value": "End-to-end encrypted"
+  },
+  {
+    "key": "room.chat.epochSubtitle",
+    "value": "E2EE · epoch {{epoch}}"
+  },
+  {
+    "key": "room.chat.fallbackPeer",
+    "value": "Member"
+  },
+  {
+    "key": "room.chat.keyLoadError",
+    "value": "Failed to load encryption key"
+  },
+  {
+    "key": "room.chat.messagePlaceholder",
+    "value": "Message room..."
+  },
+  {
+    "key": "room.chat.ownerOfflineHint",
+    "value": "Waiting for the room owner to come online"
+  },
+  {
+    "key": "room.chat.ownerRekeying",
+    "value": "Generating new encryption key..."
+  },
+  {
+    "key": "room.chat.ownerRekeyingHint",
+    "value": "Distributing key to room members"
+  },
+  {
+    "key": "room.chat.requestingKey",
+    "value": "Requesting encryption key from room owner..."
+  },
+  {
+    "key": "room.chat.retryKey",
+    "value": "Retry"
+  },
+  {
+    "key": "room.chat.sendError",
+    "value": "Failed to send message"
+  },
+  {
+    "key": "settings.appearance.themeDark",
+    "value": "Dark"
+  },
+  {
+    "key": "settings.appearance.themeLabel",
+    "value": "Theme"
+  },
+  {
+    "key": "settings.appearance.themeTelegram",
+    "value": "Telegram theme"
+  },
+  {
+    "key": "settings.developer.debugPanel",
+    "value": "Debug panel"
+  },
+  {
+    "key": "settings.developer.version",
+    "value": "App version"
+  },
+  {
+    "key": "settings.languageLabel",
+    "value": "App language"
+  },
+  {
+    "key": "settings.notifications.haptics",
+    "value": "Haptic feedback"
+  },
+  {
+    "key": "settings.notifications.toasts",
+    "value": "Pop-up notifications"
+  },
+  {
+    "key": "settings.notifications.toastsHint",
+    "value": "Info and success only; errors are always shown"
+  },
+  {
+    "key": "settings.section.accounts",
+    "value": "Linked accounts"
+  },
+  {
+    "key": "settings.section.appearance",
+    "value": "Appearance"
+  },
+  {
+    "key": "settings.section.developer",
+    "value": "Developer"
+  },
+  {
+    "key": "settings.section.language",
+    "value": "Language"
+  },
+  {
+    "key": "settings.section.notifications",
+    "value": "Notifications"
+  },
+  {
+    "key": "settings.section.profile",
+    "value": "Profile"
+  },
+  {
+    "key": "settings.section.security",
+    "value": "Security"
+  },
+  {
+    "key": "settings.security.clearKeys",
+    "value": "Clear local keys"
+  },
+  {
+    "key": "settings.security.clearKeysConfirm",
+    "value": "Clear all encryption keys stored on this device? Active chats will require re-handshake."
+  },
+  {
+    "key": "settings.security.clearKeysSuccess",
+    "value": "Local encryption keys cleared"
+  },
+  {
+    "key": "settings.security.keysHint",
+    "value": "Encryption keys stay only on this device. Clearing them removes local session and room keys — active chats will need a new secure handshake."
+  },
+  {
+    "key": "settings.title",
+    "value": "Settings"
+  },
+  {
+    "key": "staking.amountInvalid",
+    "value": "Enter a valid amount."
+  },
+  {
+    "key": "staking.amountLabel",
+    "value": "Amount (BURN)"
+  },
+  {
+    "key": "staking.amountOverBalance",
+    "value": "Amount exceeds wallet balance."
+  },
+  {
+    "key": "staking.amountPositive",
+    "value": "Amount must be greater than zero."
+  },
+  {
+    "key": "staking.amountSliderAria",
+    "value": "Stake amount percentage of balance"
+  },
+  {
+    "key": "staking.back",
+    "value": "Back"
+  },
+  {
+    "key": "staking.calculator.activity.high",
+    "value": "High"
+  },
+  {
+    "key": "staking.calculator.activity.low",
+    "value": "Low"
+  },
+  {
+    "key": "staking.calculator.activity.medium",
+    "value": "Medium"
+  },
+  {
+    "key": "staking.calculator.activityLabel",
+    "value": "Network activity (Phase 2)"
+  },
+  {
+    "key": "staking.calculator.amountHint",
+    "value": "Slider uses your wallet balance when connected; otherwise up to {{max}}."
+  },
+  {
+    "key": "staking.calculator.amountLabel",
+    "value": "Stake amount (BURN)"
+  },
+  {
+    "key": "staking.calculator.amountSliderAria",
+    "value": "Calculator stake amount as percentage of max"
+  },
+  {
+    "key": "staking.calculator.amountTooltip",
+    "value": "Hypothetical amount you stake in this tier. Your share of the tier and APY depend on total tier TVL (illustrative baseline from TOKENOMICS plus any position you already have in that tier)."
+  },
+  {
+    "key": "staking.calculator.apy",
+    "value": "Indicative APY"
+  },
+  {
+    "key": "staking.calculator.apyTooltip",
+    "value": "Annualized from estimated daily rewards. Illustrative only — see TOKENOMICS for assumptions."
+  },
+  {
+    "key": "staking.calculator.chartAria",
+    "value": "Bar chart of indicative APY by tier"
+  },
+  {
+    "key": "staking.calculator.chartTitle",
+    "value": "Compare tiers (same amount)"
+  },
+  {
+    "key": "staking.calculator.mainTabsAria",
+    "value": "Staking sections"
+  },
+  {
+    "key": "staking.calculator.minAmount",
+    "value": "Use at least {{min}} for a meaningful APY estimate."
+  },
+  {
+    "key": "staking.calculator.modalDay",
+    "value": "≈ {{amount}} / day"
+  },
+  {
+    "key": "staking.calculator.modalMonth",
+    "value": "≈ {{amount}} / month"
+  },
+  {
+    "key": "staking.calculator.modalNeedAmount",
+    "value": "Enter an amount to see indicative APY and reward estimates."
+  },
+  {
+    "key": "staking.calculator.modalShare",
+    "value": "Tier share {{pct}}%"
+  },
+  {
+    "key": "staking.calculator.modalYear",
+    "value": "≈ {{amount}} / year"
+  },
+  {
+    "key": "staking.calculator.needAmount",
+    "value": "Enter a stake amount to see estimates."
+  },
+  {
+    "key": "staking.calculator.noEmission",
+    "value": "No pool emission for this scenario."
+  },
+  {
+    "key": "staking.calculator.phase1",
+    "value": "Phase 1 (pool allocation)"
+  },
+  {
+    "key": "staking.calculator.phase2",
+    "value": "Phase 2 (tx fees only)"
+  },
+  {
+    "key": "staking.calculator.phase2Disclaimer",
+    "value": "After year 3, only transaction fees fund staking rewards. Indicative APY is usually much lower than during Phase 1."
+  },
+  {
+    "key": "staking.calculator.phaseGroup",
+    "value": "Reward phase"
+  },
+  {
+    "key": "staking.calculator.rewardDay",
+    "value": "Est. reward / day"
+  },
+  {
+    "key": "staking.calculator.rewardDayTooltip",
+    "value": "Pool emission × tier reward share × your fraction of tier stake."
+  },
+  {
+    "key": "staking.calculator.rewardMonth",
+    "value": "Est. / month"
+  },
+  {
+    "key": "staking.calculator.rewardMonthTooltip",
+    "value": "Approximation: yearly estimate ÷ 12."
+  },
+  {
+    "key": "staking.calculator.rewardYear",
+    "value": "Est. / year"
+  },
+  {
+    "key": "staking.calculator.rewardYearTooltip",
+    "value": "Daily reward × 365."
+  },
+  {
+    "key": "staking.calculator.shareTier",
+    "value": "Your share of this tier"
+  },
+  {
+    "key": "staking.calculator.shareTierTooltip",
+    "value": "Your stake as a fraction of total tier stake after your deposit (scenario model)."
+  },
+  {
+    "key": "staking.calculator.tabCalculator",
+    "value": "Calculator"
+  },
+  {
+    "key": "staking.calculator.tabOverview",
+    "value": "Overview"
+  },
+  {
+    "key": "staking.calculator.tierLabel",
+    "value": "Tier"
+  },
+  {
+    "key": "staking.calculator.tierTooltip",
+    "value": "Each tier receives a fixed share of daily pool emission; higher tiers earn more but require a longer lock."
+  },
+  {
+    "key": "staking.calculator.title",
+    "value": "APY calculator"
+  },
+  {
+    "key": "staking.claim",
+    "value": "Claim"
+  },
+  {
+    "key": "staking.claimAll",
+    "value": "Claim all"
+  },
+  {
+    "key": "staking.claimAllSuccess",
+    "value": "All claims submitted"
+  },
+  {
+    "key": "staking.claimFailed",
+    "value": "Claim failed"
+  },
+  {
+    "key": "staking.claimHistoryEmpty",
+    "value": "Claims you confirm in this app will appear here (last 10)."
+  },
+  {
+    "key": "staking.claimHistoryRow",
+    "value": "{{tier}} · {{time}}"
+  },
+  {
+    "key": "staking.claimHistoryTitle",
+    "value": "Recent claims"
+  },
+  {
+    "key": "staking.claimSuccess",
+    "value": "Claim submitted"
+  },
+  {
+    "key": "staking.claimTier",
+    "value": "Claim"
+  },
+  {
+    "key": "staking.claiming",
+    "value": "Claiming…"
+  },
+  {
+    "key": "staking.connectHint",
+    "value": "Connect your TON wallet to view positions and stake BURN."
+  },
+  {
+    "key": "staking.connectWallet",
+    "value": "Connect wallet"
+  },
+  {
+    "key": "staking.done",
+    "value": "Done"
+  },
+  {
+    "key": "staking.emptyCta",
+    "value": "Stake into Diamond"
+  },
+  {
+    "key": "staking.emptyHint",
+    "value": "Stake your BURN to join the rewards pool. Pick a tier that matches how long you can lock tokens."
+  },
+  {
+    "key": "staking.emptyTitle",
+    "value": "Start earning rewards"
+  },
+  {
+    "key": "staking.goClaim",
+    "value": "Go to claim"
+  },
+  {
+    "key": "staking.headerPending",
+    "value": "Pending rewards"
+  },
+  {
+    "key": "staking.headerTotalStaked",
+    "value": "Total staked"
+  },
+  {
+    "key": "staking.headerTotalVp",
+    "value": "Voting power"
+  },
+  {
+    "key": "staking.indicativeApy",
+    "value": "Indicative APY ~{{pct}}%"
+  },
+  {
+    "key": "staking.insufficientTonForStake",
+    "value": "Keep at least ~{{attach}} TON in your wallet to stake."
+  },
+  {
+    "key": "staking.lock1y",
+    "value": "1 year"
+  },
+  {
+    "key": "staking.lock3y",
+    "value": "3 years"
+  },
+  {
+    "key": "staking.lock6m",
+    "value": "6 months"
+  },
+  {
+    "key": "staking.lockConfirm",
+    "value": "Your tokens will be locked until {{date}}. You cannot unstake earlier."
+  },
+  {
+    "key": "staking.lockFlexible",
+    "value": "Flexible"
+  },
+  {
+    "key": "staking.max",
+    "value": "Max"
+  },
+  {
+    "key": "staking.modalClose",
+    "value": "Close"
+  },
+  {
+    "key": "staking.multiplierShort",
+    "value": "{{value}}× VP"
+  },
+  {
+    "key": "staking.noJettonWallet",
+    "value": "You don't have a BURN token wallet yet. Receive some BURN to your address first, then try again."
+  },
+  {
+    "key": "staking.noStakeTier",
+    "value": "You have no stake in this tier yet."
+  },
+  {
+    "key": "staking.notConfiguredHint",
+    "value": "On-chain contracts are not configured in this environment yet. Addresses are filled in after testnet deployment."
+  },
+  {
+    "key": "staking.notConfiguredTitle",
+    "value": "Staking will be available soon"
+  },
+  {
+    "key": "staking.pageTitle",
+    "value": "Staking"
+  },
+  {
+    "key": "staking.positionAmount",
+    "value": "Staked"
+  },
+  {
+    "key": "staking.positionReward",
+    "value": "Pending reward"
+  },
+  {
+    "key": "staking.positionStarted",
+    "value": "Since"
+  },
+  {
+    "key": "staking.positionUnlock",
+    "value": "Unlock"
+  },
+  {
+    "key": "staking.retry",
+    "value": "Retry"
+  },
+  {
+    "key": "staking.rewardsEmpty",
+    "value": "No pending rewards right now."
+  },
+  {
+    "key": "staking.rewardsTitle",
+    "value": "Rewards"
+  },
+  {
+    "key": "staking.stakeConfirm",
+    "value": "Stake & sign"
+  },
+  {
+    "key": "staking.stakeFailed",
+    "value": "Stake failed"
+  },
+  {
+    "key": "staking.stakeInto",
+    "value": "Stake into {{tier}}"
+  },
+  {
+    "key": "staking.stakeModalTitle",
+    "value": "Stake BURN"
+  },
+  {
+    "key": "staking.stakeMore",
+    "value": "Stake more"
+  },
+  {
+    "key": "staking.stakePickTier",
+    "value": "Choose a tier"
+  },
+  {
+    "key": "staking.stakeSigning",
+    "value": "Confirm in your wallet…"
+  },
+  {
+    "key": "staking.stakeSuccess",
+    "value": "Stake transaction sent."
+  },
+  {
+    "key": "staking.tierDiamond",
+    "value": "Diamond"
+  },
+  {
+    "key": "staking.tierFlexible",
+    "value": "Flexible"
+  },
+  {
+    "key": "staking.tierGold",
+    "value": "Gold"
+  },
+  {
+    "key": "staking.tierPickHint",
+    "value": "+{{mult}}× VP · {{lock}}"
+  },
+  {
+    "key": "staking.tierSilver",
+    "value": "Silver"
+  },
+  {
+    "key": "staking.tiersSection",
+    "value": "Tiers"
+  },
+  {
+    "key": "staking.timePartDay_one",
+    "value": "1 day"
+  },
+  {
+    "key": "staking.timePartDay_other",
+    "value": "{{count}} days"
+  },
+  {
+    "key": "staking.timePartHour_one",
+    "value": "1 hour"
+  },
+  {
+    "key": "staking.timePartHour_other",
+    "value": "{{count}} hours"
+  },
+  {
+    "key": "staking.timePartMonth_one",
+    "value": "1 month"
+  },
+  {
+    "key": "staking.timePartMonth_other",
+    "value": "{{count}} months"
+  },
+  {
+    "key": "staking.timePartYear_one",
+    "value": "1 year"
+  },
+  {
+    "key": "staking.timePartYear_other",
+    "value": "{{count}} years"
+  },
+  {
+    "key": "staking.timelineAria",
+    "value": "Unlock timeline"
+  },
+  {
+    "key": "staking.timelineEmpty",
+    "value": "No active locks. Flexible tier or unlocked positions do not appear here."
+  },
+  {
+    "key": "staking.timelineTitle",
+    "value": "Unlock timeline"
+  },
+  {
+    "key": "staking.tonBalanceLabel",
+    "value": "TON: {{amount}}"
+  },
+  {
+    "key": "staking.tonGasDepositHint",
+    "value": "~{{attach}} TON is attached for network gas; unused TON returns to your wallet."
+  },
+  {
+    "key": "staking.txFailed",
+    "value": "Transaction was not completed."
+  },
+  {
+    "key": "staking.unlocked",
+    "value": "Unlocked"
+  },
+  {
+    "key": "staking.unlocksIn",
+    "value": "Unlocks in {{parts}}"
+  },
+  {
+    "key": "staking.unstake",
+    "value": "Unstake"
+  },
+  {
+    "key": "staking.unstakeAmountLabel",
+    "value": "Amount to unstake (BURN)"
+  },
+  {
+    "key": "staking.unstakeAvailable",
+    "value": "Available to unstake: {{amount}}"
+  },
+  {
+    "key": "staking.unstakeClaimFirst",
+    "value": "You have pending rewards ({{amount}}). Claim first so nothing is left on-chain before unstaking."
+  },
+  {
+    "key": "staking.unstakeConfirm",
+    "value": "Unstake & sign"
+  },
+  {
+    "key": "staking.unstakeDisabledTip",
+    "value": "Locked until {{when}}"
+  },
+  {
+    "key": "staking.unstakeFailed",
+    "value": "Unstake failed"
+  },
+  {
+    "key": "staking.unstakeLockMeta",
+    "value": "Lock policy: {{lock}}"
+  },
+  {
+    "key": "staking.unstakeLocked",
+    "value": "This position is still locked."
+  },
+  {
+    "key": "staking.unstakeLockedUntil",
+    "value": "Unstake unlocks {{date}} ({{rel}})."
+  },
+  {
+    "key": "staking.unstakeOverStake",
+    "value": "Amount exceeds your stake."
+  },
+  {
+    "key": "staking.unstakeSigning",
+    "value": "Confirm in your wallet…"
+  },
+  {
+    "key": "staking.unstakeTitle",
+    "value": "Unstake {{tier}}"
+  },
+  {
+    "key": "staking.walletBalance",
+    "value": "Wallet balance: {{amount}}"
+  },
+  {
+    "key": "userSearch.walletUser",
+    "value": "Wallet user"
+  },
+  {
+    "key": "wallet.amountSliderAria",
+    "value": "Amount as a percentage of your balance"
+  },
+  {
+    "key": "wallet.balanceError",
+    "value": "Could not load balance"
+  },
+  {
+    "key": "wallet.balanceErrorConfig",
+    "value": "Balance is temporarily unavailable. Please contact support."
+  },
+  {
+    "key": "wallet.balanceErrorNetwork",
+    "value": "Could not reach the network. Please try again in a moment."
+  },
+  {
+    "key": "wallet.balanceLoading",
+    "value": "Loading…"
+  },
+  {
+    "key": "wallet.balanceRetry",
+    "value": "Try again"
+  },
+  {
+    "key": "wallet.balanceSectionTitle",
+    "value": "BURN balance"
+  },
+  {
+    "key": "wallet.burnSymbol",
+    "value": "BURN"
+  },
+  {
+    "key": "wallet.commentOptional",
+    "value": "Memo shown with transfer"
+  },
+  {
+    "key": "wallet.connectWallet",
+    "value": "Connect Wallet"
+  },
+  {
+    "key": "wallet.connectWalletAria",
+    "value": "Connect TON wallet"
+  },
+  {
+    "key": "wallet.copyAddress",
+    "value": "address"
+  },
+  {
+    "key": "wallet.copyTonLink",
+    "value": "transfer link"
+  },
+  {
+    "key": "wallet.drawerTitle",
+    "value": "BURN Wallet"
+  },
+  {
+    "key": "wallet.errAmountInvalid",
+    "value": "Invalid amount."
+  },
+  {
+    "key": "wallet.errAmountOverBalance",
+    "value": "Amount exceeds your BURN balance."
+  },
+  {
+    "key": "wallet.errAmountPositive",
+    "value": "Amount must be greater than zero."
+  },
+  {
+    "key": "wallet.errAmountRequired",
+    "value": "Enter an amount."
+  },
+  {
+    "key": "wallet.errRecipientAddress",
+    "value": "Enter a valid TON address."
+  },
+  {
+    "key": "wallet.errRecipientRequired",
+    "value": "Enter a recipient address."
+  },
+  {
+    "key": "wallet.errorRetry",
+    "value": "Try again"
+  },
+  {
+    "key": "wallet.errorTitle",
+    "value": "Wallet unavailable"
+  },
+  {
+    "key": "wallet.feeBreakdownAria",
+    "value": "Fee breakdown"
+  },
+  {
+    "key": "wallet.feeBurnLine",
+    "value": "Burn ({{pct}}%)"
+  },
+  {
+    "key": "wallet.feeEnterAmount",
+    "value": "Enter an amount to see fee breakdown."
+  },
+  {
+    "key": "wallet.feeExcludedNoSplit",
+    "value": "0% (excluded holder)"
+  },
+  {
+    "key": "wallet.feeExcludedTransfer",
+    "value": "BURN fee split"
+  },
+  {
+    "key": "wallet.feeRecipientGets",
+    "value": "Recipient gets"
+  },
+  {
+    "key": "wallet.feeStakingLine",
+    "value": "Staking ({{pct}}%)"
+  },
+  {
+    "key": "wallet.feeTonBurnNotify",
+    "value": "Burn notify"
+  },
+  {
+    "key": "wallet.feeTonDeployLegExcluded",
+    "value": "Wallet deploy"
+  },
+  {
+    "key": "wallet.feeTonDeployLegs",
+    "value": "Wallet deploy (3×)"
+  },
+  {
+    "key": "wallet.feeTonDetails",
+    "value": "Details"
+  },
+  {
+    "key": "wallet.feeTonForward",
+    "value": "Pool forward"
+  },
+  {
+    "key": "wallet.feeTonNetwork",
+    "value": "TON network"
+  },
+  {
+    "key": "wallet.feeTonPathCold",
+    "value": "First transfer"
+  },
+  {
+    "key": "wallet.feeTonPathExcluded",
+    "value": "No fee split"
+  },
+  {
+    "key": "wallet.feeTonPathWarm",
+    "value": "Repeat"
+  },
+  {
+    "key": "wallet.feeTonPropagate",
+    "value": "Fee config propagate"
+  },
+  {
+    "key": "wallet.feeTonPropagateSkipped",
+    "value": "not required (recipient already configured)"
+  },
+  {
+    "key": "wallet.feeTonPropagateSkippedFootnote",
+    "value": "On-chain message may still be sent; surplus returns to your wallet."
+  },
+  {
+    "key": "wallet.feeTreasuryLine",
+    "value": "Treasury ({{pct}}%)"
+  },
+  {
+    "key": "wallet.feeYouSend",
+    "value": "You send"
+  },
+  {
+    "key": "wallet.fieldAmount",
+    "value": "Amount (BURN)"
+  },
+  {
+    "key": "wallet.fieldAmountNet",
+    "value": "Recipient receives (BURN)"
+  },
+  {
+    "key": "wallet.fieldAmountNetExcludedHint",
+    "value": "Excluded holders pay no BURN fee split — net equals the send amount."
+  },
+  {
+    "key": "wallet.fieldAmountNetHint",
+    "value": "Net amount after the BURN fee split (burn, staking, treasury). The send amount above is calculated automatically."
+  },
+  {
+    "key": "wallet.fieldComment",
+    "value": "Comment (optional)"
+  },
+  {
+    "key": "wallet.fieldRecipient",
+    "value": "Recipient"
+  },
+  {
+    "key": "wallet.filter.all",
+    "value": "All"
+  },
+  {
+    "key": "wallet.filter.received",
+    "value": "Received"
+  },
+  {
+    "key": "wallet.filter.rewards",
+    "value": "Rewards"
+  },
+  {
+    "key": "wallet.filter.sent",
+    "value": "Sent"
+  },
+  {
+    "key": "wallet.history",
+    "value": "History"
+  },
+  {
+    "key": "wallet.historyEmpty",
+    "value": "No transactions yet."
+  },
+  {
+    "key": "wallet.historyEmptyCta",
+    "value": "Receive BURN"
+  },
+  {
+    "key": "wallet.historyEmptyHint",
+    "value": "Pull down to refresh. Or jump straight to receiving BURN below."
+  },
+  {
+    "key": "wallet.historyFilterAria",
+    "value": "Filter transactions"
+  },
+  {
+    "key": "wallet.historySectionTitle",
+    "value": "Wallet activity"
+  },
+  {
+    "key": "wallet.historyTitle",
+    "value": "Transaction history"
+  },
+  {
+    "key": "wallet.linkErrorTimeout",
+    "value": "Wallet linking took too long. Please try again — if it keeps failing, the server may still be verifying your signature."
+  },
+  {
+    "key": "wallet.loadMore",
+    "value": "Load more"
+  },
+  {
+    "key": "wallet.max",
+    "value": "Max"
+  },
+  {
+    "key": "wallet.openWalletAria",
+    "value": "Open wallet, address {{address}}, balance {{balance}}"
+  },
+  {
+    "key": "wallet.receive",
+    "value": "Receive"
+  },
+  {
+    "key": "wallet.receiveHide",
+    "value": "Hide receive"
+  },
+  {
+    "key": "wallet.receiveHint",
+    "value": "Scan the QR code with a TON wallet, or share the link / copy your address below."
+  },
+  {
+    "key": "wallet.receiveQrAria",
+    "value": "QR code: open transfer to this wallet in a TON app"
+  },
+  {
+    "key": "wallet.recipientPlaceholder",
+    "value": "TON address or @username"
+  },
+  {
+    "key": "wallet.segment.governance",
+    "value": "Governance"
+  },
+  {
+    "key": "wallet.segment.staking",
+    "value": "Staking"
+  },
+  {
+    "key": "wallet.segment.wallet",
+    "value": "Wallet"
+  },
+  {
+    "key": "wallet.send",
+    "value": "Send"
+  },
+  {
+    "key": "wallet.sendConfirm",
+    "value": "Send"
+  },
+  {
+    "key": "wallet.sendErrorConfig",
+    "value": "BURN token configuration is unavailable. Please contact support."
+  },
+  {
+    "key": "wallet.sendErrorInsufficientBalance",
+    "value": "You do not have enough BURN for this transfer."
+  },
+  {
+    "key": "wallet.sendErrorInsufficientGas",
+    "value": "Not enough TON in your wallet to pay network fees."
+  },
+  {
+    "key": "wallet.sendErrorJettonWalletNotDeployed",
+    "value": "Your wallet does not have a BURN jetton wallet yet. Receive BURN first, then try sending."
+  },
+  {
+    "key": "wallet.sendErrorJettonWalletUnresolved",
+    "value": "Could not verify your BURN jetton wallet on TON. Please try again in a moment."
+  },
+  {
+    "key": "wallet.sendErrorNetwork",
+    "value": "Could not reach the TON network. Please try again in a moment."
+  },
+  {
+    "key": "wallet.sendFailed",
+    "value": "Transfer failed"
+  },
+  {
+    "key": "wallet.sendGasChecking",
+    "value": "Checking recipient…"
+  },
+  {
+    "key": "wallet.sendGasColdHint",
+    "value": "First transfer to this recipient — ~{{attach}} TON deposit; actual network fee ~{{netMin}}–{{netMax}} TON. Surplus is refunded."
+  },
+  {
+    "key": "wallet.sendGasDepositHint",
+    "value": "~{{attach}} TON is reserved for this transfer; actual network fee is ~{{netMin}}–{{netMax}} TON. The rest is refunded."
+  },
+  {
+    "key": "wallet.sendGasExcludedHint",
+    "value": "No BURN fee split — network deposit ~{{attach}} TON. Surplus is refunded."
+  },
+  {
+    "key": "wallet.sendGasHint",
+    "value": "BURN transfers attach ~3.5 TON to the message for on-chain gas (separate from the BURN fee split above). Keep enough native TON in your wallet."
+  },
+  {
+    "key": "wallet.sendGasNetFeeHint",
+    "value": "Part of the surplus may sit on your jetton wallet briefly before returning to your main wallet."
+  },
+  {
+    "key": "wallet.sendGasWarmHint",
+    "value": "Repeat transfer — lower ~{{attach}} TON deposit; actual network fee ~{{netMin}}–{{netMax}} TON. Surplus is refunded."
+  },
+  {
+    "key": "wallet.sendMaxTonReserveHint",
+    "value": "Keep ~{{attach}} TON in your wallet for the network deposit before sending max BURN."
+  },
+  {
+    "key": "wallet.sendModalTitle",
+    "value": "Send BURN"
+  },
+  {
+    "key": "wallet.sendRejected",
+    "value": "You cancelled the wallet request"
+  },
+  {
+    "key": "wallet.sendSuccess",
+    "value": "Transfer submitted"
+  },
+  {
+    "key": "wallet.tonBalanceUnavailable",
+    "value": "Unavailable"
+  },
+  {
+    "key": "wallet.tonForGas",
+    "value": "TON for fees"
+  },
+  {
+    "key": "wallet.tonForGasAria",
+    "value": "Native TON balance for network fees"
+  },
+  {
+    "key": "wallet.usernameNotResolved",
+    "value": "Resolving Telegram @username in-app is not available yet — use a TON address."
+  },
+  {
+    "key": "wallet.waitingConfirmation",
+    "value": "Waiting for confirmation…"
+  },
+  {
+    "key": "wallet.walletAddressAria",
+    "value": "Wallet address"
+  },
+  {
+    "key": "walletLogin.busy",
+    "value": "Waiting for wallet…"
+  },
+  {
+    "key": "walletLogin.connect",
+    "value": "Connect TON wallet"
+  },
+  {
+    "key": "walletLogin.errorGeneric",
+    "value": "Something went wrong. Try again."
+  },
+  {
+    "key": "walletLogin.errorNetwork",
+    "value": "Could not reach the server. Check your connection and API URL."
+  },
+  {
+    "key": "walletLogin.errorProof",
+    "value": "The server could not verify the wallet signature. Try reconnecting."
+  },
+  {
+    "key": "walletLogin.errorProofDomain",
+    "value": "App domain mismatch. The wallet signed a different domain than the server expects. Reload the page and try again."
+  },
+  {
+    "key": "walletLogin.errorProofNonce",
+    "value": "The login challenge expired. Please reconnect the wallet."
+  },
+  {
+    "key": "walletLogin.errorProofPublicKey",
+    "value": "Could not verify the wallet on-chain. The wallet may be brand-new (no transactions yet). Try sending any transaction first or use a different wallet."
+  },
+  {
+    "key": "walletLogin.errorProofRequest",
+    "value": "Bad login request. Please reload and try again."
+  },
+  {
+    "key": "walletLogin.errorProofSignature",
+    "value": "Wallet signature did not match. Try reconnecting; if the issue persists — switch wallets."
+  },
+  {
+    "key": "walletLogin.errorProofTimestamp",
+    "value": "Server clock skew detected. Please retry. If it persists, contact support."
+  },
+  {
+    "key": "walletLogin.errorRejected",
+    "value": "The wallet closed the request. Try again when you are ready."
+  },
+  {
+    "key": "walletLogin.errorTimeout",
+    "value": "Connection timed out. Check your network and try again."
+  },
+  {
+    "key": "walletLogin.subtitle",
+    "value": "Connect your TON wallet to sign in from your browser."
+  },
+  {
+    "key": "walletLogin.supportedWallets",
+    "value": "Tonkeeper, MyTonWallet, Telegram @wallet — via QR or deep link"
+  },
+  {
+    "key": "walletLogin.title",
+    "value": "Burned Chats"
+  }
+]
