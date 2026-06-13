@@ -59,7 +59,14 @@ import type { LinkedAccountsCredentials } from './components/Settings/LinkedAcco
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
-import { burn as burnKeys, burnGroupKey, getSharedSecret, hasGroupKey } from './crypto/keyStore';
+import {
+  burn as burnKeys,
+  burnGroupKey,
+  getFingerprint,
+  getSharedSecret,
+  hasGroupKey,
+  isHandshakeComplete,
+} from './crypto/keyStore';
 import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
@@ -541,11 +548,22 @@ function AppContent() {
       
       // Navigate based on session status
       if (session.status === 'ACTIVE') {
-        // Session is active - go directly to chat (TODO: implement chat view)
-        toast.success(`Resumed chat with ${session.peer.displayName}`);
-        // For now, start handshake to restore connection
-        startHandshake(session.sessionId, peerInfo);
-        setCurrentView('handshake');
+        if (isHandshakeComplete(session.sessionId)) {
+          const fingerprint = getFingerprint(session.sessionId);
+          if (fingerprint) {
+            setActiveChat({ sessionId: session.sessionId, peer: peerInfo, fingerprint });
+            toast.success(`Resumed chat with ${session.peer.displayName}`);
+            setCurrentView(isFullyVerified(session.sessionId) ? 'chat' : 'verify');
+          } else {
+            toast.info('Restoring secure connection...');
+            startHandshake(session.sessionId, peerInfo);
+            setCurrentView('handshake');
+          }
+        } else {
+          toast.info('Restoring secure connection...');
+          startHandshake(session.sessionId, peerInfo);
+          setCurrentView('handshake');
+        }
       } else if (session.status === 'HANDSHAKE') {
         // Need to complete handshake
         toast.info('Resuming secure connection...');
