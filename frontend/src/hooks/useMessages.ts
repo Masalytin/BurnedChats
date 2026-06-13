@@ -32,6 +32,7 @@ export interface SendMessageResult {
 export type MessageErrorCode =
   | 'NOT_CONNECTED'       // WebSocket not connected
   | 'NO_SESSION'          // No active session
+  | 'NOT_VERIFIED'        // Mutual fingerprint verification not complete
   | 'NO_ENCRYPTION_KEY'   // Handshake not complete
   | 'ENCRYPTION_FAILED'   // Failed to encrypt message
   | 'DECRYPTION_FAILED'   // Failed to decrypt message
@@ -171,6 +172,8 @@ interface UseMessagesOptions {
   onEditError?: (errorCode: string) => void;
   /** Callback when messages are synced after reconnection (5.1.2) */
   onSyncComplete?: (count: number) => void;
+  /** Whether both parties confirmed visual fingerprint verification (MITM gate) */
+  bothVerified?: boolean;
 }
 
 /** Hook return value */
@@ -264,7 +267,17 @@ const MESSAGE_DELETED_DESTINATION = '/user/queue/message-deleted';
  * ```
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
-  const { sessionId, userTelegramId, ws, onNewMessage, onStatusChange, onError, onSyncComplete, onEditError } = options;
+  const {
+    sessionId,
+    userTelegramId,
+    ws,
+    onNewMessage,
+    onStatusChange,
+    onError,
+    onSyncComplete,
+    onEditError,
+    bothVerified = false,
+  } = options;
 
   const isOwnWireSender = useCallback((senderId: number | null | undefined): boolean => {
     if (senderId != null && userTelegramId != null) {
@@ -407,6 +420,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
     }
 
+    if (!bothVerified) {
+      debugLog('error', 'Send blocked: verification not complete', { sessionId });
+      console.error('[useMessages] Send blocked: mutual verification not complete for session:', sessionId);
+      handleError('NOT_VERIFIED');
+      return { success: false, messageId: null, error: 'NOT_VERIFIED' };
+    }
+
     // Get AES key
     const aesKey = getAESKey(sessionId);
     if (!aesKey) {
@@ -464,7 +484,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       handleError('ENCRYPTION_FAILED', errMsg);
       return { success: false, messageId: null, error: 'ENCRYPTION_FAILED' };
     }
-  }, [isConnected, sessionId, userTelegramId, publish, handleError]);
+  }, [isConnected, sessionId, userTelegramId, publish, handleError, bothVerified]);
 
   // ============================================
   // File Message Sending (P4-3-2-1)
@@ -493,6 +513,11 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     if (!isHandshakeComplete(sessionId)) {
       handleError('NO_ENCRYPTION_KEY');
       return { success: false, messageId: null, error: 'NO_ENCRYPTION_KEY' };
+    }
+
+    if (!bothVerified) {
+      handleError('NOT_VERIFIED');
+      return { success: false, messageId: null, error: 'NOT_VERIFIED' };
     }
 
     const aesKey = getAESKey(sessionId);
@@ -585,7 +610,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       handleError('SEND_FAILED', errMsg);
       return { success: false, messageId: null, error: 'SEND_FAILED' };
     }
-  }, [isConnected, sessionId, userTelegramId, publish, handleError]);
+  }, [isConnected, sessionId, userTelegramId, publish, handleError, bothVerified]);
 
   // ============================================
   // Decryption (4.2.6)

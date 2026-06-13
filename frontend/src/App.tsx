@@ -14,6 +14,7 @@ import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake } from './hooks/useHandshake';
+import { useVerification } from './hooks/useVerification';
 import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
@@ -34,6 +35,7 @@ import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView } from './components/HandshakeView';
+import { VerificationView } from './components/VerificationView';
 import { ChatRoom } from './components/Chat';
 import { RoomChatRoom } from './components/Chat/RoomChatRoom';
 import { CreateRoomView } from './components/CreateRoomView';
@@ -57,7 +59,7 @@ import type { LinkedAccountsCredentials } from './components/Settings/LinkedAcco
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
-import { burn as burnKeys, burnGroupKey, hasGroupKey } from './crypto/keyStore';
+import { burn as burnKeys, burnGroupKey, getSharedSecret, hasGroupKey } from './crypto/keyStore';
 import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
@@ -71,6 +73,7 @@ type AppView =
   | 'pending-request'
   | 'incoming-request'
   | 'handshake'
+  | 'verify'
   | 'chat'
   | 'create-room'
   | 'join-room'
@@ -101,6 +104,7 @@ const IMMERSIVE_VIEWS: AppView[] = [
   'pending-request',
   'incoming-request',
   'handshake',
+  'verify',
   'chat',
   'create-room',
   'join-room',
@@ -319,11 +323,37 @@ function AppContent() {
       notificationOccurred('success');
       toast.success('Secure connection established!');
       console.log('[App] Handshake complete:', sessionId, fingerprint);
-      // TODO: Navigate to chat view (Sprint 4)
     },
     onError: (errorCode) => {
       notificationOccurred('error');
       toast.error(`Handshake failed: ${errorCode}`, { title: 'Connection Error' });
+    },
+  });
+
+  const {
+    getStatus: getVerificationStatus,
+    confirmVerification,
+    reportMismatch,
+    isFullyVerified,
+    clearStatus: clearVerificationStatus,
+  } = useVerification({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onMismatch: (sessionId) => {
+      notificationOccurred('error');
+      toast.error(t('verification.subtitleMismatch'), {
+        title: t('verification.titleMismatch'),
+      });
+      console.warn('[App] Fingerprint mismatch reported for session:', sessionId);
+    },
+    onError: (errorCode) => {
+      if (errorCode === 'FINGERPRINT_MISMATCH') {
+        return;
+      }
+      notificationOccurred('error');
+      toast.error(`Verification failed: ${errorCode}`, { title: 'Error' });
     },
   });
 
@@ -645,6 +675,26 @@ function AppContent() {
         cancelAll();
         publish('/app/session.burn', { sessionId });
         burnKeys(sessionId);
+        clearVerificationStatus(sessionId);
+      }
+      return;
+    }
+
+    if (currentView === 'verify') {
+      const sessionId = activeChat?.sessionId ?? handshakeResult.sessionId;
+      setActiveChat(null);
+      handshakePeerRef.current = null;
+      resetHandshake();
+      setCurrentView('home');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      if (sessionId && isConnected) {
+        console.log('[App] Burning session after verification cancel (back button):', sessionId);
+        cancelAll();
+        publish('/app/session.burn', { sessionId });
+        burnKeys(sessionId);
+        clearVerificationStatus(sessionId);
       }
       return;
     }
@@ -669,12 +719,14 @@ function AppContent() {
     resetIncomingAction,
     cancelHandshake,
     handshakeResult.sessionId,
+    activeChat?.sessionId,
     isConnected,
     publish,
     resetHandshake,
     fetchSessions,
     resetInviteLink,
     requestsReturnView,
+    clearVerificationStatus,
   ]);
 
   // Show back button on all non-home views (wallet/settings stay on currentView === 'home')
@@ -1063,26 +1115,36 @@ function AppContent() {
       cancelAll();
       publish('/app/session.burn', { sessionId });
       burnKeys(sessionId);
+      clearVerificationStatus(sessionId);
     }
-  }, [cancelHandshake, resetSession, clearSearch, handshakeResult.sessionId, isConnected, publish]);
+  }, [cancelHandshake, resetSession, clearSearch, handshakeResult.sessionId, isConnected, publish, clearVerificationStatus]);
+
+  const burnVerificationSession = useCallback((sessionId: string) => {
+    cancelAll();
+    if (isConnected) {
+      publish('/app/session.burn', { sessionId });
+    }
+    burnKeys(sessionId);
+    clearVerificationStatus(sessionId);
+    clearDownloadCache();
+  }, [isConnected, publish, clearVerificationStatus]);
 
   // Handle continuing after handshake complete
   const handleHandshakeComplete = useCallback(() => {
-    // Navigate to chat view
     const sessionId = handshakeResult.sessionId;
     const peer = handshakePeerRef.current;
     const fingerprint = handshakeResult.fingerprint;
     
     if (sessionId && peer && fingerprint) {
       setActiveChat({ sessionId, peer, fingerprint });
-      setCurrentView('chat');
+      setCurrentView('verify');
       setPendingSession(null);
       setActiveIncomingRequest(null);
       clearSearch();
-      console.log('[App] Entering chat:', sessionId);
+      console.log('[App] Entering verification:', sessionId);
     } else {
       // Fallback to home if something is missing
-      console.warn('[App] Missing data for chat, going to home');
+      console.warn('[App] Missing data for verification, going to home');
       handshakePeerRef.current = null;
       resetHandshake();
       setCurrentView('home');
@@ -1092,6 +1154,71 @@ function AppContent() {
       fetchSessions();
     }
   }, [handshakeResult.sessionId, handshakeResult.fingerprint, resetHandshake, clearSearch, fetchSessions]);
+
+  const handleVerificationContinue = useCallback(() => {
+    const sessionId = activeChat?.sessionId;
+    if (!sessionId) return;
+
+    const status = getVerificationStatus(sessionId);
+    if (status?.bothVerified) {
+      setCurrentView('chat');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      console.log('[App] Entering chat after verification:', sessionId);
+      return;
+    }
+
+    if (status?.mismatchReported) {
+      burnVerificationSession(sessionId);
+      setActiveChat(null);
+      handshakePeerRef.current = null;
+      resetHandshake();
+      setCurrentView('home');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      fetchSessions();
+    }
+  }, [
+    activeChat?.sessionId,
+    getVerificationStatus,
+    burnVerificationSession,
+    resetHandshake,
+    clearSearch,
+    fetchSessions,
+  ]);
+
+  const handleVerificationMismatch = useCallback(() => {
+    const sessionId = activeChat?.sessionId ?? handshakeResult.sessionId;
+    if (!sessionId) return;
+
+    reportMismatch(sessionId);
+    burnVerificationSession(sessionId);
+    setActiveChat(null);
+    handshakePeerRef.current = null;
+    resetHandshake();
+    setCurrentView('home');
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    clearSearch();
+    fetchSessions();
+    notificationOccurred('warning');
+    toast.warning(t('verification.mismatchWarning'), {
+      title: t('verification.titleMismatch'),
+    });
+  }, [
+    activeChat?.sessionId,
+    handshakeResult.sessionId,
+    reportMismatch,
+    burnVerificationSession,
+    resetHandshake,
+    clearSearch,
+    fetchSessions,
+    notificationOccurred,
+    toast,
+    t,
+  ]);
 
   // Handle retry handshake
   const handleRetryHandshake = useCallback(() => {
@@ -1266,6 +1393,14 @@ function AppContent() {
           if (deps.currentView === 'handshake' && deps.handshakeSessionId === data.sessionId) {
             deps.cancelHandshake();
             handshakePeerRef.current = null;
+            setCurrentView('home');
+          }
+
+          // If we're in verification view for this session, go back to home
+          if (deps.currentView === 'verify' && deps.activeChat?.sessionId === data.sessionId) {
+            setActiveChat(null);
+            handshakePeerRef.current = null;
+            deps.resetHandshake();
             setCurrentView('home');
           }
           
@@ -1735,14 +1870,42 @@ function AppContent() {
 
   // Handshake view (establishing encrypted connection)
   if (currentView === 'handshake') {
+    const handshakeVisualFingerprint = handshakeResult.sessionId
+      ? getSharedSecret(handshakeResult.sessionId)?.visualFingerprint ?? []
+      : [];
+
     return wrapWalletProvider(
       <>
         <Layout>
           <HandshakeView
             result={handshakeResult}
+            visualFingerprint={handshakeVisualFingerprint}
             onCancel={handleCancelHandshake}
             onContinue={handleHandshakeComplete}
             onRetry={handleRetryHandshake}
+          />
+        </Layout>
+        {debugPanelElement}
+      </>
+    );
+  }
+
+  // Verification view (visual fingerprint confirmation)
+  if (currentView === 'verify' && activeChat) {
+    const verificationVisualFingerprint =
+      getSharedSecret(activeChat.sessionId)?.visualFingerprint ?? [];
+
+    return wrapWalletProvider(
+      <>
+        <Layout>
+          <VerificationView
+            fingerprint={verificationVisualFingerprint}
+            status={getVerificationStatus(activeChat.sessionId)}
+            peer={activeChat.peer}
+            sessionId={activeChat.sessionId}
+            onConfirm={() => confirmVerification(activeChat.sessionId)}
+            onMismatch={handleVerificationMismatch}
+            onContinue={handleVerificationContinue}
           />
         </Layout>
         {debugPanelElement}
@@ -1761,6 +1924,7 @@ function AppContent() {
             userId={myInternalId}
             userTelegramId={telegramUserId ?? undefined}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
+            bothVerified={isFullyVerified(activeChat.sessionId)}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
             syncMessagesRef={dmSyncMessagesRef}
@@ -1987,6 +2151,8 @@ interface ChatViewContentProps {
   /** Telegram numeric id when linked (legacy DM senderId wire events) */
   userTelegramId?: number;
   ws: UseMessagesWebSocket;
+  /** Whether both parties confirmed visual fingerprint verification */
+  bothVerified: boolean;
   onBack: () => void;
   onBurn: () => void;
   /**
@@ -1997,7 +2163,17 @@ interface ChatViewContentProps {
   syncMessagesRef?: MutableRefObject<(() => void) | null>;
 }
 
-function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, onBurn, syncMessagesRef }: ChatViewContentProps) {
+function ChatViewContent({
+  sessionId,
+  peer,
+  userId,
+  userTelegramId,
+  ws,
+  bothVerified,
+  onBack,
+  onBurn,
+  syncMessagesRef,
+}: ChatViewContentProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const handleMessageError = useCallback((
@@ -2029,6 +2205,7 @@ function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, 
     userId,
     userTelegramId,
     ws,
+    bothVerified,
     onError: handleMessageError,
     onEditError: handleDmEditError,
   });
@@ -2065,6 +2242,13 @@ function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, 
     [sendFileMessage],
   );
 
+  const composerBlocked = !bothVerified || !!error;
+  const composerBlockReason = !bothVerified
+    ? t('chat.verificationRequired')
+    : error
+      ? t('chat.temporarilyUnavailable')
+      : undefined;
+
   return (
     <ChatRoom
       userTelegramId={userTelegramId}
@@ -2072,13 +2256,13 @@ function ChatViewContent({ sessionId, peer, userId, userTelegramId, ws, onBack, 
       peer={peer}
       messages={messages}
       isLoading={isLoading}
-      isVerified={true}
+      isVerified={bothVerified}
       onSendMessage={handleSendMessage}
       onSendFile={handleSendFile}
       onBack={onBack}
       onBurn={onBurn}
-      disabled={!!error}
-      errorMessage={error ? t('chat.temporarilyUnavailable') : undefined}
+      disabled={composerBlocked}
+      errorMessage={composerBlockReason}
       hideMessages={hideMessages}
       onEditMessage={handleEditDm}
       onDeleteForEveryone={deleteMessage}

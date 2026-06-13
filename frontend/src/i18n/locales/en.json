@@ -575,6 +575,7 @@
     "emptyMessages": "No messages yet",
     "emptyHint": "Send a message to start the conversation",
     "temporarilyUnavailable": "Chat temporarily unavailable",
+    "verificationRequired": "Waiting for fingerprint verification. Compare visual fingerprints with your peer before sending messages.",
     "selectionModeToolbar": "Message selection",
     "selectionCount": "{{count}} selected",
     "selectionCount_one": "1 selected",
@@ -780,7 +781,10 @@
 
   "handshake": {
     "title": "Establishing Secure Connection",
-    "subtitle": "Exchanging encryption keys..."
+    "subtitle": "Exchanging encryption keys...",
+    "fingerprintLabel": "Security Fingerprint",
+    "fingerprintHint": "Compare with your peer to verify the connection",
+    "continueToVerification": "Continue to Verification"
   },
 
   "pendingRequest": {

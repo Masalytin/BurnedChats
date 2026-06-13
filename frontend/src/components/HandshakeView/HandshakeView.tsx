@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { HandshakeStage, HandshakeResult } from '../../hooks/useHandshake';
+import type { VisualFingerprintElement } from '../../types';
+import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
@@ -10,6 +12,8 @@ import './HandshakeView.css';
 interface HandshakeViewProps {
   /** The handshake result state */
   result: HandshakeResult;
+  /** Visual fingerprint shapes shown when handshake completes */
+  visualFingerprint?: VisualFingerprintElement[];
   /** Callback when user cancels handshake */
   onCancel: () => void;
   /** Callback when handshake is complete and user wants to continue to chat */
@@ -94,6 +98,7 @@ const ERROR_MESSAGES: Record<string, string> = {
  */
 export function HandshakeView({
   result,
+  visualFingerprint = [],
   onCancel,
   onContinue,
   onRetry,
@@ -122,12 +127,13 @@ export function HandshakeView({
     return null;
   }, [error]);
 
-  // Format fingerprint for display (add spaces)
+  // Format fingerprint for display (add spaces) when visual shapes are unavailable
   const formattedFingerprint = useMemo(() => {
     if (!fingerprint) return null;
-    // Format as "A3B7 C1D9" for readability
     return fingerprint.match(/.{1,4}/g)?.join(' ') || fingerprint;
   }, [fingerprint]);
+
+  const hasVisualFingerprint = visualFingerprint.length > 0;
 
   const isError = stage === 'error';
   const isComplete = stage === 'complete';
@@ -180,16 +186,26 @@ export function HandshakeView({
         </div>
 
         {/* Fingerprint display (on complete) */}
-        {isComplete && formattedFingerprint && (
+        {isComplete && hasVisualFingerprint && (
+          <div className="handshake-view__fingerprint animate-fade-in">
+            <VisualFingerprint
+              elements={visualFingerprint}
+              size="md"
+              showLabel
+              showHint
+            />
+          </div>
+        )}
+        {isComplete && !hasVisualFingerprint && formattedFingerprint && (
           <div className="handshake-view__fingerprint animate-fade-in">
             <div className="handshake-view__fingerprint-label">
-              Security Fingerprint
+              {t('handshake.fingerprintLabel')}
             </div>
             <div className="handshake-view__fingerprint-value">
               {formattedFingerprint}
             </div>
             <p className="handshake-view__fingerprint-hint">
-              Compare with your peer to verify the connection
+              {t('handshake.fingerprintHint')}
             </p>
           </div>
         )}
@@ -269,7 +285,7 @@ export function HandshakeView({
               onClick={onContinue || onCancel}
               fullWidth
             >
-              {t('verification.continueButton')}
+              {t('handshake.continueToVerification')}
             </Button>
           )}
         </div>

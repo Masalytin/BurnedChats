@@ -589,6 +589,7 @@
     "emptyMessages": "Пока нет сообщений",
     "emptyHint": "Напишите сообщение, чтобы начать разговор",
     "temporarilyUnavailable": "Чат временно недоступен",
+    "verificationRequired": "Ожидается верификация отпечатка. Сверьте визуальные отпечатки с собеседником перед отправкой сообщений.",
     "selectionModeToolbar": "Выбор сообщений",
     "selectionCount": "Выбрано: {{count}}",
     "selectionCount_one": "Выбрано: 1",
@@ -794,7 +795,10 @@
 
   "handshake": {
     "title": "Установка защищённого соединения",
-    "subtitle": "Обмен ключами шифрования..."
+    "subtitle": "Обмен ключами шифрования...",
+    "fingerprintLabel": "Отпечаток безопасности",
+    "fingerprintHint": "Сверьте с собеседником для проверки соединения",
+    "continueToVerification": "Перейти к верификации"
   },
 
   "pendingRequest": {
