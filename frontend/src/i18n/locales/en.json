@@ -568,6 +568,11 @@
     "burnButtonTitle": "Destroy this chat permanently",
     "errorBannerLabel": "Chat error",
     "messagePlaceholder": "Message {{name}}...",
+    "mediaViewer": {
+      "close": "Close",
+      "save": "Save",
+      "error": "Failed to load"
+    },
     "composerFallback": "Message",
     "loadingMessages": "Loading messages...",
     "emptyMessages": "No messages yet",
@@ -691,7 +696,7 @@
       "empty": "This file is empty.",
       "nameTooLong": "File name is too long (max {{max}} characters).",
       "network": "Network error. Check your connection and try again.",
-      "aborted": "",
+      "aborted": "Upload cancelled.",
       "payloadTooLarge": "File is too large for the server.",
       "rateLimited": "Too many uploads. Please wait a moment.",
       "unauthorized": "Authorization failed. Try reopening the mini app.",
