@@ -202,6 +202,10 @@ async function isMasterJettonWalletConfigured(
     return current.equals(expectedWallet);
 }
 
+async function readStakingMasterGovernor(provider: NetworkProvider, sm: StakingMaster): Promise<Address> {
+    return await provider.open(sm).getGetGovernorAddr();
+}
+
 async function isFeeDestinationsConfigured(
     provider: NetworkProvider,
     master: BurnJettonMaster,
@@ -440,6 +444,24 @@ export async function deployBurnStack(
         await deployIfNeeded(provider, timelockInit, DEPLOY_TIMELOCK, 'Timelock', opts.force);
         await deployIfNeeded(provider, governorInit, DEPLOY_GOVERNOR, 'Governor', opts.force);
 
+        // Re-point StakingMaster.governorAddr from the bootstrap placeholder (deployer) to the
+        // real Governor. Without this, GovernorVoteRelay is rejected ("Only governor") and votes
+        // never reach the Proposal child. One-shot: the contract refuses re-wiring once set.
+        const currentSmGovernor = await readStakingMasterGovernor(provider, stakingMasterInit);
+        if (currentSmGovernor.equals(governorInit.address)) {
+            console.log('[deploy] skip setGovernor — staking master already wired to governor');
+        } else if (currentSmGovernor.equals(deployer)) {
+            console.log(`[deploy] setGovernor on StakingMaster → ${friendly(governorInit.address, testnet)}`);
+            const seqnoBefore = await getSenderSeqno(provider);
+            await provider.open(stakingMasterInit).sendSetGovernor(provider.sender(), governorInit.address);
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+        } else {
+            throw new Error(
+                `[deploy] StakingMaster.governorAddr=${friendly(currentSmGovernor, testnet)} is neither the ` +
+                    `bootstrap deployer nor the target governor — cannot reconcile without redeploy`,
+            );
+        }
+
         await deployIfNeeded(provider, vestingDeveloperInit, DEPLOY_VESTING, 'Vesting Developer', opts.force);
         await deployIfNeeded(provider, vestingEcosystemInit, DEPLOY_VESTING, 'Vesting Ecosystem', opts.force);
         await deployIfNeeded(provider, vestingReserveInit, DEPLOY_VESTING, 'Vesting Reserve', opts.force);
@@ -581,7 +603,8 @@ export async function deployBurnStack(
         bootstrap: {
             jettonTimelockIsDeployer: true,
             timelockGovernorIsDeployer: true,
-            stakingMasterGovernorIsDeployer: true,
+            // setGovernor re-points the staking master to the real Governor during bootstrap.
+            stakingMasterGovernorIsDeployer: false,
         },
     };
 

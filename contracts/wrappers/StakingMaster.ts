@@ -2,6 +2,7 @@ import {
     StakingMaster as StakingMasterBase,
     dictValueParserStakeInfoView,
     type ClaimRewards,
+    type SetGovernor,
     type SetMasterJettonWallet,
     type UnstakeJetton,
 } from '../build/StakingMaster/StakingMaster_StakingMaster';
@@ -69,6 +70,20 @@ export class StakingMaster extends StakingMasterBase {
             wallet,
         };
         return this.send(provider, via, { value: toNano('0.15') }, msg);
+    }
+
+    /**
+     * One-shot governor wiring. Must be sent by `bootstrapOwner` while `governorAddr` is still the
+     * bootstrap placeholder (== bootstrapOwner). Re-points the staking master to the real Governor
+     * so `GovernorVoteRelay` votes are accepted.
+     */
+    async sendSetGovernor(provider: ContractProvider, via: Sender, governor: Address) {
+        const msg: SetGovernor = {
+            $$type: 'SetGovernor',
+            queryId: 0n,
+            governor,
+        };
+        return this.send(provider, via, { value: toNano('0.1') }, msg);
     }
 
     async sendUnstakeJetton(

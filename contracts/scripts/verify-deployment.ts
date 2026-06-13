@@ -188,11 +188,17 @@ export async function run(provider: NetworkProvider) {
         checks.push(assertCheck(tlGovernor.equals(governor), 'Timelock.governor matches deployment governor'));
     }
 
+    const sm = provider.open(StakingMaster.fromAddress(stakingMaster));
+    const smGov = await sm.getGetGovernorAddr();
     if (bootstrap?.stakingMasterGovernorIsDeployer) {
-        const sm = provider.open(StakingMaster.fromAddress(stakingMaster));
-        const smGov = await sm.getGetGovernorAddr();
         checks.push(
             assertCheck(smGov.equals(deployerAddr), 'StakingMaster.governor is bootstrap deployer'),
+        );
+    } else {
+        // Votes only tally when GovernorVoteRelay passes the "Only governor" guard — i.e. the
+        // staking master must point to the real Governor, not the bootstrap deployer.
+        checks.push(
+            assertCheck(smGov.equals(governor), 'StakingMaster.governor matches deployment governor'),
         );
     }
 

@@ -24,6 +24,14 @@ message(0x5a020004) SetMasterJettonWallet {
     wallet: Address;
 }
 
+/// Called once by bootstrap after the Governor contract is deployed: re-points `governorAddr`
+/// from the bootstrap placeholder (deployer) to the real Governor. Without this the
+/// `GovernorVoteRelay` "Only governor" guard rejects every relayed vote.
+message(0x5a020005) SetGovernor {
+    queryId: Int as uint64;
+    governor: Address;
+}
+
 struct StakeInfoView {
     amount: Int as coins;
     tier: Int as uint8;
@@ -395,6 +403,17 @@ contract StakingMaster(
         forceBasechain(msg.wallet);
         self.stakingJettonWallet = msg.wallet;
         self.jwConfigured = true;
+        cashback(sender());
+    }
+
+    /// One-shot governor wiring. At deploy `governorAddr == bootstrapOwner` (placeholder); this
+    /// re-points it to the real Governor. Once set (`governorAddr != bootstrapOwner`) it can never
+    /// be changed again, preserving the trust assumption of `GovernorVoteRelay`.
+    receive(msg: SetGovernor) {
+        require(sender() == self.bootstrapOwner, "Only bootstrap");
+        require(self.governorAddr == self.bootstrapOwner, "Governor already set");
+        forceBasechain(msg.governor);
+        self.governorAddr = msg.governor;
         cashback(sender());
     }
 
