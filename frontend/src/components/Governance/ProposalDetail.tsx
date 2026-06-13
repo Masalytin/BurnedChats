@@ -17,8 +17,6 @@ import { formatEndsInRemaining, truncateMiddle } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
-const TG_BOT = String(import.meta.env.VITE_TELEGRAM_BOT_URL ?? 'https://t.me/BurnedChatsBot').trim();
-
 function bigIntish(v: unknown): bigint {
   if (typeof v === 'bigint') return v;
   if (typeof v === 'number' && Number.isFinite(v)) return BigInt(Math.trunc(v));
@@ -473,16 +471,6 @@ export function ProposalDetail() {
       <section className={styles.section}>
         <h2 className={styles.h2}>{t('governance.detailTimeline')}</h2>
         <ProposalTimeline proposal={summary} executeAfterSec={executeAfterSec > 0 ? executeAfterSec : undefined} />
-      </section>
-
-      <section className={styles.section} aria-labelledby="comments-heading">
-        <h2 id="comments-heading" className={styles.h2}>
-          {t('governance.commentsTitle')}
-        </h2>
-        <p className={styles.muted}>{t('governance.commentsHint')}</p>
-        <a className={styles.primaryBtn} href={TG_BOT} target="_blank" rel="noreferrer">
-          {t('governance.commentsOpen')}
-        </a>
       </section>
 
       <VoteModal
