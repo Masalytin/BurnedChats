@@ -245,11 +245,11 @@ export function StakeModal({
 
         {phase === 'done' ? (
           <div className={styles.progressBox}>
-            <div className={styles.checkPop} style={{ fontSize: 48, marginBottom: 8 }} aria-hidden="true">
+            <div className={`${styles.checkPop} ${styles.textReset}`} aria-hidden="true">
               ✓
             </div>
-            <p style={{ margin: 0 }}>{t('staking.stakeSuccess')}</p>
-            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} style={{ marginTop: 16 }} onClick={onClose}>
+            <p className={styles.textReset}>{t('staking.stakeSuccess')}</p>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.mtMd}`} onClick={onClose}>
               {t('staking.done')}
             </button>
           </div>
@@ -257,13 +257,13 @@ export function StakeModal({
 
         {phase === 'signing' ? (
           <div className={styles.progressBox}>
-            <p style={{ margin: 0 }}>{t('staking.stakeSigning')}</p>
+            <p className={styles.textReset}>{t('staking.stakeSigning')}</p>
           </div>
         ) : null}
 
         {phase === 'edit' ? (
           <>
-            <p className={styles.muted} style={{ marginTop: 0 }}>
+            <p className={`${styles.muted} ${styles.mt0}`}>
               {t('staking.stakePickTier')}
             </p>
             <div className={styles.tierPickGrid}>
@@ -276,7 +276,7 @@ export function StakeModal({
                   aria-pressed={c.tier === tier}
                 >
                   <TierBadge tier={c.tier} config={c} showLockHint />
-                  <div className={styles.muted} style={{ marginTop: 8, fontSize: 12 }}>
+                  <div className={`${styles.muted} ${styles.tierPickHint}`}>
                     {t('staking.tierPickHint', {
                       mult: c.multiplier.toFixed(1),
                       lock: formatLockDuration(c.lockDurationSec, t),
@@ -304,7 +304,7 @@ export function StakeModal({
                 {t('staking.max')}
               </button>
             </div>
-            <div id="stake-balance-hint" className={styles.muted} style={{ fontSize: 12, marginTop: 6 }}>
+            <div id="stake-balance-hint" className={`${styles.muted} ${styles.textSm} ${styles.mtSm}`}>
               {t('staking.walletBalance', { amount: formatBurn(balance) })}
               {tonBalanceNano !== null ? (
                 <>
@@ -313,7 +313,7 @@ export function StakeModal({
                 </>
               ) : null}
             </div>
-            <p className={styles.muted} style={{ fontSize: 12, marginTop: 6 }} role="status">
+            <p className={`${styles.muted} ${styles.textSm} ${styles.mtSm}`} role="status">
               {t('staking.tonGasDepositHint', {
                 attach: nanoToAmountString(tonEstimate.recommendedNano),
               })}
@@ -361,8 +361,7 @@ export function StakeModal({
 
             <button
               type="button"
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              style={{ width: '100%', marginTop: 16 }}
+              className={`${styles.btn} ${styles.btnPrimary} ${styles.fullWidth} ${styles.mtMd}`}
               disabled={confirmDisabled}
               onClick={() => void validateAndSubmit()}
             >

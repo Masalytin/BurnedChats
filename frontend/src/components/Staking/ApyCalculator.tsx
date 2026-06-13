@@ -211,11 +211,11 @@ export function ApyCalculator({
         aria-valuenow={Math.round(sliderPct)}
         aria-label={t('staking.calculator.amountSliderAria')}
       />
-      <p id="calc-amt-tip" className={styles.muted} style={{ marginTop: 4 }}>
+      <p id="calc-amt-tip" className={`${styles.muted} ${styles.mtXs}`}>
         {t('staking.calculator.amountHint', { max: formatBurn(maxSliderNano) })}
       </p>
 
-      <div className={styles.fieldLabel} style={{ marginTop: 12 }}>
+      <div className={`${styles.fieldLabel} ${styles.fieldLabelSpaced}`}>
         <span id="calc-tier-lbl">{t('staking.calculator.tierLabel')}</span>
         <span className={styles.fieldHint} tabIndex={0} title={t('staking.calculator.tierTooltip')}>
           ⓘ
@@ -232,7 +232,7 @@ export function ApyCalculator({
             aria-labelledby="calc-tier-lbl"
           >
             <TierBadge tier={c.tier} config={c} showLockHint />
-            <div className={styles.muted} style={{ marginTop: 8, fontSize: 12 }}>
+            <div className={`${styles.muted} ${styles.tierPickHint}`}>
               {t('staking.tierPickHint', {
                 mult: c.multiplier.toFixed(1),
                 lock: formatLockDuration(c.lockDurationSec, t),

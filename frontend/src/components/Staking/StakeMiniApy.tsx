@@ -37,7 +37,7 @@ export function StakeMiniApyBlock({
   if (amt <= 0n) {
     return (
       <div className={styles.miniApyBox} role="status">
-        <p className={styles.muted} style={{ margin: 0 }}>
+        <p className={`${styles.muted} ${styles.textReset}`}>
           {t('staking.calculator.modalNeedAmount')}
         </p>
       </div>
@@ -47,7 +47,7 @@ export function StakeMiniApyBlock({
   if (amt < MIN_MEANINGFUL_STAKE_NANO) {
     return (
       <div className={styles.miniApyBox} role="status">
-        <p className={styles.muted} style={{ margin: 0 }}>
+        <p className={`${styles.muted} ${styles.textReset}`}>
           {t('staking.calculator.minAmount', { min: formatBurn(MIN_MEANINGFUL_STAKE_NANO) })}
         </p>
       </div>

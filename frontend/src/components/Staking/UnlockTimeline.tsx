@@ -4,6 +4,7 @@ import type { StakeInfo } from '@/types/ton';
 import { formatTierName } from '@/utils/staking-format';
 
 import { tierEmoji } from './TierBadge';
+import { barScaleStyle } from './barScale';
 import styles from './Staking.module.css';
 
 function pct(now: number, start: number, end: number): number {
@@ -30,7 +31,7 @@ export function UnlockTimeline({ stakes }: UnlockTimelineProps) {
   if (locked.length === 0) {
     return (
       <div className={styles.timeline} role="region" aria-label={t('staking.timelineAria')}>
-        <p className={styles.muted} style={{ margin: 0 }}>
+        <p className={`${styles.muted} ${styles.textReset}`}>
           {t('staking.timelineEmpty')}
         </p>
       </div>
@@ -39,7 +40,7 @@ export function UnlockTimeline({ stakes }: UnlockTimelineProps) {
 
   return (
     <div className={styles.timeline} role="region" aria-label={t('staking.timelineAria')}>
-      <div className={styles.sectionTitle} style={{ marginTop: 0 }}>
+      <div className={`${styles.sectionTitle} ${styles.sectionTitleFlush}`}>
         {t('staking.timelineTitle')}
       </div>
       {locked.map((s) => {
@@ -57,7 +58,7 @@ export function UnlockTimeline({ stakes }: UnlockTimelineProps) {
               </span>
             </div>
             <div className={styles.timelineTrack} aria-hidden="true">
-              <div className={styles.timelineFill} style={{ width: `${width}%` }} />
+              <div className={styles.timelineFill} style={barScaleStyle(width)} />
             </div>
           </div>
         );

@@ -139,15 +139,15 @@ export function UnstakeModal({
 
         {phase === 'signing' ? (
           <div className={styles.progressBox}>
-            <p style={{ margin: 0 }}>{t('staking.unstakeSigning')}</p>
+            <p className={styles.textReset}>{t('staking.unstakeSigning')}</p>
           </div>
         ) : (
           <>
-            <p className={styles.muted} style={{ marginTop: 0 }}>
+            <p className={`${styles.muted} ${styles.mt0}`}>
               {t('staking.unstakeAvailable', { amount: formatBurn(maxNano) })}
             </p>
             {tierConfig ? (
-              <p className={styles.muted} style={{ marginTop: 8 }}>
+              <p className={`${styles.muted} ${styles.mtSm}`}>
                 {t('staking.unstakeLockMeta', {
                   lock: formatLockDuration(tierConfig.lockDurationSec, t),
                 })}
@@ -160,8 +160,7 @@ export function UnstakeModal({
                 {onSuggestClaim ? (
                   <button
                     type="button"
-                    className={`${styles.btn} ${styles.btnSecondary}`}
-                    style={{ marginTop: 10 }}
+                    className={`${styles.btn} ${styles.btnSecondary} ${styles.mtSm}`}
                     onClick={() => {
                       onSuggestClaim();
                       onClose();
@@ -205,7 +204,7 @@ export function UnstakeModal({
               </p>
             ) : null}
 
-            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className={`${styles.stackSm} ${styles.mtMd}`}>
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
@@ -217,7 +216,7 @@ export function UnstakeModal({
                 {t('staking.unstakeConfirm')}
               </button>
               {!unlocked ? (
-                <span className={styles.muted} style={{ fontSize: 12 }} role="note">
+                <span className={`${styles.muted} ${styles.textSm}`} role="note">
                   {lockHint}
                 </span>
               ) : null}

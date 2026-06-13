@@ -113,6 +113,7 @@
    * CSS vars cannot be used inside @media — breakpoints are documented here
    * and must be used as literals: 768px (tablet), 1024px (desktop). */
   --bc-content-max: 640px;
+  --bc-sheet-max: 32.5rem;
   --bc-touch-target: 44px;
   --bc-header-height: 3.5rem;
   --bc-icon-display-size: 2.25rem;

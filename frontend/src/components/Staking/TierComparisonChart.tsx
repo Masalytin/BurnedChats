@@ -4,6 +4,7 @@ import { StakingTier, type TierConfig } from '@/types/ton';
 import { ILLUSTRATIVE_PRE_USER_NANO, calculateApyForInput } from '@/utils/apy';
 import { formatTierName } from '@/utils/staking-format';
 
+import { barScaleStyle } from './barScale';
 import styles from './Staking.module.css';
 
 const TIER_ORDER: StakingTier[] = [
@@ -57,7 +58,7 @@ export function TierComparisonChart({ amountNano, dailyEmissionNano, cfgByTier, 
           <div className={styles.calcChartTrack}>
             <div
               className={`${styles.calcChartFill} ${tier === selectedTier ? styles.calcChartFillHi : ''}`}
-              style={{ width: `${Math.min(100, (apy / maxApy) * 100)}%` }}
+              style={barScaleStyle(Math.min(100, (apy / maxApy) * 100))}
             />
           </div>
         </div>

@@ -215,8 +215,8 @@ export function StakingDashboard() {
           <h1 className={styles.title}>{t('staking.pageTitle')}</h1>
         </div>
         <div className={styles.banner} role="status">
-          <p style={{ margin: 0, fontWeight: 600 }}>{t('staking.notConfiguredTitle')}</p>
-          <p className={styles.muted} style={{ marginBottom: 0 }}>
+          <p className={styles.textStrong}>{t('staking.notConfiguredTitle')}</p>
+          <p className={`${styles.muted} ${styles.mb0}`}>
             {t('staking.notConfiguredHint')}
           </p>
         </div>
@@ -235,7 +235,7 @@ export function StakingDashboard() {
 
       {!ton.isConnected ? (
         <div className={styles.banner} role="status">
-          <p className={styles.muted} style={{ marginTop: 0 }}>
+          <p className={`${styles.muted} ${styles.mt0}`}>
             {t('staking.connectHint')}
           </p>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void ton.connect()}>
@@ -246,10 +246,14 @@ export function StakingDashboard() {
 
       {error ? (
         <div className={styles.banner} role="alert">
-          <p className={styles.errText} style={{ margin: 0 }}>
+          <p className={`${styles.errText} ${styles.textReset}`}>
             {error.message}
           </p>
-          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} style={{ marginTop: 8 }} onClick={() => void refetch()}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSecondary} ${styles.mtSm}`}
+            onClick={() => void refetch()}
+          >
             {t('staking.retry')}
           </button>
         </div>
@@ -259,16 +263,24 @@ export function StakingDashboard() {
         <div className={styles.bannerRow}>
           <div>
             <div className={styles.statLabel}>{t('staking.headerTotalStaked')}</div>
-            <div className={styles.statValue}>{isLoading ? '…' : formatBurn(totalStaked)}</div>
+            <div className={styles.statValue} aria-busy={isLoading || undefined}>
+              {isLoading ? <span className={styles.statSkeleton} aria-hidden="true" /> : formatBurn(totalStaked)}
+            </div>
           </div>
           <div>
             <div className={styles.statLabel}>{t('staking.headerTotalVp')}</div>
-            <div className={styles.statValue}>{isLoading ? '…' : vpDisplay}</div>
+            <div className={styles.statValue} aria-busy={isLoading || undefined}>
+              {isLoading ? <span className={styles.statSkeleton} aria-hidden="true" /> : vpDisplay}
+            </div>
           </div>
           <div>
             <div className={styles.statLabel}>{t('staking.headerPending')}</div>
-            <div className={`${styles.statValue} ${rewardHighlight ? styles.pulse : ''}`} aria-live="polite">
-              {isLoading ? '…' : formatBurn(totalPending)}
+            <div
+              className={`${styles.statValue} ${rewardHighlight ? styles.pulse : ''}`}
+              aria-live="polite"
+              aria-busy={isLoading || undefined}
+            >
+              {isLoading ? <span className={styles.statSkeleton} aria-hidden="true" /> : formatBurn(totalPending)}
             </div>
           </div>
         </div>
@@ -276,12 +288,11 @@ export function StakingDashboard() {
 
       {ton.isConnected && !isLoading && stakes.length === 0 ? (
         <div className={styles.banner}>
-          <p style={{ margin: 0, fontWeight: 600 }}>{t('staking.emptyTitle')}</p>
+          <p className={styles.textStrong}>{t('staking.emptyTitle')}</p>
           <p className={styles.muted}>{t('staking.emptyHint')}</p>
           <button
             type="button"
-            className={`${styles.btn} ${styles.btnPrimary}`}
-            style={{ marginTop: 8 }}
+            className={`${styles.btn} ${styles.btnPrimary} ${styles.mtSm}`}
             onClick={() => openStake(StakingTier.Diamond)}
           >
             {t('staking.emptyCta')}
@@ -354,7 +365,7 @@ export function StakingDashboard() {
                 <div className={styles.tierMeta}>
                   <TierBadge tier={cfg.tier} config={cfg} id={`tier-${cfg.tier}-title`} showLockHint />
                   {hasStake && s ? (
-                    <div className={styles.muted} style={{ fontSize: 13 }}>
+                    <div className={`${styles.muted} ${styles.textSmMd}`}>
                       <div>
                         {t('staking.positionAmount')}: {formatBurn(s.amount)}
                       </div>
@@ -373,7 +384,7 @@ export function StakingDashboard() {
                       </div>
                     </div>
                   ) : (
-                    <p className={styles.muted} style={{ margin: 0 }}>
+                    <p className={`${styles.muted} ${styles.textReset}`}>
                       {t('staking.noStakeTier')}
                     </p>
                   )}
@@ -398,9 +409,10 @@ export function StakingDashboard() {
                       type="button"
                       className={`${styles.btn} ${styles.btnPrimary}`}
                       disabled={busyClaimTier !== null || busyClaimAll || (s?.pendingReward ?? 0n) <= 0n}
+                      aria-busy={busyClaimTier === cfg.tier || undefined}
                       onClick={() => void handleClaimTier(cfg.tier)}
                     >
-                      {t('staking.claim')}
+                      {busyClaimTier === cfg.tier ? t('staking.claiming') : t('staking.claim')}
                     </button>
                   </>
                 ) : (

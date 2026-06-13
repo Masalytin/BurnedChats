@@ -122,11 +122,11 @@ export function RewardsCard({
       aria-labelledby="staking-rewards-heading"
       aria-busy={refreshing || undefined}
     >
-      <h2 id="staking-rewards-heading" className={styles.sectionTitle} style={{ marginTop: 0 }}>
+      <h2 id="staking-rewards-heading" className={`${styles.sectionTitle} ${styles.sectionTitleFlush}`}>
         {t('staking.rewardsTitle')}
       </h2>
       {rows.length === 0 ? (
-        <p className={styles.muted} style={{ margin: 0 }}>
+        <p className={`${styles.muted} ${styles.textReset}`}>
           {t('staking.rewardsEmpty')}
         </p>
       ) : (
@@ -136,8 +136,7 @@ export function RewardsCard({
               <div>
                 <div>{formatTierName(r.tier, t)}</div>
                 <div
-                  className={valueAnimating ? styles.pulse : undefined}
-                  style={{ fontWeight: 700 }}
+                  className={`${valueAnimating ? styles.pulse : ''} ${styles.emphasisValue}`}
                   aria-live="polite"
                 >
                   {formatBurn(r.amount)}
@@ -147,17 +146,19 @@ export function RewardsCard({
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
                 disabled={busyTier !== null || busyAll || r.amount <= 0n}
+                aria-busy={busyTier === r.tier || undefined}
                 onClick={() => void handleClaimOne(r.tier)}
               >
                 {busyTier === r.tier ? t('staking.claiming') : t('staking.claimTier')}
               </button>
             </div>
           ))}
-          <div style={{ marginTop: 12 }}>
+          <div className={styles.mtMd}>
             <button
               type="button"
               className={`${styles.btn} ${styles.btnSecondary}`}
               disabled={claimAllDisabled}
+              aria-busy={busyAll || undefined}
               onClick={() => void handleClaimAll()}
             >
               {busyAll ? t('staking.claiming') : t('staking.claimAll')}
@@ -168,11 +169,11 @@ export function RewardsCard({
 
       <div className={styles.sectionTitle}>{t('staking.claimHistoryTitle')}</div>
       {history.length === 0 ? (
-        <p className={styles.muted} style={{ margin: 0 }}>
+        <p className={`${styles.muted} ${styles.textReset}`}>
           {t('staking.claimHistoryEmpty')}
         </p>
       ) : (
-        <ul className={styles.claimHistory} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <ul className={`${styles.claimHistory} ${styles.listReset}`}>
           {history.map((h) => (
             <li key={`${h.tier}-${h.at}`} className={styles.claimRow}>
               {t('staking.claimHistoryRow', {
