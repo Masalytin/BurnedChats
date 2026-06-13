@@ -133,6 +133,14 @@ function OperationLog({ operations }: { operations: CryptoOperationEntry[] }) {
 }
 
 export function CryptoTab({ state }: CryptoTabProps) {
+  if (!import.meta.env.DEV) {
+    return (
+      <div className="debug-tab-content">
+        <div className="debug-empty">Crypto debug data is available only in development builds.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="debug-tab-content">
       {/* Sessions Overview */}

@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { StatusTab } from './tabs/StatusTab';
 import { FlowTab } from './tabs/FlowTab';
-import { CryptoTab } from './tabs/CryptoTab';
 import { MessagesTab } from './tabs/MessagesTab';
 import { AdvancedTab } from './tabs/AdvancedTab';
 import { useDebugState } from './hooks/useDebugState';
 import type { CreateSessionResult } from '@/hooks/useSession';
 import type { HandshakeResult } from '@/hooks/useHandshake';
+import type { CryptoDebugState } from './hooks/useDebugState';
 import './DebugPanel.css';
 
 // ============================================
@@ -126,10 +126,26 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'status', label: 'Status', icon: '📡' },
   { id: 'flow', label: 'Flow', icon: '🔄' },
   { id: 'messages', label: 'Messages', icon: '💬' },
-  { id: 'crypto', label: 'Crypto', icon: '🔐' },
+  ...(import.meta.env.DEV
+    ? [{ id: 'crypto' as const, label: 'Crypto', icon: '🔐' }]
+    : []),
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'logs', label: 'Logs', icon: '📋' },
 ];
+
+const LazyCryptoTab = import.meta.env.DEV
+  ? lazy(() => import('./tabs/CryptoTab').then((m) => ({ default: m.CryptoTab })))
+  : null;
+
+function DevCryptoTab({ state }: { state: CryptoDebugState }) {
+  if (!LazyCryptoTab) return null;
+
+  return (
+    <Suspense fallback={<div className="debug-empty">Loading crypto tab…</div>}>
+      <LazyCryptoTab state={state} />
+    </Suspense>
+  );
+}
 
 // ============================================
 // Component
@@ -138,7 +154,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 /**
  * Debug Panel component for production debugging
  */
-export function DebugPanel({ 
+export function DebugPanel({
   isConnected, 
   isConnecting, 
   reconnectAttempt,
@@ -176,6 +192,13 @@ export function DebugPanel({
       localStorage.setItem(STORAGE_KEY_TAB, activeTab);
     } catch {
       // Ignore
+    }
+  }, [activeTab]);
+
+  // Crypto tab is dev-only; fall back if persisted from a dev session
+  useEffect(() => {
+    if (!import.meta.env.DEV && activeTab === 'crypto') {
+      setActiveTab('status');
     }
   }, [activeTab]);
 
@@ -307,7 +330,7 @@ export function DebugPanel({
 
   // Export full debug state
   const exportState = useCallback(() => {
-    const exportData = {
+    const exportData: Record<string, unknown> = {
       version: '1.0',
       timestamp: new Date().toISOString(),
       env: {
@@ -321,7 +344,17 @@ export function DebugPanel({
       },
       websocket: debugState.websocket,
       sessionFlow: debugState.sessionFlow,
-      crypto: {
+      timeline: debugState.timeline,
+      logs: logs.slice(-50).map(l => ({
+        time: l.timestamp.toISOString(),
+        level: l.level,
+        message: l.message,
+        data: l.data,
+      })),
+    };
+
+    if (import.meta.env.DEV) {
+      exportData.crypto = {
         sessionCount: debugState.crypto.sessions.length,
         sessions: debugState.crypto.sessions.map(s => ({
           sessionId: s.sessionId.slice(0, 8) + '...',
@@ -331,15 +364,8 @@ export function DebugPanel({
           fingerprint: s.fingerprint,
         })),
         recentOperations: debugState.crypto.operations.slice(-10),
-      },
-      timeline: debugState.timeline,
-      logs: logs.slice(-50).map(l => ({
-        time: l.timestamp.toISOString(),
-        level: l.level,
-        message: l.message,
-        data: l.data,
-      })),
-    };
+      };
+    }
 
     const json = JSON.stringify(exportData, null, 2);
     
@@ -434,8 +460,8 @@ export function DebugPanel({
               <MessagesTab state={debugState.stomp} />
             )}
 
-            {activeTab === 'crypto' && (
-              <CryptoTab state={debugState.crypto} />
+            {import.meta.env.DEV && activeTab === 'crypto' && (
+              <DevCryptoTab state={debugState.crypto} />
             )}
 
             {activeTab === 'advanced' && (
