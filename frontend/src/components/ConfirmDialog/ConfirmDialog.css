@@ -5,7 +5,7 @@
 .confirm-dialog-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--bc-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -28,8 +28,25 @@
 }
 
 .confirm-dialog__icon {
-  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-spacing-2xl);
+  height: var(--bc-spacing-2xl);
+  margin-inline: auto;
   margin-bottom: var(--bc-spacing-xs);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-secondary);
+}
+
+.confirm-dialog__icon--destructive {
+  background: color-mix(in srgb, var(--bc-destructive) 14%, var(--bc-bg-elevated));
+  color: var(--bc-destructive);
+}
+
+.confirm-dialog__icon-glyph {
+  flex-shrink: 0;
 }
 
 .confirm-dialog__title {

@@ -35,6 +35,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  width: var(--bc-spacing-md);
+  height: var(--bc-spacing-md);
   color: var(--bc-text-muted);
 }
 
@@ -72,7 +74,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .chat-room-burn:hover {
+  .chat-room-burn:hover:not(:disabled) {
     background: color-mix(in srgb, var(--bc-destructive) 14%, transparent);
   }
 }
@@ -80,6 +82,10 @@
 .chat-room-burn:focus-visible {
   outline: 2px solid var(--bc-destructive);
   outline-offset: 2px;
+}
+
+.chat-room-burn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* Error banner — compact alert strip */

@@ -1,6 +1,15 @@
 import { memo, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  Home,
+  Hourglass,
+  Key,
+  Lock,
+  LogOut,
+  RefreshCw,
+  Settings,
+} from 'lucide-react';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
@@ -29,45 +38,6 @@ import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedFileMessage, DecryptedMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
-
-// ============================================
-// Icons (room-specific, not in header)
-// ============================================
-
-function LeaveIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M13 14l4-4-4-4M17 10H7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10 3H5a1 1 0 00-1 1v12a1 1 0 001 1h5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M10 2v2m0 12v2M2 10h2m12 0h2m-3.172-4.828-1.414 1.414M4.586 15.414l1.414-1.414m0-8.414L4.586 4.586m11.828 11.828-1.414-1.414"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
 
 // ============================================
 // Component Props
@@ -470,10 +440,20 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       : t('room.chat.epochSubtitle', { epoch })
     : t('room.chat.loadingKey');
 
+  const placeholderIcon = isRequestingKey ? (
+    <Key size={28} strokeWidth={1.75} aria-hidden />
+  ) : isOwner ? (
+    <RefreshCw size={28} strokeWidth={1.75} aria-hidden />
+  ) : (
+    <Hourglass size={28} strokeWidth={1.75} aria-hidden />
+  );
+
   const headerLeft = (
     <div className="room-chat-room-info">
       <div className="room-chat-room-title">
-        <span className="room-chat-room-icon">🏠</span>
+        <span className="room-chat-room-icon" aria-hidden>
+          <Home size={18} strokeWidth={2} />
+        </span>
         <span className="room-chat-room-id">
           {roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId}
         </span>
@@ -483,7 +463,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             title={t('room.chat.encryptedTitle')}
             aria-label={t('room.chat.encryptedTitle')}
           >
-            🔒
+            <Lock size={16} strokeWidth={2} aria-hidden />
           </span>
         )}
       </div>
@@ -501,7 +481,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           onClick={onManage}
           aria-label={t('room.manage.title')}
         >
-          <SettingsIcon />
+          <Settings size={20} strokeWidth={2} aria-hidden />
         </button>
       )}
       {!isOwner && onLeave && (
@@ -511,7 +491,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           onClick={handleLeaveClick}
           aria-label={t('room.manage.leaveButton')}
         >
-          <LeaveIcon />
+          <LogOut size={20} strokeWidth={2} aria-hidden />
         </button>
       )}
     </>
@@ -569,7 +549,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
               onSend={handleSend}
               onFileSelected={handleFileSelected}
               isUploading={isUploading}
-              placeholder={t('chat.messagePlaceholder', { name: '🏠' })}
+              placeholder={t('room.chat.messagePlaceholder')}
               replyTo={editingMessage ? null : replyChip}
               onReplyCancel={editingMessage ? undefined : handleCancelReply}
               editMode={
@@ -584,8 +564,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       ) : (
         <div className="room-chat-room-body">
           <div className="room-chat-room-placeholder">
-            <div className="room-chat-room-placeholder-icon">
-              {isRequestingKey ? '🔑' : isOwner ? '🔄' : '⏳'}
+            <div className="room-chat-room-placeholder-icon" aria-hidden>
+              {placeholderIcon}
             </div>
             <div className="room-chat-room-placeholder-text">
               {isOwner
@@ -642,7 +622,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         confirmLabel={t('room.leave.confirmButton')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
-        icon={<span role="img" aria-hidden>🚪</span>}
+        iconType="leave"
       />
 
       <ConfirmDialog
@@ -656,7 +636,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         confirmLabel={t('chat.delete.deleteForMeLabel')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
-        icon={<span role="img" aria-hidden>🗑️</span>}
+        iconType="delete"
       />
 
       <ConfirmDialog
@@ -668,7 +648,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         confirmLabel={t('chat.delete.deleteForEveryoneLabel')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
-        icon={<span role="img" aria-hidden>🗑️</span>}
+        iconType="delete"
       />
     </div>
   );

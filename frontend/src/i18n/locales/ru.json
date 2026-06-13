@@ -889,6 +889,7 @@
       "memberCount_one": "1 участник",
       "epochSubtitle": "E2EE · эпоха {{epoch}}",
       "encryptedTitle": "Сквозное шифрование",
+      "messagePlaceholder": "Сообщение в комнату...",
       "sendError": "Не удалось отправить сообщение",
       "keyLoadError": "Не удалось загрузить ключ шифрования"
     },

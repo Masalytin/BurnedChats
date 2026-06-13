@@ -1,1 +1,5 @@
-export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
+export {
+  ConfirmDialog,
+  type ConfirmDialogProps,
+  type ConfirmDialogIconType,
+} from './ConfirmDialog';

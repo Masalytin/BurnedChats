@@ -520,7 +520,7 @@ export const ChatRoom = memo(function ChatRoom({
         confirmLabel={t('chat.delete.deleteForMeLabel')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
-        icon={<span role="img" aria-hidden>🗑️</span>}
+        iconType="delete"
       />
 
       <ConfirmDialog
@@ -532,7 +532,7 @@ export const ChatRoom = memo(function ChatRoom({
         confirmLabel={t('chat.delete.deleteForEveryoneLabel')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
-        icon={<span role="img" aria-hidden>🗑️</span>}
+        iconType="delete"
       />
     </div>
   );

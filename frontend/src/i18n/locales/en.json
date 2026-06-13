@@ -875,6 +875,7 @@
       "memberCount_one": "1 member",
       "epochSubtitle": "E2EE · epoch {{epoch}}",
       "encryptedTitle": "End-to-end encrypted",
+      "messagePlaceholder": "Message room...",
       "sendError": "Failed to send message",
       "keyLoadError": "Failed to load encryption key"
     },
