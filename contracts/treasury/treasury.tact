@@ -3,6 +3,15 @@
 
 import "../jetton/burn-jetton-wallet";
 
+/// Lower bound on TON that must accompany a `TreasurySpend` so the outgoing
+/// `JettonTransfer` clears the jetton-wallet excluded-path gate end-to-end
+/// (gate ~0.65 + recipient wallet deploy 0.55 + fee-config sync 0.05 + fwd/gas).
+/// Treasury is on the master excluded list (bootstrap), so the cheaper excluded
+/// path applies, but it still needs ~1 TON of headroom. The actual forwarded
+/// value is relayed from the inbound Timelock message (`SendRemainingValue`),
+/// not from this constant or from Treasury's own (storage-only) balance.
+const MIN_SPEND_FORWARD: Int = ton("1.0");
+
 struct SpendRecord {
     recipient: Address;
     amount: Int as coins;
@@ -45,6 +54,14 @@ contract Treasury(
         let avail = self.total_received - self.total_spent;
         require(msg.amount <= avail, "Insufficient tracked balance");
 
+        /// Fail loudly (before any accounting mutation) if Timelock under-funds the
+        /// spend: a too-small forward would bounce at the jetton-wallet gate and the
+        /// payout would be silently lost. Aborting here leaves `total_spent`/
+        /// `spending_log` untouched, so the proposal "Executed" / treasury "no spend"
+        /// mismatch is auditable rather than a corrupted record. See
+        /// docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-07-*.
+        require(context().value >= MIN_SPEND_FORWARD, "Insufficient gas for spend");
+
         let idx = self.spending_count;
         self.spending_log.set(
             idx,
@@ -60,16 +77,22 @@ contract Treasury(
         self.total_spent += msg.amount;
 
         let wallet = contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()));
+        // Relay the inbound TON budget straight into the jetton transfer
+        // (`SendRemainingValue`): the forwarded value is derived from the Timelock
+        // message, never from a hardcoded constant or Treasury's storage balance.
+        // Surplus left after the wallet deploy/sync is returned to the grant
+        // `recipient` (responseDestination) so it never bounces back to Treasury,
+        // which has no `JettonExcesses` handler.
         message(MessageParameters {
             to: wallet,
-            value: ton("0.18"),
-            mode: SendPayGasSeparately,
+            value: 0,
+            mode: SendRemainingValue,
             bounce: true,
             body: JettonTransfer {
                 queryId: msg.queryId,
                 amount: msg.amount,
                 destination: msg.recipient,
-                responseDestination: myAddress(),
+                responseDestination: msg.recipient,
                 customPayload: null,
                 forwardTonAmount: 0,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),

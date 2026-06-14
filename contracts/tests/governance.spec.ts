@@ -7,6 +7,7 @@ import { Governor } from '../wrappers/Governor';
 import { Proposal } from '../wrappers/Proposal';
 import { Timelock } from '../wrappers/Timelock';
 import { Treasury } from '../wrappers/Treasury';
+import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { loadTimelockQueue } from '../build/Governor/Governor_Governor';
 import { Proposal_errors_backward } from '../build/Governor/Governor_Proposal';
 import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
@@ -282,8 +283,8 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
         });
     });
 
-    describe('Treasury spend proposal (type 2) — IMP-PREMNT-01 regression', () => {
-        it('Treasury decodes & executes the governance-built TreasurySpend via Timelock', async () => {
+    describe('Treasury spend proposal (type 2) — IMP-PREMNT-01 / IMP-PREMNT-07', () => {
+        it('Treasury pays the recipient when gas flows Timelock → Treasury → jetton-wallet', async () => {
             const env = await setupGovernance('https://example.com/gov-treasury.json');
             const voter = await env.blockchain.treasury('gov-treas-voter');
             await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
@@ -322,7 +323,15 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                 delay: queued.delay,
             });
             advanceTime(env.blockchain, 2 * DAY + 1);
-            const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
+            // IMP-PREMNT-07: Timelock relays the executor-provided budget to the
+            // treasury-spend target so the payout clears the jetton-wallet excluded
+            // gate end-to-end. The wrapper's default 0.25 TON is intentionally
+            // bypassed with a treasury-sized budget (relay source of gas).
+            const execTx = await env.timelock.send(
+                env.deployer.getSender(),
+                { value: toNano('1.6') },
+                { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
+            );
 
             // Core regression: Treasury accepts and decodes opcode 0x5a1c9010 (pre-fix this
             // was an opcode/schema mismatch that silently never decoded). The decoded body
@@ -335,15 +344,23 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             // Timelock also marks the proposal executed (ProposalMarkExecuted → Proposal).
             expect(await proposal.getGetState()).toBe(PS_EXECUTED);
 
-            // FINDING (decision IMP-PREMNT-02-treasury-spend-gas): the decode succeeds but the
-            // payout does NOT settle. treasury.tact attaches only ton("0.18") to the outbound
-            // JettonTransfer, below the wallet's excluded-path gas gate (~0.65 TON), so the
-            // transfer is rejected and bounces, reverting the spend accounting back to zero.
-            // Asserted explicitly so a future gas fix in treasury.tact forces this test to update.
-            expect(execTx.transactions).toHaveTransaction({ op: OP_JETTON_TRANSFER, success: false });
-            expect(await treasury.getGetTotalSpent()).toBe(0n);
-            expect(await treasury.getGetSpendingCount()).toBe(0n);
-            expect((await treasury.getGetSpendingHistory()).get(0n)).toBeUndefined();
+            // IMP-PREMNT-07: the payout now SETTLES. The outbound JettonTransfer clears the
+            // wallet's excluded-path gate (no bounce), so the spend accounting persists.
+            expect(execTx.transactions).toHaveTransaction({ op: OP_JETTON_TRANSFER, success: true });
+            expect(await treasury.getGetTotalSpent()).toBe(spendAmount);
+            expect(await treasury.getGetSpendingCount()).toBe(1n);
+
+            const rec = (await treasury.getGetSpendingHistory()).get(0n);
+            expect(rec).toBeDefined();
+            expect(rec!.recipient.equals(recipient.address)).toBe(true);
+            expect(rec!.amount).toBe(spendAmount);
+            expect(rec!.proposalId).toBe(id);
+
+            // The recipient actually received the BURN jettons (excluded path → full amount).
+            const recipientWallet = env.blockchain.openContract(
+                BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(recipient.address)),
+            );
+            expect((await recipientWallet.getGetWalletData()).balance).toBe(spendAmount);
         });
 
         it('Treasury rejects a TreasurySpend not coming from the Timelock', async () => {

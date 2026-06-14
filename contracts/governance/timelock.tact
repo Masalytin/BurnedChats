@@ -6,6 +6,22 @@ import "./governance-messages";
 /// Minimum delay for non-emergency actions (24h).
 const TIMELOCK_MIN_DELAY_SEC: Int = 86400;
 
+/// Opcode of `Treasury.TreasurySpend` (treasury.tact). Treasury-spend actions need a
+/// much larger downstream gas budget (jetton-wallet excluded gate + recipient wallet
+/// deploy) than a plain parameter call, so they get a dedicated relay path below.
+const TREASURY_SPEND_METHOD: Int = 0x5a1c9010;
+
+/// Fixed budget for `ProposalMarkExecuted` back to the Proposal contract.
+const TIMELOCK_MARK_EXECUTED_GAS: Int = ton("0.04");
+
+/// Default attach for non-treasury target actions (parameter/emergency/feature),
+/// preserved from the original behaviour.
+const TIMELOCK_TARGET_GAS: Int = ton("0.12");
+
+/// TON kept on the Timelock when relaying the executor-provided budget to a
+/// treasury-spend target (covers Timelock storage rent for the pending map).
+const TIMELOCK_STORAGE_RESERVE: Int = ton("0.05");
+
 struct PendingAction {
     proposalId: Int as uint64;
     proposalContract: Address;
@@ -51,20 +67,39 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
         /// Free storage after scheduling outbound messages (TECH_NOTES).
         self.pendingActions.del(msg.proposalId);
 
-        message(MessageParameters {
-            to: action.target,
-            value: ton("0.12"),
-            mode: SendPayGasSeparately | SendIgnoreErrors,
-            bounce: false,
-            body: action.args,
-        });
-
+        /// Mark the proposal executed first (fixed small budget from the combined
+        /// balance, which already includes this message's value).
         message(MessageParameters {
             to: action.proposalContract,
-            value: ton("0.04"),
+            value: TIMELOCK_MARK_EXECUTED_GAS,
             mode: SendPayGasSeparately,
             bounce: false,
             body: ProposalMarkExecuted { queryId: msg.queryId }.toCell(),
+        });
+
+        if (action.method == TREASURY_SPEND_METHOD) {
+            /// Treasury-spend cannot run on a fixed 0.12 TON: it must fund the
+            /// downstream jetton-wallet excluded gate (~0.65 TON) plus a recipient
+            /// wallet deploy. Relay the executor-provided budget end-to-end instead
+            /// of paying from Timelock's (storage-only) balance. `SendIgnoreErrors`
+            /// is intentionally dropped here so a failed dispatch is not masked.
+            nativeReserve(TIMELOCK_STORAGE_RESERVE, ReserveAtMost);
+            message(MessageParameters {
+                to: action.target,
+                value: 0,
+                mode: SendRemainingBalance,
+                bounce: false,
+                body: action.args,
+            });
+            return;
+        }
+
+        message(MessageParameters {
+            to: action.target,
+            value: TIMELOCK_TARGET_GAS,
+            mode: SendPayGasSeparately | SendIgnoreErrors,
+            bounce: false,
+            body: action.args,
         });
 
         cashback(sender());
