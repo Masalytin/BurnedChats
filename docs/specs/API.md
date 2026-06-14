@@ -210,7 +210,7 @@ GET /actuator/info
 > `dev` И при `DEV_AUTH_ENABLED=true` (по умолчанию `false`). Прод работает на
 > `prod,testnet` — эндпоинт возвращает 404. Назначение: автономная авторизация
 > ИИ-агентов для UI-тестирования, см.
-> [dev-auth-provider](../improvements/dev-auth-provider/README.md).
+> [dev-auth-provider](../archive/improvements/dev-auth-provider/README.md).
 
 Выдаёт обычный opaque session token для синтетической identity `dev-{label}`
 без проверки `ton_proof`. Контракт ответа идентичен `POST /api/auth/wallet`.
@@ -497,7 +497,7 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 
 ### Единая идентичность (`internalId`)
 
-> Реализация: improvement [wallet-only-identity](../improvements/wallet-only-identity/README.md) (карточки IMP-WALLETID-02–06). Decision-логи: `docs/improvements/wallet-only-identity/decisions/`.
+> Реализация: improvement [wallet-only-identity](../archive/improvements/wallet-only-identity/README.md) (карточки IMP-WALLETID-02–06). Decision-логи: `docs/archive/improvements/wallet-only-identity/decisions/`.
 
 **Канонический адресный идентификатор на проводе — `internalId` (UUID-строка).** Числовой Telegram ID (`Long`) остаётся опциональным полем для Telegram-linked пользователей и **не используется** для маршрутизации STOMP.
 

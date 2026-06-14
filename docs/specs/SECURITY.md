@@ -497,13 +497,13 @@ Backend **не доверяет** присланному `walletPublicKey` бе�
 Сервер по-прежнему не хранит приватные ключи; проверка выполняется только на публичных данных кошелька.
 
 См. [API.md](./API.md) (`/api/auth/wallet`), decision logs
-`docs/improvements/wallet-auth-401/decisions/WALLET-401-02-stateinit-verification.md`.
+`docs/archive/improvements/wallet-auth-401/decisions/WALLET-401-02-stateinit-verification.md`.
 
 ---
 
 ## Дискаверабилити пользователей (wallet-only identity)
 
-> Реализация: [IMP-WALLETID-02](../improvements/wallet-only-identity/decisions/IMP-WALLETID-02-discoverability.md).
+> Реализация: [IMP-WALLETID-02](../archive/improvements/wallet-only-identity/decisions/IMP-WALLETID-02-discoverability.md).
 > STOMP-контракт: [API.md](./API.md#search_user-appsearch).
 
 Wallet-only пользователи не имеют Telegram username / numeric ID. Их можно найти для начала DM по:

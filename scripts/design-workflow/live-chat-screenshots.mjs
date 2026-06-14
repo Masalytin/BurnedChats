@@ -1,5 +1,5 @@
 async (page) => {
-  const OUT_DIR = 'f:/Projects/BurnedChats/docs/improvements/design-workflow/screenshots';
+  const OUT_DIR = 'f:/Projects/BurnedChats/docs/archive/improvements/design-workflow/screenshots';
   const AGENT_B_ID = '546a7b43-a12e-495c-ab39-431eeab9dc6f';
   const BASE = 'http://localhost:3000/app';
 

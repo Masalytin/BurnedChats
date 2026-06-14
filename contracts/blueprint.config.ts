@@ -12,7 +12,7 @@ initDeployEnv(resolve(__dirname));
  * Covers all `TonClient` calls that Blueprint makes through the shared axios
  * instance: `isContractDeployed`, `waitForDeploy`-polling, `getContractState`,
  * wrapper get-methods, external message sends. See
- * `docs/improvements/contracts-deploy-resilience/REPORT.md` for context.
+ * `docs/archive/improvements/contracts-deploy-resilience/REPORT.md` for context.
  *
  * Tunables stay conservative on purpose: 8 attempts × expo backoff with jitter
  * caps total wait at ~5 minutes per request, matching realistic toncenter
