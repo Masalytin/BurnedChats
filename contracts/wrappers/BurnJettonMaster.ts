@@ -10,6 +10,7 @@ import {
     type SetDynamicBurnThresholds as SetDynamicBurnThresholdsPayload,
     type SetFeeDestinations as SetFeeDestinationsPayload,
     type SetFeeParams as SetFeeParamsPayload,
+    type SetTimelock as SetTimelockPayload,
     type SyncFeeConfigToWallet as SyncFeeConfigToWalletPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { BurnJettonWallet as BurnJettonWalletBase } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
@@ -106,6 +107,16 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             $$type: 'ChangeOwner',
             queryId: 0n,
             newOwner,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    /** Hand fee/exclusion/dynamic-burn governance from the current timelock to `newTimelock`. */
+    async sendSetTimelock(provider: ContractProvider, via: Sender, newTimelock: Address) {
+        const msg: SetTimelockPayload = {
+            $$type: 'SetTimelock',
+            queryId: 0n,
+            newTimelock,
         };
         return this.send(provider, via, { value: toNano('0.02') }, msg);
     }

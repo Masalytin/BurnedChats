@@ -703,5 +703,36 @@ describe('BurnJetton', () => {
                 exitCode: BurnJettonMaster_errors_backward['Only timelock'],
             });
         });
+
+        it('SetTimelock: only the current timelock can hand over fee governance (IMP-PREMNT-03)', async () => {
+            // Non-timelock caller is rejected and the field is unchanged.
+            const rogue = await ctx.master.sendSetTimelock(ctx.userY.getSender(), ctx.userX.address);
+            expect(rogue.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
+            });
+            expect((await ctx.master.getGetTimelockAddress()).equals(ctx.deployer.address)).toBe(true);
+
+            // Current timelock (deployer in this fixture) transfers authority to a new controller.
+            const ok = await ctx.master.sendSetTimelock(ctx.deployer.getSender(), ctx.userX.address);
+            expect(ok.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
+            expect((await ctx.master.getGetTimelockAddress()).equals(ctx.userX.address)).toBe(true);
+
+            // The old timelock can no longer drive fee governance after the handover.
+            const stale: SetFeeParamsMsg = {
+                $$type: 'SetFeeParams',
+                queryId: 0n,
+                burn_rate_bps: 40n,
+                staking_rate_bps: 40n,
+                treasury_rate_bps: 10n,
+            };
+            const staleRes = await ctx.master.send(ctx.deployer.getSender(), { value: toNano('0.02') }, stale);
+            expect(staleRes.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
+            });
+        });
     });
 });

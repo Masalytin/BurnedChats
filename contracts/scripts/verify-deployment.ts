@@ -205,6 +205,24 @@ export async function run(provider: NetworkProvider) {
     const admin = jettonData.adminAddress;
     checks.push(assertCheck(admin.equals(timelock), `jetton admin is Timelock (${admin.toString()})`));
 
+    // IMP-PREMNT-03: the jetton `timelock` field gates all fee/exclusion/dynamic-burn governance.
+    // After bootstrap it must point to the on-chain Timelock contract, not the EOA deployer, so no
+    // single key can change fee parameters. Legacy deploys flagged `jettonTimelockIsDeployer` keep
+    // the deployer (known residual until re-bootstrap).
+    const jettonTimelock = await master.getGetTimelockAddress();
+    if (bootstrap?.jettonTimelockIsDeployer) {
+        checks.push(
+            assertCheck(jettonTimelock.equals(deployerAddr), 'jetton timelock is bootstrap deployer (legacy)'),
+        );
+    } else {
+        checks.push(
+            assertCheck(
+                jettonTimelock.equals(timelock),
+                'jetton timelock is Timelock contract (no EOA governance control)',
+            ),
+        );
+    }
+
     const treasuryWallet = await master.getGetWalletAddress(treasury);
     checks.push(
         assertCheck(

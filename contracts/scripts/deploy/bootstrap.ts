@@ -260,6 +260,10 @@ async function isAdminTransferred(
     return data.adminAddress.equals(expectedAdmin);
 }
 
+async function readJettonTimelock(provider: NetworkProvider, master: BurnJettonMaster): Promise<Address> {
+    return await provider.open(master).getGetTimelockAddress();
+}
+
 async function ensureMint(
     provider: NetworkProvider,
     master: BurnJettonMaster,
@@ -296,8 +300,12 @@ export type DeployResult = {
 };
 
 /**
- * Bootstrap deploy: deployer wallet acts as Jetton timelock + Timelock.governor until
- * on-chain `transferGovernor` exists (see decision log P5-6-1-1-governance-bootstrap).
+ * Bootstrap deploy: the deployer wallet is only a temporary fee-setup authority for the
+ * Jetton master — once fee destinations / exclusions are configured, `SetTimelock` hands
+ * the `timelock` field to the on-chain Timelock contract so no EOA keeps governance control
+ * (IMP-PREMNT-03). StakingLock/Treasury/Vesting take the Timelock contract as `timelock` at
+ * init. `Timelock.governor` stays the deployer (mutual Governor↔Timelock fixed point is
+ * unsolvable for deterministic addresses — see decision log P5-6-1-1-governance-bootstrap).
  */
 export async function deployBurnStack(
     provider: NetworkProvider,
@@ -312,7 +320,7 @@ export async function deployBurnStack(
     console.log('[deploy] network', provider.network());
     console.log('[deploy] deployer', friendly(deployer, testnet));
     console.log('[deploy] metadata', metadataUri);
-    console.log('[deploy] governance bootstrap: deployer as timelock/governor authority');
+    console.log('[deploy] governance bootstrap: deployer is temporary fee-setup authority, handed to Timelock at the end');
 
     const content = BurnJettonMaster.jettonContentFromUri(metadataUri);
     const jettonMasterInit = await BurnJettonMaster.fromInitDeployed(deployer, content, deployer);
@@ -324,7 +332,13 @@ export async function deployBurnStack(
         stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
     });
 
-    const stakingLockInit = await StakingLock.prepareInit(deployer);
+    // Timelock.governor stays the deployer (mutual Governor↔Timelock fixed point is
+    // unsolvable for deterministic Tact addresses — see P5-6-1-1). Its address depends
+    // only on the deployer, so it can be computed first and used as the immutable
+    // timelock-authority for StakingLock (IMP-PREMNT-03) without any address cycle.
+    const timelockInit = await Timelock.prepareInit(deployer);
+
+    const stakingLockInit = await StakingLock.prepareInit(timelockInit.address);
     const stakingMasterInit = await StakingMaster.prepareInit(
         poolInit.address,
         jettonMaster.address,
@@ -333,7 +347,6 @@ export async function deployBurnStack(
         deployer,
     );
 
-    const timelockInit = await Timelock.prepareInit(deployer);
     const governorInit = await Governor.prepareInit({
         minProposalVp,
         stakingMaster: stakingMasterInit.address,
@@ -571,6 +584,26 @@ export async function deployBurnStack(
             console.log('[deploy] skip changeOwner — admin already Timelock');
         }
 
+        // Final authority transfer: hand the jetton fee/exclusion/dynamic-burn governance
+        // (`timelock` field) from the deployer to the on-chain Timelock contract. This MUST
+        // run last — every fee-config setter above is gated by `sender() == timelock`, so the
+        // deployer has to keep that authority until setup is done. `SetTimelock` is guarded by
+        // the current timelock, so once flipped no EOA can change governance params (IMP-PREMNT-03).
+        const currentJettonTimelock = await readJettonTimelock(provider, jettonMaster);
+        if (currentJettonTimelock.equals(timelockInit.address)) {
+            console.log('[deploy] skip setTimelock — jetton timelock already Timelock contract');
+        } else if (currentJettonTimelock.equals(deployer)) {
+            console.log(`[deploy] setTimelock on jetton master → Timelock (${friendly(timelockInit.address, testnet)})`);
+            const seqnoBefore = await getSenderSeqno(provider);
+            await masterOpened.sendSetTimelock(provider.sender(), timelockInit.address);
+            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+        } else {
+            throw new Error(
+                `[deploy] jetton master timelock=${friendly(currentJettonTimelock, testnet)} is neither the ` +
+                    `bootstrap deployer nor the target Timelock — cannot reconcile without redeploy`,
+            );
+        }
+
         addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
             jettonMaster.address,
             treasuryInit.address,
@@ -601,7 +634,9 @@ export async function deployBurnStack(
         metadataUri,
         addresses: serialized,
         bootstrap: {
-            jettonTimelockIsDeployer: true,
+            // IMP-PREMNT-03: jetton fee/exclusion governance is handed to the Timelock
+            // contract at the end of bootstrap (SetTimelock), so no EOA retains control.
+            jettonTimelockIsDeployer: false,
             timelockGovernorIsDeployer: true,
             // setGovernor re-points the staking master to the real Governor during bootstrap.
             stakingMasterGovernorIsDeployer: false,

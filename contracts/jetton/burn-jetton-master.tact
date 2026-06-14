@@ -197,6 +197,11 @@ contract BurnJettonMaster(
         self.lowTreasuryBps = msg.low_treasury_bps;
     }
 
+    receive(msg: SetTimelock) {
+        require(sender() == self.timelock, "Only timelock");
+        self.timelock = msg.newTimelock;
+    }
+
     receive(msg: SyncFeeConfigToWallet) {
         require(sender() == self.timelock, "Only timelock");
         require(self.feeDestinationsActive, "Fee destinations not configured on master");

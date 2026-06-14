@@ -189,6 +189,15 @@ message(0x5a1c8f05) SetAutoReduceParams {
     low_treasury_bps: Int;
 }
 
+/// Timelock-authority transfer for fee/exclusion/dynamic-burn governance.
+/// Only the current timelock can hand control to a new controller — bootstrap
+/// flips the deployer-held authority over to the on-chain Timelock contract
+/// once fee setup is done. Mirrors `ChangeOwner` for the admin field.
+message(0x5a1c8f06) SetTimelock {
+    queryId: Int as uint64;
+    newTimelock: Address;
+}
+
 struct FeeParts {
     burn: Int;
     staking: Int;
