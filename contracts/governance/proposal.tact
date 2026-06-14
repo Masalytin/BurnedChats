@@ -21,7 +21,9 @@ const PS_QUEUED: Int = 3;
 const PS_EXECUTED: Int = 4;
 const PS_CANCELLED: Int = 5;
 
-const TREASURY_SPEND_OPCODE: Int = 0x5a050001;
+/// Canonical TreasurySpend opcode — must match `message(0x5a1c9010) TreasurySpend`
+/// in `treasury/treasury.tact` (and the shared definition in `treasury-messages.tact`).
+const TREASURY_SPEND_OPCODE: Int = 0x5a1c9010;
 
 contract Proposal(
     id: Int as uint64,
@@ -155,12 +157,15 @@ contract Proposal(
             qTarget = s.loadAddress();
             let recipient = s.loadAddress();
             let amt = s.loadCoins();
-            let reason = s.loadRef();
+            /// Payload carries `reason` as a snake-string ref; cast back to String
+            /// so it re-serializes via storeStringRefTail exactly as Treasury expects.
+            let reason = s.loadRef().asSlice().asString();
             qArgs = TreasurySpend {
                 queryId: 0,
                 recipient: recipient,
                 amount: amt,
                 reason: reason,
+                proposalId: self.id,
             }.toCell();
             qMethod = TREASURY_SPEND_OPCODE;
             qActive = true;
