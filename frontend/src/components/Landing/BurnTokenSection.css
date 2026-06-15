@@ -154,12 +154,15 @@
   border-radius: 999px;
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 200ms ease-out, background 200ms ease-out, transform 150ms ease-out;
+  transition:
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .burn-token-cta:hover {
   border-color: var(--lp-orange);
-  background: rgba(255, 107, 53, 0.06);
+  background: var(--bc-accent-muted);
   color: var(--lp-text);
 }
 
@@ -177,7 +180,7 @@
   height: 18px;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .burn-token-stats {
     grid-template-columns: 1fr 1fr;
   }
@@ -191,7 +194,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .burn-token-cta {
-    transition: border-color 200ms ease-out, background 200ms ease-out;
+    transition:
+      border-color var(--bc-transition-normal) var(--bc-ease-out),
+      background-color var(--bc-transition-normal) var(--bc-ease-out);
   }
 
   .burn-token-cta:active {

@@ -490,7 +490,7 @@ function ReplaySection() {
               <div className="debug-replay-progress">
                 <div 
                   className="debug-replay-progress-bar"
-                  style={{ width: `${state.progress}%` }}
+                  style={{ transform: `scaleX(${state.progress / 100})` }}
                 />
               </div>
 

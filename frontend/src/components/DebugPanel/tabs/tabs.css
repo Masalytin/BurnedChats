@@ -358,10 +358,13 @@
 }
 
 .debug-progress-fill {
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #60a5fa, #4ade80);
+  background: linear-gradient(90deg, var(--bc-debug-accent-blue), var(--bc-debug-accent-green));
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform var(--bc-transition-slow) var(--bc-ease-out);
 }
 
 .debug-progress-label {
@@ -715,7 +718,13 @@
   font-weight: 500;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-view-btn:hover {
@@ -747,7 +756,13 @@
   font-size: 12px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-dir-btn:hover {
@@ -773,7 +788,13 @@
   font-size: 10px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-actions button:hover {
@@ -794,7 +815,13 @@
   font-size: 11px;
   color: #ccc;
   outline: none;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-filter-input:focus {
@@ -822,7 +849,13 @@
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-message:hover {
@@ -941,7 +974,13 @@
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-stomp-correlation:hover {
@@ -1054,7 +1093,13 @@
   font-weight: 500;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-subtab:hover {
@@ -1236,7 +1281,9 @@
   bottom: 0;
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  transition: all 0.3s ease;
+  transition:
+    background-color var(--bc-transition-slow) var(--bc-ease-out),
+    transform var(--bc-transition-slow) var(--bc-ease-out);
 }
 
 .debug-toggle-slider:before {
@@ -1248,7 +1295,9 @@
   bottom: 3px;
   background-color: #666;
   border-radius: 50%;
-  transition: all 0.3s ease;
+  transition:
+    background-color var(--bc-transition-slow) var(--bc-ease-out),
+    transform var(--bc-transition-slow) var(--bc-ease-out);
 }
 
 .debug-toggle-switch input:checked + .debug-toggle-slider {
@@ -1335,7 +1384,13 @@
   font-size: 10px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-mock-actions button:hover {
@@ -1374,7 +1429,13 @@
   font-size: 11px;
   color: #ccc;
   outline: none;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-form-row input:focus {
@@ -1396,7 +1457,13 @@
   font-size: 10px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-form-actions button:hover {
@@ -1431,7 +1498,13 @@
   color: #aaa;
   resize: vertical;
   outline: none;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-import-textarea:focus {
@@ -1464,10 +1537,13 @@
 }
 
 .debug-replay-progress-bar {
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #60a5fa, #4ade80);
+  background: linear-gradient(90deg, var(--bc-debug-accent-blue), var(--bc-debug-accent-green));
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform var(--bc-transition-slow) var(--bc-ease-out);
 }
 
 .debug-replay-controls {
@@ -1489,7 +1565,13 @@
   font-size: 14px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-replay-controls button:hover {
@@ -1531,7 +1613,13 @@
   font-family: 'SF Mono', Monaco, 'Courier New', monospace;
   color: #666;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-replay-speed-buttons button:hover {
@@ -1558,7 +1646,13 @@
   font-size: 10px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-replay-session-actions button:hover {
@@ -1579,7 +1673,13 @@
   font-size: 11px;
   color: #888;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-replay-import-actions button:hover {
@@ -1603,7 +1703,13 @@
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-saved-session:hover {
@@ -1705,7 +1811,13 @@
   font-size: 9px;
   color: #666;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-mini-btn:hover {

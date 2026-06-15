@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { FlameIcon } from '../../icons';
 
 export function TrustBlockSection() {
   return (
@@ -53,7 +54,10 @@ export function TrustBlockSection() {
             <div className="bubble bubble--in">Hey, are we still meeting tomorrow?</div>
             <div className="bubble bubble--out">Yeah! Let&apos;s do 3pm at the usual place.</div>
             <div className="bubble bubble--in">Sounds good. I&apos;ll bring the documents.</div>
-            <div className="burn-pill" aria-hidden="true">🔥 Burn Chat</div>
+            <div className="burn-pill" aria-hidden="true">
+              <FlameIcon size={16} aria-hidden="true" />
+              Burn Chat
+            </div>
           </div>
           <div className="trust-panel-caption">
             Decrypted on your device. Keys never leave your browser.

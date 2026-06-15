@@ -2,6 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--bc-spacing-lg);
+  width: 100%;
+  max-width: var(--bc-content-max);
+  margin-inline: auto;
   padding-bottom: var(--bc-spacing-xl);
 }
 
@@ -26,7 +29,7 @@
   width: 32px;
   height: 32px;
   color: var(--bc-brand-primary);
-  filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.5));
+  filter: drop-shadow(0 0 8px var(--bc-shadow-glow));
 }
 
 .home-title {
@@ -116,13 +119,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs);
   border: none;
   background: transparent;
   color: var(--bc-text-muted);
   cursor: pointer;
   border-radius: var(--bc-radius-sm);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .home-profile-copy:hover {
@@ -131,7 +138,12 @@
 }
 
 .home-profile-copy:active {
-  opacity: 0.8;
+  transform: scale(0.97);
+}
+
+.home-profile-copy:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .home-copy-feedback {
@@ -202,7 +214,10 @@
   background: var(--bc-bg-secondary);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+  transition:
+    border-color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .home-burn-action:hover {
@@ -212,6 +227,11 @@
 
 .home-burn-action:active {
   transform: scale(0.98);
+}
+
+.home-burn-action:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .home-burn-action-icon {
@@ -225,15 +245,15 @@
 }
 
 .home-burn-action-icon svg {
-  color: white;
+  color: var(--bc-on-brand);
 }
 
 .home-burn-action-icon--staking {
-  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  background: var(--bc-brand-gradient);
 }
 
 .home-burn-action-icon--governance {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, var(--bc-text-link) 0%, var(--bc-brand-secondary) 100%);
 }
 
 .home-burn-action-text {
@@ -266,15 +286,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   padding: 0;
   border: none;
   background: transparent;
   color: var(--bc-text-muted);
   cursor: pointer;
   border-radius: var(--bc-radius-sm);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .home-search-clear:hover {
@@ -283,7 +305,12 @@
 }
 
 .home-search-clear:active {
-  color: var(--bc-text-primary);
+  transform: scale(0.97);
+}
+
+.home-search-clear:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 /* Features */
@@ -316,7 +343,7 @@
 .feature-icon svg {
   width: 20px;
   height: 20px;
-  color: white;
+  color: var(--bc-on-brand);
 }
 
 .feature-content {
@@ -431,15 +458,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   padding: 0;
   border: none;
   background: transparent;
   color: var(--bc-text-muted);
   cursor: pointer;
   border-radius: var(--bc-radius-sm);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out);
   flex-shrink: 0;
 }
 
@@ -449,7 +478,12 @@
 }
 
 .home-refresh-btn:active:not(:disabled) {
-  opacity: 0.7;
+  transform: scale(0.97);
+}
+
+.home-refresh-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .home-refresh-btn:disabled {
@@ -479,20 +513,28 @@
   border: none;
   border-radius: 50%;
   background: var(--bc-brand-primary);
-  color: #fff;
+  color: var(--bc-on-brand);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--bc-shadow-md);
   z-index: 200;
-  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+  transition:
+    opacity var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .home-scroll-top-fab:hover {
-  background: var(--bc-brand-secondary, var(--bc-brand-primary));
+  background: var(--bc-brand-primary-hover);
   transform: scale(1.08);
 }
 
 .home-scroll-top-fab:active {
   transform: scale(0.95);
+}
+
+.home-scroll-top-fab:focus-visible {
+  outline: 2px solid var(--bc-on-brand);
+  outline-offset: 2px;
 }
 
 .home-scroll-top-fab--hidden {

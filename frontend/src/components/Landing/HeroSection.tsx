@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
 import Particles, { initParticlesEngine } from '@tsparticles/react';
 import { loadSlim } from '@tsparticles/slim';
@@ -6,30 +6,42 @@ import type { ISourceOptions } from '@tsparticles/engine';
 
 const TELEGRAM_BOT_URL = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';
 
-const particlesOptions: ISourceOptions = {
-  fullScreen: { enable: false },
-  fpsLimit: 60,
-  particles: {
-    color: { value: '#ff6b35' },
-    links: {
-      color: '#ff6b35',
-      distance: 160,
-      enable: true,
-      opacity: 0.07,
-      width: 1,
+function readBrandColor(): string {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue('--bc-brand-primary')
+    .trim();
+}
+
+function buildParticlesOptions(brandColor: string): ISourceOptions {
+  const color = brandColor || 'currentColor';
+  return {
+    fullScreen: { enable: false },
+    fpsLimit: 60,
+    particles: {
+      color: { value: color },
+      links: {
+        color,
+        distance: 160,
+        enable: true,
+        opacity: 0.07,
+        width: 1,
+      },
+      move: {
+        enable: true,
+        speed: 0.5,
+        direction: 'none',
+        outModes: { default: 'out' },
+      },
+      number: { density: { enable: true }, value: 40 },
+      opacity: { value: { min: 0.02, max: 0.12 } },
+      size: { value: { min: 1, max: 2.5 } },
     },
-    move: {
-      enable: true,
-      speed: 0.5,
-      direction: 'none',
-      outModes: { default: 'out' },
-    },
-    number: { density: { enable: true }, value: 40 },
-    opacity: { value: { min: 0.02, max: 0.12 } },
-    size: { value: { min: 1, max: 2.5 } },
-  },
-  detectRetina: true,
-};
+    detectRetina: true,
+  };
+}
 
 const stagger = {
   hidden: {},
@@ -43,6 +55,7 @@ const fadeUp = {
 
 export function HeroSection() {
   const [ready, setReady] = useState(false);
+  const particlesOptions = useMemo(() => buildParticlesOptions(readBrandColor()), []);
 
   useEffect(() => {
     initParticlesEngine(async (e) => { await loadSlim(e); }).then(() => setReady(true));

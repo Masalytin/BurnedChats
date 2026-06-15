@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ActiveSession } from '../../hooks/useActiveSessions';
 import { Avatar } from '../Avatar';
@@ -77,7 +78,11 @@ export function SessionCard({
       <div className="session-card-content">
         <div className="session-card-header">
           <span className="session-card-name">{peer.displayName}</span>
-          {peer.premium && <span className="session-card-premium">⭐</span>}
+          {peer.premium && (
+            <span className="session-card-premium" aria-label={t('sessionCard.premium', { defaultValue: 'Premium' })}>
+              <Star size={14} fill="currentColor" aria-hidden="true" />
+            </span>
+          )}
           {/* Online text indicator (4.6.10) */}
           {peer.online && <span className="session-card-online-text">{t('sessionCard.online')}</span>}
         </div>

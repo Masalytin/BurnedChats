@@ -91,7 +91,7 @@ export function FlowTab({ state, timeline }: FlowTabProps) {
               <div className="debug-progress-bar">
                 <div 
                   className="debug-progress-fill"
-                  style={{ width: `${state.handshakeProgress}%` }}
+                  style={{ transform: `scaleX(${state.handshakeProgress / 100})` }}
                 />
               </div>
               <span className="debug-progress-label">

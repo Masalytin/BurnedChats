@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { Check, Minus, X } from 'lucide-react';
 
 interface Row {
   f: string;
@@ -23,9 +24,26 @@ const rows: Row[] = [
 ];
 
 function C({ s, l }: { s: 'y' | 'n' | 'p'; l?: string }) {
-  if (s === 'y') return <span className="c-yes" title={l || 'Yes'}>✓{l ? ` ${l}` : ''}</span>;
-  if (s === 'p') return <span className="c-part" title={l || 'Partial'}>~ {l || 'partial'}</span>;
-  return <span className="c-no" title="No">✗</span>;
+  if (s === 'y') {
+    return (
+      <span className="c-yes" title={l || 'Yes'}>
+        <Check size={16} strokeWidth={2.5} aria-hidden="true" />
+        {l ? ` ${l}` : ''}
+      </span>
+    );
+  }
+  if (s === 'p') {
+    return (
+      <span className="c-part" title={l || 'Partial'}>
+        <Minus size={16} strokeWidth={2.5} aria-hidden="true" /> {l || 'partial'}
+      </span>
+    );
+  }
+  return (
+    <span className="c-no" title="No">
+      <X size={16} strokeWidth={2.5} aria-hidden="true" />
+    </span>
+  );
 }
 
 export function ComparisonSection() {

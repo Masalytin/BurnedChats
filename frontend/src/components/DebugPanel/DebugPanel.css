@@ -19,7 +19,11 @@
   font-size: 14px;
   cursor: pointer;
   backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -94,7 +98,11 @@
   cursor: pointer;
   pointer-events: auto;
   backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-toggle:hover {
@@ -170,7 +178,11 @@
   color: #888;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-minimize-btn:hover,
@@ -210,7 +222,11 @@
   color: #888;
   font-size: 11px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-tab:hover {
@@ -313,7 +329,11 @@
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-normal) var(--bc-ease-out),
+    box-shadow var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .debug-actions button:hover {
