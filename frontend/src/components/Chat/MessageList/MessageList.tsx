@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, memo, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckSquare, Copy, Pencil, Reply, Trash2 } from 'lucide-react';
+import { CheckSquare, Copy, MessageSquare, Pencil, Reply, Trash2 } from 'lucide-react';
 import { Message } from '../Message';
 import { ImageMessageBubble } from '../ImageMessageBubble';
 import { VideoMessageBubble } from '../VideoMessageBubble';
@@ -443,7 +443,9 @@ export const MessageList = memo(
     return (
       <div className={`message-list message-list--empty ${className}`}>
         <div className="message-list-empty">
-          <span className="message-list-empty-icon">💬</span>
+          <span className="message-list-empty-icon" aria-hidden="true">
+            <MessageSquare size={40} strokeWidth={1.5} />
+          </span>
           <p>{t('chat.emptyMessages')}</p>
           <p className="message-list-empty-hint">
             {t('chat.emptyHint')}

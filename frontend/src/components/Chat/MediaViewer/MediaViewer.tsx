@@ -1,5 +1,6 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
 import { saveDecryptedFile, evictCachedFile, type DecryptedFile } from '@/services/fileDownloadService';
@@ -271,7 +272,9 @@ export const MediaViewer = memo(function MediaViewer({
 
         {state === 'error' && (
           <div className="media-viewer__error">
-            <span className="media-viewer__error-icon">⚠️</span>
+            <span className="media-viewer__error-icon" aria-hidden="true">
+              <AlertTriangle size={32} strokeWidth={1.5} />
+            </span>
             <span>{loadErrorKey ? t(loadErrorKey) : t('files.download.failed')}</span>
           </div>
         )}

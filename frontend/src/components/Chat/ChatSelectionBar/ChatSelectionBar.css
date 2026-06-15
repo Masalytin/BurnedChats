@@ -6,9 +6,9 @@
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   background: var(--bc-bg-secondary);
   border-bottom: 1px solid var(--bc-border-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--bc-shadow-sm);
   flex-shrink: 0;
-  min-height: 56px;
+  min-height: var(--bc-header-height);
   z-index: 2;
 }
 
@@ -16,24 +16,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   border: none;
   background: transparent;
   color: var(--bc-text-primary);
   cursor: pointer;
   border-radius: var(--bc-radius-full);
   flex-shrink: 0;
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
-.chat-selection-bar__close:hover {
-  background: var(--bc-bg-elevated);
+@media (hover: hover) and (pointer: fine) {
+  .chat-selection-bar__close:hover {
+    background: var(--bc-bg-hover);
+  }
+}
+
+.chat-selection-bar__close:active {
+  transform: scale(0.97);
+}
+
+.chat-selection-bar__close:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .chat-selection-bar__count {
   flex: 1;
   min-width: 0;
-  font-size: var(--bc-text-md);
+  font-size: var(--bc-text-base);
   font-weight: 600;
   color: var(--bc-text-primary);
 }
@@ -48,8 +64,8 @@
 .chat-selection-bar__action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: var(--bc-spacing-xs);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-2xs);
   border: none;
   border-radius: var(--bc-radius-md);
   background: var(--bc-bg-elevated);
@@ -57,15 +73,30 @@
   font-size: var(--bc-text-sm);
   font-weight: 600;
   cursor: pointer;
-  max-width: 120px;
+  max-width: 7.5rem;
+  min-height: var(--bc-touch-target);
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
-.chat-selection-bar__action-btn:hover {
-  background: var(--bc-bg-tertiary, rgba(0, 0, 0, 0.06));
+@media (hover: hover) and (pointer: fine) {
+  .chat-selection-bar__action-btn:hover:not(:disabled) {
+    background: var(--bc-bg-hover);
+  }
+}
+
+.chat-selection-bar__action-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.chat-selection-bar__action-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .chat-selection-bar__action-btn--danger {
-  color: var(--bc-danger, #c62828);
+  color: var(--bc-destructive);
 }
 
 .chat-selection-bar__action-label {
@@ -77,7 +108,7 @@
 .chat-selection-bar__chevron {
   flex-shrink: 0;
   opacity: 0.85;
-  transition: transform 0.15s ease;
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .chat-selection-bar__chevron--open {
@@ -90,14 +121,14 @@
 
 .chat-selection-bar__delete-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--bc-spacing-xs));
   right: 0;
-  min-width: 200px;
-  padding: 6px;
+  min-width: 12.5rem;
+  padding: var(--bc-spacing-xs);
   background: var(--bc-bg-secondary);
   border: 1px solid var(--bc-border-color);
   border-radius: var(--bc-radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--bc-shadow-lg);
   z-index: 20;
 }
 
@@ -105,7 +136,7 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-2xs);
   border: none;
   border-radius: var(--bc-radius-sm);
   background: transparent;
@@ -113,17 +144,24 @@
   font-size: var(--bc-text-sm);
   font-weight: 500;
   cursor: pointer;
+  min-height: var(--bc-touch-target);
+  transition: background-color var(--bc-transition-fast);
 }
 
 .chat-selection-bar__delete-menu-item:hover:not(:disabled) {
-  background: var(--bc-bg-elevated);
+  background: var(--bc-bg-hover);
+}
+
+.chat-selection-bar__delete-menu-item:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: -2px;
 }
 
 .chat-selection-bar__delete-menu-item:disabled {
-  opacity: 0.45;
+  opacity: var(--bc-disabled-opacity);
   cursor: not-allowed;
 }
 
 .chat-selection-bar__delete-menu-item--danger {
-  color: var(--bc-danger, #c62828);
+  color: var(--bc-destructive);
 }

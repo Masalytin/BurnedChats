@@ -1,8 +1,3 @@
-/* ============================================
- * UploadProgressOverlay — P4-4-1-3
- * Shown on top of a message bubble during upload
- * ============================================ */
-
 .upload-overlay {
   position: absolute;
   inset: 0;
@@ -11,77 +6,94 @@
   align-items: center;
   justify-content: center;
   gap: var(--bc-spacing-xs);
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--bc-bg-overlay);
   border-radius: inherit;
   z-index: 2;
 }
 
-/* Circular progress button (doubles as cancel) */
 .upload-overlay-circle-btn {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: var(--bc-spacing-2xl);
+  height: var(--bc-spacing-2xl);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
+}
+
+.upload-overlay-circle-btn:active {
+  transform: scale(0.97);
+}
+
+.upload-overlay-circle-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .upload-overlay-svg {
-  width: 48px;
-  height: 48px;
+  width: var(--bc-spacing-2xl);
+  height: var(--bc-spacing-2xl);
 }
 
 .upload-overlay-track {
-  stroke: rgba(255, 255, 255, 0.25);
+  stroke: color-mix(in srgb, var(--bc-on-brand) 25%, transparent);
 }
 
 .upload-overlay-arc {
-  stroke: #fff;
-  transition: stroke-dashoffset 0.3s ease;
+  stroke: var(--bc-on-brand);
+  transition: stroke-dashoffset var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .upload-overlay-x {
   position: absolute;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
+  color: var(--bc-on-brand);
   pointer-events: none;
 }
 
-/* Retry button (shown on failure) */
 .upload-overlay-retry-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
+  width: var(--bc-spacing-2xl);
+  height: var(--bc-spacing-2xl);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  border: 2px solid color-mix(in srgb, var(--bc-on-brand) 60%, transparent);
+  border-radius: var(--bc-radius-full);
   background: transparent;
-  color: #fff;
-  font-size: 22px;
+  color: var(--bc-on-brand);
   cursor: pointer;
-  transition: background var(--bc-transition-fast);
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .upload-overlay-retry-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--bc-on-brand) 15%, transparent);
 }
 
-/* Stage label text */
+.upload-overlay-retry-btn:active {
+  transform: scale(0.97);
+}
+
+.upload-overlay-retry-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
 .upload-overlay-label {
-  color: #fff;
+  color: var(--bc-on-brand);
   font-size: var(--bc-text-xs);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--bc-shadow-sm);
   font-variant-numeric: tabular-nums;
 }
 
-/* Failed state tint */
 .upload-overlay--failed {
-  background: rgba(220, 50, 50, 0.45);
+  background: color-mix(in srgb, var(--bc-error) 45%, transparent);
 }

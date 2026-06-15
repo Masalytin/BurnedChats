@@ -7,8 +7,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   padding: 0;
   margin: -6px;
   border: none;
@@ -23,7 +23,7 @@
 .message__reply-btn:focus-visible {
   opacity: 0.95;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(46, 166, 255, 0.35);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bc-text-link) 35%, transparent);
 }
 
 .message:hover .message__reply-btn,

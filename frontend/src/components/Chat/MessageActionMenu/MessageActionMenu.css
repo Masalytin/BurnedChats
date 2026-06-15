@@ -1,5 +1,5 @@
 .message-action-menu-portal {
-  --ma-menu-appear: 140ms;
+  --ma-menu-appear: var(--bc-transition-fast);
 }
 
 .message-action-menu-backdrop {
@@ -19,16 +19,16 @@
   background: var(--bc-bg-elevated);
   border: 1px solid var(--bc-border-color);
   border-radius: var(--bc-radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--bc-shadow-lg);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bc-spacing-xs);
   transform-origin: top left;
   opacity: 0;
   transform: scale(0.96);
   transition:
-    opacity var(--ma-menu-appear) ease-out,
-    transform var(--ma-menu-appear) ease-out;
+    opacity var(--ma-menu-appear) var(--bc-ease-out),
+    transform var(--ma-menu-appear) var(--bc-ease-out);
 }
 
 .message-action-menu--open {
@@ -54,21 +54,27 @@
 
 .message-action-menu__item:hover,
 .message-action-menu__item--active {
-  background: var(--bc-bg-secondary);
+  background: var(--bc-bg-hover);
+}
+
+.message-action-menu__item:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: -2px;
 }
 
 .message-action-menu__item--disabled {
-  opacity: 0.45;
+  opacity: var(--bc-disabled-opacity);
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .message-action-menu__item--destructive {
-  color: var(--bc-error, #e5484d);
+  color: var(--bc-error);
 }
 
 .message-action-menu__item--destructive:hover,
 .message-action-menu__item--destructive.message-action-menu__item--active {
-  background: rgba(229, 72, 77, 0.12);
+  background: var(--bc-error-muted);
 }
 
 .message-action-menu__icon {

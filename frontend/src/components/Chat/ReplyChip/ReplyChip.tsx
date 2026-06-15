@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MessageType } from '@/types';
 import './ReplyChip.css';
@@ -36,7 +37,7 @@ export const ReplyChip = memo(function ReplyChip({ replyTo, onCancel }: ReplyChi
         onClick={onCancel}
         aria-label={t('chat.reply.cancelAriaLabel')}
       >
-        ×
+        <X size={18} strokeWidth={2} aria-hidden="true" />
       </button>
     </div>
   );

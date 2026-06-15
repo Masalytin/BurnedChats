@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useMemo, type MouseEvent, type KeyboardEvent } from 'react';
+import { ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -10,6 +11,7 @@ import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { MessageStatusIcon } from '../MessageStatusIcon';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -18,8 +20,6 @@ import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './ImageMessageBubble.css';
-
-type MessageStatus = DecryptedFileMessage['status'];
 
 interface ImageMessageBubbleProps {
   message: DecryptedFileMessage;
@@ -320,13 +320,17 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
         <div className="image-bubble__thumbnail-wrap">
           {thumbnailState === 'loading' && (
             <div className="image-bubble__placeholder">
-              <span className="image-bubble__placeholder-icon">🖼️</span>
+              <span className="image-bubble__placeholder-icon" aria-hidden="true">
+                <ImageIcon size={32} strokeWidth={1.5} />
+              </span>
             </div>
           )}
 
           {thumbnailState === 'error' && (
             <div className="image-bubble__placeholder image-bubble__placeholder--error">
-              <span className="image-bubble__placeholder-icon">🖼️</span>
+              <span className="image-bubble__placeholder-icon" aria-hidden="true">
+                <ImageIcon size={32} strokeWidth={1.5} />
+              </span>
               {thumbnailErrorKey && (
                 <span className="image-bubble__error-hint">{t(thumbnailErrorKey)}</span>
               )}
@@ -354,7 +358,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
             <div className="image-bubble__download-overlay">
               <div
                 className="image-bubble__download-progress"
-                style={{ width: `${downloadProgress}%` }}
+                style={{ '--download-progress': downloadProgress / 100 } as React.CSSProperties}
               />
               <span className="image-bubble__download-text">{downloadProgress}%</span>
             </div>
@@ -386,7 +390,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
           )}
           {message.isOwn && (
             <span className="message-status" aria-label={messageStatusAriaLabel(t, message.status)}>
-              <StatusIcon status={message.status} />
+              <MessageStatusIcon status={message.status} />
             </span>
           )}
         </div>
@@ -394,21 +398,4 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
     </div>
   );
 });
-
-function StatusIcon({ status }: { status: MessageStatus }) {
-  switch (status) {
-    case 'sending':
-      return <span className="status-icon status-icon--sending">⏳</span>;
-    case 'sent':
-      return <span className="status-icon status-icon--sent">✓</span>;
-    case 'delivered':
-      return <span className="status-icon status-icon--delivered">✓✓</span>;
-    case 'read':
-      return <span className="status-icon status-icon--read">✓✓</span>;
-    case 'failed':
-      return <span className="status-icon status-icon--failed">!</span>;
-    default:
-      return null;
-  }
-}
 

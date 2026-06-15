@@ -47,11 +47,11 @@
   gap: var(--bc-spacing-sm);
   padding: var(--bc-spacing-sm);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color var(--bc-transition-fast);
 }
 
 .doc-bubble__body:active {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--bc-text-primary) 5%, transparent);
 }
 
 /* ============================================
@@ -64,22 +64,26 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
   border-radius: var(--bc-radius-md);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--bc-text-primary) 8%, transparent);
+  color: var(--bc-file-generic);
 }
 
-.doc-bubble__icon-emoji {
-  font-size: 1.3rem;
-  line-height: 1;
-}
+.doc-bubble__icon--pdf { color: var(--bc-file-pdf); }
+.doc-bubble__icon--doc { color: var(--bc-file-doc); }
+.doc-bubble__icon--sheet { color: var(--bc-file-sheet); }
+.doc-bubble__icon--archive { color: var(--bc-file-archive); }
+.doc-bubble__icon--json,
+.doc-bubble__icon--html,
+.doc-bubble__icon--generic { color: var(--bc-file-generic); }
 
 .doc-bubble__icon-label {
-  font-size: 0.55rem;
+  font-size: var(--bc-text-xs);
   font-weight: 700;
-  letter-spacing: 0.02em;
-  margin-top: 1px;
+  letter-spacing: var(--bc-tracking-section);
+  margin-top: var(--bc-spacing-xs);
   opacity: 0.8;
 }
 
@@ -92,7 +96,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bc-spacing-xs);
 }
 
 .doc-bubble__filename {
@@ -118,17 +122,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
 }
 
 .doc-bubble__error-text {
-  font-size: 0.8rem;
-  line-height: 1.35;
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
   opacity: 0.92;
   padding: 0 var(--bc-spacing-sm) var(--bc-spacing-xs);
   margin: 0;
-  color: var(--bc-danger, #ff6b6b);
+  color: var(--bc-error);
 }
 
 .doc-bubble__download-btn,
@@ -137,43 +141,57 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--bc-radius-full);
   cursor: pointer;
   padding: 0;
-  transition: background 0.15s, transform 0.1s;
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .doc-bubble__download-btn {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--bc-text-primary) 10%, transparent);
   color: var(--bc-text-primary);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .doc-bubble__download-btn:hover {
+    background: color-mix(in srgb, var(--bc-text-primary) 16%, transparent);
+  }
+}
+
 .doc-bubble__download-btn:active {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 
 .doc-bubble__save-btn {
-  background: rgba(76, 175, 80, 0.2);
-  color: #4caf50;
+  background: var(--bc-success-muted);
+  color: var(--bc-success);
 }
 
 .doc-bubble__save-btn:active {
-  background: rgba(76, 175, 80, 0.35);
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 
 .doc-bubble__retry-btn {
-  background: rgba(255, 68, 68, 0.15);
-  color: #ff6b6b;
+  background: var(--bc-error-muted);
+  color: var(--bc-error);
 }
 
 .doc-bubble__retry-btn:active {
-  background: rgba(255, 68, 68, 0.3);
-  transform: scale(0.92);
+  transform: scale(0.97);
+}
+
+.doc-bubble__download-btn:focus-visible,
+.doc-bubble__save-btn:focus-visible,
+.doc-bubble__retry-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 /* ============================================
@@ -185,18 +203,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
 }
 
 .doc-bubble__progress-ring svg {
   position: absolute;
-  color: var(--bc-brand-primary, #4fc3f7);
-  transition: stroke-dashoffset 0.25s ease-out;
+  color: var(--bc-brand-primary);
+  transition: stroke-dashoffset var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .doc-bubble__progress-text {
-  font-size: 0.5rem;
+  font-size: var(--bc-text-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
@@ -230,7 +248,7 @@
 }
 
 .message--own .doc-bubble__meta {
-  color: rgba(255, 255, 255, 0.7);
+  color: color-mix(in srgb, var(--bc-on-brand) 70%, transparent);
 }
 
 .message--peer .doc-bubble__meta {

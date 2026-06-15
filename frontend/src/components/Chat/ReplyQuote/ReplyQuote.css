@@ -3,27 +3,49 @@
   width: 100%;
   text-align: left;
   border: none;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
-  padding: 6px 8px 8px 6px;
-  margin-bottom: 6px;
+  background: color-mix(in srgb, var(--bc-text-primary) 5%, transparent);
+  border-radius: var(--bc-radius-md);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm) var(--bc-spacing-sm) var(--bc-spacing-xs);
+  margin-bottom: var(--bc-spacing-xs);
   cursor: pointer;
-  gap: 8px;
+  gap: var(--bc-spacing-sm);
   max-width: 100%;
   box-sizing: border-box;
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .message--own .reply-quote {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--bc-on-brand) 12%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reply-quote:hover {
+    background: color-mix(in srgb, var(--bc-text-primary) 8%, transparent);
+  }
+
+  .message--own .reply-quote:hover {
+    background: color-mix(in srgb, var(--bc-on-brand) 18%, transparent);
+  }
+}
+
+.reply-quote:active {
+  transform: scale(0.99);
+}
+
+.reply-quote:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .reply-quote__bar {
   width: 3px;
   flex-shrink: 0;
-  border-radius: 2px;
-  background: var(--tg-theme-link-color, #2481cc);
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-text-link);
   align-self: stretch;
-  min-height: 36px;
+  min-height: var(--bc-touch-target);
 }
 
 .reply-quote__body {
@@ -31,19 +53,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bc-spacing-xs);
 }
 
 .reply-quote__name {
-  font-size: 12px;
+  font-size: var(--bc-text-xs);
   font-weight: 600;
-  color: var(--tg-theme-link-color, #2481cc);
+  color: var(--bc-text-link);
 }
 
 .reply-quote__preview {
-  font-size: 13px;
-  line-height: 1.3;
-  color: var(--tg-theme-hint-color, #707579);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-tight);
+  color: var(--bc-text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

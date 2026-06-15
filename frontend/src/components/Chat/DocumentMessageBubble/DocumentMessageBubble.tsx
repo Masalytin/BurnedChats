@@ -10,17 +10,18 @@ import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { getFileTypeDisplay } from '../fileTypeDisplay';
+import { FileTypeIcon } from '../FileTypeIcon';
+import { MessageStatusIcon } from '../MessageStatusIcon';
 import '../Message/Message.css';
 import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
-import { getFileIcon } from '@/utils/fileIcons';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './DocumentMessageBubble.css';
 
-type MessageStatus = DecryptedFileMessage['status'];
 type DocState = 'idle' | 'downloading' | 'downloaded' | 'error';
 
 interface DocumentMessageBubbleProps {
@@ -109,7 +110,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
   const fileName = message.fileMeta?.fileName || t('files.bubble.document');
   const mimeType = message.fileMeta?.mimeType || 'application/octet-stream';
-  const iconInfo = getFileIcon(mimeType);
+  const fileType = getFileTypeDisplay(mimeType);
   const formattedSize = formatLocalizedFileSize(message.fileSize, t);
   const formattedTime = formatTime(message.timestamp);
   const hasCaption = message.content && !message.content.startsWith('📎');
@@ -313,9 +314,11 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
           onClick={mediaTapMenu.onInnerClick}
           onDoubleClick={mediaTapMenu.onInnerDoubleClick}
         >
-          <div className="doc-bubble__icon" style={{ color: iconInfo.color }}>
-            <span className="doc-bubble__icon-emoji">{iconInfo.icon}</span>
-            <span className="doc-bubble__icon-label">{iconInfo.label}</span>
+          <div
+            className={`doc-bubble__icon doc-bubble__icon--${fileType.variant}`}
+          >
+            <FileTypeIcon variant={fileType.variant} />
+            <span className="doc-bubble__icon-label">{fileType.label}</span>
           </div>
 
           <div className="doc-bubble__info">
@@ -399,7 +402,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
           )}
           {message.isOwn && (
             <span className="message-status" aria-label={messageStatusAriaLabel(t, message.status)}>
-              <StatusIcon status={message.status} />
+              <MessageStatusIcon status={message.status} />
             </span>
           )}
         </div>
@@ -407,21 +410,4 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     </div>
   );
 });
-
-function StatusIcon({ status }: { status: MessageStatus }) {
-  switch (status) {
-    case 'sending':
-      return <span className="status-icon status-icon--sending">⏳</span>;
-    case 'sent':
-      return <span className="status-icon status-icon--sent">✓</span>;
-    case 'delivered':
-      return <span className="status-icon status-icon--delivered">✓✓</span>;
-    case 'read':
-      return <span className="status-icon status-icon--read">✓✓</span>;
-    case 'failed':
-      return <span className="status-icon status-icon--failed">!</span>;
-    default:
-      return null;
-  }
-}
 

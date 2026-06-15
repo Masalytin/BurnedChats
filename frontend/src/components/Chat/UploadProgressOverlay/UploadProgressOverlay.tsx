@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { RotateCw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import './UploadProgressOverlay.css';
 
@@ -75,7 +76,7 @@ export const UploadProgressOverlay = memo(function UploadProgressOverlay({
               transform="rotate(-90 24 24)"
             />
           </svg>
-          <span className="upload-overlay-x">✕</span>
+          <X className="upload-overlay-x" size={14} strokeWidth={2.5} aria-hidden="true" />
         </button>
       ) : (
         <button
@@ -84,7 +85,7 @@ export const UploadProgressOverlay = memo(function UploadProgressOverlay({
           onClick={handleAction}
           aria-label={t('files.upload.retry')}
         >
-          ↻
+          <RotateCw size={22} strokeWidth={2} aria-hidden="true" />
         </button>
       )}
 

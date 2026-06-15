@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react';
+import { Film } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -10,6 +11,7 @@ import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { MessageStatusIcon } from '../MessageStatusIcon';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -18,8 +20,6 @@ import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './VideoMessageBubble.css';
-
-type MessageStatus = DecryptedFileMessage['status'];
 
 type VideoState = 'idle' | 'downloading' | 'playing' | 'error';
 
@@ -401,13 +401,17 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
             >
               {thumbnailState === 'loading' && (
                 <div className="video-bubble__placeholder">
-                  <span className="video-bubble__placeholder-icon">🎬</span>
+                  <span className="video-bubble__placeholder-icon" aria-hidden="true">
+                    <Film size={32} strokeWidth={1.5} />
+                  </span>
                 </div>
               )}
 
               {thumbnailState === 'error' && (
                 <div className="video-bubble__placeholder video-bubble__placeholder--error">
-                  <span className="video-bubble__placeholder-icon">🎬</span>
+                  <span className="video-bubble__placeholder-icon" aria-hidden="true">
+                    <Film size={32} strokeWidth={1.5} />
+                  </span>
                   {thumbnailErrorKey && (
                     <span className="video-bubble__error-hint">{t(thumbnailErrorKey)}</span>
                   )}
@@ -444,7 +448,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
                 <div className="video-bubble__download-overlay">
                   <div
                     className="video-bubble__download-progress"
-                    style={{ width: `${downloadProgress}%` }}
+                    style={{ '--download-progress': downloadProgress / 100 } as React.CSSProperties}
                   />
                   <span className="video-bubble__download-text">{downloadProgress}%</span>
                 </div>
@@ -479,7 +483,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
           )}
           {message.isOwn && (
             <span className="message-status" aria-label={messageStatusAriaLabel(t, message.status)}>
-              <StatusIcon status={message.status} />
+              <MessageStatusIcon status={message.status} />
             </span>
           )}
         </div>
@@ -487,21 +491,4 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
     </div>
   );
 });
-
-function StatusIcon({ status }: { status: MessageStatus }) {
-  switch (status) {
-    case 'sending':
-      return <span className="status-icon status-icon--sending">⏳</span>;
-    case 'sent':
-      return <span className="status-icon status-icon--sent">✓</span>;
-    case 'delivered':
-      return <span className="status-icon status-icon--delivered">✓✓</span>;
-    case 'read':
-      return <span className="status-icon status-icon--read">✓✓</span>;
-    case 'failed':
-      return <span className="status-icon status-icon--failed">!</span>;
-    default:
-      return null;
-  }
-}
 

@@ -74,8 +74,8 @@
   position: absolute;
   bottom: var(--bc-spacing-sm);
   right: var(--bc-spacing-sm);
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
+  background: var(--bc-bg-overlay);
+  color: var(--bc-on-brand);
   font-size: var(--bc-text-xs);
   padding: 2px var(--bc-spacing-xs);
   border-radius: var(--bc-radius-sm);
@@ -92,7 +92,10 @@
 }
 
 .file-preview-doc-icon {
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-file-generic);
 }
 
 .file-preview-doc-name {
@@ -181,7 +184,7 @@
 
 .file-preview-btn--send {
   background: var(--bc-brand-primary);
-  color: #fff;
+  color: var(--bc-on-brand);
 }
 
 .file-preview-btn--send:hover {

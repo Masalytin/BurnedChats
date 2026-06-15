@@ -11,6 +11,7 @@ import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { formatChatDateSeparator } from '@/utils/formatChatDateSeparator';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { MessageStatusIcon } from '../MessageStatusIcon';
 import './Message.css';
 
 interface MessageProps {
@@ -264,26 +265,6 @@ export const Message = memo(function Message({
     </>
   );
 });
-
-/**
- * Message status icon component (4.3.5)
- */
-function MessageStatusIcon({ status }: { status: MessageStatus }) {
-  switch (status) {
-    case 'sending':
-      return <span className="status-icon status-icon--sending">⏳</span>;
-    case 'sent':
-      return <span className="status-icon status-icon--sent">✓</span>;
-    case 'delivered':
-      return <span className="status-icon status-icon--delivered">✓✓</span>;
-    case 'read':
-      return <span className="status-icon status-icon--read">✓✓</span>;
-    case 'failed':
-      return <span className="status-icon status-icon--failed">!</span>;
-    default:
-      return null;
-  }
-}
 
 /**
  * Format timestamp to time string (HH:MM)

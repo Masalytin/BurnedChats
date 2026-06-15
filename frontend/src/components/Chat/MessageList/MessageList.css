@@ -27,8 +27,8 @@
 .message.message--highlighted .image-bubble,
 .message.message--highlighted .video-bubble,
 .message.message--highlighted .doc-bubble {
-  transition: background-color 0.35s ease;
-  background-color: rgba(36, 129, 204, 0.2) !important;
+  transition: background-color var(--bc-transition-normal) var(--bc-ease-out);
+  background-color: color-mix(in srgb, var(--bc-text-link) 20%, transparent) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -64,22 +64,10 @@
   border: 3px solid var(--bc-border-color);
   border-top-color: var(--bc-brand-primary);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: message-list-spin var(--bc-transition-slow) linear infinite;
 }
 
-.message-list-spinner--small {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-}
-
-.message-list-loading-more {
-  display: flex;
-  justify-content: center;
-  padding: var(--bc-spacing-md);
-}
-
-@keyframes spin {
+@keyframes message-list-spin {
   to {
     transform: rotate(360deg);
   }
@@ -98,10 +86,35 @@
   padding: var(--bc-spacing-xl);
 }
 
+.message-list-spinner--small {
+  width: var(--bc-spacing-md);
+  height: var(--bc-spacing-md);
+  border-width: 2px;
+}
+
+.message-list-loading-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-list-spinner {
+    animation: none;
+    border-top-color: var(--bc-border-color);
+  }
+}
+
 .message-list-empty-icon {
-  font-size: var(--bc-text-3xl);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-spacing-2xl);
+  height: var(--bc-spacing-2xl);
   margin-bottom: var(--bc-spacing-sm);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-muted);
 }
 
 .message-list-empty p {

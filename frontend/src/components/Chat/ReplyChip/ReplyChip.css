@@ -1,12 +1,12 @@
 .reply-chip {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  border-radius: 10px;
-  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.06));
-  border-left: 3px solid var(--tg-theme-link-color, #2481cc);
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-2xs);
+  margin-bottom: var(--bc-spacing-sm);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-secondary);
+  border-left: 3px solid var(--bc-text-link);
 }
 
 .reply-chip__text {
@@ -15,16 +15,16 @@
 }
 
 .reply-chip__label {
-  font-size: 12px;
+  font-size: var(--bc-text-xs);
   font-weight: 600;
-  color: var(--tg-theme-link-color, #2481cc);
-  margin-bottom: 2px;
+  color: var(--bc-text-link);
+  margin-bottom: var(--bc-spacing-xs);
 }
 
 .reply-chip__preview {
-  font-size: 13px;
-  line-height: 1.3;
-  color: var(--tg-theme-hint-color, #707579);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-tight);
+  color: var(--bc-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -32,17 +32,36 @@
 
 .reply-chip__close {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--bc-radius-md);
   background: transparent;
-  color: var(--tg-theme-hint-color, #707579);
-  font-size: 22px;
-  line-height: 1;
+  color: var(--bc-text-muted);
   cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    color var(--bc-transition-fast),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
-.reply-chip__close:hover {
-  background: rgba(0, 0, 0, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .reply-chip__close:hover {
+    background: var(--bc-bg-hover);
+    color: var(--bc-text-primary);
+  }
+}
+
+.reply-chip__close:active {
+  transform: scale(0.97);
+}
+
+.reply-chip__close:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }

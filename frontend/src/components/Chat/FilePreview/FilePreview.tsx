@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileMessageType } from '../MessageInput';
+import { FileTypeIcon } from '../FileTypeIcon';
+import { getFileTypeDisplay } from '../fileTypeDisplay';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import './FilePreview.css';
 
@@ -121,7 +123,9 @@ export const FilePreview = memo(function FilePreview({
 
           {messageType === 'file' && (
             <div className="file-preview-doc">
-              <span className="file-preview-doc-icon">{getDocIcon(file.type)}</span>
+              <span className="file-preview-doc-icon" aria-hidden="true">
+                <FileTypeIcon variant={getFileTypeDisplay(file.type).variant} size={48} />
+              </span>
               <span className="file-preview-doc-name" title={file.name}>{file.name}</span>
             </div>
           )}
@@ -172,19 +176,8 @@ export const FilePreview = memo(function FilePreview({
   );
 });
 
-// ============================================
-// Helpers
-// ============================================
-
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function getDocIcon(mimeType: string): string {
-  if (mimeType === 'application/pdf') return '📄';
-  if (mimeType === 'text/plain') return '📝';
-  if (mimeType === 'application/zip') return '📦';
-  return '📎';
 }
