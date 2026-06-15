@@ -3,6 +3,7 @@ import {
     JettonTransferInternal,
     type AddExcluded as AddExcludedPayload,
     type ChangeOwner as ChangeOwnerPayload,
+    type CloseMint as CloseMintPayload,
     type Mint as MintPayload,
     type RemoveExcluded as RemoveExcludedPayload,
     type SetAutoReduceParams as SetAutoReduceParamsPayload,
@@ -100,6 +101,15 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
 
         const value = totalTonAmount + toNano('0.02');
         return this.send(provider, via, { value }, msg);
+    }
+
+    /** Admin permanently closes minting (irreversible). After bootstrap admin is the Timelock contract. */
+    async sendCloseMint(provider: ContractProvider, via: Sender) {
+        const msg: CloseMintPayload = {
+            $$type: 'CloseMint',
+            queryId: 0n,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 
     async sendChangeOwner(provider: ContractProvider, via: Sender, newOwner: Address) {

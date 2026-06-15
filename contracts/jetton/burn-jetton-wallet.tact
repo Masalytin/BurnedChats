@@ -198,6 +198,15 @@ message(0x5a1c8f06) SetTimelock {
     newTimelock: Address;
 }
 
+/// Admin: permanently and irreversibly close minting on the master.
+/// Gated on `admin` (same authority as `Mint`); after bootstrap `admin` is the
+/// on-chain Timelock contract, so close-mint is governance-controlled. There is
+/// no inverse message — once closed, `mintable` can never become true again.
+/// Distinct opcode from the timelock-gated 0x5a1c8f0X family on purpose.
+message(0x5a1ca001) CloseMint {
+    queryId: Int as uint64;
+}
+
 struct FeeParts {
     burn: Int;
     staking: Int;

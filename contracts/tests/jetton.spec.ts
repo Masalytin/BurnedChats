@@ -218,6 +218,68 @@ describe('BurnJetton', () => {
         });
     });
 
+    describe('Close mint (IMP-PREMNT-05)', () => {
+        it('mint works before close', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(100n * NANO_PER_BURN);
+            expect((await ctx.master.getGetJettonData()).mintable).toBe(true);
+        });
+
+        it('non-admin cannot close mint; mintable stays true', async () => {
+            const rogue = await ctx.master.sendCloseMint(ctx.userY.getSender());
+            expect(rogue.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+            });
+            expect((await ctx.master.getGetJettonData()).mintable).toBe(true);
+        });
+
+        it('admin closes mint irreversibly; mintable flips to false', async () => {
+            const r = await ctx.master.sendCloseMint(ctx.deployer.getSender());
+            expect(r.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
+            expect((await ctx.master.getGetJettonData()).mintable).toBe(false);
+        });
+
+        it('mint after close is rejected (even free space under cap after burn)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendCloseMint(ctx.deployer.getSender());
+
+            // Free up cap space via a burn, then prove mint is still refused.
+            const wx = await getWallet(ctx, ctx.userX.address);
+            await wx.sendBurn(ctx.userX.getSender(), { jettonAmount: 10n * NANO_PER_BURN, value: toNano('0.08') });
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(90n * NANO_PER_BURN);
+
+            const minted = await ctx.master.sendMint(
+                ctx.deployer.getSender(),
+                ctx.userY.address,
+                5n * NANO_PER_BURN,
+                1n,
+                MINT_TON,
+            );
+            expect(minted.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Mint is closed'],
+            });
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(90n * NANO_PER_BURN);
+        });
+
+        it('burn keeps working after close (supply still deflates)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendCloseMint(ctx.deployer.getSender());
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const burnRes = await wx.sendBurn(ctx.userX.getSender(), {
+                jettonAmount: 20n * NANO_PER_BURN,
+                value: toNano('0.08'),
+            });
+            expect(burnRes.transactions).toHaveTransaction({ success: true });
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(30n * NANO_PER_BURN);
+            expect((await ctx.master.getGetJettonData()).mintable).toBe(false);
+        });
+    });
+
     describe('Excluded addresses', () => {
         it('fee = 0 when receiver is excluded; remove restores fees', async () => {
             const minted = 100n * NANO_PER_BURN;

@@ -104,6 +104,12 @@ contract BurnJettonMaster(
         });
     }
 
+    receive(msg: CloseMint) {
+        require(sender() == self.admin, "Incorrect sender");
+        // Irreversible: no receiver ever sets mintable back to true.
+        self.mintable = false;
+    }
+
     receive(msg: JettonBurnNotification) {
         let s = parseStdAddress(sender().asSlice());
         let wallet = getBurnJettonBasechainWalletByOwner(msg.sender);
