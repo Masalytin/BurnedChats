@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -95,9 +96,13 @@ export function CreateProposal() {
     <div className={styles.createRoot}>
       <div className={styles.stepper}>
         <span className={step === 'type' ? styles.stepOn : styles.stepOff}>{t('governance.createStepType')}</span>
-        <span aria-hidden>→</span>
+        <span className={styles.stepSep} aria-hidden>
+          <ChevronRight size={14} strokeWidth={2.5} />
+        </span>
         <span className={step === 'form' ? styles.stepOn : styles.stepOff}>{t('governance.createStepForm')}</span>
-        <span aria-hidden>→</span>
+        <span className={styles.stepSep} aria-hidden>
+          <ChevronRight size={14} strokeWidth={2.5} />
+        </span>
         <span className={step === 'review' ? styles.stepOn : styles.stepOff}>{t('governance.createStepReview')}</span>
       </div>
 
@@ -177,7 +182,7 @@ export function CreateProposal() {
               </button>
               <button
                 type="button"
-                className={styles.primaryBtn}
+                className={`${styles.primaryBtn}${busy ? ` ${styles.primaryBtnLoading}` : ''}`}
                 disabled={busy || !meetsVp}
                 onClick={() => void submit()}
               >

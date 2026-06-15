@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CloseIcon } from '@/icons';
+
 import type { StakeInfo, StakingTier, TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
 import { formatTimeRemaining, formatTierName, formatLockDuration } from '@/utils/staking-format';
@@ -133,7 +135,7 @@ export function UnstakeModal({
             aria-label={t('staking.modalClose')}
             disabled={phase === 'signing'}
           >
-            ×
+            <CloseIcon size={20} aria-hidden />
           </button>
         </div>
 

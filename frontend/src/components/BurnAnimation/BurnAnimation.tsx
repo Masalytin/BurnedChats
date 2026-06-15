@@ -165,7 +165,8 @@ export const BurnAnimation = memo(function BurnAnimation({
       {/* Message */}
       <div className="burn-animation__message">
         <h2 className="burn-animation__title">
-          {wasSelfBurn ? '🔥 Chat Burned' : '🔥 Chat Destroyed'}
+          <FlameIcon size={28} aria-hidden />
+          <span>{wasSelfBurn ? 'Chat Burned' : 'Chat Destroyed'}</span>
         </h2>
         <p className="burn-animation__subtitle">
           {wasSelfBurn

@@ -35,26 +35,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   padding: 0;
   border: none;
   background: var(--bc-bg-elevated);
   color: var(--bc-text-muted);
   border-radius: var(--bc-radius-full);
   cursor: pointer;
-  transition: color var(--bc-transition-fast), background-color var(--bc-transition-fast);
-  z-index: 1;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
-.burn-dialog__close:hover {
-  color: var(--bc-text-primary);
-  background: var(--bc-border-color-strong);
+@media (hover: hover) and (pointer: fine) {
+  .burn-dialog__close:hover:not(:disabled) {
+    color: var(--bc-text-primary);
+    background: var(--bc-border-color-strong);
+  }
+}
+
+.burn-dialog__close:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .burn-dialog__close:disabled {
-  opacity: 0.5;
+  opacity: var(--bc-disabled-opacity);
   cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
+.burn-dialog__close:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 /* Icon */
@@ -65,18 +82,18 @@
   width: 64px;
   height: 64px;
   margin: 0 auto var(--bc-spacing-md);
-  background: linear-gradient(135deg, var(--bc-error) 0%, #ff8a00 100%);
+  background: linear-gradient(135deg, var(--bc-error) 0%, var(--bc-burn-dialog-accent) 100%);
   border-radius: var(--bc-radius-full);
-  color: white;
-  animation: pulse-glow 2s ease-in-out infinite;
+  color: var(--bc-on-brand);
+  animation: pulse-glow 2s var(--bc-ease-out) infinite;
 }
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--bc-brand-primary) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--bc-brand-primary) 60%, transparent);
   }
 }
 
@@ -137,9 +154,12 @@
 }
 
 .burn-dialog__list-icon {
-  font-size: var(--bc-text-base);
-  width: 24px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--bc-spacing-lg);
+  color: var(--bc-text-secondary);
 }
 
 /* Actions */

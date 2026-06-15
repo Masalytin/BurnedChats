@@ -143,6 +143,14 @@
   margin-bottom: var(--bc-spacing-md);
 }
 
+.emptyIllu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-text-secondary);
+  margin-bottom: var(--bc-spacing-sm);
+}
+
 .bannerRow {
   display: flex;
   flex-wrap: wrap;
@@ -466,8 +474,11 @@
 }
 
 .checkPop {
-  font-size: var(--bc-text-3xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: var(--bc-spacing-sm);
+  color: var(--bc-success);
   animation: checkPop 0.5s var(--bc-ease-out) 1;
 }
 

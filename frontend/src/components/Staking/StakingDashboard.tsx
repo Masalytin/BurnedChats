@@ -1,3 +1,4 @@
+import { Coins } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -288,6 +289,9 @@ export function StakingDashboard() {
 
       {ton.isConnected && !isLoading && stakes.length === 0 ? (
         <div className={styles.banner}>
+          <div className={styles.emptyIllu} aria-hidden>
+            <Coins size={48} strokeWidth={1.5} />
+          </div>
           <p className={styles.textStrong}>{t('staking.emptyTitle')}</p>
           <p className={styles.muted}>{t('staking.emptyHint')}</p>
           <button

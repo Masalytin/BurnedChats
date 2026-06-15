@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect } from 'react';
+import { Key, Link2, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { CloseIcon, FlameIcon, AlertIcon } from '../../icons';
@@ -137,15 +138,21 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
         {/* What will be destroyed */}
         <ul className="burn-dialog__list">
           <li>
-            <span className="burn-dialog__list-icon">🔑</span>
+            <span className="burn-dialog__list-icon" aria-hidden>
+              <Key size={18} strokeWidth={2} />
+            </span>
             {t('burnDialog.listKeys')}
           </li>
           <li>
-            <span className="burn-dialog__list-icon">💬</span>
+            <span className="burn-dialog__list-icon" aria-hidden>
+              <MessageSquare size={18} strokeWidth={2} />
+            </span>
             {t('burnDialog.listHistory')}
           </li>
           <li>
-            <span className="burn-dialog__list-icon">🔗</span>
+            <span className="burn-dialog__list-icon" aria-hidden>
+              <Link2 size={18} strokeWidth={2} />
+            </span>
             {t('burnDialog.listSession')}
           </li>
         </ul>

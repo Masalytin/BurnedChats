@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 
 import { useToast } from '@/components/Toast';
+import { CloseIcon, SuccessIcon } from '@/icons';
 import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sendModalGasReserve';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import { estimateStakeTon } from '@/ton/estimateStakeTon';
@@ -238,14 +239,14 @@ export function StakeModal({
             aria-label={t('staking.modalClose')}
             disabled={phase === 'signing'}
           >
-            ×
+            <CloseIcon size={20} aria-hidden />
           </button>
         </div>
 
         {phase === 'done' ? (
           <div className={styles.progressBox}>
             <div className={`${styles.checkPop} ${styles.textReset}`} aria-hidden="true">
-              ✓
+              <SuccessIcon size={32} />
             </div>
             <p className={styles.textReset}>{t('staking.stakeSuccess')}</p>
             <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.mtMd}`} onClick={onClose}>

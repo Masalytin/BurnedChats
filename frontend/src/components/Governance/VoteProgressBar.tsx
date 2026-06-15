@@ -1,3 +1,4 @@
+import { Check, Ellipsis } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { calculateProposalProgress } from '@/ton/governance';
@@ -10,6 +11,21 @@ export interface VoteProgressBarProps {
   variant?: 'compact' | 'large';
 }
 
+function StatusMark({ met }: { met: boolean }) {
+  if (met) {
+    return (
+      <span className={`${styles.statusIcon} ${styles.statusIconOk}`} aria-hidden="true">
+        <Check size={14} strokeWidth={2.5} />
+      </span>
+    );
+  }
+  return (
+    <span className={`${styles.statusIcon} ${styles.statusIconPending}`} aria-hidden="true">
+      <Ellipsis size={14} strokeWidth={2.5} />
+    </span>
+  );
+}
+
 /**
  * Horizontal stacked bar for FOR / AGAINST plus quorum marker when chain supplied absolute quorum VP.
  */
@@ -20,10 +36,10 @@ export function VoteProgressBar({ proposal, variant = 'large' }: VoteProgressBar
   const denom =
     proposal.quorumRequired > cast ? proposal.quorumRequired : cast > 0n ? cast : proposal.quorumRequired > 0n ? proposal.quorumRequired : 1n;
 
-  const forWidthPct =
-    cast > 0n ? Number((proposal.forVotes * 10000n) / cast) / 100 : proposal.quorumRequired > 0n ? 0 : 50;
-  const againstWidthPct =
-    cast > 0n ? Number((proposal.againstVotes * 10000n) / cast) / 100 : proposal.quorumRequired > 0n ? 0 : 50;
+  const forFlex =
+    cast > 0n ? Number(proposal.forVotes) : proposal.quorumRequired > 0n ? 0 : 50;
+  const againstFlex =
+    cast > 0n ? Number(proposal.againstVotes) : proposal.quorumRequired > 0n ? 0 : 50;
 
   let quorumMarkerPct: number | null = null;
   if (proposal.quorumRequired > 0n && denom > 0n) {
@@ -36,8 +52,18 @@ export function VoteProgressBar({ proposal, variant = 'large' }: VoteProgressBar
   return (
     <div className={wrapCls} role="group" aria-label={t('governance.ariaVoteProgress')}>
       <div className={styles.voteBarTrack} aria-hidden>
-        <div className={styles.voteBarFor} style={{ width: `${forWidthPct}%` }} />
-        <div className={styles.voteBarAgainst} style={{ width: `${againstWidthPct}%` }} />
+        <div
+          className={styles.voteBarSegment}
+          style={{ '--bar-flex': forFlex } as React.CSSProperties}
+        >
+          <div className={`${styles.voteBarFill} ${styles.voteBarFor}`} />
+        </div>
+        <div
+          className={styles.voteBarSegment}
+          style={{ '--bar-flex': againstFlex } as React.CSSProperties}
+        >
+          <div className={`${styles.voteBarFill} ${styles.voteBarAgainst}`} />
+        </div>
         {quorumMarkerPct !== null ? (
           <span className={styles.voteBarQuorumLine} style={{ left: `${quorumMarkerPct}%` }} />
         ) : null}
@@ -55,14 +81,24 @@ export function VoteProgressBar({ proposal, variant = 'large' }: VoteProgressBar
           <li>
             {t('governance.progressQuorum')}:{' '}
             {proposal.quorumRequired > 0n ? `${proposal.quorumRequired.toString()} VP` : '—'}
-            {proposal.quorumRequired > 0n ? ` (${progress.quorumMet ? '✓' : '…'})` : ''}
+            {proposal.quorumRequired > 0n ? (
+              <>
+                {' '}
+                (<StatusMark met={progress.quorumMet} />)
+              </>
+            ) : null}
           </li>
           <li>
             {t('governance.progressThreshold')}:{' '}
             {proposal.thresholdRequired > 0n
               ? `${(Number(proposal.thresholdRequired) / 100).toFixed(2)}% FOR`
               : '—'}
-            {proposal.thresholdRequired > 0n ? ` (${progress.thresholdMet ? '✓' : '…'})` : ''}
+            {proposal.thresholdRequired > 0n ? (
+              <>
+                {' '}
+                (<StatusMark met={progress.thresholdMet} />)
+              </>
+            ) : null}
           </li>
         </ul>
       ) : null}

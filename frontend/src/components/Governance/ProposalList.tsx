@@ -1,6 +1,9 @@
+import { ScrollText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
+import { SkeletonCard } from '@/components/Skeleton';
 
 import { useTonConnect } from '@/hooks/useTonConnect';
 import { GovernanceError, getRecentProposals } from '@/ton/governance';
@@ -126,7 +129,10 @@ export function ProposalList() {
 
       {notConfigured ? (
         <div className={styles.empty}>
-          <p style={{ fontWeight: 600 }}>{t('governance.notConfiguredTitle')}</p>
+          <div className={styles.emptyIllu} aria-hidden>
+            <ScrollText size={48} strokeWidth={1.5} />
+          </div>
+          <p className={styles.emptyTitle}>{t('governance.notConfiguredTitle')}</p>
           <p className={styles.muted}>{t('governance.notConfiguredHint')}</p>
         </div>
       ) : (
@@ -149,10 +155,19 @@ export function ProposalList() {
             </p>
           ) : null}
 
-          {listBusy ? <p className={styles.muted}>{t('governance.loadingList')}</p> : null}
+          {listBusy ? (
+            <div className={styles.skeletonList} aria-busy="true" aria-label={t('governance.loadingList')}>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : null}
 
           {!listBusy && filtered.length === 0 ? (
             <div className={styles.empty}>
+              <div className={styles.emptyIllu} aria-hidden>
+                <ScrollText size={48} strokeWidth={1.5} />
+              </div>
               <p>{emptyCopy()}</p>
               {showStakeHint && tab === 'active' ? (
                 <Link className={styles.primaryBtn} to="/app/governance/new">

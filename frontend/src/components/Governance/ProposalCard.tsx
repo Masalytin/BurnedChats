@@ -116,8 +116,18 @@ export function ProposalCard({ proposal, userVote }: ProposalCardProps) {
           </time>
         </div>
         <div className={styles.miniBar} aria-hidden>
-          <span className={styles.miniBarFor} style={{ width: `${forMini}%` }} />
-          <span className={styles.miniBarAgainst} style={{ width: `${100 - forMini}%` }} />
+          <div
+            className={styles.miniBarSegment}
+            style={{ '--bar-flex': forMini } as React.CSSProperties}
+          >
+            <div className={`${styles.miniBarFill} ${styles.miniBarFor}`} />
+          </div>
+          <div
+            className={styles.miniBarSegment}
+            style={{ '--bar-flex': 100 - forMini } as React.CSSProperties}
+          >
+            <div className={`${styles.miniBarFill} ${styles.miniBarAgainst}`} />
+          </div>
           {proposal.quorumRequired > 0n && cast > 0n ? (
             <span
               className={styles.miniBarQuorum}
