@@ -17,6 +17,7 @@
   --bc-bg-secondary: var(--tg-theme-secondary-bg-color, #1a1a1a);
   --bc-bg-elevated: #242424;
   --bc-bg-overlay: rgba(0, 0, 0, 0.6);
+  --bc-overlay-scrim-strong: rgba(0, 0, 0, 0.5);
   
   /* Text colors */
   --bc-text-primary: var(--tg-theme-text-color, #ffffff);
@@ -42,6 +43,32 @@
   --bc-error: #ff4444;
   --bc-error-muted: rgba(255, 68, 68, 0.15);
   --bc-destructive: var(--tg-theme-destructive-text-color, #ff4444);
+
+  /* Governance vote progress */
+  --bc-progress-for: #2ecc71;
+  --bc-progress-for-end: #27ae60;
+  --bc-progress-against: #e74c3c;
+  --bc-progress-against-end: #c0392b;
+  --bc-progress-for-gradient: linear-gradient(90deg, var(--bc-progress-for), var(--bc-progress-for-end));
+  --bc-progress-against-gradient: linear-gradient(90deg, var(--bc-progress-against), var(--bc-progress-against-end));
+
+  /* Document / MIME icon tints (Chat file bubbles) */
+  --bc-file-pdf: #e74c3c;
+  --bc-file-doc: #2b5797;
+  --bc-file-sheet: #217346;
+  --bc-file-archive: #f39c12;
+  --bc-file-generic: #95a5a6;
+
+  /* Burn confirm dialog gradient stop */
+  --bc-burn-dialog-accent: #ff8a00;
+
+  /* Dev-only debug panel accents (relaxed bar — IMP-FEDESIGN-08) */
+  --bc-debug-accent-blue: #60a5fa;
+  --bc-debug-accent-green: #4ade80;
+
+  /* Marketing / landing (standalone overrides in standalone-theme.css) */
+  --bc-landing-text-gradient: linear-gradient(135deg, #ffffff 0%, #c0c0d0 100%);
+  --bc-landing-accent-line: linear-gradient(90deg, rgba(255, 107, 53, 0.4), rgba(255, 107, 53, 0.15));
   
   /* Message bubbles */
   --bc-message-outgoing-bg: var(--bc-brand-primary);
@@ -97,6 +124,7 @@
   
   --bc-spacing-xs: 0.25rem;   /* 4px */
   --bc-spacing-sm: 0.5rem;    /* 8px */
+  --bc-spacing-2xs: 0.75rem;  /* 12px */
   --bc-spacing-md: 1rem;      /* 16px */
   --bc-spacing-lg: 1.5rem;    /* 24px */
   --bc-spacing-xl: 2rem;      /* 32px */
