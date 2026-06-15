@@ -6,90 +6,78 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 1rem;
+  padding: var(--bc-spacing-md);
 }
 
 .verification-view__content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
-  max-width: 400px;
+  gap: var(--bc-spacing-lg);
+  max-width: var(--bc-content-max);
   margin: 0 auto;
   width: 100%;
 }
 
-/* ============================================
-   Header
-   ============================================ */
-
+/* Header */
 .verification-view__header {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.5rem;
+  gap: var(--bc-spacing-sm);
 }
 
 .verification-view__header-icon {
-  color: var(--tg-theme-link-color, #2481cc);
-  margin-bottom: 0.5rem;
+  color: var(--bc-text-link);
+  margin-bottom: var(--bc-spacing-sm);
 }
 
 .verification-view__title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--bc-text-xl);
   font-weight: 600;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
 }
 
 .verification-view__subtitle {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--tg-theme-hint-color, #999);
-  line-height: 1.4;
-  max-width: 300px;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  line-height: var(--bc-leading-normal);
+  max-width: 18.75rem;
 }
 
-/* ============================================
-   Fingerprint Container
-   ============================================ */
-
+/* Fingerprint Container */
 .verification-view__fingerprint-container {
-  padding: 1rem 0;
+  padding: var(--bc-spacing-md) 0;
 }
 
-/* ============================================
-   Mismatch Warning
-   ============================================ */
-
+/* Mismatch Warning */
 .verification-view__mismatch-warning {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 1.5rem;
-  background: rgba(255, 59, 48, 0.1);
-  border: 1px solid rgba(255, 59, 48, 0.3);
-  border-radius: 12px;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-lg);
+  background: var(--bc-error-muted);
+  border: 1px solid color-mix(in srgb, var(--bc-error) 30%, transparent);
+  border-radius: var(--bc-radius-lg);
   text-align: center;
 }
 
 .verification-view__mismatch-icon {
-  color: #ff3b30;
+  color: var(--bc-error);
 }
 
 .verification-view__mismatch-text {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--tg-theme-text-color, #000);
-  line-height: 1.5;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
+  line-height: var(--bc-leading-normal);
 }
 
-/* ============================================
-   Peer Card
-   ============================================ */
-
+/* Peer Card */
 .verification-view__peer-card {
   width: 100%;
 }
@@ -97,7 +85,7 @@
 .verification-view__peer {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--bc-spacing-2xs);
 }
 
 .verification-view__peer-info {
@@ -107,62 +95,58 @@
 
 .verification-view__peer-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--bc-text-base);
   font-weight: 500;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--bc-spacing-xs);
 }
 
 .verification-view__premium {
-  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--bc-warning);
 }
 
 .verification-view__peer-username {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
 }
 
-/* ============================================
-   Peer Badge
-   ============================================ */
-
+/* Peer Badge */
 .peer-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  font-size: 0.875rem;
+  width: var(--bc-spacing-xl);
+  height: var(--bc-spacing-xl);
+  border-radius: var(--bc-radius-full);
+  font-size: var(--bc-text-sm);
   font-weight: 600;
 }
 
 .peer-badge--verified {
-  background: rgba(52, 199, 89, 0.15);
-  color: #34c759;
+  background: var(--bc-success-muted);
+  color: var(--bc-success);
 }
 
 .peer-badge--pending {
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
-  color: var(--tg-theme-hint-color, #999);
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-secondary);
 }
 
 .peer-badge--mismatch {
-  background: rgba(255, 59, 48, 0.15);
-  color: #ff3b30;
+  background: var(--bc-error-muted);
+  color: var(--bc-error);
 }
 
-/* ============================================
-   Verification Status
-   ============================================ */
-
+/* Verification Status */
 .verification-view__status {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--bc-spacing-sm);
   width: 100%;
 }
 
@@ -170,44 +154,41 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
-  border-radius: 8px;
+  padding: var(--bc-spacing-2xs) var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
 }
 
 .verification-status__label {
-  font-size: 0.875rem;
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
 }
 
 .verification-status__value {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
+  gap: var(--bc-spacing-xs);
+  font-size: var(--bc-text-sm);
   font-weight: 500;
 }
 
 .verification-status--verified .verification-status__value {
-  color: #34c759;
+  color: var(--bc-success);
 }
 
 .verification-status--pending .verification-status__value {
-  color: var(--tg-theme-hint-color, #999);
+  color: var(--bc-text-secondary);
 }
 
 .verification-status--mismatch .verification-status__value {
-  color: #ff3b30;
+  color: var(--bc-error);
 }
 
-/* ============================================
-   Actions
-   ============================================ */
-
+/* Actions */
 .verification-view__actions {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--bc-spacing-2xs);
   width: 100%;
 }
 
@@ -215,67 +196,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
-  border-radius: 8px;
-  font-size: 0.875rem;
-  color: var(--tg-theme-hint-color, #999);
+  gap: var(--bc-spacing-2xs);
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
 }
 
 .verification-view__waiting-spinner {
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid var(--tg-theme-hint-color, #999);
+  width: var(--bc-spacing-lg);
+  height: var(--bc-spacing-lg);
+  border: 2px solid var(--bc-text-secondary);
   border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  border-radius: var(--bc-radius-full);
+  animation: verification-spin var(--bc-transition-slow) linear infinite;
 }
 
-@keyframes spin {
+@keyframes verification-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* ============================================
-   Help Text
-   ============================================ */
-
+/* Help Text */
 .verification-view__help {
   margin: 0;
-  font-size: 0.75rem;
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
   text-align: center;
-  line-height: 1.5;
-  max-width: 280px;
-}
-
-/* ============================================
-   Animations
-   ============================================ */
-
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ============================================
-   Dark Mode
-   ============================================ */
-
-@media (prefers-color-scheme: dark) {
-  .verification-view__mismatch-warning {
-    background: rgba(255, 59, 48, 0.15);
-  }
+  line-height: var(--bc-leading-normal);
+  max-width: 17.5rem;
 }

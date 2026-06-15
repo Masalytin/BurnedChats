@@ -6,6 +6,7 @@ import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
+import { Star } from 'lucide-react';
 import { CheckIcon, AlertIcon, ShieldIcon } from '../../icons';
 import './VerificationView.css';
 
@@ -122,7 +123,7 @@ export function VerificationView({
                     {peer.displayName}
                     {peer.premium && (
                       <span className="verification-view__premium" title="Premium">
-                        &#11088;
+                        <Star size={14} aria-hidden="true" />
                       </span>
                     )}
                   </h3>

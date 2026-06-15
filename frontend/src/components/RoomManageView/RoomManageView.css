@@ -29,14 +29,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
   border: none;
   background: transparent;
   color: var(--bc-text-primary);
   cursor: pointer;
   border-radius: var(--bc-radius-full);
-  transition: background var(--bc-transition-fast);
+  transition: background-color var(--bc-transition-fast), transform var(--bc-transition-fast);
   flex-shrink: 0;
 }
 
@@ -45,7 +45,12 @@
 }
 
 .room-manage-view__back:active {
-  transform: scale(0.95);
+  transform: scale(0.97);
+}
+
+.room-manage-view__back:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .room-manage-view__header-info {
@@ -65,14 +70,18 @@
 }
 
 .room-manage-view__title-icon {
-  font-size: var(--bc-text-base);
+  flex-shrink: 0;
+  color: var(--bc-text-secondary);
 }
 
 .room-manage-view__subtitle {
   margin: 0;
   font-size: var(--bc-text-xs);
   color: var(--bc-text-muted);
-  font-family: var(--bc-font-mono, monospace);
+  font-family: var(--bc-font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
 }
 
 /* ============================================
@@ -86,6 +95,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--bc-spacing-sm);
+  max-width: var(--bc-content-max);
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ============================================
@@ -109,6 +121,9 @@
   font-weight: 600;
   color: var(--bc-text-secondary);
   border-bottom: 1px solid var(--bc-border-color);
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
 }
 
 .room-manage-section__body {
@@ -118,7 +133,7 @@
 .room-manage-section__error {
   margin: var(--bc-spacing-xs) 0 0;
   font-size: var(--bc-text-xs);
-  color: var(--bc-error, #e53e3e);
+  color: var(--bc-error);
 }
 
 /* ============================================
@@ -129,6 +144,7 @@
   display: flex;
   align-items: center;
   width: 100%;
+  min-height: var(--bc-touch-target);
   padding: var(--bc-spacing-md);
   background: transparent;
   border: none;
@@ -137,7 +153,7 @@
   font-size: var(--bc-text-base);
   text-align: left;
   gap: var(--bc-spacing-sm);
-  transition: background var(--bc-transition-fast);
+  transition: background-color var(--bc-transition-fast), transform var(--bc-transition-fast);
 }
 
 .room-manage-nav-item:hover {
@@ -149,30 +165,37 @@
   transform: scale(0.99);
 }
 
+.room-manage-nav-item:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: -2px;
+}
+
 .room-manage-nav-item__label {
   flex: 1;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
 }
 
 .room-manage-nav-item__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  background: var(--tg-theme-button-color, #2196f3);
-  color: var(--tg-theme-button-text-color, #fff);
-  border-radius: 10px;
+  min-width: var(--bc-spacing-lg);
+  height: var(--bc-spacing-lg);
+  padding: 0 var(--bc-spacing-2xs);
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+  border-radius: var(--bc-radius-full);
   font-size: var(--bc-text-xs);
   font-weight: 700;
 }
 
 .room-manage-nav-item__arrow {
   color: var(--bc-text-muted);
-  font-size: 1.2rem;
-  line-height: 1;
-  transition: transform var(--bc-transition-fast);
+  flex-shrink: 0;
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .room-manage-nav-item__arrow--open {
@@ -205,17 +228,21 @@
 .room-manage-invite__copy {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--bc-spacing-xs);
+  min-height: var(--bc-touch-target);
   padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
-  background: var(--tg-theme-button-color, #2196f3);
-  color: var(--tg-theme-button-text-color, #fff);
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
   border: none;
   border-radius: var(--bc-radius-sm);
   font-size: var(--bc-text-xs);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity var(--bc-transition-fast), background var(--bc-transition-fast);
+  transition:
+    opacity var(--bc-transition-fast),
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast);
   flex-shrink: 0;
 }
 
@@ -223,8 +250,17 @@
   opacity: 0.9;
 }
 
+.room-manage-invite__copy:active {
+  transform: scale(0.97);
+}
+
+.room-manage-invite__copy:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
 .room-manage-invite__copy--copied {
-  background: var(--bc-success, #38a169);
+  background: var(--bc-success);
 }
 
 /* ============================================
@@ -266,8 +302,8 @@
 }
 
 .room-manage-members__avatar {
-  font-size: var(--bc-text-base);
   flex-shrink: 0;
+  color: var(--bc-text-secondary);
 }
 
 .room-manage-members__id {
@@ -281,8 +317,8 @@
  * ============================================ */
 
 .room-manage-burn-btn {
-  color: var(--bc-error, #e53e3e) !important;
-  border-color: var(--bc-error, #e53e3e) !important;
+  color: var(--bc-error) !important;
+  border-color: var(--bc-error) !important;
 }
 
 /* ============================================
@@ -292,11 +328,11 @@
 .room-manage-burn-dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--bc-overlay-scrim-strong);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: var(--bc-z-modal);
   padding: var(--bc-spacing-lg);
 }
 
@@ -304,7 +340,7 @@
   background: var(--bc-bg-secondary);
   border-radius: var(--bc-radius-xl);
   padding: var(--bc-spacing-xl);
-  max-width: 320px;
+  max-width: 20rem;
   width: 100%;
   text-align: center;
   display: flex;
@@ -313,7 +349,10 @@
 }
 
 .room-manage-burn-dialog__icon {
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-error);
   line-height: 1;
 }
 
@@ -338,8 +377,8 @@
 }
 
 .room-manage-burn-dialog__confirm-btn {
-  background: var(--bc-error, #e53e3e) !important;
-  border-color: var(--bc-error, #e53e3e) !important;
+  background: var(--bc-error) !important;
+  border-color: var(--bc-error) !important;
 }
 
 /* ============================================

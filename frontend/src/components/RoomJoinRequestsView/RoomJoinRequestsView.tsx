@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Inbox } from 'lucide-react';
 import { Button } from '../Button';
 import type { RoomJoinRequest } from '../../types';
 import './RoomJoinRequestsView.css';
@@ -116,8 +117,20 @@ export function RoomJoinRequestsView({
       <div className="room-join-requests-view__list">
         {requests.length === 0 ? (
           <div className="room-join-requests-view__empty">
-            <div className="room-join-requests-view__empty-icon" aria-hidden="true">📭</div>
+            <div className="room-join-requests-view__empty-icon" aria-hidden="true">
+              <Inbox size={48} strokeWidth={1.5} />
+            </div>
             <p className="room-join-requests-view__empty-text">{t('room.requests.empty')}</p>
+            {onBack && (
+              <Button
+                variant="secondary"
+                onClick={onBack}
+                className="room-join-requests-view__empty-action"
+                fullWidth
+              >
+                {t('common.back')}
+              </Button>
+            )}
           </div>
         ) : (
           requests.map(request => (

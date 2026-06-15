@@ -1,12 +1,14 @@
 .room-join-requests-view {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md, 16px);
-  padding: var(--spacing-lg, 24px) var(--spacing-md, 16px);
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-lg) var(--bc-spacing-md);
   min-height: 100%;
+  max-width: var(--bc-content-max);
+  margin: 0 auto;
+  width: 100%;
 }
 
-/* Header */
 .room-join-requests-view__header {
   display: flex;
   align-items: center;
@@ -15,110 +17,113 @@
 
 .room-join-requests-view__title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--bc-text-xl);
   font-weight: 700;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
 }
 
 .room-join-requests-view__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  background: var(--tg-theme-button-color, #2196f3);
-  color: var(--tg-theme-button-text-color, #fff);
-  border-radius: 11px;
-  font-size: 0.75rem;
+  min-width: var(--bc-spacing-lg);
+  height: var(--bc-spacing-lg);
+  padding: 0 var(--bc-spacing-2xs);
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+  border-radius: var(--bc-radius-full);
+  font-size: var(--bc-text-xs);
   font-weight: 700;
 }
 
-/* List */
 .room-join-requests-view__list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
   flex: 1;
 }
 
-/* Empty state */
 .room-join-requests-view__empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm, 8px);
-  padding: var(--spacing-xl, 48px) var(--spacing-md, 16px);
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-2xl) var(--bc-spacing-md);
   text-align: center;
 }
 
 .room-join-requests-view__empty-icon {
-  font-size: 2.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-text-secondary);
 }
 
 .room-join-requests-view__empty-text {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--tg-theme-hint-color, #666);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
 }
 
-/* Footer */
+.room-join-requests-view__empty-action {
+  margin-top: var(--bc-spacing-sm);
+  width: 100%;
+  max-width: 16rem;
+}
+
 .room-join-requests-view__footer {
   margin-top: auto;
-  padding-top: var(--spacing-md, 16px);
+  padding-top: var(--bc-spacing-md);
 }
 
-/* Request card */
 .room-join-request-card {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm, 8px);
-  padding: var(--spacing-md, 16px);
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-  border-radius: 12px;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
 }
 
 .room-join-request-card__info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
 }
 
 .room-join-request-card__name {
-  font-size: 0.9375rem;
+  font-size: var(--bc-text-sm);
   font-weight: 600;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .room-join-request-card__time {
-  font-size: 0.75rem;
-  color: var(--tg-theme-hint-color, #666);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .room-join-request-card__actions {
   display: flex;
-  gap: var(--spacing-sm, 8px);
+  gap: var(--bc-spacing-sm);
 }
 
 .room-join-request-card__btn {
   flex: 1;
+  min-height: var(--bc-touch-target);
 }
 
-.room-join-request-card__btn--accept {
-  /* Inherits primary button styles */
-}
-
-.room-join-request-card__btn--reject {
-  /* Inherits secondary button styles */
+.room-join-request-card__btn--reject:focus-visible,
+.room-join-request-card__btn--accept:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }

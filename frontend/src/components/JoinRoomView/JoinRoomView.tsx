@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { Hourglass, Key, XCircle } from 'lucide-react';
 import { EyeIcon, EyeOffIcon } from '../../icons';
 import type { JoinRoomStatus, JoinRoomErrorCode } from '../../hooks/useJoinRoom';
 import type { RoomJoinMode } from '../../types';
@@ -79,7 +80,9 @@ export function JoinRoomView({
     return (
       <div className="join-room-view">
         <div className="join-room-view__header">
-          <div className="join-room-view__icon" aria-hidden="true">⏳</div>
+          <div className="join-room-view__icon join-room-view__icon--pending" aria-hidden="true">
+            <Hourglass size={36} strokeWidth={1.75} />
+          </div>
           <h2 className="join-room-view__title">{t('room.join.title')}</h2>
           <p className="join-room-view__subtitle join-room-view__subtitle--pending">
             {t('room.join.requestSent')}
@@ -101,7 +104,9 @@ export function JoinRoomView({
     return (
       <div className="join-room-view">
         <div className="join-room-view__header">
-          <div className="join-room-view__icon" aria-hidden="true">❌</div>
+          <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
+            <XCircle size={36} strokeWidth={1.75} />
+          </div>
           <h2 className="join-room-view__title">{t('room.join.title')}</h2>
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorRejected')}
@@ -123,7 +128,9 @@ export function JoinRoomView({
     return (
       <div className="join-room-view">
         <div className="join-room-view__header">
-          <div className="join-room-view__icon" aria-hidden="true">🔑</div>
+          <div className="join-room-view__icon" aria-hidden="true">
+            <Key size={36} strokeWidth={1.75} />
+          </div>
           <h2 className="join-room-view__title">{t('room.join.title')}</h2>
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorExpiredToken')}
@@ -145,7 +152,9 @@ export function JoinRoomView({
     return (
       <div className="join-room-view">
         <div className="join-room-view__header">
-          <div className="join-room-view__icon" aria-hidden="true">🔑</div>
+          <div className="join-room-view__icon" aria-hidden="true">
+            <Key size={36} strokeWidth={1.75} />
+          </div>
           <h2 className="join-room-view__title">{t('room.join.title')}</h2>
           <p className="join-room-view__subtitle">{t('common.loading')}</p>
         </div>
@@ -166,7 +175,9 @@ export function JoinRoomView({
   return (
     <div className="join-room-view">
       <div className="join-room-view__header">
-        <div className="join-room-view__icon" aria-hidden="true">🔑</div>
+        <div className="join-room-view__icon" aria-hidden="true">
+          <Key size={36} strokeWidth={1.75} />
+        </div>
         <h2 className="join-room-view__title">{t('room.join.title')}</h2>
         <p className="join-room-view__subtitle">
           {hasPassword ? t('room.join.subtitle') : t('room.join.subtitleNoPassword')}

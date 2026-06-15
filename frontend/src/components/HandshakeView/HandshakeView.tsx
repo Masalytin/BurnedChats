@@ -1,12 +1,22 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  CheckCircle,
+  Hourglass,
+  Key,
+  Lock,
+  Send,
+  Star,
+  XCircle,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { HandshakeStage, HandshakeResult } from '../../hooks/useHandshake';
 import type { VisualFingerprintElement } from '../../types';
 import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
-import { LockIcon, CloseIcon } from '../../icons';
+import { CheckIcon, CloseIcon, LockIcon } from '../../icons';
 import './HandshakeView.css';
 
 interface HandshakeViewProps {
@@ -28,7 +38,7 @@ interface HandshakeViewProps {
 interface StageInfo {
   title: string;
   description: string;
-  icon: string;
+  Icon: LucideIcon;
 }
 
 /** Stage information map */
@@ -36,37 +46,37 @@ const STAGE_INFO: Record<HandshakeStage, StageInfo> = {
   idle: {
     title: 'Ready',
     description: 'Waiting to start...',
-    icon: '⏳',
+    Icon: Hourglass,
   },
   generating_keys: {
     title: 'Generating Keys',
     description: 'Creating your encryption keys...',
-    icon: '🔑',
+    Icon: Key,
   },
   sending_key: {
     title: 'Sending Key',
     description: 'Sending your public key...',
-    icon: '📤',
+    Icon: Send,
   },
   waiting_peer: {
     title: 'Waiting for Peer',
     description: 'Waiting for their encryption key...',
-    icon: '⏳',
+    Icon: Hourglass,
   },
   computing_secret: {
     title: 'Computing Secret',
     description: 'Establishing secure connection...',
-    icon: '🔐',
+    Icon: Lock,
   },
   complete: {
     title: 'Secure Connection Established',
     description: 'End-to-end encryption is active',
-    icon: '✅',
+    Icon: CheckCircle,
   },
   error: {
     title: 'Connection Failed',
     description: 'Could not establish secure connection',
-    icon: '❌',
+    Icon: XCircle,
   },
 };
 
@@ -118,6 +128,7 @@ export function HandshakeView({
 
   // Get stage info
   const stageInfo = useMemo(() => STAGE_INFO[stage], [stage]);
+  const StageIcon = stageInfo.Icon;
 
   // Get error message
   const errorMessage = useMemo(() => {
@@ -170,7 +181,9 @@ export function HandshakeView({
             {isComplete ? (
               <LockIcon size={32} />
             ) : isError ? (
-              <span className="handshake-view__error-icon">{stageInfo.icon}</span>
+              <span className="handshake-view__error-icon" aria-hidden="true">
+                <StageIcon size={32} />
+              </span>
             ) : (
               <div className="handshake-view__spinner" />
             )}
@@ -225,7 +238,7 @@ export function HandshakeView({
                     {peer.displayName}
                     {peer.premium && (
                       <span className="handshake-view__premium" title="Premium">
-                        &#11088;
+                        <Star size={14} aria-hidden="true" />
                       </span>
                     )}
                   </h3>
@@ -316,7 +329,7 @@ function HandshakeStep({ label, status }: HandshakeStepProps) {
   return (
     <div className={`handshake-step handshake-step--${status}`}>
       <div className="handshake-step__indicator">
-        {status === 'complete' && '✓'}
+        {status === 'complete' && <CheckIcon size={12} aria-hidden="true" />}
         {status === 'active' && <div className="handshake-step__spinner" />}
       </div>
       <span className="handshake-step__label">{label}</span>

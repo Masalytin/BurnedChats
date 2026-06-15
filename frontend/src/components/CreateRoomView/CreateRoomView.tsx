@@ -4,6 +4,7 @@ import { Button } from '../Button';
 import { Input } from '../Input';
 import { useToast } from '../Toast/ToastContext';
 import { validatePassword } from '../../crypto/kdf';
+import { Lock } from 'lucide-react';
 import { EyeIcon, EyeOffIcon, SparklesIcon } from '../../icons';
 import type { RoomJoinMode } from '../../hooks/useCreateRoom';
 import './CreateRoomView.css';
@@ -128,7 +129,7 @@ export function CreateRoomView({
     <div className={`create-room-view ${className}`}>
       <div className="create-room-view__header">
         <div className="create-room-view__icon" aria-hidden="true">
-          🔐
+          <Lock size={36} strokeWidth={1.75} />
         </div>
         <h2 className="create-room-view__title">{t('room.create.title')}</h2>
       </div>

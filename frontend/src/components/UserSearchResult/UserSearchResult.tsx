@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SearchResult, UserInfo } from '../../types';
 import { Avatar } from '../Avatar';
@@ -67,7 +68,7 @@ export function UserSearchResult({
                     {user.displayName}
                     {user.premium && (
                       <span className="search-result__premium" title="Premium">
-                        ⭐
+                        <Star size={14} aria-hidden="true" />
                       </span>
                     )}
                   </h3>

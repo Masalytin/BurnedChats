@@ -1,3 +1,4 @@
+import { Flame } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { RoomListEntry } from '../../types';
 import './RoomCard.css';
@@ -31,7 +32,7 @@ export function RoomCard({ room, onClick }: RoomCardProps) {
       type="button"
     >
       <div className="room-card-icon" aria-hidden="true">
-        🔥
+        <Flame size={24} strokeWidth={1.75} />
       </div>
       <div className="room-card-content">
         <span className="room-card-id">

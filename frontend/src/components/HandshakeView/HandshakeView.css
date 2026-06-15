@@ -8,15 +8,15 @@
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: var(--spacing-lg);
+  padding: var(--bc-spacing-lg);
 }
 
 .handshake-view__content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-lg);
-  max-width: 360px;
+  gap: var(--bc-spacing-lg);
+  max-width: var(--bc-content-max);
   width: 100%;
   text-align: center;
 }
@@ -24,8 +24,8 @@
 /* Progress Ring */
 .handshake-view__progress-container {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 7.5rem;
+  height: 7.5rem;
 }
 
 .handshake-view__progress-ring {
@@ -35,20 +35,20 @@
 }
 
 .handshake-view__progress-bg {
-  stroke: var(--tg-theme-secondary-bg-color, #e5e5e5);
+  stroke: var(--bc-bg-secondary);
 }
 
 .handshake-view__progress-fill {
-  stroke: var(--tg-theme-button-color, #3390ec);
-  transition: stroke-dasharray 0.5s ease;
+  stroke: var(--bc-button-primary-bg);
+  transition: stroke-dasharray var(--bc-transition-slow) var(--bc-ease-out);
 }
 
 .handshake-view__progress-fill--error {
-  stroke: var(--color-error, #ff3b30);
+  stroke: var(--bc-error);
 }
 
 .handshake-view__progress-fill--complete {
-  stroke: var(--color-success, #34c759);
+  stroke: var(--bc-success);
 }
 
 .handshake-view__progress-icon {
@@ -59,24 +59,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--tg-theme-button-color, #3390ec);
+  color: var(--bc-button-primary-bg);
 }
 
 .handshake-view__progress-icon svg {
-  width: 32px;
-  height: 32px;
+  width: var(--bc-spacing-xl);
+  height: var(--bc-spacing-xl);
 }
 
 .handshake-view__error-icon {
-  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-error);
 }
 
 .handshake-view__spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--tg-theme-secondary-bg-color, #e5e5e5);
-  border-top-color: var(--tg-theme-button-color, #3390ec);
-  border-radius: 50%;
+  width: var(--bc-spacing-xl);
+  height: var(--bc-spacing-xl);
+  border: 3px solid var(--bc-bg-secondary);
+  border-top-color: var(--bc-button-primary-bg);
+  border-radius: var(--bc-radius-full);
   animation: handshake-spin 1s linear infinite;
 }
 
@@ -90,20 +93,20 @@
 .handshake-view__status {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--bc-spacing-xs);
 }
 
 .handshake-view__title {
   margin: 0;
-  font-size: var(--font-size-xl);
+  font-size: var(--bc-text-xl);
   font-weight: 600;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
 }
 
 .handshake-view__subtitle {
   margin: 0;
-  font-size: var(--font-size-md);
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-base);
+  color: var(--bc-text-secondary);
 }
 
 /* Fingerprint */
@@ -111,32 +114,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-  border-radius: var(--radius-lg);
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
   width: 100%;
 }
 
 .handshake-view__fingerprint-label {
-  font-size: var(--font-size-sm);
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--bc-tracking-section);
 }
 
 .handshake-view__fingerprint-value {
-  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
-  font-size: var(--font-size-2xl);
+  font-family: var(--bc-font-mono);
+  font-size: var(--bc-text-2xl);
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--color-success, #34c759);
+  color: var(--bc-success);
 }
 
 .handshake-view__fingerprint-hint {
   margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
 }
 
 /* Peer Card */
@@ -147,7 +150,7 @@
 .handshake-view__peer {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--bc-spacing-md);
 }
 
 .handshake-view__peer-info {
@@ -157,85 +160,89 @@
 
 .handshake-view__peer-name {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--bc-text-base);
   font-weight: 600;
-  color: var(--tg-theme-text-color, #000);
+  color: var(--bc-text-primary);
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--bc-spacing-xs);
 }
 
 .handshake-view__premium {
-  font-size: var(--font-size-sm);
+  display: inline-flex;
+  align-items: center;
+  color: var(--bc-warning);
 }
 
 .handshake-view__peer-username {
-  margin: var(--spacing-2xs) 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--tg-theme-link-color, #3390ec);
+  margin: var(--bc-spacing-2xs) 0 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-link);
 }
 
 /* Progress Steps */
 .handshake-view__steps {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--bc-spacing-sm);
   width: 100%;
-  padding: var(--spacing-md);
-  background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-  border-radius: var(--radius-md);
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
 }
 
 .handshake-step {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--bc-spacing-sm);
 }
 
 .handshake-step__indicator {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: var(--bc-spacing-lg);
+  height: var(--bc-spacing-lg);
+  border-radius: var(--bc-radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
   flex-shrink: 0;
-  transition: all 0.3s ease;
+  transition:
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    color var(--bc-transition-normal) var(--bc-ease-out),
+    opacity var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .handshake-step--pending .handshake-step__indicator {
-  background: var(--tg-theme-secondary-bg-color, #e5e5e5);
-  border: 2px solid var(--tg-theme-hint-color, #999);
+  background: var(--bc-bg-secondary);
+  border: 2px solid var(--bc-text-secondary);
   color: transparent;
 }
 
 .handshake-step--active .handshake-step__indicator {
-  background: var(--tg-theme-button-color, #3390ec);
-  border: 2px solid var(--tg-theme-button-color, #3390ec);
+  background: var(--bc-button-primary-bg);
+  border: 2px solid var(--bc-button-primary-bg);
   color: transparent;
 }
 
 .handshake-step--complete .handshake-step__indicator {
-  background: var(--color-success, #34c759);
-  border: 2px solid var(--color-success, #34c759);
-  color: white;
+  background: var(--bc-success);
+  border: 2px solid var(--bc-success);
+  color: var(--bc-on-brand);
 }
 
 .handshake-step__spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: handshake-spin 0.8s linear infinite;
+  width: var(--bc-spacing-sm);
+  height: var(--bc-spacing-sm);
+  border: 2px solid color-mix(in srgb, var(--bc-on-brand) 30%, transparent);
+  border-top-color: var(--bc-on-brand);
+  border-radius: var(--bc-radius-full);
+  animation: handshake-spin var(--bc-transition-slow) linear infinite;
 }
 
 .handshake-step__label {
-  font-size: var(--font-size-sm);
-  color: var(--tg-theme-text-color, #000);
-  transition: opacity 0.3s ease;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
+  transition: opacity var(--bc-transition-normal) var(--bc-ease-out);
 }
 
 .handshake-step--pending .handshake-step__label {
@@ -255,31 +262,15 @@
 .handshake-view__actions {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--bc-spacing-sm);
   width: 100%;
-  margin-top: var(--spacing-sm);
+  margin-top: var(--bc-spacing-sm);
 }
 
 /* Help text */
 .handshake-view__help {
   margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--tg-theme-hint-color, #999);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
   text-align: center;
-}
-
-/* Animations */
-.animate-fade-in {
-  animation: handshake-fade-in 0.5s ease;
-}
-
-@keyframes handshake-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }

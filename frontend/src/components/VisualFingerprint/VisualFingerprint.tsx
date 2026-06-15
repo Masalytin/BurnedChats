@@ -1,5 +1,5 @@
 import type { VisualFingerprintElement, FingerprintColor } from '../../types';
-import { FingerprintIcon } from '../../icons';
+import { CheckIcon, FingerprintIcon } from '../../icons';
 import './VisualFingerprint.css';
 
 type FingerprintSize = 'sm' | 'md' | 'lg';
@@ -77,7 +77,7 @@ export function VisualFingerprint({
           <span className="visual-fingerprint__label">{label}</span>
           {verified && (
             <span className="visual-fingerprint__verified-badge" title="Verified">
-              ✓
+              <CheckIcon size={10} aria-hidden="true" />
             </span>
           )}
         </div>
@@ -132,7 +132,7 @@ export function VisualFingerprintCompact({
       ))}
       {verified && (
         <span className="visual-fingerprint-compact__check" title="Verified">
-          ✓
+          <CheckIcon size={10} aria-hidden="true" />
         </span>
       )}
     </div>

@@ -1,6 +1,17 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  ChevronRight,
+  ClipboardList,
+  Flame,
+  Home,
+  Link,
+  Settings,
+  User,
+  Users,
+} from 'lucide-react';
 import { Button } from '../Button';
+import { CopyIcon } from '../../icons';
 import './RoomManageView.css';
 
 // ============================================
@@ -21,18 +32,8 @@ function BackIcon() {
   );
 }
 
-function CopyIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="5" y="5" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M3 11H2a1 1 0 01-1-1V2a1 1 0 011-1h8a1 1 0 011 1v1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+function CopyButtonIcon() {
+  return <CopyIcon size={16} aria-hidden="true" />;
 }
 
 // ============================================
@@ -142,10 +143,13 @@ export const RoomManageView = memo(function RoomManageView({
         )}
         <div className="room-manage-view__header-info">
           <h2 className="room-manage-view__title">
-            <span className="room-manage-view__title-icon">⚙️</span>
+            <Settings size={18} className="room-manage-view__title-icon" aria-hidden="true" />
             {t('room.manage.title')}
           </h2>
-          <p className="room-manage-view__subtitle">🏠 {roomShortId}</p>
+          <p className="room-manage-view__subtitle">
+            <Home size={14} aria-hidden="true" />
+            {roomShortId}
+          </p>
         </div>
       </div>
 
@@ -155,7 +159,8 @@ export const RoomManageView = memo(function RoomManageView({
         {/* ── Invite link ─────────────────────────────── */}
         <section className="room-manage-section">
           <h3 className="room-manage-section__heading">
-            🔗 {t('room.manage.inviteButton')}
+            <Link size={16} aria-hidden="true" />
+            {t('room.manage.inviteButton')}
           </h3>
           <div className="room-manage-section__body">
             {inviteUrl ? (
@@ -167,7 +172,7 @@ export const RoomManageView = memo(function RoomManageView({
                   onClick={handleCopyInvite}
                   aria-label={t('common.copy')}
                 >
-                  <CopyIcon />
+                  <CopyButtonIcon />
                   {copied ? t('common.copied') : t('common.copy')}
                 </button>
               </div>
@@ -195,12 +200,13 @@ export const RoomManageView = memo(function RoomManageView({
             onClick={onViewRequests}
           >
             <span className="room-manage-nav-item__label">
-              📋 {t('room.manage.requestsButton')}
+              <ClipboardList size={18} aria-hidden="true" />
+              {t('room.manage.requestsButton')}
             </span>
             {pendingRequestsCount > 0 && (
               <span className="room-manage-nav-item__badge">{pendingRequestsCount}</span>
             )}
-            <span className="room-manage-nav-item__arrow">›</span>
+            <ChevronRight size={18} className="room-manage-nav-item__arrow" aria-hidden="true" />
           </button>
         </section>
 
@@ -212,14 +218,17 @@ export const RoomManageView = memo(function RoomManageView({
             onClick={() => setMembersExpanded(v => !v)}
           >
             <span className="room-manage-nav-item__label">
-              👥 {t('room.manage.membersTitle')}
+              <Users size={18} aria-hidden="true" />
+              {t('room.manage.membersTitle')}
             </span>
             {members && members.length > 0 && (
               <span className="room-manage-nav-item__badge">{members.length}</span>
             )}
-            <span className={`room-manage-nav-item__arrow ${membersExpanded ? 'room-manage-nav-item__arrow--open' : ''}`}>
-              ›
-            </span>
+            <ChevronRight
+              size={18}
+              className={`room-manage-nav-item__arrow ${membersExpanded ? 'room-manage-nav-item__arrow--open' : ''}`}
+              aria-hidden="true"
+            />
           </button>
 
           {membersExpanded && (
@@ -230,7 +239,7 @@ export const RoomManageView = memo(function RoomManageView({
                 <ul className="room-manage-members__list">
                   {members.map(tgId => (
                     <li key={tgId} className="room-manage-members__item">
-                      <span className="room-manage-members__avatar">👤</span>
+                      <User size={16} className="room-manage-members__avatar" aria-hidden="true" />
                       <span className="room-manage-members__id">tg:{tgId}</span>
                     </li>
                   ))}
@@ -249,8 +258,9 @@ export const RoomManageView = memo(function RoomManageView({
             className="room-manage-burn-btn"
             onClick={handleBurnClick}
             fullWidth
+            leftIcon={<Flame size={18} aria-hidden="true" />}
           >
-            🔥 {t('room.manage.burnButton')}
+            {t('room.manage.burnButton')}
           </Button>
         </section>
       </div>
@@ -259,7 +269,9 @@ export const RoomManageView = memo(function RoomManageView({
       {showBurnConfirm && (
         <div className="room-manage-burn-dialog-overlay" role="dialog" aria-modal="true">
           <div className="room-manage-burn-dialog">
-            <div className="room-manage-burn-dialog__icon">🔥</div>
+            <div className="room-manage-burn-dialog__icon" aria-hidden="true">
+              <Flame size={48} strokeWidth={1.5} />
+            </div>
             <h3 className="room-manage-burn-dialog__title">{t('room.manage.burnConfirmTitle')}</h3>
             <p className="room-manage-burn-dialog__text">{t('room.manage.burnConfirmText')}</p>
             <div className="room-manage-burn-dialog__actions">
