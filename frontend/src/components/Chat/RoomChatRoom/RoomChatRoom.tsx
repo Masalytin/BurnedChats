@@ -78,7 +78,7 @@ interface RoomChatRoomProps {
 export const RoomChatRoom = memo(function RoomChatRoom({
   roomId,
   epoch = 0,
-  userId: _userInternalId,
+  userId: userInternalId,
   userTelegramId,
   ws,
   memberCount,
@@ -214,6 +214,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     useRoomMessages({
       roomId,
       userId: roomMessageUserId,
+      userInternalId,
       ws,
       onError: handleRoomMessageError,
       onEditError: handleRoomEditError,

@@ -39,6 +39,26 @@ function getRoomTopic(roomId: string): string {
   return `/topic/room/${roomId}`;
 }
 
+/** Identity context for determining message ownership in room chats. */
+interface RoomMessageOwnershipContext {
+  userInternalId: string;
+  userTelegramId: number | null;
+}
+
+function isOwnRoomMessage(
+  ctx: RoomMessageOwnershipContext,
+  senderInternalId?: string | null,
+  senderTgId?: number | null,
+): boolean {
+  if (ctx.userInternalId && senderInternalId) {
+    return senderInternalId === ctx.userInternalId;
+  }
+  if (ctx.userTelegramId != null && ctx.userTelegramId !== 0 && senderTgId != null) {
+    return senderTgId === ctx.userTelegramId;
+  }
+  return false;
+}
+
 // ============================================
 // Types
 // ============================================
@@ -47,7 +67,8 @@ function getRoomTopic(roomId: string): string {
 interface NewRoomMessageEvent {
   roomId: string;
   messageId: string;
-  senderTgId: number;
+  senderInternalId?: string | null;
+  senderTgId?: number | null;
   senderName?: string | null;
   encryptedContent: string;
   iv: string;
@@ -77,7 +98,8 @@ interface RoomMessageEditedEventPayload {
   success: boolean;
   roomId: string;
   messageId: string;
-  senderTgId?: number;
+  senderInternalId?: string | null;
+  senderTgId?: number | null;
   senderName?: string | null;
   encryptedContent?: string;
   iv?: string;
@@ -93,7 +115,8 @@ interface RoomMessageEditedEventPayload {
 /** Synced room message */
 interface SyncedRoomMessage {
   messageId: string;
-  senderTgId: number;
+  senderInternalId?: string | null;
+  senderTgId?: number | null;
   senderName?: string | null;
   encryptedContent: string;
   iv: string;
@@ -149,7 +172,10 @@ export type UseRoomMessagesWebSocket = ChatWebSocketApi;
 /** Hook options */
 interface UseRoomMessagesOptions {
   roomId: string;
+  /** Legacy Telegram numeric id for wire metadata; use 0 when unlinked. */
   userId: number;
+  /** Stable internal user id — canonical identity for isOwn (IMP-WALLETID-08). */
+  userInternalId: string;
   ws: UseRoomMessagesWebSocket;
   isReconnection?: boolean;
   onNewMessage?: (message: DecryptedMessage) => void;
@@ -197,7 +223,14 @@ export interface UseRoomMessagesReturn {
  * consistent with how sessionId is used for 1-on-1 chats.
  */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner } = options;
+  const { roomId, userId, userInternalId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner } = options;
+  const ownershipCtx = useMemo(
+    (): RoomMessageOwnershipContext => ({
+      userInternalId,
+      userTelegramId: userId !== 0 ? userId : null,
+    }),
+    [userInternalId, userId],
+  );
   const { hiddenIds, hide: hideMessages } = useHiddenMessages('room', roomId);
   const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
   // Accept isReconnection from top-level options (explicit) or from the ws object
@@ -519,7 +552,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           pendingRoomDeleteResolversRef.current.delete(del.messageId);
           finish({ success: true });
         }
-        if (del.deletedByOwner && del.deletedByTgId !== userId) {
+        if (del.deletedByOwner && del.deletedByTgId !== userId && userId !== 0) {
           onMessageDeletedByOwner?.();
         }
         return;
@@ -552,7 +585,8 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
                   {
                     roomId: edit.roomId,
                     messageId: edit.messageId,
-                    senderTgId: edit.senderTgId ?? 0,
+                    senderInternalId: edit.senderInternalId,
+                    senderTgId: edit.senderTgId ?? null,
                     senderName: edit.senderName,
                     encryptedContent: encContent,
                     iv: encIv,
@@ -565,7 +599,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
                   } as NewRoomMessageEvent,
                   groupKey,
                   roomId,
-                  userId,
+                  ownershipCtx,
                   keepTs,
                   eventType,
                   undefined,
@@ -613,19 +647,19 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
         if (isFileMsg) {
           decryptedMsg = await decryptRoomFileEvent(
-            event, groupKey, roomId, userId, ts, eventType, event.replyToMessageId || undefined,
+            event, groupKey, roomId, ownershipCtx, ts, eventType, event.replyToMessageId || undefined,
           );
         } else {
           const plaintext = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
           decryptedMsg = {
             id: event.messageId,
             sessionId: roomId,
-            fromUserId: event.senderTgId,
+            fromUserId: event.senderTgId ?? 0,
             senderName: event.senderName ?? undefined,
             content: plaintext,
             timestamp: ts,
             status: 'delivered',
-            isOwn: event.senderTgId === userId,
+            isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
             type: 'text',
             replyToMessageId: event.replyToMessageId || undefined,
           };
@@ -653,7 +687,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse message:', parseErr);
     }
-  }, [roomId, userId, onNewMessage, handleError, onMessageDeletedByOwner]);
+  }, [roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner, userId]);
 
   const handleRoomMessageEditedUser = useCallback(
     (message: IMessage) => {
@@ -766,7 +800,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
           if (isFileMsg) {
             const fileMsg = await decryptSyncedRoomFileMessage(
-              syncedMsg, groupKey!, roomId, userId, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
+              syncedMsg, groupKey!, roomId, ownershipCtx, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
             );
             decryptedMessages.push(fileMsg);
           } else {
@@ -774,12 +808,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             decryptedMessages.push({
               id: syncedMsg.messageId,
               sessionId: roomId,
-              fromUserId: syncedMsg.senderTgId,
+              fromUserId: syncedMsg.senderTgId ?? 0,
               senderName: syncedMsg.senderName ?? undefined,
               content: plaintext,
               timestamp: ts,
               status: 'delivered',
-              isOwn: syncedMsg.senderTgId === userId,
+              isOwn: isOwnRoomMessage(ownershipCtx, syncedMsg.senderInternalId, syncedMsg.senderTgId),
               type: 'text',
               replyToMessageId: syncedMsg.replyToMessageId || undefined,
               editedAt: editedAtFromServerIso(syncedMsg.editedAt),
@@ -805,7 +839,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       console.error('[useRoomMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [roomId, userId, handleError, setSyncing]);
+  }, [roomId, ownershipCtx, handleError, setSyncing]);
 
   // Keep handler refs up to date
   useEffect(() => {
@@ -965,7 +999,7 @@ async function decryptRoomFileEvent(
   event: NewRoomMessageEvent,
   groupKey: CryptoKey,
   roomId: string,
-  userId: number,
+  ownershipCtx: RoomMessageOwnershipContext,
   timestamp: number,
   messageType: MessageType,
   replyToMessageId?: string,
@@ -1000,12 +1034,12 @@ async function decryptRoomFileEvent(
   const msg: DecryptedFileMessage = {
     id: event.messageId,
     sessionId: roomId,
-    fromUserId: event.senderTgId,
+    fromUserId: event.senderTgId ?? 0,
     senderName: event.senderName ?? undefined,
     content,
     timestamp,
     status: 'delivered',
-    isOwn: event.senderTgId === userId,
+    isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
     type: messageType as 'image' | 'video' | 'file',
     fileId: event.fileId!,
     fileSize: event.fileSize ?? 0,
@@ -1022,7 +1056,7 @@ async function decryptSyncedRoomFileMessage(
   syncedMsg: SyncedRoomMessage,
   groupKey: CryptoKey,
   roomId: string,
-  userId: number,
+  ownershipCtx: RoomMessageOwnershipContext,
   timestamp: number,
   messageType: MessageType,
   editedAt?: number,
@@ -1057,12 +1091,12 @@ async function decryptSyncedRoomFileMessage(
   const msg: DecryptedFileMessage = {
     id: syncedMsg.messageId,
     sessionId: roomId,
-    fromUserId: syncedMsg.senderTgId,
+    fromUserId: syncedMsg.senderTgId ?? 0,
     senderName: syncedMsg.senderName ?? undefined,
     content,
     timestamp,
     status: 'delivered',
-    isOwn: syncedMsg.senderTgId === userId,
+    isOwn: isOwnRoomMessage(ownershipCtx, syncedMsg.senderInternalId, syncedMsg.senderTgId),
     type: messageType as 'image' | 'video' | 'file',
     fileId: syncedMsg.fileId!,
     fileSize: syncedMsg.fileSize ?? 0,
