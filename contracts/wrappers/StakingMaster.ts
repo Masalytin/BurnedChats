@@ -2,6 +2,7 @@ import {
     StakingMaster as StakingMasterBase,
     dictValueParserStakeInfoView,
     type ClaimRewards,
+    type FundEmissionReserve,
     type SetGovernor,
     type SetMasterJettonWallet,
     type UnstakeJetton,
@@ -59,6 +60,7 @@ export class StakingMaster extends StakingMasterBase {
             0n,
             0n,
             0n,
+            0n,
         );
         return new StakingMaster(raw.address, raw.init);
     }
@@ -98,6 +100,16 @@ export class StakingMaster extends StakingMasterBase {
             amount: p.amount,
         };
         return this.send(provider, via, { value: toNano('4.2') }, msg);
+    }
+
+    /** Bootstrap raises the emission funding ceiling after minting reward jettons to the pool. */
+    async sendFundEmissionReserve(provider: ContractProvider, via: Sender, amount: bigint, value = toNano('0.1')) {
+        const msg: FundEmissionReserve = {
+            $$type: 'FundEmissionReserve',
+            queryId: 0n,
+            amount,
+        };
+        return this.send(provider, via, { value }, msg);
     }
 
     async sendClaimRewards(provider: ContractProvider, via: Sender, p: { tier: number }) {

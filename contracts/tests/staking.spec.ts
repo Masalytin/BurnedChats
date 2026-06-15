@@ -569,6 +569,8 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
         await bootstrapStakeFeesAndPrimeMaster(jettonMaster, deployer, poolBase.address, stakingMaster);
 
         await jettonMaster.sendMint(deployer.getSender(), poolBase.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
+        // IMP-PREMNT-04: emission only accrues up to the funded reserve; back the full budget.
+        await stakingMaster.sendFundEmissionReserve(deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
         await jettonMaster.sendMint(deployer.getSender(), alice.address, 20n * NANO_PER_BURN, 1n, MINT_TON);
         await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), alice.address);
 
@@ -930,6 +932,8 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
                 1n,
                 MINT_TON,
             );
+            // IMP-PREMNT-04: fund the full emission budget so the schedule can emit to its cap.
+            await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
             await mintAndSyncUser(env, user, MIN_STAKE_NANO * 2n);
             await stakeAs(env, user, 0, MIN_STAKE_NANO);
 

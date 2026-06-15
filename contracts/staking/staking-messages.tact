@@ -35,6 +35,16 @@ message(0x5a010012) PayRewards {
     amount: Int as coins;
 }
 
+/// Unstake payout: `principal` (staked body, always backed) is always returned in full,
+/// `reward` is capped to the pool's real reward funding (degrades on underfunding).
+/// Separating the two guarantees the stake body is never trapped behind a reward shortfall.
+message(0x5a010017) PayUnstake {
+    queryId: Int as uint64;
+    recipient: Address;
+    principal: Int as coins;
+    reward: Int as coins;
+}
+
 message(0x5a010013) CreditPoolBalance {
     queryId: Int as uint64;
     delta: Int as coins;

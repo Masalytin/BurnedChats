@@ -32,6 +32,14 @@ message(0x5a020005) SetGovernor {
     governor: Address;
 }
 
+/// Bootstrap acknowledges that `amount` emission reward jettons have been minted to the
+/// pool wallet, raising the emission funding ceiling. Cumulative funding is capped at the
+/// Phase-1 emission budget. See IMP-PREMNT-04 decision log for the funding trust model.
+message(0x5a020006) FundEmissionReserve {
+    queryId: Int as uint64;
+    amount: Int as coins;
+}
+
 struct StakeInfoView {
     amount: Int as coins;
     tier: Int as uint8;
@@ -61,6 +69,10 @@ contract StakingMaster(
     emissionStartTime: Int as uint64,
     lastEmitTime: Int as uint64,
     emittedSoFar: Int as coins,
+    /// Reward jettons actually provisioned to the pool to back linear emission.
+    /// Emission can never accrue into `rewardPerShare` beyond this funded reserve, so the
+    /// pool never promises emission rewards it cannot pay. Funded via `FundEmissionReserve`.
+    emissionFunded: Int as coins,
 ) {
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
@@ -284,7 +296,10 @@ contract StakingMaster(
         return s;
     }
 
-    /// Phase 1 linear emission + pool accounting credit (tokens must exist in pool jetton wallet).
+    /// Phase 1 linear emission. Emission only accrues into `rewardPerShare` (and credits the
+    /// pool) up to the funded reserve (`emissionFunded`) AND only while there are stakers to
+    /// receive it. With no stakers the window is forfeited but neither the budget nor the
+    /// funding is consumed — keeping `emittedSoFar` exactly equal to what was distributed.
     fun tickEmission() {
         let nowTs = now();
 
@@ -299,10 +314,23 @@ contract StakingMaster(
             return;
         }
 
+        // No stakers: nothing to distribute. Advance the clock but do NOT consume budget,
+        // funding, or credit the pool — otherwise emittedSoFar desyncs from rewardPerShare.
+        let totalStaked = self.totalStakedAllTiers();
+        if (totalStaked <= 0) {
+            self.lastEmitTime = nowTs;
+            return;
+        }
+
         let pending = elapsed * self.EmissionNanoPerSec;
-        let cap = self.TotalEmissionNano - self.emittedSoFar;
-        if (pending > cap) {
-            pending = cap;
+        let budgetCap = self.TotalEmissionNano - self.emittedSoFar;
+        if (pending > budgetCap) {
+            pending = budgetCap;
+        }
+        // Solvency gate: never accrue emission beyond reward jettons actually funded.
+        let fundedCap = self.emissionFunded - self.emittedSoFar;
+        if (pending > fundedCap) {
+            pending = fundedCap;
         }
 
         if (pending <= 0) {
@@ -310,11 +338,7 @@ contract StakingMaster(
             return;
         }
 
-        let totalStaked = self.totalStakedAllTiers();
-
-        if (totalStaked > 0) {
-            self.applyStakeFeeSlices(pending);
-        }
+        self.applyStakeFeeSlices(pending);
 
         message(MessageParameters {
             to: self.pool,
@@ -389,6 +413,23 @@ contract StakingMaster(
         });
     }
 
+    /// Unstake payout: principal (always backed) + reward (capped to funding by the pool).
+    fun sendPayUnstake(recipient: Address, principal: Int, reward: Int, queryId: Int) {
+        require(principal > 0, "Bad principal");
+        message(MessageParameters {
+            to: self.pool,
+            value: self.GasPayRewards,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: PayUnstake {
+                queryId: queryId,
+                recipient: recipient,
+                principal: principal,
+                reward: reward,
+            }.toCell(),
+        });
+    }
+
     receive() {
         cashback(sender());
     }
@@ -414,6 +455,18 @@ contract StakingMaster(
         require(self.governorAddr == self.bootstrapOwner, "Governor already set");
         forceBasechain(msg.governor);
         self.governorAddr = msg.governor;
+        cashback(sender());
+    }
+
+    /// Raises the emission funding ceiling after reward jettons are minted to the pool.
+    /// Bootstrap-gated; cumulative funding can never exceed the Phase-1 emission budget,
+    /// bounding the worst-case over-promise (see IMP-PREMNT-04 decision log).
+    receive(msg: FundEmissionReserve) {
+        require(sender() == self.bootstrapOwner, "Only bootstrap");
+        require(msg.amount > 0, "Bad amount");
+        let next = self.emissionFunded + msg.amount;
+        require(next <= self.TotalEmissionNano, "Exceeds emission budget");
+        self.emissionFunded = next;
         cashback(sender());
     }
 
@@ -513,11 +566,10 @@ contract StakingMaster(
         let t = now();
         require(cur.unlockTime <= t, "Still locked");
 
+        // Principal is always returned in full; reward is capped to real funding by the pool.
+        // This keeps the stake body from ever being trapped behind a reward shortfall.
         let pending = self.calculatePendingRewardFor(who, tierAsInt);
-        let payout = msg.amount + pending;
-        if (payout > 0) {
-            self.sendPayRewards(who, payout, msg.queryId);
-        }
+        self.sendPayUnstake(who, msg.amount, pending, msg.queryId);
 
         let newAmt = cur.amount - msg.amount;
         if (newAmt == 0) {
@@ -736,5 +788,9 @@ contract StakingMaster(
 
     get fun get_total_emission_budget(): Int {
         return self.TotalEmissionNano;
+    }
+
+    get fun get_emission_funded(): Int {
+        return self.emissionFunded;
     }
 }

@@ -58,6 +58,32 @@ contract StakingPool(
         require(tier >= self.MinTier && tier <= self.MaxTier, "Bad tier");
     }
 
+    /// Sum of staked principal across all tiers — these jettons were forwarded to the
+    /// pool wallet at stake time and must always remain redeemable on unstake.
+    fun totalPrincipal(): Int {
+        let s: Int = 0;
+        let t: Int = self.MinTier;
+        while (t <= self.MaxTier) {
+            let v = self.totals.get(t);
+            if (v != null) {
+                s = s + v!!;
+            }
+            t = t + 1;
+        }
+        return s;
+    }
+
+    /// Reward jettons available for payout = bookkeeping balance minus staked principal.
+    /// Caps reward payouts so the pool never pays out staked bodies as rewards and never
+    /// promises more rewards than have actually been funded (emission reserve + fees).
+    fun rewardFunding(): Int {
+        let principal = self.totalPrincipal();
+        if (self.pool_balance <= principal) {
+            return 0;
+        }
+        return self.pool_balance - principal;
+    }
+
     receive(msg: WireStakingMaster) {
         require(!self.master_wired, "Already wired");
         require(sender() == self.bootstrapOwner, "Only bootstrap");
@@ -113,17 +139,72 @@ contract StakingPool(
         self.pool_balance += msg.delta;
     }
 
+    /// Reward-only payout (claim / stake-merge). Capped to real reward funding so an
+    /// underfunded pool degrades gracefully instead of bouncing the whole transfer.
     receive(msg: PayRewards) {
         self.assertMaster();
         require(msg.amount > 0, "Bad amount");
-        require(msg.amount <= self.pool_balance, "Insufficient accounting balance");
         require(context().value >= self.PayRewardsTon, "Insufficient TON for payout");
 
-        self.pool_balance -= msg.amount;
+        let pay = msg.amount;
+        let avail = self.rewardFunding();
+        if (pay > avail) {
+            pay = avail;
+        }
+        if (pay <= 0) {
+            // Reward funding exhausted — nothing to send. Return surplus TON to master.
+            cashback(sender());
+            return;
+        }
+
+        self.pool_balance -= pay;
 
         let body = JettonTransferOut {
             queryId: msg.queryId,
-            amount: msg.amount,
+            amount: pay,
+            destination: msg.recipient,
+            responseDestination: self.stakingMaster,
+            customPayload: null,
+            forwardTonAmount: 1,
+            forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+        };
+
+        message(MessageParameters {
+            to: self.jettonRewardsWalletAddr(),
+            value: self.PayRewardsTon,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: body.toCell(),
+        });
+    }
+
+    /// Unstake payout: `principal` is always returned in full (backed by forwarded stake
+    /// jettons), `reward` is capped to real reward funding. The two are sent as a single
+    /// transfer; the stake body can never be trapped behind a reward shortfall.
+    receive(msg: PayUnstake) {
+        self.assertMaster();
+        require(msg.principal > 0, "Bad principal");
+        require(msg.reward >= 0, "Bad reward");
+        require(context().value >= self.PayRewardsTon, "Insufficient TON for payout");
+
+        let rewardPay = msg.reward;
+        let avail = self.rewardFunding();
+        if (rewardPay > avail) {
+            rewardPay = avail;
+        }
+        if (rewardPay < 0) {
+            rewardPay = 0;
+        }
+
+        let total = msg.principal + rewardPay;
+        // Always holds: principal <= totalPrincipal and rewardPay <= (pool_balance - totalPrincipal).
+        require(total <= self.pool_balance, "Insufficient accounting balance");
+
+        self.pool_balance -= total;
+
+        let body = JettonTransferOut {
+            queryId: msg.queryId,
+            amount: total,
             destination: msg.recipient,
             responseDestination: self.stakingMaster,
             customPayload: null,

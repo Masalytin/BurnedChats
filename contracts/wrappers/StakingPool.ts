@@ -5,6 +5,7 @@ import {
     WireStakingMaster,
     type CreditPoolBalance,
     type PayRewards,
+    type PayUnstake,
     type RelayStakeFeeAccrual,
 } from '../build/StakingPool/StakingPool_StakingPool';
 import { Address, ContractProvider, Dictionary, Sender, toNano } from '@ton/core';
@@ -68,6 +69,21 @@ export class StakingPool extends StakingPoolBase {
             queryId: 0n,
             recipient: p.recipient,
             amount: p.amount,
+        };
+        return this.send(provider, via, { value: toNano('4.2') }, msg);
+    }
+
+    async sendPayUnstake(
+        provider: ContractProvider,
+        via: Sender,
+        p: { recipient: Address; principal: bigint; reward: bigint },
+    ) {
+        const msg: PayUnstake = {
+            $$type: 'PayUnstake',
+            queryId: 0n,
+            recipient: p.recipient,
+            principal: p.principal,
+            reward: p.reward,
         };
         return this.send(provider, via, { value: toNano('4.2') }, msg);
     }
