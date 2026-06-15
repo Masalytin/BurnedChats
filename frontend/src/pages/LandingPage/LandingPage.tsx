@@ -4,6 +4,7 @@ import {
   HowItWorksSection,
   TrustBlockSection,
   ComparisonSection,
+  BurnTokenSection,
   TechSection,
   FooterSection,
 } from '../../components/Landing';
@@ -44,7 +45,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-section landing-section--alt" aria-label="Technology">
+      <section className="landing-section landing-section--alt" aria-label="BURN token">
+        <div className="landing-inner">
+          <BurnTokenSection />
+        </div>
+      </section>
+
+      <section className="landing-section" aria-label="Technology">
         <div className="landing-inner">
           <TechSection />
         </div>
