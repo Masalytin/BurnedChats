@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { FlameIcon } from '../../icons';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { WalletConnectButton } from './WalletConnectButton';
+import './WalletLoginScreen.css';
 
 type UiState = 'idle' | 'busy' | 'error';
 

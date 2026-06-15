@@ -1,0 +1,47 @@
+.wallet-login-screen {
+  min-height: var(--app-height);
+  display: grid;
+  place-items: center;
+  padding: var(--bc-spacing-xl);
+  background: var(--bc-bg-primary);
+}
+
+.wallet-login-screen__card {
+  width: min(28.75rem, 100%);
+  background: var(--bc-bg-secondary);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-lg);
+  box-shadow: var(--bc-shadow-md);
+  padding: var(--bc-spacing-xl);
+  text-align: center;
+  animation: slideUp var(--bc-transition-slow) var(--bc-ease-out) both;
+}
+
+.wallet-login-screen__logo {
+  width: calc(var(--bc-spacing-2xl) + var(--bc-spacing-sm));
+  height: calc(var(--bc-spacing-2xl) + var(--bc-spacing-sm));
+  margin-bottom: var(--bc-spacing-md);
+  color: var(--bc-brand-primary);
+  filter: drop-shadow(var(--bc-shadow-glow));
+}
+
+.wallet-login-screen__title {
+  margin: 0 0 var(--bc-spacing-sm);
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-2xl);
+  text-wrap: balance;
+}
+
+.wallet-login-screen__subtitle {
+  margin: 0 0 var(--bc-spacing-md);
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-base);
+  text-wrap: balance;
+}
+
+.wallet-login-screen__wallets {
+  margin: 0 0 var(--bc-spacing-lg);
+  color: var(--bc-text-muted);
+  font-size: var(--bc-text-sm);
+  text-wrap: balance;
+}

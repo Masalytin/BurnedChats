@@ -1,6 +1,8 @@
 import type { MouseEventHandler } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import './WalletConnectButton.css';
+
 interface WalletConnectButtonProps {
   state: 'idle' | 'busy';
   onPress: MouseEventHandler<HTMLButtonElement>;

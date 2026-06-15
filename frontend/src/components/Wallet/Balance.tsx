@@ -10,6 +10,7 @@ import { shortenTonDisplayAddress } from '@/ton/connector';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { formatBurn } from '@/utils/format';
 
+import { Skeleton } from '@/components/Skeleton/Skeleton';
 import { balanceErrorMessage, isBalanceErrorRetryable } from './balanceErrorMessage';
 import styles from './Wallet.module.css';
 
@@ -93,14 +94,15 @@ export function Balance({
 
   const showBurnRetry = burn.error != null && isBalanceErrorRetryable(burn.error) && !burn.isLoading;
 
-  const burnLine =
-    burn.balance != null
+  const burnLoading = burn.isLoading && burn.balance == null && burn.error == null;
+
+  const burnLine = burnLoading
+    ? null
+    : burn.balance != null
       ? formatBurn(burn.balance)
-      : burn.isLoading
-        ? t('wallet.balanceLoading')
-        : burn.error
-          ? balanceErrorMessage(burn.error, t)
-          : '—';
+      : burn.error
+        ? balanceErrorMessage(burn.error, t)
+        : '—';
 
   const tonLine = tonLoading
     ? t('wallet.balanceLoading')
@@ -117,9 +119,28 @@ export function Balance({
         {t('wallet.balanceSectionTitle')}
       </h2>
       <div className={styles.balanceHero}>
-        <div className={styles.balancePrimary} role={burn.error ? 'alert' : undefined}>
-          {burnLine}
-        </div>
+        {burnLoading ? (
+          <>
+            <Skeleton
+              variant="rounded"
+              height={36}
+              width="100%"
+              className={styles.balanceSkeleton}
+              animation="pulse"
+            />
+            <Skeleton
+              variant="text"
+              height={16}
+              width="100%"
+              className={styles.balanceSecondarySkeleton}
+              animation="pulse"
+            />
+          </>
+        ) : (
+          <div className={styles.balancePrimary} role={burn.error ? 'alert' : undefined}>
+            {burnLine}
+          </div>
+        )}
         {showBurnRetry ? (
           <button
             type="button"
@@ -130,7 +151,12 @@ export function Balance({
           </button>
         ) : null}
         <div className={styles.balanceSecondary} aria-label={t('wallet.tonForGasAria')}>
-          {t('wallet.tonForGas')}: {tonLine}
+          {t('wallet.tonForGas')}:{' '}
+          {tonLoading ? (
+            <Skeleton variant="text" width="5rem" height={14} animation="pulse" />
+          ) : (
+            tonLine
+          )}
         </div>
         {addr ? (
           <p className={styles.mono} aria-label={t('wallet.walletAddressAria')}>
@@ -158,18 +184,12 @@ export function Balance({
             <QRCodeSVG value={tonUri} size={168} level="M" />
           </div>
           <p className={styles.mono}>{tonUri}</p>
-          <button
-            type="button"
-            className={styles.actionBtn}
-            style={{ width: '100%' }}
-            onClick={() => void navigator.clipboard.writeText(addr)}
-          >
+          <button type="button" className={`${styles.actionBtn} ${styles.actionBtnFull}`} onClick={() => void navigator.clipboard.writeText(addr)}>
             {t('common.copy')} — {t('wallet.copyAddress')}
           </button>
           <button
             type="button"
-            className={styles.actionBtn}
-            style={{ width: '100%', marginTop: 8 }}
+            className={`${styles.actionBtn} ${styles.actionBtnFull}`}
             onClick={() => void navigator.clipboard.writeText(tonUri)}
           >
             {t('common.copy')} — {t('wallet.copyTonLink')}

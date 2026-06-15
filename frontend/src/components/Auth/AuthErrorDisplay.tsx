@@ -1,3 +1,5 @@
+import './AuthErrorDisplay.css';
+
 interface AuthErrorDisplayProps {
   message: string | null;
 }

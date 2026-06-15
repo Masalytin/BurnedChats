@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownLeft, ArrowUpRight, Flame, Gift } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Flame, Gift, Building2, Coins, Inbox } from 'lucide-react';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { BurnTransaction } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
+import { SkeletonCard } from '@/components/Skeleton/Skeleton';
 
 import styles from './Wallet.module.css';
 
@@ -35,14 +36,25 @@ function txIcon(type: BurnTransaction['type']): ReactNode {
   }
 }
 
-function formatFee(fee: BurnTransaction['fee']): string {
+function formatFee(fee: BurnTransaction['fee']): ReactNode {
   if (!fee) return '—';
-  const parts = [
-    `🔥 ${formatBurn(fee.burn)}`,
-    `💰 ${formatBurn(fee.staking)}`,
-    `🏦 ${formatBurn(fee.treasury)}`,
-  ];
-  return parts.join(' · ');
+  const iconProps = { size: 12, strokeWidth: 2.2, 'aria-hidden': true as const };
+  return (
+    <>
+      <span className={styles.txFeePart}>
+        <Flame {...iconProps} />
+        {formatBurn(fee.burn)}
+      </span>
+      <span className={styles.txFeePart}>
+        <Coins {...iconProps} />
+        {formatBurn(fee.staking)}
+      </span>
+      <span className={styles.txFeePart}>
+        <Building2 {...iconProps} />
+        {formatBurn(fee.treasury)}
+      </span>
+    </>
+  );
 }
 
 /**
@@ -126,10 +138,16 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
       </div>
 
       <PullToRefresh onRefresh={onRefresh} isRefreshing={refreshing || burn.isLoading}>
-        {page.length === 0 ? (
+        {burn.isLoading && burn.history.length === 0 ? (
+          <div className={styles.historySkeletonList} aria-busy="true" aria-label={t('wallet.balanceLoading')}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : page.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIllu} aria-hidden>
-              📭
+              <Inbox size={48} strokeWidth={1.5} />
             </div>
             <p>{t('wallet.historyEmpty')}</p>
             <p>{t('wallet.historyEmptyHint')}</p>
@@ -155,7 +173,7 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
                   <div className={styles.txMeta}>
                     {tx.counterparty} · {formatWhen(tx.timestamp)} · {tx.status}
                   </div>
-                  <div className={styles.txMeta}>{formatFee(tx.fee)}</div>
+                  <div className={styles.txFeeMeta}>{formatFee(tx.fee)}</div>
                 </div>
               </li>
             ))}

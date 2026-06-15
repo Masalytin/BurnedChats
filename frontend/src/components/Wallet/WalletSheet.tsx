@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -103,7 +104,7 @@ export function WalletSheet() {
             onClick={closeSheet}
             aria-label={t('aria.closeDialog')}
           >
-            ✕
+            <X size={20} strokeWidth={2.2} aria-hidden />
           </button>
         </header>
         <div className={styles.sheetBody}>

@@ -1,0 +1,8 @@
+.auth-error-display {
+  margin-top: var(--bc-spacing-md);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-error-muted);
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-sm);
+}

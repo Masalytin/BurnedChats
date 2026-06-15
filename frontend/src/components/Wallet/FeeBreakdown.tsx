@@ -1,3 +1,4 @@
+import { Flame, Building2, Coins } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -190,22 +191,22 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
       ) : (
         <>
           <div className={styles.feeRow}>
-            <span>
-              <span aria-hidden="true">🔥 </span>
+            <span className={styles.feeRowLabel}>
+              <Flame className={styles.feeRowIcon} size={14} strokeWidth={2.2} aria-hidden />
               {t('wallet.feeBurnLine', { pct: (p.burnBps / 100).toFixed(1) })}
             </span>
             <span>−{formatBurn(burn)}</span>
           </div>
           <div className={styles.feeRow}>
-            <span>
-              <span aria-hidden="true">💰 </span>
+            <span className={styles.feeRowLabel}>
+              <Coins className={styles.feeRowIcon} size={14} strokeWidth={2.2} aria-hidden />
               {t('wallet.feeStakingLine', { pct: (p.stakingBps / 100).toFixed(1) })}
             </span>
             <span>−{formatBurn(staking)}</span>
           </div>
           <div className={styles.feeRow}>
-            <span>
-              <span aria-hidden="true">🏦 </span>
+            <span className={styles.feeRowLabel}>
+              <Building2 className={styles.feeRowIcon} size={14} strokeWidth={2.2} aria-hidden />
               {t('wallet.feeTreasuryLine', { pct: (p.treasuryBps / 100).toFixed(1) })}
             </span>
             <span>−{formatBurn(treasury)}</span>
