@@ -2,11 +2,32 @@
   background: var(--bc-bg-secondary);
   border-radius: var(--bc-radius-lg);
   overflow: hidden;
+  transition:
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    box-shadow var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .card--elevated {
   background: var(--bc-bg-elevated);
   box-shadow: var(--bc-shadow-md);
+}
+
+.card--interactive {
+  cursor: pointer;
+}
+
+.card--interactive:hover {
+  background: var(--bc-bg-hover);
+}
+
+.card--interactive:active {
+  transform: scale(0.99);
+}
+
+.card--interactive:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .card-header {
@@ -47,5 +68,3 @@
 .card-content--no-padding {
   padding: 0;
 }
-
-

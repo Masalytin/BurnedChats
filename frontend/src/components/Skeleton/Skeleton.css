@@ -13,7 +13,7 @@
 }
 
 .skeleton--circular {
-  border-radius: 50%;
+  border-radius: var(--bc-radius-full);
 }
 
 .skeleton--rectangular {
@@ -26,7 +26,7 @@
 
 /* Animations */
 .skeleton--pulse {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  animation: skeleton-pulse var(--bc-transition-slow) ease-in-out infinite;
 }
 
 .skeleton--wave {
@@ -42,10 +42,10 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.08),
+    color-mix(in srgb, var(--bc-text-primary) 8%, transparent),
     transparent
   );
-  animation: skeleton-wave 1.5s linear infinite;
+  animation: skeleton-wave var(--bc-transition-slow) ease-in-out infinite;
 }
 
 /* Text Block */

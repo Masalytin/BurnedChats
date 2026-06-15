@@ -34,12 +34,12 @@
   align-items: center;
   justify-content: center;
   color: var(--bc-text-muted);
-  transition: transform 0.2s ease;
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .pull-arrow svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
+  height: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
 }
 
 /* Ready state - arrow rotated */
@@ -64,12 +64,12 @@
 
 /* Spinner */
 .pull-spinner {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
+  height: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
   border: 2px solid var(--bc-border);
   border-top-color: var(--bc-brand-primary);
-  border-radius: 50%;
-  animation: pull-spin 0.8s linear infinite;
+  border-radius: var(--bc-radius-full);
+  animation: pull-spin var(--bc-transition-slow) var(--bc-ease-out) infinite;
 }
 
 @keyframes pull-spin {
@@ -80,7 +80,7 @@
 
 /* Content wrapper */
 .pull-content {
-  transition: transform 0.15s ease-out;
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
   will-change: transform;
 }
 
@@ -88,4 +88,15 @@
 .pull-indicator--pulling + .pull-content,
 .pull-indicator--ready + .pull-content {
   transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-arrow,
+  .pull-content {
+    transition: none;
+  }
+
+  .pull-spinner {
+    animation: none;
+  }
 }

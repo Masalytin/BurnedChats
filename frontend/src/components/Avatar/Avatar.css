@@ -2,36 +2,36 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--bc-radius-full);
   overflow: hidden;
   flex-shrink: 0;
   font-weight: 600;
-  color: white;
+  color: var(--bc-on-brand);
   text-transform: uppercase;
 }
 
 /* Sizes */
 .avatar--sm {
-  width: 32px;
-  height: 32px;
+  width: var(--bc-spacing-xl);
+  height: var(--bc-spacing-xl);
   font-size: var(--bc-text-xs);
 }
 
 .avatar--md {
-  width: 44px;
-  height: 44px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
   font-size: var(--bc-text-sm);
 }
 
 .avatar--lg {
-  width: 56px;
-  height: 56px;
+  width: calc(var(--bc-spacing-xl) + var(--bc-spacing-lg));
+  height: calc(var(--bc-spacing-xl) + var(--bc-spacing-lg));
   font-size: var(--bc-text-base);
 }
 
 .avatar--xl {
-  width: 80px;
-  height: 80px;
+  width: calc(var(--bc-spacing-2xl) + var(--bc-spacing-xl));
+  height: calc(var(--bc-spacing-2xl) + var(--bc-spacing-xl));
   font-size: var(--bc-text-xl);
 }
 
@@ -43,7 +43,5 @@
 
 .avatar-initials {
   line-height: 1;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--bc-tracking-section);
 }
-
-

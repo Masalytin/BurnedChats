@@ -11,7 +11,7 @@
   justify-content: center;
   z-index: var(--bc-z-modal);
   padding: var(--bc-spacing-md);
-  animation: fadeIn var(--bc-transition-fast) ease-out;
+  animation: confirm-dialog-fade-in var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .confirm-dialog {
@@ -19,12 +19,12 @@
   border-radius: var(--bc-radius-lg);
   padding: var(--bc-spacing-lg);
   width: 100%;
-  max-width: 340px;
+  max-width: 21rem;
   display: flex;
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--bc-shadow-lg);
 }
 
 .confirm-dialog__icon {
@@ -76,4 +76,19 @@
 
 .confirm-dialog__actions > * {
   flex: 1;
+}
+
+@keyframes confirm-dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-dialog-overlay {
+    animation: none;
+  }
 }

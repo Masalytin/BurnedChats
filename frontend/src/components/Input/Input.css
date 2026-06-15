@@ -23,12 +23,14 @@
   border: 1px solid var(--bc-border-color);
   border-radius: var(--bc-radius-lg);
   padding: 0 var(--bc-spacing-md);
-  transition: all var(--bc-transition-fast);
+  transition:
+    border-color var(--bc-transition-fast) var(--bc-ease-out),
+    box-shadow var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .input-container:focus-within {
   border-color: var(--bc-brand-primary);
-  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15);
+  box-shadow: 0 0 0 var(--bc-spacing-xs) var(--bc-accent-muted);
 }
 
 .input-container--error {
@@ -36,7 +38,7 @@
 }
 
 .input-container--error:focus-within {
-  box-shadow: 0 0 0 3px rgba(255, 68, 68, 0.15);
+  box-shadow: 0 0 0 var(--bc-spacing-xs) var(--bc-error-muted);
 }
 
 .input-field {
@@ -51,12 +53,16 @@
   outline: none;
 }
 
+.input-field:focus-visible {
+  outline: none;
+}
+
 .input-field::placeholder {
   color: var(--bc-text-muted);
 }
 
 .input-field:disabled {
-  opacity: 0.5;
+  opacity: var(--bc-disabled-opacity);
   cursor: not-allowed;
 }
 
@@ -69,8 +75,8 @@
 }
 
 .input-icon svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
+  height: calc(var(--bc-spacing-md) + var(--bc-spacing-xs));
 }
 
 /* Interactive icon button inside input (e.g. eye toggle) */
@@ -82,22 +88,36 @@
   border: none;
   cursor: pointer;
   padding: 0;
-  /* 44×44 touch target for mobile */
-  min-width: 44px;
-  min-height: 44px;
-  margin: -10px -4px;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  margin: calc(-1 * var(--bc-spacing-sm)) calc(-1 * var(--bc-spacing-xs));
   color: var(--bc-text-muted);
+  border-radius: var(--bc-radius-md);
   -webkit-tap-highlight-color: transparent;
-  transition: color var(--bc-transition-fast);
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
-.input-icon-btn:hover {
+.input-icon-btn:hover:not(:disabled) {
   color: var(--bc-text-secondary);
+  background: var(--bc-bg-hover);
+}
+
+.input-icon-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.input-icon-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .input-icon-btn:disabled {
-  opacity: 0.4;
+  opacity: var(--bc-disabled-opacity);
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Suppress native browser password reveal buttons */
@@ -124,5 +144,3 @@
   padding-left: var(--bc-spacing-xs);
   margin: 0;
 }
-
-

@@ -6,11 +6,10 @@
 /* ── Circular flag image ── */
 .lang-flag {
   display: inline-flex;
-  border-radius: 50%;
+  border-radius: var(--bc-radius-full);
   overflow: hidden;
   flex-shrink: 0;
-  /* Subtle border so the flag edge is visible on light backgrounds */
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 0 0 1px var(--bc-border-color);
 }
 
 .lang-flag img {
@@ -18,8 +17,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Center the flag horizontally — flags are wider than tall,
-     so centering keeps the visual center of the flag in the circle */
   object-position: center center;
   pointer-events: none;
   user-select: none;
@@ -29,39 +26,53 @@
 .lang-switcher__trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 7px 4px 5px;
+  gap: var(--bc-spacing-xs);
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm) var(--bc-spacing-xs) var(--bc-spacing-xs);
   border: none;
-  border-radius: 20px;
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.06));
-  color: var(--tg-theme-text-color, #000);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-primary);
   cursor: pointer;
-  transition: filter 0.15s;
+  transition:
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out),
+    opacity var(--bc-transition-fast) var(--bc-ease-out);
   white-space: nowrap;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .lang-switcher__trigger:hover {
-  filter: brightness(0.94);
+  background: var(--bc-bg-hover);
+}
+
+.lang-switcher__trigger:active {
+  transform: scale(0.97);
+}
+
+.lang-switcher__trigger:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
 }
 
 .lang-switcher__trigger--open {
-  filter: brightness(0.90);
+  background: var(--bc-accent-muted);
 }
 
 /* ── Code label ── */
 .lang-switcher__code {
-  font-size: 11px;
+  font-size: var(--bc-text-xs);
   font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--tg-theme-text-color, #000);
+  letter-spacing: var(--bc-tracking-section);
+  color: var(--bc-text-primary);
   line-height: 1;
 }
 
 /* ── Chevron ── */
 .lang-switcher__chevron {
-  color: var(--tg-theme-hint-color, #999);
-  transition: transform 0.18s ease;
+  color: var(--bc-text-muted);
+  transition: transform var(--bc-transition-fast) var(--bc-ease-out);
   flex-shrink: 0;
 }
 
@@ -72,25 +83,24 @@
 /* ── Dropdown ── */
 .lang-switcher__dropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--bc-spacing-sm));
   right: 0;
-  min-width: 96px;
+  min-width: calc(var(--bc-spacing-2xl) * 2);
   margin: 0;
-  padding: 4px;
+  padding: var(--bc-spacing-xs);
   list-style: none;
-  background: var(--tg-theme-bg-color, #fff);
-  border-radius: 12px;
-  box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.13),
-    0 1px 4px rgba(0, 0, 0, 0.07);
-  z-index: 100;
-  animation: lang-dropdown-in 0.14s ease;
+  background: var(--bc-bg-primary);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-md);
+  box-shadow: var(--bc-shadow-lg);
+  z-index: var(--bc-z-dropdown);
+  animation: lang-dropdown-in var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 @keyframes lang-dropdown-in {
   from {
     opacity: 0;
-    transform: translateY(-5px) scale(0.96);
+    transform: translateY(calc(-1 * var(--bc-spacing-xs))) scale(0.96);
   }
   to {
     opacity: 1;
@@ -102,32 +112,56 @@
 .lang-switcher__option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--bc-spacing-sm);
   width: 100%;
-  padding: 7px 10px;
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--bc-radius-md);
   background: transparent;
   cursor: pointer;
-  transition: background 0.12s;
+  transition:
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
   text-align: left;
 }
 
 .lang-switcher__option:hover {
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.06));
+  background: var(--bc-bg-hover);
+}
+
+.lang-switcher__option:active {
+  transform: scale(0.98);
+}
+
+.lang-switcher__option:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: calc(-1 * var(--bc-spacing-xs));
 }
 
 .lang-switcher__option--active {
-  background: var(--tg-theme-secondary-bg-color, rgba(0, 0, 0, 0.05));
+  background: var(--bc-accent-muted);
 }
 
 .lang-switcher__option--active .lang-switcher__code {
-  color: var(--tg-theme-link-color, #2481cc);
+  color: var(--bc-text-link);
 }
 
 /* ── Check icon ── */
 .lang-switcher__check {
   margin-left: auto;
-  color: var(--tg-theme-link-color, #2481cc);
+  color: var(--bc-text-link);
   flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lang-switcher__trigger,
+  .lang-switcher__chevron,
+  .lang-switcher__option {
+    transition: none;
+  }
+
+  .lang-switcher__dropdown {
+    animation: none;
+  }
 }

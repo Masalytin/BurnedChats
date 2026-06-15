@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import i18n from '@/i18n';
 import styles from './RootErrorBoundary.module.css';
 
@@ -51,8 +52,8 @@ function RootErrorFallback({
   return (
     <div className={styles.root} role="alert">
       <div className={styles.card}>
-        <div className={styles.icon} aria-hidden>
-          ⚠
+        <div className={styles.icon} aria-hidden="true">
+          <AlertTriangle size={36} strokeWidth={2} />
         </div>
         <h1 className={styles.title}>{i18n.t('errors.rootTitle')}</h1>
         <p className={styles.message}>{i18n.t('errors.rootMessage')}</p>

@@ -15,7 +15,7 @@
 }
 
 .toast-container--bottom {
-  bottom: var(--bc-spacing-md);
+  bottom: calc(var(--bc-spacing-md) + env(safe-area-inset-bottom, 0px));
 }
 
 /* Individual Toast */
@@ -29,12 +29,12 @@
   box-shadow: var(--bc-shadow-lg);
   border: 1px solid var(--bc-border-color);
   pointer-events: auto;
-  animation: toast-enter 200ms ease-out;
+  animation: toast-enter var(--bc-transition-fast) var(--bc-ease-out);
   max-width: 100%;
 }
 
 .toast--leaving {
-  animation: toast-leave 200ms ease-in forwards;
+  animation: toast-leave var(--bc-transition-fast) var(--bc-ease-in) forwards;
 }
 
 /* Toast Types */
@@ -76,8 +76,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--bc-spacing-lg);
+  height: var(--bc-spacing-lg);
 }
 
 /* Toast Content */
@@ -90,7 +90,7 @@
   font-size: var(--bc-text-sm);
   font-weight: 600;
   color: var(--bc-text-primary);
-  margin: 0 0 2px 0;
+  margin: 0 0 var(--bc-spacing-xs) 0;
 }
 
 .toast-message {
@@ -106,20 +106,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  margin: calc(-1 * var(--bc-spacing-sm));
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--bc-radius-sm);
+  border-radius: var(--bc-radius-md);
   color: var(--bc-text-muted);
   cursor: pointer;
-  transition: var(--bc-transition-fast);
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
 }
 
 .toast-dismiss:hover {
   color: var(--bc-text-primary);
-  background: var(--bc-bg-secondary);
+  background: var(--bc-bg-hover);
+}
+
+.toast-dismiss:active {
+  transform: scale(0.97);
 }
 
 .toast-dismiss:focus-visible {
@@ -131,7 +139,7 @@
 @keyframes toast-enter {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(var(--bc-spacing-lg)) scale(0.95);
   }
   to {
     opacity: 1;
@@ -146,6 +154,13 @@
   }
   to {
     opacity: 0;
-    transform: translateY(-10px) scale(0.95);
+    transform: translateY(calc(-1 * var(--bc-spacing-sm))) scale(0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast--leaving {
+    animation: none;
   }
 }
