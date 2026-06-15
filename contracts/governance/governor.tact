@@ -9,6 +9,16 @@ import "./proposal";
 /// Snapshot written on create / Proposal callbacks (`Proposal.state`).
 const GV_ACTIVE: Int = 0;
 
+/// Pre-vote window between proposal creation and voting start (IMP-PREMNT-08).
+/// During `[creation, creation + CANCEL_LAG)` the proposer may cancel the
+/// proposal (`Proposal.receive(ProposalCancel)` requires `now() < startTime`);
+/// once it elapses, voting opens and cancellation is no longer possible.
+/// Without this lag `startTime == creation`, which makes the cancel window
+/// unreachable (every cancel returns "Too late"). Mirrors the standard Governor
+/// `votingDelay`: it shifts voting start but keeps the voting period length
+/// (`endTime = startTime + cfg.period`) intact.
+const CANCEL_LAG: Int = 3600; // 1 hour
+
 contract Governor(
     proposalCount: Int as uint64,
     proposals: map<Int as uint64, Address>,
@@ -64,8 +74,8 @@ contract Governor(
                 sender(),
                 msg.proposalType,
                 msg.payload,
-                now(),
-                now() + cfg.period,
+                now() + CANCEL_LAG,
+                now() + CANCEL_LAG + cfg.period,
                 0,
                 0,
                 msg.totalVpAtSnapshot,

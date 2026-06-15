@@ -18,10 +18,15 @@ import { advanceTime, mintAndSyncUser, setupStakingEnvironment, stakeAs, Staking
 
 const DAY = 86_400;
 
+// Pre-vote / cancel window before voting opens (governor.tact CANCEL_LAG, IMP-PREMNT-08).
+const CANCEL_LAG = 3600;
+
 // Proposal state machine (proposal.tact constants).
+const PS_ACTIVE = 0n;
 const PS_SUCCEEDED = 1n;
 const PS_DEFEATED = 2n;
 const PS_EXECUTED = 4n;
+const PS_CANCELLED = 5n;
 
 // Canonical opcodes (governance-messages.tact / treasury.tact).
 const OP_TIMELOCK_QUEUE = 0x5a040201;
@@ -127,6 +132,7 @@ async function createProposal(
     proposer: SandboxContract<TreasuryContract>,
     proposalType: number,
     payload: Cell,
+    options: { openVoting?: boolean } = {},
 ): Promise<CreatedProposal> {
     const totalVp = await env.stakingMaster.getGetTotalVotingPower();
     expect(totalVp).toBeGreaterThan(0n);
@@ -143,6 +149,13 @@ async function createProposal(
     const addr = await env.governor.getGetProposal(id);
     expect(addr).not.toBeNull();
     const proposal = env.blockchain.openContract(new Proposal(addr!));
+
+    // Voting opens only after the CANCEL_LAG pre-vote window (IMP-PREMNT-08).
+    // Advance past it by default so callers can vote immediately; pass
+    // `{ openVoting: false }` to stay inside the cancel window.
+    if (options.openVoting !== false) {
+        advanceTime(env.blockchain, CANCEL_LAG + 1);
+    }
     return { id, proposal, createTx };
 }
 
@@ -537,29 +550,41 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             });
         });
 
-        it('cancel: only the proposer is authorized, and the start==create quirk blocks it', async () => {
+        it('cancel: proposer can cancel inside the pre-vote window; outsider cannot; too late after voting opens', async () => {
             const env = await setupGovernance('https://example.com/gov-neg-cancel.json');
             const proposer = await env.blockchain.treasury('gov-cancel-proposer');
             await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
 
             const target = await env.blockchain.treasury('neg-cancel-target');
-            const { proposal } = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 1));
 
+            // Inside the CANCEL_LAG window (voting not yet open): an outsider is rejected.
+            const inWindow = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 1), {
+                openVoting: false,
+            });
             const outsider = await env.blockchain.treasury('cancel-outsider');
-            const badAuth = await proposal.sendCancel(outsider.getSender());
+            const badAuth = await inWindow.proposal.sendCancel(outsider.getSender());
             expect(badAuth.transactions).toHaveTransaction({
-                on: proposal.address,
+                on: inWindow.proposal.address,
                 success: false,
                 exitCode: Proposal_errors_backward['Only proposer'],
             });
+            expect(await inWindow.proposal.getGetState()).toBe(PS_ACTIVE);
 
-            // startTime == creation time, so even the proposer is always "Too late".
-            const tooLate = await proposal.sendCancel(proposer.getSender());
+            // The proposer cancels within the reachable window → Cancelled, mirrored on the Governor.
+            const cancelled = await inWindow.proposal.sendCancel(proposer.getSender());
+            expect(cancelled.transactions).toHaveTransaction({ on: inWindow.proposal.address, success: true });
+            expect(await inWindow.proposal.getGetState()).toBe(PS_CANCELLED);
+            expect(await env.governor.getGetProposalState(inWindow.id)).toBe(PS_CANCELLED);
+
+            // A fresh proposal whose voting has opened: cancellation is now "Too late".
+            const opened = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 2));
+            const tooLate = await opened.proposal.sendCancel(proposer.getSender());
             expect(tooLate.transactions).toHaveTransaction({
-                on: proposal.address,
+                on: opened.proposal.address,
                 success: false,
                 exitCode: Proposal_errors_backward['Too late'],
             });
+            expect(await opened.proposal.getGetState()).toBe(PS_ACTIVE);
         });
     });
 });

@@ -203,6 +203,10 @@ contract Proposal(
         cashback(sender());
     }
 
+    /// Proposer-only cancellation, allowed solely in the pre-vote window
+    /// `[creation, startTime)`. `startTime = creation + CANCEL_LAG` is set by the
+    /// Governor (IMP-PREMNT-08), so this window is reachable; once voting opens
+    /// (`now() >= startTime`) cancellation returns "Too late".
     receive(msg: ProposalCancel) {
         require(sender() == self.proposer, "Only proposer");
         require(now() < self.startTime, "Too late");
