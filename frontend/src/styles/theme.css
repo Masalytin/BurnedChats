@@ -69,6 +69,8 @@
   /* Marketing / landing (standalone overrides in standalone-theme.css) */
   --bc-landing-text-gradient: linear-gradient(135deg, #ffffff 0%, #c0c0d0 100%);
   --bc-landing-accent-line: linear-gradient(90deg, rgba(255, 107, 53, 0.4), rgba(255, 107, 53, 0.15));
+  /* Marketing landing uses a wider canvas than the in-app content column. */
+  --bc-landing-max: 1100px;
   
   /* Message bubbles */
   --bc-message-outgoing-bg: var(--bc-brand-primary);

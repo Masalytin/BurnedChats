@@ -55,7 +55,7 @@
 
 .landing-inner {
   width: 100%;
-  max-width: var(--bc-content-max);
+  max-width: var(--bc-landing-max);
   margin: 0 auto;
   padding: var(--bc-spacing-2xl) var(--bc-spacing-lg);
 }
