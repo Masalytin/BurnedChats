@@ -10,9 +10,14 @@ cp .env.example .env.testnet
 #   TONCENTER_API_KEY_TESTNET
 # Optional override (default: frontend-hosted metadata on burnedchats.net):
 #   JETTON_METADATA_URI=https://burnedchats.net/jetton-metadata.json
-npm run deploy:burn:testnet
+npm run deploy:burn:testnet   # runs blueprint build --all, then deploy
 npm run verify:deployment
 ```
+
+`npm run deploy:burn:*`, `verify:*`, `sync:fee:*`, and `mint` rebuild contracts
+automatically. For **manual** `npx blueprint run …` (vesting partial deploys, etc.),
+run `npm run build` first if `.tact` changed or `build/` is missing — see
+[`../README.md`](../README.md#manual-blueprint-run-no-npm-wrapper).
 
 ### Post-deploy verification (`verify:deployment`)
 

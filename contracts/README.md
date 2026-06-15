@@ -62,6 +62,10 @@ TypeScript targets ES2022 with `strict` mode (hand-written TS). Generated bindin
 
 Requires env file (see `.env.example`) and a funded wallet mnemonic.
 
+All npm deploy/verify/sync/mint scripts **run `npm run build` first** so TypeScript
+wrappers always import fresh Tact artifacts from `build/` (gitignored). You do not
+need a separate manual build before `npm run deploy:burn:testnet` and siblings.
+
 ```bash
 npm run deploy:burn:testnet   # full BURN stack — WALLET_MNEMONIC in .env.testnet
 npm run deploy:burn:mainnet   # mainnet — use .env.mainnet, never commit secrets
@@ -72,9 +76,19 @@ npm run verify                # verifier instructions + env check
 npm run mint                  # placeholder until Jetton (P5-1-1-2)
 ```
 
+### Manual `blueprint run` (no npm wrapper)
+
+`blueprint run` does **not** compile contracts. Scripts invoked directly — e.g.
+`deployVesting`, `deployVestingDeveloper`, `deployBurnPlaceholder`,
+`deployVestingStakingAllocation` — import wrappers from `build/`. After changing
+`.tact` sources, on a fresh clone, or whenever `build/` is missing or stale, run
+**`npm run build`** before `npx blueprint run <ScriptName> …`, or deploy will fail
+with TypeScript errors (`TS2305`, `Cannot find module`).
+
 Interactive runner (pick any script under `scripts/`):
 
 ```bash
+npm run build   # required if .tact changed or build/ absent
 npx blueprint run
 ```
 
