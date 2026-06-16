@@ -8,8 +8,7 @@ import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
-import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.service.FileBurnService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,22 +45,9 @@ public class BurnHandler {
     private final StompUserMessenger stompUserMessenger;
     private final FileBurnService fileBurnService;
 
-    private record ParticipantContext(String internalId, Long telegramId) {
-    }
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
-    }
-
     @MessageMapping("/session.burn")
     public void burnSession(@Payload @Valid BurnSessionRequest request, Principal principal) {
-        ParticipantContext participant = participantContext(principal);
+        ParticipantContext participant = ParticipantContext.from(principal);
         if (participant == null) {
             LOG.warn("session.burn: unsupported principal type {}", principal.getClass().getName());
             return;

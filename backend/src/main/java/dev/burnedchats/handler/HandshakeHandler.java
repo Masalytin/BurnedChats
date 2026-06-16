@@ -6,8 +6,8 @@ import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -94,19 +94,6 @@ public class HandshakeHandler {
     private final SessionRepository sessionRepository;
     private final StompUserMessenger stompUserMessenger;
 
-    private record ParticipantContext(String internalId, Long telegramId) {
-    }
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
-    }
-
     /**
      * Relay a public key to the peer during handshake.
      *
@@ -115,7 +102,7 @@ public class HandshakeHandler {
      */
     @MessageMapping("/handshake.key")
     public void relayPublicKey(@Payload PublicKeyRequest request, Principal principal) {
-        ParticipantContext sender = participantContext(principal);
+        ParticipantContext sender = ParticipantContext.from(principal);
         if (sender == null) {
             LOG.warn("handshake.key: unsupported principal type {}", principal.getClass().getName());
             return;

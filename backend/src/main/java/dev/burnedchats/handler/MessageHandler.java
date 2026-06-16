@@ -21,8 +21,8 @@ import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
@@ -75,22 +75,9 @@ public class MessageHandler {
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
-    private record ParticipantContext(String internalId, Long telegramId) {
-    }
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
-    }
-
     @MessageMapping("/message.edit")
     public void editMessage(@Payload @Valid EditMessageRequest request, Principal principal) {
-        ParticipantContext editor = participantContext(principal);
+        ParticipantContext editor = ParticipantContext.from(principal);
         if (editor == null) {
             LOG.warn("message.edit: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -117,7 +104,7 @@ public class MessageHandler {
 
     @MessageMapping("/message.send")
     public void relayMessage(@Payload @Valid SendMessageRequest request, Principal principal) {
-        ParticipantContext sender = participantContext(principal);
+        ParticipantContext sender = ParticipantContext.from(principal);
         if (sender == null) {
             LOG.warn("message.send: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -148,7 +135,7 @@ public class MessageHandler {
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/message.sync")
     public void syncMessages(@Payload @Valid SyncMessagesRequest request, Principal principal) {
-        ParticipantContext participant = participantContext(principal);
+        ParticipantContext participant = ParticipantContext.from(principal);
         if (participant == null) {
             LOG.warn("message.sync: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -235,7 +222,7 @@ public class MessageHandler {
 
     @MessageMapping("/message.delete")
     public void deleteMessage(@Payload @Valid DeleteMessageRequest request, Principal principal) {
-        ParticipantContext deleter = participantContext(principal);
+        ParticipantContext deleter = ParticipantContext.from(principal);
         if (deleter == null) {
             LOG.warn("message.delete: unsupported principal type {}", principal.getClass().getName());
             return;

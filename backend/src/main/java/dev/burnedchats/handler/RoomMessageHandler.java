@@ -18,8 +18,8 @@ import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
@@ -75,14 +75,11 @@ public class RoomMessageHandler {
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
 
-    private record ParticipantContext(String internalId, Long telegramId) {
-    }
-
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.edit")
     public void editRoomMessage(
             @Payload @Valid EditRoomMessageRequest request, Principal principal) {
-        ParticipantContext editor = participantContext(principal);
+        ParticipantContext editor = ParticipantContext.from(principal);
         if (editor == null) {
             LOG.warn("room.message.edit: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -151,7 +148,7 @@ public class RoomMessageHandler {
     @MessageMapping("/room.message.delete")
     public void deleteRoomMessage(
             @Payload @Valid DeleteRoomMessageRequest request, Principal principal) {
-        ParticipantContext actor = participantContext(principal);
+        ParticipantContext actor = ParticipantContext.from(principal);
         if (actor == null) {
             LOG.warn("room.message.delete: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -225,7 +222,7 @@ public class RoomMessageHandler {
     @MessageMapping("/room.message.send")
     public void sendRoomMessage(
             @Payload @Valid SendRoomMessageRequest request, Principal principal) {
-        ParticipantContext sender = participantContext(principal);
+        ParticipantContext sender = ParticipantContext.from(principal);
         if (sender == null) {
             LOG.warn("room.message.send: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -371,7 +368,7 @@ public class RoomMessageHandler {
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.sync")
     public void syncRoomMessages(@Payload SyncRoomMessagesRequest request, Principal principal) {
-        ParticipantContext requester = participantContext(principal);
+        ParticipantContext requester = ParticipantContext.from(principal);
         if (requester == null) {
             LOG.warn("room.message.sync: unsupported principal type {}", principal.getClass().getName());
             return;
@@ -430,16 +427,6 @@ public class RoomMessageHandler {
                             sendSyncError(principal, roomId, "INTERNAL_ERROR");
                         }
             );
-    }
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
     }
 
     private Mono<String> resolveDisplayName(String internalId, Long telegramIdFallback) {

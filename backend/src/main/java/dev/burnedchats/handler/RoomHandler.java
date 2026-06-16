@@ -38,8 +38,8 @@ import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
 import dev.burnedchats.service.RoomJoinService;
@@ -86,9 +86,6 @@ public class RoomHandler {
     private static final String ROOM_LEFT_DESTINATION = "/queue/room-left";
     private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
 
-    private record ParticipantContext(String internalId, Long telegramId, String username, String firstName) {
-    }
-
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
     private final RoomJoinService roomJoinService;
@@ -104,7 +101,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             LOG.warn("CREATE_ROOM rejected: unsupported principal");
             return;
@@ -153,7 +150,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.getInviteLink")
     public void getInviteLink(@Payload @Valid GetInviteLinkRequest request, Principal principal) {
-        ParticipantContext requester = participantContext(principal);
+        ParticipantContext requester = ParticipantContext.from(principal);
         if (requester == null) {
             return;
         }
@@ -186,7 +183,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.getInviteInfo")
     public void getInviteInfo(@Payload @Valid GetInviteInfoRequest request, Principal principal) {
-        ParticipantContext requester = participantContext(principal);
+        ParticipantContext requester = ParticipantContext.from(principal);
         if (requester == null) {
             return;
         }
@@ -223,7 +220,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.requestJoin")
     public void requestJoinRoom(@Payload @Valid RequestJoinRoomRequest request, Principal principal) {
-        ParticipantContext sender = participantContext(principal);
+        ParticipantContext sender = ParticipantContext.from(principal);
         if (sender == null) {
             return;
         }
@@ -297,7 +294,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.acceptJoin")
     public void acceptRoomJoin(@Payload @Valid RoomJoinDecisionRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -325,7 +322,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.rejectJoin")
     public void rejectRoomJoin(@Payload @Valid RoomJoinDecisionRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -353,7 +350,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.sendKeyBundle")
     public void sendKeyBundle(@Payload @Valid SendKeyBundleRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -393,7 +390,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.requestKeyBundle")
     public void requestKeyBundle(@Payload @Valid RequestKeyBundleRequest request, Principal principal) {
-        ParticipantContext caller = participantContext(principal);
+        ParticipantContext caller = ParticipantContext.from(principal);
         if (caller == null) {
             return;
         }
@@ -450,7 +447,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.rekey")
     public void rekey(@Payload @Valid RekeyRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -513,7 +510,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.getMemberPubkeys")
     public void getMemberPubkeys(@Payload @Valid GetMemberPubkeysRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -556,7 +553,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.getMyRooms")
     public void getMyRooms(@Payload GetMyRoomsRequest request, Principal principal) {
-        ParticipantContext participant = participantContext(principal);
+        ParticipantContext participant = ParticipantContext.from(principal);
         if (participant == null) {
             return;
         }
@@ -595,7 +592,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.getMembers")
     public void getRoomMembers(@Payload @Valid GetRoomMembersRequest request, Principal principal) {
-        ParticipantContext requester = participantContext(principal);
+        ParticipantContext requester = ParticipantContext.from(principal);
         if (requester == null) {
             return;
         }
@@ -631,7 +628,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.burn")
     public void burnRoom(@Payload @Valid BurnRoomRequest request, Principal principal) {
-        ParticipantContext owner = participantContext(principal);
+        ParticipantContext owner = ParticipantContext.from(principal);
         if (owner == null) {
             return;
         }
@@ -688,7 +685,7 @@ public class RoomHandler {
 
     @MessageMapping("/room.leave")
     public void leaveRoom(@Payload @Valid LeaveRoomRequest request, Principal principal) {
-        ParticipantContext caller = participantContext(principal);
+        ParticipantContext caller = ParticipantContext.from(principal);
         if (caller == null) {
             return;
         }
@@ -743,22 +740,6 @@ public class RoomHandler {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        String username = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUsername()
-                : null;
-        String firstName = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getFirstName()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId, username, firstName);
-    }
 
     private boolean isRoomOwner(Room room, String ownerInternalId) {
         return StringUtils.hasText(room.getOwnerInternalId())

@@ -6,8 +6,8 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.SessionRepository;
+import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
-import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -38,22 +38,9 @@ public class VerificationHandler {
     private final SessionRepository sessionRepository;
     private final StompUserMessenger stompUserMessenger;
 
-    private record ParticipantContext(String internalId, Long telegramId) {
-    }
-
-    private ParticipantContext participantContext(Principal principal) {
-        if (!(principal instanceof AppPrincipal appPrincipal)) {
-            return null;
-        }
-        Long telegramId = principal instanceof TelegramPrincipal telegramPrincipal
-                ? telegramPrincipal.getUserId()
-                : null;
-        return new ParticipantContext(appPrincipal.getInternalId(), telegramId);
-    }
-
     @MessageMapping("/verification.confirm")
     public void confirmVerification(@Payload VerificationRequest request, Principal principal) {
-        ParticipantContext participant = participantContext(principal);
+        ParticipantContext participant = ParticipantContext.from(principal);
         if (participant == null) {
             LOG.warn("verification.confirm: unsupported principal type {}", principal.getClass().getName());
             return;
