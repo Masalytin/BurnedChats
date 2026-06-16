@@ -813,6 +813,10 @@ public class SecurityConfig {
 
 Эталонная строка политики для продакшена совпадает с `add_header Content-Security-Policy` в `nginx/prod.conf` (включая `img-src ... blob:` для превью/постеров, использующих object URL для изображений).
 
+**`script-src` (исполнение JS):** `'unsafe-inline'` **не используется** (IMP-AUDIT-04). Production `index.html` после Vite-сборки содержит только внешние скрипты: `'self'` (бандл `/assets/*.js`) и `https://telegram.org` (Telegram WebApp SDK). Inline `<script>` в исходном `frontend/index.html` нет; nonce/hash не требуются до появления inline-скриптов. Динамически вставляемые inline-скрипты (XSS) блокируются. **`style-src 'unsafe-inline'`** оставлен — React/тема используют inline-стили; риск ниже, чем у script XSS для E2EE-клиента.
+
+**Security-заголовки (edge + frontend-контейнер):** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` — задаются в `nginx/prod.conf` и дублируются в `frontend/nginx.prod.conf`. Дополнительно на edge: `X-Frame-Options: DENY` (для Mini App достаточно `frame-ancestors` в CSP).
+
 **`connect-src` (сеть из Mini App):** помимо `'self'`, API и WebSocket домена (`burnedchats.net`), `https://telegram.org`, мостов TON Connect (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` и соответствующие `wss://`) политика явно разрешает клиентский wallet RPC к Ton Center: `https://toncenter.com` (mainnet, без поддомена — wildcard `*.toncenter.com` его не покрывает), `https://testnet.toncenter.com` (testnet), а также `https://tonkeeper.com` и `https://*.tonkeeper.com` (согласованность с diagnostics CLI). Полный список origins — в строке CSP в `nginx/prod.conf` / `frontend/nginx.prod.conf`; при смене `VITE_TON_RPC_URL` или сети обновлять оба файла синхронно.
 
 ### 5. HMAC Validation для Telegram (Java)
