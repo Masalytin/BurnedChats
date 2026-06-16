@@ -17,6 +17,7 @@ export interface ChatWebSocketApi {
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
 import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMessage } from '../components/DebugPanel';
+import { buildWebSocketHandshakeUrl } from './webSocketHandshakeUrl';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -57,7 +58,7 @@ interface UseWebSocketOptions {
   onError?: (error: WebSocketError) => void;
   /** Callback when reconnected (after disconnect) */
   onReconnect?: () => void;
-  /** Returns current auth credentials for STOMP connect headers */
+  /** Returns current auth credentials for WebSocket handshake (SockJS query params) */
   getCredentials?: () => AuthCredentials | null;
 }
 
@@ -112,11 +113,6 @@ const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 const PRESENCE_HEARTBEAT_INTERVAL = 20000;
 const PRESENCE_HEARTBEAT_DESTINATION = '/app/heartbeat';
 
-/** Header name for Telegram initData authentication */
-const INIT_DATA_HEADER = 'X-Telegram-Init-Data';
-const AUTH_TYPE_HEADER = 'X-Auth-Type';
-const AUTH_TOKEN_HEADER = 'X-Auth-Token';
-
 /**
  * Parse STOMP error frame to determine error type.
  */
@@ -151,10 +147,10 @@ function parseStompError(frame: IFrame): WebSocketError {
 }
 
 /**
- * Hook for STOMP over WebSocket connection with Telegram authentication.
- * 
- * Automatically includes Telegram initData in connection headers for
- * server-side authentication via StompAuthInterceptor.
+ * Hook for STOMP over WebSocket with identity auth on the SockJS handshake.
+ *
+ * Credentials (`X-Telegram-Init-Data`, `X-Auth-Type`, `X-Auth-Token`) are sent as
+ * URL query params on `/ws`, not in STOMP CONNECT headers — see IMP-AUDIT-23 decision-log.
  * 
  * @example
  * ```tsx
@@ -243,17 +239,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     const isWallet = credentials?.type === 'wallet';
     const initData = credentials?.type === 'telegram' ? credentials.initData || '' : '';
     const sessionToken = isWallet ? credentials?.sessionToken || '' : '';
-    const connectHeaders: Record<string, string> = {
-      [AUTH_TYPE_HEADER]: isWallet ? 'wallet' : 'telegram',
-    };
-    if (isWallet) {
-      connectHeaders[AUTH_TOKEN_HEADER] = sessionToken;
-    } else {
-      connectHeaders[INIT_DATA_HEADER] = initData || '';
-    }
+    const handshakeUrl = buildWebSocketHandshakeUrl(WS_URL, credentials);
 
-    debugLog('info', 'Creating STOMP client', { 
-      wsUrl: WS_URL,
+    debugLog('info', 'Creating STOMP client', {
+      wsPath: WS_URL,
       authType: credentials?.type ?? 'unknown',
       hasInitData: Boolean(initData),
       initDataLength: initData?.length || 0,
@@ -266,10 +255,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
     const client = new Client({
       webSocketFactory: () => {
-        debugLog('info', 'Creating SockJS connection', { url: WS_URL });
-        return new SockJS(WS_URL);
+        debugLog('info', 'Creating SockJS connection', { wsPath: WS_URL });
+        return new SockJS(handshakeUrl);
       },
-      connectHeaders,
       reconnectDelay,
       heartbeatIncoming,
       heartbeatOutgoing,
@@ -444,7 +432,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     const client = createClient();
     clientRef.current = client;
     
-    debugLog('info', 'Activating STOMP client', { url: WS_URL });
+    debugLog('info', 'Activating STOMP client', { wsPath: WS_URL });
     client.activate();
   }, [createClient, getCredentials, handleError]);
 
