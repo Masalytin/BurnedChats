@@ -808,6 +808,11 @@
     }
   },
 
+  "lifecycle": {
+    "backgroundBurnTitle": "Session burned",
+    "backgroundBurnMessage": "Encryption keys were cleared because the app stayed in the background too long. Open the chat from the list to reconnect."
+  },
+
   "room": {
     "sectionMyRooms": "My Rooms",
     "emptyRooms": "No rooms yet",

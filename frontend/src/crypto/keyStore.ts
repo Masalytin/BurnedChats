@@ -18,6 +18,19 @@ import type { KeyPair, SharedSecret } from '@/types';
 import { clearHiddenMessagesStorage } from '@/utils/hiddenMessagesStorage';
 
 // ============================================
+// Background burn configuration (IMP-AUDIT-10)
+// ============================================
+
+/**
+ * Delay before wiping in-memory keys when the Mini App stays in the background.
+ * Single source of truth for the security vs UX trade-off (see decision log).
+ */
+export const BACKGROUND_BURN_THRESHOLD_MS = 45_000;
+
+/** Why {@link burnAll} was last invoked. */
+export type BurnAllReason = 'manual' | 'page_unload' | 'background_timeout';
+
+// ============================================
 // Types
 // ============================================
 
@@ -69,6 +82,9 @@ const eventListeners = new Set<KeyStoreEventCallback>();
  * Flag to track if beforeunload handler is installed.
  */
 let unloadHandlerInstalled = false;
+
+/** Tracks the most recent {@link burnAll} reason (cleared on next burnAll). */
+let lastBurnAllReason: BurnAllReason | null = null;
 
 // ============================================
 // Store Operations
@@ -362,7 +378,15 @@ export function burn(sessionId: string): boolean {
  * burnAll();
  * ```
  */
-export function burnAll(): void {
+/**
+ * Returns the reason for the most recent {@link burnAll} call.
+ */
+export function getLastBurnAllReason(): BurnAllReason | null {
+  return lastBurnAllReason;
+}
+
+export function burnAll(reason: BurnAllReason = 'manual'): void {
+  lastBurnAllReason = reason;
   const sessionIds = Array.from(keyStore.keys());
   
   for (const sessionId of sessionIds) {
@@ -388,7 +412,7 @@ export function burnAll(): void {
  * Automatically burns all keys when page is closed/refreshed.
  */
 function handlePageUnload(): void {
-  burnAll();
+  burnAll('page_unload');
 }
 
 /**
@@ -405,15 +429,6 @@ function installUnloadHandler(): void {
     window.addEventListener('beforeunload', handlePageUnload);
     window.addEventListener('unload', handlePageUnload);
     
-    // Also handle visibility change (tab hidden/closed on mobile)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
-        // On mobile, this might be the last event before the app is killed
-        // We don't burn immediately but mark for potential cleanup
-        // For maximum security, you could call burnAll() here
-      }
-    });
-
     unloadHandlerInstalled = true;
   }
 }

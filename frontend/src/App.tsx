@@ -58,7 +58,7 @@ import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
-import { useAppLifecycle } from './hooks/useAppLifecycle';
+import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
 import {
   burn as burnKeys,
   burnGroupKey,
@@ -1649,6 +1649,7 @@ function AppContent() {
   // spurious floods when users rapidly toggle between tabs.
   const lastVisibilitySyncAtRef = useRef(0);
   const MIN_VISIBILITY_SYNC_INTERVAL_MS = 5_000;
+  const backgroundBurnPendingToastRef = useRef(false);
 
   // Keep the latest view/chat state in a ref so the visibility callback can
   // read fresh values without being re-created on every state change.
@@ -1667,7 +1668,44 @@ function AppContent() {
     };
   });
 
+  const handleBackgroundKeysBurned = useCallback((info: BackgroundKeysBurnedInfo) => {
+    backgroundBurnPendingToastRef.current = true;
+
+    for (const sessionId of info.sessionIdsBurned) {
+      clearVerificationStatus(sessionId);
+    }
+
+    setActiveChat(null);
+    setActiveRoomChat(null);
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    handshakePeerRef.current = null;
+    cancelHandshake();
+    resetHandshake();
+    resetSession();
+    clearSearch();
+    setCurrentView('home');
+  }, [
+    clearVerificationStatus,
+    cancelHandshake,
+    resetHandshake,
+    resetSession,
+    clearSearch,
+  ]);
+
   const handleVisibilityRestored = useCallback(() => {
+    if (backgroundBurnPendingToastRef.current) {
+      backgroundBurnPendingToastRef.current = false;
+      notificationOccurred('warning');
+      toast.warning(t('lifecycle.backgroundBurnMessage'), {
+        title: t('lifecycle.backgroundBurnTitle'),
+        duration: 6000,
+      });
+      fetchSessions();
+      fetchRooms();
+      return;
+    }
+
     const deps = visibilitySyncDepsRef.current;
     if (!deps.isConnected) return;
 
@@ -1686,12 +1724,13 @@ function AppContent() {
       debugLog('info', '[App] Visibility restored — triggering room sync');
       roomSyncMessagesRef.current();
     }
-  }, []);
+  }, [notificationOccurred, toast, t, fetchSessions, fetchRooms]);
 
   useAppLifecycle({
     isConnected,
     publish,
     onVisibilityRestored: handleVisibilityRestored,
+    onBackgroundKeysBurned: handleBackgroundKeysBurned,
   });
 
   // Handle key refresh notifications (peer reconnected and needs re-handshake)

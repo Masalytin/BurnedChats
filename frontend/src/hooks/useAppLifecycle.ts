@@ -1,6 +1,17 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { burnAll, getActiveSessionIds } from '@/crypto/keyStore';
+import {
+  burnAll,
+  getActiveSessionIds,
+  BACKGROUND_BURN_THRESHOLD_MS,
+} from '@/crypto/keyStore';
 import { cancelAll } from '@/services/transferQueue';
+
+/** Payload when keys are wiped after a long background period (IMP-AUDIT-10). */
+export interface BackgroundKeysBurnedInfo {
+  reason: 'background_timeout';
+  /** Session IDs that had keys before the wipe (for UI cleanup). */
+  sessionIdsBurned: string[];
+}
 
 /**
  * Hook options for app lifecycle management (5.1.5).
@@ -22,6 +33,11 @@ interface UseAppLifecycleOptions {
    * background.
    */
   onVisibilityRestored?: () => void;
+  /**
+   * Called after {@link burnAll} due to exceeding {@link BACKGROUND_BURN_THRESHOLD_MS}
+   * while hidden. Use to reset chat UI and defer user-facing toast until visible.
+   */
+  onBackgroundKeysBurned?: (info: BackgroundKeysBurnedInfo) => void;
 }
 
 /** STOMP destination for peer disconnect notification */
@@ -34,9 +50,11 @@ const PEER_DISCONNECT_DESTINATION = '/app/peer.disconnect';
  * - beforeunload: Burn keys and notify peers
  * - visibilitychange: Handle tab/app backgrounding
  * - Page hide: Handle mobile app suspension
+ * - Long background: Burn keys after {@link BACKGROUND_BURN_THRESHOLD_MS} (IMP-AUDIT-10)
  * 
  * Security features:
  * - Keys are burned on any app close/suspend
+ * - Keys are burned after sustained background (configurable threshold)
  * - Peers are notified when user disconnects
  * 
  * @example
@@ -55,19 +73,75 @@ const PEER_DISCONNECT_DESTINATION = '/app/peer.disconnect';
  * ```
  */
 export function useAppLifecycle(options: UseAppLifecycleOptions): void {
-  const { isConnected, publish, onBeforeClose, onVisibilityChange, onVisibilityRestored } = options;
+  const {
+    isConnected,
+    publish,
+    onBeforeClose,
+    onVisibilityChange,
+    onVisibilityRestored,
+    onBackgroundKeysBurned,
+  } = options;
 
   // Track if cleanup has been performed
   const cleanupPerformedRef = useRef(false);
   // Track whether the document was hidden, so we fire onVisibilityRestored only
   // on an actual hidden → visible transition (not on the initial mount).
   const wasHiddenRef = useRef(false);
+  const backgroundBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backgroundBurnPerformedRef = useRef(false);
 
-  // Keep the latest onVisibilityRestored reference without re-subscribing handlers
+  // Keep the latest callbacks without re-subscribing handlers
   const onVisibilityRestoredRef = useRef(onVisibilityRestored);
+  const onBackgroundKeysBurnedRef = useRef(onBackgroundKeysBurned);
   useEffect(() => {
     onVisibilityRestoredRef.current = onVisibilityRestored;
-  }, [onVisibilityRestored]);
+    onBackgroundKeysBurnedRef.current = onBackgroundKeysBurned;
+  }, [onVisibilityRestored, onBackgroundKeysBurned]);
+
+  const cancelBackgroundBurnTimer = useCallback(() => {
+    if (backgroundBurnTimerRef.current !== null) {
+      clearTimeout(backgroundBurnTimerRef.current);
+      backgroundBurnTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Wipe keys after sustained background. Does not notify peers (session may still
+   * exist server-side; user can resume from the session list).
+   */
+  const performBackgroundBurn = useCallback(() => {
+    if (backgroundBurnPerformedRef.current || cleanupPerformedRef.current) {
+      return;
+    }
+
+    const sessionIdsBurned = getActiveSessionIds();
+    backgroundBurnPerformedRef.current = true;
+    backgroundBurnTimerRef.current = null;
+
+    console.log(
+      `[AppLifecycle] Background burn after ${BACKGROUND_BURN_THRESHOLD_MS}ms hidden`,
+    );
+
+    cancelAll();
+    burnAll('background_timeout');
+
+    try {
+      onBackgroundKeysBurnedRef.current?.({
+        reason: 'background_timeout',
+        sessionIdsBurned,
+      });
+    } catch (err) {
+      console.warn('[AppLifecycle] onBackgroundKeysBurned threw:', err);
+    }
+  }, []);
+
+  const scheduleBackgroundBurn = useCallback(() => {
+    cancelBackgroundBurnTimer();
+    backgroundBurnTimerRef.current = setTimeout(
+      performBackgroundBurn,
+      BACKGROUND_BURN_THRESHOLD_MS,
+    );
+  }, [cancelBackgroundBurnTimer, performBackgroundBurn]);
 
   /**
    * Notify peers about disconnect and burn all keys.
@@ -77,6 +151,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
       return;
     }
     cleanupPerformedRef.current = true;
+    cancelBackgroundBurnTimer();
 
     console.log('[AppLifecycle] Performing cleanup...');
 
@@ -100,9 +175,9 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
 
     cancelAll();
     // Burn all cryptographic keys (this is the critical security step)
-    burnAll();
+    burnAll('page_unload');
     console.log('[AppLifecycle] All keys burned');
-  }, [isConnected, publish]);
+  }, [isConnected, publish, cancelBackgroundBurnTimer]);
 
   /**
    * Handle beforeunload event (page close/refresh).
@@ -138,17 +213,19 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
     
     onVisibilityChange?.(isVisible);
 
-    // On mobile, when app is backgrounded, we should consider it as potentially closing
-    // because the OS might kill the app at any time
     if (!isVisible) {
       wasHiddenRef.current = true;
-      // For maximum security, you could call performCleanup() here
-      // However, this would end sessions every time user switches apps
-      // So we only log for now - actual cleanup happens on unload
-      console.log('[AppLifecycle] App backgrounded - sessions at risk if app is killed');
+      scheduleBackgroundBurn();
+      console.log(
+        `[AppLifecycle] App backgrounded — keys will burn in ${BACKGROUND_BURN_THRESHOLD_MS}ms unless restored`,
+      );
     } else {
-      // Reset cleanup flag when app becomes visible again
-      cleanupPerformedRef.current = false;
+      cancelBackgroundBurnTimer();
+
+      // Reset cleanup flag when app becomes visible again (unless full unload cleanup ran)
+      if (!backgroundBurnPerformedRef.current) {
+        cleanupPerformedRef.current = false;
+      }
 
       // Fire onVisibilityRestored only on an actual hidden → visible transition
       // (FIX-SYNC-3): avoids firing on initial mount and on spurious 'visible'
@@ -161,8 +238,10 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
           console.warn('[AppLifecycle] onVisibilityRestored threw:', err);
         }
       }
+
+      backgroundBurnPerformedRef.current = false;
     }
-  }, [onVisibilityChange]);
+  }, [onVisibilityChange, scheduleBackgroundBurn, cancelBackgroundBurnTimer]);
 
   /**
    * Handle page hide event (more reliable on mobile).
@@ -187,18 +266,28 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
     console.log('[AppLifecycle] Lifecycle handlers registered');
 
     return () => {
+      cancelBackgroundBurnTimer();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('unload', handleUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
     };
-  }, [handleBeforeUnload, handleUnload, handleVisibilityChange, handlePageHide]);
+  }, [
+    handleBeforeUnload,
+    handleUnload,
+    handleVisibilityChange,
+    handlePageHide,
+    cancelBackgroundBurnTimer,
+  ]);
 
   // Cleanup on unmount (for React HMR or route changes)
   useEffect(() => {
     return () => {
+      cancelBackgroundBurnTimer();
       // Note: This cleanup is for development/HMR scenarios
       // Production cleanup is handled by beforeunload/pagehide
     };
-  }, []);
+  }, [cancelBackgroundBurnTimer]);
 }
+
+export { BACKGROUND_BURN_THRESHOLD_MS };

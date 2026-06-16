@@ -33,6 +33,8 @@ import {
   removeUnloadHandler,
   isUnloadHandlerInstalled,
   getDebugInfo,
+  getLastBurnAllReason,
+  BACKGROUND_BURN_THRESHOLD_MS,
 } from './keyStore';
 import {
   generateKeyPair,
@@ -480,6 +482,18 @@ describe('Key Storage', () => {
       it('should work when store is empty', () => {
         expect(() => burnAll()).not.toThrow();
         expect(getSessionCount()).toBe(0);
+      });
+
+      it('should record burnAll reason', () => {
+        burnAll('background_timeout');
+        expect(getLastBurnAllReason()).toBe('background_timeout');
+      });
+    });
+
+    describe('background burn configuration', () => {
+      it('should expose threshold within 30–60s range', () => {
+        expect(BACKGROUND_BURN_THRESHOLD_MS).toBeGreaterThanOrEqual(30_000);
+        expect(BACKGROUND_BURN_THRESHOLD_MS).toBeLessThanOrEqual(60_000);
       });
     });
   });
