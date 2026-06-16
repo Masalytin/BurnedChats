@@ -1,26 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import { encryptMessage, decryptMessage } from '@/crypto/aes';
-import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
-import { getGroupKey } from '@/crypto/keyStore';
-import { downloadThumbnail } from '@/services/fileDownloadService';
-import { enqueueUpload, cancelAll } from '@/services/transferQueue';
-import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
-import { validateFileForUpload } from '@/utils/fileValidation';
-import { fileValidationToastParams } from '@/utils/fileValidationI18n';
-import { enrichReplyTo } from '@/utils/replyPreview';
+import { encryptMessage } from '@/crypto/aes';
 import { isWithinEditWindow } from '@/utils/editWindow';
-import i18n from '@/i18n';
-import type {
-  DecryptedMessage,
-  DecryptedFileMessage,
-  FileMetadata,
-  MessageStatus,
-  MessageType,
-} from '@/types';
-import { useMessageSync } from '@/hooks/useMessageSync';
-import { useHiddenMessages } from '@/hooks/useHiddenMessages';
+import type { DecryptedMessage, DecryptedFileMessage, MessageStatus, MessageType } from '@/types';
 import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
+import {
+  useMessageCore,
+  getEncryptionKey,
+  toEpochMs,
+  toMessageType,
+  fileContentPlaceholder,
+  editedAtFromServerIso,
+  decryptWireFileMessage,
+  decryptTextContent,
+  sendEncryptedTextMessage,
+  sendEncryptedFileMessage,
+  createPendingDeletePromise,
+  type FileMessageWireFields,
+} from '@/hooks/useMessageCore';
 
 // ============================================
 // STOMP destinations
@@ -39,7 +36,12 @@ function getRoomTopic(roomId: string): string {
   return `/topic/room/${roomId}`;
 }
 
-/** Identity context for determining message ownership in room chats. */
+const LOG_TAG = 'useRoomMessages';
+
+// ============================================
+// Types
+// ============================================
+
 interface RoomMessageOwnershipContext {
   userInternalId: string;
   userTelegramId: number | null;
@@ -59,31 +61,16 @@ function isOwnRoomMessage(
   return false;
 }
 
-// ============================================
-// Types
-// ============================================
-
-/** New room message event from server */
-interface NewRoomMessageEvent {
+interface NewRoomMessageEvent extends FileMessageWireFields {
   roomId: string;
-  messageId: string;
   senderInternalId?: string | null;
   senderTgId?: number | null;
   senderName?: string | null;
-  encryptedContent: string;
-  iv: string;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
-  type?: string;
-  fileId?: string;
-  thumbnailFileId?: string;
-  encryptedMeta?: string;
-  fileSize?: number;
-  replyToMessageId?: string;
   eventType?: string;
 }
 
-/** Room message sent acknowledgment from server */
 interface RoomMessageSentEvent {
   success: boolean;
   roomId: string;
@@ -92,7 +79,6 @@ interface RoomMessageSentEvent {
   error?: string;
 }
 
-/** Room message edit broadcast / user-queue error */
 interface RoomMessageEditedEventPayload {
   eventType?: string;
   success: boolean;
@@ -112,26 +98,15 @@ interface RoomMessageEditedEventPayload {
   errorCode?: string;
 }
 
-/** Synced room message */
-interface SyncedRoomMessage {
-  messageId: string;
+interface SyncedRoomMessage extends FileMessageWireFields {
   senderInternalId?: string | null;
   senderTgId?: number | null;
   senderName?: string | null;
-  encryptedContent: string;
-  iv: string;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
-  type?: string;
-  fileId?: string;
-  thumbnailFileId?: string;
-  encryptedMeta?: string;
-  fileSize?: number;
-  replyToMessageId?: string;
   editedAt?: string | null;
 }
 
-/** Sync room messages response */
 interface SyncRoomMessagesEvent {
   success: boolean;
   roomId: string;
@@ -141,7 +116,6 @@ interface SyncRoomMessagesEvent {
   error?: string;
 }
 
-/** Room message error codes */
 export type RoomMessageErrorCode =
   | 'NOT_CONNECTED'
   | 'NO_ROOM'
@@ -151,14 +125,12 @@ export type RoomMessageErrorCode =
   | 'SEND_FAILED'
   | 'INTERNAL_ERROR';
 
-/** Send message result */
 export interface SendRoomMessageResult {
   success: boolean;
   messageId: string | null;
   error: RoomMessageErrorCode | null;
 }
 
-/** Options for file message sending */
 export interface SendRoomFileOptions {
   onProgress?: (percent: number) => void;
   onEncryptProgress?: (percent: number) => void;
@@ -166,26 +138,20 @@ export interface SendRoomFileOptions {
   replyToMessageId?: string;
 }
 
-/** WebSocket interface (same shape as DM — see {@link ChatWebSocketApi}) */
 export type UseRoomMessagesWebSocket = ChatWebSocketApi;
 
-/** Hook options */
 interface UseRoomMessagesOptions {
   roomId: string;
-  /** Legacy Telegram numeric id for wire metadata; use 0 when unlinked. */
   userId: number;
-  /** Stable internal user id — canonical identity for isOwn (IMP-WALLETID-08). */
   userInternalId: string;
   ws: UseRoomMessagesWebSocket;
   isReconnection?: boolean;
   onNewMessage?: (message: DecryptedMessage) => void;
   onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   onEditError?: (errorCode: string) => void;
-  /** Another member's message was removed by the room owner. */
   onMessageDeletedByOwner?: () => void;
 }
 
-/** Hook return value */
 export interface UseRoomMessagesReturn {
   messages: DecryptedMessage[];
   isLoading: boolean;
@@ -194,7 +160,6 @@ export interface UseRoomMessagesReturn {
   sendFileMessage: (file: File, caption?: string, options?: SendRoomFileOptions) => Promise<SendRoomMessageResult>;
   clearMessages: () => void;
   hideMessages: (ids: string | string[]) => void;
-  /** Manually trigger sync of offline/missed room messages (FIX-SYNC-3). */
   syncMessages: () => void;
   error: RoomMessageErrorCode | null;
   editMessage: (
@@ -202,26 +167,13 @@ export interface UseRoomMessagesReturn {
     newText: string,
     originalClientTimestamp: number,
   ) => Promise<{ success: boolean; errorCode?: string }>;
-  /** Delete for everyone (own message, or room owner can delete any). */
-  deleteMessage: (messageId: string) => Promise<{
-    success: boolean;
-    errorCode?: string;
-  }>;
+  deleteMessage: (messageId: string) => Promise<{ success: boolean; errorCode?: string }>;
 }
 
 // ============================================
 // Hook Implementation
 // ============================================
 
-/**
- * Hook for encrypted room message exchange (P2-4.2.2).
- *
- * Subscribes to the room's STOMP topic, handles encryption/decryption
- * using the group AES key stored in keyStore, and sends SEND_ROOM_MESSAGE.
- *
- * Encryption context: roomId is used as AAD (additional authenticated data),
- * consistent with how sessionId is used for 1-on-1 chats.
- */
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
   const { roomId, userId, userInternalId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner } = options;
   const ownershipCtx = useMemo(
@@ -231,197 +183,163 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     }),
     [userInternalId, userId],
   );
-  const { hiddenIds, hide: hideMessages } = useHiddenMessages('room', roomId);
-  const { isConnected, isReconnection: wsIsReconnection, subscribe, unsubscribe, publish } = ws;
-  // Accept isReconnection from top-level options (explicit) or from the ws object
-  const effectiveIsReconnection = options.isReconnection ?? wsIsReconnection ?? false;
 
-  const [messages, setMessages] = useState<DecryptedMessage[]>([]);
-  const visibleMessages = useMemo(
-    () =>
-      messages
-        .filter((m) => !hiddenIds.has(m.id))
-        .map((m) => enrichReplyTo(m, messages, i18n.t.bind(i18n))),
-    [messages, hiddenIds],
+  const { publish: wsPublish } = ws;
+
+  const canSyncRoom = useCallback(
+    () => Boolean(getEncryptionKey(roomId)),
+    [roomId],
   );
-  const [isLoading] = useState(false);
-  const [error, setError] = useState<RoomMessageErrorCode | null>(null);
 
-  const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
+  const doPublishSync = useCallback(() => {
+    wsPublish(SYNC_ROOM_MESSAGES_DESTINATION, { roomId });
+  }, [roomId, wsPublish]);
 
-  // Stable handler refs to avoid re-subscriptions on callback identity changes
   const handleNewMessageRef = useRef<(message: IMessage) => void>(() => {});
   const handleMessageSentRef = useRef<(message: IMessage) => void>(() => {});
   const handleSyncMessagesRef = useRef<(message: IMessage) => void>(() => {});
   const handleRoomMessageEditedUserRef = useRef<(message: IMessage) => void>(() => {});
   const handleRoomMessageDeleteUserRef = useRef<(message: IMessage) => void>(() => {});
-  const pendingRoomDeleteResolversRef = useRef(
-    new Map<string, (r: { success: boolean; errorCode?: string }) => void>(),
-  );
 
-  // ============================================
-  // Error Handling
-  // ============================================
+  const roomTopic = useMemo(() => getRoomTopic(roomId), [roomId]);
 
-  const handleError = useCallback((code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
-    setError(code);
-    onError?.(code, details, i18nValues);
-    console.error(`[useRoomMessages] Error: ${code}`, details);
-  }, [onError]);
-
-  const canSyncRoom = useCallback(() => Boolean(getGroupKey(roomId)), [roomId]);
-
-  const doPublishInitialSync = useCallback(() => {
-    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
-      roomId,
-    });
-  }, [roomId, publish]);
-
-  const doPublishReconnectSync = useCallback(() => {
-    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
-      roomId,
-    });
-  }, [roomId, publish]);
-
-  const messageSync = useMessageSync({
-    scopeId: roomId,
-    isConnected,
-    isReconnection: effectiveIsReconnection,
+  const core = useMessageCore<RoomMessageErrorCode>({
+    contextId: roomId,
+    hiddenScope: 'room',
+    logTag: LOG_TAG,
+    ws,
+    isReconnection: options.isReconnection,
     canSync: canSyncRoom,
-    doPublishInitialSync,
-    doPublishReconnectSync,
+    doPublishSync,
+    onError,
+    subscriptions: [
+      { destination: roomTopic, handlerRef: handleNewMessageRef },
+      { destination: ROOM_MESSAGE_SENT_DESTINATION, handlerRef: handleMessageSentRef },
+      { destination: SYNC_ROOM_MESSAGES_RESULT_DESTINATION, handlerRef: handleSyncMessagesRef },
+      { destination: ROOM_MESSAGE_EDITED_USER_DESTINATION, handlerRef: handleRoomMessageEditedUserRef },
+      { destination: ROOM_MESSAGE_DELETED_USER_DESTINATION, handlerRef: handleRoomMessageDeleteUserRef },
+    ],
+    canAutoReconnectSync: () => Boolean(getEncryptionKey(roomId)),
   });
-  const { isSyncing, setSyncing, triggerSyncIfReady, runReconnectIfNeeded } = messageSync;
 
-  // ============================================
-  // Send Message
-  // ============================================
+  const {
+    setMessages,
+    visibleMessages,
+    isLoading,
+    error,
+    setError,
+    handleError,
+    pendingMessagesRef,
+    pendingDeleteResolversRef,
+    hideMessages,
+    clearMessages,
+    isSyncing,
+    setSyncing,
+    syncMessages: coreSyncMessages,
+    isConnected,
+    publish,
+    getEncryptionKey: getRoomEncryptionKey,
+  } = core;
+
+  const buildFileMessage = useCallback((
+    wire: FileMessageWireFields & { senderInternalId?: string | null; senderTgId?: number | null; senderName?: string | null },
+    timestamp: number,
+    messageType: MessageType,
+    replyToMessageId?: string,
+    editedAt?: number,
+  ): Promise<DecryptedMessage> => {
+    return decryptWireFileMessage({
+      wire,
+      contextId: roomId,
+      timestamp,
+      messageType,
+      replyToMessageId,
+      editedAt,
+      logTag: LOG_TAG,
+      buildBase: (base) => ({
+        ...base,
+        fromUserId: wire.senderTgId ?? 0,
+        senderName: wire.senderName ?? undefined,
+        isOwn: isOwnRoomMessage(ownershipCtx, wire.senderInternalId, wire.senderTgId),
+      }),
+    });
+  }, [roomId, ownershipCtx]);
+
+  const validateBeforeSend = useCallback((): RoomMessageErrorCode | null => {
+    if (!isConnected) return 'NOT_CONNECTED';
+    if (!roomId) return 'NO_ROOM';
+    if (!getRoomEncryptionKey()) return 'NO_GROUP_KEY';
+    return null;
+  }, [isConnected, roomId, getRoomEncryptionKey]);
 
   const sendMessage = useCallback(async (
     text: string,
-    options?: { replyToMessageId?: string },
+    sendOptions?: { replyToMessageId?: string },
   ): Promise<SendRoomMessageResult> => {
-    setError(null);
-
-    if (!isConnected) {
-      handleError('NOT_CONNECTED');
-      return { success: false, messageId: null, error: 'NOT_CONNECTED' };
-    }
-
-    if (!roomId) {
-      handleError('NO_ROOM');
-      return { success: false, messageId: null, error: 'NO_ROOM' };
-    }
-
-    const groupKey = getGroupKey(roomId);
-    if (!groupKey) {
-      handleError('NO_GROUP_KEY');
-      return { success: false, messageId: null, error: 'NO_GROUP_KEY' };
-    }
-
-    const messageId = generateMessageId();
-    const timestamp = Date.now();
-    const replyToMessageId = options?.replyToMessageId;
-
-    try {
-      const encrypted = await encryptMessage(groupKey, text, roomId);
-
-      pendingMessagesRef.current.set(messageId, { text, timestamp });
-
-      const localMessage: DecryptedMessage = {
+    return sendEncryptedTextMessage({
+      text,
+      contextId: roomId,
+      logTag: LOG_TAG,
+      isConnected,
+      replyToMessageId: sendOptions?.replyToMessageId,
+      sendDestination: SEND_ROOM_MESSAGE_DESTINATION,
+      publish,
+      handleError,
+      setError,
+      setMessages,
+      pendingMessagesRef,
+      buildLocalMessage: (messageId, timestamp, content, replyToMessageId) => ({
         id: messageId,
         sessionId: roomId,
         fromUserId: userId,
-        content: text,
+        content,
         timestamp,
         status: 'sending',
         isOwn: true,
         type: 'text',
         replyToMessageId,
-      };
-      // senderName is intentionally omitted for own messages (own messages don't show sender label)
-      setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
-
-      publish(SEND_ROOM_MESSAGE_DESTINATION, {
+      }),
+      buildPublishPayload: ({ messageId, encryptedContent, iv, timestamp, replyToMessageId }) => ({
         roomId,
         messageId,
-        encryptedContent: encrypted.ciphertext,
-        iv: encrypted.iv,
+        encryptedContent,
+        iv,
         timestamp,
         ...(replyToMessageId ? { replyToMessageId } : {}),
-      });
-
-      return { success: true, messageId, error: null };
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      handleError('ENCRYPTION_FAILED', errMsg);
-      return { success: false, messageId: null, error: 'ENCRYPTION_FAILED' };
-    }
-  }, [isConnected, roomId, userId, publish, handleError]);
-
-  // ============================================
-  // File Message Sending (P4-3-2-2)
-  // ============================================
+      }),
+      validateBeforeSend,
+      noKeyError: 'NO_GROUP_KEY',
+      encryptionFailedError: 'ENCRYPTION_FAILED',
+      messageIdPrefix: 'room-msg',
+    });
+  }, [
+    roomId, isConnected, publish, handleError, setError, setMessages,
+    pendingMessagesRef, userId, validateBeforeSend,
+  ]);
 
   const sendFileMessage = useCallback(async (
     file: File,
     caption?: string,
-    options?: SendRoomFileOptions,
+    sendOptions?: SendRoomFileOptions,
   ): Promise<SendRoomMessageResult> => {
-    setError(null);
-
-    if (!isConnected) {
-      handleError('NOT_CONNECTED');
-      return { success: false, messageId: null, error: 'NOT_CONNECTED' };
-    }
-
-    if (!roomId) {
-      handleError('NO_ROOM');
-      return { success: false, messageId: null, error: 'NO_ROOM' };
-    }
-
-    const groupKey = getGroupKey(roomId);
-    if (!groupKey) {
-      handleError('NO_GROUP_KEY');
-      return { success: false, messageId: null, error: 'NO_GROUP_KEY' };
-    }
-
-    const validated = validateFileForUpload(file);
-    if (!validated.ok) {
-      handleError('SEND_FAILED', validated.errorKey, fileValidationToastParams(validated));
-      return { success: false, messageId: null, error: 'SEND_FAILED' };
-    }
-
-    const messageId = generateMessageId();
-    const timestamp = Date.now();
-    const messageType = validated.messageType;
-    const replyToMessageId = options?.replyToMessageId;
-
-    try {
-      const uploadHandle = enqueueUpload({
-        file,
-        key: groupKey,
-        context: { type: 'room', id: roomId },
-        onProgress: options?.onProgress,
-        onEncryptProgress: options?.onEncryptProgress,
-        signal: options?.signal,
-      });
-      const uploadResult = await uploadHandle.result;
-
-      const encryptedMeta = await encryptFileMetadata(
-        { fileName: file.name, mimeType: validated.resolvedMime },
-        groupKey,
-      );
-
-      const encrypted = await encryptMessage(groupKey, caption || '', roomId);
-
-      pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
-
-      const localMessage: DecryptedFileMessage = {
+    return sendEncryptedFileMessage({
+      file,
+      caption,
+      contextId: roomId,
+      logTag: LOG_TAG,
+      isConnected,
+      uploadContext: { type: 'room', id: roomId },
+      sendDestination: SEND_ROOM_MESSAGE_DESTINATION,
+      publish,
+      handleError,
+      setError,
+      setMessages,
+      pendingMessagesRef,
+      buildLocalFileMessage: (messageId, timestamp, messageType, uploadResult, f, resolvedMime, cap, replyToMessageId) => ({
         id: messageId,
         sessionId: roomId,
         fromUserId: userId,
-        content: caption || fileContentPlaceholder(messageType, file.name),
+        content: cap || fileContentPlaceholder(messageType, f.name),
         timestamp,
         status: 'sending',
         isOwn: true,
@@ -430,106 +348,24 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         thumbnailFileId: uploadResult.thumbnailFileId,
         thumbnailUrl: uploadResult.thumbnailDataUrl,
         fileSize: uploadResult.size,
-        fileMeta: { fileName: file.name, mimeType: validated.resolvedMime },
+        fileMeta: { fileName: f.name, mimeType: resolvedMime },
         replyToMessageId,
-      };
-      setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
-
-      publish(SEND_ROOM_MESSAGE_DESTINATION, {
-        roomId,
-        messageId,
-        encryptedContent: encrypted.ciphertext,
-        iv: encrypted.iv,
-        timestamp,
-        type: messageType,
-        fileId: uploadResult.fileId,
-        thumbnailFileId: uploadResult.thumbnailFileId,
-        encryptedMeta,
-        fileSize: uploadResult.size,
-        ...(replyToMessageId ? { replyToMessageId } : {}),
-      });
-
-      return { success: true, messageId, error: null };
-
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return { success: false, messageId: null, error: 'SEND_FAILED' };
-      }
-      if (err instanceof FileTransferError && err.kind === 'aborted') {
-        return { success: false, messageId: null, error: 'SEND_FAILED' };
-      }
-      if (err instanceof FileTransferError) {
-        handleError('SEND_FAILED', fileTransferErrorI18nKey(err));
-        return { success: false, messageId: null, error: 'SEND_FAILED' };
-      }
-      const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      handleError('SEND_FAILED', errMsg);
-      return { success: false, messageId: null, error: 'SEND_FAILED' };
-    }
-  }, [isConnected, roomId, userId, publish, handleError]);
-
-  const deleteMessage = useCallback(
-    (messageId: string) => {
-      if (!isConnected || !roomId) {
-        return Promise.resolve({ success: false, errorCode: 'NOT_CONNECTED' });
-      }
-      return new Promise<{ success: boolean; errorCode?: string }>(resolve => {
-        pendingRoomDeleteResolversRef.current.set(messageId, resolve);
-        publish(DELETE_ROOM_MESSAGE_DESTINATION, { roomId, messageId });
-        window.setTimeout(() => {
-          if (pendingRoomDeleteResolversRef.current.has(messageId)) {
-            pendingRoomDeleteResolversRef.current.delete(messageId);
-            resolve({ success: false, errorCode: 'INTERNAL_ERROR' });
-          }
-        }, 15_000);
-      });
-    },
-    [isConnected, roomId, publish],
-  );
-
-  const editMessage = useCallback(
-    async (
-      messageId: string,
-      newText: string,
-      originalClientTimestamp: number,
-    ): Promise<{ success: boolean; errorCode?: string }> => {
-      setError(null);
-      if (!isConnected) {
-        return { success: false, errorCode: 'NOT_CONNECTED' };
-      }
-      if (!roomId) {
-        return { success: false, errorCode: 'NO_ROOM' };
-      }
-      const groupKey = getGroupKey(roomId);
-      if (!groupKey) {
-        return { success: false, errorCode: 'NO_GROUP_KEY' };
-      }
-      if (!isWithinEditWindow(originalClientTimestamp)) {
-        return { success: false, errorCode: 'WINDOW_EXPIRED' };
-      }
-      try {
-        const encrypted = await encryptMessage(groupKey, newText, roomId);
-        publish(EDIT_ROOM_MESSAGE_DESTINATION, {
-          roomId,
-          messageId,
-          encryptedContent: encrypted.ciphertext,
-          iv: encrypted.iv,
-          editedAt: Date.now(),
-          originalClientTimestamp,
-        });
-        return { success: true };
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : 'Unknown error';
-        handleError('ENCRYPTION_FAILED', errMsg);
-        return { success: false, errorCode: 'ENCRYPTION_FAILED' };
-      }
-    },
-    [isConnected, roomId, publish, handleError],
-  );
-
-  // ============================================
-  // Receive Message Handler
-  // ============================================
+      } as DecryptedFileMessage),
+      buildPublishPayload: (payload) => ({ roomId, ...payload }),
+      validateBeforeSend,
+      noKeyError: 'NO_GROUP_KEY',
+      encryptionFailedError: 'ENCRYPTION_FAILED',
+      sendFailedError: 'SEND_FAILED',
+      messageIdPrefix: 'room-msg',
+      onProgress: sendOptions?.onProgress,
+      onEncryptProgress: sendOptions?.onEncryptProgress,
+      signal: sendOptions?.signal,
+      replyToMessageId: sendOptions?.replyToMessageId,
+    });
+  }, [
+    roomId, isConnected, publish, handleError, setError, setMessages,
+    pendingMessagesRef, userId, validateBeforeSend,
+  ]);
 
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
@@ -543,13 +379,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           deletedByTgId?: number;
           deletedByOwner?: boolean;
         };
-        if (!del.messageId || del.success === false) {
-          return;
-        }
+        if (!del.messageId || del.success === false) return;
         setMessages(prev => prev.filter(m => m.id !== del.messageId));
-        const finish = pendingRoomDeleteResolversRef.current.get(del.messageId);
+        const finish = pendingDeleteResolversRef.current.get(del.messageId);
         if (finish) {
-          pendingRoomDeleteResolversRef.current.delete(del.messageId);
+          pendingDeleteResolversRef.current.delete(del.messageId);
           finish({ success: true });
         }
         if (del.deletedByOwner && del.deletedByTgId !== userId && userId !== 0) {
@@ -560,19 +394,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       if (event.eventType === 'ROOM_MESSAGE_EDITED') {
         const edit = event as unknown as RoomMessageEditedEventPayload;
-        if (!edit.success || !edit.messageId) {
-          return;
-        }
-        const groupKey = getGroupKey(roomId);
-        const encContent = edit.encryptedContent;
-        const encIv = edit.iv;
-        if (!groupKey || !encContent || !encIv) {
+        if (!edit.success || !edit.messageId) return;
+        if (!getRoomEncryptionKey() || !edit.encryptedContent || !edit.iv) {
           handleError('NO_GROUP_KEY', 'Cannot apply room message edit');
           return;
         }
-        const editedAtMs = edit.editedAt
-          ? new Date(edit.editedAt).getTime()
-          : Date.now();
+        const editedAtMs = edit.editedAt ? new Date(edit.editedAt).getTime() : Date.now();
         setMessages((prev) => {
           const existing = prev.find(m => m.id === edit.messageId);
           const keepTs = existing?.timestamp ?? Date.now();
@@ -581,28 +408,22 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           void (async () => {
             try {
               if (isFileMsg) {
-                const fileMsg = await decryptRoomFileEvent(
+                const fileMsg = await buildFileMessage(
                   {
-                    roomId: edit.roomId,
                     messageId: edit.messageId,
                     senderInternalId: edit.senderInternalId,
                     senderTgId: edit.senderTgId ?? null,
                     senderName: edit.senderName,
-                    encryptedContent: encContent,
-                    iv: encIv,
-                    clientTimestamp: keepTs,
+                    encryptedContent: edit.encryptedContent!,
+                    iv: edit.iv!,
                     type: edit.type,
                     fileId: edit.fileId,
                     thumbnailFileId: edit.thumbnailFileId,
                     encryptedMeta: edit.encryptedMeta,
                     fileSize: edit.fileSize,
-                  } as NewRoomMessageEvent,
-                  groupKey,
-                  roomId,
-                  ownershipCtx,
+                  },
                   keepTs,
                   eventType,
-                  undefined,
                 );
                 setMessages(p => p.map(m =>
                   m.id === edit.messageId
@@ -610,12 +431,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
                     : m
                 ));
               } else {
-                const plaintext = await decryptMessage(
-                  groupKey,
-                  encContent,
-                  encIv,
-                  roomId,
-                );
+                const plaintext = await decryptTextContent(roomId, edit.encryptedContent!, edit.iv!);
                 setMessages(p => p.map(m =>
                   m.id === edit.messageId
                     ? { ...m, content: plaintext, editedAt: editedAtMs }
@@ -632,8 +448,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         return;
       }
 
-      const groupKey = getGroupKey(roomId);
-      if (!groupKey) {
+      if (!getRoomEncryptionKey()) {
         handleError('NO_GROUP_KEY', 'Cannot decrypt room message — no group key');
         return;
       }
@@ -646,11 +461,9 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         let decryptedMsg: DecryptedMessage;
 
         if (isFileMsg) {
-          decryptedMsg = await decryptRoomFileEvent(
-            event, groupKey, roomId, ownershipCtx, ts, eventType, event.replyToMessageId || undefined,
-          );
+          decryptedMsg = await buildFileMessage(event, ts, eventType, event.replyToMessageId || undefined);
         } else {
-          const plaintext = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
+          const plaintext = await decryptTextContent(roomId, event.encryptedContent, event.iv);
           decryptedMsg = {
             id: event.messageId,
             sessionId: roomId,
@@ -687,15 +500,16 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse message:', parseErr);
     }
-  }, [roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner, userId]);
+  }, [
+    roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner,
+    userId, getRoomEncryptionKey, setMessages, pendingDeleteResolversRef, buildFileMessage,
+  ]);
 
   const handleRoomMessageEditedUser = useCallback(
     (message: IMessage) => {
       try {
         const event: RoomMessageEditedEventPayload = JSON.parse(message.body);
-        if (event.roomId !== roomId) {
-          return;
-        }
+        if (event.roomId !== roomId) return;
         if (event.success === false) {
           onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
         }
@@ -715,32 +529,23 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           success: boolean;
           errorCode?: string;
         };
-        if (event.roomId !== roomId) {
-          return;
-        }
-        if (event.success) {
-          return;
-        }
-        const finish = pendingRoomDeleteResolversRef.current.get(event.messageId);
+        if (event.roomId !== roomId) return;
+        if (event.success) return;
+        const finish = pendingDeleteResolversRef.current.get(event.messageId);
         if (finish) {
-          pendingRoomDeleteResolversRef.current.delete(event.messageId);
+          pendingDeleteResolversRef.current.delete(event.messageId);
           finish({ success: false, errorCode: event.errorCode ?? 'NOT_ALLOWED' });
         }
       } catch (e) {
         console.error('[useRoomMessages] room-message-deleted user queue', e);
       }
     },
-    [roomId],
+    [roomId, pendingDeleteResolversRef],
   );
-
-  // ============================================
-  // Message Sent Acknowledgment Handler
-  // ============================================
 
   const handleMessageSent = useCallback((message: IMessage) => {
     try {
       const event: RoomMessageSentEvent = JSON.parse(message.body);
-
       if (event.roomId !== roomId) return;
 
       pendingMessagesRef.current.delete(event.messageId);
@@ -759,30 +564,22 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse room-message-sent event:', parseErr);
     }
-  }, [roomId, handleError]);
-
-  // ============================================
-  // Sync Messages Handler
-  // ============================================
+  }, [roomId, handleError, setMessages, pendingMessagesRef]);
 
   const handleSyncMessages = useCallback(async (message: IMessage) => {
     try {
       const event: SyncRoomMessagesEvent = JSON.parse(message.body);
-
       if (event.roomId !== roomId) return;
 
       setSyncing(false);
-
       if (!event.success) return;
 
       const serverList = event.messages ?? [];
-      const groupKey = getGroupKey(roomId);
-      if (serverList.length > 0 && !groupKey) {
+      if (serverList.length > 0 && !getRoomEncryptionKey()) {
         handleError('NO_GROUP_KEY', 'Cannot decrypt synced room messages — no group key');
         return;
       }
 
-      // Full server list for the room: replace delivered messages, keep only local in-flight (sending / failed)
       if (serverList.length === 0) {
         setMessages(prev => prev
           .filter(m => m.status === 'sending' || m.status === 'failed')
@@ -799,12 +596,16 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
 
           if (isFileMsg) {
-            const fileMsg = await decryptSyncedRoomFileMessage(
-              syncedMsg, groupKey!, roomId, ownershipCtx, ts, msgType, editedAtFromServerIso(syncedMsg.editedAt),
+            const fileMsg = await buildFileMessage(
+              syncedMsg,
+              ts,
+              msgType,
+              syncedMsg.replyToMessageId || undefined,
+              editedAtFromServerIso(syncedMsg.editedAt),
             );
             decryptedMessages.push(fileMsg);
           } else {
-            const plaintext = await decryptMessage(groupKey!, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
+            const plaintext = await decryptTextContent(roomId, syncedMsg.encryptedContent, syncedMsg.iv);
             decryptedMessages.push({
               id: syncedMsg.messageId,
               sessionId: roomId,
@@ -839,9 +640,54 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       console.error('[useRoomMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [roomId, ownershipCtx, handleError, setSyncing]);
+  }, [roomId, ownershipCtx, handleError, setSyncing, getRoomEncryptionKey, setMessages, buildFileMessage]);
 
-  // Keep handler refs up to date
+  const editMessage = useCallback(
+    async (
+      messageId: string,
+      newText: string,
+      originalClientTimestamp: number,
+    ): Promise<{ success: boolean; errorCode?: string }> => {
+      setError(null);
+      if (!isConnected) return { success: false, errorCode: 'NOT_CONNECTED' };
+      if (!roomId) return { success: false, errorCode: 'NO_ROOM' };
+      const groupKey = getRoomEncryptionKey();
+      if (!groupKey) return { success: false, errorCode: 'NO_GROUP_KEY' };
+      if (!isWithinEditWindow(originalClientTimestamp)) return { success: false, errorCode: 'WINDOW_EXPIRED' };
+      try {
+        const encrypted = await encryptMessage(groupKey, newText, roomId);
+        publish(EDIT_ROOM_MESSAGE_DESTINATION, {
+          roomId,
+          messageId,
+          encryptedContent: encrypted.ciphertext,
+          iv: encrypted.iv,
+          editedAt: Date.now(),
+          originalClientTimestamp,
+        });
+        return { success: true };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        handleError('ENCRYPTION_FAILED', errMsg);
+        return { success: false, errorCode: 'ENCRYPTION_FAILED' };
+      }
+    },
+    [isConnected, roomId, publish, handleError, setError, getRoomEncryptionKey],
+  );
+
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      if (!isConnected || !roomId) {
+        return Promise.resolve({ success: false, errorCode: 'NOT_CONNECTED' });
+      }
+      return createPendingDeletePromise(
+        messageId,
+        pendingDeleteResolversRef,
+        () => publish(DELETE_ROOM_MESSAGE_DESTINATION, { roomId, messageId }),
+      );
+    },
+    [isConnected, roomId, publish, pendingDeleteResolversRef],
+  );
+
   useEffect(() => {
     handleNewMessageRef.current = handleNewMessage;
     handleMessageSentRef.current = handleMessageSent;
@@ -850,89 +696,9 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     handleRoomMessageDeleteUserRef.current = handleRoomMessageDeleteUser;
   });
 
-  // ============================================
-  // Clear Messages
-  // ============================================
-
-  const clearMessages = useCallback(() => {
-    cancelAll();
-    setMessages([]);
-    pendingMessagesRef.current.clear();
-    setError(null);
-  }, []);
-
-  // ============================================
-  // Subscriptions + Initial Sync
-  // ============================================
-
-  useEffect(() => {
-    if (!isConnected || !roomId) return;
-
-    const roomTopic = getRoomTopic(roomId);
-
-    const onNewMsg = (msg: IMessage) => handleNewMessageRef.current(msg);
-    const onMsgSent = (msg: IMessage) => handleMessageSentRef.current(msg);
-    const onSyncResult = (msg: IMessage) => handleSyncMessagesRef.current(msg);
-    const onRoomEditUser = (msg: IMessage) => handleRoomMessageEditedUserRef.current(msg);
-    const onRoomDeleteUser = (msg: IMessage) => handleRoomMessageDeleteUserRef.current(msg);
-
-    subscribe(roomTopic, onNewMsg);
-    subscribe(ROOM_MESSAGE_SENT_DESTINATION, onMsgSent);
-    subscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION, onSyncResult);
-    subscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION, onRoomEditUser);
-    subscribe(ROOM_MESSAGE_DELETED_USER_DESTINATION, onRoomDeleteUser);
-
-    triggerSyncIfReady('subscription');
-
-    return () => {
-      unsubscribe(roomTopic);
-      unsubscribe(ROOM_MESSAGE_SENT_DESTINATION);
-      unsubscribe(SYNC_ROOM_MESSAGES_RESULT_DESTINATION);
-      unsubscribe(ROOM_MESSAGE_EDITED_USER_DESTINATION);
-      unsubscribe(ROOM_MESSAGE_DELETED_USER_DESTINATION);
-    };
-  // Intentionally exclude subscribe/unsubscribe/publish (stable from parent); re-run on room connection.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, roomId, triggerSyncIfReady]);
-
-  useEffect(() => {
-    if (!isConnected || !roomId || !effectiveIsReconnection) {
-      return;
-    }
-    if (!getGroupKey(roomId)) {
-      return;
-    }
-    runReconnectIfNeeded();
-  }, [isConnected, roomId, effectiveIsReconnection, runReconnectIfNeeded]);
-
-  // Cleanup on room change
-  useEffect(() => {
-    return () => {
-      clearMessages();
-    };
-  }, [roomId, clearMessages]);
-
-  // ============================================
-  // Manual sync (FIX-SYNC-3)
-  // ============================================
-
-  /**
-   * Request offline/missed room messages from the server.
-   *
-   * Used by AppContent to re-sync when the Mini App returns from background.
-   * Safe to call multiple times — server returns an empty list once the queue
-   * is drained (queue is deleted on sync).
-   */
   const syncMessages = useCallback(() => {
-    if (!isConnected || !roomId) return;
-    if (!getGroupKey(roomId)) return;
-
-    setSyncing(true);
-    // Full offline queue drain — server returns all pending room messages and clears the queue.
-    publish(SYNC_ROOM_MESSAGES_DESTINATION, {
-      roomId,
-    });
-  }, [isConnected, roomId, publish, setSyncing]);
+    coreSyncMessages(() => Boolean(getRoomEncryptionKey()));
+  }, [coreSyncMessages, getRoomEncryptionKey]);
 
   return {
     messages: visibleMessages,
@@ -947,165 +713,4 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     editMessage,
     deleteMessage,
   };
-}
-
-// ============================================
-// Utility Functions
-// ============================================
-
-function generateMessageId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `room-msg-${timestamp}-${random}`;
-}
-
-function toEpochMs(clientTimestamp?: number | null, serverTimestamp?: string): number {
-  if (typeof clientTimestamp === 'number' && Number.isFinite(clientTimestamp) && clientTimestamp >= 0) {
-    return clientTimestamp;
-  }
-  if (serverTimestamp) {
-    const ms = new Date(serverTimestamp).getTime();
-    if (Number.isFinite(ms)) return ms;
-  }
-  return Date.now();
-}
-
-function editedAtFromServerIso(iso?: string | null): number | undefined {
-  if (!iso) return undefined;
-  const ms = new Date(iso).getTime();
-  return Number.isFinite(ms) ? ms : undefined;
-}
-
-// ============================================
-// File Message Helpers (P4-3-2-2 / P4-3-2-3)
-// ============================================
-
-function toMessageType(raw?: string): MessageType {
-  if (raw === 'image' || raw === 'video' || raw === 'file') return raw;
-  return 'text';
-}
-
-function fileContentPlaceholder(type: MessageType, fileName?: string): string {
-  const name = fileName || 'file';
-  switch (type) {
-    case 'image': return `📷 ${name}`;
-    case 'video': return `🎬 ${name}`;
-    case 'file':  return `📎 ${name}`;
-    default:      return name;
-  }
-}
-
-async function decryptRoomFileEvent(
-  event: NewRoomMessageEvent,
-  groupKey: CryptoKey,
-  roomId: string,
-  ownershipCtx: RoomMessageOwnershipContext,
-  timestamp: number,
-  messageType: MessageType,
-  replyToMessageId?: string,
-): Promise<DecryptedMessage> {
-  let caption = '';
-  try {
-    caption = await decryptMessage(groupKey, event.encryptedContent, event.iv, roomId);
-  } catch {
-    // Caption may be empty-encrypted
-  }
-
-  let fileMeta: FileMetadata | undefined;
-  if (event.encryptedMeta) {
-    try {
-      fileMeta = await decryptFileMetadata(event.encryptedMeta, groupKey);
-    } catch (err) {
-      console.error('[useRoomMessages] Failed to decrypt file metadata:', err);
-    }
-  }
-
-  let thumbnailUrl: string | undefined;
-  if (event.thumbnailFileId) {
-    try {
-      thumbnailUrl = await downloadThumbnail(event.thumbnailFileId, groupKey);
-    } catch (err) {
-      console.error('[useRoomMessages] Failed to download thumbnail:', err);
-    }
-  }
-
-  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
-
-  const msg: DecryptedFileMessage = {
-    id: event.messageId,
-    sessionId: roomId,
-    fromUserId: event.senderTgId ?? 0,
-    senderName: event.senderName ?? undefined,
-    content,
-    timestamp,
-    status: 'delivered',
-    isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
-    type: messageType as 'image' | 'video' | 'file',
-    fileId: event.fileId!,
-    fileSize: event.fileSize ?? 0,
-    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
-    thumbnailFileId: event.thumbnailFileId,
-    thumbnailUrl,
-    replyToMessageId,
-  };
-
-  return msg;
-}
-
-async function decryptSyncedRoomFileMessage(
-  syncedMsg: SyncedRoomMessage,
-  groupKey: CryptoKey,
-  roomId: string,
-  ownershipCtx: RoomMessageOwnershipContext,
-  timestamp: number,
-  messageType: MessageType,
-  editedAt?: number,
-): Promise<DecryptedMessage> {
-  let caption = '';
-  try {
-    caption = await decryptMessage(groupKey, syncedMsg.encryptedContent, syncedMsg.iv, roomId);
-  } catch {
-    // No caption
-  }
-
-  let fileMeta: FileMetadata | undefined;
-  if (syncedMsg.encryptedMeta) {
-    try {
-      fileMeta = await decryptFileMetadata(syncedMsg.encryptedMeta, groupKey);
-    } catch (err) {
-      console.error('[useRoomMessages] Failed to decrypt synced file metadata:', err);
-    }
-  }
-
-  let thumbnailUrl: string | undefined;
-  if (syncedMsg.thumbnailFileId) {
-    try {
-      thumbnailUrl = await downloadThumbnail(syncedMsg.thumbnailFileId, groupKey);
-    } catch (err) {
-      console.error('[useRoomMessages] Failed to download synced thumbnail:', err);
-    }
-  }
-
-  const content = caption || fileContentPlaceholder(messageType, fileMeta?.fileName);
-
-  const msg: DecryptedFileMessage = {
-    id: syncedMsg.messageId,
-    sessionId: roomId,
-    fromUserId: syncedMsg.senderTgId ?? 0,
-    senderName: syncedMsg.senderName ?? undefined,
-    content,
-    timestamp,
-    status: 'delivered',
-    isOwn: isOwnRoomMessage(ownershipCtx, syncedMsg.senderInternalId, syncedMsg.senderTgId),
-    type: messageType as 'image' | 'video' | 'file',
-    fileId: syncedMsg.fileId!,
-    fileSize: syncedMsg.fileSize ?? 0,
-    fileMeta: fileMeta ?? { fileName: 'unknown', mimeType: 'application/octet-stream' },
-    thumbnailFileId: syncedMsg.thumbnailFileId,
-    thumbnailUrl,
-    replyToMessageId: syncedMsg.replyToMessageId || undefined,
-    ...(editedAt != null ? { editedAt } : {}),
-  };
-
-  return msg;
 }
