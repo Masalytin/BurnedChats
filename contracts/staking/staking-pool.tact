@@ -221,6 +221,11 @@ contract StakingPool(
         });
     }
 
+    /// Jetton wallet bounced payout (e.g. insufficient jetton balance) — restore pool bookkeeping.
+    bounced(msg: bounced<JettonTransferOut>) {
+        self.pool_balance += msg.amount;
+    }
+
     get fun get_staking_master(): Address {
         return self.stakingMaster;
     }

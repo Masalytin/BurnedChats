@@ -728,6 +728,11 @@ contract BurnJettonWallet(
         self.balance += msg.amount;
     }
 
+    /// Burn notify to master failed — restore deducted burn leg so wallet balance matches totalSupply.
+    bounced(msg: bounced<JettonBurnNotification>) {
+        self.balance += msg.amount;
+    }
+
     get fun get_wallet_data(): BurnJettonWalletData {
         return BurnJettonWalletData {
             balance: self.balance,

@@ -1,4 +1,5 @@
 import { beginCell, toNano } from '@ton/core';
+import { internal } from '@ton/sandbox';
 import {
     BurnJettonMaster_errors_backward,
     JettonTransferInternal,
@@ -8,7 +9,7 @@ import {
     type SetAutoReduceParams as SetAutoReduceParamsMsg,
     type SetFeeParams as SetFeeParamsMsg,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
-import { BurnJettonWallet_errors_backward } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
+import { BurnJettonWallet_errors_backward, storeJettonBurnNotification } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
 import {
     deployJetton,
     getWallet,
@@ -813,6 +814,58 @@ describe('BurnJetton', () => {
                 success: false,
                 exitCode: BurnJettonMaster_errors_backward['Only timelock'],
             });
+        });
+    });
+
+    describe('bounce handlers (IMP-AUDIT-08)', () => {
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        });
+
+        it('JettonBurnNotification bounce restores wallet balance without changing totalSupply', async () => {
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const burnLeg = 5n * NANO_PER_BURN;
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+
+            const xfer = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: burnLeg,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON_EXCLUDED,
+            });
+            expect(xfer.transactions).toHaveTransaction({ from: wx.address, success: true });
+            expect((await wx.getGetWalletData()).balance).toBe(95n * NANO_PER_BURN);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+
+            const notifyBody = beginCell()
+                .storeUint(0xffffffff, 32)
+                .store(
+                    storeJettonBurnNotification({
+                        $$type: 'JettonBurnNotification',
+                        queryId: 99n,
+                        amount: burnLeg,
+                        sender: ctx.userX.address,
+                        responseDestination: ctx.userX.address,
+                    }),
+                )
+                .endCell();
+
+            const bounceTx = await ctx.blockchain.sendMessage(
+                internal({
+                    from: ctx.master.address,
+                    to: wx.address,
+                    value: toNano('0.05'),
+                    bounced: true,
+                    body: notifyBody,
+                }),
+            );
+            expect(bounceTx.transactions).toHaveTransaction({ on: wx.address, success: true });
+            expect((await wx.getGetWalletData()).balance).toBe(100n * NANO_PER_BURN);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
         });
     });
 });

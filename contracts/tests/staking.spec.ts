@@ -1149,3 +1149,43 @@ describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
         });
     });
 });
+
+describe('bounce handlers (IMP-AUDIT-08)', () => {
+    it('PayRewards bounce restores pool_balance when jetton wallet lacks balance', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stake-bounce-pay.json');
+        const user = await env.blockchain.treasury('bounce-user');
+        const stakeAmt = 10n * NANO_PER_BURN;
+        await mintAndSyncUser(env, user, stakeAmt);
+        await stakeAs(env, user, 0, stakeAmt);
+
+        const poolRewardWallet = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.pool.getGetJettonRewardsWallet()),
+        );
+        const walletBal = (await poolRewardWallet.getGetWalletData()).balance;
+        expect(walletBal).toBeLessThan(20n * NANO_PER_BURN);
+
+        const masterSender = env.blockchain.sender(env.stakingMaster.address);
+        const creditDelta = 50n * NANO_PER_BURN;
+        await env.pool.sendCreditPoolBalance(masterSender, creditDelta);
+        const poolBalBeforePay = await env.pool.getGetPoolBalance();
+
+        const payoutAmt = 40n * NANO_PER_BURN;
+        expect(payoutAmt).toBeGreaterThan(walletBal);
+
+        const payTx = await env.pool.sendPayRewards(masterSender, {
+            recipient: user.address,
+            amount: payoutAmt,
+        });
+        expect(payTx.transactions).toHaveTransaction({
+            from: env.pool.address,
+            to: poolRewardWallet.address,
+            op: 0xf8a7ea5,
+            success: false,
+        });
+        expect(payTx.transactions).toHaveTransaction({
+            on: env.pool.address,
+            success: true,
+        });
+        expect(await env.pool.getGetPoolBalance()).toBe(poolBalBeforePay);
+    });
+});
