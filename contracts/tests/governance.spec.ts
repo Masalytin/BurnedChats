@@ -132,16 +132,19 @@ async function createProposal(
     proposer: SandboxContract<TreasuryContract>,
     proposalType: number,
     payload: Cell,
-    options: { openVoting?: boolean } = {},
+    options: { openVoting?: boolean; totalVpOverride?: bigint } = {},
 ): Promise<CreatedProposal> {
     const totalVp = await env.stakingMaster.getGetTotalVotingPower();
     expect(totalVp).toBeGreaterThan(0n);
     const id = await env.governor.getGetProposalCount();
 
+    // IMP-AUDIT-02: `totalVpAtSnapshot` is ignored on-chain — the Governor snapshots the
+    // real total VP from the StakingMaster. `totalVpOverride` lets manipulation tests send a
+    // spoofed value and assert the deployed proposal still uses the trusted denominator.
     const createTx = await env.governor.sendCreateProposal(proposer.getSender(), {
         proposalType,
         payload,
-        totalVpAtSnapshot: totalVp,
+        totalVpAtSnapshot: options.totalVpOverride ?? totalVp,
         claimedVp: totalVp,
     });
     expect(createTx.transactions).toHaveTransaction({ on: env.governor.address, success: true });
@@ -585,6 +588,86 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                 exitCode: Proposal_errors_backward['Too late'],
             });
             expect(await opened.proposal.getGetState()).toBe(PS_ACTIVE);
+        });
+    });
+
+    describe('totalVpAtSnapshot is snapshotted on-chain (IMP-AUDIT-02)', () => {
+        // Quorum percent for Parameter proposals (type 0) — defaultGovernorProposalConfigs.
+        const PARAM_QUORUM_PCT = 10n;
+
+        it('ignores an understated proposer snapshot and uses the on-chain total VP', async () => {
+            const env = await setupGovernance('https://example.com/gov-vp-understate.json');
+            const voter = await env.blockchain.treasury('gov-vp-under-voter');
+            await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+            const trueTotalVp = await env.stakingMaster.getGetTotalVotingPower();
+            expect(trueTotalVp).toBeGreaterThan(0n);
+
+            const target = await env.blockchain.treasury('vp-under-target');
+            // Proposer tries to deflate the denominator to ~zero to trivialise quorum.
+            const { proposal, createTx } = await createProposal(
+                env,
+                voter,
+                TYPE_PARAM,
+                paramPayload(target.address, 1),
+                { totalVpOverride: 1n },
+            );
+
+            // Phase-2 snapshot round-trip ran on the StakingMaster and deployed the proposal.
+            expect(createTx.transactions).toHaveTransaction({
+                on: env.stakingMaster.address,
+                success: true,
+            });
+
+            // The proposal stores the trusted on-chain denominator, NOT the spoofed `1n`.
+            expect(await proposal.getGetTotalVpSnapshot()).toBe(trueTotalVp);
+            expect(await proposal.getGetQuorumRequired()).toBe((trueTotalVp * PARAM_QUORUM_PCT) / 100n);
+        });
+
+        it('ignores an overstated proposer snapshot and uses the on-chain total VP', async () => {
+            const env = await setupGovernance('https://example.com/gov-vp-overstate.json');
+            const voter = await env.blockchain.treasury('gov-vp-over-voter');
+            await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+            const trueTotalVp = await env.stakingMaster.getGetTotalVotingPower();
+
+            const target = await env.blockchain.treasury('vp-over-target');
+            // Proposer tries to inflate the denominator to make quorum unreachable.
+            const { proposal } = await createProposal(
+                env,
+                voter,
+                TYPE_PARAM,
+                paramPayload(target.address, 1),
+                { totalVpOverride: trueTotalVp * 1_000_000n },
+            );
+
+            expect(await proposal.getGetTotalVpSnapshot()).toBe(trueTotalVp);
+            expect(await proposal.getGetQuorumRequired()).toBe((trueTotalVp * PARAM_QUORUM_PCT) / 100n);
+        });
+
+        it('a deflated snapshot cannot pre-cook the quorum: honest flow still gates on the trusted total', async () => {
+            const env = await setupGovernance('https://example.com/gov-vp-e2e.json');
+            const voter = await env.blockchain.treasury('gov-vp-e2e-voter');
+            await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+            const trueTotalVp = await env.stakingMaster.getGetTotalVotingPower();
+
+            const target = await env.blockchain.treasury('vp-e2e-target');
+            const { id, proposal } = await createProposal(
+                env,
+                voter,
+                TYPE_PARAM,
+                paramPayload(target.address, 1),
+                { totalVpOverride: 1n },
+            );
+            // Quorum is derived from the trusted total, so the spoof is inert end-to-end.
+            expect(await proposal.getGetQuorumRequired()).toBe((trueTotalVp * PARAM_QUORUM_PCT) / 100n);
+
+            await castVote(env, voter, id, true);
+            advanceTime(env.blockchain, 3 * DAY + 1);
+            await proposal.sendFinalize(env.deployer.getSender());
+            // The single full-VP voter clears the trusted quorum honestly.
+            expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
         });
     });
 });

@@ -15,10 +15,45 @@ message(0x5a040101) CreateProposal {
     queryId: Int as uint64;
     proposalType: Int as uint32;
     payload: Cell;
-    /// Total VP denominator at snapshot instant (typically StakingMaster.get_total_voting_power off-chain witness).
+    /// Proposer self-reported total VP denominator. IGNORED on-chain since IMP-AUDIT-02:
+    /// the quorum denominator is snapshotted from StakingMaster, not from this payload.
+    /// Retained only for ABI/wrapper backward compatibility.
     totalVpAtSnapshot: Int;
     /// Proposer self-reported VP; must be ≥ minProposalVp. Used together with staking relay for votes.
     claimedVp: Int;
+}
+
+/// IMP-AUDIT-02 — trusted total-VP snapshot, scheme A (StakingMaster ⇄ Governor).
+/// Governor → StakingMaster: ask for the authoritative total voting power and echo back the
+/// pending proposal so the Governor can deploy it with an on-chain (un-spoofable) quorum
+/// denominator. The proposal-construction fields are carried verbatim so the Governor keeps
+/// no extra persistent state between the two phases (init signature unchanged).
+message(0x5a040105) RequestTotalVpSnapshot {
+    queryId: Int as uint64;
+    proposalId: Int as uint64;
+    proposer: Address;
+    proposalType: Int as uint32;
+    payload: Cell;
+    period: Int as uint64;
+    quorumPercent: Int as uint16;
+    thresholdBps: Int as uint16;
+    timelockDelay: Int as uint64;
+}
+
+/// StakingMaster → Governor: authoritative `totalVp` plus the echoed pending proposal.
+/// The Governor authenticates the source (`sender() == stakingMaster`) and deploys the
+/// Proposal with `quorumRequired = totalVp * quorumPercent / 100`.
+message(0x5a040106) TotalVpSnapshotReply {
+    queryId: Int as uint64;
+    proposalId: Int as uint64;
+    proposer: Address;
+    proposalType: Int as uint32;
+    payload: Cell;
+    period: Int as uint64;
+    quorumPercent: Int as uint16;
+    thresholdBps: Int as uint16;
+    timelockDelay: Int as uint64;
+    totalVp: Int;
 }
 
 message(0x5a040102) CastVote {

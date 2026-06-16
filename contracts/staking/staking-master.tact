@@ -694,6 +694,35 @@ contract StakingMaster(
         cashback(sender());
     }
 
+    /// IMP-AUDIT-02 — authoritative total-VP snapshot for governance quorum.
+    /// Only the wired Governor may request it. Computes the on-chain Σ VP and echoes the
+    /// pending proposal verbatim so the Governor deploys it with an un-spoofable quorum
+    /// denominator. The remaining value is forwarded back so phase 2 can fund the deploy.
+    receive(msg: RequestTotalVpSnapshot) {
+        require(sender() == self.governorAddr, "Only governor");
+
+        let totalVp = self.computeTotalVotingPower();
+
+        message(MessageParameters {
+            to: self.governorAddr,
+            value: 0,
+            mode: SendRemainingValue,
+            bounce: true,
+            body: TotalVpSnapshotReply {
+                queryId: msg.queryId,
+                proposalId: msg.proposalId,
+                proposer: msg.proposer,
+                proposalType: msg.proposalType,
+                payload: msg.payload,
+                period: msg.period,
+                quorumPercent: msg.quorumPercent,
+                thresholdBps: msg.thresholdBps,
+                timelockDelay: msg.timelockDelay,
+                totalVp: totalVp,
+            }.toCell(),
+        });
+    }
+
     fun calculatePendingRewardFor(ownerAddr: Address, tierAsInt: Int): Int {
         let stakeOpt = self.stakesMapGet(tierAsInt, ownerAddr);
         if (stakeOpt == null) {
