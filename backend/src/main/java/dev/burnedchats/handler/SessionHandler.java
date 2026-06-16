@@ -35,6 +35,8 @@ import dev.burnedchats.security.pow.PowVerificationService;
 import dev.burnedchats.config.PowProperties;
 import dev.burnedchats.exception.PowInvalidException;
 import dev.burnedchats.exception.PowRequiredException;
+import dev.burnedchats.exception.RateLimitException;
+import dev.burnedchats.handler.WebSocketExceptionHandler;
 import dev.burnedchats.service.RateLimitService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.telegram.BurnedChatsBot;
@@ -54,6 +56,7 @@ import java.security.Principal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -99,6 +102,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @Validated
 public class SessionHandler {
+
+    /**
+     * STOMP destination for gateway errors (PoW, rate limit).
+     */
+    private static final String ERRORS_DESTINATION = "/queue/errors";
 
     /**
      * STOMP destination for session created event (sent to initiator).
@@ -159,6 +167,7 @@ public class SessionHandler {
     private final PowVerificationService powVerificationService;
     private final AdaptiveDifficultyService adaptiveDifficultyService;
     private final RateLimitService rateLimitService;
+    private final WebSocketExceptionHandler webSocketExceptionHandler;
 
     /**
      * Resolves authenticated participant context from any {@link AppPrincipal}.
@@ -259,9 +268,8 @@ public class SessionHandler {
                 initiator.internalId(), request.getRecipientInternalId(), request.getRecipientId(),
                 secretQuestion != null);
 
-        enforceSessionCreateGate(initiator, request);
-
-        resolveRecipientInternalId(request)
+        enforceSessionCreateGate(initiator, request)
+                .then(resolveRecipientInternalId(request)
                 .flatMap(recipientInternalId -> {
                     if (initiator.internalId().equals(recipientInternalId)) {
                         LOG.debug("Self-request rejected for user {}", initiator.internalId());
@@ -282,32 +290,54 @@ public class SessionHandler {
                     return validateAndCreateSession(initiator, recipientInternalId, secretQuestion,
                             secretExpectedAnswer);
                 })
-                .switchIfEmpty(Mono.fromSupplier(() -> SessionCreatedEvent.error("INVALID_RECIPIENT")))
+                .switchIfEmpty(Mono.fromSupplier(() -> SessionCreatedEvent.error("INVALID_RECIPIENT"))))
                 .subscribe(
                         event -> sendToInitiator(initiator.internalId(), event),
-                        error -> {
-                            LOG.error("Error creating session: initiator={}, error={}",
-                                    initiator.internalId(), error.getMessage());
-                            sendToInitiator(initiator.internalId(),
-                                    SessionCreatedEvent.error("INTERNAL_ERROR"));
-                        });
+                        error -> handleSessionCreateFailure(initiator.internalId(), error));
     }
 
     /**
      * PoW gate then Layer-0 rate limit before session business logic (DESIGN.md §6.2).
      */
-    private void enforceSessionCreateGate(ParticipantContext initiator, CreateSessionRequest request) {
+    private Mono<Void> enforceSessionCreateGate(ParticipantContext initiator, CreateSessionRequest request) {
+        Mono<Void> powGate = Mono.empty();
         if (powProperties.isEnabled()) {
-            adaptiveDifficultyService.recordGatedAttempt().subscribe();
-            try {
-                powVerificationService.verify(PowAction.SESSION_CREATE, request.getPow()).block();
-            } catch (PowRequiredException | PowInvalidException e) {
-                adaptiveDifficultyService.recordRejected().subscribe();
-                throw e;
-            }
+            powGate = adaptiveDifficultyService.recordGatedAttempt()
+                    .then(powVerificationService.verify(PowAction.SESSION_CREATE, request.getPow()))
+                    .onErrorResume(PowRequiredException.class, e ->
+                            adaptiveDifficultyService.recordRejected().then(Mono.error(e)))
+                    .onErrorResume(PowInvalidException.class, e ->
+                            adaptiveDifficultyService.recordRejected().then(Mono.error(e)));
+        }
+        return powGate.then(rateLimitService.enforceRateLimit(
+                initiator.internalId(), RateLimitType.SESSION_CREATE));
+    }
+
+    private void handleSessionCreateFailure(String initiatorInternalId, Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
         }
 
-        rateLimitService.checkRateLimitBlocking(initiator.internalId(), RateLimitType.SESSION_CREATE);
+        if (root instanceof RateLimitException rateLimitException) {
+            Map<String, Object> payload = webSocketExceptionHandler.handleRateLimitException(rateLimitException);
+            sendStompToInternalId(initiatorInternalId, ERRORS_DESTINATION, payload);
+            return;
+        }
+        if (root instanceof PowRequiredException powRequiredException) {
+            Map<String, Object> payload = webSocketExceptionHandler.handlePowRequiredException(powRequiredException);
+            sendStompToInternalId(initiatorInternalId, ERRORS_DESTINATION, payload);
+            return;
+        }
+        if (root instanceof PowInvalidException powInvalidException) {
+            Map<String, Object> payload = webSocketExceptionHandler.handlePowInvalidException(powInvalidException);
+            sendStompToInternalId(initiatorInternalId, ERRORS_DESTINATION, payload);
+            return;
+        }
+
+        LOG.error("Error creating session: initiator={}, error={}",
+                initiatorInternalId, root.getMessage());
+        sendToInitiator(initiatorInternalId, SessionCreatedEvent.error("INTERNAL_ERROR"));
     }
 
     private Mono<String> resolveRecipientInternalId(CreateSessionRequest request) {

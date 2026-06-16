@@ -156,6 +156,21 @@ public class RateLimitService {
     }
 
     /**
+     * Enforces rate limit for reactive gate chains (throws via {@link Mono#error}).
+     *
+     * @param userId internal user id
+     * @param type   type of rate limit
+     * @return empty Mono when allowed
+     */
+    public Mono<Void> enforceRateLimit(String userId, RateLimitType type) {
+        return checkRateLimit(userId, type).then();
+    }
+
+    public Mono<Void> enforceRateLimit(Long userId, RateLimitType type) {
+        return enforceRateLimit(String.valueOf(userId), type);
+    }
+
+    /**
      * Check rate limit synchronously (blocking).
      *
      * <p>For use in interceptors where reactive doesn't fit well.

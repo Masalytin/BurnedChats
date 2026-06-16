@@ -14,6 +14,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 
@@ -139,17 +141,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             throw new AuthenticationException("Telegram authentication did not yield telegram id");
         }
 
-        UnifiedUser derived = UnifiedUser.fromTelegram(telegramInitData, InternalIds.forTelegramId(tgId));
-        String mappedId = userIdentityRepository.findByTelegramId(tgId).block(AUTH_TIMEOUT);
-        UnifiedUser unifiedUser = derived;
-        if (mappedId != null && !mappedId.isBlank()) {
-            UnifiedUser stored = userIdentityRepository.findById(mappedId).block(AUTH_TIMEOUT);
-            if (stored != null) {
-                unifiedUser = mergeTelegramProfile(stored, telegramInitData);
-            }
-        }
-
-        userIdentityRepository.save(unifiedUser).block(AUTH_TIMEOUT);
+        UnifiedUser unifiedUser = awaitAuth(resolveTelegramUser(telegramInitData, tgId));
 
         TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
         accessor.setUser(principal);
@@ -185,20 +177,54 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             throw AuthenticationException.missingField(AUTH_TOKEN_HEADER);
         }
 
-        String internalId = sessionTokenService.validateAndRefresh(token).block(AUTH_TIMEOUT);
-        if (internalId == null || internalId.isBlank()) {
-            throw new AuthenticationException("Invalid or expired wallet session token");
-        }
-
-        UnifiedUser unifiedUser = userIdentityRepository.findById(internalId).block(AUTH_TIMEOUT);
-        if (unifiedUser == null) {
-            throw new AuthenticationException("Wallet session user not found");
-        }
-
-        WalletPrincipal principal = new WalletPrincipal(unifiedUser);
+        WalletPrincipal principal = awaitAuth(resolveWalletPrincipal(token));
         accessor.setUser(principal);
         LOG.info("STOMP CONNECT authenticated (wallet): internalId={}, sessionId={}",
                 principal.getInternalId(), sessionId);
+    }
+
+    /**
+     * Resolves Telegram identity in one reactive chain (lookup → merge → persist).
+     */
+    private Mono<UnifiedUser> resolveTelegramUser(TelegramInitData telegramInitData, Long tgId) {
+        UnifiedUser derived = UnifiedUser.fromTelegram(telegramInitData, InternalIds.forTelegramId(tgId));
+        return userIdentityRepository.findByTelegramId(tgId)
+                .flatMap(mappedId -> userIdentityRepository.findById(mappedId)
+                        .map(stored -> mergeTelegramProfile(stored, telegramInitData)))
+                .defaultIfEmpty(derived)
+                .flatMap(user -> userIdentityRepository.save(user).thenReturn(user));
+    }
+
+    private Mono<WalletPrincipal> resolveWalletPrincipal(String token) {
+        return sessionTokenService.validateAndRefresh(token)
+                .filter(id -> id != null && !id.isBlank())
+                .switchIfEmpty(Mono.error(new AuthenticationException("Invalid or expired wallet session token")))
+                .flatMap(internalId -> userIdentityRepository.findById(internalId)
+                        .switchIfEmpty(Mono.error(new AuthenticationException("Wallet session user not found")))
+                        .map(WalletPrincipal::new));
+    }
+
+    /**
+     * Runs reactive auth off the inbound broker thread; CONNECT stays synchronous per Spring STOMP API.
+     */
+    private <T> T awaitAuth(Mono<T> authMono) {
+        try {
+            T result = authMono
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .block(AUTH_TIMEOUT);
+            if (result == null) {
+                throw new AuthenticationException("Authentication failed");
+            }
+            return result;
+        } catch (AuthenticationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof AuthenticationException authEx) {
+                throw authEx;
+            }
+            throw new AuthenticationException("Authentication failed", e);
+        }
     }
 
     private String readAuthType(StompHeaderAccessor accessor) {
