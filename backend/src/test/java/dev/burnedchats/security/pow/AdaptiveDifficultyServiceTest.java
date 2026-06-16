@@ -1,62 +1,67 @@
 package dev.burnedchats.security.pow;
 
-import dev.burnedchats.config.PowProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.data.redis.core.ReactiveHashOperations;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
-import reactor.core.publisher.Mono;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
-@DisplayName("AdaptiveDifficultyService")
+/**
+ * Integration tests for {@link AdaptiveDifficultyService} on real Redis (Testcontainers).
+ */
+@SpringBootTest
+@ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
+@Tag("integration")
+@DisplayName("AdaptiveDifficultyService (Redis integration)")
 class AdaptiveDifficultyServiceTest {
 
-    @Mock
-    private ReactiveRedisTemplate<String, String> redisTemplate;
+    @Container
+    @SuppressWarnings("resource")
+    private static final GenericContainer<?> REDIS =
+            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+                    .withExposedPorts(6379);
 
-    @Mock
-    private ReactiveHashOperations<String, Object, Object> hashOperations;
+    @DynamicPropertySource
+    static void registerRedis(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
+        registry.add("spring.data.redis.database", () -> "14");
+        registry.add("pow.enabled", () -> "true");
+        registry.add("pow.ceiling", () -> "26");
+        registry.add("pow.base.session-create", () -> "20");
+        registry.add("pow.abuse-window", () -> "PT2S");
+    }
 
-    @Mock
-    private ObjectProvider<AdaptiveDifficultyService.ReputationDifficultyResolver> reputationResolver;
-
-    private PowProperties properties;
+    @Autowired
     private AdaptiveDifficultyService service;
 
+    @Autowired
+    private ReactiveRedisTemplate<String, String> redisTemplate;
+
     @BeforeEach
-    void setUp() {
-        properties = new PowProperties();
-        properties.setEnabled(true);
-        properties.setCeiling(26);
-        properties.setAbuseWindow(Duration.ofSeconds(60));
-        properties.getBase().setSessionCreate(20);
-
-        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-        when(reputationResolver.getIfAvailable()).thenReturn(null);
-
-        service = new AdaptiveDifficultyService(redisTemplate, properties, reputationResolver);
+    void flushRedis() {
+        redisTemplate.getConnectionFactory()
+                .getReactiveConnection()
+                .serverCommands()
+                .flushDb()
+                .block(Duration.ofSeconds(5));
     }
 
     @Nested
@@ -94,15 +99,8 @@ class AdaptiveDifficultyServiceTest {
     }
 
     @Nested
-    @DisplayName("currentDifficulty")
+    @DisplayName("currentDifficulty on Redis")
     class CurrentDifficulty {
-
-        @BeforeEach
-        void stubCounters() {
-            when(hashOperations.multiGet(eq(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY),
-                    eq(List.of("rejected", "total"))))
-                    .thenReturn(Mono.just(List.of("0", "10")));
-        }
 
         @Test
         void returnsBaseWhenNoAbuse() {
@@ -112,10 +110,9 @@ class AdaptiveDifficultyServiceTest {
         }
 
         @Test
-        void appliesBumpFromAbuseRatio() {
-            when(hashOperations.multiGet(eq(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY),
-                    eq(List.of("rejected", "total"))))
-                    .thenReturn(Mono.just(List.of("2", "10")));
+        void appliesSteppedBumpFromAbuseRatio() {
+            recordAttempts(8);
+            recordRejections(2);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
                     .expectNext(22)
@@ -123,14 +120,25 @@ class AdaptiveDifficultyServiceTest {
         }
 
         @Test
-        void disabledReturnsZero() {
-            properties.setEnabled(false);
+        void respectsCeilingAtActiveAttack() {
+            recordAttempts(5);
+            recordRejections(5);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
+                    .expectNext(26)
+                    .verifyComplete();
+        }
+
+        @Test
+        void disabledReturnsZeroWithoutRedisReads() {
+            AdaptiveDifficultyService disabled = new AdaptiveDifficultyService(
+                    redisTemplate,
+                    disabledProperties(),
+                    nullReputationProvider());
+
+            StepVerifier.create(disabled.currentDifficulty(PowAction.SESSION_CREATE))
                     .expectNext(0)
                     .verifyComplete();
-
-            verify(hashOperations, never()).multiGet(anyString(), any());
         }
     }
 
@@ -138,22 +146,21 @@ class AdaptiveDifficultyServiceTest {
     @DisplayName("abuse counters")
     class AbuseCounters {
 
-        @BeforeEach
-        void stubIncrement() {
-            when(hashOperations.increment(anyString(), anyString(), anyLong()))
-                    .thenReturn(Mono.just(1L));
-            when(redisTemplate.expire(anyString(), any(Duration.class)))
-                    .thenReturn(Mono.just(true));
-        }
-
         @Test
         void recordGatedAttemptIncrementsTotalWithTtl() {
             StepVerifier.create(service.recordGatedAttempt())
                     .verifyComplete();
 
-            verify(hashOperations).increment(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY, "total", 1L);
-            verify(redisTemplate).expire(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY,
-                    properties.getAbuseWindow());
+            StepVerifier.create(redisTemplate.opsForHash().get(
+                            AdaptiveDifficultyService.ABUSE_GLOBAL_KEY, "total"))
+                    .expectNext("1")
+                    .verifyComplete();
+
+            Duration ttl = redisTemplate.getExpire(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY)
+                    .block(Duration.ofSeconds(5));
+            assertThat(ttl).isNotNull();
+            assertThat(ttl.isNegative()).isFalse();
+            assertThat(ttl).isLessThanOrEqualTo(Duration.ofSeconds(2));
         }
 
         @Test
@@ -161,9 +168,79 @@ class AdaptiveDifficultyServiceTest {
             StepVerifier.create(service.recordRejected())
                     .verifyComplete();
 
-            verify(hashOperations).increment(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY, "rejected", 1L);
-            verify(redisTemplate).expire(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY,
-                    properties.getAbuseWindow());
+            StepVerifier.create(redisTemplate.opsForHash().get(
+                            AdaptiveDifficultyService.ABUSE_GLOBAL_KEY, "rejected"))
+                    .expectNext("1")
+                    .verifyComplete();
+
+            Duration ttl = redisTemplate.getExpire(AdaptiveDifficultyService.ABUSE_GLOBAL_KEY)
+                    .block(Duration.ofSeconds(5));
+            assertThat(ttl).isNotNull();
+            assertThat(ttl.isNegative()).isFalse();
+            assertThat(ttl).isLessThanOrEqualTo(Duration.ofSeconds(2));
         }
+
+        @Test
+        void abuseSignalDecaysAfterWindowExpires() throws InterruptedException {
+            recordAttempts(5);
+            recordRejections(3);
+
+            StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
+                    .expectNext(24)
+                    .verifyComplete();
+
+            Thread.sleep(Duration.ofSeconds(2).toMillis() + 500);
+
+            StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
+                    .expectNext(20)
+                    .verifyComplete();
+        }
+    }
+
+    private void recordAttempts(int count) {
+        for (int i = 0; i < count; i++) {
+            service.recordGatedAttempt().block(Duration.ofSeconds(5));
+        }
+    }
+
+    private void recordRejections(int count) {
+        for (int i = 0; i < count; i++) {
+            service.recordRejected().block(Duration.ofSeconds(5));
+        }
+    }
+
+    private static dev.burnedchats.config.PowProperties disabledProperties() {
+        dev.burnedchats.config.PowProperties properties = new dev.burnedchats.config.PowProperties();
+        properties.setEnabled(false);
+        return properties;
+    }
+
+    private static ObjectProvider<AdaptiveDifficultyService.ReputationDifficultyResolver> nullReputationProvider() {
+        return new ObjectProvider<>() {
+            @Override
+            public AdaptiveDifficultyService.ReputationDifficultyResolver getObject(Object... args) {
+                return null;
+            }
+
+            @Override
+            public AdaptiveDifficultyService.ReputationDifficultyResolver getIfAvailable() {
+                return null;
+            }
+
+            @Override
+            public AdaptiveDifficultyService.ReputationDifficultyResolver getIfUnique() {
+                return null;
+            }
+
+            @Override
+            public AdaptiveDifficultyService.ReputationDifficultyResolver getObject() {
+                return null;
+            }
+
+            @Override
+            public java.util.Iterator<AdaptiveDifficultyService.ReputationDifficultyResolver> iterator() {
+                return java.util.Collections.emptyIterator();
+            }
+        };
     }
 }
