@@ -121,6 +121,15 @@ public class FileController {
                 })
                 .onErrorResume(AuthenticationException.class, e ->
                         Mono.just(jsonErrorResponse(HttpStatus.UNAUTHORIZED, e.getErrorCode(), e.getMessage())))
+                .onErrorResume(RateLimitException.class, e ->
+                        Mono.just(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(Map.of(
+                                        "error", e.getErrorCode(),
+                                        "message", e.getMessage(),
+                                        "retryAfter", e.getRetryAfterSeconds()
+                                ))))
                 .onErrorResume(BurnedChatsException.class, e -> {
                     HttpStatus status = mapErrorCode(e.getErrorCode());
                     return Mono.just(jsonErrorResponse(status, e.getErrorCode(), e.getMessage()));

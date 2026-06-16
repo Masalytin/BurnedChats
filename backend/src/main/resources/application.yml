@@ -189,6 +189,8 @@ app:
     metadata-ttl: ${FILE_METADATA_TTL:PT24H}  # 24 hours (ISO-8601)
     cleanup-interval: ${FILE_CLEANUP_INTERVAL:PT15M}  # 15 minutes
     cleanup-enabled: ${FILE_CLEANUP_ENABLED:true}
+    max-concurrent-downloads-per-user: ${FILE_MAX_CONCURRENT_DOWNLOADS:3}
+    concurrent-download-slot-ttl: ${FILE_CONCURRENT_DOWNLOAD_SLOT_TTL:PT30M}
   # TON Center API (Phase 5: BURN token reads) — testnet by default
   ton:
     network: testnet

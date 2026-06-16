@@ -144,17 +144,22 @@ public class FileService {
                             "File not found: " + fileId, "FILE_NOT_FOUND")))
                     .flatMap(metadata ->
                             validateMembership(internalId, metadata.getContextType(), metadata.getContextId())
+                                    .then(fileValidationService.acquireDownloadSlot(internalId))
                                     .thenReturn(metadata))
                     .flatMap(metadata ->
                             fileStorageService.exists(fileId)
                                     .flatMap(exists -> {
                                         if (!exists) {
-                                            return fileMetadataRepository.delete(fileId)
+                                            return fileValidationService.releaseDownloadSlot(internalId)
+                                                    .then(fileMetadataRepository.delete(fileId))
                                                     .then(Mono.error(new BurnedChatsException(
                                                             "File not found: " + fileId,
                                                             "FILE_NOT_FOUND")));
                                         }
-                                        Flux<DataBuffer> data = fileStorageService.get(fileId);
+                                        Flux<DataBuffer> data = fileStorageService.get(fileId)
+                                                .doFinally(signal -> fileValidationService
+                                                        .releaseDownloadSlot(internalId)
+                                                        .subscribe());
                                         long size = metadata.getSize() != null ? metadata.getSize() : 0;
                                         return Mono.just(new DownloadResult(data, size));
                                     }))

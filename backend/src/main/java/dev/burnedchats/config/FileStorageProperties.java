@@ -46,4 +46,18 @@ public class FileStorageProperties {
      * Default: true.
      */
     private boolean cleanupEnabled = true;
+
+    /**
+     * Maximum number of concurrent file download streams per user.
+     * Default: 3.
+     */
+    private int maxConcurrentDownloadsPerUser = 3;
+
+    /**
+     * TTL for the Redis counter tracking active download slots.
+     * Refreshed on each acquire; acts as leak protection if a process crashes
+     * before {@code releaseDownloadSlot} runs.
+     * Default: 30 minutes.
+     */
+    private Duration concurrentDownloadSlotTtl = Duration.ofMinutes(30);
 }

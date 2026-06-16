@@ -22,7 +22,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,6 +56,7 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
         tempStorageDir = Files.createTempDirectory("file-download-it-");
         registry.add("app.files.storage-path", () -> tempStorageDir.toString() + "/");
         registry.add("app.files.cleanup-enabled", () -> "false");
+        registry.add("app.files.max-concurrent-downloads-per-user", () -> "3");
     }
 
     @Autowired
@@ -114,6 +121,56 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
                 .expectHeader().contentType(MediaType.APPLICATION_JSON)
                 .expectBody()
                 .jsonPath("$.error").isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test
+    void fourthConcurrentDownloadReturns429() throws Exception {
+        byte[] blob = deterministicBlob(MULTI_CHUNK_SIZE);
+        String sessionId = createSessionForDefaultUser();
+        String fileId = uploadFile(sessionId, blob);
+
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        CountDownLatch slotsHeld = new CountDownLatch(3);
+        List<FluxExchangeResult<DataBuffer>> activeDownloads = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < 3; i++) {
+                executor.submit(() -> {
+                    FluxExchangeResult<DataBuffer> result = webTestClient.get()
+                            .uri("/api/files/{fileId}", fileId)
+                            .header("X-Telegram-Init-Data", INIT_DATA)
+                            .exchange()
+                            .expectStatus().isOk()
+                            .returnResult(DataBuffer.class);
+                    activeDownloads.add(result);
+                    result.getResponseBody()
+                            .take(1)
+                            .doOnSubscribe(sub -> slotsHeld.countDown())
+                            .doOnNext(DataBufferUtils::release)
+                            .blockLast(Duration.ofSeconds(10));
+                });
+            }
+
+            assertThat(slotsHeld.await(15, TimeUnit.SECONDS)).isTrue();
+
+            webTestClient.get()
+                    .uri("/api/files/{fileId}", fileId)
+                    .header("X-Telegram-Init-Data", INIT_DATA)
+                    .exchange()
+                    .expectStatus().isEqualTo(429)
+                    .expectHeader().exists("Retry-After")
+                    .expectHeader().contentType(MediaType.APPLICATION_JSON)
+                    .expectBody()
+                    .jsonPath("$.error").isEqualTo("RATE_LIMIT_EXCEEDED")
+                    .jsonPath("$.retryAfter").exists();
+        } finally {
+            executor.shutdownNow();
+            for (FluxExchangeResult<DataBuffer> active : activeDownloads) {
+                active.getResponseBody()
+                        .doOnNext(DataBufferUtils::release)
+                        .blockLast(Duration.ofSeconds(5));
+            }
+        }
     }
 
     private String createSessionForDefaultUser() {
