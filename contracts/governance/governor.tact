@@ -38,19 +38,17 @@ contract Governor(
         return totalVp * quorumPct / 100;
     }
 
+    /// Phase 1 of proposal creation (IMP-AUDIT-02). The proposer-supplied
+    /// `totalVpAtSnapshot` is NOT trusted: it is ignored entirely. Instead the Governor
+    /// reserves a proposal id, then asks the StakingMaster for the authoritative total
+    /// voting power. The Proposal is only deployed in phase 2 (`TotalVpSnapshotReply`),
+    /// with a quorum denominator that the proposer cannot inflate or deflate.
     receive(msg: CreateProposal) {
         validateProposalPayloadShape(msg.proposalType, msg.payload);
 
         let cfgOpt = self.proposalConfigs.get(msg.proposalType);
         require(cfgOpt != null, "Unknown proposal cfg");
         let cfg = cfgOpt!!;
-
-        require(msg.totalVpAtSnapshot > 0, "Bad totalVp snapshot");
-
-        /// Must be able to form a positive quorum barrier (integer VP units).
-        let quorumRequired =
-            self.quorumAbsFromSnapshot(msg.totalVpAtSnapshot, cfg.quorumPercent);
-        require(quorumRequired > 0, "Vp snapshot too low for quorum");
 
         require(cfg.thresholdPercent >= 0 && cfg.thresholdPercent <= 100, "Bad threshold pct");
         let thresholdBps = cfg.thresholdPercent * 100;
@@ -61,7 +59,44 @@ contract Governor(
         let ctx = context();
         require(ctx.value >= ton("0.45"), "Need TON for deploy");
 
+        /// Reserve the id now so concurrent creations never collide; the proposal entry
+        /// itself is recorded in phase 2 once the trusted snapshot returns.
         let id = self.proposalCount;
+        self.proposalCount = id + 1;
+
+        /// Forward the remaining value through the snapshot round-trip so phase 2 can
+        /// fund the Proposal deploy. No cashback here — the value must keep flowing.
+        message(MessageParameters {
+            to: self.stakingMaster,
+            value: 0,
+            mode: SendRemainingValue,
+            bounce: true,
+            body: RequestTotalVpSnapshot {
+                queryId: msg.queryId,
+                proposalId: id,
+                proposer: sender(),
+                proposalType: msg.proposalType,
+                payload: msg.payload,
+                period: cfg.period,
+                quorumPercent: cfg.quorumPercent,
+                thresholdBps: thresholdBps,
+                timelockDelay: cfg.timelockDelay,
+            }.toCell(),
+        });
+    }
+
+    /// Phase 2 of proposal creation (IMP-AUDIT-02). Authenticated reply from the
+    /// StakingMaster carrying the on-chain total VP. Deploys the Proposal with a quorum
+    /// barrier derived from this trusted denominator, ignoring the proposer's claim.
+    receive(msg: TotalVpSnapshotReply) {
+        require(sender() == self.stakingMaster, "Bad snapshot source");
+        require(msg.totalVp > 0, "Bad totalVp snapshot");
+
+        /// Must be able to form a positive quorum barrier (integer VP units).
+        let quorumRequired = self.quorumAbsFromSnapshot(msg.totalVp, msg.quorumPercent);
+        require(quorumRequired > 0, "Vp snapshot too low for quorum");
+
+        let id = msg.proposalId;
 
         /// Fresh empty vote map — `initOf` requires explicit empty containers.
         let emptyVotes: map<Address, Int as uint8> = emptyMap();
@@ -71,24 +106,23 @@ contract Governor(
                 id,
                 myAddress(),
                 self.stakingMaster,
-                sender(),
+                msg.proposer,
                 msg.proposalType,
                 msg.payload,
                 now() + CANCEL_LAG,
-                now() + CANCEL_LAG + cfg.period,
+                now() + CANCEL_LAG + msg.period,
                 0,
                 0,
-                msg.totalVpAtSnapshot,
+                msg.totalVp,
                 quorumRequired,
-                thresholdBps,
+                msg.thresholdBps,
                 GV_ACTIVE,
                 0,
-                cfg.timelockDelay,
+                msg.timelockDelay,
                 self.timelock,
                 emptyVotes,
             );
 
-        self.proposalCount = id + 1;
         let propAddr = contractAddress(ini);
         self.proposals.set(id, propAddr);
         self.proposalStateById.set(id, GV_ACTIVE);
@@ -100,8 +134,6 @@ contract Governor(
             body: beginCell().endCell(),
             init: ini,
         });
-
-        cashback(sender());
     }
 
     receive(msg: CastVote) {
