@@ -242,6 +242,7 @@ function AppContent() {
     createSession,
     reset: resetSession,
     isCreating: isCreatingSession,
+    powPhase: sessionPowPhase,
   } = useSession({
     isConnected,
     subscribe,
@@ -257,7 +258,9 @@ function AppContent() {
     },
     onError: (errorCode) => {
       notificationOccurred('error');
-      toast.error(`Failed to create session: ${errorCode}`, { title: 'Error' });
+      if (errorCode !== 'POW_INVALID' && errorCode !== 'POW_FAILED') {
+        toast.error(`Failed to create session: ${errorCode}`, { title: 'Error' });
+      }
     },
   });
 
@@ -2138,6 +2141,8 @@ function AppContent() {
             user={selectedUser}
             isLoading={isCreatingSession}
             error={sessionResult.error}
+            errorMessage={sessionResult.errorMessage}
+            powPhase={sessionPowPhase}
             onClose={handleCloseChatRequestDialog}
             onSubmit={handleSubmitChatRequest}
           />

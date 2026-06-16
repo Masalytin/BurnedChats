@@ -921,5 +921,24 @@
     "statusExpired": "Expired",
     "statusBurned": "Burned",
     "online": "online"
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "Securing your request…",
+      "solving": "Verifying…",
+      "failed": "Could not verify request",
+      "retry": "Try again"
+    }
+  },
+
+  "pow": {
+    "errors": {
+      "invalid": "Verification was rejected. Please try again.",
+      "required": "Verification required but could not complete.",
+      "timeout": "Verification timed out. Please try again.",
+      "cancelled": "Verification cancelled.",
+      "failed": "Verification failed. Please try again."
+    }
   }
 }

@@ -1,14 +1,18 @@
 import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UserInfo } from '../../types';
+import type { PowPhase } from '../../hooks/usePow';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { PowProgress } from '../Pow/PowProgress';
 import { StatusBadge } from '../StatusBadge';
 import { CloseIcon, LockIcon, SendIcon } from '../../icons';
 import './ChatRequestDialog.css';
 
 const MAX_SECRET_LENGTH = 256;
+
+const POW_ERROR_CODES = new Set(['POW_INVALID', 'POW_FAILED']);
 
 export interface ChatRequestSecretPayload {
   secretQuestion: string;
@@ -20,8 +24,12 @@ interface ChatRequestDialogProps {
   user: UserInfo;
   /** Whether request is being sent */
   isLoading?: boolean;
-  /** Error message to display */
+  /** Error code to display */
   error?: string | null;
+  /** Localized error message when available */
+  errorMessage?: string | null;
+  /** Current PoW phase during session creation */
+  powPhase?: PowPhase;
   /** Callback when dialog is closed */
   onClose: () => void;
   /** Callback when request is submitted */
@@ -43,6 +51,8 @@ export function ChatRequestDialog({
   user,
   isLoading = false,
   error,
+  errorMessage,
+  powPhase = 'idle',
   onClose,
   onSubmit,
   className = '',
@@ -108,6 +118,13 @@ export function ChatRequestDialog({
 
   const secretInvalid =
     showSecretQuestion && (!secretQuestion.trim() || !secretExpectedAnswer.trim());
+
+  const isPowError = Boolean(error && POW_ERROR_CODES.has(error));
+  const showPowProgress = isPowError || powPhase === 'requesting' || powPhase === 'solving' || powPhase === 'error';
+
+  const handlePowRetry = useCallback(() => {
+    handleSubmit();
+  }, [handleSubmit]);
 
   return (
     <div className={`chat-request-dialog-overlay ${className}`} onClick={onClose}>
@@ -212,8 +229,19 @@ export function ChatRequestDialog({
             </div>
           )}
 
-          {error && (
-            <div className="chat-request-dialog__error animate-fade-in">{getSessionErrorMessage(error)}</div>
+          {showPowProgress && (
+            <PowProgress
+              phase={powPhase}
+              failed={isPowError}
+              errorMessage={errorMessage}
+              onRetry={isPowError && !isLoading ? handlePowRetry : undefined}
+            />
+          )}
+
+          {error && !isPowError && (
+            <div className="chat-request-dialog__error animate-fade-in">
+              {errorMessage ?? getSessionErrorMessage(error)}
+            </div>
           )}
 
           <div className="chat-request-dialog__actions">

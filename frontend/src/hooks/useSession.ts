@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { IMessage } from '@stomp/stompjs';
 import type { UserInfo, WireUserResponse } from '../types';
 import { mapWireUser } from '../types';
-import { usePow } from './usePow';
+import { usePow, type PowPhase } from './usePow';
 import type { PowSolution } from '../services/powService';
 
 /** Destination for creating session */
@@ -105,6 +105,8 @@ interface UseSessionReturn {
   reset: () => void;
   /** Whether creation is in progress */
   isCreating: boolean;
+  /** Current PoW phase (for progress UI). */
+  powPhase: PowPhase;
 }
 
 /** Initial result state */
@@ -140,7 +142,7 @@ export function useSession({
   const pendingCreateRef = useRef<PendingCreateContext | null>(null);
   const createInFlightRef = useRef(false);
 
-  const { solveFor, cancel: cancelPow } = usePow({
+  const { solveFor, cancel: cancelPow, phase: powPhase } = usePow({
     isConnected,
     subscribe,
     unsubscribe,
@@ -412,5 +414,6 @@ export function useSession({
     createSession,
     reset,
     isCreating: result.status === 'creating',
+    powPhase,
   };
 }
