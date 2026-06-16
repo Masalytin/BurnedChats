@@ -1,5 +1,7 @@
 package dev.burnedchats.handler;
 
+import dev.burnedchats.exception.PowInvalidException;
+import dev.burnedchats.exception.PowRequiredException;
 import dev.burnedchats.exception.RateLimitException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
@@ -37,6 +39,38 @@ public class WebSocketExceptionHandler {
                 "error", "RATE_LIMIT_EXCEEDED",
                 "message", exception.getMessage(),
                 "retryAfter", exception.getRetryAfterSeconds(),
+                "timestamp", Instant.now().toString()
+        );
+    }
+
+    /**
+     * Handle missing or expired PoW challenge on gated actions.
+     */
+    @MessageExceptionHandler(PowRequiredException.class)
+    @SendToUser("/queue/errors")
+    public Map<String, Object> handlePowRequiredException(PowRequiredException exception) {
+        LOG.debug("PoW required: {}", exception.getMessage());
+
+        return Map.of(
+                "success", false,
+                "error", "POW_REQUIRED",
+                "message", exception.getMessage(),
+                "timestamp", Instant.now().toString()
+        );
+    }
+
+    /**
+     * Handle invalid PoW solution (wrong hash, action mismatch, replay).
+     */
+    @MessageExceptionHandler(PowInvalidException.class)
+    @SendToUser("/queue/errors")
+    public Map<String, Object> handlePowInvalidException(PowInvalidException exception) {
+        LOG.debug("PoW invalid: {}", exception.getMessage());
+
+        return Map.of(
+                "success", false,
+                "error", "POW_INVALID",
+                "message", exception.getMessage(),
                 "timestamp", Instant.now().toString()
         );
     }

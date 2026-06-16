@@ -72,4 +72,9 @@ public class CreateSessionRequest {
      */
     @Size(max = 256, message = "Secret expected answer must not exceed 256 characters")
     private String secretExpectedAnswer;
+
+    /**
+     * PoW solution for gated session creation (DESIGN.md §3). Required when {@code pow.enabled=true}.
+     */
+    private PowSolution pow;
 }

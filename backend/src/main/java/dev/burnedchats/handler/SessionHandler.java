@@ -29,6 +29,14 @@ import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.security.pow.AdaptiveDifficultyService;
+import dev.burnedchats.security.pow.PowAction;
+import dev.burnedchats.security.pow.PowVerificationService;
+import dev.burnedchats.config.PowProperties;
+import dev.burnedchats.exception.PowInvalidException;
+import dev.burnedchats.exception.PowRequiredException;
+import dev.burnedchats.service.RateLimitService;
+import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
 import dev.burnedchats.util.InternalIds;
@@ -147,6 +155,10 @@ public class SessionHandler {
     private final UserIdentityRepository userIdentityRepository;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
+    private final PowProperties powProperties;
+    private final PowVerificationService powVerificationService;
+    private final AdaptiveDifficultyService adaptiveDifficultyService;
+    private final RateLimitService rateLimitService;
 
     /**
      * Resolves authenticated participant context from any {@link AppPrincipal}.
@@ -247,6 +259,8 @@ public class SessionHandler {
                 initiator.internalId(), request.getRecipientInternalId(), request.getRecipientId(),
                 secretQuestion != null);
 
+        enforceSessionCreateGate(initiator, request);
+
         resolveRecipientInternalId(request)
                 .flatMap(recipientInternalId -> {
                     if (initiator.internalId().equals(recipientInternalId)) {
@@ -277,6 +291,23 @@ public class SessionHandler {
                             sendToInitiator(initiator.internalId(),
                                     SessionCreatedEvent.error("INTERNAL_ERROR"));
                         });
+    }
+
+    /**
+     * PoW gate then Layer-0 rate limit before session business logic (DESIGN.md §6.2).
+     */
+    private void enforceSessionCreateGate(ParticipantContext initiator, CreateSessionRequest request) {
+        if (powProperties.isEnabled()) {
+            adaptiveDifficultyService.recordGatedAttempt().subscribe();
+            try {
+                powVerificationService.verify(PowAction.SESSION_CREATE, request.getPow()).block();
+            } catch (PowRequiredException | PowInvalidException e) {
+                adaptiveDifficultyService.recordRejected().subscribe();
+                throw e;
+            }
+        }
+
+        rateLimitService.checkRateLimitBlocking(initiator.internalId(), RateLimitType.SESSION_CREATE);
     }
 
     private Mono<String> resolveRecipientInternalId(CreateSessionRequest request) {

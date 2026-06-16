@@ -140,6 +140,19 @@ rate-limit:
     per-minute: 30
     per-session: 100
 
+# Proof-of-Work anti-spam (DESIGN.md — antispam-pow group)
+pow:
+  enabled: ${POW_ENABLED:true}
+  challenge-ttl: 60s
+  replay-window: 120s
+  ceiling: 26
+  abuse-window: 60s
+  base:
+    search: 18
+    session-create: 20
+    invite: 20
+    room-create: 22
+
 # Security settings
 security:
   # CORS configuration

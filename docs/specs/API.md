@@ -629,6 +629,40 @@ client.activate();
 
 ---
 
+### `POW_CHALLENGE` (`/app/pow.challenge`)
+
+Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../improvements/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»).
+
+**Запрос:**
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `action` | string | Да | Wire-format действия: `session_create`, `search`, `room_create`, `invite` |
+
+```typescript
+client.publish({
+  destination: '/app/pow.challenge',
+  body: JSON.stringify({ action: 'session_create' })
+});
+```
+
+**Ответ** — `/user/queue/pow-challenge` (`PowChallengeEvent`):
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `challengeId` | string | 16 байт случайности, hex (32 символа) |
+| `action` | string | Действие, к которому привязан challenge |
+| `difficulty` | number | Целевое число ведущих нулевых **бит** (SHA-256 Hashcash) |
+| `ttlMs` | number | TTL challenge в миллисекундах (~60000) |
+
+Сложность адаптивная (глобальный abuse-сигнал `pow:abuse:global`, DESIGN §5). Сервер хранит авторитетные `action`/`difficulty` только в Redis (`pow:challenge:{id}`); клиентским значениям не доверяет.
+
+**Backend:** `PowHandler` — `@MessageMapping("/pow.challenge")`. Доставка через `StompUserMessenger.convertAndSendToUser` → `/user/queue/pow-challenge`.
+
+При `pow.enabled=false` (dev/test) challenge выдаётся с `difficulty: 0`; верификация — no-op.
+
+---
+
 ### `CREATE_SESSION` (`/app/session.create`)
 
 Создание нового чата и отправка запроса собеседнику.
@@ -643,8 +677,11 @@ client.activate();
 | `recipientId` | number | Нет (deprecated) | Legacy Telegram ID; резолвится в `internalId` через `auth_tg:` |
 | `secretQuestion` | string (≤256) | Нет | Секретный вопрос |
 | `secretExpectedAnswer` | string (≤256) | Если есть вопрос | Ожидаемый ответ; не логировать |
+| `pow` | object | Если `pow.enabled=true` | Решение PoW: `{ challengeId, nonce }` |
 
 \* Обязателен один из `recipientInternalId` или `recipientId` (legacy). Новые клиенты передают только `recipientInternalId`.
+
+**Порядок на сервере (DESIGN §6.2):** PoW verify → rate-limit `SESSION_CREATE` (3/min) → бизнес-логика.
 
 ```typescript
 client.publish({
@@ -652,7 +689,8 @@ client.publish({
   body: JSON.stringify({
     recipientInternalId: '550e8400-e29b-41d4-a716-446655440000',
     secretQuestion: 'Как звали моего кота?',
-    secretExpectedAnswer: 'Барсик'
+    secretExpectedAnswer: 'Барсик',
+    pow: { challengeId: '00112233445566778899aabbccddeeff', nonce: '1373' }
   })
 });
 ```
@@ -672,7 +710,15 @@ client.publish({
 
 Очередь pending: Redis `request:{recipientInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
 
-**Коды ошибок** (`success: false`): `USER_NOT_FOUND`, `SELF_CHAT`, `USER_BLOCKED`, `EXPECTED_ANSWER_REQUIRED`, `EXPECTED_ANSWER_TOO_LONG`, `RATE_LIMITED`.
+**Коды ошибок** (`success: false` на `/user/queue/session-created`): `USER_NOT_FOUND`, `SELF_CHAT`, `USER_BLOCKED`, `EXPECTED_ANSWER_REQUIRED`, `EXPECTED_ANSWER_TOO_LONG`, `RATE_LIMITED`.
+
+**PoW / rate-limit ошибки** (на `/user/queue/errors`, `WebSocketExceptionHandler`):
+
+| Код | Когда |
+|-----|-------|
+| `POW_REQUIRED` | Нет/битый `pow` или challenge истёк |
+| `POW_INVALID` | Неверный nonce, action mismatch, replay |
+| `RATE_LIMIT_EXCEEDED` | Превышен per-identity cap после валидного PoW |
 
 **Backend:** `SessionHandler` — `@MessageMapping("/session.create")`. Доставка по `StompUserMessenger.convertAndSendToInternalId`. Telegram-бот offline — best-effort при `telegramId` получателя.
 
@@ -1115,6 +1161,8 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 | `FORBIDDEN` | 403 | Нет доступа к ресурсу |
 | `NOT_FOUND` | 404 | Ресурс не найден |
 | `RATE_LIMITED` | 429 | Превышен лимит запросов |
+| `POW_REQUIRED` | — | STOMP: нет/истёк PoW challenge на gated-действии |
+| `POW_INVALID` | — | STOMP: неверное PoW-решение или replay |
 | `INTERNAL_ERROR` | 500 | Внутренняя ошибка сервера |
 
 ### Ошибки сессий

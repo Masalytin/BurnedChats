@@ -35,6 +35,9 @@ telegram:
 rate-limit:
   enabled: false
 
+pow:
+  enabled: false
+
 # Test CORS
 security:
   cors:

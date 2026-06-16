@@ -37,7 +37,12 @@ public class PowProperties {
      */
     private int ceiling = 26;
 
-  /**
+    /**
+     * Sliding window for {@code pow:abuse:global} counters (DESIGN.md §5.2).
+     */
+    private Duration abuseWindow = Duration.ofSeconds(60);
+
+    /**
      * Base difficulty per action in bits (DESIGN.md §5.1).
      */
     private BaseDifficulty base = new BaseDifficulty();
