@@ -5,6 +5,8 @@ import "./burn-jetton-wallet";
 
 /// 1000 tokens * 10^9 nano
 const BURN_MAX_SUPPLY_NANO: Int = 1000 * pow(10, 9);
+/// TEP-89: headroom for provide_wallet_address computation (reference jetton-minter-discoverable.fc).
+const provideAddressGasConsumption: Int = ton("0.01");
 
 struct BurnJettonMasterState {
     totalSupply: Int as coins;
@@ -59,13 +61,18 @@ contract BurnJettonMaster(
     }
 
     receive(msg: ProvideWalletAddress) {
+        let ctx = context();
+        let fwdFee = ctx.readForwardFee();
+        require(
+            ctx.value > fwdFee + provideAddressGasConsumption,
+            "Insufficient gas for wallet discovery",
+        );
+
         let ownerWorkchain: Int = parseStdAddress(msg.ownerAddress.asSlice()).workchain;
-        let targetJettonWallet: BasechainAddress = (ownerWorkchain == Basechain)
-            ? contractBasechainAddress(getBurnJettonWalletInit(msg.ownerAddress))
-            : emptyBasechainAddress();
+        let walletResolvable: Bool = ownerWorkchain == Basechain;
 
         message(MessageParameters {
-            body: makeTakeWalletAddressMsg(targetJettonWallet, msg),
+            body: makeTep89TakeWalletAddressMsg(walletResolvable, msg),
             to: sender(),
             value: 0,
             mode: SendRemainingValue,
@@ -319,4 +326,19 @@ inline fun getBurnJettonWalletByOwner(jettonWalletOwner: Address): Address {
 
 inline fun getBurnJettonBasechainWalletByOwner(jettonWalletOwner: Address): BasechainAddress {
     return contractBasechainAddress(getBurnJettonWalletInit(jettonWalletOwner));
+}
+
+/// TEP-89 TakeWalletAddress body: addr_none when owner workchain is not basechain.
+inline fun makeTep89TakeWalletAddressMsg(walletResolvable: Bool, msg: ProvideWalletAddress): Cell {
+    let b = beginCell()
+        .storeUint(TakeWalletAddress.opcode(), 32)
+        .storeUint(msg.queryId, 64);
+    if (walletResolvable) {
+        b = b.storeBasechainAddress(getBurnJettonBasechainWalletByOwner(msg.ownerAddress));
+    } else {
+        b = b.storeUint(0, 2);
+    }
+    return b
+        .storeMaybeRef(msg.includeAddress ? beginCell().storeAddress(msg.ownerAddress).endCell() : null)
+        .endCell();
 }
