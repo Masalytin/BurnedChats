@@ -8,6 +8,8 @@ import "./proposal";
 
 /// Snapshot written on create / Proposal callbacks (`Proposal.state`).
 const GV_ACTIVE: Int = 0;
+/// Mirrors `Proposal.PS_CANCELLED` — reserved id whose phase-1 snapshot round-trip bounced.
+const GV_CANCELLED: Int = 5;
 
 /// Pre-vote window between proposal creation and voting start (IMP-PREMNT-08).
 /// During `[creation, creation + CANCEL_LAG)` the proposer may cancel the
@@ -83,6 +85,15 @@ contract Governor(
                 timelockDelay: cfg.timelockDelay,
             }.toCell(),
         });
+    }
+
+    /// IMP-AUDIT-18 — phase-1 snapshot request bounced (StakingMaster rejected or OOG).
+    /// The id was already reserved in `CreateProposal`; mark it cancelled so tooling does
+    /// not treat the gap as a live proposal. `proposalId` is within the ~224-bit bounce
+    /// prefix; `proposer` is not — see decision log for why value cannot be refunded to
+    /// the initiator on-chain.
+    bounced(msg: bounced<RequestTotalVpSnapshot>) {
+        self.proposalStateById.set(msg.proposalId, GV_CANCELLED);
     }
 
     /// Phase 2 of proposal creation (IMP-AUDIT-02). Authenticated reply from the

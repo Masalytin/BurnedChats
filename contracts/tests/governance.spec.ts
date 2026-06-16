@@ -83,6 +83,33 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
     return { ...env, timelock, governor };
 }
 
+/**
+ * Governance stack without the one-shot `SetGovernor` wire. StakingMaster still trusts
+ * `deployer` as `governorAddr`, so the real Governor's `RequestTotalVpSnapshot` is
+ * rejected and bounces — used by IMP-AUDIT-18.
+ */
+async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<GovEnv> {
+    const env = await setupStakingEnvironment(uri);
+    const { blockchain, deployer, stakingLock, stakingMaster } = env;
+
+    const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
+    await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+    const governor = blockchain.openContract(
+        await Governor.prepareInit({
+            minProposalVp,
+            stakingMaster: stakingMaster.address,
+            stakingLock: stakingLock.address,
+            timelock: timelock.address,
+            timelockDelaySec: BigInt(DAY),
+        }),
+    );
+    await governor.send(deployer.getSender(), { value: toNano('1') }, null);
+
+    expect((await stakingMaster.getGetGovernorAddr()).equals(deployer.address)).toBe(true);
+    return { ...env, timelock, governor };
+}
+
 /** Mint + stake a user so they carry on-chain voting power. */
 async function stakeForVp(
     env: StakingTestEnv,
@@ -668,6 +695,59 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             await proposal.sendFinalize(env.deployer.getSender());
             // The single full-VP voter clears the trusted quorum honestly.
             expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
+        });
+    });
+
+    describe('RequestTotalVpSnapshot bounce (IMP-AUDIT-18)', () => {
+        it('cancels reserved id when snapshot bounces and subsequent creation succeeds after wire', async () => {
+            const env = await setupGovernanceUnwired('https://example.com/gov-snap-bounce.json');
+            const proposer = await env.blockchain.treasury('gov-bounce-proposer');
+            await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
+
+            const idBefore = await env.governor.getGetProposalCount();
+            const totalVp = await env.stakingMaster.getGetTotalVotingPower();
+            const target = await env.blockchain.treasury('bounce-target');
+
+            const createTx = await env.governor.sendCreateProposal(proposer.getSender(), {
+                proposalType: TYPE_PARAM,
+                payload: paramPayload(target.address, 1),
+                totalVpAtSnapshot: totalVp,
+                claimedVp: totalVp,
+            });
+
+            expect(createTx.transactions).toHaveTransaction({
+                on: env.stakingMaster.address,
+                success: false,
+                exitCode: StakingMaster_errors_backward['Only governor'],
+            });
+            expect(createTx.transactions).toHaveTransaction({
+                on: env.governor.address,
+                success: true,
+            });
+
+            expect(await env.governor.getGetProposalCount()).toBe(idBefore + 1n);
+            expect(await env.governor.getGetProposal(idBefore)).toBeNull();
+            expect(await env.governor.getGetProposalState(idBefore)).toBe(PS_CANCELLED);
+
+            const wire = await env.stakingMaster.sendSetGovernor(
+                env.deployer.getSender(),
+                env.governor.address,
+            );
+            expect(wire.transactions).toHaveTransaction({ success: true });
+            expect((await env.stakingMaster.getGetGovernorAddr()).equals(env.governor.address)).toBe(
+                true,
+            );
+
+            const { id, proposal } = await createProposal(
+                env,
+                proposer,
+                TYPE_PARAM,
+                paramPayload(target.address, 2),
+            );
+            expect(id).toBe(idBefore + 1n);
+            expect(await env.governor.getGetProposal(id)).not.toBeNull();
+            expect(await env.governor.getGetProposalState(id)).toBe(PS_ACTIVE);
+            expect(await proposal.getGetState()).toBe(PS_ACTIVE);
         });
     });
 });
