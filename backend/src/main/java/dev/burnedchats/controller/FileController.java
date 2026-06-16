@@ -5,6 +5,7 @@ import dev.burnedchats.exception.BurnedChatsException;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.FileService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.InputStream;
@@ -94,32 +96,29 @@ public class FileController {
     /**
      * Download an encrypted file blob by file ID.
      *
-     * <p>Collects the file into a byte array and returns it with
-     * {@code application/octet-stream} content type. Spring MVC (servlet)
-     * cannot stream {@code Flux<DataBuffer>} as raw bytes — it would
-     * serialize them via Jackson, corrupting the binary data.
+     * <p>Streams the encrypted blob from storage without materializing the
+     * entire file in heap memory. Authorization and membership checks complete
+     * before the response body is written.
      *
      * @param fileId   unique file identifier (UUID)
      * @param initData Telegram Mini App initData for authentication
-     * @return binary response with the encrypted file data
+     * @return streaming binary response with the encrypted file data
      */
     @GetMapping("/{fileId}")
-    public Mono<ResponseEntity<Object>> download(
+    public Mono<ResponseEntity<?>> download(
             @PathVariable String fileId,
             @RequestHeader("X-Telegram-Init-Data") String initData) {
 
         return fileService.download(initData, fileId)
-                .flatMap(result -> DataBufferUtils.join(result.data())
-                        .map(buffer -> {
-                            byte[] bytes = new byte[buffer.readableByteCount()];
-                            buffer.read(bytes);
-                            DataBufferUtils.release(buffer);
-                            return ResponseEntity.ok()
-                                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(bytes.length))
-                                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                                    .body((Object) bytes);
-                        }))
+                .<ResponseEntity<?>>map(result -> {
+                    Flux<DataBuffer> body = result.data()
+                            .doOnDiscard(DataBuffer.class, DataBufferUtils::release);
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                            .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.size()))
+                            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                            .body(body);
+                })
                 .onErrorResume(AuthenticationException.class, e ->
                         Mono.just(jsonErrorResponse(HttpStatus.UNAUTHORIZED, e.getErrorCode(), e.getMessage())))
                 .onErrorResume(BurnedChatsException.class, e -> {
@@ -141,7 +140,7 @@ public class FileController {
         ));
     }
 
-    private static ResponseEntity<Object> jsonErrorResponse(HttpStatus status, String code, String message) {
+    private static ResponseEntity<?> jsonErrorResponse(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
