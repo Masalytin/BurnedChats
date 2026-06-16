@@ -1,6 +1,7 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.PowChallengeEvent;
+import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.pow.AdaptiveDifficultyService;
 import dev.burnedchats.security.pow.PowAction;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
 
 import java.security.Principal;
+import java.util.Map;
 
 /**
  * STOMP handler for PoW challenge issuance (DESIGN.md §3.1).
@@ -30,11 +32,13 @@ import java.security.Principal;
 public class PowHandler {
 
     private static final String POW_CHALLENGE_DESTINATION = "/queue/pow-challenge";
+    private static final String ERRORS_DESTINATION = "/queue/errors";
 
     private final AdaptiveDifficultyService adaptiveDifficultyService;
     private final PowChallengeService powChallengeService;
     private final RateLimitService rateLimitService;
     private final StompUserMessenger stompUserMessenger;
+    private final WebSocketExceptionHandler webSocketExceptionHandler;
 
     @MessageMapping("/pow.challenge")
     public void requestChallenge(@Payload PowChallengeRequest request, Principal principal) {
@@ -61,15 +65,28 @@ public class PowHandler {
 
         LOG.debug("PoW challenge requested: action={}, internalId={}", action, appPrincipal.getInternalId());
 
-        rateLimitService.checkRateLimitBlocking(appPrincipal.getInternalId(), RateLimitType.POW_CHALLENGE);
-
-        adaptiveDifficultyService.currentDifficulty(action)
+        rateLimitService.enforceRateLimit(appPrincipal.getInternalId(), RateLimitType.POW_CHALLENGE)
+                .then(adaptiveDifficultyService.currentDifficulty(action))
                 .flatMap(difficulty -> powChallengeService.issue(action, difficulty))
                 .subscribe(
                         event -> sendChallenge(appPrincipal, event),
-                        error -> LOG.error("Failed to issue PoW challenge for internalId={}: {}",
-                                appPrincipal.getInternalId(), error.getMessage())
-                );
+                        error -> handleChallengeFailure(appPrincipal, error));
+    }
+
+    private void handleChallengeFailure(AppPrincipal principal, Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+
+        if (root instanceof RateLimitException rateLimitException) {
+            Map<String, Object> payload = webSocketExceptionHandler.handleRateLimitException(rateLimitException);
+            stompUserMessenger.convertAndSendToUser(principal, ERRORS_DESTINATION, payload);
+            return;
+        }
+
+        LOG.error("Failed to issue PoW challenge for internalId={}: {}",
+                principal.getInternalId(), root.getMessage());
     }
 
     private void sendChallenge(AppPrincipal principal, PowChallengeEvent event) {

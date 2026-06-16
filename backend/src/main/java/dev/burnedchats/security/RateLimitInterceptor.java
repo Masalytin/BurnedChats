@@ -13,8 +13,10 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
+import reactor.core.scheduler.Schedulers;
 
 import java.security.Principal;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -37,6 +39,8 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements ChannelInterceptor {
+
+    private static final Duration RATE_LIMIT_TIMEOUT = Duration.ofSeconds(30);
 
     private final RateLimitService rateLimitService;
 
@@ -90,13 +94,32 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        // Check rate limit
         try {
-            rateLimitService.checkRateLimitBlocking(userId, rateLimitType);
+            awaitRateLimit(userId, rateLimitType);
             return message;
         } catch (RateLimitException e) {
             LOG.warn("Rate limit exceeded for user {} on {}: retry after {}s",
                     userId, destination, e.getRetryAfterSeconds());
+            throw e;
+        }
+    }
+
+    /**
+     * Runs reactive rate-limit check off the inbound broker thread; preSend stays synchronous
+     * per Spring STOMP API (same trade-off as {@link StompAuthInterceptor#awaitAuth}).
+     */
+    private void awaitRateLimit(String userId, RateLimitType rateLimitType) {
+        try {
+            rateLimitService.enforceRateLimit(userId, rateLimitType)
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .block(RATE_LIMIT_TIMEOUT);
+        } catch (RateLimitException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RateLimitException rateLimitEx) {
+                throw rateLimitEx;
+            }
             throw e;
         }
     }
