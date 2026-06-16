@@ -44,15 +44,15 @@ public final class StompTestSupport {
     }
 
     /**
-     * CONNECT to {@code /ws} with mocked Telegram init data header, returning an open session.
+     * CONNECT to {@code /ws} with mocked Telegram init data on the HTTP handshake, returning an open session.
      */
     @SuppressWarnings("deprecation")
     public static StompSession connect(WebSocketStompClient stompClient, int serverPort, String initDataHeaderValue)
             throws ExecutionException, InterruptedException, TimeoutException {
         String url = "ws://127.0.0.1:" + serverPort + "/ws";
         WebSocketHttpHeaders handshakeHeaders = new WebSocketHttpHeaders();
+        handshakeHeaders.add(INIT_DATA_HEADER, initDataHeaderValue);
         StompHeaders connectHeaders = new StompHeaders();
-        connectHeaders.add(INIT_DATA_HEADER, initDataHeaderValue);
 
         ListenableFuture<StompSession> future = stompClient.connect(
                 url,
@@ -65,16 +65,16 @@ public final class StompTestSupport {
     }
 
     /**
-     * CONNECT to {@code /ws} with wallet session token ({@code WalletPrincipal}).
+     * CONNECT to {@code /ws} with wallet session token on the HTTP handshake ({@code WalletPrincipal}).
      */
     @SuppressWarnings("deprecation")
     public static StompSession connectWallet(WebSocketStompClient stompClient, int serverPort, String sessionToken)
             throws ExecutionException, InterruptedException, TimeoutException {
         String url = "ws://127.0.0.1:" + serverPort + "/ws";
         WebSocketHttpHeaders handshakeHeaders = new WebSocketHttpHeaders();
+        handshakeHeaders.add(AUTH_TYPE_HEADER, AUTH_TYPE_WALLET);
+        handshakeHeaders.add(AUTH_TOKEN_HEADER, sessionToken);
         StompHeaders connectHeaders = new StompHeaders();
-        connectHeaders.add(AUTH_TYPE_HEADER, AUTH_TYPE_WALLET);
-        connectHeaders.add(AUTH_TOKEN_HEADER, sessionToken);
 
         ListenableFuture<StompSession> future = stompClient.connect(
                 url,

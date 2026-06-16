@@ -1,10 +1,6 @@
 package dev.burnedchats.security;
 
-import dev.burnedchats.config.WebSocketProperties;
 import dev.burnedchats.exception.AuthenticationException;
-import dev.burnedchats.model.UnifiedUser;
-import dev.burnedchats.repository.UserIdentityRepository;
-import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
@@ -15,36 +11,26 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+
+import java.security.Principal;
+import java.util.Map;
 
 /**
- * STOMP channel interceptor for Telegram Mini App authentication.
+ * STOMP channel interceptor that confirms handshake authentication on CONNECT.
  *
- * <p>Validates Telegram initData on STOMP CONNECT frame and sets up
- * the authenticated user principal for the session.
+ * <p>Identity resolution (Redis I/O) happens in {@link StompHandshakeAuthInterceptor}
+ * during the HTTP/WebSocket upgrade. CONNECT only verifies that a {@link Principal}
+ * was established at handshake and is available on the session.
  *
- * <p>The interceptor:
- * <ol>
- *   <li>Reads auth type headers ({@code telegram} default or {@code wallet})</li>
- *   <li>For Telegram: validates initData, resolves {@code auth_tg:{telegramId}} → {@code internalId} when present,
- *       merges fresh profile fields from initData into the stored identity, persists with
- *       {@link UserIdentityRepository#save(UnifiedUser)}, sets {@link TelegramPrincipal}</li>
- *   <li>For wallet: validates opaque session token, loads {@link UnifiedUser}, sets {@link WalletPrincipal}</li>
- *   <li>Rejects CONNECT with invalid or missing credentials</li>
- * </ol>
- *
- * <p>Example STOMP CONNECT frame:
+ * <p>Example STOMP CONNECT frame (credentials belong on the HTTP handshake):
  * <pre>
  * CONNECT
- * X-Telegram-Init-Data: query_id=...&user=...&auth_date=...&hash=...
  * accept-version: 1.2
  * heart-beat: 10000,10000
  * </pre>
  *
- * @see TelegramAuthService
- * @see SessionTokenService
- * @see UserIdentityRepository
+ * @see StompIdentityAuthService
+ * @see StompHandshakeAuthInterceptor
  * @see TelegramPrincipal
  */
 @Slf4j
@@ -52,29 +38,6 @@ import reactor.core.scheduler.Schedulers;
 @RequiredArgsConstructor
 public class StompAuthInterceptor implements ChannelInterceptor {
 
-    private static final String INIT_DATA_HEADER = "X-Telegram-Init-Data";
-    private static final String AUTH_TYPE_HEADER = "X-Auth-Type";
-    private static final String AUTH_TYPE_HEADER_LEGACY = "auth-type";
-    private static final String AUTH_TOKEN_HEADER = "X-Auth-Token";
-    private static final String AUTH_TOKEN_HEADER_LEGACY = "auth-token";
-    private static final String AUTH_TYPE_TELEGRAM = "telegram";
-    private static final String AUTH_TYPE_WALLET = "wallet";
-
-    private final TelegramAuthService telegramAuthService;
-    private final SessionTokenService sessionTokenService;
-    private final UserIdentityRepository userIdentityRepository;
-    private final WebSocketProperties webSocketProperties;
-
-    /**
-     * Intercept messages before they are sent to the channel.
-     *
-     * <p>For STOMP CONNECT commands, validates the Telegram initData
-     * and sets up the user principal.
-     *
-     * @param message the message being sent
-     * @param channel the target channel
-     * @return the message (possibly modified) or null to prevent sending
-     */
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(
@@ -84,9 +47,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        StompCommand command = accessor.getCommand();
-
-        if (StompCommand.CONNECT.equals(command)) {
+        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             handleConnect(accessor);
         }
 
@@ -94,156 +55,61 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * Handle STOMP CONNECT command by validating authentication.
+     * Confirm the WebSocket session already has an authenticated principal from handshake.
      *
      * @param accessor the STOMP header accessor
-     * @throws AuthenticationException if authentication fails
+     * @throws AuthenticationException if authentication was not completed at handshake
      */
     private void handleConnect(StompHeaderAccessor accessor) {
         String sessionId = accessor.getSessionId();
         LOG.debug("Processing STOMP CONNECT for session: {}", sessionId);
 
-        String authType = readAuthType(accessor);
-        if (authType == null) {
-            authType = AUTH_TYPE_TELEGRAM;
+        Principal principal = resolveAuthenticatedPrincipal(accessor);
+        if (principal == null) {
+            LOG.warn("STOMP CONNECT rejected: missing handshake principal, sessionId={}", sessionId);
+            throw new AuthenticationException(
+                    "Authentication required at WebSocket handshake (HTTP headers or query parameters)");
         }
 
-        try {
-            if (AUTH_TYPE_WALLET.equals(authType)) {
-                handleWalletConnect(accessor, sessionId);
-            } else if (AUTH_TYPE_TELEGRAM.equals(authType)) {
-                handleTelegramConnect(accessor, sessionId);
-            } else {
-                throw new AuthenticationException("Unsupported auth type: " + authType);
-            }
-        } catch (AuthenticationException e) {
-            LOG.warn("STOMP CONNECT authentication failed: {}, sessionId: {}",
-                    e.getMessage(), sessionId);
-            throw e;
-        } catch (Exception e) {
-            LOG.error("Unexpected error during STOMP authentication, sessionId: {}",
-                    sessionId, e);
-            throw new AuthenticationException("Authentication failed", e);
-        }
-    }
-
-    private void handleTelegramConnect(StompHeaderAccessor accessor, String sessionId) {
-        String initData = accessor.getFirstNativeHeader(INIT_DATA_HEADER);
-        if (initData == null || initData.isBlank()) {
-            LOG.warn("Missing {} header in STOMP CONNECT, sessionId: {}", INIT_DATA_HEADER, sessionId);
-            throw AuthenticationException.missingField(INIT_DATA_HEADER);
-        }
-
-        TelegramInitData telegramInitData = telegramAuthService.validateInitData(initData);
-        Long tgId = telegramInitData.getUserId();
-        if (tgId == null) {
-            throw new AuthenticationException("Telegram authentication did not yield telegram id");
-        }
-
-        UnifiedUser unifiedUser = awaitAuth(resolveTelegramUser(telegramInitData, tgId));
-
-        TelegramPrincipal principal = new TelegramPrincipal(unifiedUser, telegramInitData);
         accessor.setUser(principal);
 
-        LOG.info("STOMP CONNECT authenticated (telegram): userId={}, username={}, sessionId={}",
-                principal.getUserId(), principal.getUsername(), sessionId);
+        if (principal instanceof TelegramPrincipal telegramPrincipal) {
+            LOG.info("STOMP CONNECT confirmed (telegram): userId={}, username={}, sessionId={}",
+                    telegramPrincipal.getUserId(), telegramPrincipal.getUsername(), sessionId);
+        } else if (principal instanceof WalletPrincipal walletPrincipal) {
+            LOG.info("STOMP CONNECT confirmed (wallet): internalId={}, sessionId={}",
+                    walletPrincipal.getInternalId(), sessionId);
+        } else {
+            LOG.info("STOMP CONNECT confirmed: principal={}, sessionId={}",
+                    principal.getName(), sessionId);
+        }
     }
 
-    /**
-     * Refreshes display fields from Telegram while preserving linked identity (wallet, internal id mapping).
-     */
-    private static UnifiedUser mergeTelegramProfile(UnifiedUser stored, TelegramInitData telegramInitData) {
-        dev.burnedchats.model.TelegramUser telegramUser = telegramInitData.getUser();
-        String displayName = telegramUser != null ? telegramUser.getDisplayName() : stored.displayName();
-        String avatarUrl = telegramUser != null && telegramUser.getPhotoUrl() != null
-                ? telegramUser.getPhotoUrl()
-                : stored.avatarUrl();
-        return new UnifiedUser(
-                stored.internalId(),
-                stored.authType(),
-                displayName != null ? displayName : stored.displayName(),
-                telegramInitData.getUserId(),
-                stored.walletAddress(),
-                avatarUrl);
-    }
-
-    private void handleWalletConnect(StompHeaderAccessor accessor, String sessionId) {
-        String token = firstNonBlank(
-                accessor.getFirstNativeHeader(AUTH_TOKEN_HEADER),
-                accessor.getFirstNativeHeader(AUTH_TOKEN_HEADER_LEGACY));
-        if (token == null) {
-            LOG.warn("Missing wallet auth token header in STOMP CONNECT, sessionId: {}", sessionId);
-            throw AuthenticationException.missingField(AUTH_TOKEN_HEADER);
+    private Principal resolveAuthenticatedPrincipal(StompHeaderAccessor accessor) {
+        Principal user = accessor.getUser();
+        if (isAuthenticatedPrincipal(user)) {
+            return user;
         }
 
-        WalletPrincipal principal = awaitAuth(resolveWalletPrincipal(token));
-        accessor.setUser(principal);
-        LOG.info("STOMP CONNECT authenticated (wallet): internalId={}, sessionId={}",
-                principal.getInternalId(), sessionId);
-    }
-
-    /**
-     * Resolves Telegram identity in one reactive chain (lookup → merge → persist).
-     */
-    private Mono<UnifiedUser> resolveTelegramUser(TelegramInitData telegramInitData, Long tgId) {
-        UnifiedUser derived = UnifiedUser.fromTelegram(telegramInitData, InternalIds.forTelegramId(tgId));
-        return userIdentityRepository.findByTelegramId(tgId)
-                .flatMap(mappedId -> userIdentityRepository.findById(mappedId)
-                        .map(stored -> mergeTelegramProfile(stored, telegramInitData)))
-                .defaultIfEmpty(derived)
-                .flatMap(user -> userIdentityRepository.save(user).thenReturn(user));
-    }
-
-    private Mono<WalletPrincipal> resolveWalletPrincipal(String token) {
-        return sessionTokenService.validateAndRefresh(token)
-                .filter(id -> id != null && !id.isBlank())
-                .switchIfEmpty(Mono.error(new AuthenticationException("Invalid or expired wallet session token")))
-                .flatMap(internalId -> userIdentityRepository.findById(internalId)
-                        .switchIfEmpty(Mono.error(new AuthenticationException("Wallet session user not found")))
-                        .map(WalletPrincipal::new));
-    }
-
-    /**
-     * Runs reactive auth off the inbound broker thread; CONNECT stays synchronous per Spring STOMP API.
-     */
-    private <T> T awaitAuth(Mono<T> authMono) {
-        try {
-            T result = authMono
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .block(webSocketProperties.getAuth().getTimeout());
-            if (result == null) {
-                throw new AuthenticationException("Authentication failed");
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null) {
+            Object stored = sessionAttributes.get(StompIdentityAuthService.SESSION_PRINCIPAL_ATTRIBUTE);
+            if (stored instanceof Principal principal && isAuthenticatedPrincipal(principal)) {
+                return principal;
             }
-            return result;
-        } catch (AuthenticationException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof AuthenticationException authEx) {
-                throw authEx;
-            }
-            throw new AuthenticationException("Authentication failed", e);
-        }
-    }
-
-    private String readAuthType(StompHeaderAccessor accessor) {
-        String authType = firstNonBlank(
-                accessor.getFirstNativeHeader(AUTH_TYPE_HEADER),
-                accessor.getFirstNativeHeader(AUTH_TYPE_HEADER_LEGACY));
-        if (authType == null) {
-            return null;
-        }
-        return authType.trim().toLowerCase();
-    }
-
-    private String firstNonBlank(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return first;
-        }
-        if (second != null && !second.isBlank()) {
-            return second;
         }
         return null;
+    }
+
+    private boolean isAuthenticatedPrincipal(Principal principal) {
+        if (principal == null) {
+            return false;
+        }
+        if (!(principal instanceof AppPrincipal)) {
+            return false;
+        }
+        String name = principal.getName();
+        return name != null && !name.isBlank();
     }
 
     /**
@@ -255,20 +121,21 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     public static class TelegramPrincipal implements AppPrincipal {
 
         private final TelegramInitData initData;
-        private final UnifiedUser unifiedUser;
+        private final dev.burnedchats.model.UnifiedUser unifiedUser;
 
         /**
          * Create principal from validated init data.
          *
+         * @param unifiedUser resolved unified user identity
          * @param initData validated Telegram init data
          */
-        public TelegramPrincipal(UnifiedUser unifiedUser, TelegramInitData initData) {
+        public TelegramPrincipal(dev.burnedchats.model.UnifiedUser unifiedUser, TelegramInitData initData) {
             this.unifiedUser = unifiedUser;
             this.initData = initData;
         }
 
         /**
-         * Principal name for Spring — {@link UnifiedUser#internalId()} (not Telegram ID).
+         * Principal name for Spring — {@link dev.burnedchats.model.UnifiedUser#internalId()} (not Telegram ID).
          *
          * <p>Used by Spring's user destination resolution; must match the {@code username}
          * passed to {@code convertAndSendToUser}.
@@ -285,7 +152,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          * to {@link #getName()} / {@link #getInternalId()} (internal UUID). For targeted delivery use
          * {@link dev.burnedchats.messaging.StompUserMessenger} or {@link #getInternalId()}.
          *
-         * @return telegram id, or {@code null} if missing from {@link UnifiedUser}
+         * @return telegram id, or {@code null} if missing from {@link dev.burnedchats.model.UnifiedUser}
          *     (wallet sessions use {@link WalletPrincipal}, not this class)
          */
         public Long getUserId() {
@@ -321,8 +188,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          * @return first name or null
          */
         public String getFirstName() {
-            return initData.getUser() != null 
-                    ? initData.getUser().getFirstName() 
+            return initData.getUser() != null
+                    ? initData.getUser().getFirstName()
                     : null;
         }
 
@@ -332,8 +199,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          * @return last name or null
          */
         public String getLastName() {
-            return initData.getUser() != null 
-                    ? initData.getUser().getLastName() 
+            return initData.getUser() != null
+                    ? initData.getUser().getLastName()
                     : null;
         }
 
@@ -343,13 +210,13 @@ public class StompAuthInterceptor implements ChannelInterceptor {
          * @return true if premium user
          */
         public boolean isPremium() {
-            return initData.getUser() != null 
+            return initData.getUser() != null
                     && initData.getUser().isPremium();
         }
 
         @Override
         public String toString() {
-            return "TelegramPrincipal{userId=" + getUserId() 
+            return "TelegramPrincipal{userId=" + getUserId()
                     + ", username=" + getUsername() + "}";
         }
     }
@@ -359,9 +226,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
      */
     public static class WalletPrincipal implements AppPrincipal {
 
-        private final UnifiedUser unifiedUser;
+        private final dev.burnedchats.model.UnifiedUser unifiedUser;
 
-        public WalletPrincipal(UnifiedUser unifiedUser) {
+        public WalletPrincipal(dev.burnedchats.model.UnifiedUser unifiedUser) {
             this.unifiedUser = unifiedUser;
         }
 

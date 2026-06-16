@@ -2,6 +2,8 @@ package dev.burnedchats.config;
 
 import dev.burnedchats.security.RateLimitInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor;
+import dev.burnedchats.security.StompHandshakeAuthInterceptor;
+import dev.burnedchats.security.StompPrincipalHandshakeHandler;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 
     private final StompAuthInterceptor stompAuthInterceptor;
+    private final StompHandshakeAuthInterceptor stompHandshakeAuthInterceptor;
+    private final StompPrincipalHandshakeHandler stompPrincipalHandshakeHandler;
     private final RateLimitInterceptor rateLimitInterceptor;
 
     /**
@@ -140,6 +144,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // Primary WebSocket endpoint with SockJS fallback
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns(allowedOrigins)
+                .addInterceptors(stompHandshakeAuthInterceptor)
+                .setHandshakeHandler(stompPrincipalHandshakeHandler)
                 .withSockJS()
                 .setClientLibraryUrl("https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js")
                 .setSessionCookieNeeded(false)
@@ -148,7 +154,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // Raw WebSocket endpoint (without SockJS) for native WebSocket clients
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(allowedOrigins);
+                .setAllowedOriginPatterns(allowedOrigins)
+                .addInterceptors(stompHandshakeAuthInterceptor)
+                .setHandshakeHandler(stompPrincipalHandshakeHandler);
 
         LOG.info("STOMP endpoints registered at /ws with SockJS fallback");
     }
@@ -174,8 +182,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /**
      * Configure inbound channel settings with authentication interceptor.
      *
-     * <p>The {@link StompAuthInterceptor} validates Telegram initData
-     * on STOMP CONNECT and sets up the user principal.
+     * <p>The {@link StompAuthInterceptor} confirms the principal established at
+     * {@link StompHandshakeAuthInterceptor} on STOMP CONNECT (no Redis I/O on CONNECT).
      *
      * @param registration the channel registration
      */
@@ -187,11 +195,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .maxPoolSize(10)
                 .queueCapacity(100);
 
-        // Add authentication interceptor for validating Telegram initData
-        // Add rate limiting interceptor (5.1.6)
+        // Confirm handshake principal on STOMP CONNECT; rate limiting on all inbound frames
         registration.interceptors(stompAuthInterceptor, rateLimitInterceptor);
 
-        LOG.info("Inbound channel configured with StompAuthInterceptor and RateLimitInterceptor");
+        LOG.info("Inbound channel configured with StompAuthInterceptor (CONNECT confirm) "
+                + "and RateLimitInterceptor");
     }
 
     /**

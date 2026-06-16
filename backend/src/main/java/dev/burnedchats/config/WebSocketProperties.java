@@ -80,12 +80,12 @@ public class WebSocketProperties {
     }
 
     /**
-     * STOMP CONNECT auth settings (boundedElastic bridge in {@code StompAuthInterceptor}).
+     * WebSocket handshake auth settings ({@code StompIdentityAuthService.awaitAuth} bridge).
      */
     @Data
     public static class Auth {
         /**
-         * Max wait for reactive identity lookup/persist during STOMP CONNECT.
+         * Max wait for reactive identity lookup/persist during WebSocket handshake auth.
          */
         private Duration timeout = Duration.ofSeconds(30);
     }
