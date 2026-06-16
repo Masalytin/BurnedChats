@@ -1,5 +1,6 @@
 package dev.burnedchats.security;
 
+import dev.burnedchats.config.WebSocketProperties;
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.repository.UserIdentityRepository;
@@ -16,8 +17,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-
-import java.time.Duration;
 
 /**
  * STOMP channel interceptor for Telegram Mini App authentication.
@@ -60,11 +59,11 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private static final String AUTH_TOKEN_HEADER_LEGACY = "auth-token";
     private static final String AUTH_TYPE_TELEGRAM = "telegram";
     private static final String AUTH_TYPE_WALLET = "wallet";
-    private static final Duration AUTH_TIMEOUT = Duration.ofSeconds(30);
 
     private final TelegramAuthService telegramAuthService;
     private final SessionTokenService sessionTokenService;
     private final UserIdentityRepository userIdentityRepository;
+    private final WebSocketProperties webSocketProperties;
 
     /**
      * Intercept messages before they are sent to the channel.
@@ -211,7 +210,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         try {
             T result = authMono
                     .subscribeOn(Schedulers.boundedElastic())
-                    .block(AUTH_TIMEOUT);
+                    .block(webSocketProperties.getAuth().getTimeout());
             if (result == null) {
                 throw new AuthenticationException("Authentication failed");
             }

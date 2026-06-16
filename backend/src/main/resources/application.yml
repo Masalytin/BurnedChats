@@ -62,6 +62,10 @@ websocket:
   send:
     buffer-size: 524288  # 512KB send buffer
     timeout: 15000       # 15s send timeout
+  # STOMP CONNECT auth — reactive Redis/user lookup runs on boundedElastic (IMP-AUDIT-05);
+  # this timeout caps how long CONNECT waits for that bridge to complete.
+  auth:
+    timeout: ${WEBSOCKET_AUTH_TIMEOUT:30s}
 
 # Telegram Bot configuration (Sprint 2.1)
 telegram:

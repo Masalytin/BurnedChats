@@ -4,6 +4,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 /**
  * Configuration properties for WebSocket/STOMP.
  *
@@ -28,6 +30,11 @@ public class WebSocketProperties {
      * Send configuration.
      */
     private Send send = new Send();
+
+    /**
+     * STOMP CONNECT authentication configuration.
+     */
+    private Auth auth = new Auth();
 
     /**
      * Heartbeat settings.
@@ -70,6 +77,17 @@ public class WebSocketProperties {
          * Send timeout in milliseconds.
          */
         private int timeout = 15000;
+    }
+
+    /**
+     * STOMP CONNECT auth settings (boundedElastic bridge in {@code StompAuthInterceptor}).
+     */
+    @Data
+    public static class Auth {
+        /**
+         * Max wait for reactive identity lookup/persist during STOMP CONNECT.
+         */
+        private Duration timeout = Duration.ofSeconds(30);
     }
 }
 
