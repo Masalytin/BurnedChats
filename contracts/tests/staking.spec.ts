@@ -1,4 +1,4 @@
-import { Blockchain } from '@ton/sandbox';
+import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import { toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
@@ -991,6 +991,106 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
             assertPendingRewardCloseToNano(goldY, 3_332_304_000n, 5_000n);
             assertPendingRewardCloseToNano(diaY, 6_664_608_000n, 5_000n);
         });
+    });
+});
+
+/** Wire StakingLock → StakingMaster push sync (deployer acts as timelock in sandbox). */
+async function wireStakingLockPushSync(
+    stakingLock: SandboxContract<StakingLock>,
+    stakingMaster: SandboxContract<StakingMaster>,
+    timelock: SandboxContract<TreasuryContract>,
+) {
+    const wire = await stakingLock.sendSetStakingMasterForPush(timelock.getSender(), stakingMaster.address);
+    expect(wire.transactions).toHaveTransaction({ success: true });
+    const push = await stakingLock.sendPushAllTierConfigs(timelock.getSender());
+    expect(push.transactions).toHaveTransaction({ success: true });
+}
+
+describe('IMP-AUDIT-03 — StakingLock runtime wiring', () => {
+    it('governance lock-duration change updates unlock on subsequent stake', async () => {
+        const env = await setupStakingEnvironment('https://example.com/audit03-unlock.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const user = await env.blockchain.treasury('audit03-unlock-user');
+        await mintAndSyncUser(env, user, 5n * MIN_STAKE_NANO);
+
+        const newSilverSeconds = 7n * 24n * 3600n;
+        const gov = await env.stakingLock.sendSetLockDuration(env.deployer.getSender(), {
+            tier: 1,
+            duration: newSilverSeconds,
+        });
+        expect(gov.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetTierConfig(1n)).durationSeconds).toBe(newSilverSeconds);
+
+        await stakeAs(env, user, 1, MIN_STAKE_NANO);
+        const stake = await env.stakingMaster.getGetStake(user.address, 1n);
+        expect(stake).not.toBeNull();
+        expect(stake!.unlockTime - stake!.startTime).toBe(newSilverSeconds);
+
+        const early = await env.stakingMaster.sendUnstakeJetton(user.getSender(), {
+            tier: 1,
+            amount: MIN_STAKE_NANO,
+        });
+        expect(early.transactions).toHaveTransaction({
+            success: false,
+            exitCode: StakingMaster_errors_backward['Still locked'],
+        });
+
+        advanceTime(env.blockchain, Number(newSilverSeconds));
+        const late = await env.stakingMaster.sendUnstakeJetton(user.getSender(), {
+            tier: 1,
+            amount: MIN_STAKE_NANO,
+        });
+        expect(late.transactions).toHaveTransaction({ success: true });
+    });
+
+    it('governance reward-share change affects fee accrual on subsequent stakes', async () => {
+        const env = await setupStakingEnvironment('https://example.com/audit03-share.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const user = await env.blockchain.treasury('audit03-share-user');
+        await mintAndSyncUser(env, user, 3n * MIN_STAKE_NANO);
+
+        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [
+            10n,
+            10n,
+            25n,
+            55n,
+        ]);
+        expect(gov.transactions).toHaveTransaction({ on: env.stakingLock.address, success: true });
+        expect((await env.stakingMaster.getGetTierConfig(0n)).rewardShare).toBe(10n);
+
+        await stakeAs(env, user, 0, MIN_STAKE_NANO);
+
+        const feeAmount = 100n * NANO_PER_BURN;
+        const tier0Slice = (feeAmount * 10n) / 100n;
+        const masterSender = env.blockchain.sender(env.stakingMaster.address);
+        await env.pool.sendRelayStakeFeeAccrual(masterSender, feeAmount);
+
+        const pend = await env.stakingMaster.getGetPendingReward(user.address, 0n);
+        expect(pend).toBe(tier0Slice);
+    });
+
+    it('governance VP multiplier change affects voting power on subsequent stake', async () => {
+        const env = await setupStakingEnvironment('https://example.com/audit03-vp.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const user = await env.blockchain.treasury('audit03-vp-user');
+        await mintAndSyncUser(env, user, 2n * MIN_STAKE_NANO);
+
+        const newMultiplier = 250n;
+        const gov = await env.stakingLock.sendSetTierMultiplier(env.deployer.getSender(), {
+            tier: 2,
+            multiplier: newMultiplier,
+        });
+        expect(gov.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetTierConfig(2n)).multiplier).toBe(newMultiplier);
+
+        const stakeAmt = MIN_STAKE_NANO;
+        await stakeAs(env, user, 2, stakeAmt);
+
+        const vp = await env.stakingMaster.getGetVotingPower(user.address);
+        expect(vp).toBe((stakeAmt * newMultiplier) / 100n);
     });
 });
 

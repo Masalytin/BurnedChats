@@ -1,7 +1,10 @@
 import {
     StakingLock as StakingLockBase,
     dictValueParserTierConfig,
+    type PushAllTierConfigs,
+    type SetAllTierRewardShares,
     type SetLockDuration,
+    type SetStakingMasterForPush,
     type SetTierMultiplier,
     type SetTierRewardShare,
     type TierConfig,
@@ -34,8 +37,49 @@ export function defaultStakingTierConfigs(): Dictionary<bigint, TierConfig> {
 
 export class StakingLock extends StakingLockBase {
     static async prepareInit(timelock: Address): Promise<StakingLock> {
-        const raw = await StakingLockBase.fromInit(timelock, defaultStakingTierConfigs());
+        const raw = await StakingLockBase.fromInit(
+            timelock,
+            timelock,
+            false,
+            defaultStakingTierConfigs(),
+        );
         return new StakingLock(raw.address, raw.init);
+    }
+
+    /** One-shot: wire StakingMaster as push target for runtime tier-config sync (IMP-AUDIT-03). */
+    async sendSetStakingMasterForPush(provider: ContractProvider, via: Sender, stakingMaster: Address) {
+        const msg: SetStakingMasterForPush = {
+            $$type: 'SetStakingMasterForPush',
+            queryId: 0n,
+            stakingMaster,
+        };
+        return this.send(provider, via, { value: toNano('0.08') }, msg);
+    }
+
+    /** Push all four tier rows to the wired StakingMaster (bootstrap / recovery). */
+    async sendPushAllTierConfigs(provider: ContractProvider, via: Sender) {
+        const msg: PushAllTierConfigs = {
+            $$type: 'PushAllTierConfigs',
+            queryId: 0n,
+        };
+        return this.send(provider, via, { value: toNano('0.3') }, msg);
+    }
+
+    /** Batch rebalance all tier reward shares (must sum to 100). */
+    async sendSetAllTierRewardShares(
+        provider: ContractProvider,
+        via: Sender,
+        shares: [bigint, bigint, bigint, bigint],
+    ) {
+        const msg: SetAllTierRewardShares = {
+            $$type: 'SetAllTierRewardShares',
+            queryId: 0n,
+            share0: shares[0],
+            share1: shares[1],
+            share2: shares[2],
+            share3: shares[3],
+        };
+        return this.send(provider, via, { value: toNano('0.35') }, msg);
     }
 
     async sendSetLockDuration(provider: ContractProvider, via: Sender, p: { tier: number; duration: bigint }) {
@@ -45,7 +89,7 @@ export class StakingLock extends StakingLockBase {
             tier: BigInt(p.tier),
             duration: p.duration,
         };
-        return this.send(provider, via, { value: toNano('0.05') }, msg);
+        return this.send(provider, via, { value: toNano('0.12') }, msg);
     }
 
     async sendSetTierMultiplier(provider: ContractProvider, via: Sender, p: { tier: number; multiplier: bigint }) {
@@ -55,7 +99,7 @@ export class StakingLock extends StakingLockBase {
             tier: BigInt(p.tier),
             multiplier: p.multiplier,
         };
-        return this.send(provider, via, { value: toNano('0.05') }, msg);
+        return this.send(provider, via, { value: toNano('0.12') }, msg);
     }
 
     async sendSetTierRewardShare(provider: ContractProvider, via: Sender, p: { tier: number; share: bigint }) {
@@ -65,6 +109,6 @@ export class StakingLock extends StakingLockBase {
             tier: BigInt(p.tier),
             share: p.share,
         };
-        return this.send(provider, via, { value: toNano('0.05') }, msg);
+        return this.send(provider, via, { value: toNano('0.12') }, msg);
     }
 }

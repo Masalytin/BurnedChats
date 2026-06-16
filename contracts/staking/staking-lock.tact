@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Staking Lock — tier lock durations, VP multipliers, reward share splits (governance-adjustable).
+// Authoritative tier table for Timelock; pushes runtime cache updates to StakingMaster (IMP-AUDIT-03).
 
 // Tier ids match StakingMaster: Flexible=0, Silver=1, Gold=2, Diamond=3.
 
@@ -9,19 +10,13 @@ struct TierConfig {
     rewardShare: Int; // percent points, all four tiers must sum to 100
 }
 
-/// Default lock duration used at stake time when computing unlock timestamps.
-/// Silver: 6 * 30 * 24 * 3600 (~6×30-day months), Gold: 365d, Diamond: 3y.
-fun defaultTierUnlockDuration(tier: Int): Int {
-    if (tier == 0) {
-        return 0;
-    }
-    if (tier == 1) {
-        return 15552000;
-    }
-    if (tier == 2) {
-        return 31536000;
-    }
-    return 94608000;
+/// Push-model sync: StakingLock → StakingMaster after each governance tier change.
+message(0x5a030010) TierConfigSync {
+    queryId: Int as uint64;
+    tier: Int as uint8;
+    durationSeconds: Int as uint64;
+    multiplier: Int;
+    rewardShare: Int;
 }
 
 message(0x5a030001) SetLockDuration {
@@ -42,12 +37,35 @@ message(0x5a030003) SetTierRewardShare {
     share: Int;
 }
 
+/// One-shot bootstrap wiring: StakingLock may push tier-config updates to StakingMaster.
+message(0x5a030004) SetStakingMasterForPush {
+    queryId: Int as uint64;
+    stakingMaster: Address;
+}
+
+/// Bootstrap / recovery: push all four tier rows to StakingMaster (requires push wiring).
+message(0x5a030005) PushAllTierConfigs {
+    queryId: Int as uint64;
+}
+
+/// Batch rebalance of all tier reward shares (must sum to 100). Timelock-only.
+message(0x5a030006) SetAllTierRewardShares {
+    queryId: Int as uint64;
+    share0: Int;
+    share1: Int;
+    share2: Int;
+    share3: Int;
+}
+
 contract StakingLock(
     timelock: Address,
+    stakingMaster: Address,
+    smPushWired: Bool,
     configs: map<Int, TierConfig>,
 ) {
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
+    const GasPushSync: Int = ton("0.04");
 
     receive() {
         cashback(sender());
@@ -66,6 +84,87 @@ contract StakingLock(
         return self.configs.get(tier)!!;
     }
 
+    inline fun pushTierConfigToMaster(tier: Int) {
+        if (!self.smPushWired) {
+            return;
+        }
+        let cfg = self.tierCfg(tier);
+        message(MessageParameters {
+            to: self.stakingMaster,
+            value: self.GasPushSync,
+            bounce: true,
+            body: TierConfigSync {
+                queryId: 0,
+                tier: tier,
+                durationSeconds: cfg.durationSeconds,
+                multiplier: cfg.multiplier,
+                rewardShare: cfg.rewardShare,
+            }.toCell(),
+        });
+    }
+
+    /// Bootstrap-only: wire StakingMaster as push target (placeholder `stakingMaster` at deploy).
+    receive(msg: SetStakingMasterForPush) {
+        require(sender() == self.timelock, "Only timelock");
+        require(!self.smPushWired, "Push already wired");
+        forceBasechain(msg.stakingMaster);
+        self.stakingMaster = msg.stakingMaster;
+        self.smPushWired = true;
+        cashback(sender());
+    }
+
+    receive(msg: PushAllTierConfigs) {
+        self.assertTimelock();
+        require(self.smPushWired, "Push not wired");
+        let t: Int = self.MinTier;
+        while (t <= self.MaxTier) {
+            self.pushTierConfigToMaster(t);
+            t = t + 1;
+        }
+        cashback(sender());
+    }
+
+    receive(msg: SetAllTierRewardShares) {
+        self.assertTimelock();
+        require(
+            msg.share0 + msg.share1 + msg.share2 + msg.share3 == 100,
+            "Shares must sum to 100",
+        );
+        require(msg.share0 >= 0 && msg.share0 <= 100, "Bad share");
+        require(msg.share1 >= 0 && msg.share1 <= 100, "Bad share");
+        require(msg.share2 >= 0 && msg.share2 <= 100, "Bad share");
+        require(msg.share3 >= 0 && msg.share3 <= 100, "Bad share");
+
+        let t: Int = self.MinTier;
+        while (t <= self.MaxTier) {
+            let cur = self.tierCfg(t);
+            let share: Int = msg.share0;
+            if (t == 1) {
+                share = msg.share1;
+            } else if (t == 2) {
+                share = msg.share2;
+            } else if (t == 3) {
+                share = msg.share3;
+            }
+            self.configs.set(
+                t,
+                TierConfig {
+                    durationSeconds: cur.durationSeconds,
+                    multiplier: cur.multiplier,
+                    rewardShare: share,
+                },
+            );
+            t = t + 1;
+        }
+
+        t = self.MinTier;
+        while (t <= self.MaxTier) {
+            self.pushTierConfigToMaster(t);
+            t = t + 1;
+        }
+        cashback(sender());
+    }
+
     receive(msg: SetLockDuration) {
         self.assertTimelock();
         let t = msg.tier;
@@ -79,6 +178,7 @@ contract StakingLock(
                 rewardShare: cur.rewardShare,
             },
         );
+        self.pushTierConfigToMaster(t);
         cashback(sender());
     }
 
@@ -96,6 +196,7 @@ contract StakingLock(
                 rewardShare: cur.rewardShare,
             },
         );
+        self.pushTierConfigToMaster(t);
         cashback(sender());
     }
 
@@ -122,6 +223,7 @@ contract StakingLock(
                 rewardShare: msg.share,
             },
         );
+        self.pushTierConfigToMaster(t);
         cashback(sender());
     }
 
@@ -149,5 +251,13 @@ contract StakingLock(
 
     get fun get_timelock(): Address {
         return self.timelock;
+    }
+
+    get fun get_staking_master_push_target(): Address {
+        return self.stakingMaster;
+    }
+
+    get fun get_sm_push_wired(): Bool {
+        return self.smPushWired;
     }
 }

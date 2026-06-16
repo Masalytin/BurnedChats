@@ -8,6 +8,7 @@ import {
     type UnstakeJetton,
 } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { Address, ContractProvider, Dictionary, Sender, toNano } from '@ton/core';
+import { defaultStakingTierConfigs } from './StakingLock';
 
 export function emptyTierStakeMap() {
     return Dictionary.empty(Dictionary.Keys.Address(), dictValueParserStakeInfoView());
@@ -61,6 +62,7 @@ export class StakingMaster extends StakingMasterBase {
             0n,
             0n,
             0n,
+            defaultStakingTierConfigs(),
         );
         return new StakingMaster(raw.address, raw.init);
     }

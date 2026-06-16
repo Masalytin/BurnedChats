@@ -73,17 +73,14 @@ contract StakingMaster(
     /// Emission can never accrue into `rewardPerShare` beyond this funded reserve, so the
     /// pool never promises emission rewards it cannot pay. Funded via `FundEmissionReserve`.
     emissionFunded: Int as coins,
+    /// Runtime tier table — synced from StakingLock (push model, IMP-AUDIT-03).
+    tierConfigs: map<Int, TierConfig>,
 ) {
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
 
     /// Scales accruing multiplier before dividing by tier total stake (~MasterChef precision).
     const RewardScale: Int = 1000000000000000000; // 1e18
-    /// Default reward split (% points); must mirror StakingLock initial configs (sums to 100).
-    const RewardSharePctTier0: Int = 5;
-    const RewardSharePctTier1: Int = 10;
-    const RewardSharePctTier2: Int = 25;
-    const RewardSharePctTier3: Int = 60;
 
     /// 300 BURN (nano) linear emission over 3 years (Phase 1).
     const TotalEmissionNano: Int = 300000000000;
@@ -104,18 +101,22 @@ contract StakingMaster(
         require(tier >= self.MinTier && tier <= self.MaxTier, "Bad tier");
     }
 
-    inline fun tierRewardSharePercent(tier: Int): Int {
+    inline fun tierCfg(tier: Int): TierConfig {
         self.assertTier(tier);
-        if (tier == 0) {
-            return self.RewardSharePctTier0;
-        }
-        if (tier == 1) {
-            return self.RewardSharePctTier1;
-        }
-        if (tier == 2) {
-            return self.RewardSharePctTier2;
-        }
-        return self.RewardSharePctTier3;
+        require(self.tierConfigs.get(tier) != null, "Missing tier cfg");
+        return self.tierConfigs.get(tier)!!;
+    }
+
+    inline fun tierRewardSharePercent(tier: Int): Int {
+        return self.tierCfg(tier).rewardShare;
+    }
+
+    inline fun tierUnlockDurationSeconds(tier: Int): Int {
+        return self.tierCfg(tier).durationSeconds;
+    }
+
+    inline fun tierVpMultiplier(tier: Int): Int {
+        return self.tierCfg(tier).multiplier;
     }
 
     inline fun rewardPerShareForTier(tier: Int): Int {
@@ -489,7 +490,7 @@ contract StakingMaster(
 
         let oldOpt = self.stakesMapGet(tierAsInt, staker);
         let start = now();
-        let unlockTime = start + defaultTierUnlockDuration(tierAsInt);
+        let unlockTime = start + self.tierUnlockDurationSeconds(tierAsInt);
 
         if (oldOpt != null) {
             let old = oldOpt!!;
@@ -648,7 +649,8 @@ contract StakingMaster(
                 let stake = stOpt!!;
                 if (stake.amount > 0) {
                     sum =
-                        sum + tierVotingPowerFromAmount(stake.amount, stake.tier);
+                        sum +
+                        tierVotingPowerFromAmount(stake.amount, self.tierVpMultiplier(stake.tier));
                 }
             }
             t = t + 1;
@@ -662,7 +664,7 @@ contract StakingMaster(
         while (t <= self.MaxTier) {
             let tot = self.tierTotalStake(t);
             if (tot > 0) {
-                sum = sum + tierVotingPowerFromAmount(tot, t);
+                sum = sum + tierVotingPowerFromAmount(tot, self.tierVpMultiplier(t));
             }
             t = t + 1;
         }
@@ -691,6 +693,24 @@ contract StakingMaster(
                 vp: vpEff,
             }.toCell(),
         });
+        cashback(sender());
+    }
+
+    /// IMP-AUDIT-03 — trusted push sync from StakingLock (Timelock-governed tier table).
+    receive(msg: TierConfigSync) {
+        require(sender() == self.stakingLock, "Only staking lock");
+        let t = msg.tier;
+        self.assertTier(t);
+        require(msg.multiplier > 0, "Bad multiplier");
+        require(msg.rewardShare >= 0 && msg.rewardShare <= 100, "Bad share");
+        self.tierConfigs.set(
+            t,
+            TierConfig {
+                durationSeconds: msg.durationSeconds,
+                multiplier: msg.multiplier,
+                rewardShare: msg.rewardShare,
+            },
+        );
         cashback(sender());
     }
 
@@ -745,7 +765,7 @@ contract StakingMaster(
         return self.computeOwnerVotingPower(ownerAddr);
     }
 
-    /// Sum of VP over all tiers (Σ tierTotalStake × multiplier / 100). Multipliers mirror default StakingLock.
+    /// Sum of VP over all tiers (Σ tierTotalStake × runtime multiplier / 100).
     get fun get_total_voting_power(): Int {
         return self.computeTotalVotingPower();
     }
@@ -821,5 +841,9 @@ contract StakingMaster(
 
     get fun get_emission_funded(): Int {
         return self.emissionFunded;
+    }
+
+    get fun get_tier_config(tier: Int): TierConfig {
+        return self.tierCfg(tier);
     }
 }
