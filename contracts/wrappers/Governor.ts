@@ -100,7 +100,6 @@ export class Governor extends GovernorBase {
         p: {
             proposalType: number;
             payload?: Cell;
-            totalVpAtSnapshot: bigint;
             claimedVp: bigint;
             queryId?: bigint;
         },
@@ -110,7 +109,6 @@ export class Governor extends GovernorBase {
             queryId: p.queryId ?? 0n,
             proposalType: BigInt(p.proposalType),
             payload: p.payload ?? Governor.emptyPayload(),
-            totalVpAtSnapshot: p.totalVpAtSnapshot,
             claimedVp: p.claimedVp,
         };
         return this.send(provider, via, { value: toNano('0.5') }, msg);

@@ -40,11 +40,10 @@ contract Governor(
         return totalVp * quorumPct / 100;
     }
 
-    /// Phase 1 of proposal creation (IMP-AUDIT-02). The proposer-supplied
-    /// `totalVpAtSnapshot` is NOT trusted: it is ignored entirely. Instead the Governor
-    /// reserves a proposal id, then asks the StakingMaster for the authoritative total
-    /// voting power. The Proposal is only deployed in phase 2 (`TotalVpSnapshotReply`),
-    /// with a quorum denominator that the proposer cannot inflate or deflate.
+    /// Phase 1 of proposal creation (IMP-AUDIT-02). The Governor reserves a proposal id,
+    /// then asks the StakingMaster for the authoritative total voting power. The Proposal
+    /// is only deployed in phase 2 (`TotalVpSnapshotReply`), with a quorum denominator
+    /// that the proposer cannot inflate or deflate.
     receive(msg: CreateProposal) {
         validateProposalPayloadShape(msg.proposalType, msg.payload);
 

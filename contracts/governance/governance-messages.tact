@@ -15,10 +15,6 @@ message(0x5a040101) CreateProposal {
     queryId: Int as uint64;
     proposalType: Int as uint32;
     payload: Cell;
-    /// Proposer self-reported total VP denominator. IGNORED on-chain since IMP-AUDIT-02:
-    /// the quorum denominator is snapshotted from StakingMaster, not from this payload.
-    /// Retained only for ABI/wrapper backward compatibility.
-    totalVpAtSnapshot: Int;
     /// Proposer self-reported VP; must be ≥ minProposalVp. Used together with staking relay for votes.
     claimedVp: Int;
 }
