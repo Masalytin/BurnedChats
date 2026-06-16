@@ -114,12 +114,7 @@ public class MessageRepository {
                             })
                             .flatMap(size -> {
                                 offlineQueueMetrics.setTrackedListSize(key, size);
-                                // Set TTL on first message
-                                if (size == 1) {
-                                    return redisTemplate.expire(key, listTtl)
-                                            .thenReturn(true);
-                                }
-                                return Mono.just(true);
+                                return redisTemplate.expire(key, listTtl).thenReturn(true);
                             })
                             .flatMap(result -> {
                                 // Increment total count

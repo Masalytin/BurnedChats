@@ -161,21 +161,22 @@ class MessageRepositoryTest {
         }
 
         @Test
-        @DisplayName("should not set TTL on subsequent messages")
-        void shouldNotSetTtlOnSubsequentMessages() {
+        @DisplayName("should refresh TTL on subsequent messages")
+        void shouldRefreshTtlOnSubsequentMessages() {
             // Given
             Message message = createTestMessage();
             String key = "messages:" + RECIPIENT_ID + ":" + TEST_SESSION_ID;
             String countKey = "messages:count:" + RECIPIENT_ID;
 
-            when(listOperations.rightPush(eq(key), anyString())).thenReturn(Mono.just(5L)); // Not first message
+            when(listOperations.rightPush(eq(key), anyString())).thenReturn(Mono.just(5L));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
             when(valueOperations.increment(countKey)).thenReturn(Mono.just(5L));
 
             // When
             messageRepository.queueMessage(message).block();
 
             // Then
-            verify(redisTemplate, never()).expire(eq(key), any(Duration.class));
+            verify(redisTemplate).expire(eq(key), eq(messagesProperties.getOfflineQueue().getTtl()));
         }
 
         @Test
@@ -188,6 +189,7 @@ class MessageRepositoryTest {
 
             when(listOperations.rightPush(eq(key), anyString())).thenReturn(Mono.just(101L)); // Exceeds 100
             when(listOperations.trim(eq(key), eq(-100L), eq(-1L))).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
             when(valueOperations.increment(countKey)).thenReturn(Mono.just(101L));
 
             // When
