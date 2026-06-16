@@ -6,6 +6,8 @@ import dev.burnedchats.security.pow.AdaptiveDifficultyService;
 import dev.burnedchats.security.pow.PowAction;
 import dev.burnedchats.security.pow.PowChallengeService;
 import dev.burnedchats.messaging.StompUserMessenger;
+import dev.burnedchats.service.RateLimitService;
+import dev.burnedchats.service.RateLimitService.RateLimitType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -31,6 +33,7 @@ public class PowHandler {
 
     private final AdaptiveDifficultyService adaptiveDifficultyService;
     private final PowChallengeService powChallengeService;
+    private final RateLimitService rateLimitService;
     private final StompUserMessenger stompUserMessenger;
 
     @MessageMapping("/pow.challenge")
@@ -57,6 +60,8 @@ public class PowHandler {
         }
 
         LOG.debug("PoW challenge requested: action={}, internalId={}", action, appPrincipal.getInternalId());
+
+        rateLimitService.checkRateLimitBlocking(appPrincipal.getInternalId(), RateLimitType.POW_CHALLENGE);
 
         adaptiveDifficultyService.currentDifficulty(action)
                 .flatMap(difficulty -> powChallengeService.issue(action, difficulty))

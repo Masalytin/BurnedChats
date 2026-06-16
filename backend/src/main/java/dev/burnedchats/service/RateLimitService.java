@@ -18,6 +18,7 @@ import java.time.Duration;
  * <ul>
  *   <li>Search: 10 requests per minute</li>
  *   <li>Session create: 3 requests per minute</li>
+ *   <li>PoW challenge issuance: 10 requests per minute</li>
  *   <li>Message send: 60 messages per minute</li>
  *   <li>General: 100 requests per minute</li>
  * </ul>
@@ -77,7 +78,15 @@ public class RateLimitService {
         /**
          * Delete for everyone (DM and room).
          */
-        MESSAGE_DELETE(30, Duration.ofMinutes(1));
+        MESSAGE_DELETE(30, Duration.ofMinutes(1)),
+
+        /**
+         * PoW challenge issuance ({@code /app/pow.challenge}).
+         *
+         * <p>Separate from gated-action limits; prevents Redis/CPU flood on challenge creation
+         * without requiring PoW on the issuance route itself (DESIGN.md §6.1).
+         */
+        POW_CHALLENGE(10, Duration.ofMinutes(1));
 
         private final int maxRequests;
         private final Duration window;

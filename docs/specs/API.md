@@ -631,7 +631,7 @@ client.activate();
 
 ### `POW_CHALLENGE` (`/app/pow.challenge`)
 
-Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../improvements/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance в текущей реализации отсутствует** — см. [SECURITY_REVIEW.md](../improvements/antispam-pow/SECURITY_REVIEW.md) (follow-up).
+Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../improvements/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
 
 **Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел IMP-ASPOW-04).
 
