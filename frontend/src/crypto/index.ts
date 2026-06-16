@@ -17,6 +17,9 @@ export {
   deriveAESKey,
   generateFingerprint,
   generateVisualFingerprint,
+  hashSortedPublicKeys,
+  formatSafetyNumber,
+  FINGERPRINT_HASH_BYTES,
   isCryptoAvailable,
 } from './ecdh';
 

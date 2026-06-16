@@ -50,7 +50,50 @@
 
 /* Fingerprint Container */
 .verification-view__fingerprint-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-md);
   padding: var(--bc-spacing-md) 0;
+  width: 100%;
+}
+
+.verification-view__safety-number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  text-align: center;
+  width: 100%;
+}
+
+.verification-view__safety-number-label {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+  color: var(--bc-text-secondary);
+}
+
+.verification-view__safety-number-value {
+  margin: 0;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-primary);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
+  word-break: break-word;
+}
+
+.verification-view__safety-number-hint {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
+  max-width: 18.75rem;
+  line-height: var(--bc-leading-normal);
 }
 
 /* Mismatch Warning */

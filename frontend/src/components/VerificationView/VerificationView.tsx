@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement, UserInfo } from '../../types';
 import type { VerificationStatus } from '../../hooks/useVerification';
+import { getFingerprint } from '../../crypto/keyStore';
 import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
@@ -42,7 +43,7 @@ export function VerificationView({
   fingerprint,
   status,
   peer,
-  sessionId: _sessionId,
+  sessionId,
   onConfirm,
   onMismatch,
   onContinue,
@@ -50,8 +51,10 @@ export function VerificationView({
   className = '',
 }: VerificationViewProps) {
   const { t } = useTranslation();
-  // sessionId is currently unused but kept in the interface for future use
-  void _sessionId;
+  const safetyNumber = useMemo(
+    () => getFingerprint(sessionId) ?? null,
+    [sessionId, fingerprint],
+  );
   const selfVerified = status?.selfVerified ?? false;
   const peerVerified = status?.peerVerified ?? false;
   const bothVerified = status?.bothVerified ?? false;
@@ -88,10 +91,21 @@ export function VerificationView({
         {/* Fingerprint display */}
         {!mismatchReported && (
           <div className="verification-view__fingerprint-container">
+            {safetyNumber && (
+              <div className="verification-view__safety-number" aria-label={t('handshake.fingerprintLabel')}>
+                <p className="verification-view__safety-number-label">
+                  {t('handshake.fingerprintLabel')}
+                </p>
+                <code className="verification-view__safety-number-value">{safetyNumber}</code>
+                <p className="verification-view__safety-number-hint">
+                  {t('handshake.fingerprintHint')}
+                </p>
+              </div>
+            )}
             <VisualFingerprint
               elements={fingerprint}
               size="lg"
-              showLabel
+              showLabel={!safetyNumber}
               showHint={viewState === 'pending'}
               verified={bothVerified}
             />

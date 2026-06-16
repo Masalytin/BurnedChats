@@ -255,39 +255,11 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 // Verification Helpers
 // ============================================
 
-/**
- * Generates a visual fingerprint from the shared secret for verification.
- * 
- * This creates a short, human-readable code that users can compare
- * out-of-band (e.g., via voice call) to verify they have the same key
- * and are not subject to a MITM attack.
- * 
- * @param sharedSecret - The raw shared secret from ECDH
- * @returns 8-character hex fingerprint for visual comparison
- * 
- * @example
- * ```ts
- * const fingerprint = await generateFingerprint(sharedSecret);
- * // fingerprint: "A3B7C1D9"
- * // Both parties should see the same fingerprint
- * ```
- */
-export async function generateFingerprint(sharedSecret: ArrayBuffer): Promise<string> {
-  // Hash the shared secret to get a fixed-length fingerprint base
-  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
-  const hashArray = new Uint8Array(hash);
-  
-  // Take first 4 bytes and convert to uppercase hex
-  const fingerprint = Array.from(hashArray.slice(0, 4))
-    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
-    .join('');
-  
-  return fingerprint;
-}
+/** Number of hash bytes used for the safety-number (128 bits). */
+export const FINGERPRINT_HASH_BYTES = 16;
 
-// ============================================
-// Visual Fingerprint
-// ============================================
+/** Byte offset in the fingerprint hash for visual shape/color pairs. */
+const VISUAL_FINGERPRINT_BYTE_OFFSET = 16;
 
 /** Available shapes for visual fingerprint display */
 const FINGERPRINT_SHAPES: FingerprintShape[] = ['◆', '○', '□', '△', '⬡', '⬢'];
@@ -296,54 +268,111 @@ const FINGERPRINT_SHAPES: FingerprintShape[] = ['◆', '○', '□', '△', '⬡
 const FINGERPRINT_COLORS: FingerprintColor[] = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
 
 /**
- * Generates a visual fingerprint from the shared secret.
- * 
- * Creates 4 colored geometric shapes that can be easily compared
- * by users to verify they have the same encryption key. This provides
- * protection against MITM attacks when users compare out-of-band.
- * 
- * The visual fingerprint uses a combination of:
- * - 6 shapes: ◆ ○ □ △ ⬡ ⬢
- * - 6 colors: red, blue, green, purple, orange, cyan
- * 
- * This gives 36^4 = 1,679,616 unique combinations, providing
- * sufficient protection against random collisions.
- * 
- * @param sharedSecret - The raw shared secret from ECDH
+ * Lexicographic comparison of two byte arrays.
+ */
+function compareByteArrays(a: Uint8Array, b: Uint8Array): number {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) {
+      return a[i] - b[i];
+    }
+  }
+  return a.length - b.length;
+}
+
+/**
+ * Concatenates two SPKI public key blobs in sorted order and hashes with SHA-256.
+ *
+ * H = SHA-256(sort(pubA_raw, pubB_raw)) — order is deterministic regardless of
+ * which party computes the fingerprint (MITM verification invariant).
+ */
+export async function hashSortedPublicKeys(
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
+): Promise<Uint8Array> {
+  const [localRaw, peerRaw] = await Promise.all([
+    crypto.subtle.exportKey(PUBLIC_KEY_FORMAT, localPublicKey),
+    crypto.subtle.exportKey(PUBLIC_KEY_FORMAT, peerPublicKey),
+  ]);
+
+  const localBytes = new Uint8Array(localRaw);
+  const peerBytes = new Uint8Array(peerRaw);
+
+  const [first, second] =
+    compareByteArrays(localBytes, peerBytes) <= 0
+      ? [localBytes, peerBytes]
+      : [peerBytes, localBytes];
+
+  const material = new Uint8Array(first.length + second.length);
+  material.set(first, 0);
+  material.set(second, first.length);
+
+  const hash = await crypto.subtle.digest('SHA-256', material);
+  return new Uint8Array(hash);
+}
+
+/**
+ * Formats the first {@link FINGERPRINT_HASH_BYTES} of a hash as a numeric safety-number
+ * (8 groups of 5 digits, 128 bits of entropy).
+ */
+export function formatSafetyNumber(hashBytes: Uint8Array): string {
+  const groups: string[] = [];
+
+  for (let i = 0; i < FINGERPRINT_HASH_BYTES; i += 2) {
+    const value = (hashBytes[i] << 8) | hashBytes[i + 1];
+    groups.push(value.toString().padStart(5, '0'));
+  }
+
+  return groups.join(' ');
+}
+
+/**
+ * Generates a safety-number fingerprint from both ECDH public keys.
+ *
+ * Derived from sorted SPKI bytes, not the shared secret — same approach as Signal
+ * identity fingerprints. Both parties see identical output when keys are honest.
+ *
+ * @param localPublicKey - Our ECDH public key
+ * @param peerPublicKey - Peer's imported public key
+ * @returns Safety-number string (8 groups × 5 digits)
+ */
+export async function generateFingerprint(
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
+): Promise<string> {
+  const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
+  return formatSafetyNumber(hashBytes);
+}
+
+/**
+ * Generates a visual fingerprint from both ECDH public keys.
+ *
+ * Uses bytes 16–23 of the same sorted-public-key hash as {@link generateFingerprint}.
+ * The four colored shapes are a quick visual anchor; primary verification entropy
+ * comes from the safety-number (128 bits).
+ *
+ * @param localPublicKey - Our ECDH public key
+ * @param peerPublicKey - Peer's imported public key
  * @returns Array of 4 VisualFingerprintElements (shape + color pairs)
- * 
- * @example
- * ```ts
- * const visual = await generateVisualFingerprint(sharedSecret);
- * // visual: [
- * //   { shape: '◆', color: 'red' },
- * //   { shape: '○', color: 'blue' },
- * //   { shape: '□', color: 'green' },
- * //   { shape: '△', color: 'purple' }
- * // ]
- * // Both parties should see the same 4 colored shapes
- * ```
  */
 export async function generateVisualFingerprint(
-  sharedSecret: ArrayBuffer
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
 ): Promise<VisualFingerprintElement[]> {
-  // Hash the shared secret to get deterministic bytes
-  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
-  const bytes = new Uint8Array(hash);
-  
+  const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
   const elements: VisualFingerprintElement[] = [];
-  
-  // Generate 4 elements, using 2 bytes each (one for shape, one for color)
+
   for (let i = 0; i < 4; i++) {
-    const shapeIndex = bytes[i * 2] % FINGERPRINT_SHAPES.length;
-    const colorIndex = bytes[i * 2 + 1] % FINGERPRINT_COLORS.length;
-    
+    const byteIndex = VISUAL_FINGERPRINT_BYTE_OFFSET + i * 2;
+    const shapeIndex = hashBytes[byteIndex] % FINGERPRINT_SHAPES.length;
+    const colorIndex = hashBytes[byteIndex + 1] % FINGERPRINT_COLORS.length;
+
     elements.push({
       shape: FINGERPRINT_SHAPES[shapeIndex],
       color: FINGERPRINT_COLORS[colorIndex],
     });
   }
-  
+
   return elements;
 }
 

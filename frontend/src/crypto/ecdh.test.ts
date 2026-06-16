@@ -17,6 +17,10 @@ import {
   computeSharedSecret,
   deriveAESKey,
   generateFingerprint,
+  generateVisualFingerprint,
+  hashSortedPublicKeys,
+  formatSafetyNumber,
+  FINGERPRINT_HASH_BYTES,
   isCryptoAvailable,
 } from './ecdh';
 
@@ -294,76 +298,135 @@ describe('ECDH Key Derivation', () => {
 // ============================================
 
 describe('ECDH Fingerprint', () => {
-  describe('generateFingerprint()', () => {
-    it('should generate 8-character hex fingerprint', async () => {
-      const aliceKeyPair = await generateKeyPair();
-      const bobKeyPair = await generateKeyPair();
-      
-      const sharedSecret = await computeSharedSecret(
-        aliceKeyPair.privateKey,
-        bobKeyPair.publicKey
-      );
-      
-      const fingerprint = await generateFingerprint(sharedSecret);
-      
-      expect(fingerprint).toHaveLength(8);
-      expect(fingerprint).toMatch(/^[0-9A-F]{8}$/);
+  describe('hashSortedPublicKeys()', () => {
+    it('should use at least 128 bits (16 bytes) of hash material for safety-number', async () => {
+      expect(FINGERPRINT_HASH_BYTES).toBeGreaterThanOrEqual(16);
     });
 
-    it('should produce identical fingerprints for both parties', async () => {
+    it('should be deterministic for the same key pair', async () => {
       const aliceKeyPair = await generateKeyPair();
       const bobKeyPair = await generateKeyPair();
-      
-      const aliceShared = await computeSharedSecret(
-        aliceKeyPair.privateKey,
-        bobKeyPair.publicKey
+
+      const hash1 = await hashSortedPublicKeys(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+      const hash2 = await hashSortedPublicKeys(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+
+      expect(hash1).toEqual(hash2);
+    });
+
+    it('should be symmetric when local and peer keys are swapped', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const aliceView = await hashSortedPublicKeys(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+      const bobView = await hashSortedPublicKeys(bobKeyPair.publicKey, aliceKeyPair.publicKey);
+
+      expect(aliceView).toEqual(bobView);
+    });
+  });
+
+  describe('formatSafetyNumber()', () => {
+    it('should format 8 groups of 5 digits from 16 hash bytes', () => {
+      const bytes = new Uint8Array(FINGERPRINT_HASH_BYTES);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = i + 1;
+      }
+
+      const formatted = formatSafetyNumber(bytes);
+      const groups = formatted.split(' ');
+
+      expect(groups).toHaveLength(8);
+      for (const group of groups) {
+        expect(group).toMatch(/^\d{5}$/);
+      }
+    });
+  });
+
+  describe('generateFingerprint()', () => {
+    it('should generate safety-number with 8 groups of 5 digits', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const fingerprint = await generateFingerprint(
+        aliceKeyPair.publicKey,
+        bobKeyPair.publicKey,
       );
-      
-      const bobShared = await computeSharedSecret(
-        bobKeyPair.privateKey,
-        aliceKeyPair.publicKey
+
+      const groups = fingerprint.split(' ');
+      expect(groups).toHaveLength(8);
+      for (const group of groups) {
+        expect(group).toMatch(/^\d{5}$/);
+      }
+    });
+
+    it('should produce identical fingerprints for both parties (A↔B symmetry)', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const aliceFingerprint = await generateFingerprint(
+        aliceKeyPair.publicKey,
+        bobKeyPair.publicKey,
       );
-      
-      const aliceFingerprint = await generateFingerprint(aliceShared);
-      const bobFingerprint = await generateFingerprint(bobShared);
-      
+
+      const bobFingerprint = await generateFingerprint(
+        bobKeyPair.publicKey,
+        aliceKeyPair.publicKey,
+      );
+
       expect(aliceFingerprint).toBe(bobFingerprint);
     });
 
-    it('should produce different fingerprints for different secrets', async () => {
+    it('should produce different fingerprints for different peer keys', async () => {
       const aliceKeyPair = await generateKeyPair();
       const bobKeyPair = await generateKeyPair();
       const charlieKeyPair = await generateKeyPair();
-      
-      const aliceBobShared = await computeSharedSecret(
-        aliceKeyPair.privateKey,
-        bobKeyPair.publicKey
+
+      const fpBob = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+      const fpCharlie = await generateFingerprint(
+        aliceKeyPair.publicKey,
+        charlieKeyPair.publicKey,
       );
-      
-      const aliceCharlieShared = await computeSharedSecret(
-        aliceKeyPair.privateKey,
-        charlieKeyPair.publicKey
-      );
-      
-      const fp1 = await generateFingerprint(aliceBobShared);
-      const fp2 = await generateFingerprint(aliceCharlieShared);
-      
-      expect(fp1).not.toBe(fp2);
+
+      expect(fpBob).not.toBe(fpCharlie);
     });
 
-    it('should be consistent for same shared secret', async () => {
+    it('should be consistent for the same public key pair', async () => {
       const aliceKeyPair = await generateKeyPair();
       const bobKeyPair = await generateKeyPair();
-      
-      const sharedSecret = await computeSharedSecret(
-        aliceKeyPair.privateKey,
-        bobKeyPair.publicKey
-      );
-      
-      const fp1 = await generateFingerprint(sharedSecret);
-      const fp2 = await generateFingerprint(sharedSecret);
-      
+
+      const fp1 = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+      const fp2 = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+
       expect(fp1).toBe(fp2);
+    });
+  });
+
+  describe('generateVisualFingerprint()', () => {
+    it('should return 4 visual elements', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const visual = await generateVisualFingerprint(
+        aliceKeyPair.publicKey,
+        bobKeyPair.publicKey,
+      );
+
+      expect(visual).toHaveLength(4);
+    });
+
+    it('should be symmetric for both parties', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const aliceVisual = await generateVisualFingerprint(
+        aliceKeyPair.publicKey,
+        bobKeyPair.publicKey,
+      );
+      const bobVisual = await generateVisualFingerprint(
+        bobKeyPair.publicKey,
+        aliceKeyPair.publicKey,
+      );
+
+      expect(aliceVisual).toEqual(bobVisual);
     });
   });
 });
@@ -416,9 +479,15 @@ describe('Full Key Exchange Flow', () => {
       alicePublicKeyImported
     );
     
-    // 9. Both should have same fingerprint
-    const aliceFingerprint = await generateFingerprint(aliceSharedSecret);
-    const bobFingerprint = await generateFingerprint(bobSharedSecret);
+    // 9. Both should have same safety-number fingerprint
+    const aliceFingerprint = await generateFingerprint(
+      aliceKeyPair.publicKey,
+      bobPublicKeyImported,
+    );
+    const bobFingerprint = await generateFingerprint(
+      bobKeyPair.publicKey,
+      alicePublicKeyImported,
+    );
     expect(aliceFingerprint).toBe(bobFingerprint);
     
     // 10. Derive AES keys for encryption

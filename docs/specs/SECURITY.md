@@ -346,71 +346,103 @@ async function decryptMessage(
 
 ### Концепция
 
-Вместо стандартных эмодзи (как в Signal), используем уникальную систему **"Геометрических отпечатков"**:
+Вместо стандартных эмодзи (как в Signal), используем **safety-number** (128 бит) плюс
+**геометрические фигуры** как быстрый визуальный якорь:
 
 ```
 ┌────────────────────────────────────────┐
+│                                        │
+│   Отпечаток безопасности               │
+│   12345 67890 23456 78901              │
+│   34567 89012 45678 90123              │
 │                                        │
 │   ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐   │
 │   │ ◆◆◆ │  │ ○○○ │  │ □□□ │  │ △△△ │   │
 │   │ RED │  │ BLUE│  │GREEN│  │PURP │   │
 │   └─────┘  └─────┘  └─────┘  └─────┘   │
 │                                        │
-│   "Четыре фигуры должны совпадать"     │
-│                                        │
 │   [✓ Совпадают]    [✗ Не совпадают]    │
 │                                        │
 └────────────────────────────────────────┘
 ```
 
-### Почему это лучше эмодзи
+### Устранённая уязвимость (IMP-AUDIT-01)
 
-1. **Меньше интерпретаций** — фигуры и цвета однозначны
-2. **Быстрое сравнение** — 4 элемента легко проверить
-3. **Устойчивость к локализации** — не зависит от платформы эмодзи
-4. **Уникальность** — выделяет приложение от Signal/WhatsApp
+| Было (устранено) | Стало |
+|------------------|-------|
+| Отпечаток из **shared secret**, первые **4 байта hex (32 бита)** | Отпечаток из **sorted SPKI публичных ключей**, SHA-256, **≥16 байт (128 бит)** |
+| Визуал: 4×(6×6) ≈ **20.7 бита** — перебор ECDH-ключей атакующим реалистичен | Safety-number: **8 групп × 5 цифр** = 128 бит; фигуры — дополнительный UX, не единственный канал |
+| Signal safety number ≈ 200 бит; наш старый формат был существенно слабее | Приближение к industry practice (Signal): привязка к **паре identity keys**, не к shared secret |
 
 ### Алгоритм генерации
 
 ```typescript
-const SHAPES = ['◆', '○', '□', '△', '⬡', '⬢'] as const;
-const COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'] as const;
+const FINGERPRINT_HASH_BYTES = 16; // 128 bits
 
-interface FingerprintElement {
-  shape: typeof SHAPES[number];
-  color: typeof COLORS[number];
+async function hashSortedPublicKeys(
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
+): Promise<Uint8Array> {
+  const localRaw = await crypto.subtle.exportKey('spki', localPublicKey);
+  const peerRaw = await crypto.subtle.exportKey('spki', peerPublicKey);
+  const [first, second] = sortLexicographic(localRaw, peerRaw);
+  const material = concat(first, second);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', material));
+}
+
+function formatSafetyNumber(hashBytes: Uint8Array): string {
+  // 8 groups × 5 decimal digits from first 16 bytes (128 bits)
+  const groups: string[] = [];
+  for (let i = 0; i < FINGERPRINT_HASH_BYTES; i += 2) {
+    const value = (hashBytes[i] << 8) | hashBytes[i + 1];
+    groups.push(value.toString().padStart(5, '0'));
+  }
+  return groups.join(' ');
 }
 
 async function generateVisualFingerprint(
-  sharedSecret: ArrayBuffer
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
 ): Promise<FingerprintElement[]> {
-  // Hash shared secret to get deterministic bytes
-  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
-  const bytes = new Uint8Array(hash);
-  
+  const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
+  const SHAPES = ['◆', '○', '□', '△', '⬡', '⬢'] as const;
+  const COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'] as const;
   const elements: FingerprintElement[] = [];
-  
+
   for (let i = 0; i < 4; i++) {
+    const idx = 16 + i * 2; // bytes after safety-number slice
     elements.push({
-      shape: SHAPES[bytes[i * 2] % SHAPES.length],
-      color: COLORS[bytes[i * 2 + 1] % COLORS.length]
+      shape: SHAPES[hashBytes[idx] % SHAPES.length],
+      color: COLORS[hashBytes[idx + 1] % COLORS.length],
     });
   }
-  
   return elements;
 }
 ```
 
-### Вероятность коллизии
+**Инвариант:** Alice(`pubA`, `pubB`) и Bob(`pubB`, `pubA`) получают **идентичный**
+safety-number и набор фигур — порядок ключей нормализуется сортировкой.
 
-```
-Комбинаций: 6 фигур × 6 цветов = 36 вариантов на элемент
-4 элемента: 36^4 = 1,679,616 уникальных отпечатков
+### Энтропия и threat model (MITM)
 
-Вероятность случайного совпадения: 1/1,679,616 ≈ 0.00006%
-```
+| Компонент | Энтропия | Роль |
+|-----------|----------|------|
+| Safety-number | **128 бит** (16 байт SHA-256) | Основная out-of-band сверка (голос, лично) |
+| 4 геометрические фигуры | ~20 бит (мнемоника) | Быстрая визуальная проверка, не заменяет числа |
 
-Этого достаточно для защиты от атаки в реальном времени.
+Активный MITM, подбирающий ECDH-ключи под старый 32-битный отпечаток, должен перебрать
+≈2³²–2²⁰ операций — **устранено**. С 128-битным safety-number подбор отпечатка
+в реальном времени **непрактичен** (≈2¹²⁸).
+
+**Намеренная несовместимость:** клиенты до IMP-AUDIT-01 показывают другой отпечаток
+для той же пары ключей; приемлемо для ephemeral-сессий.
+
+### Почему это лучше эмодзи
+
+1. **Меньше интерпретаций** — фигуры и цвета однозначны
+2. **128-бит safety-number** — достаточная защита от подбора MITM
+3. **Устойчивость к локализации** — не зависит от платформы эмодзи
+4. **Привязка к публичным ключам** — как Signal, исключает edge-case с одинаковым shared secret
 
 ---
 
@@ -461,7 +493,7 @@ const aesKey = await crypto.subtle.deriveKey(
 |--------|-----------|--------|
 | **Перехват трафика** | Сетевой уровень | TLS + E2EE |
 | **Компрометация сервера** | Хакер/инсайдер | Zero-knowledge, нет ключей |
-| **MITM** | Активная атака | Visual Fingerprint |
+| **MITM** | Активная атака | Safety-number (128 бит) + Visual Fingerprint из публичных ключей |
 | **Identity Spoofing** | Угон аккаунта | Секретный вопрос |
 | **Replay Attack** | Повтор сообщений | Уникальный IV + timestamp |
 | **Modification** | Изменение сообщений | GCM auth tag |

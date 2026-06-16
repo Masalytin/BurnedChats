@@ -13,6 +13,7 @@ import {
   storePeerPublicKey,
   storeSharedSecret,
   getKeyPair,
+  getPeerPublicKey,
   getSessionKeys,
   hasSession,
   isHandshakeComplete,
@@ -281,14 +282,21 @@ export function useHandshake({
       const aesKey = await deriveAESKey(rawSharedSecret, sessionId);
       logCryptoOperation('deriveAESKey', sessionId, true, performance.now() - startTime);
 
-      // Generate fingerprints
+      // Generate fingerprints from both public keys (not shared secret)
       console.log('[useHandshake] Generating fingerprints...');
+      const keyPair = getKeyPair(sessionId);
+      const peerPublicKey = getPeerPublicKey(sessionId);
+      if (!keyPair || !peerPublicKey) {
+        handleError('SESSION_NOT_FOUND', sessionId);
+        return;
+      }
+
       startTime = performance.now();
-      const fingerprint = await generateFingerprint(rawSharedSecret);
+      const fingerprint = await generateFingerprint(keyPair.publicKey, peerPublicKey);
       logCryptoOperation('generateFingerprint', sessionId, true, performance.now() - startTime);
       
       startTime = performance.now();
-      const visualFingerprint = await generateVisualFingerprint(rawSharedSecret);
+      const visualFingerprint = await generateVisualFingerprint(keyPair.publicKey, peerPublicKey);
       logCryptoOperation('generateVisualFingerprint', sessionId, true, performance.now() - startTime);
 
       // Store shared secret

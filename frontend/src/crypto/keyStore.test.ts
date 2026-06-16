@@ -163,7 +163,7 @@ describe('Key Storage', () => {
 
         const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
         const aesKey = await deriveAESKey(rawSecret, sessionId);
-        const fingerprint = await generateFingerprint(rawSecret);
+        const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
 
         const sharedSecret: SharedSecret = {
           sessionId,
@@ -248,7 +248,7 @@ describe('Key Storage', () => {
 
         const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
         const aesKey = await deriveAESKey(rawSecret, sessionId);
-        const fingerprint = await generateFingerprint(rawSecret);
+        const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
 
         storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] });
 
@@ -339,7 +339,7 @@ describe('Key Storage', () => {
         storeKeyPair(sessionId, aliceKeyPair);
         const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
         const aesKey = await deriveAESKey(rawSecret, sessionId);
-        const fingerprint = await generateFingerprint(rawSecret);
+        const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
         storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
 
         const resolved = resolveDecryptionKey(sessionId);
@@ -369,7 +369,7 @@ describe('Key Storage', () => {
         storeKeyPair(id, aliceKeyPair);
         const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
         const sessionAes = await deriveAESKey(rawSecret, id);
-        const fingerprint = await generateFingerprint(rawSecret);
+        const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
         storeSharedSecret(id, { sessionId: id, key: sessionAes, fingerprint, visualFingerprint: [] }, rawSecret);
 
         const groupKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
@@ -443,7 +443,7 @@ describe('Key Storage', () => {
 
         const rawSecret = await computeSharedSecret(aliceKeyPair.privateKey, bobKeyPair.publicKey);
         const aesKey = await deriveAESKey(rawSecret, sessionId);
-        const fingerprint = await generateFingerprint(rawSecret);
+        const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
 
         storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
         
@@ -699,7 +699,7 @@ describe('Debug Info', () => {
         bobKeyPair.publicKey
       );
       const aesKey = await deriveAESKey(rawSecret, sessionId);
-      const fingerprint = await generateFingerprint(rawSecret);
+      const fingerprint = await generateFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
 
       storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint: [] }, rawSecret);
       expect(isHandshakeComplete(sessionId)).toBe(true);
