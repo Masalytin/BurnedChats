@@ -11,6 +11,7 @@
 - [Файлы: шифрование и хранение (Phase 4)](#файлы-шифрование-и-хранение-phase-4)
 - [Visual Fingerprint](#visual-fingerprint)
 - [Модель угроз](#модель-угроз)
+- [Антиспам / Sybil-защита (PoW)](#антиспам--sybil-защита-pow)
 - [Защитные механизмы](#защитные-механизмы)
 - [Комнаты (Phase 2)](#комнаты-phase-2)
 
@@ -536,7 +537,53 @@ Telegram-пользователи по-прежнему находятся по 
 
 ---
 
-## Защитные механизмы
+## Антиспам / Sybil-защита (PoW)
+
+> Дизайн и threat model: [DESIGN.md](../improvements/antispam-pow/DESIGN.md).  
+> Security-review отчёт: [SECURITY_REVIEW.md](../improvements/antispam-pow/SECURITY_REVIEW.md).
+
+Burned Chats использует **эшелонированную** антиспам-защиту. PoW (Слой 1) **дополняет**, а не заменяет rate-limit (Слой 0) и **не затрагивает** E2EE / zero-knowledge модель содержимого сообщений.
+
+### Слой 0 — Rate limiting (per `internalId`)
+
+- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis sliding-window (`rate:{type}:{internalId}`).
+- Закрывает **флуд от одной идентичности** (search, message, session create и др.).
+- **Не** останавливает Sybil: новая Telegram/wallet-идентичность получает свой счётчик.
+
+На gated-маршруте `session.create` rate-limit применяется **после** успешной PoW-верификации (DESIGN §6.2), чтобы атакующий не сжигал чужой cap до доказательства work.
+
+### Слой 1 — Client-side Proof-of-Work
+
+- Примитив: Hashcash на **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (битовая сложность, не hex-символы).
+- Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; решение `{ challengeId, nonce }` в теле gated-запроса.
+- Адаптивность: глобальный abuse-сигнал `pow:abuse:global` (ratio rejected/total) поднимает difficulty; **ceiling 26 bit** защищает слабые устройства.
+- **Production/testnet:** `pow.enabled=true` по умолчанию (`application.yml`, override только через `POW_ENABLED`); dev/test-профили могут отключать PoW для UX разработки.
+
+**Текущий enforcement (2026-06-16):** backend gate только на `/app/session.create`; frontend решает PoW при создании чата (`session_create`). Wire-format поддерживает также `search`, `room_create`, `invite` — issuance готов, gate — follow-up (см. SECURITY_REVIEW).
+
+### Место в threat model
+
+| Угроза | Слой 0 | Слой 1 |
+|--------|--------|--------|
+| Sybil-массовый спам асимметричных действий | слабо (новый `internalId` = новый лимит) | **основная** (CPU × число действий) |
+| Флуд от одного аккаунта | **основная** | дополнительная |
+| Целенаправленная атака с GPU/фермой | — | частично (экономический барьер, не абсолют) |
+| Содержимое / ключи E2EE | — | **не затрагивается** (ортогонально) |
+
+PoW **не** заменяет Visual Fingerprint (MITM), initData/wallet-auth или шифрование сообщений.
+
+### Zero-knowledge инвариант (PoW)
+
+Сервер **не должен** получать новую **долгоживущую** метаданную «identity ↔ попытка действия» из-за PoW:
+
+- Redis `pow:challenge:{id}` и `pow:spent:{id}` **не** содержат `internalId` / userId — только challenge id, action, difficulty, timestamps.
+- Нет журнала «кто решил challenge»; TTL challenge ~60s, spent ~120s, затем ключи испаряются.
+- `pow:abuse:*` — агрегаты без per-user полей.
+- При верификации gated STOMP-запроса сервер знает инициатора из **существующего** STOMP principal — это не новое хранилище связи с challenge.
+
+E2EE payload (сообщения, group keys, file blobs) по-прежнему opaque; PoW защищает **точки создания состояния / назойливости**, не confidentiality сообщений.
+
+---
 
 ### 1. Rate Limiting (Java)
 
@@ -987,4 +1034,6 @@ Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/ил�
 - [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band обмен ключами
 - [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
 - [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
+- [DESIGN.md](../improvements/antispam-pow/DESIGN.md) — PoW-протокол антиспама
+- [SECURITY_REVIEW.md](../improvements/antispam-pow/SECURITY_REVIEW.md) — security-review Слоя 1
 
