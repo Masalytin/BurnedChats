@@ -11,6 +11,7 @@ import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -59,7 +60,7 @@ public class BurnHandler {
     }
 
     @MessageMapping("/session.burn")
-    public void burnSession(@Payload BurnSessionRequest request, Principal principal) {
+    public void burnSession(@Payload @Valid BurnSessionRequest request, Principal principal) {
         ParticipantContext participant = participantContext(principal);
         if (participant == null) {
             LOG.warn("session.burn: unsupported principal type {}", principal.getClass().getName());

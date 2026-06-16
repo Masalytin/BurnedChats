@@ -116,7 +116,7 @@ public class MessageHandler {
     }
 
     @MessageMapping("/message.send")
-    public void relayMessage(@Payload SendMessageRequest request, Principal principal) {
+    public void relayMessage(@Payload @Valid SendMessageRequest request, Principal principal) {
         ParticipantContext sender = participantContext(principal);
         if (sender == null) {
             LOG.warn("message.send: unsupported principal type {}", principal.getClass().getName());
@@ -147,7 +147,7 @@ public class MessageHandler {
 
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/message.sync")
-    public void syncMessages(@Payload SyncMessagesRequest request, Principal principal) {
+    public void syncMessages(@Payload @Valid SyncMessagesRequest request, Principal principal) {
         ParticipantContext participant = participantContext(principal);
         if (participant == null) {
             LOG.warn("message.sync: unsupported principal type {}", principal.getClass().getName());

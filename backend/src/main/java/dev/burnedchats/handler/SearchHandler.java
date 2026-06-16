@@ -14,6 +14,7 @@ import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.WalletPrincipal;
 import dev.burnedchats.util.InternalIds;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -58,7 +59,7 @@ public class SearchHandler {
     private final StompUserMessenger stompUserMessenger;
 
     @MessageMapping("/search")
-    public void searchUser(@Payload SearchRequest request, Principal principal) {
+    public void searchUser(@Payload @Valid SearchRequest request, Principal principal) {
         if (!(principal instanceof AppPrincipal appPrincipal)) {
             LOG.warn("Search from unsupported principal type: {}",
                     principal != null ? principal.getClass().getName() : "null");
@@ -66,7 +67,7 @@ public class SearchHandler {
         }
 
         String searcherInternalId = appPrincipal.getInternalId();
-        String query = request.getQuery() != null ? request.getQuery().trim() : "";
+        String query = request.getQuery().trim();
 
         LOG.debug("Search request from internalId={}: query='{}'", searcherInternalId, query);
 
@@ -237,9 +238,6 @@ public class SearchHandler {
     }
 
     private boolean isValidQuery(String query) {
-        if (query == null || query.isBlank()) {
-            return false;
-        }
         String trimmed = query.trim();
         return INTERNAL_ID_PATTERN.matcher(trimmed).matches()
                 || userIdentityRepository.isWalletAddressQuery(trimmed)
