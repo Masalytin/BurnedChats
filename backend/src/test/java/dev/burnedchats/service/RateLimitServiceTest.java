@@ -13,19 +13,26 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +62,15 @@ class RateLimitServiceTest {
         rateLimitService = new RateLimitService(redisTemplate);
     }
 
+    /**
+     * Stub the atomic INCR+EXPIRE Lua script so it yields the given post-increment counter value.
+     */
+    @SuppressWarnings("unchecked")
+    private void stubScriptCount(long count) {
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyList()))
+                .thenReturn(Flux.just(count));
+    }
+
     @Nested
     @DisplayName("checkRateLimit")
     class CheckRateLimit {
@@ -62,34 +78,29 @@ class RateLimitServiceTest {
         @Test
         @DisplayName("should allow first request")
         void shouldAllowFirstRequest() {
-            // Given
-            String expectedKey = "ratelimit:search:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(1L));
-            when(redisTemplate.expire(eq(expectedKey), any(Duration.class))).thenReturn(Mono.just(true));
+            // Given - atomic script returns count == 1 (TTL set inside the script)
+            stubScriptCount(1L);
 
             // When & Then
             StepVerifier.create(rateLimitService.checkRateLimit(TEST_USER_ID, RateLimitType.SEARCH))
                     .expectNext(true)
                     .verifyComplete();
 
-            verify(valueOperations).increment(expectedKey);
-            verify(redisTemplate).expire(eq(expectedKey), eq(Duration.ofMinutes(1)));
+            verify(redisTemplate).execute(any(RedisScript.class), anyList(), anyList());
         }
 
         @Test
         @DisplayName("should allow requests within limit")
         void shouldAllowRequestsWithinLimit() {
             // Given - 5th request (limit is 10 for SEARCH)
-            String expectedKey = "ratelimit:search:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(5L));
+            stubScriptCount(5L);
 
             // When & Then
             StepVerifier.create(rateLimitService.checkRateLimit(TEST_USER_ID, RateLimitType.SEARCH))
                     .expectNext(true)
                     .verifyComplete();
 
-            verify(valueOperations).increment(expectedKey);
-            verify(redisTemplate, never()).expire(anyString(), any(Duration.class));
+            verify(redisTemplate).execute(any(RedisScript.class), anyList(), anyList());
         }
 
         @Test
@@ -97,7 +108,7 @@ class RateLimitServiceTest {
         void shouldRejectWhenLimitExceeded() {
             // Given - 11th request (limit is 10 for SEARCH)
             String expectedKey = "ratelimit:search:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(11L));
+            stubScriptCount(11L);
             when(redisTemplate.getExpire(expectedKey)).thenReturn(Mono.just(Duration.ofSeconds(30)));
 
             // When & Then
@@ -115,7 +126,7 @@ class RateLimitServiceTest {
         void shouldUseDefaultTtlWhenExpireReturnsEmpty() {
             // Given
             String expectedKey = "ratelimit:search:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(11L));
+            stubScriptCount(11L);
             when(redisTemplate.getExpire(expectedKey)).thenReturn(Mono.empty());
 
             // When & Then
@@ -134,7 +145,7 @@ class RateLimitServiceTest {
         void shouldApplyDifferentLimitsForDifferentTypes() {
             // Given - SESSION_CREATE has limit of 3
             String expectedKey = "ratelimit:session_create:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(4L));
+            stubScriptCount(4L);
             when(redisTemplate.getExpire(expectedKey)).thenReturn(Mono.just(Duration.ofSeconds(45)));
 
             // When & Then
@@ -147,13 +158,76 @@ class RateLimitServiceTest {
         @DisplayName("should allow MESSAGE type with higher limit")
         void shouldAllowMessageTypeWithHigherLimit() {
             // Given - MESSAGE has limit of 60
-            String expectedKey = "ratelimit:message:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(50L));
+            stubScriptCount(50L);
 
             // When & Then
             StepVerifier.create(rateLimitService.checkRateLimit(TEST_USER_ID, RateLimitType.MESSAGE))
                     .expectNext(true)
                     .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("concurrent first requests set TTL exactly once and enforce the window cap")
+        void concurrentFirstRequestsSetTtlOnceAndEnforceCap() throws InterruptedException {
+            // Given - a single atomic counter shared by all concurrent calls, mirroring the
+            // server-side INCR+EXPIRE Lua semantics: only the call that observes count == 1
+            // performs EXPIRE, and it does so atomically with the increment.
+            String expectedKey = "ratelimit:search:" + TEST_USER_ID;
+            int limit = RateLimitType.SEARCH.getMaxRequests();
+            int concurrency = limit * 5;
+
+            AtomicLong redisCounter = new AtomicLong();
+            AtomicInteger expireInvocations = new AtomicInteger();
+
+            when(redisTemplate.execute(any(RedisScript.class), anyList(), anyList()))
+                    .thenAnswer(invocation -> {
+                        long count = redisCounter.incrementAndGet();
+                        if (count == 1) {
+                            // Modelled as part of the same atomic evaluation as the INCR.
+                            expireInvocations.incrementAndGet();
+                        }
+                        return Flux.just(count);
+                    });
+            when(redisTemplate.getExpire(expectedKey)).thenReturn(Mono.just(Duration.ofSeconds(60)));
+
+            AtomicInteger allowed = new AtomicInteger();
+            AtomicInteger rejected = new AtomicInteger();
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(concurrency);
+            ExecutorService pool = Executors.newFixedThreadPool(Math.min(concurrency, 16));
+
+            try {
+                for (int i = 0; i < concurrency; i++) {
+                    pool.submit(() -> {
+                        try {
+                            start.await();
+                            Boolean ok = rateLimitService
+                                    .checkRateLimit(TEST_USER_ID, RateLimitType.SEARCH)
+                                    .block();
+                            if (Boolean.TRUE.equals(ok)) {
+                                allowed.incrementAndGet();
+                            }
+                        } catch (RateLimitException e) {
+                            rejected.incrementAndGet();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        } finally {
+                            done.countDown();
+                        }
+                    });
+                }
+                start.countDown();
+                assertTrue(done.await(10, TimeUnit.SECONDS), "all concurrent requests must finish");
+            } finally {
+                pool.shutdownNow();
+            }
+
+            // TTL is established exactly once → the window is never reset by a racing first request.
+            assertEquals(1, expireInvocations.get(), "EXPIRE must run exactly once across the race");
+            assertEquals(concurrency, redisCounter.get(), "every request must increment the counter");
+            // No window bypass: exactly `limit` requests pass, the rest are rejected.
+            assertEquals(limit, allowed.get(), "only up to the limit may be allowed");
+            assertEquals(concurrency - limit, rejected.get(), "all over-limit requests must be rejected");
         }
     }
 
@@ -165,9 +239,7 @@ class RateLimitServiceTest {
         @DisplayName("should not throw when within limit")
         void shouldNotThrowWhenWithinLimit() {
             // Given
-            String expectedKey = "ratelimit:general:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(1L));
-            when(redisTemplate.expire(eq(expectedKey), any(Duration.class))).thenReturn(Mono.just(true));
+            stubScriptCount(1L);
 
             // When & Then
             assertDoesNotThrow(() -> 
@@ -179,7 +251,7 @@ class RateLimitServiceTest {
         void shouldThrowWhenLimitExceeded() {
             // Given
             String expectedKey = "ratelimit:general:" + TEST_USER_ID;
-            when(valueOperations.increment(expectedKey)).thenReturn(Mono.just(101L));
+            stubScriptCount(101L);
             when(redisTemplate.getExpire(expectedKey)).thenReturn(Mono.just(Duration.ofSeconds(30)));
 
             // When & Then

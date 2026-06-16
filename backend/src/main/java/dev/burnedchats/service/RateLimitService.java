@@ -3,10 +3,12 @@ package dev.burnedchats.service;
 import dev.burnedchats.exception.RateLimitException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Rate limiting service using Redis for distributed rate limiting (5.1.6).
@@ -30,6 +32,26 @@ import java.time.Duration;
 public class RateLimitService {
 
     private static final String KEY_PREFIX = "ratelimit:";
+
+    /**
+     * Atomic INCR + first-hit EXPIRE for a fixed-window counter.
+     *
+     * <p>Executed server-side so the increment and the one-time TTL assignment cannot interleave
+     * across concurrent "first" requests: only the call that observes {@code count == 1} sets the
+     * window expiry, and it does so inside the same atomic Redis evaluation. Returns the post-increment
+     * counter value.
+     *
+     * <p>Held as a constant {@link RedisScript} so Spring caches its SHA-1 and uses {@code EVALSHA}.
+     */
+    private static final RedisScript<Long> INCREMENT_AND_EXPIRE = RedisScript.of(
+            """
+            local count = redis.call('INCR', KEYS[1])
+            if count == 1 then
+              redis.call('EXPIRE', KEYS[1], ARGV[1])
+            end
+            return count
+            """,
+            Long.class);
 
     /**
      * Rate limit configurations.
@@ -123,17 +145,10 @@ public class RateLimitService {
      */
     public Mono<Boolean> checkRateLimit(String userId, RateLimitType type) {
         String key = keyFor(userId, type);
+        String windowSeconds = String.valueOf(type.getWindow().getSeconds());
 
-        return redisTemplate.opsForValue()
-                .increment(key)
-                .flatMap(count -> {
-                    // Set expiry on first request
-                    if (count == 1) {
-                        return redisTemplate.expire(key, type.getWindow())
-                                .thenReturn(count);
-                    }
-                    return Mono.just(count);
-                })
+        return redisTemplate.execute(INCREMENT_AND_EXPIRE, List.of(key), List.of(windowSeconds))
+                .next()
                 .flatMap(count -> {
                     if (count > type.getMaxRequests()) {
                         LOG.warn("Rate limit exceeded: userId={}, type={}, count={}",
