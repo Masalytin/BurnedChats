@@ -106,7 +106,6 @@ describe('transactionBuilder payload encoding', () => {
       governor: ADDR,
       proposalType: 2,
       payload,
-      totalVpAtSnapshot: 1_000_000n,
       claimedVp: 50_000n,
     });
     const s = firstBocCellBase64(msg.payload).beginParse();
@@ -115,7 +114,6 @@ describe('transactionBuilder payload encoding', () => {
     expect(s.loadUint(32)).toBe(2);
     const ref = s.loadRef();
     expect(ref.beginParse().loadUint(8)).toBe(42);
-    expect(s.loadIntBig(257)).toBe(1_000_000n);
     expect(s.loadIntBig(257)).toBe(50_000n);
   });
 });

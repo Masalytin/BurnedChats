@@ -573,22 +573,19 @@ export async function vote(
 }
 
 export async function createProposal(
-  params: { type: ProposalType; payload: Cell; walletAddress: string; totalVpAtSnapshot?: bigint },
+  params: { type: ProposalType; payload: Cell; walletAddress: string },
   deps?: GovernanceDeps,
 ): Promise<TxResult> {
   const r = resolveDeps(deps);
   const claimedVp = await getUserVotingPower(params.walletAddress.trim(), deps);
-  const totalVp =
-    params.totalVpAtSnapshot !== undefined ? params.totalVpAtSnapshot : await fetchTotalVotingPowerRpc(r);
-  if (totalVp <= 0n) {
-    return { ok: false, kind: 'unknown', message: 'totalVpAtSnapshot is zero — cannot create proposal' };
+  if (claimedVp <= 0n) {
+    return { ok: false, kind: 'unknown', message: 'insufficient voting power — cannot create proposal' };
   }
   const gov = Address.parse(r.governorAddress.trim());
   const msg = buildCreateProposalMsg({
     governor: gov,
     proposalType: params.type,
     payload: params.payload,
-    totalVpAtSnapshot: totalVp,
     claimedVp,
   });
   return r.sendTransactionImpl([msg]);

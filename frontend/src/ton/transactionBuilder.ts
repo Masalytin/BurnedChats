@@ -205,7 +205,6 @@ export function buildCreateProposalMsg(params: {
   governor: Address;
   proposalType: number;
   payload: Cell;
-  totalVpAtSnapshot: bigint;
   claimedVp: bigint;
   queryId?: bigint;
 }): TransactionMessage {
@@ -214,7 +213,6 @@ export function buildCreateProposalMsg(params: {
     .storeUint(params.queryId ?? 0n, 64)
     .storeUint(BigInt(params.proposalType), 32)
     .storeRef(params.payload)
-    .storeInt(params.totalVpAtSnapshot, 257)
     .storeInt(params.claimedVp, 257)
     .endCell();
   return {
