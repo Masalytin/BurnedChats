@@ -11,6 +11,7 @@ import { uploadFile, type FileContext, type UploadResult } from '@/services/file
 import { downloadFile, downloadThumbnail } from '@/services/fileDownloadService';
 import type { DecryptedFile, DownloadOptions } from '@/services/fileDownloadService';
 import { FileTransferError } from '@/services/fileTransferErrors';
+import { getCryptoService } from '@/services/cryptoService';
 
 // ============================================
 // Types
@@ -193,6 +194,7 @@ export function enqueueThumbnailDownload(
 export function cancel(transferId: string): void {
   cancelInQueue(uploadQueue, transferId);
   cancelInQueue(downloadQueue, transferId);
+  getCryptoService().cancelAll();
 }
 
 /**
@@ -203,6 +205,7 @@ export function cancelAll(): void {
   cancelAllInQueue(downloadQueue);
   activeUploads = 0;
   activeDownloads = 0;
+  getCryptoService().cancelAll();
 }
 
 // ============================================

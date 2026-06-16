@@ -15,6 +15,9 @@
  *     [IV₁ (12)] [encrypted_chunk₁] [IV₂ (12)] [encrypted_chunk₂] ...
  *
  * The leading format byte allows decryptFile to auto-detect the format.
+ *
+ * File payload encrypt/decrypt is offloaded to a Web Worker via cryptoService
+ * (IMP-AUDIT-13). Metadata helpers remain on the main thread (small payloads).
  */
 
 // ============================================
@@ -56,11 +59,14 @@ export interface EncryptedBlob {
 export interface EncryptOptions {
   /** Chunked encryption reports 0–100 per chunk; single-shot fires 100% when done. */
   onProgress?: (percent: number) => void;
+  /** When aborted, in-thread helpers throw AbortError between chunks. */
+  signal?: AbortSignal;
 }
 
 export interface DecryptOptions {
   /** Chunked decryption reports 0–100 per chunk; single-shot fires 100% when done. */
   onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -73,49 +79,62 @@ export interface FileMetaPlain {
 }
 
 // ============================================
-// Public API
+// Public API (routes through cryptoService worker)
 // ============================================
 
 /**
- * Encrypts a file using AES-256-GCM.
- *
- * Files <= 5 MB are encrypted in a single pass (simpler, fast).
- * Files >  5 MB are split into 64 KB plaintext chunks, each encrypted
- * with its own random IV for memory efficiency.
+ * Encrypts a file using AES-256-GCM (Web Worker when available).
  *
  * @param file - File or Blob to encrypt
  * @param key  - AES-256-GCM CryptoKey (shared secret or room group key)
- * @param options - Optional {@link EncryptOptions} (chunked mode reports per-chunk progress)
- * @returns EncryptedBlob with binary data and format flag
- * @throws Error if encryption fails
+ * @param options - Optional progress and abort signal
  */
 export async function encryptFile(
   file: File | Blob,
   key: CryptoKey,
   options?: EncryptOptions,
 ): Promise<EncryptedBlob> {
-  const plaintext = await file.arrayBuffer();
-
-  if (plaintext.byteLength <= CHUNKED_THRESHOLD) {
-    const result = await encryptSingle(new Uint8Array(plaintext), key);
-    options?.onProgress?.(100);
-    return result;
-  }
-  return encryptChunked(new Uint8Array(plaintext), key, options?.onProgress);
+  const { getCryptoService } = await import('../services/cryptoService');
+  return getCryptoService().encryptFile(file, key, options);
 }
 
 /**
- * Decrypts an encrypted blob back into a Blob.
+ * Decrypts an encrypted blob back into a Blob (Web Worker when available).
  *
  * Auto-detects the format (single-shot vs chunked) from the leading byte.
- *
- * @param encryptedData - Raw encrypted bytes produced by encryptFile
- * @param key           - The same AES-256-GCM CryptoKey used for encryption
- * @param options       - Optional {@link DecryptOptions} (chunked mode reports per-chunk progress)
- * @returns Decrypted Blob
- * @throws Error if format is unknown or decryption/authentication fails
  */
 export async function decryptFile(
+  encryptedData: ArrayBuffer,
+  key: CryptoKey,
+  options?: DecryptOptions,
+): Promise<Blob> {
+  const { getCryptoService } = await import('../services/cryptoService');
+  return getCryptoService().decryptFile(encryptedData, key, options);
+}
+
+/**
+ * In-thread file encryption — used by cryptoWorker and vitest inline fallback.
+ * Callers pass plaintext bytes already read from a File/Blob.
+ */
+export async function encryptFileInThread(
+  plaintext: ArrayBuffer,
+  key: CryptoKey,
+  options?: EncryptOptions,
+): Promise<EncryptedBlob> {
+  const bytes = new Uint8Array(plaintext);
+
+  if (bytes.byteLength <= CHUNKED_THRESHOLD) {
+    const result = await encryptSingle(bytes, key, options?.signal);
+    options?.onProgress?.(100);
+    return result;
+  }
+  return encryptChunked(bytes, key, options?.onProgress, options?.signal);
+}
+
+/**
+ * In-thread file decryption — used by cryptoWorker and vitest inline fallback.
+ */
+export async function decryptFileInThread(
   encryptedData: ArrayBuffer,
   key: CryptoKey,
   options?: DecryptOptions,
@@ -129,10 +148,10 @@ export async function decryptFile(
   const format = bytes[0];
 
   if (format === FORMAT_SINGLE) {
-    return decryptSingle(bytes, key, options?.onProgress);
+    return decryptSingle(bytes, key, options?.onProgress, options?.signal);
   }
   if (format === FORMAT_CHUNKED) {
-    return decryptChunked(bytes, new DataView(encryptedData), key, options?.onProgress);
+    return decryptChunked(bytes, new DataView(encryptedData), key, options?.onProgress, options?.signal);
   }
 
   throw new Error(
@@ -147,7 +166,10 @@ export async function decryptFile(
 async function encryptSingle(
   plaintext: Uint8Array<ArrayBuffer>,
   key: CryptoKey,
+  signal?: AbortSignal,
 ): Promise<EncryptedBlob> {
+  throwIfAborted(signal);
+
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
 
   const ciphertext = await crypto.subtle.encrypt(
@@ -175,6 +197,7 @@ async function encryptChunked(
   plaintext: Uint8Array<ArrayBuffer>,
   key: CryptoKey,
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<EncryptedBlob> {
   const chunkCount = Math.ceil(plaintext.byteLength / CHUNK_SIZE);
 
@@ -182,6 +205,8 @@ async function encryptChunked(
   let totalPayloadSize = 0;
 
   for (let i = 0; i < chunkCount; i++) {
+    throwIfAborted(signal);
+
     const start = i * CHUNK_SIZE;
     const end = Math.min(start + CHUNK_SIZE, plaintext.byteLength);
     const chunk = plaintext.slice(start, end);
@@ -224,7 +249,10 @@ async function decryptSingle(
   bytes: Uint8Array,
   key: CryptoKey,
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<Blob> {
+  throwIfAborted(signal);
+
   const minSize = 1 + IV_LENGTH_BYTES + GCM_TAG_BYTES;
   if (bytes.byteLength < minSize) {
     throw new Error(
@@ -254,6 +282,7 @@ async function decryptChunked(
   view: DataView,
   key: CryptoKey,
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<Blob> {
   const chunkCount = view.getUint32(1, false);
 
@@ -265,6 +294,8 @@ async function decryptChunked(
   let offset = 5; // 1 (format) + 4 (chunk_count)
 
   for (let i = 0; i < chunkCount; i++) {
+    throwIfAborted(signal);
+
     if (offset + IV_LENGTH_BYTES > bytes.byteLength) {
       throw new Error(`Truncated chunked data at chunk ${i}: missing IV`);
     }
@@ -300,20 +331,11 @@ async function decryptChunked(
 }
 
 // ============================================
-// File Metadata Encryption
+// File Metadata Encryption (main thread — small payloads)
 // ============================================
 
 /**
  * Encrypts file metadata (fileName, mimeType) into a single Base64 string.
- *
- * Format: Base64( [IV (12 bytes)] [ciphertext + GCM tag] )
- *
- * The result is small enough to be sent inline in a STOMP message's
- * `encryptedMeta` field. The server only sees the opaque Base64 blob.
- *
- * @param meta - Plaintext metadata to encrypt
- * @param key  - AES-256-GCM CryptoKey (shared secret or room group key)
- * @returns Base64-encoded encrypted metadata
  */
 export async function encryptFileMetadata(
   meta: FileMetaPlain,
@@ -345,11 +367,6 @@ export async function encryptFileMetadata(
 
 /**
  * Decrypts a Base64-encoded encrypted metadata string back to FileMetaPlain.
- *
- * @param encrypted - Base64 string produced by encryptFileMetadata
- * @param key       - The same AES-256-GCM CryptoKey used for encryption
- * @returns Decrypted file metadata
- * @throws Error if decryption fails or data is malformed
  */
 export async function decryptFileMetadata(
   encrypted: string,
@@ -407,6 +424,16 @@ function base64ToUint8(b64: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  if (typeof DOMException !== 'undefined') {
+    throw new DOMException('Crypto operation aborted', 'AbortError');
+  }
+  const err = new Error('Crypto operation aborted');
+  err.name = 'AbortError';
+  throw err;
 }
 
 // ============================================
