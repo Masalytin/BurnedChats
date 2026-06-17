@@ -6,7 +6,7 @@
  * in parallel with the main file.
  */
 
-import WebApp from '@twa-dev/sdk';
+import { getRestAuthHeaders } from '@/auth/authCredentialsAccessor';
 import { encryptFile } from '@/crypto/fileEncryption';
 import { generateImageThumbnail, generateVideoThumbnail } from '@/utils/thumbnail';
 import { resolveFileMime } from '@/utils/fileValidation';
@@ -201,9 +201,8 @@ function uploadBlob(
     xhr.setRequestHeader('X-Context-Type', context.type);
     xhr.setRequestHeader('X-Context-Id', context.id);
 
-    const initData = getInitData();
-    if (initData) {
-      xhr.setRequestHeader('X-Telegram-Init-Data', initData);
+    for (const [name, value] of Object.entries(getRestAuthHeaders())) {
+      xhr.setRequestHeader(name, value);
     }
 
     xhr.responseType = 'json';
@@ -284,10 +283,6 @@ function parseXhrJsonBody(xhr: XMLHttpRequest): { error?: string; message?: stri
   } catch {
     return {};
   }
-}
-
-function getInitData(): string {
-  return WebApp.initData || '';
 }
 
 function throwIfAborted(signal?: AbortSignal): void {

@@ -12,6 +12,7 @@ import { getEnvironment } from '../env/detector';
 import { telegramInternalId } from './internalId';
 import { TelegramAuthProvider } from './TelegramAuthProvider';
 import { WalletAuthProvider } from './WalletAuthProvider';
+import { setActiveCredentials } from './authCredentialsAccessor';
 import { AuthType, type AuthCredentials, type AuthProvider, type AuthResult, type AuthUser } from './types';
 
 interface AuthContextValue {
@@ -145,6 +146,14 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
 
     void bootstrap();
   }, [buildTelegramUser, buildWalletUser]);
+
+  useEffect(() => {
+    if (provider && isAuthenticated && provider.isAuthenticated()) {
+      setActiveCredentials(provider.getCredentials());
+    } else {
+      setActiveCredentials(null);
+    }
+  }, [provider, user, isAuthenticated]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

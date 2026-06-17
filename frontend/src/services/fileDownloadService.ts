@@ -6,7 +6,7 @@
  * (e.g. tapping a thumbnail to view full-size) are instant.
  */
 
-import WebApp from '@twa-dev/sdk';
+import { getRestAuthHeaders } from '@/auth/authCredentialsAccessor';
 import { decryptFile } from '@/crypto/fileEncryption';
 import {
   decryptFailedError,
@@ -252,11 +252,7 @@ async function fetchBlob(
   const apiBase = import.meta.env.VITE_API_URL || '';
   const url = `${apiBase}${DOWNLOAD_PATH}/${encodeURIComponent(fileId)}`;
 
-  const headers: Record<string, string> = {};
-  const initData = WebApp.initData || '';
-  if (initData) {
-    headers['X-Telegram-Init-Data'] = initData;
-  }
+  const headers: Record<string, string> = getRestAuthHeaders();
 
   let response: Response;
   try {
