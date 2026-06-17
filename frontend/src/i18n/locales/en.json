@@ -823,6 +823,7 @@
       "Almost there — syncing keys..."
     ],
     "takingLonger": "Taking longer than usual. Connection is still active — waiting for your peer.",
+    "resumingConnection": "Restoring connection…",
     "elapsedSeconds_one": "{{count}} second elapsed",
     "elapsedSeconds_other": "{{count}} seconds elapsed",
     "steps": {

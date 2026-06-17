@@ -609,10 +609,21 @@ export function useHandshake({
     clearHandshakeTimers();
     pendingPeerKeyRef.current.delete(sessionId);
 
-    // Check if already handshaking
+    // Allow forceRefresh restart for the same session (auto-resume / in-place retry)
     if (activeSessionRef.current) {
-      console.warn('[useHandshake] Handshake already in progress');
-      return;
+      if (forceRefresh && activeSessionRef.current === sessionId) {
+        clearHandshakeTimers();
+        pendingPeerKeyRef.current.delete(sessionId);
+        if (currentStageRef.current !== 'idle') {
+          logStageDuration(currentStageRef.current, sessionId, false);
+        }
+        activeSessionRef.current = null;
+        currentStageRef.current = 'idle';
+        stageStartRef.current = 0;
+      } else {
+        console.warn('[useHandshake] Handshake already in progress');
+        return;
+      }
     }
 
     // Task 4.6.9: Try to restore from existing keys first (skip if forcing refresh)
@@ -692,7 +703,7 @@ export function useHandshake({
       logCryptoOperation('generateKeyPair', sessionId, false, 0, String(error));
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
-  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey, clearHandshakeTimers]);
+  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey, clearHandshakeTimers, logStageDuration]);
 
   /**
    * Cancel/abort the current handshake.

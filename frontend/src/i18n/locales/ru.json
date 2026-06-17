@@ -837,6 +837,7 @@
       "Почти готово, согласуем ключи…"
     ],
     "takingLonger": "Занимает дольше обычного. Соединение не разорвано — ждём собеседника.",
+    "resumingConnection": "Восстанавливаем соединение…",
     "elapsedSeconds_one": "Прошла {{count}} секунда",
     "elapsedSeconds_few": "Прошло {{count}} секунды",
     "elapsedSeconds_many": "Прошло {{count}} секунд",

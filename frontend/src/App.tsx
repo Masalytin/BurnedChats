@@ -142,6 +142,13 @@ function AppContent() {
   } = useTelegram();
 
   useTelegramViewport();
+
+  /** Incremented on each WS reconnect (via onReconnect) — drives auto-resume handshake */
+  const [wsReconnectNonce, setWsReconnectNonce] = useState(0);
+  /** Guards auto-resume: one startHandshake per reconnect nonce */
+  const lastHandshakeAutoResumeNonceRef = useRef(0);
+  /** Session for which auto-resume last ran — reset on view/session change */
+  const handshakeAutoResumeSessionRef = useRef<string | null>(null);
   
   const { 
     isConnected,
@@ -176,6 +183,7 @@ function AppContent() {
     },
     onReconnect: () => {
       debugLog('info', 'WebSocket reconnected');
+      setWsReconnectNonce((n) => n + 1);
     },
   });
 
@@ -322,6 +330,7 @@ function AppContent() {
     startHandshake,
     cancelHandshake,
     reset: resetHandshake,
+    isHandshaking,
     keyRefreshSessionId,
     clearKeyRefresh,
   } = useHandshake({
@@ -1789,6 +1798,56 @@ function AppContent() {
       console.log('[App] Key refresh notification for non-active chat, ignoring:', keyRefreshSessionId);
     }
   }, [keyRefreshSessionId, clearKeyRefresh, startHandshake]);
+
+  // Auto-resume handshake after WebSocket reconnect (IMP-VERUX-05)
+  useEffect(() => {
+    if (wsReconnectNonce === 0) return;
+    if (!isConnected) return;
+    if (lastHandshakeAutoResumeNonceRef.current === wsReconnectNonce) return;
+    if (currentView !== 'handshake') return;
+    if (!isHandshaking) return;
+    if (handshakeResult.stage === 'complete') return;
+
+    const sessionId = handshakeResult.sessionId;
+    const peer = handshakePeerRef.current;
+    if (!sessionId || !peer) return;
+
+    lastHandshakeAutoResumeNonceRef.current = wsReconnectNonce;
+    handshakeAutoResumeSessionRef.current = sessionId;
+
+    console.log('[App] Auto-resume handshake after reconnect:', sessionId);
+    toast.info(t('handshake.resumingConnection'), { duration: 3000 });
+    resetHandshake();
+    startHandshake(sessionId, peer, true);
+  }, [
+    wsReconnectNonce,
+    isConnected,
+    currentView,
+    isHandshaking,
+    handshakeResult.stage,
+    handshakeResult.sessionId,
+    resetHandshake,
+    startHandshake,
+    toast,
+    t,
+  ]);
+
+  // Reset auto-resume guard when leaving handshake or session changes
+  useEffect(() => {
+    if (currentView !== 'handshake') {
+      handshakeAutoResumeSessionRef.current = null;
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    if (
+      handshakeResult.stage === 'complete'
+      || handshakeResult.stage === 'idle'
+      || handshakeResult.stage === 'error'
+    ) {
+      handshakeAutoResumeSessionRef.current = null;
+    }
+  }, [handshakeResult.stage]);
 
   const showWalletProvider =
     isReady &&
