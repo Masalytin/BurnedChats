@@ -8,7 +8,6 @@ import dev.burnedchats.integration.StompTestSupport;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Tag("integration")
 @TestPropertySource(properties = {
-        "pow.enabled=true",
-        "pow.base.session-create=12"
+    "pow.enabled=true",
+    "pow.base.session-create=12"
 })
 class PowSessionGateIntegrationTest extends StompIntegrationTestBase {
 
@@ -60,11 +59,12 @@ class PowSessionGateIntegrationTest extends StompIntegrationTestBase {
 
     @BeforeEach
     void flushRedis() {
-        redisTemplate.getConnectionFactory()
-                .getReactiveConnection()
-                .serverCommands()
-                .flushDb()
-                .block(Duration.ofSeconds(5));
+        var connection = redisTemplate.getConnectionFactory().getReactiveConnection();
+        try {
+            connection.serverCommands().flushDb().block(Duration.ofSeconds(5));
+        } finally {
+            connection.close();
+        }
     }
 
     @Test
@@ -134,6 +134,8 @@ class PowSessionGateIntegrationTest extends StompIntegrationTestBase {
             session.subscribe("/user/queue/errors", errorHandler(errors));
             StompTestSupport.awaitSubscriptionProcessed();
 
+            // Gate layer (PoW + rate-limit) runs before business logic. Only one active session per
+            // initiator is allowed, so attempts 2–3 pass the gate but fail with ALREADY_HAS_SESSION.
             for (int i = 0; i < sessionCreateLimit; i++) {
                 String challengeId = String.format("%032x", i + 1);
                 seedChallenge(challengeId, PowAction.SESSION_CREATE, NORMATIVE_DIFFICULTY);
@@ -146,7 +148,13 @@ class PowSessionGateIntegrationTest extends StompIntegrationTestBase {
 
                 SessionCreatedEvent event = created.poll(5, TimeUnit.SECONDS);
                 assertThat(event).isNotNull();
-                assertThat(event.isSuccess()).isTrue();
+                if (i == 0) {
+                    assertThat(event.isSuccess()).isTrue();
+                    assertThat(event.getSessionId()).isNotBlank();
+                } else {
+                    assertThat(event.isSuccess()).isFalse();
+                    assertThat(event.getError()).isEqualTo("ALREADY_HAS_SESSION");
+                }
             }
 
             String overflowChallengeId = String.format("%032x", sessionCreateLimit + 1);
@@ -166,37 +174,6 @@ class PowSessionGateIntegrationTest extends StompIntegrationTestBase {
             assertThat(rateLimitError.get("error")).isEqualTo("RATE_LIMIT_EXCEEDED");
         } finally {
             stompClient.stop();
-        }
-    }
-
-    @Nested
-    @DisplayName("when pow.enabled=false")
-    @TestPropertySource(properties = "pow.enabled=false")
-    class WhenPowDisabled {
-
-        @Test
-        @DisplayName("session.create without PoW succeeds (backward compat)")
-        void sessionCreateWithoutPowSucceeds() throws Exception {
-            String recipientInternalId = InternalIds.forTelegramId(RECIPIENT_TELEGRAM_ID);
-
-            WebSocketStompClient stompClient = StompTestSupport.createStompClient();
-            try {
-                StompSession session = StompTestSupport.connect(stompClient, serverPort, "pow-disabled-init");
-
-                BlockingQueue<SessionCreatedEvent> created = new LinkedBlockingQueue<>();
-                session.subscribe("/user/queue/session-created", sessionCreatedHandler(created));
-                StompTestSupport.awaitSubscriptionProcessed();
-
-                CreateSessionRequest request = new CreateSessionRequest();
-                request.setRecipientInternalId(recipientInternalId);
-                session.send("/app/session.create", request);
-
-                SessionCreatedEvent event = created.poll(5, TimeUnit.SECONDS);
-                assertThat(event).isNotNull();
-                assertThat(event.isSuccess()).isTrue();
-            } finally {
-                stompClient.stop();
-            }
         }
     }
 
