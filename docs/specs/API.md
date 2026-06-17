@@ -66,11 +66,24 @@ String token = accessor.getFirstNativeHeader("X-Auth-Token");
 
 ### REST (файлы): аутентификация
 
-Эндпоинты файлов передают Telegram Mini App initData в заголовке (как при STOMP CONNECT):
+Эндпоинты файлов поддерживают два режима (как STOMP CONNECT):
+
+| Режим | Заголовки |
+|-------|-----------|
+| `telegram` (по умолчанию) | `X-Auth-Type: telegram` (необязательный) + `X-Telegram-Init-Data` |
+| `wallet` | `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token из `POST /api/auth/wallet`) |
 
 ```http
+# Telegram (legacy — без X-Auth-Type, только initData)
 X-Telegram-Init-Data: <query string from Telegram.WebApp.initData>
+
+# Wallet
+X-Auth-Type: wallet
+X-Auth-Token: <session-token>
 ```
+
+Отсутствие или невалидные креды → **401**. Участник контекста проверяется по `internalId`
+в обоих режимах.
 
 ---
 
@@ -333,11 +346,15 @@ GET /actuator/info
 
 | Заголовок | Обязательно | Описание |
 |-----------|-------------|----------|
-| `X-Telegram-Init-Data` | Да | Валидный initData (как в STOMP) |
+| `X-Auth-Type` | Нет | `telegram` \| `wallet`; по умолчанию `telegram` |
+| `X-Telegram-Init-Data` | Да* | Валидный initData (режим `telegram`) |
+| `X-Auth-Token` | Да* | Opaque session token (режим `wallet`) |
 | `X-Context-Type` | Да | `session` \| `room` |
 | `X-Context-Id` | Да | UUID сессии или комнаты |
 | `Content-Type` | Да | `application/octet-stream` |
 | `Content-Length` | Да | Размер загружаемого **зашифрованного** blob'а в байтах (≥ 1) |
+
+\* Один из режимов auth обязателен: для `telegram` — `X-Telegram-Init-Data`, для `wallet` — `X-Auth-Token`.
 
 **Body:** поток байт зашифрованных данных (см. [SECURITY.md](./SECURITY.md) — формат blob'а на клиенте).
 
@@ -354,7 +371,7 @@ GET /actuator/info
 
 | HTTP | Поле `error` | Когда |
 |------|--------------|--------|
-| 401 | `UNAUTHORIZED` / код из `AuthenticationException` | Невалидный или просроченный initData |
+| 401 | `AUTH_ERROR` / код из `AuthenticationException` | Отсутствуют, невалидные или просроченные auth-креды (initData или session token) |
 | 400 | `INVALID_CONTEXT_TYPE` | `X-Context-Type` не `session` и не `room` |
 | 400 | `FILE_SIZE_INVALID` | Несоответствие размера на диске и `Content-Length` после загрузки |
 | 403 | `ACCESS_DENIED` | Пользователь не участник сессии / не член комнаты |
@@ -380,7 +397,11 @@ GET /actuator/info
 
 | Заголовок | Обязательно | Описание |
 |-----------|-------------|----------|
-| `X-Telegram-Init-Data` | Да | Валидный initData |
+| `X-Auth-Type` | Нет | `telegram` \| `wallet`; по умолчанию `telegram` |
+| `X-Telegram-Init-Data` | Да* | Валидный initData (режим `telegram`) |
+| `X-Auth-Token` | Да* | Opaque session token (режим `wallet`) |
+
+\* Один из режимов auth обязателен (см. upload).
 
 **Response `200 OK`:**
 
@@ -392,7 +413,7 @@ GET /actuator/info
 
 | HTTP | Поле `error` | Когда |
 |------|--------------|--------|
-| 401 | — | Невалидная аутентификация |
+| 401 | `AUTH_ERROR` | Отсутствуют, невалидные или просроченные auth-креды |
 | 403 | `ACCESS_DENIED` | Нет прав на контекст файла |
 | 404 | `FILE_NOT_FOUND` | Нет метаданных, истёк TTL, или файл отсутствует на диске |
 

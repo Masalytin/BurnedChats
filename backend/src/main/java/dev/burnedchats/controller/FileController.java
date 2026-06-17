@@ -54,7 +54,9 @@ public class FileController {
      * <p>The request body is streamed directly to storage without
      * buffering the entire file in memory.
      *
-     * @param initData      Telegram Mini App initData for authentication
+     * @param authType      {@code telegram} or {@code wallet}; defaults to {@code telegram}
+     * @param initData      Telegram Mini App initData (telegram mode)
+     * @param authToken     opaque wallet session token (wallet mode)
      * @param contextType   "session" or "room"
      * @param contextId     session ID or room ID
      * @param contentLength size of the encrypted blob in bytes
@@ -63,7 +65,9 @@ public class FileController {
      */
     @PostMapping(value = "/upload", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public Mono<ResponseEntity<Map<String, Object>>> upload(
-            @RequestHeader("X-Telegram-Init-Data") String initData,
+            @RequestHeader(value = "X-Auth-Type", required = false) String authType,
+            @RequestHeader(value = "X-Telegram-Init-Data", required = false) String initData,
+            @RequestHeader(value = "X-Auth-Token", required = false) String authToken,
             @RequestHeader("X-Context-Type") String contextType,
             @RequestHeader("X-Context-Id") String contextId,
             @RequestHeader("Content-Length") long contentLength,
@@ -72,7 +76,7 @@ public class FileController {
         var data = DataBufferUtils.readInputStream(
                 () -> body, new DefaultDataBufferFactory(), BUFFER_SIZE);
 
-        return fileService.upload(initData, contextType, contextId, contentLength, data)
+        return fileService.upload(authType, initData, authToken, contextType, contextId, contentLength, data)
                 .map(result -> ResponseEntity.ok(Map.<String, Object>of(
                         "fileId", result.fileId(),
                         "size", result.size()
@@ -116,18 +120,22 @@ public class FileController {
      * memory-safe streaming guarantee from IMP-AUDIT-06 without depending on a
      * reactive (Netty) server.
      *
-     * @param fileId   unique file identifier (UUID)
-     * @param initData Telegram Mini App initData for authentication
+     * @param fileId    unique file identifier (UUID)
+     * @param authType  {@code telegram} or {@code wallet}; defaults to {@code telegram}
+     * @param initData  Telegram Mini App initData (telegram mode)
+     * @param authToken opaque wallet session token (wallet mode)
      * @return streaming binary response with the encrypted file data
      */
     @GetMapping("/{fileId}")
     public ResponseEntity<StreamingResponseBody> download(
             @PathVariable String fileId,
-            @RequestHeader("X-Telegram-Init-Data") String initData) {
+            @RequestHeader(value = "X-Auth-Type", required = false) String authType,
+            @RequestHeader(value = "X-Telegram-Init-Data", required = false) String initData,
+            @RequestHeader(value = "X-Auth-Token", required = false) String authToken) {
 
         FileService.DownloadResult result;
         try {
-            result = fileService.download(initData, fileId).block();
+            result = fileService.download(authType, initData, authToken, fileId).block();
         } catch (BurnedChatsException e) {
             // Domain errors (auth / access / not-found / rate-limit) -> mapped JSON below.
             throw e;
