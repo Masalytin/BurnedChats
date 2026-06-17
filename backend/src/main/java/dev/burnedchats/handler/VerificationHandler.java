@@ -94,25 +94,29 @@ public class VerificationHandler {
         }
 
         boolean isInitiator = session.isInitiator(userInternalId);
-        boolean wasInitiatorVerified = session.isInitiatorVerified();
-        boolean wasResponderVerified = session.isResponderVerified();
+        boolean peerVerifiedBeforeConfirm = isInitiator
+                ? session.isResponderVerified()
+                : session.isInitiatorVerified();
 
-        if (isInitiator) {
-            session.setInitiatorVerified(true);
-        } else {
-            session.setResponderVerified(true);
-        }
-
-        boolean bothVerified = session.isInitiatorVerified() && session.isResponderVerified();
-        session.touch();
-
-        return sessionRepository.save(session)
-                .doOnSuccess(savedSession -> {
+        // Atomic HSET on initiatorVerified/responderVerified (separate fields) — avoids lost update
+        // when both peers confirm simultaneously; bothVerified is derived after re-read from Redis.
+        return sessionRepository.updateVerification(sessionId, userInternalId, true)
+                .flatMap(updated -> {
+                    if (!Boolean.TRUE.equals(updated)) {
+                        sendError(participant, sessionId, "INTERNAL_ERROR");
+                        return Mono.empty();
+                    }
+                    return sessionRepository.updateLastActivity(sessionId)
+                            .then(sessionRepository.refreshTtl(sessionId));
+                })
+                .then(sessionRepository.findById(sessionId))
+                .flatMap(updatedSession -> {
+                    boolean bothVerified = updatedSession.isInitiatorVerified()
+                            && updatedSession.isResponderVerified();
                     Instant now = Instant.now();
-                    String peerInternalId = session.getPeerInternalId(userInternalId);
+                    String peerInternalId = updatedSession.getPeerInternalId(userInternalId);
 
-                    sendVerificationStatus(participant, sessionId, true,
-                            isInitiator ? wasResponderVerified : wasInitiatorVerified, now);
+                    sendVerificationStatus(participant, sessionId, true, peerVerifiedBeforeConfirm, now);
 
                     if (StringUtils.hasText(peerInternalId)) {
                         sendPeerVerified(peerInternalId, sessionId, bothVerified);
@@ -120,6 +124,7 @@ public class VerificationHandler {
 
                     LOG.info("Verification confirmed: sessionId={}, internalId={}, bothVerified={}",
                             sessionId, userInternalId, bothVerified);
+                    return Mono.empty();
                 })
                 .then();
     }
