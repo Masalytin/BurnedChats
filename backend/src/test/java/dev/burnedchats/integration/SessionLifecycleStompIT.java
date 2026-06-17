@@ -48,12 +48,14 @@ class SessionLifecycleStompIT extends StompIntegrationTestBase {
         return new StompFrameHandler() {
             @Override
             public @NonNull Type getPayloadType(StompHeaders headers) {
-                return String.class;
+                // Read the raw JSON body as bytes: the Jackson converter cannot map a JSON
+                // object to String.class, so requesting String here drops the frame silently.
+                return byte[].class;
             }
 
             @Override
             public void handleFrame(StompHeaders headers, Object payload) {
-                if (!sink.offer((String) payload)) {
+                if (!sink.offer(new String((byte[]) payload, java.nio.charset.StandardCharsets.UTF_8))) {
                     throw new IllegalStateException("unbounded queue must accept payload");
                 }
             }

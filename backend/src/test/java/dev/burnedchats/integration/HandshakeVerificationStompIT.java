@@ -115,6 +115,12 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
 
             initiator.send("/app/verification.confirm",
                     VerificationRequest.builder().sessionId(sessionId).confirmed(true).build());
+            // Wait until the initiator's confirmation is persisted (its own ack arrives) before the
+            // responder confirms. Both confirmations are a read-modify-write on the same session's
+            // verified flags; firing them simultaneously races so neither side computes
+            // bothVerified=true. Real peers confirm at different times, which this models.
+            assertThat(awaitVerified(initiatorVerifications)).isTrue();
+
             responder.send("/app/verification.confirm",
                     VerificationRequest.builder().sessionId(sessionId).confirmed(true).build());
 
@@ -185,6 +191,20 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
         assertThat(accepted).isNotNull();
         assertThat(accepted.isSuccess()).isTrue();
         return sessionId;
+    }
+
+    private static boolean awaitVerified(BlockingQueue<VerificationEvent> queue) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            VerificationEvent event = queue.poll(5, TimeUnit.SECONDS);
+            if (event == null) {
+                return false;
+            }
+            if (Boolean.TRUE.equals(event.getVerified())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean awaitBothVerified(BlockingQueue<VerificationEvent> queue) throws InterruptedException {

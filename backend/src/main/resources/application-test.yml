@@ -22,7 +22,11 @@ logging:
 # Test Telegram settings
 telegram:
   bot:
-    token: test-bot-token
+    # Blank token: keeps TelegramBotConfig from calling the real api.registerBot()
+    # (live deleteWebhook -> [404] -> Spring context fails to load for every @SpringBootTest
+    # on the `test` profile). HMAC/initData unit tests construct TelegramAuthService with their
+    # own token and are unaffected. See IMP-AUDIT-27.
+    token: ""
     username: TestBot
     webhook:
       enabled: false

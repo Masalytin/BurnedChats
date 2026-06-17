@@ -1,6 +1,15 @@
 # Profile: integration — STOMP + Redis integration tests (IMP-STOMP-USERDEST-07)
 # Redis host/port are overridden by Testcontainers @DynamicPropertySource.
+#
+# This profile is activated together with `test` (after it), so it overrides
+# application-test.yml. A blank bot token keeps TelegramBotConfig from calling
+# the real api.registerBot() (live deleteWebhook → TelegramApiRequestException),
+# which would otherwise crash the Spring context for every STOMP IT (IMP-AUDIT-27).
 
 spring.data.redis:
   host: localhost
   port: 6379
+
+telegram:
+  bot:
+    token: ""

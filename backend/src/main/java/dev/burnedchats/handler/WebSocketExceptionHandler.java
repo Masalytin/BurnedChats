@@ -10,10 +10,11 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
+import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.messaging.simp.annotation.SendToUser;
+import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterValidationResult;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
@@ -91,11 +92,17 @@ public class WebSocketExceptionHandler {
 
     /**
      * Handle Bean Validation failures on {@code @Payload @Valid} arguments.
+     *
+     * <p>STOMP message handling throws the <em>messaging</em>
+     * {@link org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException},
+     * not the servlet {@code org.springframework.web.bind} variant — catching the wrong type let every
+     * invalid payload fall through to {@code INTERNAL_ERROR} instead of {@code VALIDATION_ERROR}.
      */
     @MessageExceptionHandler(MethodArgumentNotValidException.class)
     @SendToUser("/queue/errors")
     public Map<String, Object> handleMethodArgumentNotValidException(MethodArgumentNotValidException exception) {
-        FieldError fieldError = exception.getBindingResult().getFieldError();
+        BindingResult bindingResult = exception.getBindingResult();
+        FieldError fieldError = bindingResult != null ? bindingResult.getFieldError() : null;
         String message = fieldError != null && fieldError.getDefaultMessage() != null
                 ? fieldError.getDefaultMessage()
                 : "Validation failed";

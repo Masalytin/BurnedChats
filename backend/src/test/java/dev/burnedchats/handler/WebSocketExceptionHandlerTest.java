@@ -13,9 +13,9 @@ import jakarta.validation.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.time.Duration;
 import java.util.Map;
@@ -88,9 +88,8 @@ class WebSocketExceptionHandlerTest {
                 new BeanPropertyBindingResult(new Object(), "sendMessageRequest");
         bindingResult.addError(new FieldError("sendMessageRequest", "sessionId", "Session ID is required"));
 
-        MethodArgumentNotValidException exception = new MethodArgumentNotValidException(
-                null,
-                bindingResult);
+        MethodArgumentNotValidException exception = mock(MethodArgumentNotValidException.class);
+        when(exception.getBindingResult()).thenReturn(bindingResult);
 
         Map<String, Object> response = handler.handleMethodArgumentNotValidException(exception);
 

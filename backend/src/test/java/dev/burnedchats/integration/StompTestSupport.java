@@ -1,5 +1,8 @@
 package dev.burnedchats.integration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
@@ -34,6 +37,15 @@ public final class StompTestSupport {
         StandardWebSocketClient webSocketClient = new StandardWebSocketClient();
         WebSocketStompClient stompClient = new WebSocketStompClient(webSocketClient);
         MappingJackson2MessageConverter messageConverter = new MappingJackson2MessageConverter();
+        // Mirror the server ObjectMapper so the client can deserialize every event frame
+        // (otherwise the converter fails silently and the StompFrameHandler never fires — IMP-AUDIT-27):
+        //  - JavaTimeModule: events carry java.time.Instant (createdAt/expiresAt/serverTimestamp).
+        //  - ParameterNamesModule: @Builder-only events (e.g. ActiveSessionsListEvent) have no
+        //    no-arg/all-args constructor; Jackson must use the canonical constructor via parameter
+        //    names (backend compiles with -parameters under the Spring Boot Gradle plugin).
+        ObjectMapper objectMapper = messageConverter.getObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.registerModule(new ParameterNamesModule());
         stompClient.setMessageConverter(messageConverter);
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);

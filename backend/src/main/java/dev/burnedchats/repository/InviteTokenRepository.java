@@ -165,7 +165,9 @@ public class InviteTokenRepository {
         Map<String, String> map = new HashMap<>();
         map.put("token", token.getToken());
         map.put("roomId", token.getRoomId());
-        map.put("createdBy", String.valueOf(token.getCreatedBy()));
+        // createdBy is the owner's Telegram ID and is null for wallet-only owners. Store "" rather
+        // than String.valueOf(null)="null", which fromHash would otherwise fail to parse as a Long.
+        map.put("createdBy", token.getCreatedBy() != null ? String.valueOf(token.getCreatedBy()) : "");
         map.put("expiresAt", String.valueOf(token.getExpiresAt()));
         map.put("maxUses", token.getMaxUses() != null ? String.valueOf(token.getMaxUses()) : "");
         map.put("usedCount", String.valueOf(token.getUsedCount() != null ? token.getUsedCount() : 0));
@@ -177,10 +179,18 @@ public class InviteTokenRepository {
         return InviteToken.builder()
                 .token(hash.get("token"))
                 .roomId(hash.get("roomId"))
-                .createdBy(Long.parseLong(hash.get("createdBy")))
+                .createdBy(parseNullableLong(hash.get("createdBy")))
                 .expiresAt(Long.parseLong(hash.get("expiresAt")))
                 .maxUses(maxUsesStr.isBlank() ? null : Integer.parseInt(maxUsesStr))
                 .usedCount(Integer.parseInt(hash.getOrDefault("usedCount", "0")))
                 .build();
+    }
+
+    /** Wallet-only owners have a null createdBy; tolerate "" and legacy "null" hash values. */
+    private static Long parseNullableLong(String value) {
+        if (value == null || value.isBlank() || "null".equals(value)) {
+            return null;
+        }
+        return Long.parseLong(value);
     }
 }

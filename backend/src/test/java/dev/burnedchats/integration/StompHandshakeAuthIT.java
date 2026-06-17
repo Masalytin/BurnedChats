@@ -62,9 +62,14 @@ class StompHandshakeAuthIT extends StompIntegrationTestBase {
     void connectWithoutHandshakeAuth_rejectsOnStompConnect() {
         WebSocketStompClient stompClient = StompTestSupport.createStompClient();
         try {
+            // Rejection on the STOMP CONNECT closes the transport; depending on timing the client
+            // surfaces it either as a MessagingException or as a ConnectionLostException.
             assertThatThrownBy(() -> connectWithoutAuth(stompClient))
                     .isInstanceOf(ExecutionException.class)
-                    .hasRootCauseInstanceOf(org.springframework.messaging.MessagingException.class);
+                    .rootCause()
+                    .isInstanceOfAny(
+                            org.springframework.messaging.MessagingException.class,
+                            org.springframework.messaging.simp.stomp.ConnectionLostException.class);
         } finally {
             stompClient.stop();
         }
