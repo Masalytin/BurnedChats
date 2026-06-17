@@ -787,6 +787,9 @@
     "continueToVerification": "Continue to Verification",
     "retry": "Try Again",
     "startOver": "Start Over",
+    "errorTitle": "Could not establish secure connection",
+    "recoveryHint": "Tap Try Again to retry without restarting the app. Use Start Over to begin a new session.",
+    "inProgressHint": "Establishing end-to-end encryption...",
     "stages": {
       "idle": {
         "title": "Ready",

@@ -1,1 +1,1 @@
-export { HandshakeView } from './HandshakeView';
+export { HandshakeView, getHandshakeErrorMessage } from './HandshakeView';

@@ -77,6 +77,20 @@ function isHandshakeErrorCode(code: string): code is HandshakeErrorCode {
   return HANDSHAKE_ERROR_CODES.includes(code as HandshakeErrorCode);
 }
 
+/** Resolve localized handshake error message for toast and view. */
+export function getHandshakeErrorMessage(
+  t: (key: string) => string,
+  error: string | null | undefined,
+): string {
+  if (!error) {
+    return t('handshake.errors.DEFAULT');
+  }
+  if (isHandshakeErrorCode(error)) {
+    return t(`handshake.errors.${error}`);
+  }
+  return t('handshake.errors.DEFAULT');
+}
+
 /**
  * Handshake progress UI component.
  *
@@ -142,10 +156,7 @@ export function HandshakeView({
     if (!error) {
       return null;
     }
-    if (isHandshakeErrorCode(error)) {
-      return t(`handshake.errors.${error}`);
-    }
-    return t('handshake.errors.DEFAULT');
+    return getHandshakeErrorMessage(t, error);
   }, [error, t]);
 
   const isError = stage === 'error';
@@ -158,16 +169,11 @@ export function HandshakeView({
   }, [t]);
 
   const statusSubtitle = useMemo(() => {
-    if (isError) {
-      return errorMessage;
-    }
     if (isRotatingMessageStage && waitingMessages.length > 0) {
       return waitingMessages[waitingMessageIndex % waitingMessages.length];
     }
     return stageDescription;
   }, [
-    isError,
-    errorMessage,
     isRotatingMessageStage,
     waitingMessages,
     waitingMessageIndex,
@@ -237,21 +243,34 @@ export function HandshakeView({
         {/* Status text */}
         <div className="handshake-view__status">
           <h2 className="handshake-view__title">{stageTitle}</h2>
-          <p
-            className={`handshake-view__subtitle ${isRotatingMessageStage ? 'handshake-view__subtitle--rotating' : ''}`}
-            key={isRotatingMessageStage ? waitingMessageIndex : stage}
-          >
-            {statusSubtitle}
-          </p>
-          {isTakingLonger && stage === 'waiting_peer' && (
-            <p className="handshake-view__taking-longer">
-              {t('handshake.takingLonger')}
-              {typeof elapsedMs === 'number' && elapsedMs > 0 && (
-                <span className="handshake-view__elapsed">
-                  {formatElapsed(elapsedMs)}
-                </span>
+          {isError ? (
+            <>
+              <p className="handshake-view__subtitle handshake-view__subtitle--error">
+                {errorMessage}
+              </p>
+              <p className="handshake-view__recovery-hint">
+                {t('handshake.recoveryHint')}
+              </p>
+            </>
+          ) : (
+            <>
+              <p
+                className={`handshake-view__subtitle ${isRotatingMessageStage ? 'handshake-view__subtitle--rotating' : ''}`}
+                key={isRotatingMessageStage ? waitingMessageIndex : stage}
+              >
+                {statusSubtitle}
+              </p>
+              {isTakingLonger && stage === 'waiting_peer' && (
+                <p className="handshake-view__taking-longer">
+                  {t('handshake.takingLonger')}
+                  {typeof elapsedMs === 'number' && elapsedMs > 0 && (
+                    <span className="handshake-view__elapsed">
+                      {formatElapsed(elapsedMs)}
+                    </span>
+                  )}
+                </p>
               )}
-            </p>
+            </>
           )}
         </div>
 
@@ -374,7 +393,7 @@ export function HandshakeView({
         {/* Help text */}
         {isInProgress && (
           <p className="handshake-view__help">
-            Establishing end-to-end encryption...
+            {t('handshake.inProgressHint')}
           </p>
         )}
       </div>

@@ -142,6 +142,16 @@
   min-height: 1.5em;
 }
 
+.handshake-view__subtitle--error {
+  color: var(--bc-error);
+}
+
+.handshake-view__recovery-hint {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+}
+
 .handshake-view__taking-longer {
   margin: var(--bc-spacing-xs) 0 0;
   font-size: var(--bc-text-sm);

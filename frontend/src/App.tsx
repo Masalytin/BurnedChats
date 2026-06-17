@@ -34,7 +34,7 @@ import { WalletLoginScreen } from './components/Auth/WalletLoginScreen';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
-import { HandshakeView } from './components/HandshakeView';
+import { HandshakeView, getHandshakeErrorMessage } from './components/HandshakeView';
 import { VerificationView } from './components/VerificationView';
 import { ChatRoom } from './components/Chat';
 import { RoomChatRoom } from './components/Chat/RoomChatRoom';
@@ -347,7 +347,10 @@ function AppContent() {
     },
     onError: (errorCode) => {
       notificationOccurred('error');
-      toast.error(`Handshake failed: ${errorCode}`, { title: 'Connection Error' });
+      console.log('[App] Handshake failed:', errorCode);
+      toast.error(getHandshakeErrorMessage(t, errorCode), {
+        title: t('handshake.errorTitle'),
+      });
     },
   });
 
@@ -1266,7 +1269,7 @@ function AppContent() {
     }
 
     if (handshakeManualRetryCount >= MAX_HANDSHAKE_MANUAL_RETRIES) {
-      toast.error(t('handshake.errors.RETRY_LIMIT'), { title: t('handshake.stages.error.title') });
+      toast.error(t('handshake.errors.RETRY_LIMIT'), { title: t('handshake.errorTitle') });
       return;
     }
 
