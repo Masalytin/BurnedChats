@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { vi } from 'vitest';
 import { describe, it, expect } from 'vitest';
 import type { TFunction } from 'i18next';

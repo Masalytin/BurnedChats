@@ -1,4 +1,4 @@
-/** @vitest-environment jsdom */
+/** @vitest-environment happy-dom */
 
 import { Address, beginCell } from '@ton/core';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
