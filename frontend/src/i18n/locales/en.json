@@ -815,6 +815,14 @@
         "description": "Could not establish secure connection"
       }
     },
+    "waitingMessages": [
+      "Waiting for your peer to connect...",
+      "Your peer is setting up encryption...",
+      "Almost there — syncing keys..."
+    ],
+    "takingLonger": "Taking longer than usual. Connection is still active — waiting for your peer.",
+    "elapsedSeconds_one": "{{count}} second elapsed",
+    "elapsedSeconds_other": "{{count}} seconds elapsed",
     "steps": {
       "generateKeys": "Generate keys",
       "exchangeKeys": "Exchange keys",

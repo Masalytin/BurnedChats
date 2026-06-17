@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckCircle,
@@ -60,6 +60,15 @@ const HANDSHAKE_ERROR_CODES: HandshakeErrorCode[] = [
   'CONNECTION_ERROR',
 ];
 
+/** Stages that show rotating waiting copy instead of static stage description */
+const ROTATING_MESSAGE_STAGES: HandshakeStage[] = ['waiting_peer', 'computing_secret'];
+
+/** Interval between rotating waiting messages (~2.5–3 s) */
+const WAITING_MESSAGE_ROTATION_MS = 2800;
+
+/** Stages where progress ring shows a live indeterminate animation */
+const LIVE_PROGRESS_STAGES: HandshakeStage[] = ['waiting_peer', 'computing_secret'];
+
 function isHandshakeErrorCode(code: string): code is HandshakeErrorCode {
   return HANDSHAKE_ERROR_CODES.includes(code as HandshakeErrorCode);
 }
@@ -83,8 +92,32 @@ export function HandshakeView({
   className = '',
 }: HandshakeViewProps) {
   const { t } = useTranslation();
-  const { stage, peer, fingerprint, error, progress } = result;
+  const { stage, peer, fingerprint, error, progress, elapsedMs, isTakingLonger } = result;
   const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [waitingMessageIndex, setWaitingMessageIndex] = useState(0);
+
+  const waitingMessages = useMemo(() => {
+    const messages = t('handshake.waitingMessages', { returnObjects: true });
+    return Array.isArray(messages) ? (messages as string[]) : [];
+  }, [t]);
+
+  const isRotatingMessageStage = ROTATING_MESSAGE_STAGES.includes(stage);
+  const isLiveProgressStage = LIVE_PROGRESS_STAGES.includes(stage);
+
+  // Rotate explanatory copy during long-running waiting stages
+  useEffect(() => {
+    if (!isRotatingMessageStage || waitingMessages.length === 0) {
+      setWaitingMessageIndex(0);
+      return;
+    }
+
+    setWaitingMessageIndex(0);
+    const interval = setInterval(() => {
+      setWaitingMessageIndex((prev) => (prev + 1) % waitingMessages.length);
+    }, WAITING_MESSAGE_ROTATION_MS);
+
+    return () => clearInterval(interval);
+  }, [stage, isRotatingMessageStage, waitingMessages.length]);
 
   // Animate progress bar
   useEffect(() => {
@@ -109,6 +142,32 @@ export function HandshakeView({
     return t('handshake.errors.DEFAULT');
   }, [error, t]);
 
+  const isError = stage === 'error';
+  const isComplete = stage === 'complete';
+  const isInProgress = !isError && !isComplete && stage !== 'idle';
+
+  const formatElapsed = useCallback((ms: number) => {
+    const seconds = Math.max(1, Math.floor(ms / 1000));
+    return t('handshake.elapsedSeconds', { count: seconds });
+  }, [t]);
+
+  const statusSubtitle = useMemo(() => {
+    if (isError) {
+      return errorMessage;
+    }
+    if (isRotatingMessageStage && waitingMessages.length > 0) {
+      return waitingMessages[waitingMessageIndex % waitingMessages.length];
+    }
+    return stageDescription;
+  }, [
+    isError,
+    errorMessage,
+    isRotatingMessageStage,
+    waitingMessages,
+    waitingMessageIndex,
+    stageDescription,
+  ]);
+
   // Format fingerprint for display (add spaces) when visual shapes are unavailable
   const formattedFingerprint = useMemo(() => {
     if (!fingerprint) return null;
@@ -116,10 +175,6 @@ export function HandshakeView({
   }, [fingerprint]);
 
   const hasVisualFingerprint = visualFingerprint.length > 0;
-
-  const isError = stage === 'error';
-  const isComplete = stage === 'complete';
-  const isInProgress = !isError && !isComplete && stage !== 'idle';
 
   return (
     <div className={`handshake-view ${className}`}>
@@ -138,7 +193,7 @@ export function HandshakeView({
             />
             {/* Progress circle */}
             <circle
-              className={`handshake-view__progress-fill ${isError ? 'handshake-view__progress-fill--error' : ''} ${isComplete ? 'handshake-view__progress-fill--complete' : ''}`}
+              className={`handshake-view__progress-fill ${isError ? 'handshake-view__progress-fill--error' : ''} ${isComplete ? 'handshake-view__progress-fill--complete' : ''} ${isLiveProgressStage ? 'handshake-view__progress-fill--waiting' : ''}`}
               cx="50"
               cy="50"
               r="45"
@@ -147,6 +202,18 @@ export function HandshakeView({
               strokeDasharray={`${animatedProgress * 2.83} 283`}
               strokeLinecap="round"
             />
+            {isLiveProgressStage && (
+              <circle
+                className="handshake-view__progress-indeterminate"
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                strokeWidth="6"
+                strokeDasharray="70 213"
+                strokeLinecap="round"
+              />
+            )}
           </svg>
           <div className="handshake-view__progress-icon">
             {isComplete ? (
@@ -164,9 +231,22 @@ export function HandshakeView({
         {/* Status text */}
         <div className="handshake-view__status">
           <h2 className="handshake-view__title">{stageTitle}</h2>
-          <p className="handshake-view__subtitle">
-            {isError ? errorMessage : stageDescription}
+          <p
+            className={`handshake-view__subtitle ${isRotatingMessageStage ? 'handshake-view__subtitle--rotating' : ''}`}
+            key={isRotatingMessageStage ? waitingMessageIndex : stage}
+          >
+            {statusSubtitle}
           </p>
+          {isTakingLonger && stage === 'waiting_peer' && (
+            <p className="handshake-view__taking-longer">
+              {t('handshake.takingLonger')}
+              {typeof elapsedMs === 'number' && elapsedMs > 0 && (
+                <span className="handshake-view__elapsed">
+                  {formatElapsed(elapsedMs)}
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Fingerprint display (on complete) */}

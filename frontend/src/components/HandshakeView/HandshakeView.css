@@ -51,6 +51,34 @@
   stroke: var(--bc-success);
 }
 
+.handshake-view__progress-fill--waiting {
+  animation: handshake-progress-breathe 2.5s ease-in-out infinite;
+}
+
+@keyframes handshake-progress-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.handshake-view__progress-indeterminate {
+  stroke: var(--bc-button-primary-bg);
+  opacity: 0.35;
+  transform-origin: 50px 50px;
+  animation: handshake-indeterminate-spin 1.8s linear infinite;
+}
+
+@keyframes handshake-indeterminate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .handshake-view__progress-icon {
   position: absolute;
   top: 50%;
@@ -107,6 +135,26 @@
   margin: 0;
   font-size: var(--bc-text-base);
   color: var(--bc-text-secondary);
+  transition: opacity var(--bc-transition-normal) var(--bc-ease-out);
+}
+
+.handshake-view__subtitle--rotating {
+  min-height: 1.5em;
+}
+
+.handshake-view__taking-longer {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  font-style: italic;
+}
+
+.handshake-view__elapsed {
+  display: block;
+  margin-top: var(--bc-spacing-2xs);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
+  opacity: 0.85;
 }
 
 /* Fingerprint */
