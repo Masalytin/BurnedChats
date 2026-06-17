@@ -785,6 +785,8 @@
     "fingerprintLabel": "Security Fingerprint",
     "fingerprintHint": "Compare with your peer to verify the connection",
     "continueToVerification": "Continue to Verification",
+    "retry": "Try Again",
+    "startOver": "Start Over",
     "stages": {
       "idle": {
         "title": "Ready",
@@ -841,6 +843,7 @@
       "INVALID_STATUS": "Session is not ready for key exchange.",
       "TIMEOUT": "Connection timed out. Please try again.",
       "CONNECTION_ERROR": "Connection lost. Please check your network.",
+      "RETRY_LIMIT": "Too many retry attempts. Please start over or try again later.",
       "DEFAULT": "An unexpected error occurred."
     }
   },

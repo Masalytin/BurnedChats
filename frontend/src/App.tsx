@@ -13,7 +13,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
-import { useHandshake } from './hooks/useHandshake';
+import { useHandshake, MAX_HANDSHAKE_MANUAL_RETRIES, HANDSHAKE_RETRY_BASE_COOLDOWN_MS } from './hooks/useHandshake';
 import { useVerification } from './hooks/useVerification';
 import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
@@ -330,6 +330,8 @@ function AppContent() {
     unsubscribe,
     publish,
     onHandshakeComplete: (sessionId, fingerprint) => {
+      setHandshakeManualRetryCount(0);
+      lastHandshakeRetryAtRef.current = 0;
       notificationOccurred('success');
       toast.success('Secure connection established!');
       console.log('[App] Handshake complete:', sessionId, fingerprint);
@@ -614,6 +616,9 @@ function AppContent() {
 
   // Reference to store peer info for handshake
   const handshakePeerRef = useRef<UserInfo | null>(null);
+  /** Manual in-place retry counter (state for UI; reset on complete, cancel, or start over) */
+  const [handshakeManualRetryCount, setHandshakeManualRetryCount] = useState(0);
+  const lastHandshakeRetryAtRef = useRef(0);
   
   // Active chat state
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
@@ -1117,6 +1122,8 @@ function AppContent() {
 
   // Handle canceling handshake
   const handleCancelHandshake = useCallback(() => {
+    setHandshakeManualRetryCount(0);
+    lastHandshakeRetryAtRef.current = 0;
     // Get the session ID before canceling
     const sessionId = handshakeResult.sessionId;
     
@@ -1241,12 +1248,41 @@ function AppContent() {
     t,
   ]);
 
-  // Handle retry handshake
+  // Handle in-place retry after handshake error/timeout (no page reload)
   const handleRetryHandshake = useCallback(() => {
-    if (handshakeResult.sessionId && handshakePeerRef.current) {
-      startHandshake(handshakeResult.sessionId, handshakePeerRef.current);
+    const sessionId = handshakeResult.sessionId;
+    const peer = handshakePeerRef.current;
+    if (!sessionId || !peer) {
+      return;
     }
-  }, [handshakeResult.sessionId, startHandshake]);
+
+    if (handshakeManualRetryCount >= MAX_HANDSHAKE_MANUAL_RETRIES) {
+      toast.error(t('handshake.errors.RETRY_LIMIT'), { title: t('handshake.stages.error.title') });
+      return;
+    }
+
+    const cooldownMs = HANDSHAKE_RETRY_BASE_COOLDOWN_MS
+      * Math.pow(2, Math.min(handshakeManualRetryCount, 4));
+    const elapsed = Date.now() - lastHandshakeRetryAtRef.current;
+    if (lastHandshakeRetryAtRef.current > 0 && elapsed < cooldownMs) {
+      return;
+    }
+
+    const nextAttempt = handshakeManualRetryCount + 1;
+    setHandshakeManualRetryCount(nextAttempt);
+    lastHandshakeRetryAtRef.current = Date.now();
+
+    console.log('[App] In-place handshake retry:', sessionId, 'attempt', nextAttempt);
+    resetHandshake();
+    startHandshake(sessionId, peer, true);
+  }, [handshakeResult.sessionId, handshakeManualRetryCount, startHandshake, resetHandshake, toast, t]);
+
+  // Handle start over from handshake error — burn session and return home without reload
+  const handleStartOverHandshake = useCallback(() => {
+    handleCancelHandshake();
+  }, [handleCancelHandshake]);
+
+  const handshakeRetryDisabled = handshakeManualRetryCount >= MAX_HANDSHAKE_MANUAL_RETRIES;
 
   // Handle leaving chat (back to home)
   const handleLeaveChat = useCallback(() => {
@@ -1943,6 +1979,8 @@ function AppContent() {
             onCancel={handleCancelHandshake}
             onContinue={handleHandshakeComplete}
             onRetry={handleRetryHandshake}
+            onStartOver={handleStartOverHandshake}
+            retryDisabled={handshakeRetryDisabled}
           />
         </Layout>
         {debugPanelElement}

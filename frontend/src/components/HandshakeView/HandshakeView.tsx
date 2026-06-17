@@ -30,6 +30,10 @@ interface HandshakeViewProps {
   onContinue?: () => void;
   /** Callback to retry handshake */
   onRetry?: () => void;
+  /** Callback to burn session and return home (error recovery) */
+  onStartOver?: () => void;
+  /** When true, manual retry limit reached — disable retry button */
+  retryDisabled?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -89,6 +93,8 @@ export function HandshakeView({
   onCancel,
   onContinue,
   onRetry,
+  onStartOver,
+  retryDisabled = false,
   className = '',
 }: HandshakeViewProps) {
   const { t } = useTranslation();
@@ -328,14 +334,25 @@ export function HandshakeView({
             <Button
               variant="primary"
               onClick={onRetry}
+              disabled={retryDisabled}
               fullWidth
             >
-              Try Again
+              {t('handshake.retry')}
             </Button>
           )}
-          {!isComplete && (
+          {isError && onStartOver && (
             <Button
-              variant={isError ? 'secondary' : 'secondary'}
+              variant="secondary"
+              onClick={onStartOver}
+              leftIcon={<CloseIcon size={18} />}
+              fullWidth
+            >
+              {t('handshake.startOver')}
+            </Button>
+          )}
+          {!isComplete && !isError && (
+            <Button
+              variant="secondary"
               onClick={onCancel}
               leftIcon={<CloseIcon size={18} />}
               fullWidth

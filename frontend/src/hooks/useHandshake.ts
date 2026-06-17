@@ -135,6 +135,12 @@ const initialResult: HandshakeResult = {
 /** Default handshake timeout (30 seconds) */
 const DEFAULT_TIMEOUT = 30000;
 
+/** Maximum manual in-place retries before user must start over */
+export const MAX_HANDSHAKE_MANUAL_RETRIES = 5;
+
+/** Base cooldown between manual retries (exponential backoff multiplier) */
+export const HANDSHAKE_RETRY_BASE_COOLDOWN_MS = 2000;
+
 /** Soft threshold for waiting_peer — UI "taking longer than usual" hint (ms) */
 export const SOFT_TIMEOUT = 9000;
 
@@ -244,6 +250,17 @@ export function useHandshake({
   }, []);
 
   /**
+   * Clear handshake timers without touching session state.
+   */
+  const clearHandshakeTimers = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    clearWaitingPeerTick();
+  }, [clearWaitingPeerTick]);
+
+  /**
    * Log duration of a handshake stage to DebugPanel (timings only, no key material).
    */
   const logStageDuration = useCallback((
@@ -327,14 +344,8 @@ export function useHandshake({
     if (resolvedSessionId && currentStageRef.current !== 'idle') {
       logStageDuration(currentStageRef.current, resolvedSessionId, false);
     }
-    clearWaitingPeerTick();
+    clearHandshakeTimers();
     
-    // Clear timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
     // Burn any keys that were generated
     if (sessionId) {
       const startTime = performance.now();
@@ -358,7 +369,7 @@ export function useHandshake({
 
     activeSessionRef.current = null;
     onErrorRef.current?.(errorCode);
-  }, [logStageDuration, clearWaitingPeerTick]);
+  }, [logStageDuration, clearHandshakeTimers]);
 
   /**
    * Complete the handshake after computing shared secret.
@@ -388,10 +399,7 @@ export function useHandshake({
       storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint }, rawSharedSecret);
 
       // Clear timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      clearHandshakeTimers();
 
       console.log('[useHandshake] Handshake complete:', sessionId, 'fingerprint:', fingerprint);
 
@@ -404,7 +412,7 @@ export function useHandshake({
       logCryptoOperation('completeHandshake', sessionId, false, 0, String(error));
       handleError('KEY_DERIVATION_FAILED', sessionId);
     }
-  }, [updateStage, handleError]);
+  }, [updateStage, handleError, clearHandshakeTimers]);
 
   /**
    * Process a peer public key event (either fresh or from buffer).
@@ -597,6 +605,10 @@ export function useHandshake({
       return;
     }
 
+    // Defensive cleanup before any (re)start — clears stale timers/buffers from error or race
+    clearHandshakeTimers();
+    pendingPeerKeyRef.current.delete(sessionId);
+
     // Check if already handshaking
     if (activeSessionRef.current) {
       console.warn('[useHandshake] Handshake already in progress');
@@ -680,17 +692,13 @@ export function useHandshake({
       logCryptoOperation('generateKeyPair', sessionId, false, 0, String(error));
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
-  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey]);
+  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey, clearHandshakeTimers]);
 
   /**
    * Cancel/abort the current handshake.
    */
   const cancelHandshake = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    clearWaitingPeerTick();
+    clearHandshakeTimers();
 
     if (activeSessionRef.current) {
       const sessionId = activeSessionRef.current;
@@ -709,10 +717,10 @@ export function useHandshake({
     stageStartRef.current = 0;
     setResult(initialResult);
     console.log('[useHandshake] Handshake cancelled');
-  }, [clearWaitingPeerTick, logStageDuration]);
+  }, [clearHandshakeTimers, clearWaitingPeerTick, logStageDuration]);
 
   /**
-   * Reset state.
+   * Reset state (idempotent). Safe to call from error stage before forceRefresh retry.
    */
   const reset = useCallback(() => {
     cancelHandshake();
@@ -721,12 +729,9 @@ export function useHandshake({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      clearWaitingPeerTick();
+      clearHandshakeTimers();
     };
-  }, [clearWaitingPeerTick]);
+  }, [clearHandshakeTimers]);
 
   return {
     result,
