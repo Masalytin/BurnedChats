@@ -12,16 +12,21 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.Map;
 
 /**
@@ -98,47 +103,97 @@ public class FileController {
      *
      * <p>Streams the encrypted blob from storage without materializing the
      * entire file in heap memory. Authorization and membership checks complete
-     * before the response body is written.
+     * (blocking on the reactive pipeline) <em>before</em> any status code or
+     * response body is written, so failures surface as proper JSON error
+     * responses via {@link #handleAuthentication}, {@link #handleRateLimit},
+     * and {@link #handleBurnedChats}.
+     *
+     * <p>The body itself is a {@link StreamingResponseBody}: the encrypted blob
+     * is written to the servlet {@link OutputStream} one {@code DataBuffer} at a
+     * time (Tomcat-native streaming). The previous {@code Flux<DataBuffer>}
+     * response body could not be written by the servlet stack (no
+     * {@code HttpMessageConverter}) and produced a 500; this keeps the
+     * memory-safe streaming guarantee from IMP-AUDIT-06 without depending on a
+     * reactive (Netty) server.
      *
      * @param fileId   unique file identifier (UUID)
      * @param initData Telegram Mini App initData for authentication
      * @return streaming binary response with the encrypted file data
      */
     @GetMapping("/{fileId}")
-    public Mono<ResponseEntity<?>> download(
+    public ResponseEntity<StreamingResponseBody> download(
             @PathVariable String fileId,
             @RequestHeader("X-Telegram-Init-Data") String initData) {
 
-        return fileService.download(initData, fileId)
-                .<ResponseEntity<?>>map(result -> {
-                    Flux<DataBuffer> body = result.data()
-                            .doOnDiscard(DataBuffer.class, DataBufferUtils::release);
-                    return ResponseEntity.ok()
-                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                            .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.size()))
-                            .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                            .body(body);
-                })
-                .onErrorResume(AuthenticationException.class, e ->
-                        Mono.just(jsonErrorResponse(HttpStatus.UNAUTHORIZED, e.getErrorCode(), e.getMessage())))
-                .onErrorResume(RateLimitException.class, e ->
-                        Mono.just(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .body(Map.of(
-                                        "error", e.getErrorCode(),
-                                        "message", e.getMessage(),
-                                        "retryAfter", e.getRetryAfterSeconds()
-                                ))))
-                .onErrorResume(BurnedChatsException.class, e -> {
-                    HttpStatus status = mapErrorCode(e.getErrorCode());
-                    return Mono.just(jsonErrorResponse(status, e.getErrorCode(), e.getMessage()));
-                })
-                .onErrorResume(e -> {
-                    LOG.error("Unexpected error during file download: fileId={}", fileId, e);
-                    return Mono.just(jsonErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
-                            "INTERNAL_ERROR", "An unexpected error occurred"));
-                });
+        FileService.DownloadResult result;
+        try {
+            result = fileService.download(initData, fileId).block();
+        } catch (BurnedChatsException e) {
+            // Domain errors (auth / access / not-found / rate-limit) -> mapped JSON below.
+            throw e;
+        } catch (RuntimeException e) {
+            LOG.error("Unexpected error during file download: fileId={}", fileId, e);
+            throw new BurnedChatsException("An unexpected error occurred", "INTERNAL_ERROR");
+        }
+        if (result == null) {
+            throw new BurnedChatsException("File not found: " + fileId, "FILE_NOT_FOUND");
+        }
+
+        StreamingResponseBody body = outputStream -> writeBlob(result.data(), outputStream);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(result.size()))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(body);
+    }
+
+    /**
+     * Stream a reactive blob to the servlet output stream, releasing every
+     * {@link DataBuffer} after it is written. Only a single buffer is held in
+     * heap at any time (no full-file materialization). Each buffer is flushed so
+     * the body is delivered to the client in chunks rather than one block.
+     */
+    private static void writeBlob(Flux<DataBuffer> data, OutputStream outputStream) {
+        data.doOnNext(buffer -> {
+            try {
+                int readable = buffer.readableByteCount();
+                if (readable > 0) {
+                    byte[] chunk = new byte[readable];
+                    buffer.read(chunk);
+                    outputStream.write(chunk);
+                    outputStream.flush();
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                DataBufferUtils.release(buffer);
+            }
+        })
+                .doOnDiscard(DataBuffer.class, DataBufferUtils::release)
+                .then()
+                .block();
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<Map<String, Object>> handleAuthentication(AuthenticationException e) {
+        return jsonError(HttpStatus.UNAUTHORIZED, e.getErrorCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(RateLimitException.class)
+    ResponseEntity<Map<String, Object>> handleRateLimit(RateLimitException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "error", e.getErrorCode(),
+                        "message", e.getMessage(),
+                        "retryAfter", e.getRetryAfterSeconds()
+                ));
+    }
+
+    @ExceptionHandler(BurnedChatsException.class)
+    ResponseEntity<Map<String, Object>> handleBurnedChats(BurnedChatsException e) {
+        return jsonError(mapErrorCode(e.getErrorCode()), e.getErrorCode(), e.getMessage());
     }
 
     private static ResponseEntity<Map<String, Object>> errorResponse(
@@ -149,7 +204,7 @@ public class FileController {
         ));
     }
 
-    private static ResponseEntity<?> jsonErrorResponse(HttpStatus status, String code, String message) {
+    private static ResponseEntity<Map<String, Object>> jsonError(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(

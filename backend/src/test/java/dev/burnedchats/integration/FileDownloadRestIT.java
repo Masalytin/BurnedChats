@@ -5,7 +5,6 @@ import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,19 +12,23 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.reactivestreams.Subscription;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.FluxExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.Disposable;
+import reactor.core.publisher.BaseSubscriber;
+import reactor.core.publisher.Flux;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,6 +52,9 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     private static final long RESPONDER_TELEGRAM_ID = 2002L;
     private static final long OUTSIDER_TELEGRAM_ID = 3003L;
     private static final int MULTI_CHUNK_SIZE = 32 * 1024;
+    private static final int CONCURRENT_DOWNLOAD_LIMIT = 3;
+    /** Larger than any TCP socket/window buffer so an idle holder back-pressures the server. */
+    private static final int HOLD_OPEN_SIZE = 8 * 1024 * 1024;
 
     private static Path tempStorageDir;
 
@@ -72,8 +78,6 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     }
 
     @Test
-    @Disabled("IMP-AUDIT-28: download streams Flux<DataBuffer> which the servlet (Tomcat) stack "
-            + "cannot write to octet-stream -> 500. Re-enable once FileController streaming is fixed.")
     void uploadThenDownloadMatchesBytesAndHeaders() {
         byte[] blob = deterministicBlob(512);
         String sessionId = createSessionForDefaultUser();
@@ -85,8 +89,6 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     }
 
     @Test
-    @Disabled("IMP-AUDIT-28: download streams Flux<DataBuffer> which the servlet (Tomcat) stack "
-            + "cannot write to octet-stream -> 500. Re-enable once FileController streaming is fixed.")
     void multiChunkDownloadStreamsWithoutSingleBufferAssert() {
         byte[] blob = deterministicBlob(MULTI_CHUNK_SIZE);
         String sessionId = createSessionForDefaultUser();
@@ -129,36 +131,49 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     }
 
     @Test
-    @Disabled("IMP-AUDIT-28: depends on a working streaming download (Flux<DataBuffer> -> 500 on the "
-            + "servlet stack). Re-enable once FileController streaming is fixed.")
     void fourthConcurrentDownloadReturns429() throws Exception {
-        byte[] blob = deterministicBlob(MULTI_CHUNK_SIZE);
+        // Use a blob far larger than the TCP socket buffers so a holder that stops
+        // consuming back-pressures the server mid-stream: the server's StreamingResponseBody
+        // blocks on OutputStream.write, the download Flux never completes, and the Redis
+        // download slot stays held for the whole connection. (A small file would be fully
+        // flushed into the socket buffer and release its slot before the 4th request races in.)
+        byte[] blob = deterministicBlob(HOLD_OPEN_SIZE);
         String sessionId = createSessionForDefaultUser();
         String fileId = uploadFile(sessionId, blob);
 
-        ExecutorService executor = Executors.newFixedThreadPool(3);
-        CountDownLatch slotsHeld = new CountDownLatch(3);
-        List<FluxExchangeResult<DataBuffer>> activeDownloads = new ArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_DOWNLOAD_LIMIT);
+        CountDownLatch slotsHeld = new CountDownLatch(CONCURRENT_DOWNLOAD_LIMIT);
+        List<Disposable> heldDownloads = new CopyOnWriteArrayList<>();
 
         try {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < CONCURRENT_DOWNLOAD_LIMIT; i++) {
                 executor.submit(() -> {
-                    FluxExchangeResult<DataBuffer> result = webTestClient.get()
+                    Flux<DataBuffer> body = webTestClient.get()
                             .uri("/api/files/{fileId}", fileId)
                             .header("X-Telegram-Init-Data", INIT_DATA)
                             .exchange()
                             .expectStatus().isOk()
-                            .returnResult(DataBuffer.class);
-                    activeDownloads.add(result);
-                    result.getResponseBody()
-                            .take(1)
-                            .doOnSubscribe(sub -> slotsHeld.countDown())
-                            .doOnNext(DataBufferUtils::release)
-                            .blockLast(Duration.ofSeconds(10));
+                            .returnResult(DataBuffer.class)
+                            .getResponseBody();
+
+                    // Request exactly one buffer, then stop requesting (no cancel): the
+                    // connection stays open and the server's slot remains held until dispose().
+                    heldDownloads.add(body.subscribeWith(new BaseSubscriber<DataBuffer>() {
+                        @Override
+                        protected void hookOnSubscribe(Subscription subscription) {
+                            request(1);
+                        }
+
+                        @Override
+                        protected void hookOnNext(DataBuffer buffer) {
+                            DataBufferUtils.release(buffer);
+                            slotsHeld.countDown();
+                        }
+                    }));
                 });
             }
 
-            assertThat(slotsHeld.await(15, TimeUnit.SECONDS)).isTrue();
+            assertThat(slotsHeld.await(20, TimeUnit.SECONDS)).isTrue();
 
             webTestClient.get()
                     .uri("/api/files/{fileId}", fileId)
@@ -171,12 +186,8 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
                     .jsonPath("$.error").isEqualTo("RATE_LIMIT_EXCEEDED")
                     .jsonPath("$.retryAfter").exists();
         } finally {
+            heldDownloads.forEach(Disposable::dispose);
             executor.shutdownNow();
-            for (FluxExchangeResult<DataBuffer> active : activeDownloads) {
-                active.getResponseBody()
-                        .doOnNext(DataBufferUtils::release)
-                        .blockLast(Duration.ofSeconds(5));
-            }
         }
     }
 
