@@ -7,8 +7,6 @@ import {
   importPublicKey,
   computeSharedSecret,
   deriveAESKey,
-  generateFingerprint,
-  generateVisualFingerprint,
   storeKeyPair,
   storePeerPublicKey,
   storeSharedSecret,
@@ -19,6 +17,7 @@ import {
   isHandshakeComplete,
   burn,
 } from '../crypto';
+import { generateFingerprints } from '../crypto/ecdh';
 import { logCryptoOperation } from '../components/DebugPanel';
 
 // ============================================
@@ -71,6 +70,10 @@ export interface HandshakeResult {
   fingerprint: string | null;
   error: HandshakeErrorCode | null;
   progress: number; // 0-100
+  /** Elapsed time in the current stage (ms); primarily updated during waiting_peer */
+  elapsedMs?: number;
+  /** True when waiting_peer exceeds SOFT_TIMEOUT — UI hint only, not a hard timeout */
+  isTakingLonger?: boolean;
 }
 
 /** Server peer public key event */
@@ -131,6 +134,12 @@ const initialResult: HandshakeResult = {
 
 /** Default handshake timeout (30 seconds) */
 const DEFAULT_TIMEOUT = 30000;
+
+/** Soft threshold for waiting_peer — UI "taking longer than usual" hint (ms) */
+export const SOFT_TIMEOUT = 9000;
+
+/** Interval for updating elapsedMs / isTakingLonger during waiting_peer */
+const WAITING_PEER_TICK_MS = 500;
 
 /** Progress values for each stage */
 const STAGE_PROGRESS: Record<HandshakeStage, number> = {
@@ -206,7 +215,10 @@ export function useHandshake({
 
   const isSubscribedRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waitingPeerTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeSessionRef = useRef<string | null>(null);
+  const currentStageRef = useRef<HandshakeStage>('idle');
+  const stageStartRef = useRef<number>(0);
   
   // Buffer for peer keys that arrive before handshake starts (race condition fix)
   const pendingPeerKeyRef = useRef<Map<string, ServerPeerPublicKeyEvent>>(new Map());
@@ -222,25 +234,100 @@ export function useHandshake({
   });
 
   /**
+   * Stop waiting_peer elapsed timer.
+   */
+  const clearWaitingPeerTick = useCallback(() => {
+    if (waitingPeerTickRef.current) {
+      clearInterval(waitingPeerTickRef.current);
+      waitingPeerTickRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Log duration of a handshake stage to DebugPanel (timings only, no key material).
+   */
+  const logStageDuration = useCallback((
+    stage: HandshakeStage,
+    sessionId: string,
+    success = true
+  ) => {
+    if (stageStartRef.current <= 0) {
+      return;
+    }
+    const durationMs = Math.round(performance.now() - stageStartRef.current);
+    logCryptoOperation(`handshakeStage:${stage}`, sessionId, success, durationMs);
+  }, []);
+
+  /**
+   * Start periodic elapsedMs / isTakingLonger updates while in waiting_peer.
+   */
+  const startWaitingPeerTick = useCallback((sessionId: string) => {
+    clearWaitingPeerTick();
+    stageStartRef.current = performance.now();
+
+    waitingPeerTickRef.current = setInterval(() => {
+      if (activeSessionRef.current !== sessionId) {
+        return;
+      }
+      const elapsedMs = Math.round(performance.now() - stageStartRef.current);
+      const isTakingLonger = elapsedMs >= SOFT_TIMEOUT;
+      setResult((prev) =>
+        prev.stage === 'waiting_peer' && prev.sessionId === sessionId
+          ? { ...prev, elapsedMs, isTakingLonger }
+          : prev
+      );
+    }, WAITING_PEER_TICK_MS);
+  }, [clearWaitingPeerTick]);
+
+  /**
    * Update result with new stage and progress.
    */
   const updateStage = useCallback((
     stage: HandshakeStage,
     extra?: Partial<HandshakeResult>
   ) => {
+    const sessionId = activeSessionRef.current;
+    const prevStage = currentStageRef.current;
+
+    if (sessionId && prevStage !== stage && prevStage !== 'idle') {
+      logStageDuration(prevStage, sessionId);
+    }
+
+    if (prevStage === 'waiting_peer' && stage !== 'waiting_peer') {
+      clearWaitingPeerTick();
+    }
+
+    currentStageRef.current = stage;
+    stageStartRef.current = performance.now();
+
+    if (stage === 'waiting_peer' && sessionId) {
+      startWaitingPeerTick(sessionId);
+    }
+
     setResult((prev) => ({
       ...prev,
       stage,
       progress: STAGE_PROGRESS[stage],
+      ...(stage === 'waiting_peer'
+        ? { elapsedMs: 0, isTakingLonger: false }
+        : stage !== prevStage
+          ? { elapsedMs: undefined, isTakingLonger: undefined }
+          : {}),
       ...extra,
     }));
-  }, []);
+  }, [logStageDuration, clearWaitingPeerTick, startWaitingPeerTick]);
 
   /**
    * Handle error during handshake.
    */
   const handleError = useCallback((errorCode: HandshakeErrorCode, sessionId?: string) => {
     console.error('[useHandshake] Error:', errorCode);
+
+    const resolvedSessionId = sessionId ?? activeSessionRef.current;
+    if (resolvedSessionId && currentStageRef.current !== 'idle') {
+      logStageDuration(currentStageRef.current, resolvedSessionId, false);
+    }
+    clearWaitingPeerTick();
     
     // Clear timeout
     if (timeoutRef.current) {
@@ -257,16 +344,21 @@ export function useHandshake({
       pendingPeerKeyRef.current.delete(sessionId);
     }
 
+    currentStageRef.current = 'error';
+    stageStartRef.current = 0;
+
     setResult((prev) => ({
       ...prev,
       stage: 'error',
       error: errorCode,
       progress: 0,
+      elapsedMs: undefined,
+      isTakingLonger: undefined,
     }));
 
     activeSessionRef.current = null;
     onErrorRef.current?.(errorCode);
-  }, []);
+  }, [logStageDuration, clearWaitingPeerTick]);
 
   /**
    * Complete the handshake after computing shared secret.
@@ -276,14 +368,6 @@ export function useHandshake({
     rawSharedSecret: ArrayBuffer
   ) => {
     try {
-      // Derive AES key using HKDF
-      console.log('[useHandshake] Deriving AES key...');
-      let startTime = performance.now();
-      const aesKey = await deriveAESKey(rawSharedSecret, sessionId);
-      logCryptoOperation('deriveAESKey', sessionId, true, performance.now() - startTime);
-
-      // Generate fingerprints from both public keys (not shared secret)
-      console.log('[useHandshake] Generating fingerprints...');
       const keyPair = getKeyPair(sessionId);
       const peerPublicKey = getPeerPublicKey(sessionId);
       if (!keyPair || !peerPublicKey) {
@@ -291,15 +375,16 @@ export function useHandshake({
         return;
       }
 
-      startTime = performance.now();
-      const fingerprint = await generateFingerprint(keyPair.publicKey, peerPublicKey);
-      logCryptoOperation('generateFingerprint', sessionId, true, performance.now() - startTime);
-      
-      startTime = performance.now();
-      const visualFingerprint = await generateVisualFingerprint(keyPair.publicKey, peerPublicKey);
-      logCryptoOperation('generateVisualFingerprint', sessionId, true, performance.now() - startTime);
+      // Derive AES key and fingerprints in parallel (independent operations)
+      console.log('[useHandshake] Deriving AES key and fingerprints...');
+      const startTime = performance.now();
+      const [aesKey, { fingerprint, visualFingerprint }] = await Promise.all([
+        deriveAESKey(rawSharedSecret, sessionId),
+        generateFingerprints(keyPair.publicKey, peerPublicKey),
+      ]);
+      logCryptoOperation('completeHandshake', sessionId, true, performance.now() - startTime);
 
-      // Store shared secret
+      // Store shared secret after both derivations succeed
       storeSharedSecret(sessionId, { sessionId, key: aesKey, fingerprint, visualFingerprint }, rawSharedSecret);
 
       // Clear timeout
@@ -316,7 +401,7 @@ export function useHandshake({
 
     } catch (error) {
       console.error('[useHandshake] Failed to complete handshake:', error);
-      logCryptoOperation('deriveAESKey', sessionId, false, 0, String(error));
+      logCryptoOperation('completeHandshake', sessionId, false, 0, String(error));
       handleError('KEY_DERIVATION_FAILED', sessionId);
     }
   }, [updateStage, handleError]);
@@ -538,6 +623,8 @@ export function useHandshake({
     console.log('[useHandshake] Starting handshake for session:', sessionId);
 
     activeSessionRef.current = sessionId;
+    currentStageRef.current = 'generating_keys';
+    stageStartRef.current = performance.now();
     setResult({
       stage: 'generating_keys',
       sessionId,
@@ -603,9 +690,13 @@ export function useHandshake({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+    clearWaitingPeerTick();
 
     if (activeSessionRef.current) {
       const sessionId = activeSessionRef.current;
+      if (currentStageRef.current !== 'idle') {
+        logStageDuration(currentStageRef.current, sessionId, false);
+      }
       const startTime = performance.now();
       burn(sessionId);
       logCryptoOperation('burn', sessionId, true, performance.now() - startTime);
@@ -614,9 +705,11 @@ export function useHandshake({
       activeSessionRef.current = null;
     }
 
+    currentStageRef.current = 'idle';
+    stageStartRef.current = 0;
     setResult(initialResult);
     console.log('[useHandshake] Handshake cancelled');
-  }, []);
+  }, [clearWaitingPeerTick, logStageDuration]);
 
   /**
    * Reset state.
@@ -631,8 +724,9 @@ export function useHandshake({
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      clearWaitingPeerTick();
     };
-  }, []);
+  }, [clearWaitingPeerTick]);
 
   return {
     result,
