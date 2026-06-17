@@ -56,6 +56,7 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     private static final long RESPONDER_TELEGRAM_ID = 2002L;
     private static final long OUTSIDER_TELEGRAM_ID = 3003L;
     private static final String WALLET_OWNER_INTERNAL_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    private static final String WALLET_MEMBER_INTERNAL_ID = "bbbbbbbb-bbbb-cccc-dddd-ffffffffffff";
     private static final String WALLET_OUTSIDER_INTERNAL_ID = "cccccccc-bbbb-cccc-dddd-111111111111";
     private static final String WALLET_OWNER_ADDRESS = "eq" + "a".repeat(46);
     private static final String WALLET_OUTSIDER_ADDRESS = "eq" + "c".repeat(46);
@@ -298,7 +299,7 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
                 .id(sessionId)
                 .initiatorInternalId(ownerInternalId)
                 .initiatorTelegramId(null)
-                .responderInternalId(WALLET_OUTSIDER_INTERNAL_ID)
+                .responderInternalId(WALLET_MEMBER_INTERNAL_ID)
                 .responderTelegramId(null)
                 .status(SessionStatus.ACTIVE)
                 .createdAt(Instant.now())
