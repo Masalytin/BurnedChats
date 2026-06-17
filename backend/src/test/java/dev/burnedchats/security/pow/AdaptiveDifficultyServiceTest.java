@@ -5,16 +5,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.ReactiveRedisConnection;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 import reactor.test.StepVerifier;
 
@@ -27,16 +29,40 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers(disabledWithoutDocker = true)
+@EnabledIf("dev.burnedchats.security.pow.AdaptiveDifficultyServiceTest#dockerAvailable")
 @Tag("integration")
 @DisplayName("AdaptiveDifficultyService (Redis integration)")
 class AdaptiveDifficultyServiceTest {
 
-    @Container
+    /**
+     * Singleton Redis container started once for the whole test JVM and intentionally
+     * never stopped per class (Testcontainers' Ryuk reaper reaps it at JVM exit).
+     *
+     * <p>The previous {@code @Container}/{@code @Testcontainers} lifecycle stopped the
+     * container after this class finished, leaving the cached Spring context pointing at
+     * the dead mapped port → {@code RedisConnectionFailureException} during {@code clean
+     * build}. A singleton container keeps the mapped port stable for the entire JVM.
+     * Mirrors {@code StompIntegrationTestBase}.
+     */
     @SuppressWarnings("resource")
     private static final GenericContainer<?> REDIS =
             new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
-                    .withExposedPorts(6379);
+                    .withExposedPorts(6379)
+                    // Wait until redis-server is actually accepting connections; the default
+                    // port-listening probe can pass before redis is ready on Docker Desktop.
+                    .waitingFor(Wait.forLogMessage(".*Ready to accept connections.*\\n", 1)
+                            .withStartupTimeout(Duration.ofSeconds(60)));
+
+    static {
+        if (dockerAvailable()) {
+            REDIS.start();
+        }
+    }
+
+    /** Gate the suite on Docker availability without the per-class Testcontainers extension. */
+    public static boolean dockerAvailable() {
+        return DockerClientFactory.instance().isDockerAvailable();
+    }
 
     @DynamicPropertySource
     static void registerRedis(DynamicPropertyRegistry registry) {
@@ -57,11 +83,14 @@ class AdaptiveDifficultyServiceTest {
 
     @BeforeEach
     void flushRedis() {
-        redisTemplate.getConnectionFactory()
-                .getReactiveConnection()
-                .serverCommands()
-                .flushDb()
-                .block(Duration.ofSeconds(5));
+        // The connection MUST be closed: leaking one per test eventually exhausts/breaks the
+        // reactive Lettuce pool, which surfaces mid-suite as RedisConnectionFailureException.
+        ReactiveRedisConnection connection = redisTemplate.getConnectionFactory().getReactiveConnection();
+        try {
+            connection.serverCommands().flushDb().block(Duration.ofSeconds(5));
+        } finally {
+            connection.close();
+        }
     }
 
     @Nested
@@ -205,6 +234,11 @@ class AdaptiveDifficultyServiceTest {
 
     private void recordRejections(int count) {
         for (int i = 0; i < count; i++) {
+            // Mirror production (SessionLifecycleService.enforceSessionCreateGate): every gated
+            // request first increments the total counter via recordGatedAttempt(); a rejected one
+            // additionally increments the rejected counter. The abuse signal is rejected/total, so
+            // a rejection must contribute to BOTH counters — otherwise the ratio is overstated.
+            service.recordGatedAttempt().block(Duration.ofSeconds(5));
             service.recordRejected().block(Duration.ofSeconds(5));
         }
     }
