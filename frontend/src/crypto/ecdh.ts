@@ -345,6 +345,43 @@ export async function generateFingerprint(
 }
 
 /**
+ * Formats bytes 16–23 of a sorted-public-key hash as visual fingerprint elements.
+ */
+export function formatVisualFingerprint(hashBytes: Uint8Array): VisualFingerprintElement[] {
+  const elements: VisualFingerprintElement[] = [];
+
+  for (let i = 0; i < 4; i++) {
+    const byteIndex = VISUAL_FINGERPRINT_BYTE_OFFSET + i * 2;
+    const shapeIndex = hashBytes[byteIndex] % FINGERPRINT_SHAPES.length;
+    const colorIndex = hashBytes[byteIndex + 1] % FINGERPRINT_COLORS.length;
+
+    elements.push({
+      shape: FINGERPRINT_SHAPES[shapeIndex],
+      color: FINGERPRINT_COLORS[colorIndex],
+    });
+  }
+
+  return elements;
+}
+
+/**
+ * Generates safety-number and visual fingerprints from a single sorted-key hash.
+ *
+ * Computes {@link hashSortedPublicKeys} once — use this when both representations
+ * are needed (e.g. handshake completion) to avoid duplicate exportKey/digest.
+ */
+export async function generateFingerprints(
+  localPublicKey: CryptoKey,
+  peerPublicKey: CryptoKey
+): Promise<{ fingerprint: string; visualFingerprint: VisualFingerprintElement[] }> {
+  const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
+  return {
+    fingerprint: formatSafetyNumber(hashBytes),
+    visualFingerprint: formatVisualFingerprint(hashBytes),
+  };
+}
+
+/**
  * Generates a visual fingerprint from both ECDH public keys.
  *
  * Uses bytes 16–23 of the same sorted-public-key hash as {@link generateFingerprint}.
@@ -360,20 +397,7 @@ export async function generateVisualFingerprint(
   peerPublicKey: CryptoKey
 ): Promise<VisualFingerprintElement[]> {
   const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
-  const elements: VisualFingerprintElement[] = [];
-
-  for (let i = 0; i < 4; i++) {
-    const byteIndex = VISUAL_FINGERPRINT_BYTE_OFFSET + i * 2;
-    const shapeIndex = hashBytes[byteIndex] % FINGERPRINT_SHAPES.length;
-    const colorIndex = hashBytes[byteIndex + 1] % FINGERPRINT_COLORS.length;
-
-    elements.push({
-      shape: FINGERPRINT_SHAPES[shapeIndex],
-      color: FINGERPRINT_COLORS[colorIndex],
-    });
-  }
-
-  return elements;
+  return formatVisualFingerprint(hashBytes);
 }
 
 /**
