@@ -784,7 +784,57 @@
     "subtitle": "Exchanging encryption keys...",
     "fingerprintLabel": "Security Fingerprint",
     "fingerprintHint": "Compare with your peer to verify the connection",
-    "continueToVerification": "Continue to Verification"
+    "continueToVerification": "Continue to Verification",
+    "stages": {
+      "idle": {
+        "title": "Ready",
+        "description": "Waiting to start..."
+      },
+      "generating_keys": {
+        "title": "Generating Keys",
+        "description": "Creating your encryption keys..."
+      },
+      "sending_key": {
+        "title": "Sending Key",
+        "description": "Sending your public key..."
+      },
+      "waiting_peer": {
+        "title": "Waiting for Peer",
+        "description": "Waiting for their encryption key..."
+      },
+      "computing_secret": {
+        "title": "Computing Secret",
+        "description": "Establishing secure connection..."
+      },
+      "complete": {
+        "title": "Secure Connection Established",
+        "description": "End-to-end encryption is active"
+      },
+      "error": {
+        "title": "Connection Failed",
+        "description": "Could not establish secure connection"
+      }
+    },
+    "steps": {
+      "generateKeys": "Generate keys",
+      "exchangeKeys": "Exchange keys",
+      "establishEncryption": "Establish encryption"
+    },
+    "errors": {
+      "KEY_GENERATION_FAILED": "Failed to generate encryption keys. Please try again.",
+      "KEY_EXPORT_FAILED": "Failed to prepare encryption key. Please try again.",
+      "KEY_SEND_FAILED": "Failed to send encryption key. Check your connection.",
+      "PEER_KEY_INVALID": "Received invalid key from peer. Please try again.",
+      "KEY_IMPORT_FAILED": "Failed to process peer's key. Please try again.",
+      "SECRET_COMPUTE_FAILED": "Failed to establish secure connection. Please try again.",
+      "KEY_DERIVATION_FAILED": "Failed to derive encryption key. Please try again.",
+      "SESSION_NOT_FOUND": "Session not found. It may have expired.",
+      "NOT_PARTICIPANT": "You are not a participant in this session.",
+      "INVALID_STATUS": "Session is not ready for key exchange.",
+      "TIMEOUT": "Connection timed out. Please try again.",
+      "CONNECTION_ERROR": "Connection lost. Please check your network.",
+      "DEFAULT": "An unexpected error occurred."
+    }
   },
 
   "pendingRequest": {

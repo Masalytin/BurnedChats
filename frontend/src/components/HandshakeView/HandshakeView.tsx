@@ -10,7 +10,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { HandshakeStage, HandshakeResult } from '../../hooks/useHandshake';
+import type { HandshakeStage, HandshakeResult, HandshakeErrorCode } from '../../hooks/useHandshake';
 import type { VisualFingerprintElement } from '../../types';
 import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
@@ -34,67 +34,35 @@ interface HandshakeViewProps {
   className?: string;
 }
 
-/** Stage display information */
-interface StageInfo {
-  title: string;
-  description: string;
-  Icon: LucideIcon;
+/** Stage icon map (text comes from i18n) */
+const STAGE_ICONS: Record<HandshakeStage, LucideIcon> = {
+  idle: Hourglass,
+  generating_keys: Key,
+  sending_key: Send,
+  waiting_peer: Hourglass,
+  computing_secret: Lock,
+  complete: CheckCircle,
+  error: XCircle,
+};
+
+const HANDSHAKE_ERROR_CODES: HandshakeErrorCode[] = [
+  'KEY_GENERATION_FAILED',
+  'KEY_EXPORT_FAILED',
+  'KEY_SEND_FAILED',
+  'PEER_KEY_INVALID',
+  'KEY_IMPORT_FAILED',
+  'SECRET_COMPUTE_FAILED',
+  'KEY_DERIVATION_FAILED',
+  'SESSION_NOT_FOUND',
+  'NOT_PARTICIPANT',
+  'INVALID_STATUS',
+  'TIMEOUT',
+  'CONNECTION_ERROR',
+];
+
+function isHandshakeErrorCode(code: string): code is HandshakeErrorCode {
+  return HANDSHAKE_ERROR_CODES.includes(code as HandshakeErrorCode);
 }
-
-/** Stage information map */
-const STAGE_INFO: Record<HandshakeStage, StageInfo> = {
-  idle: {
-    title: 'Ready',
-    description: 'Waiting to start...',
-    Icon: Hourglass,
-  },
-  generating_keys: {
-    title: 'Generating Keys',
-    description: 'Creating your encryption keys...',
-    Icon: Key,
-  },
-  sending_key: {
-    title: 'Sending Key',
-    description: 'Sending your public key...',
-    Icon: Send,
-  },
-  waiting_peer: {
-    title: 'Waiting for Peer',
-    description: 'Waiting for their encryption key...',
-    Icon: Hourglass,
-  },
-  computing_secret: {
-    title: 'Computing Secret',
-    description: 'Establishing secure connection...',
-    Icon: Lock,
-  },
-  complete: {
-    title: 'Secure Connection Established',
-    description: 'End-to-end encryption is active',
-    Icon: CheckCircle,
-  },
-  error: {
-    title: 'Connection Failed',
-    description: 'Could not establish secure connection',
-    Icon: XCircle,
-  },
-};
-
-/** Error code to user-friendly message */
-const ERROR_MESSAGES: Record<string, string> = {
-  KEY_GENERATION_FAILED: 'Failed to generate encryption keys. Please try again.',
-  KEY_EXPORT_FAILED: 'Failed to prepare encryption key. Please try again.',
-  KEY_SEND_FAILED: 'Failed to send encryption key. Check your connection.',
-  PEER_KEY_INVALID: 'Received invalid key from peer. Please try again.',
-  KEY_IMPORT_FAILED: 'Failed to process peer\'s key. Please try again.',
-  SECRET_COMPUTE_FAILED: 'Failed to establish secure connection. Please try again.',
-  KEY_DERIVATION_FAILED: 'Failed to derive encryption key. Please try again.',
-  SESSION_NOT_FOUND: 'Session not found. It may have expired.',
-  NOT_PARTICIPANT: 'You are not a participant in this session.',
-  INVALID_STATUS: 'Session is not ready for key exchange.',
-  TIMEOUT: 'Connection timed out. Please try again.',
-  CONNECTION_ERROR: 'Connection lost. Please check your network.',
-};
 
 /**
  * Handshake progress UI component.
@@ -126,17 +94,20 @@ export function HandshakeView({
     return () => clearTimeout(timer);
   }, [progress]);
 
-  // Get stage info
-  const stageInfo = useMemo(() => STAGE_INFO[stage], [stage]);
-  const StageIcon = stageInfo.Icon;
+  const StageIcon = STAGE_ICONS[stage];
 
-  // Get error message
+  const stageTitle = t(`handshake.stages.${stage}.title`);
+  const stageDescription = t(`handshake.stages.${stage}.description`);
+
   const errorMessage = useMemo(() => {
-    if (error) {
-      return ERROR_MESSAGES[error] || 'An unexpected error occurred.';
+    if (!error) {
+      return null;
     }
-    return null;
-  }, [error]);
+    if (isHandshakeErrorCode(error)) {
+      return t(`handshake.errors.${error}`);
+    }
+    return t('handshake.errors.DEFAULT');
+  }, [error, t]);
 
   // Format fingerprint for display (add spaces) when visual shapes are unavailable
   const formattedFingerprint = useMemo(() => {
@@ -192,9 +163,9 @@ export function HandshakeView({
 
         {/* Status text */}
         <div className="handshake-view__status">
-          <h2 className="handshake-view__title">{stageInfo.title}</h2>
+          <h2 className="handshake-view__title">{stageTitle}</h2>
           <p className="handshake-view__subtitle">
-            {isError ? errorMessage : stageInfo.description}
+            {isError ? errorMessage : stageDescription}
           </p>
         </div>
 
@@ -257,15 +228,15 @@ export function HandshakeView({
         {isInProgress && (
           <div className="handshake-view__steps">
             <HandshakeStep
-              label="Generate keys"
+              label={t('handshake.steps.generateKeys')}
               status={getStepStatus(stage, 'generating_keys')}
             />
             <HandshakeStep
-              label="Exchange keys"
+              label={t('handshake.steps.exchangeKeys')}
               status={getStepStatus(stage, 'sending_key', 'waiting_peer')}
             />
             <HandshakeStep
-              label="Establish encryption"
+              label={t('handshake.steps.establishEncryption')}
               status={getStepStatus(stage, 'computing_secret')}
             />
           </div>
