@@ -381,6 +381,33 @@ function AppContent() {
     },
   });
 
+  /** Session burns deferred until WebSocket reconnects (offline cancel) */
+  const pendingBurnsRef = useRef<Set<string>>(new Set());
+
+  const burnSessionEverywhere = useCallback(
+    (sessionId: string, options?: { clearVerification?: boolean }) => {
+      cancelAll();
+      burnKeys(sessionId);
+      if (options?.clearVerification !== false) {
+        clearVerificationStatus(sessionId);
+      }
+      if (isConnected) {
+        publish('/app/session.burn', { sessionId });
+      } else {
+        pendingBurnsRef.current.add(sessionId);
+      }
+    },
+    [isConnected, publish, clearVerificationStatus]
+  );
+
+  useEffect(() => {
+    if (!isConnected || pendingBurnsRef.current.size === 0) return;
+    for (const sessionId of pendingBurnsRef.current) {
+      publish('/app/session.burn', { sessionId });
+    }
+    pendingBurnsRef.current.clear();
+  }, [isConnected, publish]);
+
   // Create room hook
   const {
     result: createRoomResult,
@@ -708,12 +735,9 @@ function AppContent() {
       clearSearch();
       
       // Burn the session on backend to allow creating new sessions
-      if (sessionId && isConnected) {
+      if (sessionId) {
         console.log('[App] Burning session after handshake cancel (back button):', sessionId);
-        cancelAll();
-        publish('/app/session.burn', { sessionId });
-        burnKeys(sessionId);
-        clearVerificationStatus(sessionId);
+        burnSessionEverywhere(sessionId);
       }
       return;
     }
@@ -727,12 +751,9 @@ function AppContent() {
       setPendingSession(null);
       setActiveIncomingRequest(null);
       clearSearch();
-      if (sessionId && isConnected) {
+      if (sessionId) {
         console.log('[App] Burning session after verification cancel (back button):', sessionId);
-        cancelAll();
-        publish('/app/session.burn', { sessionId });
-        burnKeys(sessionId);
-        clearVerificationStatus(sessionId);
+        burnSessionEverywhere(sessionId);
       }
       return;
     }
@@ -758,13 +779,11 @@ function AppContent() {
     cancelHandshake,
     handshakeResult.sessionId,
     activeChat?.sessionId,
-    isConnected,
-    publish,
     resetHandshake,
     fetchSessions,
     resetInviteLink,
     requestsReturnView,
-    clearVerificationStatus,
+    burnSessionEverywhere,
   ]);
 
   // Show back button on all non-home views (wallet/settings stay on currentView === 'home')
@@ -1099,13 +1118,11 @@ function AppContent() {
     
     // Burn the session on backend to remove the request from the recipient's queue
     // This fixes the bug where the recipient still sees the request after initiator cancels
-    if (sessionId && isConnected) {
+    if (sessionId) {
       console.log('[App] Burning session after pending request cancel:', sessionId);
-      cancelAll();
-      publish('/app/session.burn', { sessionId });
-      burnKeys(sessionId);
+      burnSessionEverywhere(sessionId, { clearVerification: false });
     }
-  }, [resetSession, clearSearch, pendingSession, isConnected, publish]);
+  }, [resetSession, clearSearch, pendingSession, burnSessionEverywhere]);
 
   // Handle accepting an incoming request
   const handleAcceptRequest = useCallback((secretAnswer?: string) => {
@@ -1150,24 +1167,16 @@ function AppContent() {
     
     // Burn the session on backend to allow creating new sessions
     // This is important because the backend still has the session in HANDSHAKE status
-    if (sessionId && isConnected) {
+    if (sessionId) {
       console.log('[App] Burning session after handshake cancel:', sessionId);
-      cancelAll();
-      publish('/app/session.burn', { sessionId });
-      burnKeys(sessionId);
-      clearVerificationStatus(sessionId);
+      burnSessionEverywhere(sessionId);
     }
-  }, [cancelHandshake, resetSession, clearSearch, handshakeResult.sessionId, isConnected, publish, clearVerificationStatus]);
+  }, [cancelHandshake, resetSession, clearSearch, handshakeResult.sessionId, burnSessionEverywhere]);
 
   const burnVerificationSession = useCallback((sessionId: string) => {
-    cancelAll();
-    if (isConnected) {
-      publish('/app/session.burn', { sessionId });
-    }
-    burnKeys(sessionId);
-    clearVerificationStatus(sessionId);
+    burnSessionEverywhere(sessionId);
     clearDownloadCache();
-  }, [isConnected, publish, clearVerificationStatus]);
+  }, [burnSessionEverywhere]);
 
   // Handle continuing after handshake complete
   const handleHandshakeComplete = useCallback(() => {
