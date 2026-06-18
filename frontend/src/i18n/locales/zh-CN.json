@@ -235,6 +235,22 @@
       "generateKeys": "生成密钥",
       "exchangeKeys": "交换密钥",
       "establishEncryption": "建立加密"
+    },
+    "errors": {
+      "KEY_GENERATION_FAILED": "无法生成加密密钥。请重试。",
+      "KEY_EXPORT_FAILED": "无法准备加密密钥。请重试。",
+      "KEY_SEND_FAILED": "无法发送加密密钥。请检查您的连接。",
+      "PEER_KEY_INVALID": "收到对端发送的无效密钥。请重试。",
+      "KEY_IMPORT_FAILED": "无法处理对端密钥。请重试。",
+      "SECRET_COMPUTE_FAILED": "无法建立安全连接。请重试。",
+      "KEY_DERIVATION_FAILED": "无法派生加密密钥。请重试。",
+      "SESSION_NOT_FOUND": "未找到会话。可能已过期。",
+      "NOT_PARTICIPANT": "您不是此会话的参与者。",
+      "INVALID_STATUS": "会话尚未准备好进行密钥交换。",
+      "TIMEOUT": "连接超时。请重试。",
+      "CONNECTION_ERROR": "连接已断开。请检查您的网络。",
+      "RETRY_LIMIT": "重试次数过多。请重新开始或稍后再试。",
+      "DEFAULT": "发生意外错误。"
     }
   },
   "pendingRequest": {

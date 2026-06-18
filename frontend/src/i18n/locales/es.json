@@ -235,6 +235,22 @@
       "generateKeys": "Generar claves",
       "exchangeKeys": "Intercambiar claves",
       "establishEncryption": "Establecer cifrado"
+    },
+    "errors": {
+      "KEY_GENERATION_FAILED": "No se pudieron generar las claves de cifrado. Inténtalo de nuevo.",
+      "KEY_EXPORT_FAILED": "No se pudo preparar la clave de cifrado. Inténtalo de nuevo.",
+      "KEY_SEND_FAILED": "No se pudo enviar la clave de cifrado. Comprueba tu conexión.",
+      "PEER_KEY_INVALID": "Se recibió una clave inválida del contacto. Inténtalo de nuevo.",
+      "KEY_IMPORT_FAILED": "No se pudo procesar la clave del contacto. Inténtalo de nuevo.",
+      "SECRET_COMPUTE_FAILED": "No se pudo establecer la conexión segura. Inténtalo de nuevo.",
+      "KEY_DERIVATION_FAILED": "No se pudo derivar la clave de cifrado. Inténtalo de nuevo.",
+      "SESSION_NOT_FOUND": "Sesión no encontrada. Puede haber expirado.",
+      "NOT_PARTICIPANT": "No eres participante en esta sesión.",
+      "INVALID_STATUS": "La sesión no está lista para el intercambio de claves.",
+      "TIMEOUT": "Tiempo de conexión agotado. Inténtalo de nuevo.",
+      "CONNECTION_ERROR": "Conexión perdida. Comprueba tu red.",
+      "RETRY_LIMIT": "Demasiados intentos. Empieza de nuevo o inténtalo más tarde.",
+      "DEFAULT": "Ocurrió un error inesperado."
     }
   },
   "pendingRequest": {

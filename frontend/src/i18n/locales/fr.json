@@ -235,6 +235,22 @@
       "generateKeys": "Générer les clés",
       "exchangeKeys": "Échanger les clés",
       "establishEncryption": "Établir le chiffrement"
+    },
+    "errors": {
+      "KEY_GENERATION_FAILED": "Échec de la génération des clés de chiffrement. Veuillez réessayer.",
+      "KEY_EXPORT_FAILED": "Échec de la préparation de la clé de chiffrement. Veuillez réessayer.",
+      "KEY_SEND_FAILED": "Échec de l'envoi de la clé de chiffrement. Vérifiez votre connexion.",
+      "PEER_KEY_INVALID": "Clé invalide reçue du correspondant. Veuillez réessayer.",
+      "KEY_IMPORT_FAILED": "Échec du traitement de la clé du correspondant. Veuillez réessayer.",
+      "SECRET_COMPUTE_FAILED": "Impossible d'établir une connexion sécurisée. Veuillez réessayer.",
+      "KEY_DERIVATION_FAILED": "Échec de la dérivation de la clé de chiffrement. Veuillez réessayer.",
+      "SESSION_NOT_FOUND": "Session introuvable. Elle a peut-être expiré.",
+      "NOT_PARTICIPANT": "Vous n'êtes pas participant à cette session.",
+      "INVALID_STATUS": "La session n'est pas prête pour l'échange de clés.",
+      "TIMEOUT": "Délai de connexion dépassé. Veuillez réessayer.",
+      "CONNECTION_ERROR": "Connexion perdue. Veuillez vérifier votre réseau.",
+      "RETRY_LIMIT": "Trop de tentatives. Veuillez recommencer ou réessayer plus tard.",
+      "DEFAULT": "Une erreur inattendue s'est produite."
     }
   },
   "pendingRequest": {
