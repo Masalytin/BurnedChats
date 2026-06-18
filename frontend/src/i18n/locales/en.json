@@ -776,6 +776,8 @@
     "continueButton": "Continue to Chat",
     "continueAnywayButton": "Continue Anyway (Not Recommended)",
     "waitingPeer": "Waiting for peer to verify...",
+    "waitingLonger": "Taking longer than usual…",
+    "connectionLost": "No connection — your confirmation wasn't sent.",
     "helpText": "Ask your peer to read their fingerprint symbols over a voice call or in person. If they match, press \"Fingerprint Matches\"."
   },
 

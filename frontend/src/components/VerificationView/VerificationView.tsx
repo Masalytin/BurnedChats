@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement, UserInfo } from '../../types';
 import type { VerificationStatus } from '../../hooks/useVerification';
@@ -10,6 +10,9 @@ import { Card, CardContent } from '../Card';
 import { Star } from 'lucide-react';
 import { CheckIcon, AlertIcon, ShieldIcon } from '../../icons';
 import './VerificationView.css';
+
+/** Soft threshold for waiting_peer — UI hint only, not a hard timeout (ms) */
+const WAITING_PEER_SOFT_TIMEOUT_MS = 10_000;
 
 interface VerificationViewProps {
   /** Visual fingerprint elements to display */
@@ -24,8 +27,10 @@ interface VerificationViewProps {
   onConfirm: () => void;
   /** Callback when user reports mismatch */
   onMismatch: () => void;
-  /** Callback to continue to chat */
+  /** Callback to continue to chat (or skip peer wait) */
   onContinue: () => void;
+  /** Callback to cancel verification and leave (optional — e.g. burn session, go home) */
+  onCancel?: () => void;
   /** Whether verification is loading */
   isLoading?: boolean;
   /** Additional CSS class */
@@ -47,10 +52,12 @@ export function VerificationView({
   onConfirm,
   onMismatch,
   onContinue,
+  onCancel,
   isLoading = false,
   className = '',
 }: VerificationViewProps) {
   const { t } = useTranslation();
+  const [isTakingLonger, setIsTakingLonger] = useState(false);
   const safetyNumber = useMemo(
     () => getFingerprint(sessionId) ?? null,
     [sessionId, fingerprint],
@@ -67,6 +74,20 @@ export function VerificationView({
     if (selfVerified) return 'waiting_peer';
     return 'pending';
   }, [mismatchReported, bothVerified, selfVerified]);
+
+  useEffect(() => {
+    if (viewState !== 'waiting_peer') {
+      setIsTakingLonger(false);
+      return;
+    }
+
+    setIsTakingLonger(false);
+    const timer = setTimeout(() => {
+      setIsTakingLonger(true);
+    }, WAITING_PEER_SOFT_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
+  }, [viewState]);
 
   return (
     <div className={`verification-view ${className}`}>
@@ -202,6 +223,11 @@ export function VerificationView({
                 <div className="verification-view__waiting-spinner" />
                 <span>{t('verification.waitingPeer')}</span>
               </div>
+              {isTakingLonger && (
+                <p className="verification-view__subtitle">
+                  {t('verification.waitingLonger')}
+                </p>
+              )}
               <Button
                 variant="secondary"
                 onClick={onContinue}
@@ -209,6 +235,15 @@ export function VerificationView({
               >
                 {t('verification.skipButton')}
               </Button>
+              {onCancel && (
+                <Button
+                  variant="secondary"
+                  onClick={onCancel}
+                  fullWidth
+                >
+                  {t('common.cancel')}
+                </Button>
+              )}
             </>
           )}
 

@@ -377,7 +377,11 @@ function AppContent() {
         return;
       }
       notificationOccurred('error');
-      toast.error(`Verification failed: ${errorCode}`, { title: 'Error' });
+      if (errorCode === 'CONNECTION_ERROR') {
+        toast.error(t('verification.connectionLost'), { title: t('handshake.errorTitle') });
+      } else {
+        toast.error(`Verification failed: ${errorCode}`, { title: 'Error' });
+      }
     },
   });
 
@@ -1218,6 +1222,15 @@ function AppContent() {
       return;
     }
 
+    if (status?.selfVerified) {
+      setCurrentView('chat');
+      setPendingSession(null);
+      setActiveIncomingRequest(null);
+      clearSearch();
+      console.log('[App] Skipping peer verification wait, entering chat:', sessionId);
+      return;
+    }
+
     if (status?.mismatchReported) {
       burnVerificationSession(sessionId);
       setActiveChat(null);
@@ -1236,6 +1249,27 @@ function AppContent() {
     resetHandshake,
     clearSearch,
     fetchSessions,
+  ]);
+
+  const handleVerificationCancel = useCallback(() => {
+    const sessionId = activeChat?.sessionId ?? handshakeResult.sessionId;
+    setActiveChat(null);
+    handshakePeerRef.current = null;
+    resetHandshake();
+    setCurrentView('home');
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    clearSearch();
+    if (sessionId) {
+      console.log('[App] Burning session after verification cancel:', sessionId);
+      burnSessionEverywhere(sessionId);
+    }
+  }, [
+    activeChat?.sessionId,
+    handshakeResult.sessionId,
+    resetHandshake,
+    clearSearch,
+    burnSessionEverywhere,
   ]);
 
   const handleVerificationMismatch = useCallback(() => {
@@ -2075,6 +2109,7 @@ function AppContent() {
             onConfirm={() => confirmVerification(activeChat.sessionId)}
             onMismatch={handleVerificationMismatch}
             onContinue={handleVerificationContinue}
+            onCancel={handleVerificationCancel}
           />
         </Layout>
         {debugPanelElement}
