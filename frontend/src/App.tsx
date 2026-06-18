@@ -2484,7 +2484,7 @@ function ChatViewContent({
 function App() {
   return (
     <PreferencesProvider>
-      <ToastProvider position="bottom" maxToasts={3}>
+      <ToastProvider position="top" maxToasts={3}>
         <AuthContextProvider>
           <AppContent />
         </AuthContextProvider>

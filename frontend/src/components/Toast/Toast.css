@@ -11,7 +11,7 @@
 }
 
 .toast-container--top {
-  top: var(--bc-spacing-md);
+  top: calc(var(--bc-spacing-md) + env(safe-area-inset-top, 0px));
 }
 
 .toast-container--bottom {
@@ -148,6 +148,37 @@
 }
 
 @keyframes toast-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--bc-spacing-sm))) scale(0.95);
+  }
+}
+
+/* Top-anchored toasts slide in from above / out upwards */
+.toast-container--top .toast {
+  animation-name: toast-enter-top;
+}
+
+.toast-container--top .toast--leaving {
+  animation-name: toast-leave-top;
+}
+
+@keyframes toast-enter-top {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--bc-spacing-lg))) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-leave-top {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
