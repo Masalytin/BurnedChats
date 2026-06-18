@@ -203,8 +203,14 @@ public class SessionRepository {
                     String field = userId.equals(session.getInitiatorInternalId())
                             ? "initiatorVerified"
                             : "responderVerified";
+                    // HSET returns true only when the field is created for the first time;
+                    // initiatorVerified/responderVerified always already exist (written on save()),
+                    // so the raw put() result is false even though the write succeeds. Report
+                    // success of the write itself; defaultIfEmpty(false) below still covers the
+                    // "session not found / not a participant" case.
                     return redisTemplate.opsForHash()
                             .put(key, field, String.valueOf(verified))
+                            .thenReturn(true)
                             .doOnSuccess(result -> LOG.debug(
                                     "Updated verification for session {}, user {}: {}",
                                     sessionId, userId, verified));

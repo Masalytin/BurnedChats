@@ -283,6 +283,27 @@ class SessionRepositoryTest {
         }
 
         @Test
+        @DisplayName("should return true when field already exists (HSET returns 0/false)")
+        void shouldReturnTrueWhenFieldAlreadyExists() {
+            // Given: initiatorVerified already exists, so HSET (put) returns false,
+            // but the write itself succeeds — updateVerification must still report true.
+            Session session = createTestSession();
+            Map<Object, Object> hashMap = sessionToHashMap(session);
+            String key = "session:" + TEST_SESSION_ID;
+
+            when(hashOperations.entries(key)).thenReturn(Flux.fromIterable(hashMap.entrySet()));
+            when(hashOperations.put(eq(key), eq("initiatorVerified"), eq("true")))
+                    .thenReturn(Mono.just(false));
+
+            // When & Then
+            StepVerifier.create(sessionRepository.updateVerification(TEST_SESSION_ID, INITIATOR_ID, true))
+                    .expectNext(true)
+                    .verifyComplete();
+
+            verify(hashOperations).put(key, "initiatorVerified", "true");
+        }
+
+        @Test
         @DisplayName("should return false when session not found")
         void shouldReturnFalseWhenSessionNotFound() {
             // Given

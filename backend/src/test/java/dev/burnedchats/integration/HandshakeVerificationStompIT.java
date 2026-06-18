@@ -77,32 +77,7 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
             String sessionId = createAndAccept(initiator, responder);
 
             // 1. handshake key relay — each side receives the peer's public key, session → ACTIVE
-            BlockingQueue<PeerPublicKeyEvent> initiatorPeerKeys = new LinkedBlockingQueue<>();
-            BlockingQueue<PeerPublicKeyEvent> responderPeerKeys = new LinkedBlockingQueue<>();
-            initiator.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, initiatorPeerKeys));
-            responder.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, responderPeerKeys));
-            StompTestSupport.awaitSubscriptionProcessed();
-
-            String initiatorKey = generateP256PublicKeyBase64();
-            String responderKey = generateP256PublicKeyBase64();
-
-            initiator.send("/app/handshake.key",
-                    PublicKeyRequest.builder().sessionId(sessionId).publicKey(initiatorKey).build());
-            // no peer-key relayed yet — server buffers until both keys arrive
-            assertThat(responderPeerKeys.poll(1, TimeUnit.SECONDS)).isNull();
-
-            responder.send("/app/handshake.key",
-                    PublicKeyRequest.builder().sessionId(sessionId).publicKey(responderKey).build());
-
-            PeerPublicKeyEvent initiatorReceived = initiatorPeerKeys.poll(5, TimeUnit.SECONDS);
-            PeerPublicKeyEvent responderReceived = responderPeerKeys.poll(5, TimeUnit.SECONDS);
-            assertThat(initiatorReceived).isNotNull();
-            assertThat(initiatorReceived.isSuccess()).isTrue();
-            assertThat(initiatorReceived.getSessionId()).isEqualTo(sessionId);
-            assertThat(initiatorReceived.getPublicKey()).isEqualTo(responderKey);
-            assertThat(responderReceived).isNotNull();
-            assertThat(responderReceived.isSuccess()).isTrue();
-            assertThat(responderReceived.getPublicKey()).isEqualTo(initiatorKey);
+            relayHandshake(initiator, responder, sessionId);
 
             // 2. mutual verification — both confirm; both eventually see bothVerified=true
             BlockingQueue<VerificationEvent> initiatorVerifications = new LinkedBlockingQueue<>();
@@ -119,8 +94,47 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
             responder.send("/app/verification.confirm",
                     VerificationRequest.builder().sessionId(sessionId).confirmed(true).build());
 
-            assertThat(awaitBothVerified(initiatorVerifications)).isTrue();
-            assertThat(awaitBothVerified(responderVerifications)).isTrue();
+            // IMP-CCVF-07: a successful flow must NOT deliver any error event (e.g. a false
+            // INTERNAL_ERROR caused by HSET returning 0 for already-existing verified fields).
+            awaitBothVerifiedNoError(initiatorVerifications);
+            awaitBothVerifiedNoError(responderVerifications);
+        } finally {
+            initiatorClient.stop();
+            responderClient.stop();
+        }
+    }
+
+    @Test
+    void singleConfirmReportsVerifiedWithoutError() throws Exception {
+        WebSocketStompClient initiatorClient = StompTestSupport.createStompClient();
+        WebSocketStompClient responderClient = StompTestSupport.createStompClient();
+        try {
+            StompSession initiator = connect(initiatorClient, INITIATOR_INTERNAL_ID);
+            StompSession responder = connect(responderClient, RESPONDER_INTERNAL_ID);
+
+            String sessionId = createAndAccept(initiator, responder);
+            relayHandshake(initiator, responder, sessionId);
+
+            BlockingQueue<VerificationEvent> initiatorVerifications = new LinkedBlockingQueue<>();
+            initiator.subscribe("/user/queue/verification",
+                    typedHandler(VerificationEvent.class, initiatorVerifications));
+            StompTestSupport.awaitSubscriptionProcessed();
+
+            // IMP-CCVF-07: a single confirm must produce one success event (verified=true) and
+            // never a (false) INTERNAL_ERROR — the regression always existed before the peer confirmed.
+            initiator.send("/app/verification.confirm",
+                    VerificationRequest.builder().sessionId(sessionId).confirmed(true).build());
+
+            VerificationEvent event = initiatorVerifications.poll(5, TimeUnit.SECONDS);
+            assertThat(event).isNotNull();
+            assertThat(event.isSuccess()).isTrue();
+            assertThat(event.getError()).isNull();
+            assertThat(event.getVerified()).isTrue();
+            // peer has not confirmed yet → not both verified
+            assertThat(event.getBothVerified()).isNotEqualTo(Boolean.TRUE);
+
+            // no late/extra error event must follow the success
+            assertThat(initiatorVerifications.poll(1, TimeUnit.SECONDS)).isNull();
         } finally {
             initiatorClient.stop();
             responderClient.stop();
@@ -188,18 +202,65 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
         return sessionId;
     }
 
-    private static boolean awaitBothVerified(BlockingQueue<VerificationEvent> queue) throws InterruptedException {
+    /**
+     * Performs the ECDH public-key relay so both peers receive each other's key and the
+     * session transitions to ACTIVE, ready for fingerprint verification.
+     */
+    private void relayHandshake(StompSession initiator, StompSession responder, String sessionId)
+            throws Exception {
+        BlockingQueue<PeerPublicKeyEvent> initiatorPeerKeys = new LinkedBlockingQueue<>();
+        BlockingQueue<PeerPublicKeyEvent> responderPeerKeys = new LinkedBlockingQueue<>();
+        initiator.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, initiatorPeerKeys));
+        responder.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, responderPeerKeys));
+        StompTestSupport.awaitSubscriptionProcessed();
+
+        String initiatorKey = generateP256PublicKeyBase64();
+        String responderKey = generateP256PublicKeyBase64();
+
+        initiator.send("/app/handshake.key",
+                PublicKeyRequest.builder().sessionId(sessionId).publicKey(initiatorKey).build());
+        // no peer-key relayed yet — server buffers until both keys arrive
+        assertThat(responderPeerKeys.poll(1, TimeUnit.SECONDS)).isNull();
+
+        responder.send("/app/handshake.key",
+                PublicKeyRequest.builder().sessionId(sessionId).publicKey(responderKey).build());
+
+        PeerPublicKeyEvent initiatorReceived = initiatorPeerKeys.poll(5, TimeUnit.SECONDS);
+        PeerPublicKeyEvent responderReceived = responderPeerKeys.poll(5, TimeUnit.SECONDS);
+        assertThat(initiatorReceived).isNotNull();
+        assertThat(initiatorReceived.isSuccess()).isTrue();
+        assertThat(initiatorReceived.getSessionId()).isEqualTo(sessionId);
+        assertThat(initiatorReceived.getPublicKey()).isEqualTo(responderKey);
+        assertThat(responderReceived).isNotNull();
+        assertThat(responderReceived.isSuccess()).isTrue();
+        assertThat(responderReceived.getPublicKey()).isEqualTo(initiatorKey);
+    }
+
+    /**
+     * Drains the verification queue until {@code bothVerified=true} is observed, asserting that
+     * every delivered event is a success without an error code. Fails if an error event arrives
+     * or {@code bothVerified} is never reported.
+     */
+    private static void awaitBothVerifiedNoError(BlockingQueue<VerificationEvent> queue)
+            throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5000;
-        while (System.currentTimeMillis() < deadline) {
+        boolean bothVerified = false;
+        while (System.currentTimeMillis() < deadline && !bothVerified) {
             VerificationEvent event = queue.poll(5, TimeUnit.SECONDS);
             if (event == null) {
-                return false;
+                break;
             }
+            assertThat(event.getError())
+                    .as("no error event must be delivered during a successful verification flow")
+                    .isNull();
+            assertThat(event.isSuccess())
+                    .as("every event in a successful verification flow must be success=true")
+                    .isTrue();
             if (Boolean.TRUE.equals(event.getBothVerified())) {
-                return true;
+                bothVerified = true;
             }
         }
-        return false;
+        assertThat(bothVerified).as("bothVerified=true must be received").isTrue();
     }
 
     private static String generateP256PublicKeyBase64() throws Exception {

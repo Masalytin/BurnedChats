@@ -7,7 +7,6 @@ import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.util.ParticipantContext;
-import dev.burnedchats.security.AppPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -103,20 +102,36 @@ public class VerificationHandler {
         return sessionRepository.updateVerification(sessionId, userInternalId, true)
                 .flatMap(updated -> {
                     if (!Boolean.TRUE.equals(updated)) {
+                        // Real failure (session vanished / not a participant): emit the error
+                        // and stop the chain here so no success event is sent afterwards.
                         sendError(participant, sessionId, "INTERNAL_ERROR");
-                        return Mono.empty();
+                        return Mono.<Void>empty();
                     }
+                    // Success path lives entirely inside the success branch so the error branch
+                    // above cannot "fall through" into it (previously .then(findById) ran
+                    // regardless, causing a double emission of error + success).
                     return sessionRepository.updateLastActivity(sessionId)
-                            .then(sessionRepository.refreshTtl(sessionId));
+                            .then(sessionRepository.refreshTtl(sessionId))
+                            .then(emitConfirmation(participant, sessionId, peerVerifiedBeforeConfirm));
                 })
-                .then(sessionRepository.findById(sessionId))
-                .flatMap(updatedSession -> {
+                .then();
+    }
+
+    /**
+     * Re-reads the session from Redis (source of truth for {@code bothVerified}) and emits the
+     * successful verification events to the confirming participant and, if present, the peer.
+     */
+    private Mono<Void> emitConfirmation(ParticipantContext participant, String sessionId,
+            boolean peerVerifiedBeforeConfirm) {
+        String userInternalId = participant.internalId();
+        return sessionRepository.findById(sessionId)
+                .doOnNext(updatedSession -> {
                     boolean bothVerified = updatedSession.isInitiatorVerified()
                             && updatedSession.isResponderVerified();
-                    Instant now = Instant.now();
                     String peerInternalId = updatedSession.getPeerInternalId(userInternalId);
 
-                    sendVerificationStatus(participant, sessionId, true, peerVerifiedBeforeConfirm, now);
+                    sendVerificationStatus(participant, sessionId, true,
+                            peerVerifiedBeforeConfirm, Instant.now());
 
                     if (StringUtils.hasText(peerInternalId)) {
                         sendPeerVerified(peerInternalId, sessionId, bothVerified);
@@ -124,7 +139,6 @@ public class VerificationHandler {
 
                     LOG.info("Verification confirmed: sessionId={}, internalId={}, bothVerified={}",
                             sessionId, userInternalId, bothVerified);
-                    return Mono.empty();
                 })
                 .then();
     }
