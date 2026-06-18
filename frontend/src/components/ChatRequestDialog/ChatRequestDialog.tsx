@@ -1,4 +1,4 @@
-import { useState, useCallback, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UserInfo } from '../../types';
 import type { PowPhase } from '../../hooks/usePow';
@@ -126,6 +126,16 @@ export function ChatRequestDialog({
     handleSubmit();
   }, [handleSubmit]);
 
+  useEffect(() => {
+    const handleEscape = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   return (
     <div className={`chat-request-dialog-overlay ${className}`} onClick={onClose}>
       <div
@@ -140,7 +150,6 @@ export function ChatRequestDialog({
           className="chat-request-dialog__close"
           onClick={onClose}
           aria-label={t('aria.closeDialog')}
-          disabled={isLoading}
         >
           <CloseIcon size={20} />
         </button>
@@ -245,7 +254,7 @@ export function ChatRequestDialog({
           )}
 
           <div className="chat-request-dialog__actions">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={isLoading}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               {t('common.cancel')}
             </Button>
             <Button
