@@ -888,5 +888,22 @@
       "modalMonth": "≈ {{amount}} / Monat",
       "modalYear": "≈ {{amount}} / Jahr"
     }
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "Sichern Ihrer Anfrage…",
+      "solving": "Überprüfung…",
+      "solvingMessages": [
+        "Lösen eines kurzen Rätsels, um Spam zu verhindern…",
+        "Noch in Arbeit — das schützt alle…",
+        "Verifizierung Ihrer Anfrage fast abgeschlossen…"
+      ],
+      "takingLonger": "Auf Ihrem Gerät dauert das etwas länger — wir arbeiten weiter.",
+      "elapsedSeconds_one": "{{count}} Sekunde",
+      "elapsedSeconds_other": "{{count}} Sekunden",
+      "failed": "Anfrage konnte nicht verifiziert werden",
+      "retry": "Erneut versuchen"
+    }
   }
 }

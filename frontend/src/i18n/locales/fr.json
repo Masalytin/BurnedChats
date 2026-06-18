@@ -888,5 +888,22 @@
     "subtitle": "Connectez votre portefeuille TON pour vous connecter depuis votre navigateur.",
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — via QR ou deep link",
     "title": "Burned Chats"
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "Sécurisation de votre requête…",
+      "solving": "Vérification…",
+      "solvingMessages": [
+        "Résolution d'un court puzzle pour bloquer le spam…",
+        "Toujours en cours — cela protège tout le monde…",
+        "Vérification de votre requête presque terminée…"
+      ],
+      "takingLonger": "Cela prend un peu plus de temps sur votre appareil — nous travaillons toujours.",
+      "elapsedSeconds_one": "{{count}} seconde",
+      "elapsedSeconds_other": "{{count}} secondes",
+      "failed": "Impossible de vérifier la requête",
+      "retry": "Réessayer"
+    }
   }
 }

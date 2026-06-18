@@ -888,5 +888,26 @@
     "subtitle": "اربط محفظة TON لتسجيل الدخول من متصفحك.",
     "supportedWallets": "Tonkeeper وMyTonWallet وTelegram @wallet — عبر QR أو deep link",
     "title": "Burned Chats"
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "جارٍ تأمين طلبك…",
+      "solving": "جارٍ التحقق…",
+      "solvingMessages": [
+        "جارٍ حل لغز سريع لمنع الرسائل المزعجة…",
+        "ما زلنا نعمل — هذا يحمي الجميع…",
+        "اقتربنا من الانتهاء من التحقق من طلبك…"
+      ],
+      "takingLonger": "يستغرق هذا وقتًا أطول قليلًا على جهازك — ما زلنا نعمل.",
+      "elapsedSeconds_zero": "{{count}} ثانية",
+      "elapsedSeconds_one": "ثانية واحدة",
+      "elapsedSeconds_two": "ثانيتان",
+      "elapsedSeconds_few": "{{count}} ثوانٍ",
+      "elapsedSeconds_many": "{{count}} ثانية",
+      "elapsedSeconds_other": "{{count}} ثانية",
+      "failed": "تعذّر التحقق من الطلب",
+      "retry": "حاول مرة أخرى"
+    }
   }
 }

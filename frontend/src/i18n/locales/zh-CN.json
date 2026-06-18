@@ -888,5 +888,22 @@
     "subtitle": "连接 TON 钱包以从浏览器登录。",
     "supportedWallets": "Tonkeeper、MyTonWallet、Telegram @wallet — 通过 QR 或 deep link",
     "title": "Burned Chats"
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "正在保护您的请求…",
+      "solving": "验证中…",
+      "solvingMessages": [
+        "正在解决一个简短谜题以阻止垃圾信息…",
+        "仍在处理 — 这能保护所有人…",
+        "即将完成请求验证…"
+      ],
+      "takingLonger": "在您的设备上需要稍长时间 — 仍在处理中。",
+      "elapsedSeconds_one": "{{count}} 秒",
+      "elapsedSeconds_other": "{{count}} 秒",
+      "failed": "无法验证请求",
+      "retry": "重试"
+    }
   }
 }

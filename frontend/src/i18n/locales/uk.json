@@ -888,5 +888,22 @@
     "subtitle": "Підключіть TON-гаманець, щоб увійти в браузері.",
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — QR або deep link",
     "title": "Burned Chats"
+  },
+
+  "antispam": {
+    "pow": {
+      "securing": "Захищаємо запит…",
+      "solving": "Перевіряємо…",
+      "solvingMessages": [
+        "Розв'язуємо невелику задачу для захисту від спаму…",
+        "Ще працюємо — це захищає всіх…",
+        "Майже завершили перевірку запиту…"
+      ],
+      "takingLonger": "На вашому пристрої це займає трохи довше — ми все ще працюємо.",
+      "elapsedSeconds_one": "{{count}} секунда",
+      "elapsedSeconds_other": "{{count}} секунд",
+      "failed": "Не вдалося перевірити запит",
+      "retry": "Повторити"
+    }
   }
 }
