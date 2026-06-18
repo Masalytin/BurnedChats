@@ -4,24 +4,10 @@
  */
 
 import type { CryptoDebugState, CryptoSessionDebugState, CryptoOperationEntry } from '../hooks/useDebugState';
-import type { FingerprintColor } from '@/types';
 import './tabs.css';
 
 interface CryptoTabProps {
   state: CryptoDebugState;
-}
-
-/** Map fingerprint color name to CSS color value */
-function getColorValue(color: FingerprintColor): string {
-  const colorMap: Record<FingerprintColor, string> = {
-    red: '#f87171',
-    blue: '#60a5fa',
-    green: '#4ade80',
-    purple: '#c084fc',
-    orange: '#fb923c',
-    cyan: '#22d3d8',
-  };
-  return colorMap[color] || '#888';
 }
 
 function formatTime(timestamp: number): string {
@@ -86,12 +72,13 @@ function SessionCard({ session }: { session: CryptoSessionDebugState }) {
             <span className="debug-crypto-visual-label">Visual:</span>
             <div className="debug-crypto-visual-grid">
               {session.visualFingerprint.map((element, index) => (
-                <span 
-                  key={index} 
+                <span
+                  key={index}
                   className="debug-crypto-visual-cell"
-                  style={{ color: getColorValue(element.color) }}
+                  role="img"
+                  aria-label={element.emoji}
                 >
-                  {element.shape}
+                  {element.emoji}
                 </span>
               ))}
             </div>

@@ -2,14 +2,11 @@
    Visual Fingerprint Component Styles
    ============================================ */
 
-/* Palette mapped to semantic tokens — see IMP-FEDESIGN-05 decision log */
+/* Verified-state accent mapped to semantic token — see IMP-FEDESIGN-05.
+   Emoji carry their own colour, so per-element colour tokens were dropped in
+   IMP-FPEMOJI-02; only the verified accent remains. */
 .visual-fingerprint {
-  --fingerprint-red: var(--bc-error);
-  --fingerprint-blue: var(--bc-text-link);
   --fingerprint-green: var(--bc-success);
-  --fingerprint-purple: var(--bc-brand-secondary);
-  --fingerprint-orange: var(--bc-brand-primary);
-  --fingerprint-cyan: var(--bc-tier-diamond);
 }
 
 .visual-fingerprint {
@@ -55,6 +52,8 @@
 /* Elements container */
 .visual-fingerprint__elements {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--bc-spacing-sm);
   padding: var(--bc-spacing-2xs) var(--bc-spacing-md);
   background: var(--bc-bg-secondary);
@@ -84,10 +83,11 @@
   transform: scale(1.1);
 }
 
-.visual-fingerprint__shape {
-  font-size: var(--bc-text-2xl);
+.visual-fingerprint__emoji {
+  font-size: var(--bc-text-xl);
   line-height: 1;
-  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--bc-text-primary) 20%, transparent));
+  /* Use a consistent emoji presentation across platforms */
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
 /* Hint text */
@@ -113,8 +113,8 @@
   border-radius: var(--bc-radius-sm);
 }
 
-.visual-fingerprint--sm .visual-fingerprint__shape {
-  font-size: var(--bc-text-base);
+.visual-fingerprint--sm .visual-fingerprint__emoji {
+  font-size: var(--bc-text-sm);
 }
 
 /* Large */
@@ -130,8 +130,8 @@
   border-radius: var(--bc-radius-lg);
 }
 
-.visual-fingerprint--lg .visual-fingerprint__shape {
-  font-size: var(--bc-text-3xl);
+.visual-fingerprint--lg .visual-fingerprint__emoji {
+  font-size: var(--bc-text-2xl);
 }
 
 /* Compact Variant (inline) */
@@ -150,9 +150,9 @@
   background: var(--bc-success-muted);
 }
 
-.visual-fingerprint-compact__shape {
+.visual-fingerprint-compact__emoji {
   line-height: 1;
-  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--bc-text-primary) 30%, transparent));
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
 .visual-fingerprint-compact__check {
@@ -178,6 +178,8 @@
 }
 
 .visual-fingerprint__element:nth-child(1) { animation-delay: 0ms; }
-.visual-fingerprint__element:nth-child(2) { animation-delay: 75ms; }
-.visual-fingerprint__element:nth-child(3) { animation-delay: 150ms; }
-.visual-fingerprint__element:nth-child(4) { animation-delay: 225ms; }
+.visual-fingerprint__element:nth-child(2) { animation-delay: 60ms; }
+.visual-fingerprint__element:nth-child(3) { animation-delay: 120ms; }
+.visual-fingerprint__element:nth-child(4) { animation-delay: 180ms; }
+.visual-fingerprint__element:nth-child(5) { animation-delay: 240ms; }
+.visual-fingerprint__element:nth-child(6) { animation-delay: 300ms; }
