@@ -161,6 +161,22 @@ export function useVerification({
 
   const isSubscribedRef = useRef(false);
 
+  // Callback refs for stable handlers (prevents subscription churn on every render).
+  // Without this, inline callbacks from the parent recreate handleVerificationEvent
+  // each render, tearing down and re-creating the STOMP subscription and dropping
+  // verification events delivered during the unsubscribed window.
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onBothVerifiedRef = useRef(onBothVerified);
+  const onMismatchRef = useRef(onMismatch);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+    onBothVerifiedRef.current = onBothVerified;
+    onMismatchRef.current = onMismatch;
+    onErrorRef.current = onError;
+  });
+
   /**
    * Update status for a session.
    */
@@ -175,11 +191,11 @@ export function useVerification({
       newStatuses.set(sessionId, updated);
       
       // Trigger callback
-      onStatusChange?.(updated);
+      onStatusChangeRef.current?.(updated);
       
       return newStatuses;
     });
-  }, [onStatusChange]);
+  }, []);
 
   /**
    * Handle verification event from server.
@@ -202,10 +218,10 @@ export function useVerification({
             peerVerified: false,
             bothVerified: false,
           });
-          onMismatch?.(data.sessionId);
+          onMismatchRef.current?.(data.sessionId);
         }
         
-        onError?.(errorCode, data.sessionId);
+        onErrorRef.current?.(errorCode, data.sessionId);
         return;
       }
 
@@ -230,14 +246,14 @@ export function useVerification({
 
         // Trigger both verified callback
         if (data.bothVerified) {
-          onBothVerified?.(data.sessionId);
+          onBothVerifiedRef.current?.(data.sessionId);
         }
       }
 
     } catch (error) {
       console.error('[useVerification] Failed to handle verification event:', error);
     }
-  }, [updateStatus, onBothVerified, onMismatch, onError]);
+  }, [updateStatus]);
 
   /**
    * Subscribe to verification events when connected.
@@ -270,7 +286,7 @@ export function useVerification({
    */
   const confirmVerification = useCallback((sessionId: string) => {
     if (!isConnected) {
-      onError?.('CONNECTION_ERROR', sessionId);
+      onErrorRef.current?.('CONNECTION_ERROR', sessionId);
       return;
     }
 
@@ -284,14 +300,14 @@ export function useVerification({
       sessionId,
       confirmed: true,
     });
-  }, [isConnected, publish, updateStatus, onError]);
+  }, [isConnected, publish, updateStatus]);
 
   /**
    * Report fingerprint mismatch (security concern).
    */
   const reportMismatch = useCallback((sessionId: string) => {
     if (!isConnected) {
-      onError?.('CONNECTION_ERROR', sessionId);
+      onErrorRef.current?.('CONNECTION_ERROR', sessionId);
       return;
     }
 
@@ -308,7 +324,7 @@ export function useVerification({
       sessionId,
       confirmed: false,
     });
-  }, [isConnected, publish, updateStatus, onError]);
+  }, [isConnected, publish, updateStatus]);
 
   /**
    * Check if a session is fully verified.
