@@ -999,6 +999,14 @@
     "pow": {
       "securing": "Securing your request…",
       "solving": "Verifying…",
+      "solvingMessages": [
+        "Solving a quick puzzle to stop spam…",
+        "Still working — this protects everyone…",
+        "Almost done verifying your request…"
+      ],
+      "takingLonger": "This is taking a bit longer on your device — still working.",
+      "elapsedSeconds_one": "{{count}} second",
+      "elapsedSeconds_other": "{{count}} seconds",
       "failed": "Could not verify request",
       "retry": "Try again"
     }

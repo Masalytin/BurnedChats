@@ -28,18 +28,73 @@
   transition-duration: 160ms;
 }
 
+/* While solving, the body grows to multiple lines — align spinner to the top. */
+.pow-progress--solving {
+  align-items: flex-start;
+}
+
 .pow-progress__spinner {
   flex-shrink: 0;
   width: 1rem;
   height: 1rem;
+  margin-top: 1px;
   border: 2px solid var(--bc-border-color-strong);
   border-top-color: var(--bc-brand-primary);
   border-radius: 50%;
   animation: pow-progress-spin 0.7s linear infinite;
 }
 
+.pow-progress__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .pow-progress__text {
   line-height: 1.4;
+}
+
+.pow-progress__text--rotating {
+  animation: pow-progress-fade-in 240ms ease;
+}
+
+.pow-progress__bar {
+  position: relative;
+  width: 100%;
+  min-width: 9rem;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--bc-border-color-strong);
+  overflow: hidden;
+}
+
+.pow-progress__bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--bc-brand-primary);
+  animation: pow-progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+.pow-progress__iterations {
+  font-size: var(--bc-text-xs, 0.75rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--bc-text-tertiary, var(--bc-text-secondary));
+  opacity: 0.85;
+}
+
+.pow-progress__taking-longer {
+  font-size: var(--bc-text-xs, 0.75rem);
+  line-height: 1.35;
+  color: var(--bc-text-tertiary, var(--bc-text-secondary));
+}
+
+.pow-progress__elapsed {
+  opacity: 0.8;
 }
 
 .pow-progress__error {
@@ -58,6 +113,24 @@
   }
 }
 
+@keyframes pow-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes pow-progress-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pow-progress {
     transition: opacity 160ms ease;
@@ -71,5 +144,16 @@
 
   .pow-progress__spinner {
     animation-duration: 1.2s;
+  }
+
+  /* Replace the travelling bar with a static "working" fill (no motion). */
+  .pow-progress__bar-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+
+  .pow-progress__text--rotating {
+    animation: none;
   }
 }
