@@ -107,6 +107,8 @@ interface UseSessionReturn {
   isCreating: boolean;
   /** Current PoW phase (for progress UI). */
   powPhase: PowPhase;
+  /** Live PoW hash-iteration count for the active/last solve (for progress UI). */
+  powProgressIterations: number;
 }
 
 /** Initial result state */
@@ -143,7 +145,12 @@ export function useSession({
   const createInFlightRef = useRef(false);
   const createAbortRef = useRef<AbortController | null>(null);
 
-  const { solveFor, cancel: cancelPow, phase: powPhase } = usePow({
+  const {
+    solveFor,
+    cancel: cancelPow,
+    phase: powPhase,
+    progressIterations: powProgressIterations,
+  } = usePow({
     isConnected,
     subscribe,
     unsubscribe,
@@ -431,5 +438,6 @@ export function useSession({
     reset,
     isCreating: result.status === 'creating',
     powPhase,
+    powProgressIterations,
   };
 }

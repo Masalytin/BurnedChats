@@ -251,6 +251,7 @@ function AppContent() {
     reset: resetSession,
     isCreating: isCreatingSession,
     powPhase: sessionPowPhase,
+    powProgressIterations: sessionPowProgressIterations,
   } = useSession({
     isConnected,
     subscribe,
@@ -2326,6 +2327,7 @@ function AppContent() {
             error={sessionResult.error}
             errorMessage={sessionResult.errorMessage}
             powPhase={sessionPowPhase}
+            powProgressIterations={sessionPowProgressIterations}
             onClose={handleCloseChatRequestDialog}
             onSubmit={handleSubmitChatRequest}
           />

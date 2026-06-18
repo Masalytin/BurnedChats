@@ -9,6 +9,8 @@ const MIN_VISIBLE_MS = 450;
 
 export interface PowProgressProps {
   phase: PowPhase;
+  /** Live PoW hash-iteration count for the active solve (rendered in IMP-POWUX-02). */
+  progressIterations?: number;
   /** Session-level PoW failure (server rejected or client-side solve failed). */
   failed?: boolean;
   /** Localized error message when available. */

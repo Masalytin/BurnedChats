@@ -30,6 +30,8 @@ interface ChatRequestDialogProps {
   errorMessage?: string | null;
   /** Current PoW phase during session creation */
   powPhase?: PowPhase;
+  /** Live PoW hash-iteration count for the active solve (forwarded to PowProgress). */
+  powProgressIterations?: number;
   /** Callback when dialog is closed */
   onClose: () => void;
   /** Callback when request is submitted */
@@ -53,6 +55,7 @@ export function ChatRequestDialog({
   error,
   errorMessage,
   powPhase = 'idle',
+  powProgressIterations = 0,
   onClose,
   onSubmit,
   className = '',
@@ -241,6 +244,7 @@ export function ChatRequestDialog({
           {showPowProgress && (
             <PowProgress
               phase={powPhase}
+              progressIterations={powProgressIterations}
               failed={isPowError}
               errorMessage={errorMessage}
               onRetry={isPowError && !isLoading ? handlePowRetry : undefined}
