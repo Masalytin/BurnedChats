@@ -86,6 +86,12 @@ interface ServerPeerPublicKeyEvent {
   error?: string;
 }
 
+/** Buffered peer key with insertion timestamp for TTL/size bounds */
+interface PendingPeerKeyEntry {
+  data: ServerPeerPublicKeyEvent;
+  ts: number;
+}
+
 interface UseHandshakeOptions {
   /** Whether WebSocket is connected */
   isConnected: boolean;
@@ -146,6 +152,12 @@ export const SOFT_TIMEOUT = 9000;
 
 /** Interval for updating elapsedMs / isTakingLonger during waiting_peer */
 const WAITING_PEER_TICK_MS = 500;
+
+/** Max buffered peer keys for sessions without an active handshake yet */
+const MAX_PENDING_PEER_KEYS = 8;
+
+/** TTL for buffered peer keys before eviction (ms) */
+const PENDING_PEER_KEY_TTL_MS = 60_000;
 
 /** Progress values for each stage */
 const STAGE_PROGRESS: Record<HandshakeStage, number> = {
@@ -226,8 +238,39 @@ export function useHandshake({
   const currentStageRef = useRef<HandshakeStage>('idle');
   const stageStartRef = useRef<number>(0);
   
-  // Buffer for peer keys that arrive before handshake starts (race condition fix)
-  const pendingPeerKeyRef = useRef<Map<string, ServerPeerPublicKeyEvent>>(new Map());
+  /** Buffered peer key with insertion timestamp for TTL/size bounds */
+  const pendingPeerKeyRef = useRef<Map<string, PendingPeerKeyEntry>>(new Map());
+
+  /**
+   * Evict expired entries, then drop oldest until size is below MAX_PENDING_PEER_KEYS.
+   */
+  const prunePendingPeerKeys = useCallback((): void => {
+    const map = pendingPeerKeyRef.current;
+    const now = Date.now();
+
+    for (const [sessionId, entry] of map) {
+      if (now - entry.ts > PENDING_PEER_KEY_TTL_MS) {
+        map.delete(sessionId);
+      }
+    }
+
+    while (map.size >= MAX_PENDING_PEER_KEYS) {
+      let oldestSessionId: string | null = null;
+      let oldestTs = Infinity;
+
+      for (const [sessionId, entry] of map) {
+        if (entry.ts < oldestTs) {
+          oldestTs = entry.ts;
+          oldestSessionId = sessionId;
+        }
+      }
+
+      if (oldestSessionId === null) {
+        break;
+      }
+      map.delete(oldestSessionId);
+    }
+  }, []);
 
   // Callback refs for stable handlers (prevents subscription churn on every render)
   const onHandshakeCompleteRef = useRef(onHandshakeComplete);
@@ -493,7 +536,8 @@ export function useHandshake({
         // Buffer the peer key for later - it may have arrived before startHandshake was called
         // This fixes a race condition where peer-key arrives before session-accepted
         console.log('[useHandshake] Buffering peer key for session (handshake not yet started):', sessionId);
-        pendingPeerKeyRef.current.set(sessionId, data);
+        prunePendingPeerKeys();
+        pendingPeerKeyRef.current.set(sessionId, { data, ts: Date.now() });
         return;
       }
 
@@ -506,7 +550,7 @@ export function useHandshake({
         handleError('CONNECTION_ERROR', activeSessionRef.current);
       }
     }
-  }, [processPeerKey, handleError]);
+  }, [processPeerKey, handleError, prunePendingPeerKeys]);
 
   /**
    * Handle key refresh notification from server.
@@ -690,12 +734,12 @@ export function useHandshake({
       console.log('[useHandshake] Waiting for peer public key...');
 
       // Check if we have a buffered peer key (race condition: peer-key arrived before startHandshake)
+      prunePendingPeerKeys();
       const bufferedPeerKey = pendingPeerKeyRef.current.get(sessionId);
       if (bufferedPeerKey) {
         console.log('[useHandshake] Found buffered peer key, processing immediately...');
         pendingPeerKeyRef.current.delete(sessionId);
-        // Process the buffered peer key
-        await processPeerKey(bufferedPeerKey);
+        await processPeerKey(bufferedPeerKey.data);
       }
 
     } catch (error) {
@@ -703,7 +747,7 @@ export function useHandshake({
       logCryptoOperation('generateKeyPair', sessionId, false, 0, String(error));
       handleError('KEY_GENERATION_FAILED', sessionId);
     }
-  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey, clearHandshakeTimers, logStageDuration]);
+  }, [isConnected, timeout, publish, updateStage, handleError, restoreFromKeyStore, processPeerKey, clearHandshakeTimers, logStageDuration, prunePendingPeerKeys]);
 
   /**
    * Cancel/abort the current handshake.

@@ -56,6 +56,9 @@ const POW_CHALLENGE_RESPONSE_DEST = '/user/queue/pow-challenge';
 /** Max wait for server challenge after publish (ms). */
 const CHALLENGE_RESPONSE_TIMEOUT_MS = 30_000;
 
+/** Max time for Web Worker PoW solve before hard terminate (ms). */
+const SOLVE_TIMEOUT_MS = 60_000;
+
 function createPowWorker(): Worker {
   return new Worker(new URL('../workers/powWorker.ts', import.meta.url), { type: 'module' });
 }
@@ -179,6 +182,7 @@ export function createPowService(deps: PowServiceDeps): PowService {
           return;
         }
         settled = true;
+        clearTimeout(timeoutId);
         worker.terminate();
         if (activeWorker === worker) {
           activeWorker = null;
@@ -207,6 +211,10 @@ export function createPowService(deps: PowServiceDeps): PowService {
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
+
+      const timeoutId = setTimeout(() => {
+        fail(new Error('PoW solve timed out'));
+      }, SOLVE_TIMEOUT_MS);
 
       worker.onmessage = (event: MessageEvent<PowWorkerOutbound>) => {
         const msg = event.data;
