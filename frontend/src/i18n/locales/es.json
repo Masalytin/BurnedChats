@@ -150,7 +150,8 @@
     "selectionCount": "{{count}} seleccionados",
     "selectionCount_one": "1 seleccionado",
     "selectionModeToolbar": "Selección de mensajes",
-    "temporarilyUnavailable": "Chat temporalmente no disponible"
+    "temporarilyUnavailable": "Chat temporalmente no disponible",
+    "verificationRequired": "Esperando verificación de huella digital. Compara las huellas visuales con tu contacto antes de enviar mensajes."
   },
   "burnDialog": {
     "title": "¿Destruir este chat?",
@@ -209,7 +210,9 @@
     "continueButton": "Continuar al Chat",
     "continueAnywayButton": "Continuar de Todos Modos (No Recomendado)",
     "waitingPeer": "Esperando que el par verifique...",
-    "helpText": "Pide a tu par que lea sus símbolos de huella digital por llamada de voz o en persona. Si coinciden, presiona \"La Huella Coincide\"."
+    "helpText": "Pide a tu par que lea sus símbolos de huella digital por llamada de voz o en persona. Si coinciden, presiona \"La Huella Coincide\".",
+    "waitingLonger": "Está tardando más de lo habitual…",
+    "connectionLost": "Sin conexión — tu confirmación no se envió."
   },
   "handshake": {
     "title": "Estableciendo Conexión Segura",
@@ -302,6 +305,12 @@
     },
     "walletUser": "Usuario de wallet"
   },
+
+  "lifecycle": {
+    "backgroundBurnTitle": "Sesión destruida",
+    "backgroundBurnMessage": "Las claves de cifrado se borraron porque la app permaneció en segundo plano demasiado tiempo. Abre el chat desde la lista para reconectar."
+  },
+
   "room": {
     "sectionMyRooms": "Mis Salas",
     "emptyRooms": "Aún no hay salas",
@@ -972,6 +981,16 @@
       "elapsedSeconds_other": "{{count}} segundos",
       "failed": "No se pudo verificar la solicitud",
       "retry": "Intentar de nuevo"
+    }
+  },
+
+  "pow": {
+    "errors": {
+      "invalid": "La verificación fue rechazada. Inténtalo de nuevo.",
+      "required": "Se requiere verificación pero no pudo completarse.",
+      "timeout": "Tiempo de verificación agotado. Inténtalo de nuevo.",
+      "cancelled": "Verificación cancelada.",
+      "failed": "La verificación falló. Inténtalo de nuevo."
     }
   }
 }

@@ -75,6 +75,7 @@
     "emptyMessages": "Noch keine Nachrichten",
     "emptyHint": "Senden Sie eine Nachricht, um das Gespräch zu beginnen",
     "temporarilyUnavailable": "Chat vorübergehend nicht verfügbar",
+    "verificationRequired": "Warte auf Fingerabdruck-Verifizierung. Vergleichen Sie die visuellen Fingerabdrücke mit Ihrem Partner, bevor Sie Nachrichten senden.",
     "selectionModeToolbar": "Nachrichtenauswahl",
     "selectionCount": "{{count}} ausgewählt",
     "selectionCount_one": "1 ausgewählt",
@@ -462,7 +463,9 @@
     "continueButton": "Zum Chat fortfahren",
     "continueAnywayButton": "Trotzdem fortfahren (Nicht empfohlen)",
     "waitingPeer": "Warte auf Verifizierung des Partners...",
-    "helpText": "Bitten Sie Ihren Partner, seine Fingerabdruck-Symbole über einen Sprachanruf oder persönlich vorzulesen. Wenn sie übereinstimmen, drücken Sie \"Fingerabdruck stimmt überein\"."
+    "helpText": "Bitten Sie Ihren Partner, seine Fingerabdruck-Symbole über einen Sprachanruf oder persönlich vorzulesen. Wenn sie übereinstimmen, drücken Sie \"Fingerabdruck stimmt überein\".",
+    "waitingLonger": "Dauert länger als üblich…",
+    "connectionLost": "Keine Verbindung — Ihre Bestätigung wurde nicht gesendet."
   },
   "handshake": {
     "title": "Sichere Verbindung wird hergestellt",
@@ -555,6 +558,12 @@
     },
     "walletUser": "Wallet-Nutzer"
   },
+
+  "lifecycle": {
+    "backgroundBurnTitle": "Sitzung gelöscht",
+    "backgroundBurnMessage": "Verschlüsselungsschlüssel wurden gelöscht, weil die App zu lange im Hintergrund blieb. Öffnen Sie den Chat aus der Liste, um erneut zu verbinden."
+  },
+
   "room": {
     "sectionMyRooms": "Meine Räume",
     "emptyRooms": "Noch keine Räume",
@@ -972,6 +981,16 @@
       "elapsedSeconds_other": "{{count}} Sekunden",
       "failed": "Anfrage konnte nicht verifiziert werden",
       "retry": "Erneut versuchen"
+    }
+  },
+
+  "pow": {
+    "errors": {
+      "invalid": "Verifizierung wurde abgelehnt. Bitte versuchen Sie es erneut.",
+      "required": "Verifizierung erforderlich, konnte aber nicht abgeschlossen werden.",
+      "timeout": "Zeitüberschreitung bei der Verifizierung. Bitte versuchen Sie es erneut.",
+      "cancelled": "Verifizierung abgebrochen.",
+      "failed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
     }
   }
 }

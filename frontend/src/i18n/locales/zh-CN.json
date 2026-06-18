@@ -150,7 +150,8 @@
     "selectionCount": "已选择 {{count}} 条",
     "selectionCount_one": "已选择 1 条",
     "selectionModeToolbar": "消息选择",
-    "temporarilyUnavailable": "聊天暂时不可用"
+    "temporarilyUnavailable": "聊天暂时不可用",
+    "verificationRequired": "等待指纹验证。请在发送消息前与对端比对可视化指纹。"
   },
   "burnDialog": {
     "title": "销毁此聊天?",
@@ -209,7 +210,9 @@
     "continueButton": "继续聊天",
     "continueAnywayButton": "仍然继续（不推荐）",
     "waitingPeer": "等待对方验证...",
-    "helpText": "请对方通过电话或当面读出他们的指纹符号。如果匹配，请点击「指纹匹配」。"
+    "helpText": "请对方通过电话或当面读出他们的指纹符号。如果匹配，请点击「指纹匹配」。",
+    "waitingLonger": "比平时花费更长时间…",
+    "connectionLost": "无连接 — 您的确认未发送。"
   },
   "handshake": {
     "title": "建立安全连接",
@@ -302,6 +305,12 @@
     },
     "walletUser": "钱包用户"
   },
+
+  "lifecycle": {
+    "backgroundBurnTitle": "会话已销毁",
+    "backgroundBurnMessage": "加密密钥已清除，因为应用在后台停留时间过长。从列表打开聊天以重新连接。"
+  },
+
   "room": {
     "sectionMyRooms": "我的房间",
     "emptyRooms": "暂无房间",
@@ -972,6 +981,16 @@
       "elapsedSeconds_other": "{{count}} 秒",
       "failed": "无法验证请求",
       "retry": "重试"
+    }
+  },
+
+  "pow": {
+    "errors": {
+      "invalid": "验证被拒绝。请重试。",
+      "required": "需要验证但无法完成。",
+      "timeout": "验证超时。请重试。",
+      "cancelled": "验证已取消。",
+      "failed": "验证失败。请重试。"
     }
   }
 }

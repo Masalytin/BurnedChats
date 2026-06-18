@@ -150,7 +150,8 @@
     "selectionCount": "{{count}} sélectionnés",
     "selectionCount_one": "1 sélectionné",
     "selectionModeToolbar": "Sélection de messages",
-    "temporarilyUnavailable": "Discussion temporairement indisponible"
+    "temporarilyUnavailable": "Discussion temporairement indisponible",
+    "verificationRequired": "En attente de vérification de l'empreinte. Comparez les empreintes visuelles avec votre correspondant avant d'envoyer des messages."
   },
   "burnDialog": {
     "title": "Détruire cette discussion ?",
@@ -209,7 +210,9 @@
     "continueButton": "Continuer vers la Discussion",
     "continueAnywayButton": "Continuer Quand Même (Non Recommandé)",
     "waitingPeer": "En attente de la vérification du pair...",
-    "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\"."
+    "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\".",
+    "waitingLonger": "Cela prend plus de temps que d'habitude…",
+    "connectionLost": "Pas de connexion — votre confirmation n'a pas été envoyée."
   },
   "handshake": {
     "title": "Établissement d'une Connexion Sécurisée",
@@ -302,6 +305,12 @@
     },
     "walletUser": "Utilisateur portefeuille"
   },
+
+  "lifecycle": {
+    "backgroundBurnTitle": "Session détruite",
+    "backgroundBurnMessage": "Les clés de chiffrement ont été effacées car l'application est restée trop longtemps en arrière-plan. Ouvrez le chat depuis la liste pour vous reconnecter."
+  },
+
   "room": {
     "sectionMyRooms": "Mes Salons",
     "emptyRooms": "Aucun salon pour l'instant",
@@ -972,6 +981,16 @@
       "elapsedSeconds_other": "{{count}} secondes",
       "failed": "Impossible de vérifier la requête",
       "retry": "Réessayer"
+    }
+  },
+
+  "pow": {
+    "errors": {
+      "invalid": "La vérification a été rejetée. Veuillez réessayer.",
+      "required": "Vérification requise mais impossible à terminer.",
+      "timeout": "Délai de vérification dépassé. Veuillez réessayer.",
+      "cancelled": "Vérification annulée.",
+      "failed": "Échec de la vérification. Veuillez réessayer."
     }
   }
 }
