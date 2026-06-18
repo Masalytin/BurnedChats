@@ -475,6 +475,36 @@
     "errorTitle": "Sichere Verbindung konnte nicht hergestellt werden",
     "recoveryHint": "Tippen Sie auf „Erneut versuchen“, um ohne Neustart der App erneut zu versuchen. Mit „Neu beginnen“ starten Sie eine neue Sitzung.",
     "inProgressHint": "Ende-zu-Ende-Verschlüsselung wird eingerichtet...",
+    "stages": {
+      "idle": {
+        "title": "Bereit",
+        "description": "Warte auf Start..."
+      },
+      "generating_keys": {
+        "title": "Schlüssel generieren",
+        "description": "Ihre Verschlüsselungsschlüssel werden erstellt..."
+      },
+      "sending_key": {
+        "title": "Schlüssel senden",
+        "description": "Ihr öffentlicher Schlüssel wird gesendet..."
+      },
+      "waiting_peer": {
+        "title": "Warte auf Partner",
+        "description": "Warte auf den Verschlüsselungsschlüssel..."
+      },
+      "computing_secret": {
+        "title": "Geheimnis berechnen",
+        "description": "Sichere Verbindung wird hergestellt..."
+      },
+      "complete": {
+        "title": "Sichere Verbindung hergestellt",
+        "description": "Ende-zu-Ende-Verschlüsselung ist aktiv"
+      },
+      "error": {
+        "title": "Verbindung fehlgeschlagen",
+        "description": "Sichere Verbindung konnte nicht hergestellt werden"
+      }
+    },
     "waitingMessages": [
       "Warte auf Verbindung Ihres Partners...",
       "Ihr Partner richtet die Verschlüsselung ein...",

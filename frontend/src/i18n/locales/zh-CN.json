@@ -222,6 +222,36 @@
     "errorTitle": "无法建立安全连接",
     "recoveryHint": "点击「重试」即可在不重启应用的情况下重试。使用「重新开始」创建新会话。",
     "inProgressHint": "正在建立端到端加密...",
+    "stages": {
+      "idle": {
+        "title": "就绪",
+        "description": "等待开始..."
+      },
+      "generating_keys": {
+        "title": "生成密钥",
+        "description": "正在创建您的加密密钥..."
+      },
+      "sending_key": {
+        "title": "发送密钥",
+        "description": "正在发送您的公钥..."
+      },
+      "waiting_peer": {
+        "title": "等待对端",
+        "description": "正在等待对端的加密密钥..."
+      },
+      "computing_secret": {
+        "title": "计算密钥",
+        "description": "正在建立安全连接..."
+      },
+      "complete": {
+        "title": "安全连接已建立",
+        "description": "端到端加密已激活"
+      },
+      "error": {
+        "title": "连接失败",
+        "description": "无法建立安全连接"
+      }
+    },
     "waitingMessages": [
       "等待对端连接...",
       "对端正在设置加密...",

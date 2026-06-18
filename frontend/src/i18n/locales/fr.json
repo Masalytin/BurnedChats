@@ -222,6 +222,36 @@
     "errorTitle": "Impossible d'établir une connexion sécurisée",
     "recoveryHint": "Appuyez sur « Réessayer » pour retenter sans redémarrer l'application. Utilisez « Recommencer » pour démarrer une nouvelle session.",
     "inProgressHint": "Établissement du chiffrement de bout en bout...",
+    "stages": {
+      "idle": {
+        "title": "Prêt",
+        "description": "En attente du démarrage..."
+      },
+      "generating_keys": {
+        "title": "Génération des clés",
+        "description": "Création de vos clés de chiffrement..."
+      },
+      "sending_key": {
+        "title": "Envoi de la clé",
+        "description": "Envoi de votre clé publique..."
+      },
+      "waiting_peer": {
+        "title": "En attente du correspondant",
+        "description": "En attente de sa clé de chiffrement..."
+      },
+      "computing_secret": {
+        "title": "Calcul du secret",
+        "description": "Établissement de la connexion sécurisée..."
+      },
+      "complete": {
+        "title": "Connexion sécurisée établie",
+        "description": "Le chiffrement de bout en bout est actif"
+      },
+      "error": {
+        "title": "Échec de la connexion",
+        "description": "Impossible d'établir une connexion sécurisée"
+      }
+    },
     "waitingMessages": [
       "En attente de la connexion de votre correspondant...",
       "Votre correspondant configure le chiffrement...",

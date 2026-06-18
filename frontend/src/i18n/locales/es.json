@@ -222,6 +222,36 @@
     "errorTitle": "No se pudo establecer la conexión segura",
     "recoveryHint": "Pulsa «Intentar de nuevo» para reintentar sin reiniciar la app. Usa «Empezar de nuevo» para iniciar una sesión nueva.",
     "inProgressHint": "Estableciendo cifrado de extremo a extremo...",
+    "stages": {
+      "idle": {
+        "title": "Listo",
+        "description": "Esperando para comenzar..."
+      },
+      "generating_keys": {
+        "title": "Generando claves",
+        "description": "Creando tus claves de cifrado..."
+      },
+      "sending_key": {
+        "title": "Enviando clave",
+        "description": "Enviando tu clave pública..."
+      },
+      "waiting_peer": {
+        "title": "Esperando al contacto",
+        "description": "Esperando su clave de cifrado..."
+      },
+      "computing_secret": {
+        "title": "Calculando secreto",
+        "description": "Estableciendo conexión segura..."
+      },
+      "complete": {
+        "title": "Conexión segura establecida",
+        "description": "El cifrado de extremo a extremo está activo"
+      },
+      "error": {
+        "title": "Conexión fallida",
+        "description": "No se pudo establecer la conexión segura"
+      }
+    },
     "waitingMessages": [
       "Esperando a que tu contacto se conecte...",
       "Tu contacto está configurando el cifrado...",
