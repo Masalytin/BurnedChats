@@ -213,7 +213,29 @@
   },
   "handshake": {
     "title": "Estableciendo Conexión Segura",
-    "subtitle": "Intercambiando claves de cifrado..."
+    "subtitle": "Intercambiando claves de cifrado...",
+    "fingerprintLabel": "Huella de Seguridad",
+    "fingerprintHint": "Compárala con tu contacto para verificar la conexión",
+    "continueToVerification": "Continuar a la verificación",
+    "retry": "Intentar de nuevo",
+    "startOver": "Empezar de nuevo",
+    "errorTitle": "No se pudo establecer la conexión segura",
+    "recoveryHint": "Pulsa «Intentar de nuevo» para reintentar sin reiniciar la app. Usa «Empezar de nuevo» para iniciar una sesión nueva.",
+    "inProgressHint": "Estableciendo cifrado de extremo a extremo...",
+    "waitingMessages": [
+      "Esperando a que tu contacto se conecte...",
+      "Tu contacto está configurando el cifrado...",
+      "Casi listo — sincronizando claves..."
+    ],
+    "takingLonger": "Está tardando más de lo habitual. La conexión sigue activa — esperando a tu contacto.",
+    "resumingConnection": "Restaurando conexión…",
+    "elapsedSeconds_one": "{{count}} segundo transcurrido",
+    "elapsedSeconds_other": "{{count}} segundos transcurridos",
+    "steps": {
+      "generateKeys": "Generar claves",
+      "exchangeKeys": "Intercambiar claves",
+      "establishEncryption": "Establecer cifrado"
+    }
   },
   "pendingRequest": {
     "title": "Esperando respuesta",

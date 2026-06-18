@@ -213,7 +213,29 @@
   },
   "handshake": {
     "title": "Établissement d'une Connexion Sécurisée",
-    "subtitle": "Échange des clés de chiffrement..."
+    "subtitle": "Échange des clés de chiffrement...",
+    "fingerprintLabel": "Empreinte de sécurité",
+    "fingerprintHint": "Comparez avec votre correspondant pour vérifier la connexion",
+    "continueToVerification": "Continuer vers la vérification",
+    "retry": "Réessayer",
+    "startOver": "Recommencer",
+    "errorTitle": "Impossible d'établir une connexion sécurisée",
+    "recoveryHint": "Appuyez sur « Réessayer » pour retenter sans redémarrer l'application. Utilisez « Recommencer » pour démarrer une nouvelle session.",
+    "inProgressHint": "Établissement du chiffrement de bout en bout...",
+    "waitingMessages": [
+      "En attente de la connexion de votre correspondant...",
+      "Votre correspondant configure le chiffrement...",
+      "Presque terminé — synchronisation des clés..."
+    ],
+    "takingLonger": "Cela prend plus de temps que d'habitude. La connexion est toujours active — en attente de votre correspondant.",
+    "resumingConnection": "Restauration de la connexion…",
+    "elapsedSeconds_one": "{{count}} seconde écoulée",
+    "elapsedSeconds_other": "{{count}} secondes écoulées",
+    "steps": {
+      "generateKeys": "Générer les clés",
+      "exchangeKeys": "Échanger les clés",
+      "establishEncryption": "Établir le chiffrement"
+    }
   },
   "pendingRequest": {
     "title": "En attente de réponse",

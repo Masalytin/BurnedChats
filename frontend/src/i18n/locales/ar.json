@@ -213,7 +213,33 @@
   },
   "handshake": {
     "title": "إنشاء اتصال آمن",
-    "subtitle": "جارٍ تبادل مفاتيح التشفير..."
+    "subtitle": "جارٍ تبادل مفاتيح التشفير...",
+    "fingerprintLabel": "بصمة الأمان",
+    "fingerprintHint": "قارِنها مع الطرف الآخر للتحقق من الاتصال",
+    "continueToVerification": "المتابعة إلى التحقق",
+    "retry": "حاول مرة أخرى",
+    "startOver": "البدء من جديد",
+    "errorTitle": "تعذّر إنشاء اتصال آمن",
+    "recoveryHint": "اضغط «حاول مرة أخرى» لإعادة المحاولة دون إعادة تشغيل التطبيق. استخدم «البدء من جديد» لبدء جلسة جديدة.",
+    "inProgressHint": "جارٍ إنشاء تشفير من طرف إلى طرف...",
+    "waitingMessages": [
+      "في انتظار اتصال الطرف الآخر...",
+      "يقوم الطرف الآخر بإعداد التشفير...",
+      "اقتربنا — جارٍ مزامنة المفاتيح..."
+    ],
+    "takingLonger": "يستغرق وقتاً أطول من المعتاد. الاتصال ما زال نشطاً — في انتظار الطرف الآخر.",
+    "resumingConnection": "جارٍ استعادة الاتصال…",
+    "elapsedSeconds_zero": "مرت {{count}} ثانية",
+    "elapsedSeconds_one": "مرت ثانية واحدة",
+    "elapsedSeconds_two": "مرت ثانيتان",
+    "elapsedSeconds_few": "مرت {{count}} ثوانٍ",
+    "elapsedSeconds_many": "مرت {{count}} ثانية",
+    "elapsedSeconds_other": "مرت {{count}} ثانية",
+    "steps": {
+      "generateKeys": "إنشاء المفاتيح",
+      "exchangeKeys": "تبادل المفاتيح",
+      "establishEncryption": "إنشاء التشفير"
+    }
   },
   "pendingRequest": {
     "title": "في انتظار الرد",

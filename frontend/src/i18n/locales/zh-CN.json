@@ -213,7 +213,29 @@
   },
   "handshake": {
     "title": "建立安全连接",
-    "subtitle": "正在交换加密密钥..."
+    "subtitle": "正在交换加密密钥...",
+    "fingerprintLabel": "安全指纹",
+    "fingerprintHint": "与对端比对以验证连接",
+    "continueToVerification": "继续验证",
+    "retry": "重试",
+    "startOver": "重新开始",
+    "errorTitle": "无法建立安全连接",
+    "recoveryHint": "点击「重试」即可在不重启应用的情况下重试。使用「重新开始」创建新会话。",
+    "inProgressHint": "正在建立端到端加密...",
+    "waitingMessages": [
+      "等待对端连接...",
+      "对端正在设置加密...",
+      "即将完成 — 正在同步密钥..."
+    ],
+    "takingLonger": "耗时比平常更长。连接仍然活跃 — 正在等待对端。",
+    "resumingConnection": "正在恢复连接…",
+    "elapsedSeconds_one": "已等待 {{count}} 秒",
+    "elapsedSeconds_other": "已等待 {{count}} 秒",
+    "steps": {
+      "generateKeys": "生成密钥",
+      "exchangeKeys": "交换密钥",
+      "establishEncryption": "建立加密"
+    }
   },
   "pendingRequest": {
     "title": "等待回复",

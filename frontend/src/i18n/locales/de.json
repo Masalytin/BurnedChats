@@ -466,7 +466,29 @@
   },
   "handshake": {
     "title": "Sichere Verbindung wird hergestellt",
-    "subtitle": "Verschlüsselungsschlüssel werden ausgetauscht..."
+    "subtitle": "Verschlüsselungsschlüssel werden ausgetauscht...",
+    "fingerprintLabel": "Sicherheits-Fingerabdruck",
+    "fingerprintHint": "Vergleichen Sie mit Ihrem Partner, um die Verbindung zu verifizieren",
+    "continueToVerification": "Zur Verifizierung fortfahren",
+    "retry": "Erneut versuchen",
+    "startOver": "Neu beginnen",
+    "errorTitle": "Sichere Verbindung konnte nicht hergestellt werden",
+    "recoveryHint": "Tippen Sie auf „Erneut versuchen“, um ohne Neustart der App erneut zu versuchen. Mit „Neu beginnen“ starten Sie eine neue Sitzung.",
+    "inProgressHint": "Ende-zu-Ende-Verschlüsselung wird eingerichtet...",
+    "waitingMessages": [
+      "Warte auf Verbindung Ihres Partners...",
+      "Ihr Partner richtet die Verschlüsselung ein...",
+      "Fast fertig — Schlüssel werden synchronisiert..."
+    ],
+    "takingLonger": "Dauert länger als üblich. Die Verbindung ist noch aktiv — warte auf Ihren Partner.",
+    "resumingConnection": "Verbindung wird wiederhergestellt…",
+    "elapsedSeconds_one": "{{count}} Sekunde vergangen",
+    "elapsedSeconds_other": "{{count}} Sekunden vergangen",
+    "steps": {
+      "generateKeys": "Schlüssel generieren",
+      "exchangeKeys": "Schlüssel austauschen",
+      "establishEncryption": "Verschlüsselung einrichten"
+    }
   },
   "pendingRequest": {
     "title": "Warte auf Antwort",
