@@ -346,8 +346,9 @@ async function decryptMessage(
 
 ### Концепция
 
-Вместо стандартных эмодзи (как в Signal), используем **safety-number** (128 бит) плюс
-**геометрические фигуры** как быстрый визуальный якорь:
+Основной канал сверки — **safety-number** (128 бит). Поверх него идёт быстрый
+визуальный якорь: набор **эмодзи** (alphabet v1, см. IMP-FPEMOJI-01) как
+мнемоника, которую проще сравнить «на глаз», чем абстрактные фигуры:
 
 ```
 ┌────────────────────────────────────────┐
@@ -356,22 +357,25 @@ async function decryptMessage(
 │   12345 67890 23456 78901              │
 │   34567 89012 45678 90123              │
 │                                        │
-│   ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐   │
-│   │ ◆◆◆ │  │ ○○○ │  │ □□□ │  │ △△△ │   │
-│   │ RED │  │ BLUE│  │GREEN│  │PURP │   │
-│   └─────┘  └─────┘  └─────┘  └─────┘   │
+│   ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐        │
+│   │🦊│ │🍎│ │🚀│ │🐼│ │⭐│ │🐧│        │
+│   └──┘ └──┘ └──┘ └──┘ └──┘ └──┘        │
 │                                        │
 │   [✓ Совпадают]    [✗ Не совпадают]    │
 │                                        │
 └────────────────────────────────────────┘
 ```
 
+> **История:** до IMP-FPEMOJI-01 визуальный якорь был парой `{ фигура, цвет }`
+> (6×6, 4 слота). Цвет убран (многоцветные эмодзи делают CSS-`color`
+> ненаблюдаемым), энтропия компенсирована числом слотов и размером алфавита.
+
 ### Устранённая уязвимость (IMP-AUDIT-01)
 
 | Было (устранено) | Стало |
 |------------------|-------|
 | Отпечаток из **shared secret**, первые **4 байта hex (32 бита)** | Отпечаток из **sorted SPKI публичных ключей**, SHA-256, **≥16 байт (128 бит)** |
-| Визуал: 4×(6×6) ≈ **20.7 бита** — перебор ECDH-ключей атакующим реалистичен | Safety-number: **8 групп × 5 цифр** = 128 бит; фигуры — дополнительный UX, не единственный канал |
+| Визуал: 4×(6×6) ≈ **20.7 бита** — перебор ECDH-ключей атакующим реалистичен | Safety-number: **8 групп × 5 цифр** = 128 бит; визуал-эмодзи — дополнительный UX, не единственный канал |
 | Signal safety number ≈ 200 бит; наш старый формат был существенно слабее | Приближение к industry practice (Signal): привязка к **паре identity keys**, не к shared secret |
 
 ### Алгоритм генерации
@@ -400,49 +404,65 @@ function formatSafetyNumber(hashBytes: Uint8Array): string {
   return groups.join(' ');
 }
 
+// Visual fingerprint — emoji alphabet v1 (IMP-FPEMOJI-01)
+const FINGERPRINT_EMOJI = [
+  '🐶', '🐱', '🦊', '🐼', '🦁', '🐸', '🐵', '🐧', '🐙', '🦉',
+  '🍎', '🍌', '🍉', '🍕', '🌸', '🌙', '⭐', '⚽', '🚗', '🚀',
+] as const;                       // 20 single-codepoint, widely supported emoji
+const VISUAL_FINGERPRINT_SLOTS = 6;
+const VISUAL_FINGERPRINT_BYTE_OFFSET = 16; // strictly after safety-number (0–15)
+
 async function generateVisualFingerprint(
   localPublicKey: CryptoKey,
   peerPublicKey: CryptoKey
 ): Promise<FingerprintElement[]> {
   const hashBytes = await hashSortedPublicKeys(localPublicKey, peerPublicKey);
-  const SHAPES = ['◆', '○', '□', '△', '⬡', '⬢'] as const;
-  const COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'] as const;
-  const elements: FingerprintElement[] = [];
+  const elements: FingerprintElement[] = []; // FingerprintElement = { emoji: string }
 
-  for (let i = 0; i < 4; i++) {
-    const idx = 16 + i * 2; // bytes after safety-number slice
-    elements.push({
-      shape: SHAPES[hashBytes[idx] % SHAPES.length],
-      color: COLORS[hashBytes[idx + 1] % COLORS.length],
-    });
+  for (let i = 0; i < VISUAL_FINGERPRINT_SLOTS; i++) {
+    const idx = VISUAL_FINGERPRINT_BYTE_OFFSET + i; // 1 byte per slot, indices 16–21
+    elements.push({ emoji: FINGERPRINT_EMOJI[hashBytes[idx] % FINGERPRINT_EMOJI.length] });
   }
   return elements;
 }
 ```
 
 **Инвариант:** Alice(`pubA`, `pubB`) и Bob(`pubB`, `pubA`) получают **идентичный**
-safety-number и набор фигур — порядок ключей нормализуется сортировкой.
+safety-number и набор эмодзи — порядок ключей нормализуется сортировкой
+(`hashSortedPublicKeys`). Маппинг чисто функциональный от `hashBytes`, без
+локали/рандома. Эмодзи берутся **только** из байт 16–21; safety-number (байты
+0–15) визуалом не используется.
 
 ### Энтропия и threat model (MITM)
 
 | Компонент | Энтропия | Роль |
 |-----------|----------|------|
 | Safety-number | **128 бит** (16 байт SHA-256) | Основная out-of-band сверка (голос, лично) |
-| 4 геометрические фигуры | ~20 бит (мнемоника) | Быстрая визуальная проверка, не заменяет числа |
+| 6 эмодзи-слотов (alphabet v1, 20 эмодзи) | ~25.9 бит (`6 × log2 20`) — мнемоника | Быстрая визуальная проверка, не заменяет числа |
 
 Активный MITM, подбирающий ECDH-ключи под старый 32-битный отпечаток, должен перебрать
 ≈2³²–2²⁰ операций — **устранено**. С 128-битным safety-number подбор отпечатка
-в реальном времени **непрактичен** (≈2¹²⁸).
+в реальном времени **непрактичен** (≈2¹²⁸). Визуальная энтропия после перехода на
+эмодзи **не понижена** (~25.9 бит против прежних ~20.7).
 
-**Намеренная несовместимость:** клиенты до IMP-AUDIT-01 показывают другой отпечаток
-для той же пары ключей; приемлемо для ephemeral-сессий.
+**Намеренная несовместимость:** (1) клиенты до IMP-AUDIT-01 показывают другой
+отпечаток из-за смены источника энтропии; (2) клиенты до IMP-FPEMOJI-01 для той же
+пары ключей показывают геометрические фигуры, а не эмодзи. Для ephemeral-сессий
+приемлемо.
 
-### Почему это лучше эмодзи
+### Свойства алфавита эмодзи (v1)
 
-1. **Меньше интерпретаций** — фигуры и цвета однозначны
-2. **128-бит safety-number** — достаточная защита от подбора MITM
-3. **Устойчивость к локализации** — не зависит от платформы эмодзи
-4. **Привязка к публичным ключам** — как Signal, исключает edge-case с одинаковым shared secret
+1. **Наблюдаемость энтропии** — каждый слот = один сравнимый глазом эмодзи; убран
+   невидимый CSS-`color`-канал.
+2. **128-бит safety-number** — основной канал защиты от подбора MITM, неизменен.
+3. **Кросс-платформенность** — одиночные кодпоинты, Emoji ≤ 3.0, без ZWJ/variation
+   selectors; одинаково рендерятся на Apple/Google/Windows/Telegram.
+4. **Привязка к публичным ключам** — как Signal, исключает edge-case с одинаковым
+   shared secret.
+
+> Версионирование алфавита (`v1`) позволяет пересматривать набор/энтропию без
+> потери детерминизма; решение зафиксировано в
+> [decision log](../improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
 
 ---
 

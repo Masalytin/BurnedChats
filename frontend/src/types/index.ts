@@ -264,16 +264,17 @@ export interface SharedSecret {
 // Visual Fingerprint Types
 // ============================================
 
-/** Available shapes for visual fingerprint */
-export type FingerprintShape = '◆' | '○' | '□' | '△' | '⬡' | '⬢';
-
-/** Available colors for visual fingerprint */
-export type FingerprintColor = 'red' | 'blue' | 'green' | 'purple' | 'orange' | 'cyan';
-
-/** Single element of a visual fingerprint (shape + color) */
+/**
+ * Single element of a visual fingerprint.
+ *
+ * Alphabet v1 (emoji): the fingerprint is a sequence of emoji slots derived
+ * deterministically from SHA-256(sort(pubA, pubB)). The `color` field was
+ * removed in IMP-FPEMOJI-01 — multicolor emoji glyphs make a CSS `color`
+ * channel invisible/unverifiable, so entropy is carried by the emoji choice
+ * alone (see docs/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
+ */
 export interface VisualFingerprintElement {
-  shape: FingerprintShape;
-  color: FingerprintColor;
+  emoji: string;
 }
 
 // ============================================

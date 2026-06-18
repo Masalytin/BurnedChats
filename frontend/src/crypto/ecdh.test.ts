@@ -18,9 +18,12 @@ import {
   deriveAESKey,
   generateFingerprint,
   generateVisualFingerprint,
+  formatVisualFingerprint,
   hashSortedPublicKeys,
   formatSafetyNumber,
   FINGERPRINT_HASH_BYTES,
+  FINGERPRINT_EMOJI,
+  VISUAL_FINGERPRINT_SLOTS,
   isCryptoAvailable,
 } from './ecdh';
 
@@ -400,8 +403,56 @@ describe('ECDH Fingerprint', () => {
     });
   });
 
+  describe('formatVisualFingerprint()', () => {
+    it('should be deterministic: same hash → same emoji set', () => {
+      const bytes = new Uint8Array(32);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = (i * 7 + 3) % 256;
+      }
+
+      const first = formatVisualFingerprint(bytes);
+      const second = formatVisualFingerprint(bytes.slice());
+
+      expect(first).toEqual(second);
+    });
+
+    it('should return exactly VISUAL_FINGERPRINT_SLOTS elements', () => {
+      const bytes = new Uint8Array(32);
+      const elements = formatVisualFingerprint(bytes);
+
+      expect(elements).toHaveLength(VISUAL_FINGERPRINT_SLOTS);
+    });
+
+    it('should only emit emoji from the FINGERPRINT_EMOJI alphabet', () => {
+      const bytes = new Uint8Array(32);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = (i * 31 + 5) % 256;
+      }
+
+      const elements = formatVisualFingerprint(bytes);
+      for (const element of elements) {
+        expect(FINGERPRINT_EMOJI).toContain(element.emoji);
+      }
+    });
+
+    it('should not read safety-number bytes (0–15)', () => {
+      const base = new Uint8Array(32);
+      for (let i = 0; i < base.length; i++) {
+        base[i] = (i * 13 + 1) % 256;
+      }
+
+      // Mutating only bytes 0–15 must not change the visual fingerprint.
+      const mutated = base.slice();
+      for (let i = 0; i < FINGERPRINT_HASH_BYTES; i++) {
+        mutated[i] = (mutated[i] + 99) % 256;
+      }
+
+      expect(formatVisualFingerprint(mutated)).toEqual(formatVisualFingerprint(base));
+    });
+  });
+
   describe('generateVisualFingerprint()', () => {
-    it('should return 4 visual elements', async () => {
+    it('should return VISUAL_FINGERPRINT_SLOTS visual elements', async () => {
       const aliceKeyPair = await generateKeyPair();
       const bobKeyPair = await generateKeyPair();
 
@@ -410,10 +461,24 @@ describe('ECDH Fingerprint', () => {
         bobKeyPair.publicKey,
       );
 
-      expect(visual).toHaveLength(4);
+      expect(visual).toHaveLength(VISUAL_FINGERPRINT_SLOTS);
     });
 
-    it('should be symmetric for both parties', async () => {
+    it('should only contain emoji from the FINGERPRINT_EMOJI alphabet', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const visual = await generateVisualFingerprint(
+        aliceKeyPair.publicKey,
+        bobKeyPair.publicKey,
+      );
+
+      for (const element of visual) {
+        expect(FINGERPRINT_EMOJI).toContain(element.emoji);
+      }
+    });
+
+    it('should be symmetric for both parties (A↔B identical emoji set)', async () => {
       const aliceKeyPair = await generateKeyPair();
       const bobKeyPair = await generateKeyPair();
 
@@ -427,6 +492,16 @@ describe('ECDH Fingerprint', () => {
       );
 
       expect(aliceVisual).toEqual(bobVisual);
+    });
+
+    it('should be deterministic for the same key pair', async () => {
+      const aliceKeyPair = await generateKeyPair();
+      const bobKeyPair = await generateKeyPair();
+
+      const first = await generateVisualFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+      const second = await generateVisualFingerprint(aliceKeyPair.publicKey, bobKeyPair.publicKey);
+
+      expect(first).toEqual(second);
     });
   });
 });

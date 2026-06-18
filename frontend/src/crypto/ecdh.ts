@@ -10,12 +10,7 @@
  * - All operations are performed in the browser's native crypto implementation
  */
 
-import type { 
-  KeyPair, 
-  VisualFingerprintElement, 
-  FingerprintShape, 
-  FingerprintColor 
-} from '@/types';
+import type { KeyPair, VisualFingerprintElement } from '@/types';
 
 // ============================================
 // Constants
@@ -258,14 +253,33 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 /** Number of hash bytes used for the safety-number (128 bits). */
 export const FINGERPRINT_HASH_BYTES = 16;
 
-/** Byte offset in the fingerprint hash for visual shape/color pairs. */
+/**
+ * Byte offset in the fingerprint hash for the visual emoji slots.
+ *
+ * Strictly after the safety-number bytes (0–15) so the visual mnemonic never
+ * overlaps the primary 128-bit channel. One byte is consumed per slot.
+ */
 const VISUAL_FINGERPRINT_BYTE_OFFSET = 16;
 
-/** Available shapes for visual fingerprint display */
-const FINGERPRINT_SHAPES: FingerprintShape[] = ['◆', '○', '□', '△', '⬡', '⬢'];
+/** Number of emoji slots in the visual fingerprint. */
+export const VISUAL_FINGERPRINT_SLOTS = 6;
 
-/** Available colors for visual fingerprint display */
-const FINGERPRINT_COLORS: FingerprintColor[] = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
+/**
+ * Visual fingerprint emoji alphabet — v1.
+ *
+ * Single-codepoint, widely supported emoji (Emoji ≤ 3.0, hence ≤ 12.0; present
+ * on Apple/Google/Windows/Telegram), chosen from distinct semantic groups for
+ * maximum silhouette distinguishability. No ZWJ sequences, variation selectors,
+ * or look-alike faces/hearts. Bump the version on any entropy revision.
+ *
+ * Entropy: VISUAL_FINGERPRINT_SLOTS × log2(length) = 6 × log2(20) ≈ 25.9 bits
+ * (above the previous shapes×colors ~20.7 bits). See decision log
+ * docs/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md.
+ */
+export const FINGERPRINT_EMOJI = [
+  '🐶', '🐱', '🦊', '🐼', '🦁', '🐸', '🐵', '🐧', '🐙', '🦉',
+  '🍎', '🍌', '🍉', '🍕', '🌸', '🌙', '⭐', '⚽', '🚗', '🚀',
+] as const;
 
 /**
  * Lexicographic comparison of two byte arrays.
@@ -345,20 +359,20 @@ export async function generateFingerprint(
 }
 
 /**
- * Formats bytes 16–23 of a sorted-public-key hash as visual fingerprint elements.
+ * Maps the visual-fingerprint bytes of a sorted-public-key hash to emoji slots.
+ *
+ * Deterministic and locale-free: slot `i` is `FINGERPRINT_EMOJI[hashBytes[16 + i]
+ * % length]` for `i in [0, VISUAL_FINGERPRINT_SLOTS)`. Uses only bytes at offset
+ * ≥16, leaving the safety-number bytes (0–15) untouched. Both parties normalise
+ * key order via {@link hashSortedPublicKeys}, so A↔B yield an identical set.
  */
 export function formatVisualFingerprint(hashBytes: Uint8Array): VisualFingerprintElement[] {
   const elements: VisualFingerprintElement[] = [];
 
-  for (let i = 0; i < 4; i++) {
-    const byteIndex = VISUAL_FINGERPRINT_BYTE_OFFSET + i * 2;
-    const shapeIndex = hashBytes[byteIndex] % FINGERPRINT_SHAPES.length;
-    const colorIndex = hashBytes[byteIndex + 1] % FINGERPRINT_COLORS.length;
-
-    elements.push({
-      shape: FINGERPRINT_SHAPES[shapeIndex],
-      color: FINGERPRINT_COLORS[colorIndex],
-    });
+  for (let i = 0; i < VISUAL_FINGERPRINT_SLOTS; i++) {
+    const byteIndex = VISUAL_FINGERPRINT_BYTE_OFFSET + i;
+    const emojiIndex = hashBytes[byteIndex] % FINGERPRINT_EMOJI.length;
+    elements.push({ emoji: FINGERPRINT_EMOJI[emojiIndex] });
   }
 
   return elements;
@@ -384,13 +398,13 @@ export async function generateFingerprints(
 /**
  * Generates a visual fingerprint from both ECDH public keys.
  *
- * Uses bytes 16–23 of the same sorted-public-key hash as {@link generateFingerprint}.
- * The four colored shapes are a quick visual anchor; primary verification entropy
- * comes from the safety-number (128 bits).
+ * Uses bytes 16+ of the same sorted-public-key hash as {@link generateFingerprint}.
+ * The emoji slots are a quick visual anchor; primary verification entropy comes
+ * from the safety-number (128 bits).
  *
  * @param localPublicKey - Our ECDH public key
  * @param peerPublicKey - Peer's imported public key
- * @returns Array of 4 VisualFingerprintElements (shape + color pairs)
+ * @returns Array of {@link VISUAL_FINGERPRINT_SLOTS} VisualFingerprintElements (emoji)
  */
 export async function generateVisualFingerprint(
   localPublicKey: CryptoKey,
