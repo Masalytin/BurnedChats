@@ -141,6 +141,7 @@ export function useSession({
   const errorsSubscribedRef = useRef(false);
   const pendingCreateRef = useRef<PendingCreateContext | null>(null);
   const createInFlightRef = useRef(false);
+  const createAbortRef = useRef<AbortController | null>(null);
 
   const { solveFor, cancel: cancelPow, phase: powPhase } = usePow({
     isConnected,
@@ -223,20 +224,32 @@ export function useSession({
       return;
     }
     createInFlightRef.current = true;
+    const abort = new AbortController();
+    createAbortRef.current = abort;
 
     try {
       const pow = await solveForRef.current('session_create');
+      if (abort.signal.aborted) {
+        return;
+      }
       publishSessionCreate(context.recipientInternalId, context.secret, pow);
     } catch (error) {
+      if (abort.signal.aborted) {
+        return;
+      }
       const isAbort = error instanceof Error && error.name === 'AbortError';
-      const message = isAbort
-        ? tRef.current('pow.errors.cancelled')
-        : error instanceof Error && error.message.includes('timed out')
-          ? tRef.current('pow.errors.timeout')
-          : tRef.current('pow.errors.failed');
+      if (isAbort) {
+        return;
+      }
+      const message = error instanceof Error && error.message.includes('timed out')
+        ? tRef.current('pow.errors.timeout')
+        : tRef.current('pow.errors.failed');
       failCreation('POW_FAILED', message);
       cleanupErrorsSubscription();
     } finally {
+      if (createAbortRef.current === abort) {
+        createAbortRef.current = null;
+      }
       createInFlightRef.current = false;
     }
   }, [cleanupErrorsSubscription, failCreation, publishSessionCreate]);
@@ -403,6 +416,9 @@ export function useSession({
    * Reset state
    */
   const reset = useCallback(() => {
+    createAbortRef.current?.abort();
+    createAbortRef.current = null;
+    createInFlightRef.current = false;
     pendingCreateRef.current = null;
     cleanupErrorsSubscription();
     cancelPow();
