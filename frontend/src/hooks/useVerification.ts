@@ -159,6 +159,12 @@ export function useVerification({
 }: UseVerificationOptions): UseVerificationReturn {
   const [statuses, setStatuses] = useState<Map<string, VerificationStatus>>(new Map());
 
+  // Mirror of `statuses` for reads inside the stable handleVerificationEvent callback
+  // (IMP-CCVF-08). Kept in sync synchronously inside the setStatuses updaters so the
+  // optimistic selfVerified is visible immediately, without adding `statuses` to the
+  // callback deps (which would re-create the STOMP subscription on every status change).
+  const statusesRef = useRef<Map<string, VerificationStatus>>(statuses);
+
   const isSubscribedRef = useRef(false);
 
   // Callback refs for stable handlers (prevents subscription churn on every render).
@@ -189,7 +195,8 @@ export function useVerification({
       const existing = newStatuses.get(sessionId) || createInitialStatus(sessionId);
       const updated = { ...existing, ...updates };
       newStatuses.set(sessionId, updated);
-      
+      statusesRef.current = newStatuses;
+
       // Trigger callback
       onStatusChangeRef.current?.(updated);
       
@@ -220,7 +227,23 @@ export function useVerification({
           });
           onMismatchRef.current?.(data.sessionId);
         }
-        
+
+        // IMP-CCVF-08: defense-in-depth. Suppress a late/duplicate INTERNAL_ERROR for a
+        // session that is already verified (self or both) — it is a stale server echo, not
+        // a real failure, and must not surface a scary toast on a working chat. Only
+        // INTERNAL_ERROR is filtered, and only after verification; CONNECTION_ERROR,
+        // FINGERPRINT_MISMATCH and pre-confirmation INTERNAL_ERROR are untouched.
+        if (errorCode === 'INTERNAL_ERROR' && data.sessionId) {
+          const current = statusesRef.current.get(data.sessionId);
+          if (current?.selfVerified || current?.bothVerified) {
+            console.warn(
+              '[useVerification] ignoring late INTERNAL_ERROR for verified session',
+              data.sessionId
+            );
+            return;
+          }
+        }
+
         onErrorRef.current?.(errorCode, data.sessionId);
         return;
       }
@@ -349,6 +372,7 @@ export function useVerification({
     setStatuses((prev) => {
       const newStatuses = new Map(prev);
       newStatuses.delete(sessionId);
+      statusesRef.current = newStatuses;
       return newStatuses;
     });
   }, []);
