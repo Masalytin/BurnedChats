@@ -46,12 +46,20 @@ export function usePow({
   });
 
   useEffect(() => {
-    serviceRef.current = createPowService({
+    serviceRef.current?.cancel();
+    const service = createPowService({
       isConnected,
       subscribe,
       unsubscribe,
       publish,
     });
+    serviceRef.current = service;
+    return () => {
+      service.cancel();
+      if (serviceRef.current === service) {
+        serviceRef.current = null;
+      }
+    };
   }, [isConnected, subscribe, unsubscribe, publish]);
 
   const cancel = useCallback(() => {
