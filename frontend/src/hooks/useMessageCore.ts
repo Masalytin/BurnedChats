@@ -405,9 +405,13 @@ export async function sendEncryptedFileMessage<TError extends string>(
 // Pending delete promise helper
 // ============================================
 
+export type PendingMessageResolver = (r: { success: boolean; errorCode?: string }) => void;
+
+export type PendingMessageResolversRef = React.MutableRefObject<Map<string, PendingMessageResolver>>;
+
 export function createPendingDeletePromise(
   messageId: string,
-  pendingResolversRef: React.MutableRefObject<Map<string, (r: { success: boolean; errorCode?: string }) => void>>,
+  pendingResolversRef: PendingMessageResolversRef,
   publishDelete: () => void,
   timeoutMs = 15_000,
 ): Promise<{ success: boolean; errorCode?: string }> {
@@ -421,6 +425,101 @@ export function createPendingDeletePromise(
       }
     }, timeoutMs);
   });
+}
+
+// ============================================
+// Pending edit promise helper
+// ============================================
+
+export function createPendingEditPromise(
+  messageId: string,
+  pendingResolversRef: PendingMessageResolversRef,
+  pendingTimeoutsRef: React.MutableRefObject<Map<string, number>>,
+  publishEdit: () => void,
+  timeoutMs = 15_000,
+): Promise<{ success: boolean; errorCode?: string }> {
+  return new Promise(resolve => {
+    const existingTimeout = pendingTimeoutsRef.current.get(messageId);
+    if (existingTimeout !== undefined) {
+      window.clearTimeout(existingTimeout);
+      pendingTimeoutsRef.current.delete(messageId);
+    }
+    const superseded = pendingResolversRef.current.get(messageId);
+    if (superseded) {
+      superseded({ success: false, errorCode: 'SUPERSEDED' });
+      pendingResolversRef.current.delete(messageId);
+    }
+
+    pendingResolversRef.current.set(messageId, resolve);
+    publishEdit();
+    const timeoutId = window.setTimeout(() => {
+      if (pendingResolversRef.current.has(messageId)) {
+        pendingResolversRef.current.delete(messageId);
+        pendingTimeoutsRef.current.delete(messageId);
+        resolve({ success: false, errorCode: 'TIMEOUT' });
+      }
+    }, timeoutMs);
+    pendingTimeoutsRef.current.set(messageId, timeoutId);
+  });
+}
+
+/** Resolve a pending edit/delete ack; returns true if a resolver was found. */
+export function resolvePendingMessageAck(
+  pendingResolversRef: PendingMessageResolversRef,
+  messageId: string,
+  result: { success: boolean; errorCode?: string },
+  pendingTimeoutsRef?: React.MutableRefObject<Map<string, number>>,
+): boolean {
+  const finish = pendingResolversRef.current.get(messageId);
+  if (!finish) return false;
+  pendingResolversRef.current.delete(messageId);
+  if (pendingTimeoutsRef) {
+    const timeoutId = pendingTimeoutsRef.current.get(messageId);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      pendingTimeoutsRef.current.delete(messageId);
+    }
+  }
+  finish(result);
+  return true;
+}
+
+export interface SubmitMessageEditParams {
+  editMessage: (
+    messageId: string,
+    newText: string,
+    originalClientTimestamp: number,
+  ) => Promise<{ success: boolean; errorCode?: string }>;
+  editingMessage: { id: string; timestamp: number };
+  text: string;
+  showEditError: (errorCode?: string) => void;
+  onSuccess: () => void;
+}
+
+/** Shared edit-submit flow for DM and room chat containers. */
+export async function submitMessageEdit(params: SubmitMessageEditParams): Promise<void> {
+  const result = await params.editMessage(
+    params.editingMessage.id,
+    params.text,
+    params.editingMessage.timestamp,
+  );
+  if (!result.success) {
+    params.showEditError(result.errorCode);
+    return;
+  }
+  params.onSuccess();
+}
+
+export function showMessageEditErrorToast(
+  errorCode: string | undefined,
+  t: (key: string) => string,
+  toast: { error: (msg: string) => void },
+): void {
+  if (errorCode === 'WINDOW_EXPIRED') {
+    toast.error(t('chat.edit.windowExpired'));
+  } else {
+    toast.error(t('chat.edit.failed'));
+  }
 }
 
 // ============================================
@@ -455,7 +554,9 @@ export interface UseMessageCoreReturn<TError extends string> {
   setError: React.Dispatch<React.SetStateAction<TError | null>>;
   handleError: (code: TError, details?: string, i18nValues?: Record<string, string | number>) => void;
   pendingMessagesRef: React.MutableRefObject<Map<string, { text: string; timestamp: number }>>;
-  pendingDeleteResolversRef: React.MutableRefObject<Map<string, (r: { success: boolean; errorCode?: string }) => void>>;
+  pendingDeleteResolversRef: PendingMessageResolversRef;
+  pendingEditResolversRef: PendingMessageResolversRef;
+  pendingEditTimeoutsRef: React.MutableRefObject<Map<string, number>>;
   hideMessages: (ids: string | string[]) => void;
   clearMessages: () => void;
   isSyncing: boolean;
@@ -508,9 +609,9 @@ export function useMessageCore<TError extends string>(
   const [error, setError] = useState<TError | null>(null);
 
   const pendingMessagesRef = useRef<Map<string, { text: string; timestamp: number }>>(new Map());
-  const pendingDeleteResolversRef = useRef(
-    new Map<string, (r: { success: boolean; errorCode?: string }) => void>(),
-  );
+  const pendingDeleteResolversRef = useRef(new Map<string, PendingMessageResolver>());
+  const pendingEditResolversRef = useRef(new Map<string, PendingMessageResolver>());
+  const pendingEditTimeoutsRef = useRef(new Map<string, number>());
 
   const handleError = useCallback((
     code: TError,
@@ -622,6 +723,8 @@ export function useMessageCore<TError extends string>(
     handleError,
     pendingMessagesRef,
     pendingDeleteResolversRef,
+    pendingEditResolversRef,
+    pendingEditTimeoutsRef,
     hideMessages,
     clearMessages,
     isSyncing,

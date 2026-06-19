@@ -15,6 +15,7 @@ import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { ChatSelectionBar } from '../ChatSelectionBar';
 import { useMessageSelection } from '@/hooks/useMessageSelection';
+import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
 import { Avatar } from '@/components/Avatar';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -206,22 +207,17 @@ export const ChatRoom = memo(function ChatRoom({
           setEditingMessage(null);
           return;
         }
-        const result = await onEditMessage(
-          editingMessage.id,
+        await submitMessageEdit({
+          editMessage: onEditMessage,
+          editingMessage,
           text,
-          editingMessage.timestamp,
-        );
-        if (!result.success) {
-          if (result.errorCode === 'WINDOW_EXPIRED') {
-            toast.error(t('chat.edit.windowExpired'));
-          } else {
-            toast.error(t('chat.edit.failed'));
-          }
-          return;
-        }
-        announce(t('chat.a11y.messageEdited'));
-        setEditingMessage(null);
-        messageInputTextAreaRef.current?.focus();
+          showEditError: (errorCode) => showMessageEditErrorToast(errorCode, t, toast),
+          onSuccess: () => {
+            announce(t('chat.a11y.messageEdited'));
+            setEditingMessage(null);
+            messageInputTextAreaRef.current?.focus();
+          },
+        });
         return;
       }
       onSendMessage(text, { replyToMessageId: replyTarget?.id });

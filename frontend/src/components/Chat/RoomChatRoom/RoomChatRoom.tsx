@@ -27,6 +27,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
+import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
 import type {
   UseRoomMessagesWebSocket,
   SendRoomFileOptions,
@@ -254,22 +255,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     async (text: string) => {
       haptics.success();
       if (editingMessage) {
-        const result = await editMessage(
-          editingMessage.id,
+        await submitMessageEdit({
+          editMessage,
+          editingMessage,
           text,
-          editingMessage.timestamp,
-        );
-        if (!result.success) {
-          if (result.errorCode === 'WINDOW_EXPIRED') {
-            toast.error(t('chat.edit.windowExpired'));
-          } else {
-            toast.error(t('chat.edit.failed'));
-          }
-          return;
-        }
-        announce(t('chat.a11y.messageEdited'));
-        setEditingMessage(null);
-        messageInputTextAreaRef.current?.focus();
+          showEditError: (errorCode) => showMessageEditErrorToast(errorCode, t, toast),
+          onSuccess: () => {
+            announce(t('chat.a11y.messageEdited'));
+            setEditingMessage(null);
+            messageInputTextAreaRef.current?.focus();
+          },
+        });
         return;
       }
       void sendMessage(text, { replyToMessageId: replyTarget?.id });

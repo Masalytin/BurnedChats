@@ -16,6 +16,8 @@ import {
   sendEncryptedTextMessage,
   sendEncryptedFileMessage,
   createPendingDeletePromise,
+  createPendingEditPromise,
+  resolvePendingMessageAck,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
 
@@ -223,6 +225,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   });
 
   const {
+    messages,
     setMessages,
     visibleMessages,
     isLoading,
@@ -231,6 +234,8 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     handleError,
     pendingMessagesRef,
     pendingDeleteResolversRef,
+    pendingEditResolversRef,
+    pendingEditTimeoutsRef,
     hideMessages,
     clearMessages,
     isSyncing,
@@ -367,6 +372,80 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     pendingMessagesRef, userId, validateBeforeSend,
   ]);
 
+  const applyRoomEditFromBroadcast = useCallback(async (edit: RoomMessageEditedEventPayload) => {
+    if (!edit.success || !edit.messageId) return;
+    if (!getRoomEncryptionKey() || !edit.encryptedContent || !edit.iv) {
+      const resolved = resolvePendingMessageAck(
+        pendingEditResolversRef,
+        edit.messageId,
+        { success: false, errorCode: 'NO_GROUP_KEY' },
+        pendingEditTimeoutsRef,
+      );
+      if (!resolved) {
+        handleError('NO_GROUP_KEY', 'Cannot apply room message edit');
+      }
+      return;
+    }
+    const editedAtMs = edit.editedAt ? new Date(edit.editedAt).getTime() : Date.now();
+    const eventType = toMessageType(edit.type);
+    const isFileMsg = eventType !== 'text' && !!edit.fileId;
+    try {
+      if (isFileMsg) {
+        const existing = messages.find(m => m.id === edit.messageId);
+        const keepTs = existing?.timestamp ?? Date.now();
+        const fileMsg = await buildFileMessage(
+          {
+            messageId: edit.messageId,
+            senderInternalId: edit.senderInternalId,
+            senderTgId: edit.senderTgId ?? null,
+            senderName: edit.senderName,
+            encryptedContent: edit.encryptedContent,
+            iv: edit.iv,
+            type: edit.type,
+            fileId: edit.fileId,
+            thumbnailFileId: edit.thumbnailFileId,
+            encryptedMeta: edit.encryptedMeta,
+            fileSize: edit.fileSize,
+          },
+          keepTs,
+          eventType,
+        );
+        setMessages(p => p.map(m =>
+          m.id === edit.messageId
+            ? { ...fileMsg, timestamp: m.timestamp, editedAt: editedAtMs }
+            : m
+        ));
+      } else {
+        const plaintext = await decryptTextContent(roomId, edit.encryptedContent, edit.iv);
+        setMessages(p => p.map(m =>
+          m.id === edit.messageId
+            ? { ...m, content: plaintext, editedAt: editedAtMs }
+            : m
+        ));
+      }
+      resolvePendingMessageAck(
+        pendingEditResolversRef,
+        edit.messageId,
+        { success: true },
+        pendingEditTimeoutsRef,
+      );
+    } catch (e) {
+      console.error('[useRoomMessages] room edit decrypt:', e);
+      const resolved = resolvePendingMessageAck(
+        pendingEditResolversRef,
+        edit.messageId,
+        { success: false, errorCode: 'INTERNAL_ERROR' },
+        pendingEditTimeoutsRef,
+      );
+      if (!resolved) {
+        handleError('DECRYPTION_FAILED', e instanceof Error ? e.message : 'Unknown error');
+      }
+    }
+  }, [
+    roomId, messages, getRoomEncryptionKey, handleError, setMessages,
+    pendingEditResolversRef, pendingEditTimeoutsRef, buildFileMessage,
+  ]);
+
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
       const event = JSON.parse(message.body) as NewRoomMessageEvent & Partial<RoomMessageEditedEventPayload>;
@@ -393,58 +472,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       }
 
       if (event.eventType === 'ROOM_MESSAGE_EDITED') {
-        const edit = event as unknown as RoomMessageEditedEventPayload;
-        if (!edit.success || !edit.messageId) return;
-        if (!getRoomEncryptionKey() || !edit.encryptedContent || !edit.iv) {
-          handleError('NO_GROUP_KEY', 'Cannot apply room message edit');
-          return;
-        }
-        const editedAtMs = edit.editedAt ? new Date(edit.editedAt).getTime() : Date.now();
-        setMessages((prev) => {
-          const existing = prev.find(m => m.id === edit.messageId);
-          const keepTs = existing?.timestamp ?? Date.now();
-          const eventType = toMessageType(edit.type);
-          const isFileMsg = eventType !== 'text' && !!edit.fileId;
-          void (async () => {
-            try {
-              if (isFileMsg) {
-                const fileMsg = await buildFileMessage(
-                  {
-                    messageId: edit.messageId,
-                    senderInternalId: edit.senderInternalId,
-                    senderTgId: edit.senderTgId ?? null,
-                    senderName: edit.senderName,
-                    encryptedContent: edit.encryptedContent!,
-                    iv: edit.iv!,
-                    type: edit.type,
-                    fileId: edit.fileId,
-                    thumbnailFileId: edit.thumbnailFileId,
-                    encryptedMeta: edit.encryptedMeta,
-                    fileSize: edit.fileSize,
-                  },
-                  keepTs,
-                  eventType,
-                );
-                setMessages(p => p.map(m =>
-                  m.id === edit.messageId
-                    ? { ...fileMsg, timestamp: m.timestamp, editedAt: editedAtMs }
-                    : m
-                ));
-              } else {
-                const plaintext = await decryptTextContent(roomId, edit.encryptedContent!, edit.iv!);
-                setMessages(p => p.map(m =>
-                  m.id === edit.messageId
-                    ? { ...m, content: plaintext, editedAt: editedAtMs }
-                    : m
-                ));
-              }
-            } catch (e) {
-              console.error('[useRoomMessages] room edit decrypt:', e);
-              handleError('DECRYPTION_FAILED', e instanceof Error ? e.message : 'Unknown error');
-            }
-          })();
-          return prev;
-        });
+        void applyRoomEditFromBroadcast(event as RoomMessageEditedEventPayload);
         return;
       }
 
@@ -503,6 +531,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
   }, [
     roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner,
     userId, getRoomEncryptionKey, setMessages, pendingDeleteResolversRef, buildFileMessage,
+    applyRoomEditFromBroadcast,
   ]);
 
   const handleRoomMessageEditedUser = useCallback(
@@ -510,14 +539,22 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       try {
         const event: RoomMessageEditedEventPayload = JSON.parse(message.body);
         if (event.roomId !== roomId) return;
-        if (event.success === false) {
-          onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+        if (event.success === false && event.messageId) {
+          const resolved = resolvePendingMessageAck(
+            pendingEditResolversRef,
+            event.messageId,
+            { success: false, errorCode: event.errorCode ?? 'INTERNAL_ERROR' },
+            pendingEditTimeoutsRef,
+          );
+          if (!resolved) {
+            onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+          }
         }
       } catch (e) {
         console.error('[useRoomMessages] room-message-edited user queue', e);
       }
     },
-    [roomId, onEditError],
+    [roomId, onEditError, pendingEditResolversRef, pendingEditTimeoutsRef],
   );
 
   const handleRoomMessageDeleteUser = useCallback(
@@ -656,22 +693,27 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       if (!isWithinEditWindow(originalClientTimestamp)) return { success: false, errorCode: 'WINDOW_EXPIRED' };
       try {
         const encrypted = await encryptMessage(groupKey, newText, roomId);
-        publish(EDIT_ROOM_MESSAGE_DESTINATION, {
-          roomId,
+        return createPendingEditPromise(
           messageId,
-          encryptedContent: encrypted.ciphertext,
-          iv: encrypted.iv,
-          editedAt: Date.now(),
-          originalClientTimestamp,
+          pendingEditResolversRef,
+          pendingEditTimeoutsRef,
+          () => {
+          publish(EDIT_ROOM_MESSAGE_DESTINATION, {
+            roomId,
+            messageId,
+            encryptedContent: encrypted.ciphertext,
+            iv: encrypted.iv,
+            editedAt: Date.now(),
+            originalClientTimestamp,
+          });
         });
-        return { success: true };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Unknown error';
         handleError('ENCRYPTION_FAILED', errMsg);
         return { success: false, errorCode: 'ENCRYPTION_FAILED' };
       }
     },
-    [isConnected, roomId, publish, handleError, setError, getRoomEncryptionKey],
+    [isConnected, roomId, publish, handleError, setError, getRoomEncryptionKey, pendingEditResolversRef, pendingEditTimeoutsRef],
   );
 
   const deleteMessage = useCallback(

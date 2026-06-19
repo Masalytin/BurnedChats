@@ -17,6 +17,8 @@ import {
   sendEncryptedTextMessage,
   sendEncryptedFileMessage,
   createPendingDeletePromise,
+  createPendingEditPromise,
+  resolvePendingMessageAck,
   mergeMessagesSorted,
   updateMessageStatus,
   type FileMessageWireFields,
@@ -256,6 +258,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     handleError,
     pendingMessagesRef,
     pendingDeleteResolversRef,
+    pendingEditResolversRef,
+    pendingEditTimeoutsRef,
     hideMessages,
     clearMessages,
     isSyncing,
@@ -582,23 +586,57 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       const event: MessageEditedEvent = JSON.parse(message.body);
       if (event.sessionId !== sessionId) return;
       if (event.success === false) {
-        onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+        const resolved = resolvePendingMessageAck(
+          pendingEditResolversRef,
+          event.messageId,
+          { success: false, errorCode: event.errorCode ?? 'INTERNAL_ERROR' },
+          pendingEditTimeoutsRef,
+        );
+        if (!resolved) {
+          onEditError?.(event.errorCode ?? 'INTERNAL_ERROR');
+        }
         return;
       }
       if (!getEncryptionKey() || !event.encryptedContent || !event.iv) {
-        onEditError?.('INTERNAL_ERROR');
+        const resolved = resolvePendingMessageAck(
+          pendingEditResolversRef,
+          event.messageId,
+          { success: false, errorCode: 'INTERNAL_ERROR' },
+          pendingEditTimeoutsRef,
+        );
+        if (!resolved) {
+          onEditError?.('INTERNAL_ERROR');
+        }
         return;
       }
-      const plaintext = await decryptTextContent(sessionId, event.encryptedContent, event.iv);
-      const editedAtMs = event.editedAt ? new Date(event.editedAt).getTime() : Date.now();
-      setMessages(prev => prev.map(m =>
-        m.id === event.messageId ? { ...m, content: plaintext, editedAt: editedAtMs } : m
-      ));
+      try {
+        const plaintext = await decryptTextContent(sessionId, event.encryptedContent, event.iv);
+        const editedAtMs = event.editedAt ? new Date(event.editedAt).getTime() : Date.now();
+        setMessages(prev => prev.map(m =>
+          m.id === event.messageId ? { ...m, content: plaintext, editedAt: editedAtMs } : m
+        ));
+        resolvePendingMessageAck(
+          pendingEditResolversRef,
+          event.messageId,
+          { success: true },
+          pendingEditTimeoutsRef,
+        );
+      } catch (e) {
+        console.error('[useMessages] message-edited handler:', e);
+        const resolved = resolvePendingMessageAck(
+          pendingEditResolversRef,
+          event.messageId,
+          { success: false, errorCode: 'INTERNAL_ERROR' },
+          pendingEditTimeoutsRef,
+        );
+        if (!resolved) {
+          onEditError?.('INTERNAL_ERROR');
+        }
+      }
     } catch (e) {
-      console.error('[useMessages] message-edited handler:', e);
-      onEditError?.('INTERNAL_ERROR');
+      console.error('[useMessages] message-edited parse:', e);
     }
-  }, [sessionId, onEditError, getEncryptionKey, setMessages]);
+  }, [sessionId, onEditError, getEncryptionKey, setMessages, pendingEditResolversRef, pendingEditTimeoutsRef]);
 
   const editMessage = useCallback(
     async (
@@ -615,21 +653,26 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       if (!isWithinEditWindow(originalClientTimestamp)) return { success: false, errorCode: 'WINDOW_EXPIRED' };
       try {
         const encrypted = await encryptMessage(aesKey, newText, sessionId);
-        publish(EDIT_MESSAGE_DESTINATION, {
-          sessionId,
+        return createPendingEditPromise(
           messageId,
-          encryptedContent: encrypted.ciphertext,
-          iv: encrypted.iv,
-          editedAt: Date.now(),
-          originalClientTimestamp,
+          pendingEditResolversRef,
+          pendingEditTimeoutsRef,
+          () => {
+          publish(EDIT_MESSAGE_DESTINATION, {
+            sessionId,
+            messageId,
+            encryptedContent: encrypted.ciphertext,
+            iv: encrypted.iv,
+            editedAt: Date.now(),
+            originalClientTimestamp,
+          });
         });
-        return { success: true };
       } catch {
         handleError('ENCRYPTION_FAILED');
         return { success: false, errorCode: 'ENCRYPTION_FAILED' };
       }
     },
-    [isConnected, sessionId, publish, handleError, setError, getEncryptionKey],
+    [isConnected, sessionId, publish, handleError, setError, getEncryptionKey, pendingEditResolversRef, pendingEditTimeoutsRef],
   );
 
   const handleMessageDeleted = useCallback(
