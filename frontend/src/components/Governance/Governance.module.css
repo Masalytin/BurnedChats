@@ -1,6 +1,9 @@
 /* Governance UI — BurnedChats design tokens (--bc-*) */
 
 .page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
   width: 100%;
   max-width: var(--bc-content-max);
   margin-inline: auto;
@@ -11,11 +14,10 @@
 
 .pageHeader {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--bc-spacing-md);
-  margin-bottom: var(--bc-spacing-md);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
+  width: 100%;
 }
 
 .pageTitle {
@@ -29,6 +31,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--bc-spacing-sm);
+  max-width: 100%;
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   border-radius: var(--bc-radius-lg);
   background: var(--bc-bg-secondary);

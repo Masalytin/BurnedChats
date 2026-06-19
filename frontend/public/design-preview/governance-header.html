@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="uk" class="standalone-mode">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Governance header layout preview</title>
+    <link rel="stylesheet" href="/src/styles/theme.css" />
+    <link rel="stylesheet" href="/src/styles/standalone-theme.css" />
+    <link rel="stylesheet" href="/src/components/Wallet/WalletSegmentControl.css" />
+    <style>
+      body {
+        margin: 0;
+        background: var(--bc-bg-primary);
+        color: var(--bc-text-primary);
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+
+      .page {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bc-spacing-md);
+        width: 100%;
+        max-width: var(--bc-content-max);
+        margin-inline: auto;
+        padding: var(--bc-spacing-md);
+        color: var(--bc-text-primary);
+      }
+
+      .pageHeader {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--bc-spacing-sm);
+        width: 100%;
+      }
+
+      .pageTitle {
+        margin: 0;
+        font-size: var(--bc-text-xl);
+        font-weight: 700;
+      }
+
+      .vpPill {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--bc-spacing-sm);
+        max-width: 100%;
+        padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+        border-radius: var(--bc-radius-lg);
+        background: var(--bc-bg-secondary);
+        border: 1px solid var(--bc-border-color);
+        font-size: var(--bc-text-sm);
+      }
+
+      .muted {
+        color: var(--bc-text-secondary);
+        font-size: var(--bc-text-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="wallet-segment" role="tablist" aria-label="Wallet">
+        <div
+          class="wallet-segment__pill"
+          style="--pill-index: 2; --pill-count: 3"
+          aria-hidden="true"
+        ></div>
+        <button type="button" role="tab" class="wallet-segment__tab">Гаманець</button>
+        <button type="button" role="tab" class="wallet-segment__tab">Стейкинг</button>
+        <button type="button" role="tab" class="wallet-segment__tab wallet-segment__tab--active">
+          Governance
+        </button>
+      </div>
+      <header class="pageHeader">
+        <h1 class="pageTitle">Governance</h1>
+        <div class="vpPill" aria-live="polite">
+          <span class="muted">Ваша сила голосу</span>
+          <strong>2.00000000 BURN</strong>
+        </div>
+      </header>
+    </div>
+  </body>
+</html>
