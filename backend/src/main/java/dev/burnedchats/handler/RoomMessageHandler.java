@@ -109,27 +109,7 @@ public class RoomMessageHandler {
                                     request.getEncryptedContent(),
                                     request.getIv(),
                                     editedAt)
-                            .flatMap(rm -> resolveDisplayName(rm.getSenderKey(), rm.getSenderTgId())
-                                    .flatMap(senderName -> {
-                                        RoomMessageEditedEvent ev = RoomMessageEditedEvent.builder()
-                                                .success(true)
-                                                .roomId(roomId)
-                                                .messageId(rm.getMessageId())
-                                                .senderInternalId(rm.getSenderKey())
-                                                .senderTgId(rm.getSenderTgId())
-                                                .senderName(senderName)
-                                                .encryptedContent(rm.getEncryptedContent())
-                                                .iv(rm.getIv())
-                                                .editedAt(rm.getEditedAt())
-                                                .type(rm.getType())
-                                                .fileId(rm.getFileId())
-                                                .thumbnailFileId(rm.getThumbnailFileId())
-                                                .encryptedMeta(rm.getEncryptedMeta())
-                                                .fileSize(rm.getFileSize())
-                                                .build();
-                                        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
-                                        return extendRoomTtlAfterMutation(roomId);
-                                    }))
+                            .flatMap(rm -> broadcastSuccessfulRoomMessageEdit(roomId, rm).thenReturn(rm))
                             .switchIfEmpty(Mono.defer(() -> {
                                 sendRoomMessageEditError(principal, roomId, messageId, "NOT_EDITABLE");
                                 return Mono.empty();
@@ -354,6 +334,39 @@ public class RoomMessageHandler {
                     );
                     return extendRoomTtlAfterMutation(roomId);
                 });
+    }
+
+    private Mono<Void> broadcastSuccessfulRoomMessageEdit(String roomId, RoomMessage rm) {
+        return resolveDisplayName(rm.getSenderKey(), rm.getSenderTgId())
+                .defaultIfEmpty(fallbackDisplayName(rm.getSenderTgId()))
+                .onErrorResume(e -> {
+                    LOG.warn(
+                            "resolveDisplayName failed during room edit broadcast: roomId={}, messageId={}, error={}",
+                            roomId, rm.getMessageId(), e.getMessage());
+                    return Mono.just(fallbackDisplayName(rm.getSenderTgId()));
+                })
+                .map(senderName -> {
+                    RoomMessageEditedEvent ev = RoomMessageEditedEvent.builder()
+                            .success(true)
+                            .roomId(roomId)
+                            .messageId(rm.getMessageId())
+                            .senderInternalId(rm.getSenderKey())
+                            .senderTgId(rm.getSenderTgId())
+                            .senderName(senderName)
+                            .encryptedContent(rm.getEncryptedContent())
+                            .iv(rm.getIv())
+                            .editedAt(rm.getEditedAt())
+                            .type(rm.getType())
+                            .fileId(rm.getFileId())
+                            .thumbnailFileId(rm.getThumbnailFileId())
+                            .encryptedMeta(rm.getEncryptedMeta())
+                            .fileSize(rm.getFileSize())
+                            .build();
+                    messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, ev);
+                    return ev;
+                })
+                .then()
+                .doOnSuccess(v -> extendRoomTtlAfterMutation(roomId).subscribe());
     }
 
     private Mono<Void> extendRoomTtlAfterMutation(String roomId) {
