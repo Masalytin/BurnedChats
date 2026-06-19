@@ -9,6 +9,7 @@ import dev.burnedchats.model.DmMessageEditableMeta;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.MessageEdit;
+import dev.burnedchats.model.MessageSenderIndexEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -518,11 +519,24 @@ public class MessageRepository {
     /**
      * Store messageId → sender for delivered/queued DM messages (short TTL).
      */
-    public Mono<Boolean> putMessageSenderIndex(String sessionId, String messageId, Long senderTgId) {
+    public Mono<Boolean> putMessageSenderIndex(String sessionId, String messageId,
+            String senderInternalId, Long senderTgId) {
+        Long tg = senderTgId != null && senderTgId != 0 ? senderTgId : null;
+        MessageSenderIndexEntry entry = MessageSenderIndexEntry.builder()
+                .senderInternalId(senderInternalId)
+                .senderId(tg)
+                .build();
+        String value;
+        try {
+            value = objectMapper.writeValueAsString(entry);
+        } catch (JsonProcessingException e) {
+            LOG.warn("putMessageSenderIndex serialize failed: {}", e.getMessage());
+            return Mono.just(false);
+        }
         String key = senderIndexKey(sessionId);
         Duration ttl = messagesProperties.getSenderIndexTtl();
         return redisTemplate.opsForHash()
-                .put(key, messageId, String.valueOf(senderTgId))
+                .put(key, messageId, value)
                 .flatMap(ok -> redisTemplate.expire(key, ttl).thenReturn(Boolean.TRUE.equals(ok)))
                 .onErrorResume(e -> {
                     LOG.warn("putMessageSenderIndex failed: {}", e.getMessage());
@@ -530,11 +544,43 @@ public class MessageRepository {
                 });
     }
 
-    public Mono<Long> getMessageSenderIndex(String sessionId, String messageId) {
+    public Mono<MessageSenderIndexEntry> getMessageSenderIndex(String sessionId, String messageId) {
         String key = senderIndexKey(sessionId);
         return redisTemplate.opsForHash()
                 .get(key, messageId)
-                .map(v -> Long.parseLong(String.valueOf(v)));
+                .flatMap(this::parseSenderIndexValue);
+    }
+
+    private Mono<MessageSenderIndexEntry> parseSenderIndexValue(Object raw) {
+        if (raw == null) {
+            return Mono.empty();
+        }
+        String value = String.valueOf(raw).trim();
+        if (value.isEmpty() || "null".equalsIgnoreCase(value)) {
+            return Mono.empty();
+        }
+        if (value.startsWith("{")) {
+            try {
+                MessageSenderIndexEntry entry = objectMapper.readValue(value, MessageSenderIndexEntry.class);
+                if (entry.getSenderInternalId() == null && entry.getSenderId() == null) {
+                    return Mono.empty();
+                }
+                return Mono.just(entry);
+            } catch (JsonProcessingException e) {
+                LOG.warn("parseSenderIndexValue invalid JSON: {}", e.getMessage());
+                return Mono.empty();
+            }
+        }
+        try {
+            long tgId = Long.parseLong(value);
+            if (tgId == 0) {
+                return Mono.empty();
+            }
+            return Mono.just(MessageSenderIndexEntry.builder().senderId(tgId).build());
+        } catch (NumberFormatException e) {
+            LOG.warn("parseSenderIndexValue unparseable legacy value");
+            return Mono.empty();
+        }
     }
 
     public Mono<Long> removeMessageSenderIndex(String sessionId, String messageId) {

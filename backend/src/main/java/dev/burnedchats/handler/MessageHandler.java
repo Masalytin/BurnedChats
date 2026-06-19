@@ -10,6 +10,7 @@ import dev.burnedchats.dto.request.EditMessageRequest;
 import dev.burnedchats.dto.request.SendMessageRequest;
 import dev.burnedchats.dto.request.SyncMessagesRequest;
 import dev.burnedchats.model.DmMessageEditableMeta;
+import dev.burnedchats.model.MessageSenderIndexEntry;
 import dev.burnedchats.model.Message;
 import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.MessageEdit;
@@ -298,13 +299,27 @@ public class MessageHandler {
     private Mono<String> assertDeleterOwnsMessage(String sessionId, String messageId,
             ParticipantContext deleter) {
         return messageRepository.getMessageSenderIndex(sessionId, messageId)
-                .map(sid -> deleter.telegramId() != null && deleter.telegramId().equals(sid)
-                        ? "OK" : "NOT_ALLOWED")
-                .switchIfEmpty(
+                .map(entry -> ownsIndexedMessage(entry, deleter) ? "OK" : "NOT_ALLOWED")
+                .switchIfEmpty(Mono.defer(() ->
                         messageRepository.getDmMessageEditableMeta(sessionId, messageId)
                                 .map(m -> ownsDeliveredMessage(m, deleter) ? "OK" : "NOT_ALLOWED")
                                 .switchIfEmpty(Mono.just("NOT_FOUND"))
-                );
+                ));
+    }
+
+    private static boolean ownsIndexedMessage(MessageSenderIndexEntry entry, ParticipantContext deleter) {
+        if (entry == null) {
+            return false;
+        }
+        String deleterInternalId = deleter.internalId();
+        if (deleterInternalId != null && entry.getSenderInternalId() != null) {
+            return deleterInternalId.equals(entry.getSenderInternalId());
+        }
+        Long tg = deleter.telegramId();
+        if (tg != null && tg != 0 && entry.getSenderId() != null) {
+            return tg.equals(entry.getSenderId());
+        }
+        return false;
     }
 
     private static boolean ownsDeliveredMessage(DmMessageEditableMeta meta, ParticipantContext deleter) {
@@ -512,7 +527,8 @@ public class MessageHandler {
         return messageRepository.putDmMessageEditableMeta(
                         sessionId, messageId, sender.internalId(), sender.telegramId(),
                         serverTimestamp, fileId, thumbId)
-                .then(messageRepository.putMessageSenderIndex(sessionId, messageId, sender.telegramId()))
+                .then(messageRepository.putMessageSenderIndex(
+                        sessionId, messageId, sender.internalId(), sender.telegramId()))
                 .then();
     }
 
@@ -551,7 +567,7 @@ public class MessageHandler {
                             .putDmMessageEditableMeta(sessionId, messageId, sender.internalId(),
                                     sender.telegramId(), serverTimestamp, fileId, thumbId)
                             .then(messageRepository.putMessageSenderIndex(
-                                    sessionId, messageId, sender.telegramId()))
+                                    sessionId, messageId, sender.internalId(), sender.telegramId()))
                             .then();
                 });
     }

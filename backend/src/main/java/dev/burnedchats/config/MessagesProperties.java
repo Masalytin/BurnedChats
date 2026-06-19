@@ -40,7 +40,7 @@ public class MessagesProperties {
     private MessageDeletions messageDeletions = new MessageDeletions();
 
     /**
-     * TTL for {@code message-senders:{sessionId}} (HSET of messageId → senderTgId).
+     * TTL for {@code message-senders:{sessionId}} (HSET of messageId → sender index JSON).
      */
     private Duration senderIndexTtl = Duration.ofHours(24);
 

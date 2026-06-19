@@ -100,6 +100,25 @@ EXPIRE session:abc123 86400
 
 **TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` (по умолчанию 15 мин).
 
+#### `message-senders:{sessionId}`
+
+Hash индекс отправителя для DM delete-for-everyone (доставленные/ранее queued сообщения).
+
+| Поле hash | Значение JSON | Описание |
+|-----------|---------------|----------|
+| `{messageId}` | `MessageSenderIndexEntry` | Сериализованный JSON |
+
+| Поле JSON | Тип | Описание |
+|-----------|-----|----------|
+| `senderInternalId` | String | Стабильный UUID отправителя (primary для wallet) |
+| `senderId` | Long | Legacy Telegram id; только если `!= null && != 0` |
+
+**Legacy read-path:** plain numeric string в hash value трактуется как `senderId` only;
+строка `"null"` или невалидное значение → index считается пустым (fallback на
+`dm-editable` meta).
+
+**TTL:** `burnedchats.messages.sender-index-ttl` (по умолчанию 24 ч).
+
 ---
 
 ### `request:{recipientInternalId}`
