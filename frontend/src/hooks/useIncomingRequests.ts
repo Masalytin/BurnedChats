@@ -9,6 +9,9 @@ const INCOMING_REQUEST_DESTINATION = '/user/queue/incoming-request';
 /** Destination for session accepted event (from server) */
 const SESSION_ACCEPTED_DESTINATION = '/user/queue/session-accepted';
 
+/** Destination for session rejected event (initiator receives when peer declines) */
+const SESSION_REJECTED_DESTINATION = '/user/queue/session-rejected';
+
 /** Destination for accept request action */
 const ACCEPT_SESSION_DESTINATION = '/app/session.accept';
 
@@ -56,6 +59,12 @@ interface ServerSessionAcceptedEvent {
   error?: string;
 }
 
+/** Session rejected event from server (sent to initiator) */
+interface ServerSessionRejectedEvent {
+  sessionId: string;
+  rejectedAt?: string;
+}
+
 /** Action result state */
 export interface ActionResult {
   status: ActionStatus;
@@ -79,7 +88,9 @@ interface UseIncomingRequestsOptions {
   onSessionAccepted?: (sessionId: string, peer: UserInfo) => void;
   /** Callback when OUR request is accepted by the peer (as initiator) */
   onOurRequestAccepted?: (sessionId: string, peer: UserInfo) => void;
-  /** Callback when a request is rejected */
+  /** Callback when OUR request is rejected by the peer (as initiator) */
+  onOurRequestRejected?: (sessionId: string) => void;
+  /** Callback when we locally reject an incoming request (as responder) */
   onRequestRejected?: (sessionId: string) => void;
   /** Callback when an error occurs */
   onError?: (error: AcceptErrorCode) => void;
@@ -160,6 +171,7 @@ export function useIncomingRequests({
   onRequestReceived,
   onSessionAccepted,
   onOurRequestAccepted,
+  onOurRequestRejected,
   onRequestRejected,
   onError,
 }: UseIncomingRequestsOptions): UseIncomingRequestsReturn {
@@ -173,6 +185,7 @@ export function useIncomingRequests({
   const onRequestReceivedRef = useRef(onRequestReceived);
   const onSessionAcceptedRef = useRef(onSessionAccepted);
   const onOurRequestAcceptedRef = useRef(onOurRequestAccepted);
+  const onOurRequestRejectedRef = useRef(onOurRequestRejected);
   const onRequestRejectedRef = useRef(onRequestRejected);
   const onErrorRef = useRef(onError);
 
@@ -181,6 +194,7 @@ export function useIncomingRequests({
     onRequestReceivedRef.current = onRequestReceived;
     onSessionAcceptedRef.current = onSessionAccepted;
     onOurRequestAcceptedRef.current = onOurRequestAccepted;
+    onOurRequestRejectedRef.current = onOurRequestRejected;
     onRequestRejectedRef.current = onRequestRejected;
     onErrorRef.current = onError;
   });
@@ -291,6 +305,24 @@ export function useIncomingRequests({
   }, []);
 
   /**
+   * Handle session rejected event from server (we're the initiator).
+   */
+  const handleSessionRejected = useCallback((message: IMessage) => {
+    try {
+      const data: ServerSessionRejectedEvent = JSON.parse(message.body);
+      const sessionId = data.sessionId;
+      if (!sessionId) {
+        console.warn('[useIncomingRequests] Session rejected event missing sessionId');
+        return;
+      }
+      onOurRequestRejectedRef.current?.(sessionId);
+      console.log('[useIncomingRequests] Our request rejected (as initiator):', sessionId);
+    } catch (error) {
+      console.error('[useIncomingRequests] Failed to parse session rejected event:', error);
+    }
+  }, []);
+
+  /**
    * Register subscriptions immediately (even before connected).
    * This ensures the WebSocket hook can apply them when connection is established,
    * preventing race conditions where server sends messages before subscriptions are ready.
@@ -300,6 +332,7 @@ export function useIncomingRequests({
     if (!isSubscribedRef.current) {
       subscribe(INCOMING_REQUEST_DESTINATION, handleIncomingRequest);
       subscribe(SESSION_ACCEPTED_DESTINATION, handleSessionAccepted);
+      subscribe(SESSION_REJECTED_DESTINATION, handleSessionRejected);
       isSubscribedRef.current = true;
       console.log('[useIncomingRequests] Registered subscriptions for incoming requests');
     }
@@ -308,11 +341,12 @@ export function useIncomingRequests({
       if (isSubscribedRef.current) {
         unsubscribe(INCOMING_REQUEST_DESTINATION);
         unsubscribe(SESSION_ACCEPTED_DESTINATION);
+        unsubscribe(SESSION_REJECTED_DESTINATION);
         isSubscribedRef.current = false;
         console.log('[useIncomingRequests] Unsubscribed from incoming requests');
       }
     };
-  }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted]);
+  }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted, handleSessionRejected]);
 
   /**
    * Fetch pending requests explicitly when connected.

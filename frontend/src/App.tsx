@@ -319,6 +319,16 @@ function AppContent() {
         setPendingSession(null);
       }
     },
+    onOurRequestRejected: (sessionId) => {
+      if (pendingSession?.id !== sessionId) return;
+      console.log('[App] Our request was rejected by peer:', sessionId);
+      notificationOccurred('error');
+      toast.info(t('pendingRequest.errorRejected'));
+      setPendingSession(null);
+      setCurrentView('home');
+      resetSession();
+      clearSearch();
+    },
     onError: (errorCode) => {
       notificationOccurred('error');
       toast.error(`Request failed: ${errorCode}`, { title: 'Error' });

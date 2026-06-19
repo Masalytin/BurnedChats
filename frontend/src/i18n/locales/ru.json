@@ -872,7 +872,8 @@
 
   "pendingRequest": {
     "title": "Ожидание ответа",
-    "cancelButton": "Отменить запрос"
+    "cancelButton": "Отменить запрос",
+    "errorRejected": "Ваш запрос на чат был отклонён"
   },
 
   "userSearch": {

@@ -856,7 +856,8 @@
 
   "pendingRequest": {
     "title": "Waiting for response",
-    "cancelButton": "Cancel Request"
+    "cancelButton": "Cancel Request",
+    "errorRejected": "Your chat request was declined"
   },
 
   "userSearch": {
