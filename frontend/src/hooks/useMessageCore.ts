@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
-import { resolveDecryptionKey } from '@/crypto/keyStore';
+import { resolveDecryptionKey, resolveDecryptionKeyForRoomMessage, getAESKey, hasGroupKey } from '@/crypto/keyStore';
 import { downloadThumbnail } from '@/services/fileDownloadService';
 import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
@@ -148,16 +148,24 @@ export async function decryptWireFileMessage(params: BuildFileMessageParams): Pr
   });
 }
 
+/** Placeholder shown when a room message cannot be decrypted (epoch mismatch, lost key). */
+export const UNDECRYPTABLE_MESSAGE_PLACEHOLDER = '[encrypted]';
+
 export async function decryptTextContent(
   contextId: string,
   encryptedContent: string,
   iv: string,
 ): Promise<string> {
-  const aesKey = getEncryptionKey(contextId);
-  if (!aesKey) {
-    throw new Error(`No encryption key for context ${contextId}`);
+  const sessionKey = getAESKey(contextId);
+  if (sessionKey) {
+    return decryptMessage(sessionKey, encryptedContent, iv, contextId);
   }
-  return decryptMessage(aesKey, encryptedContent, iv, contextId);
+
+  if (hasGroupKey(contextId)) {
+    return resolveDecryptionKeyForRoomMessage(contextId, encryptedContent, iv);
+  }
+
+  throw new Error(`No encryption key for context ${contextId}`);
 }
 
 // ============================================

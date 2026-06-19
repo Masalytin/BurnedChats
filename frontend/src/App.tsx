@@ -924,19 +924,24 @@ function AppContent() {
     enabled: activeRoomNeedsKey && !activeRoomIsOwner,
   });
 
-  // Owner flow: auto-rekey when entering room without key
-  const ownerRekeyTriggeredRef = useRef<string | null>(null);
+  // Owner flow: do NOT auto-rekey on re-entry — silent rekey invalidates history for all members.
+  // Owner without a local key must rekey manually from room manage (after a member leaves) or accept
+  // that encrypted history is unavailable until keys are restored.
+  const ownerKeyLostNotifiedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeRoomNeedsKey || !activeRoomIsOwner || !isConnected) {
-      ownerRekeyTriggeredRef.current = null;
+    if (!activeRoomNeedsKey || !activeRoomIsOwner || !isConnected || !activeRoomChat) {
+      ownerKeyLostNotifiedRef.current = null;
       return;
     }
-    const roomId = activeRoomChat!.roomId;
-    if (ownerRekeyTriggeredRef.current === roomId) return;
-    ownerRekeyTriggeredRef.current = roomId;
-    debugLog('info', `[App] Owner entering room ${roomId} without key — triggering rekey`);
-    rekeyRoomRef.current(roomId);
-  }, [activeRoomNeedsKey, activeRoomIsOwner, isConnected, activeRoomChat]);
+    const roomId = activeRoomChat.roomId;
+    if (ownerKeyLostNotifiedRef.current === roomId) return;
+    ownerKeyLostNotifiedRef.current = roomId;
+    debugLog(
+      'warn',
+      `[App] Owner entered room ${roomId} without local group key — auto-rekey disabled; history may be unavailable`,
+    );
+    toast.warning(t('room.chat.keyLoadError'), { duration: 6000 });
+  }, [activeRoomNeedsKey, activeRoomIsOwner, isConnected, activeRoomChat, toast, t]);
 
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {

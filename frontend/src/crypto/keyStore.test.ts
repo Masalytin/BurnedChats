@@ -21,6 +21,11 @@ import {
   getAESKey,
   resolveDecryptionKey,
   storeGroupKey,
+  getGroupKey,
+  getGroupKeyEntry,
+  getGroupKeyForEpoch,
+  getGroupKeyEpochs,
+  resolveDecryptionKeyForRoomMessage,
   getFingerprint,
   isHandshakeComplete,
   hasSession,
@@ -42,6 +47,7 @@ import {
   deriveAESKey,
   generateFingerprint,
 } from './ecdh';
+import { encryptMessage } from './aes';
 import type { KeyPair, SharedSecret } from '@/types';
 
 // ============================================
@@ -396,6 +402,73 @@ describe('Key Storage', () => {
         storeGroupKey(roomId, 0, groupKey);
         expect(listener).toHaveBeenCalledWith(roomId, 'updated');
         removeKeyStoreListener(listener);
+      });
+    });
+
+    describe('multi-epoch group keys (IMP-WFT-04)', () => {
+      it('should retain previous epoch keys when storing a newer epoch', async () => {
+        const roomId = 'room-multi-epoch';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+
+        storeGroupKey(roomId, 0, key0);
+        storeGroupKey(roomId, 1, key1);
+
+        expect(getGroupKeyEpochs(roomId)).toEqual([1, 0]);
+        expect(getGroupKeyForEpoch(roomId, 0)).toBe(key0);
+        expect(getGroupKeyForEpoch(roomId, 1)).toBe(key1);
+        expect(getGroupKeyEntry(roomId)?.epoch).toBe(1);
+        expect(getGroupKey(roomId)).toBe(key1);
+      });
+
+      it('should decrypt with fallback when ciphertext uses an older epoch key', async () => {
+        const roomId = 'room-fallback-decrypt';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const plaintext = 'Message from epoch 0';
+
+        storeGroupKey(roomId, 0, key0);
+        const encrypted = await encryptMessage(key0, plaintext, roomId);
+
+        storeGroupKey(roomId, 1, key1);
+
+        const decrypted = await resolveDecryptionKeyForRoomMessage(
+          roomId,
+          encrypted.ciphertext,
+          encrypted.iv,
+        );
+        expect(decrypted).toBe(plaintext);
+      });
+
+      it('should throw when no stored epoch key can decrypt the ciphertext', async () => {
+        const roomId = 'room-fallback-fail';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const encrypted = await encryptMessage(key1, 'wrong epoch only', roomId);
+
+        storeGroupKey(roomId, 0, key0);
+
+        await expect(
+          resolveDecryptionKeyForRoomMessage(roomId, encrypted.ciphertext, encrypted.iv),
+        ).rejects.toThrow();
       });
     });
   });

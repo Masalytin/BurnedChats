@@ -15,6 +15,7 @@
  */
 
 import type { KeyPair, SharedSecret } from '@/types';
+import { decryptMessage } from '@/crypto/aes';
 import { clearHiddenMessagesStorage } from '@/utils/hiddenMessagesStorage';
 
 // ============================================
@@ -552,8 +553,7 @@ function secureWipeArrayBuffer(buffer: ArrayBuffer): void {
 // ============================================
 
 /**
- * Cryptographic state for a room's group key.
- * Keyed by roomId; only the latest epoch per room is kept in memory.
+ * Cryptographic state for a room's group key at a specific epoch.
  */
 export interface RoomGroupKeyEntry {
   roomId: string;
@@ -562,13 +562,34 @@ export interface RoomGroupKeyEntry {
   createdAt: number;
 }
 
-/** In-memory group key store (roomId → entry). */
-const groupKeyStore = new Map<string, RoomGroupKeyEntry>();
+/** Per-room multi-epoch group key bucket (latest epoch used for encryption). */
+interface RoomGroupKeyBucket {
+  roomId: string;
+  latestEpoch: number;
+  epochs: Map<number, RoomGroupKeyEntry>;
+}
+
+/** In-memory group key store (roomId → epoch map). */
+const groupKeyStore = new Map<string, RoomGroupKeyBucket>();
+
+function getRoomBucket(roomId: string): RoomGroupKeyBucket | undefined {
+  return groupKeyStore.get(roomId);
+}
+
+function getOrCreateRoomBucket(roomId: string): RoomGroupKeyBucket {
+  let bucket = groupKeyStore.get(roomId);
+  if (!bucket) {
+    bucket = { roomId, latestEpoch: -1, epochs: new Map() };
+    groupKeyStore.set(roomId, bucket);
+  }
+  return bucket;
+}
 
 /**
- * Stores the group key for a room.
+ * Stores the group key for a room epoch.
  *
- * Replaces any previously stored key for the same roomId.
+ * Retains previously stored epoch keys so sync can decrypt historical ciphertext
+ * until wire metadata includes per-message `keyEpoch` (IMP-WFT-04).
  *
  * @param roomId - Room identifier
  * @param epoch - Key epoch (0 for initial key, incremented on rekey)
@@ -576,28 +597,81 @@ const groupKeyStore = new Map<string, RoomGroupKeyEntry>();
  */
 export function storeGroupKey(roomId: string, epoch: number, key: CryptoKey): void {
   validateSessionId(roomId);
-  groupKeyStore.set(roomId, { roomId, epoch, key, createdAt: Date.now() });
+  const bucket = getOrCreateRoomBucket(roomId);
+  bucket.epochs.set(epoch, { roomId, epoch, key, createdAt: Date.now() });
+  if (epoch >= bucket.latestEpoch) {
+    bucket.latestEpoch = epoch;
+  }
   notifyListeners(roomId, 'updated');
 }
 
 /**
- * Retrieves the stored group key entry for a room.
+ * Retrieves the stored group key entry for a room (latest epoch).
  *
  * @param roomId - Room identifier
  * @returns RoomGroupKeyEntry or undefined if not found
  */
 export function getGroupKeyEntry(roomId: string): RoomGroupKeyEntry | undefined {
-  return groupKeyStore.get(roomId);
+  const bucket = getRoomBucket(roomId);
+  if (!bucket || bucket.latestEpoch < 0) return undefined;
+  return bucket.epochs.get(bucket.latestEpoch);
 }
 
 /**
- * Retrieves only the AES CryptoKey for a room (convenience helper).
+ * Retrieves the AES CryptoKey for a specific room epoch.
+ */
+export function getGroupKeyForEpoch(roomId: string, epoch: number): CryptoKey | undefined {
+  return getRoomBucket(roomId)?.epochs.get(epoch)?.key;
+}
+
+/**
+ * Returns all stored epoch numbers for a room, newest first.
+ */
+export function getGroupKeyEpochs(roomId: string): number[] {
+  const bucket = getRoomBucket(roomId);
+  if (!bucket) return [];
+  return Array.from(bucket.epochs.keys()).sort((a, b) => b - a);
+}
+
+/**
+ * Retrieves only the AES CryptoKey for a room (latest epoch).
  *
  * @param roomId - Room identifier
  * @returns CryptoKey or undefined if not found
  */
 export function getGroupKey(roomId: string): CryptoKey | undefined {
-  return groupKeyStore.get(roomId)?.key;
+  return getGroupKeyEntry(roomId)?.key;
+}
+
+/**
+ * Attempts room message decryption by trying each stored epoch key (newest first).
+ * Wire messages lack `keyEpoch`, so this is a temporary O(epochs) fallback.
+ */
+export async function resolveDecryptionKeyForRoomMessage(
+  roomId: string,
+  encryptedContent: string,
+  iv: string,
+): Promise<string> {
+  const epochs = getGroupKeyEpochs(roomId);
+  if (epochs.length === 0) {
+    throw new Error(`No group keys for room ${roomId}`);
+  }
+
+  let lastError: unknown;
+  for (const epoch of epochs) {
+    const key = getGroupKeyForEpoch(roomId, epoch);
+    if (!key) continue;
+    try {
+      return await decryptMessage(key, encryptedContent, iv, roomId);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error(`Failed to decrypt room message for ${roomId}`);
 }
 
 /**
@@ -649,22 +723,24 @@ export function resolveDecryptionKey(
  * @param roomId - Room identifier
  */
 export function hasGroupKey(roomId: string): boolean {
-  return groupKeyStore.has(roomId);
+  const bucket = getRoomBucket(roomId);
+  return !!bucket && bucket.epochs.size > 0;
 }
 
 /**
- * Securely removes the group key for a room.
+ * Securely removes all epoch keys for a room.
  *
  * @param roomId - Room identifier
  * @returns true if a key was found and removed, false otherwise
  */
 export function burnGroupKey(roomId: string): boolean {
-  const entry = groupKeyStore.get(roomId);
-  if (!entry) return false;
+  const bucket = getRoomBucket(roomId);
+  if (!bucket) return false;
 
-  // Nullify references to help GC collect the CryptoKey
-  // @ts-expect-error - Intentional nullification for secure cleanup
-  entry.key = undefined;
+  for (const entry of bucket.epochs.values()) {
+    // @ts-expect-error - Intentional nullification for secure cleanup
+    entry.key = undefined;
+  }
   groupKeyStore.delete(roomId);
 
   clearHiddenMessagesStorage('room', roomId);

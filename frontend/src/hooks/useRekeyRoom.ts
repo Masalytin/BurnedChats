@@ -133,16 +133,17 @@ export function useRekeyRoom({
 
       try {
         const newGroupKey = await generateGroupKey();
-        let newEpoch: number;
-        if (currentEntry) {
-          newEpoch = currentEntry.epoch + 1;
-        } else {
-          // Owner lost in-memory key (app restart) — bootstrap from server epoch
-          const serverEpoch = data.currentEpoch ?? 0;
-          newEpoch = serverEpoch + 1;
-          console.info('[useRekeyRoom] No local key — bootstrapping from server epoch %d → %d',
-            serverEpoch, newEpoch);
+        if (!currentEntry) {
+          console.error(
+            '[useRekeyRoom] Cannot rekey room %s: no local group key (owner must recover key or accept lost history)',
+            roomId,
+          );
+          pendingRoomIdRef.current = null;
+          setStatus('error');
+          return;
         }
+
+        const newEpoch = currentEntry.epoch + 1;
 
         // Update owner's key immediately (no wrapping needed for self)
         storeGroupKey(roomId, newEpoch, newGroupKey);

@@ -13,6 +13,7 @@ import {
   editedAtFromServerIso,
   decryptWireFileMessage,
   decryptTextContent,
+  UNDECRYPTABLE_MESSAGE_PLACEHOLDER,
   sendEncryptedTextMessage,
   sendEncryptedFileMessage,
   createPendingDeletePromise,
@@ -661,11 +662,21 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           }
         } catch (decryptErr) {
           console.error('[useRoomMessages] Failed to decrypt synced message:', decryptErr);
+          const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
+          decryptedMessages.push({
+            id: syncedMsg.messageId,
+            sessionId: roomId,
+            fromUserId: syncedMsg.senderTgId ?? 0,
+            senderName: syncedMsg.senderName ?? undefined,
+            content: UNDECRYPTABLE_MESSAGE_PLACEHOLDER,
+            timestamp: ts,
+            status: 'delivered',
+            isOwn: isOwnRoomMessage(ownershipCtx, syncedMsg.senderInternalId, syncedMsg.senderTgId),
+            type: 'text',
+            replyToMessageId: syncedMsg.replyToMessageId || undefined,
+            editedAt: editedAtFromServerIso(syncedMsg.editedAt),
+          });
         }
-      }
-
-      if (serverList.length > 0 && decryptedMessages.length === 0) {
-        return;
       }
 
       const serverIdSet = new Set(decryptedMessages.map(m => m.id));
