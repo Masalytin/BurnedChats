@@ -690,6 +690,8 @@
       "tooLarge": "File too large (max {{size}})",
       "unsupportedType": "Unsupported file type",
       "expired": "File expired",
+      "notOwned": "You can only send files you uploaded yourself.",
+      "contextMismatch": "This file belongs to another chat.",
       "decryptFailed": "Decryption error",
       "empty": "This file is empty.",
       "nameTooLong": "File name is too long (max {{max}} characters).",

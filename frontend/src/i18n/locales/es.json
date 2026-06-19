@@ -499,6 +499,8 @@
       "decryptFailed": "Error de descifrado",
       "empty": "Este archivo está vacío.",
       "expired": "Archivo expirado",
+      "notOwned": "Solo puedes enviar archivos que hayas subido tú.",
+      "contextMismatch": "Este archivo pertenece a otro chat.",
       "forbidden": "No tienes acceso a este archivo.",
       "nameTooLong": "El nombre del archivo es demasiado largo (máx. {{max}} caracteres).",
       "network": "Error de red. Verifica tu conexión e intenta de nuevo.",

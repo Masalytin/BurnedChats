@@ -20,6 +20,7 @@ import {
   resolvePendingMessageAck,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
+import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
 // STOMP destinations
@@ -596,7 +597,8 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         setMessages(prev => prev.map(msg =>
           msg.id === event.messageId ? { ...msg, status: 'failed' as MessageStatus } : msg
         ));
-        handleError('SEND_FAILED', event.error);
+        const fileErrorKey = serverFileRelayErrorI18nKey(event.error);
+        handleError('SEND_FAILED', fileErrorKey ?? event.error);
       }
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse room-message-sent event:', parseErr);

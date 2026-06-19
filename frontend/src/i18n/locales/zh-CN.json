@@ -499,6 +499,8 @@
       "decryptFailed": "解密错误",
       "empty": "此文件为空。",
       "expired": "文件已过期",
+      "notOwned": "您只能发送自己上传的文件。",
+      "contextMismatch": "此文件属于另一个聊天。",
       "forbidden": "您无权访问此文件。",
       "nameTooLong": "文件名过长（最多 {{max}} 个字符）。",
       "network": "网络错误。请检查连接并重试。",

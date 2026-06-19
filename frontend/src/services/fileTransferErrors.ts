@@ -10,6 +10,20 @@ export function isFilesErrorI18nKey(details: string | undefined): boolean {
   return !!details?.startsWith(FILES_ERROR_I18N_PREFIX);
 }
 
+/** Maps file-relay STOMP error codes (message-sent / room-message-sent) to i18n keys. */
+export function serverFileRelayErrorI18nKey(code: string | undefined): string | undefined {
+  switch (code) {
+    case 'FILE_NOT_OWNED':
+      return 'files.error.notOwned';
+    case 'FILE_NOT_FOUND':
+      return 'files.error.expired';
+    case 'FILE_CONTEXT_MISMATCH':
+      return 'files.error.contextMismatch';
+    default:
+      return undefined;
+  }
+}
+
 export type FileTransferErrorKind =
   | 'network'
   | 'aborted'

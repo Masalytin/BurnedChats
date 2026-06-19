@@ -23,6 +23,7 @@ import {
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
+import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
 // Types
@@ -580,7 +581,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         console.error('[useMessages] Message send failed:', event.error);
         setMessages(prev => updateMessageStatus(prev, event.messageId, 'failed'));
         onStatusChange?.(event.messageId, 'failed');
-        handleError(mapServerError(event.error), event.error);
+        const fileErrorKey = serverFileRelayErrorI18nKey(event.error);
+        handleError(mapServerError(event.error), fileErrorKey ?? event.error);
       }
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse message-sent event:', parseErr);
