@@ -2012,7 +2012,7 @@ function AppContent() {
     return wrapWalletProvider(
       <>
         <Layout bottomNav={layoutBottomNav}>
-          <StakingPage />
+          <StakingPage showSegmentBar />
         </Layout>
         {debugPanelElement}
       </>

@@ -39,9 +39,8 @@ interface WalletSegmentControlProps {
 }
 
 /**
- * Wallet / Staking / Governance segmented control. Shared between {@link WalletPage}
- * and the Governance route shell so the switcher stays visible across all three
- * surfaces (IMP-WSURF-03 follow-up).
+ * Wallet / Staking / Governance segmented control. Shared via {@link WalletSegmentBar}
+ * across WalletPage, GovernancePage, and the standalone staking route (IMP-WSURF-03 follow-up).
  */
 export function WalletSegmentControl({ activeSegment, onChange }: WalletSegmentControlProps) {
   const { t } = useTranslation();

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { GovernanceStateProvider } from '@/components/Governance/GovernanceStateProvider';
 import styles from '@/components/Governance/Governance.module.css';
+import { WalletSegmentBar } from '@/components/Wallet/WalletSegmentBar';
 import { useGovernance } from '@/hooks/useGovernance';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import { formatBurn } from '@/utils/format';
@@ -18,6 +19,7 @@ export function GovernancePage() {
   return (
     <GovernanceStateProvider value={gov}>
       <div className={styles.page}>
+        <WalletSegmentBar activeSegment="governance" />
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>{t('governance.pageTitle')}</h1>
           <div className={styles.vpPill} aria-live="polite">

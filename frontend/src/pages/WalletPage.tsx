@@ -1,16 +1,11 @@
-import { useCallback, useContext, useLayoutEffect, useState } from 'react';
+import { useContext, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { SkeletonCard } from '@/components/Skeleton/Skeleton';
 import { WalletPanel } from '@/components/Wallet/WalletPanel';
 import { WalletContext } from '@/components/Wallet/WalletProvider';
-import {
-  readWalletSegment,
-  WalletSegmentControl,
-  writeWalletSegment,
-  type WalletSegment,
-} from '@/components/Wallet/WalletSegmentControl';
-import { useTelegram } from '../hooks/useTelegram';
+import { WalletSegmentBar } from '@/components/Wallet/WalletSegmentBar';
+import { readWalletSegment, type WalletSegment } from '@/components/Wallet/WalletSegmentControl';
 import { StakingPage } from './StakingPage';
 import './WalletPage.css';
 
@@ -41,7 +36,6 @@ function WalletPanelSection() {
 export function WalletPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { selectionChanged } = useTelegram();
   const [segment, setSegment] = useState<WalletSegment>(() => readWalletSegment());
 
   useLayoutEffect(() => {
@@ -50,23 +44,6 @@ export function WalletPage() {
     }
   }, [navigate, segment]);
 
-  const handleSegmentChange = useCallback(
-    (next: WalletSegment) => {
-      if (next === segment) {
-        return;
-      }
-
-      selectionChanged();
-      writeWalletSegment(next);
-      setSegment(next);
-
-      if (next === 'governance') {
-        navigate('/app/governance');
-      }
-    },
-    [navigate, segment, selectionChanged],
-  );
-
   if (segment === 'governance') {
     return null;
   }
@@ -74,7 +51,7 @@ export function WalletPage() {
   return (
     <div className="wallet-page">
       <h1 className="wallet-page__title">{t('nav.wallet')}</h1>
-      <WalletSegmentControl activeSegment={segment} onChange={handleSegmentChange} />
+      <WalletSegmentBar activeSegment={segment} onSegmentChange={setSegment} />
       {segment === 'wallet' ? <WalletPanelSection /> : <StakingPage />}
     </div>
   );
