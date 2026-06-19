@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage } from '@/crypto/aes';
 import { isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
-import { isWithinEditWindow } from '@/utils/editWindow';
 import type { DecryptedMessage, DecryptedFileMessage, MessageStatus } from '@/types';
 import { debugLog } from '@/components/DebugPanel';
 import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
@@ -657,7 +656,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       if (!isHandshakeComplete(sessionId)) return { success: false, errorCode: 'NO_ENCRYPTION_KEY' };
       const aesKey = getEncryptionKey();
       if (!aesKey) return { success: false, errorCode: 'NO_ENCRYPTION_KEY' };
-      if (!isWithinEditWindow(originalClientTimestamp)) return { success: false, errorCode: 'WINDOW_EXPIRED' };
       try {
         const encrypted = await encryptMessage(aesKey, newText, sessionId);
         return createPendingEditPromise(

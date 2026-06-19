@@ -16,7 +16,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { quoteSenderLabel } from '@/utils/replyPreview';
-import { isWithinEditWindow } from '@/utils/editWindow';
+import { isWithinEditWindowForUi } from '@/utils/editWindow';
 import { formatChatDateSeparator } from '@/utils/formatChatDateSeparator';
 import './MessageList.css';
 
@@ -653,14 +653,14 @@ function canUserEditMessage(msg: DecryptedMessage, now: number): boolean {
     return false;
   }
   if (msg.type === 'text') {
-    return isWithinEditWindow(msg.timestamp, now);
+    return isWithinEditWindowForUi(msg.timestamp, now);
   }
   if (msg.type === 'image' || msg.type === 'video' || msg.type === 'file') {
     const caption = msg.content?.trim() ?? '';
     if (caption.length === 0) {
       return false;
     }
-    return isWithinEditWindow(msg.timestamp, now);
+    return isWithinEditWindowForUi(msg.timestamp, now);
   }
   return false;
 }

@@ -1,7 +1,10 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.MessageEditedEvent;
+import dev.burnedchats.dto.event.MessageSentEvent;
+import dev.burnedchats.dto.event.NewMessageEvent;
 import dev.burnedchats.dto.request.EditMessageRequest;
+import dev.burnedchats.dto.request.SendMessageRequest;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.model.DmMessageEditableMeta;
@@ -27,8 +30,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -176,6 +181,160 @@ class MessageHandlerEditTest {
                 eq(WALLET_INTERNAL), eq("/queue/message-edited"), captor.capture());
         assertThat(captor.getValue().isSuccess()).isFalse();
         assertThat(captor.getValue().getErrorCode()).isEqualTo("NOT_OWNER");
+    }
+
+    @Test
+    void editMessage_immediatelyAfterOnlineDelivery_metaPresent_succeeds() {
+        EditMessageRequest req = editRequest();
+        WalletPrincipal wallet = walletPrincipal(WALLET_INTERNAL);
+        Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
+
+        when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
+        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(messageRepository.updateMessageInQueue(
+                eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
+                eq(WALLET_INTERNAL), eq(null),
+                eq("cipher"), eq("0123456789abcdef"), any(Instant.class)))
+                .thenReturn(Mono.just(false));
+        when(messageRepository.getDmMessageEditableMeta(SESSION, MESSAGE_ID))
+                .thenReturn(Mono.just(DmMessageEditableMeta.builder()
+                        .senderInternalId(WALLET_INTERNAL)
+                        .serverTimestamp(Instant.now())
+                        .build()));
+
+        messageHandler.editMessage(req, wallet);
+
+        ArgumentCaptor<MessageEditedEvent> captor = ArgumentCaptor.forClass(MessageEditedEvent.class);
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(WALLET_INTERNAL), eq("/queue/message-edited"), captor.capture());
+        assertThat(captor.getValue().isSuccess()).isTrue();
+        assertThat(captor.getValue().getErrorCode()).isNull();
+    }
+
+    @Test
+    void editMessage_clientClockSkew_usesServerTimestampFromMeta() {
+        long now = System.currentTimeMillis();
+        EditMessageRequest req = EditMessageRequest.builder()
+                .sessionId(SESSION)
+                .messageId(MESSAGE_ID)
+                .encryptedContent("cipher")
+                .iv("0123456789abcdef")
+                .editedAt(now)
+                .originalClientTimestamp(now - 20 * 60 * 1000)
+                .build();
+        WalletPrincipal wallet = walletPrincipal(WALLET_INTERNAL);
+        Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
+
+        when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
+        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(messageRepository.updateMessageInQueue(
+                eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
+                eq(WALLET_INTERNAL), eq(null),
+                eq("cipher"), eq("0123456789abcdef"), any(Instant.class)))
+                .thenReturn(Mono.just(false));
+        when(messageRepository.getDmMessageEditableMeta(SESSION, MESSAGE_ID))
+                .thenReturn(Mono.just(DmMessageEditableMeta.builder()
+                        .senderInternalId(WALLET_INTERNAL)
+                        .serverTimestamp(Instant.now())
+                        .build()));
+
+        messageHandler.editMessage(req, wallet);
+
+        ArgumentCaptor<MessageEditedEvent> captor = ArgumentCaptor.forClass(MessageEditedEvent.class);
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(WALLET_INTERNAL), eq("/queue/message-edited"), captor.capture());
+        assertThat(captor.getValue().isSuccess()).isTrue();
+    }
+
+    @Test
+    void editMessage_emptyMeta_sendsNotEditable() {
+        EditMessageRequest req = editRequest();
+        WalletPrincipal wallet = walletPrincipal(WALLET_INTERNAL);
+        Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
+
+        when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
+        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(messageRepository.updateMessageInQueue(
+                eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
+                eq(WALLET_INTERNAL), eq(null),
+                eq("cipher"), eq("0123456789abcdef"), any(Instant.class)))
+                .thenReturn(Mono.just(false));
+        when(messageRepository.getDmMessageEditableMeta(SESSION, MESSAGE_ID))
+                .thenReturn(Mono.empty());
+
+        messageHandler.editMessage(req, wallet);
+
+        ArgumentCaptor<MessageEditedEvent> captor = ArgumentCaptor.forClass(MessageEditedEvent.class);
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(WALLET_INTERNAL), eq("/queue/message-edited"), captor.capture());
+        assertThat(captor.getValue().isSuccess()).isFalse();
+        assertThat(captor.getValue().getErrorCode()).isEqualTo("NOT_EDITABLE");
+    }
+
+    @Test
+    void editMessage_serverTimestampExpired_sendsWindowExpired() {
+        EditMessageRequest req = editRequest();
+        WalletPrincipal wallet = walletPrincipal(WALLET_INTERNAL);
+        Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
+
+        when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
+        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(messageRepository.updateMessageInQueue(
+                eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
+                eq(WALLET_INTERNAL), eq(null),
+                eq("cipher"), eq("0123456789abcdef"), any(Instant.class)))
+                .thenReturn(Mono.just(false));
+        when(messageRepository.getDmMessageEditableMeta(SESSION, MESSAGE_ID))
+                .thenReturn(Mono.just(DmMessageEditableMeta.builder()
+                        .senderInternalId(WALLET_INTERNAL)
+                        .serverTimestamp(Instant.now().minus(16, ChronoUnit.MINUTES))
+                        .build()));
+
+        messageHandler.editMessage(req, wallet);
+
+        ArgumentCaptor<MessageEditedEvent> captor = ArgumentCaptor.forClass(MessageEditedEvent.class);
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(WALLET_INTERNAL), eq("/queue/message-edited"), captor.capture());
+        assertThat(captor.getValue().isSuccess()).isFalse();
+        assertThat(captor.getValue().getErrorCode()).isEqualTo("WINDOW_EXPIRED");
+    }
+
+    @Test
+    void relayMessage_onlineDelivery_writesMetaBeforeMessageSentAck() {
+        SendMessageRequest req = SendMessageRequest.builder()
+                .sessionId(SESSION)
+                .messageId(MESSAGE_ID)
+                .encryptedContent("cipher")
+                .iv("0123456789abcdef")
+                .timestamp(System.currentTimeMillis())
+                .type("text")
+                .build();
+        WalletPrincipal wallet = walletPrincipal(WALLET_INTERNAL);
+        Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
+
+        when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
+        when(sessionRepository.save(session)).thenReturn(Mono.just(true));
+        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(messageRepository.putDmMessageEditableMeta(
+                eq(SESSION), eq(MESSAGE_ID), eq(WALLET_INTERNAL), eq(null),
+                any(Instant.class), eq(null), eq(null)))
+                .thenReturn(Mono.just(true));
+        when(messageRepository.putMessageSenderIndex(
+                eq(SESSION), eq(MESSAGE_ID), eq(WALLET_INTERNAL), eq(null)))
+                .thenReturn(Mono.just(true));
+
+        messageHandler.relayMessage(req, wallet);
+
+        var inOrder = inOrder(messageRepository, stompUserMessenger);
+        inOrder.verify(messageRepository).putDmMessageEditableMeta(
+                eq(SESSION), eq(MESSAGE_ID), eq(WALLET_INTERNAL), eq(null),
+                any(Instant.class), eq(null), eq(null));
+        inOrder.verify(messageRepository).putMessageSenderIndex(
+                eq(SESSION), eq(MESSAGE_ID), eq(WALLET_INTERNAL), eq(null));
+        inOrder.verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(PEER_INTERNAL), eq("/queue/new-message"), any(NewMessageEvent.class));
+        inOrder.verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(WALLET_INTERNAL), eq("/queue/message-sent"), any(MessageSentEvent.class));
     }
 
     private static EditMessageRequest editRequest() {

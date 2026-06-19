@@ -510,16 +510,6 @@ public class MessageHandler {
         NewMessageEvent newMessageEvent = eventBuilder.build();
         MessageSentEvent sentEvent = MessageSentEvent.delivered(sessionId, messageId, serverTimestamp);
 
-        stompUserMessenger.convertAndSendToInternalId(
-                recipientInternalId, NEW_MESSAGE_DESTINATION, newMessageEvent);
-        stompUserMessenger.convertAndSendToInternalId(
-                sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
-
-        LOG.info(
-                "Message delivered immediately: sessionId={}, messageId={}, type={}, "
-                        + "senderInternalId={}, recipientInternalId={}, recipientTelegramId={}",
-                sessionId, messageId, type, sender.internalId(), recipientInternalId, recipientTelegramId);
-
         String fileId = FileMessageRelayValidator.isFileMessage(type) ? request.getFileId() : null;
         String thumbId = FileMessageRelayValidator.isFileMessage(type)
                 ? request.getThumbnailFileId()
@@ -527,9 +517,38 @@ public class MessageHandler {
         return messageRepository.putDmMessageEditableMeta(
                         sessionId, messageId, sender.internalId(), sender.telegramId(),
                         serverTimestamp, fileId, thumbId)
-                .then(messageRepository.putMessageSenderIndex(
-                        sessionId, messageId, sender.internalId(), sender.telegramId()))
-                .then();
+                .flatMap(metaOk -> {
+                    if (!Boolean.TRUE.equals(metaOk)) {
+                        LOG.warn("Failed to store editable meta for immediate delivery: sessionId={}, messageId={}",
+                                sessionId, messageId);
+                        sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
+                        return Mono.<Void>empty();
+                    }
+                    return messageRepository.putMessageSenderIndex(
+                                    sessionId, messageId, sender.internalId(), sender.telegramId())
+                            .flatMap(indexOk -> {
+                                if (!Boolean.TRUE.equals(indexOk)) {
+                                    LOG.warn(
+                                            "Failed to store sender index for immediate delivery: "
+                                                    + "sessionId={}, messageId={}",
+                                            sessionId, messageId);
+                                    sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
+                                    return Mono.empty();
+                                }
+                                stompUserMessenger.convertAndSendToInternalId(
+                                        recipientInternalId, NEW_MESSAGE_DESTINATION, newMessageEvent);
+                                stompUserMessenger.convertAndSendToInternalId(
+                                        sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
+
+                                LOG.info(
+                                        "Message delivered immediately: sessionId={}, messageId={}, type={}, "
+                                                + "senderInternalId={}, recipientInternalId={}, "
+                                                + "recipientTelegramId={}",
+                                        sessionId, messageId, type, sender.internalId(), recipientInternalId,
+                                        recipientTelegramId);
+                                return Mono.<Void>empty();
+                            });
+                });
     }
 
     private Mono<Void> queueMessageForOfflineDelivery(Session session, ParticipantContext sender,
@@ -549,15 +568,6 @@ public class MessageHandler {
 
                     sendOfflineNotificationIfLinked(sender.telegramId(), recipientTelegramId, sessionId);
 
-                    MessageSentEvent sentEvent = MessageSentEvent.queued(sessionId, messageId, serverTimestamp);
-                    stompUserMessenger.convertAndSendToInternalId(
-                            sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
-
-                    LOG.info(
-                            "Message queued for offline delivery: sessionId={}, messageId={}, "
-                                    + "senderInternalId={}, recipientInternalId={}",
-                            sessionId, messageId, sender.internalId(), recipientInternalId);
-
                     String queuedType = request.getType() != null ? request.getType() : "text";
                     String fileId = FileMessageRelayValidator.isFileMessage(queuedType) ? request.getFileId() : null;
                     String thumbId = FileMessageRelayValidator.isFileMessage(queuedType)
@@ -566,9 +576,34 @@ public class MessageHandler {
                     return messageRepository
                             .putDmMessageEditableMeta(sessionId, messageId, sender.internalId(),
                                     sender.telegramId(), serverTimestamp, fileId, thumbId)
-                            .then(messageRepository.putMessageSenderIndex(
-                                    sessionId, messageId, sender.internalId(), sender.telegramId()))
-                            .then();
+                            .flatMap(metaOk -> {
+                                if (!Boolean.TRUE.equals(metaOk)) {
+                                    LOG.warn("Failed to store editable meta for queued message: sessionId={}, "
+                                            + "messageId={}", sessionId, messageId);
+                                    sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
+                                    return Mono.<Void>empty();
+                                }
+                                return messageRepository.putMessageSenderIndex(
+                                                sessionId, messageId, sender.internalId(), sender.telegramId())
+                                        .flatMap(indexOk -> {
+                                            if (!Boolean.TRUE.equals(indexOk)) {
+                                                LOG.warn("Failed to store sender index for queued message: "
+                                                        + "sessionId={}, messageId={}", sessionId, messageId);
+                                                sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
+                                                return Mono.empty();
+                                            }
+                                            MessageSentEvent sentEvent = MessageSentEvent.queued(
+                                                    sessionId, messageId, serverTimestamp);
+                                            stompUserMessenger.convertAndSendToInternalId(
+                                                    sender.internalId(), MESSAGE_SENT_DESTINATION, sentEvent);
+
+                                            LOG.info(
+                                                    "Message queued for offline delivery: sessionId={}, messageId={}, "
+                                                            + "senderInternalId={}, recipientInternalId={}",
+                                                    sessionId, messageId, sender.internalId(), recipientInternalId);
+                                            return Mono.<Void>empty();
+                                        });
+                            });
                 });
     }
 
@@ -666,7 +701,7 @@ public class MessageHandler {
             return Mono.empty();
         }
         Instant editedAt = Instant.ofEpochMilli(req.getEditedAt());
-        if (isClientEditTimeImplausible(req.getOriginalClientTimestamp(), req.getEditedAt())) {
+        if (isClientEditTimestampAbusive(req.getOriginalClientTimestamp(), req.getEditedAt())) {
             sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
             return Mono.empty();
         }
@@ -684,12 +719,7 @@ public class MessageHandler {
                             }
                             return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
                                     .switchIfEmpty(Mono.defer(() -> {
-                                        long orig = req.getOriginalClientTimestamp();
-                                        if (isOutsideEditWindow(Instant.ofEpochMilli(orig))) {
-                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
-                                        } else {
-                                            sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
-                                        }
+                                        sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
                                         return Mono.empty();
                                     }))
                                     .flatMap(meta -> {
@@ -773,10 +803,15 @@ public class MessageHandler {
                 recipient.internalId(), MESSAGE_EDITED_DESTINATION, event);
     }
 
-    private static boolean isClientEditTimeImplausible(long originalClient, long editedAt) {
-        Instant o = Instant.ofEpochMilli(originalClient);
+    /** Reject only abusive client timestamps; edit window is enforced from server meta. */
+    private static boolean isClientEditTimestampAbusive(long originalClient, long editedAt) {
+        Instant now = Instant.now();
         Instant e = Instant.ofEpochMilli(editedAt);
-        return isOutsideEditWindow(o) || e.isBefore(o);
+        if (e.isAfter(now.plus(5, ChronoUnit.MINUTES))) {
+            return true;
+        }
+        Instant o = Instant.ofEpochMilli(originalClient);
+        return e.isBefore(o.minus(1, ChronoUnit.MINUTES));
     }
 
     private static boolean isOutsideEditWindow(Instant baseServerOrClient) {
