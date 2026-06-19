@@ -267,6 +267,7 @@ public class MessageRepository {
     public Mono<Boolean> putDmMessageEditableMeta(
             String sessionId,
             String messageId,
+            String senderInternalId,
             Long senderId,
             Instant serverTimestamp,
             String fileId,
@@ -274,6 +275,7 @@ public class MessageRepository {
         String key = editableMetaKey(sessionId, messageId);
         Duration ttl = messagesProperties.getMessageEdits().getEditableMetaTtl();
         DmMessageEditableMeta.DmMessageEditableMetaBuilder b = DmMessageEditableMeta.builder()
+                .senderInternalId(senderInternalId)
                 .senderId(senderId)
                 .serverTimestamp(serverTimestamp);
         if (fileId != null && !fileId.isBlank()) {
@@ -336,6 +338,7 @@ public class MessageRepository {
             String recipientId,
             String sessionId,
             String messageId,
+            String senderInternalId,
             Long senderId,
             String newEncryptedContent,
             String newIv,
@@ -365,7 +368,7 @@ public class MessageRepository {
                     if (index < 0 || target == null) {
                         return Mono.just(false);
                     }
-                    if (!senderId.equals(target.getSenderId())) {
+                    if (!isSenderForEdit(target, senderInternalId, senderId)) {
                         return Mono.just(false);
                     }
                     if (isOutsideEditWindow(target.getServerTimestamp())) {
@@ -386,6 +389,36 @@ public class MessageRepository {
                     LOG.error("updateMessageInQueue failed: {}", e.getMessage());
                     return Mono.just(false);
                 });
+    }
+
+    private static boolean isSenderForEdit(Message target, String senderInternalId, Long senderId) {
+        if (senderInternalId != null && !senderInternalId.isBlank()
+                && target.getSenderInternalId() != null) {
+            return senderInternalId.equals(target.getSenderInternalId());
+        }
+        if (senderId != null && senderId != 0 && target.getSenderId() != null) {
+            return senderId.equals(target.getSenderId());
+        }
+        return false;
+    }
+
+    public Mono<Boolean> updateMessageInQueue(
+            String recipientId,
+            String sessionId,
+            String messageId,
+            Long senderId,
+            String newEncryptedContent,
+            String newIv,
+            Instant editedAt) {
+        return updateMessageInQueue(
+                recipientId,
+                sessionId,
+                messageId,
+                null,
+                senderId,
+                newEncryptedContent,
+                newIv,
+                editedAt);
     }
 
     public Mono<Boolean> updateMessageInQueue(

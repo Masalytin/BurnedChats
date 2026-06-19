@@ -86,6 +86,20 @@ EXPIRE session:abc123 86400
 
 **TTL и cap:** задаются в `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Значения не должны превышать TTL метаданных сессии (`session.active.ttl`). При переполнении список обрезается с головы (старые сообщения отбрасываются); сервер ведёт метрики Micrometer `burnedchats.offline_queue.*` (без идентификаторов пользователей в тегах).
 
+#### `dm-editable:{sessionId}:{messageId}`
+
+Краткоживущая meta для проверки владения DM-сообщением и 15-минутного окна правки после
+выхода сообщения из offline-очереди (доставлено онлайн).
+
+| Поле JSON | Тип | Описание |
+|-----------|-----|----------|
+| `senderInternalId` | String | Стабильный UUID отправителя (primary для wallet) |
+| `senderId` | Long | Legacy Telegram id; фолбэк для старых записей |
+| `serverTimestamp` | Instant | Якорь окна правки |
+| `fileId` / `thumbnailFileId` | String | Опционально для file-сообщений (delete/burn) |
+
+**TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` (по умолчанию 15 мин).
+
 ---
 
 ### `request:{recipientInternalId}`

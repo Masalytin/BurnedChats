@@ -308,8 +308,16 @@ public class MessageHandler {
     }
 
     private static boolean ownsDeliveredMessage(DmMessageEditableMeta meta, ParticipantContext deleter) {
-        if (deleter.telegramId() != null && meta.getSenderId() != null) {
-            return deleter.telegramId().equals(meta.getSenderId());
+        if (meta == null) {
+            return false;
+        }
+        String editorInternalId = deleter.internalId();
+        if (editorInternalId != null && meta.getSenderInternalId() != null) {
+            return editorInternalId.equals(meta.getSenderInternalId());
+        }
+        Long tg = deleter.telegramId();
+        if (tg != null && tg != 0 && meta.getSenderId() != null) {
+            return tg.equals(meta.getSenderId());
         }
         return false;
     }
@@ -466,6 +474,7 @@ public class MessageHandler {
                 .sessionId(sessionId)
                 .messageId(messageId)
                 .senderId(sender.telegramId())
+                .senderInternalId(sender.internalId())
                 .encryptedContent(request.getEncryptedContent())
                 .iv(request.getIv())
                 .clientTimestamp(request.getTimestamp())
@@ -501,7 +510,8 @@ public class MessageHandler {
                 ? request.getThumbnailFileId()
                 : null;
         return messageRepository.putDmMessageEditableMeta(
-                        sessionId, messageId, sender.telegramId(), serverTimestamp, fileId, thumbId)
+                        sessionId, messageId, sender.internalId(), sender.telegramId(),
+                        serverTimestamp, fileId, thumbId)
                 .then(messageRepository.putMessageSenderIndex(sessionId, messageId, sender.telegramId()))
                 .then();
     }
@@ -538,8 +548,8 @@ public class MessageHandler {
                             ? request.getThumbnailFileId()
                             : null;
                     return messageRepository
-                            .putDmMessageEditableMeta(sessionId, messageId, sender.telegramId(),
-                                    serverTimestamp, fileId, thumbId)
+                            .putDmMessageEditableMeta(sessionId, messageId, sender.internalId(),
+                                    sender.telegramId(), serverTimestamp, fileId, thumbId)
                             .then(messageRepository.putMessageSenderIndex(
                                     sessionId, messageId, sender.telegramId()))
                             .then();
@@ -647,7 +657,8 @@ public class MessageHandler {
 
         return onlineStatusRepository.isOnline(recipientInternalId)
                 .flatMap(online -> messageRepository.updateMessageInQueue(
-                                recipientInternalId, sessionId, messageId, editor.telegramId(),
+                                recipientInternalId, sessionId, messageId,
+                                editor.internalId(), editor.telegramId(),
                                 req.getEncryptedContent(), req.getIv(), editedAt)
                         .flatMap(updated -> {
                             if (Boolean.TRUE.equals(updated)) {
@@ -656,6 +667,15 @@ public class MessageHandler {
                                 return Mono.<Void>empty();
                             }
                             return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
+                                    .switchIfEmpty(Mono.defer(() -> {
+                                        long orig = req.getOriginalClientTimestamp();
+                                        if (isOutsideEditWindow(Instant.ofEpochMilli(orig))) {
+                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
+                                        } else {
+                                            sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
+                                        }
+                                        return Mono.empty();
+                                    }))
                                     .flatMap(meta -> {
                                         if (!ownsDeliveredMessage(meta, editor)) {
                                             sendMessageEditError(editor, sessionId, messageId, "NOT_OWNER");
@@ -688,16 +708,7 @@ public class MessageHandler {
                                                     sendMessageEditSuccess(editor, sessionId, messageId, req, editedAt);
                                                     return Mono.<Void>empty();
                                                 });
-                                    })
-                                    .switchIfEmpty(Mono.defer(() -> {
-                                        long orig = req.getOriginalClientTimestamp();
-                                        if (isOutsideEditWindow(Instant.ofEpochMilli(orig))) {
-                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
-                                        } else {
-                                            sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
-                                        }
-                                        return Mono.<Void>empty();
-                                    }));
+                                    });
                         })
                 );
     }

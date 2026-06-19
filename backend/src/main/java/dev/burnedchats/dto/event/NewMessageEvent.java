@@ -67,6 +67,11 @@ public class NewMessageEvent {
     private Long senderId;
 
     /**
+     * Stable internal user id of the sender (primary identity for wallet users).
+     */
+    private String senderInternalId;
+
+    /**
      * The encrypted message content (Base64-encoded ciphertext).
      *
      * <p>This is the AES-256-GCM encrypted content that must be

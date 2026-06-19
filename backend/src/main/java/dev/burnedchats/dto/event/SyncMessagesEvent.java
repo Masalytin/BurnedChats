@@ -75,6 +75,7 @@ public class SyncMessagesEvent {
     public static class SyncedMessage {
         private final String messageId;
         private final Long senderId;
+        private final String senderInternalId;
         private final String encryptedContent;
         private final String iv;
         private final Long clientTimestamp;
@@ -94,6 +95,7 @@ public class SyncMessagesEvent {
             return SyncedMessage.builder()
                     .messageId(msg.getMessageId())
                     .senderId(msg.getSenderId())
+                    .senderInternalId(msg.getSenderInternalId())
                     .encryptedContent(msg.getEncryptedContent())
                     .iv(msg.getIv())
                     .clientTimestamp(msg.getClientTimestamp())

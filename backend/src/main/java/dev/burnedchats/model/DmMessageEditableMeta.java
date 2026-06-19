@@ -20,6 +20,14 @@ public class DmMessageEditableMeta implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Stable sender identity for edit/delete ownership (wallet + Telegram).
+     */
+    private String senderInternalId;
+
+    /**
+     * Legacy Telegram user id; used when {@link #senderInternalId} is absent in older Redis entries.
+     */
     private Long senderId;
     private Instant serverTimestamp;
 
