@@ -23,6 +23,7 @@ import {
   updateMessageStatus,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
+import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
 
 // ============================================
 // Types
@@ -53,6 +54,7 @@ interface NewMessageEvent extends FileMessageWireFields {
   success: boolean;
   sessionId: string;
   senderId: number;
+  senderInternalId?: string | null;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
   error?: string;
@@ -93,6 +95,7 @@ interface MessageDeletedEvent {
 /** Synced message from server (5.1.2) */
 interface SyncedMessage extends FileMessageWireFields {
   senderId: number;
+  senderInternalId?: string | null;
   clientTimestamp?: number | null;
   serverTimestamp?: string;
   editedAt?: string | null;
@@ -187,6 +190,7 @@ const LOG_TAG = 'useMessages';
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const {
     sessionId,
+    userId: userInternalId,
     userTelegramId,
     ws,
     onNewMessage,
@@ -197,12 +201,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     bothVerified = false,
   } = options;
 
-  const isOwnWireSender = useCallback((senderId: number | null | undefined): boolean => {
-    if (senderId != null && userTelegramId != null) {
-      return senderId === userTelegramId;
-    }
-    return false;
-  }, [userTelegramId]);
+  const ownershipCtx: DmMessageOwnershipContext = {
+    userInternalId,
+    userTelegramId,
+  };
+
+  const isOwnWireSender = useCallback((
+    senderInternalId?: string | null,
+    senderId?: number | null,
+  ): boolean => isOwnDmMessage(ownershipCtx, senderInternalId, senderId), [userInternalId, userTelegramId]);
 
   const { publish: wsPublish } = ws;
 
@@ -424,7 +431,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             buildBase: (base) => ({
               ...base,
               fromUserId: event.senderId,
-              isOwn: isOwnWireSender(event.senderId),
+              isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
             }),
           });
         } else {
@@ -436,7 +443,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             content: plaintext,
             timestamp: ts,
             status: 'delivered',
-            isOwn: isOwnWireSender(event.senderId),
+            isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
             type: 'text',
             replyToMessageId: event.replyToMessageId || undefined,
           };
@@ -497,7 +504,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 buildBase: (base) => ({
                   ...base,
                   fromUserId: syncedMsg.senderId,
-                  isOwn: isOwnWireSender(syncedMsg.senderId),
+                  isOwn: isOwnWireSender(syncedMsg.senderInternalId, syncedMsg.senderId),
                 }),
               });
               decryptedMessages.push(fileMsg);
@@ -510,7 +517,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 content: plaintext,
                 timestamp: ts,
                 status: 'delivered',
-                isOwn: isOwnWireSender(syncedMsg.senderId),
+                isOwn: isOwnWireSender(syncedMsg.senderInternalId, syncedMsg.senderId),
                 type: 'text',
                 replyToMessageId: syncedMsg.replyToMessageId || undefined,
                 editedAt: editedAtFromServerIso(syncedMsg.editedAt),
