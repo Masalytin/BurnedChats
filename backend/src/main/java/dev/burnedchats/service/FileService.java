@@ -96,6 +96,7 @@ public class FileService {
                             .then(Mono.defer(() -> {
                                 FileMetadata metadata = FileMetadata.builder()
                                         .fileId(fileId)
+                                        .uploaderInternalId(identity.internalId())
                                         .uploaderTgId(identity.uploaderTgId())
                                         .contextType(contextType)
                                         .contextId(contextId)

@@ -368,18 +368,20 @@ Hash с метаданными **одного** загруженного заш�
 
 ```redis
 HSET file_meta:550e8400-e29b-41d4-a716-446655440000
-  uploaderTgId   "123456789"
-  contextType    "session"
-  contextId      "session-uuid-or-room-uuid"
-  size           "1048576"
-  createdAt      "1705312200000"
+  uploaderInternalId "tg:123456789"
+  uploaderTgId       "123456789"
+  contextType        "session"
+  contextId          "session-uuid-or-room-uuid"
+  size               "1048576"
+  createdAt          "1705312200000"
 
 EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `uploaderTgId` | string | Telegram ID пользователя, выполнившего upload |
+| `uploaderInternalId` | string | Канонический `internalId` загрузчика (Telegram и wallet) |
+| `uploaderTgId` | string | Опционально: Telegram ID загрузчика (legacy / best-effort) |
 | `contextType` | string | `session` или `room` |
 | `contextId` | string | ID сессии или комнаты |
 | `size` | long (строка) | Размер сохранённого **зашифрованного** blob'а в байтах |
@@ -451,7 +453,8 @@ public class ChatRequest {
 @AllArgsConstructor
 public class FileMetadata {
     private String fileId;
-    private String uploaderTgId;
+    private String uploaderInternalId;  // canonical internalId (both auth modes)
+    private String uploaderTgId;        // optional Telegram ID (legacy / best-effort)
     private String contextType;   // "session" | "room"
     private String contextId;
     private Long size;            // encrypted blob size in bytes

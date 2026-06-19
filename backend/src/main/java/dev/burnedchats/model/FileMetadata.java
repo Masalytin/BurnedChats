@@ -23,7 +23,10 @@ public class FileMetadata {
     /** Unique file identifier (UUID v4). */
     private String fileId;
 
-    /** Telegram user ID of the uploader. */
+    /** Canonical uploader identity (internalId) for both auth modes. */
+    private String uploaderInternalId;
+
+    /** Telegram user ID of the uploader (optional; legacy / best-effort). */
     private String uploaderTgId;
 
     /** Context type: "session" or "room". */

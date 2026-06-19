@@ -449,7 +449,8 @@ public class MessageHandler {
         Mono<Void> fileValidation = Mono.empty();
         if (FileMessageRelayValidator.isFileMessage(request.getType())) {
             fileValidation = fileMessageRelayValidator.validateFileMessage(
-                    request.getFileId(), request.getThumbnailFileId(), sender.telegramId(), sessionId);
+                    request.getFileId(), request.getThumbnailFileId(),
+                    sender.internalId(), sender.telegramId(), sessionId);
         }
 
         session.touch();

@@ -158,7 +158,12 @@ public class FileMetadataRepository {
 
     private Map<String, String> toMap(FileMetadata meta) {
         Map<String, String> map = new HashMap<>();
-        map.put("uploaderTgId", meta.getUploaderTgId());
+        if (meta.getUploaderInternalId() != null) {
+            map.put("uploaderInternalId", meta.getUploaderInternalId());
+        }
+        if (meta.getUploaderTgId() != null) {
+            map.put("uploaderTgId", meta.getUploaderTgId());
+        }
         map.put("contextType", meta.getContextType());
         map.put("contextId", meta.getContextId());
         map.put("size", String.valueOf(meta.getSize()));
@@ -170,6 +175,7 @@ public class FileMetadataRepository {
     private FileMetadata fromMap(String fileId, Map<String, String> map) {
         return FileMetadata.builder()
                 .fileId(fileId)
+                .uploaderInternalId(map.get("uploaderInternalId"))
                 .uploaderTgId(map.get("uploaderTgId"))
                 .contextType(map.get("contextType"))
                 .contextId(map.get("contextId"))

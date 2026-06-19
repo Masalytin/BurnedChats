@@ -226,7 +226,7 @@ public class RoomMessageHandler {
                     if (FileMessageRelayValidator.isFileMessage(request.getType())) {
                         fileValidation = fileMessageRelayValidator.validateFileMessage(
                                 request.getFileId(), request.getThumbnailFileId(),
-                                sender.telegramId(), roomId);
+                                sender.internalId(), sender.telegramId(), roomId);
                     }
 
                     return fileValidation

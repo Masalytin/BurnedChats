@@ -538,7 +538,7 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 **Telegram-only деградация (best-effort, без ошибки для клиента):**
 
 - Бот-уведомления offline DM / chat request — только при `telegramId != null`.
-- File upload в комнатах — валидация по `uploaderTgId` (wallet file messages — вне scope миграции).
+- File upload в комнатах — валидация ownership по `uploaderInternalId` (канонический `internalId`); legacy-fallback по `uploaderTgId` для метаданных до IMP-WFT-05.
 
 Хендлеры используют `AppPrincipal` / `internalId`; каст `(TelegramPrincipal)` в бизнес-логике **запрещён**.
 
@@ -913,7 +913,7 @@ client.publish({
 });
 ```
 
-Сервер перед ретрансляцией проверяет, что `fileId` (и `thumbnailFileId`, если есть) существуют в `file_meta:*`, загружены отправителем и привязаны к той же `sessionId`. При ошибке валидации возможны коды: `FILE_NOT_FOUND`, `FILE_NOT_OWNED`, `FILE_CONTEXT_MISMATCH`.
+Сервер перед ретрансляцией проверяет, что `fileId` (и `thumbnailFileId`, если есть) существуют в `file_meta:*`, загружены отправителем (ownership по `uploaderInternalId` == `sender.internalId()`; legacy-fallback по `uploaderTgId` только для старых метаданных без `uploaderInternalId` и при `sender.telegramId != null`) и привязаны к той же `sessionId`. При ошибке валидации возможны коды: `FILE_NOT_FOUND`, `FILE_NOT_OWNED`, `FILE_CONTEXT_MISMATCH`.
 
 **События:**
 
@@ -1236,7 +1236,7 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 | `FILE_TOO_LARGE` | Зашифрованный blob превышает серверный потолок (`MAX_ENCRYPTED_FILE_SIZE`) |
 | `FILE_NOT_FOUND` | Файл не найден в Redis или истёк TTL (REST download / валидация ретрансляции) |
 | `ACCESS_DENIED` | Нет доступа к файлу или контексту (REST); в документации также: «file access denied» |
-| `FILE_NOT_OWNED` | Отправитель не совпадает с `uploaderTgId` в метаданных файла |
+| `FILE_NOT_OWNED` | Отправитель не совпадает с загрузчиком (`uploaderInternalId` или legacy `uploaderTgId`) |
 | `FILE_CONTEXT_MISMATCH` | Файл привязан к другому session/room, чем сообщение |
 | `CONTEXT_NOT_FOUND` | Сессия для загрузки не найдена |
 | `FILE_SIZE_INVALID` | Размер после загрузки не совпал с `Content-Length` |

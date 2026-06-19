@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
  * must verify:
  * <ul>
  *   <li>The file exists in Redis ({@code file_meta:{fileId}})</li>
- *   <li>The uploader matches the message sender (ownership)</li>
+ *   <li>The uploader matches the message sender (ownership by {@code internalId})</li>
  *   <li>The file was uploaded in the same context (session/room) as the message</li>
  * </ul>
  *
@@ -47,19 +47,21 @@ public class FileMessageRelayValidator {
      * Returns {@link Mono#empty()} on success or signals
      * {@link FileValidationException} on failure.
      *
-     * @param fileId          the main file ID (must not be null for non-text)
-     * @param thumbnailFileId the optional thumbnail file ID (may be null)
-     * @param senderTgId      Telegram user ID of the message sender
-     * @param contextId       session ID or room ID the message belongs to
+     * @param fileId             the main file ID (must not be null for non-text)
+     * @param thumbnailFileId    the optional thumbnail file ID (may be null)
+     * @param senderInternalId   canonical sender identity ({@code internalId})
+     * @param senderTgId         optional Telegram user ID (legacy fallback only)
+     * @param contextId          session ID or room ID the message belongs to
      * @return empty Mono on success, error signal on failure
      */
     public Mono<Void> validateFileMessage(String fileId, String thumbnailFileId,
-                                          Long senderTgId, String contextId) {
-        Mono<Void> mainValidation = validateSingleFile(fileId, senderTgId, contextId);
+                                          String senderInternalId, Long senderTgId,
+                                          String contextId) {
+        Mono<Void> mainValidation = validateSingleFile(fileId, senderInternalId, senderTgId, contextId);
 
         if (thumbnailFileId != null && !thumbnailFileId.isBlank()) {
             return mainValidation
-                    .then(validateSingleFile(thumbnailFileId, senderTgId, contextId));
+                    .then(validateSingleFile(thumbnailFileId, senderInternalId, senderTgId, contextId));
         }
         return mainValidation;
     }
@@ -74,21 +76,24 @@ public class FileMessageRelayValidator {
         return type != null && !TEXT_TYPE.equals(type);
     }
 
-    private Mono<Void> validateSingleFile(String fileId, Long senderTgId, String contextId) {
+    private Mono<Void> validateSingleFile(String fileId, String senderInternalId,
+                                        Long senderTgId, String contextId) {
         return fileMetadataRepository.findById(fileId)
                 .switchIfEmpty(Mono.defer(() -> {
                     LOG.debug("File metadata not found during relay validation: {}", fileId);
                     return Mono.error(new FileValidationException("FILE_NOT_FOUND", fileId));
                 }))
-                .flatMap(meta -> checkOwnershipAndContext(meta, senderTgId, contextId))
+                .flatMap(meta -> checkOwnershipAndContext(meta, senderInternalId, senderTgId, contextId))
                 .then();
     }
 
     private Mono<FileMetadata> checkOwnershipAndContext(FileMetadata meta,
-                                                         Long senderTgId, String contextId) {
-        if (!String.valueOf(senderTgId).equals(meta.getUploaderTgId())) {
-            LOG.debug("File {} not owned by sender {}, actual uploader: {}",
-                    meta.getFileId(), senderTgId, meta.getUploaderTgId());
+                                                         String senderInternalId,
+                                                         Long senderTgId,
+                                                         String contextId) {
+        if (!isOwner(meta, senderInternalId, senderTgId)) {
+            LOG.debug("File {} not owned by sender internalId={}, actual uploaderInternalId={}, uploaderTgId={}",
+                    meta.getFileId(), senderInternalId, meta.getUploaderInternalId(), meta.getUploaderTgId());
             return Mono.error(new FileValidationException("FILE_NOT_OWNED", meta.getFileId()));
         }
         if (!contextId.equals(meta.getContextId())) {
@@ -97,6 +102,18 @@ public class FileMessageRelayValidator {
             return Mono.error(new FileValidationException("FILE_CONTEXT_MISMATCH", meta.getFileId()));
         }
         return Mono.just(meta);
+    }
+
+    /**
+     * Ownership check: canonical {@code uploaderInternalId} first; legacy fallback
+     * via {@code uploaderTgId} only when internalId was not stored at upload time.
+     */
+    static boolean isOwner(FileMetadata meta, String senderInternalId, Long senderTgId) {
+        if (meta.getUploaderInternalId() != null) {
+            return meta.getUploaderInternalId().equals(senderInternalId);
+        }
+        return senderTgId != null
+                && String.valueOf(senderTgId).equals(meta.getUploaderTgId());
     }
 
     /**
