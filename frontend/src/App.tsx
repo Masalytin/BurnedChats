@@ -666,6 +666,7 @@ function AppContent() {
   const {
     bans: roomBans,
     isLoading: isBansLoading,
+    error: bansError,
     refresh: refreshBans,
     unban: unbanMember,
     ban: banMember,
@@ -676,8 +677,14 @@ function AppContent() {
     publish,
   });
 
+  const lastRemovalOpRef = useRef<'kick' | 'ban'>('kick');
+
   const handleKickSuccess = useCallback((roomId: string, _targetInternalId: string) => {
-    toast.success(t('room.manage.kickSuccess'));
+    toast.success(
+      lastRemovalOpRef.current === 'ban'
+        ? t('room.manage.banSuccess')
+        : t('room.manage.kickSuccess'),
+    );
     fetchMembers(roomId);
     refreshBans(roomId);
   }, [toast, t, fetchMembers, refreshBans]);
@@ -1728,12 +1735,14 @@ function AppContent() {
   // Owner removes a member from manage view (IMP-ROOM-04, IMP-ROOM-24)
   const handleKickMember = useCallback((targetInternalId: string) => {
     if (!activeRoomChat || !isConnected) return;
+    lastRemovalOpRef.current = 'kick';
     kickMember(activeRoomChat.roomId, targetInternalId);
     debugLog('info', `[RoomManage] KICK_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, kickMember]);
 
   const handleBanMember = useCallback((targetInternalId: string) => {
     if (!activeRoomChat || !isConnected) return;
+    lastRemovalOpRef.current = 'ban';
     banMember(activeRoomChat.roomId, targetInternalId);
     debugLog('info', `[RoomManage] BAN_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, banMember]);
@@ -2657,6 +2666,7 @@ function AppContent() {
             onBanMember={handleBanMember}
             bannedInternalIds={roomBans}
             isBansLoading={isBansLoading}
+            bansError={bansError}
             onRefreshBans={handleRefreshBans}
             onUnban={handleUnbanMember}
           />

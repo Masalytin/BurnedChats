@@ -237,6 +237,7 @@ interface RoomManageViewProps {
   /** Banned internal IDs for this room */
   bannedInternalIds?: string[];
   isBansLoading?: boolean;
+  bansError?: string | null;
   onRefreshBans?: () => void;
   onUnban?: (targetInternalId: string) => void;
 }
@@ -282,6 +283,7 @@ export const RoomManageView = memo(function RoomManageView({
   onBanMember,
   bannedInternalIds = [],
   isBansLoading = false,
+  bansError,
   onRefreshBans,
   onUnban,
 }: RoomManageViewProps) {
@@ -407,6 +409,13 @@ export const RoomManageView = memo(function RoomManageView({
     setBanPermanently(false);
   }, []);
 
+  const resolveBansErrorMessage = useCallback((errorCode: string | null | undefined): string | null => {
+    if (!errorCode) return null;
+    const key = `room.manage.bansError.${errorCode}`;
+    const message = t(key);
+    return message !== key ? message : t('room.manage.bansError.unknown');
+  }, [t]);
+
   const resolveBannedLabel = useCallback((internalId: string): string => {
     const member = members?.find(m => m.internalId === internalId);
     const displayName = member?.displayName?.trim();
@@ -430,6 +439,8 @@ export const RoomManageView = memo(function RoomManageView({
     onRenameRoom(trimmed);
     setIsEditingName(false);
   }, [editNameValue, onRenameRoom]);
+
+  const bansErrorMessage = resolveBansErrorMessage(bansError);
 
   const roomShortId = formatShortRoomId(roomId);
 
@@ -706,6 +717,10 @@ export const RoomManageView = memo(function RoomManageView({
               <div className="room-manage-banned">
                 {isBansLoading ? (
                   <p className="room-manage-banned__loading">{t('common.loading')}</p>
+                ) : bansErrorMessage ? (
+                  <p className="room-manage-section__error" role="alert">
+                    {bansErrorMessage}
+                  </p>
                 ) : bannedInternalIds.length > 0 ? (
                   <ul className="room-manage-banned__list">
                     {bannedInternalIds.map(internalId => (

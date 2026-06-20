@@ -935,6 +935,7 @@
       "errorAlreadyMember": "You are already a member of this room",
       "errorRequestPending": "Your join request is already pending",
       "errorBanned": "You have been blocked from this room",
+      "errorBannedHint": "Contact the room owner if you need access",
       "errorRejected": "Your join request was declined by the owner",
       "errorNetwork": "Network error. Please try again"
     },
@@ -1001,6 +1002,14 @@
       "bannedEmpty": "No blocked users",
       "unbanButton": "Unblock",
       "kickSuccess": "Member removed from the room",
+      "banSuccess": "Member blocked from the room",
+      "bansError": {
+        "NOT_OWNER": "Only the room owner can view blocked users",
+        "ROOM_NOT_FOUND": "Room not found",
+        "PARSE_ERROR": "Failed to load blocked users — please try again",
+        "INTERNAL_ERROR": "Failed to load blocked users — please try again",
+        "unknown": "Failed to load blocked users"
+      },
       "kickError": {
         "NOT_MEMBER": "This user is no longer in the room",
         "CANNOT_KICK_SELF": "You cannot remove yourself — use Leave Room instead",

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
-import { Hourglass, Key, XCircle } from 'lucide-react';
+import { Hourglass, Key, ShieldBan, XCircle } from 'lucide-react';
 import { EyeIcon, EyeOffIcon } from '../../icons';
 import type { JoinRoomStatus, JoinRoomErrorCode } from '../../hooks/useJoinRoom';
 import type { RoomJoinMode } from '../../types';
@@ -74,6 +74,7 @@ export function JoinRoomView({
     error === 'INVITE_EXPIRED' ||
     (typeof error === 'string' && (error.includes('expired') || error.includes('INVALID_TOKEN')));
   const isExhaustedToken = error === 'INVITE_EXHAUSTED';
+  const isBannedUser = error === 'USER_BANNED';
 
   // ----------------------------------------
   // Pending state: waiting for owner approval
@@ -113,6 +114,31 @@ export function JoinRoomView({
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorRejected')}
           </p>
+        </div>
+        {onCancel && (
+          <Button variant="secondary" onClick={onCancel} fullWidth>
+            {t('common.back')}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // ----------------------------------------
+  // Error state: user banned from room (Case R11)
+  // ----------------------------------------
+  if (isBannedUser) {
+    return (
+      <div className="join-room-view">
+        <div className="join-room-view__header">
+          <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
+            <ShieldBan size={36} strokeWidth={1.75} />
+          </div>
+          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <p className="join-room-view__error join-room-view__error--expired" role="alert">
+            {t('room.join.errorBanned')}
+          </p>
+          <p className="join-room-view__subtitle">{t('room.join.errorBannedHint')}</p>
         </div>
         {onCancel && (
           <Button variant="secondary" onClick={onCancel} fullWidth>
@@ -293,7 +319,7 @@ function mapErrorMessage(
     case 'REQUEST_PENDING':
       return t('room.join.errorRequestPending');
     case 'USER_BANNED':
-      return t('room.join.errorBanned');
+      return null; // shown as full-screen state above
     case 'NETWORK_ERROR':
     case 'CONNECTION_ERROR':
     case 'CRYPTO_ERROR':
