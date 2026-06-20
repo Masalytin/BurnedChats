@@ -1582,6 +1582,34 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 ---
 
+### KICK_MEMBER (`/app/room.kick`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`KickMemberRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `targetInternalId` | string | Да | Internal ID участника для удаления |
+
+**Ошибки (логируются, STOMP-ответ не отправляется):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`
+
+**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`.
+
+**События после успешного кика:**
+
+| Событие | Destination | Получатель | Поля |
+|---------|-------------|------------|------|
+| `ROOM_KICKED` | `/user/queue/room-kicked` | Жертва | `roomId`, `byInternalId` |
+| `ROOM_MEMBER_REMOVED` | `/user/queue/room-member-removed` | Каждый оставшийся член (включая owner) | `roomId`, `removedInternalId` |
+
+Владелец **обязан** выполнить rekey после `ROOM_MEMBER_REMOVED` (см. [SECURITY.md](./SECURITY.md) — forward secrecy при kick).
+
+Rate-limit: `SESSION_ACTION` (10/min), как у accept/reject join.
+
+---
+
 ### ROOM_CREATED
 
 **Направление:** Server → Client  

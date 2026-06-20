@@ -8,7 +8,9 @@ import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomLeftEvent;
+import dev.burnedchats.dto.event.RoomMemberKickedEvent;
 import dev.burnedchats.dto.event.RoomMemberLeftEvent;
+import dev.burnedchats.dto.event.RoomMemberRemovedEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
@@ -16,6 +18,7 @@ import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
+import dev.burnedchats.dto.request.KickMemberRequest;
 import dev.burnedchats.dto.request.LeaveRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
@@ -34,6 +37,7 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
+import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
@@ -85,6 +89,8 @@ public class RoomHandler {
     private static final String ROOM_BURNED_DESTINATION = "/queue/room-burned";
     private static final String ROOM_LEFT_DESTINATION = "/queue/room-left";
     private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
+    private static final String ROOM_KICKED_DESTINATION = "/queue/room-kicked";
+    private static final String ROOM_MEMBER_REMOVED_DESTINATION = "/queue/room-member-removed";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -96,6 +102,7 @@ public class RoomHandler {
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
     private final RoomRepository roomRepository;
     private final RoomMembersRepository roomMembersRepository;
+    private final RoomJoinRequestRepository roomJoinRequestRepository;
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomMessageRepository roomMessageRepository;
 
@@ -689,6 +696,65 @@ public class RoomHandler {
             );
     }
 
+    @MessageMapping("/room.kick")
+    public void kickMember(@Payload @Valid KickMemberRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("KICK_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
+                roomId, targetInternalId, owner.internalId());
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    if (owner.internalId().equals(targetInternalId)) {
+                        return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
+                    }
+                    if (isRoomOwner(room, targetInternalId)) {
+                        return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
+                    }
+                    return roomMembersRepository.isMember(roomId, targetInternalId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return Mono.error(new SecurityException("NOT_MEMBER"));
+                                }
+                                return performKickCleanup(roomId, targetInternalId)
+                                        .then(roomMembersRepository.getMembers(roomId).collectList());
+                            });
+                })
+                .subscribe(
+                        remainingMembers -> {
+                            sendStompToInternalId(targetInternalId, ROOM_KICKED_DESTINATION,
+                                    RoomMemberKickedEvent.of(roomId, owner.internalId()));
+                            RoomMemberRemovedEvent removedEvent =
+                                    RoomMemberRemovedEvent.of(roomId, targetInternalId);
+                            remainingMembers.stream()
+                                    .filter(StringUtils::hasText)
+                                    .forEach(memberInternalId -> stompUserMessenger.convertAndSendToInternalId(
+                                            memberInternalId,
+                                            ROOM_MEMBER_REMOVED_DESTINATION,
+                                            removedEvent));
+                            LOG.info("KICK_MEMBER processed: roomId={}, targetInternalId={}, remainingMembers={}",
+                                    roomId, targetInternalId, remainingMembers.size());
+                        },
+                        error -> {
+                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage()
+                                    : error instanceof IllegalStateException ise ? ise.getMessage()
+                                    : error instanceof SecurityException se ? se.getMessage()
+                                    : "INTERNAL_ERROR";
+                            LOG.warn("KICK_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, error={}",
+                                    roomId, targetInternalId, owner.internalId(), code);
+                        }
+            );
+    }
+
     @MessageMapping("/room.leave")
     public void leaveRoom(@Payload @Valid LeaveRoomRequest request, Principal principal) {
         ParticipantContext caller = ParticipantContext.from(principal);
@@ -746,6 +812,14 @@ public class RoomHandler {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private Mono<Void> performKickCleanup(String roomId, String targetInternalId) {
+        return roomMembersRepository.remove(roomId, targetInternalId)
+                .then(memberPublicKeyRepository.remove(roomId, targetInternalId))
+                .then(roomJoinRequestRepository.remove(roomId, targetInternalId))
+                .then(roomKeysRepository.removeRecipientAllEpochs(roomId, targetInternalId))
+                .then();
+    }
 
     private boolean isRoomOwner(Room room, String ownerInternalId) {
         return StringUtils.hasText(room.getOwnerInternalId())

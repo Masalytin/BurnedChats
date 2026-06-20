@@ -158,6 +158,33 @@ public class RoomKeysRepository {
     }
 
     /**
+     * Remove a recipient's encrypted key bundle from every stored epoch for a room.
+     *
+     * <p>Called when a member is kicked or banned so they cannot decrypt messages
+     * from any epoch still present in Redis (until the owner completes rekey).
+     *
+     * @param roomId the room UUID
+     * @param recipientInternalId the removed member's internal ID
+     * @return Mono with the total number of hash fields removed across all epochs
+     */
+    public Mono<Long> removeRecipientAllEpochs(String roomId, String recipientInternalId) {
+        return getCurrentEpoch(roomId)
+                .defaultIfEmpty(0)
+                .flatMap(currentEpoch -> Flux.range(0, currentEpoch + 1)
+                        .flatMap(epoch -> redisTemplate.opsForHash()
+                                .remove(keysKeyFor(roomId, epoch), recipientInternalId))
+                        .reduce(0L, Long::sum))
+                .doOnSuccess(n -> LOG.debug(
+                        "Removed key bundles for member {} in room {} across all epochs (fields={})",
+                        recipientInternalId, roomId, n))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to remove key bundles for member {} in room {}: {}",
+                            recipientInternalId, roomId, e.getMessage());
+                    return Mono.just(0L);
+                });
+    }
+
+    /**
      * Delete all key bundles and the epoch counter for a room.
      *
      * <p>Called on BURN_ROOM. Scans all epochs from 0 up to the current epoch
