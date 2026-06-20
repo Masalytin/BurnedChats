@@ -1084,6 +1084,12 @@ Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/ил�
   - **Admin restrictions:** не может kick/mute owner или другого admin (`CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`).
   - **setRole** (`/app/room.setRole`, owner-only): `role ∈ {admin, member}`; target ∈ members; нельзя назначить owner через overlay; broadcast `ROOM_ROLE_UPDATED`.
   - **Transfer ownership** (`/app/room.transferOwnership`, owner-only): как в IMP-ROOM-13.
+  - **Managed TTL / auto-burn (IMP-ROOM-16):** owner задаёт `autoBurnAt` через `/app/room.setTtl`
+    (`ttlSeconds` или абсолютный epoch). Сервер хранит поле в `room:{roomId}`, капит activity-TTL
+    hash-ключа по этому instant и ставит dedicated trigger `room:autoburn:{roomId}` (не продлевается
+    активностью). По истечении trigger key — полный каскад BURN_ROOM + `ROOM_BURNED` всем членам
+    (keyspace listener, как offline queue). Zero-knowledge: сервер видит только метаданные TTL, не
+    содержимое сообщений.
   - **Read-only send:** owner и admin могут постить; member получает `ROOM_READ_ONLY`.
 - После rekey старая эпоха (`newEpoch - 1`) удаляется сервером (`deleteEpoch` в обработчике `room.rekey`).
 

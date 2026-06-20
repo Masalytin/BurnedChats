@@ -93,4 +93,10 @@ public class Room implements Serializable {
      */
     @Builder.Default
     private boolean readOnly = false;
+
+    /**
+     * Optional epoch millis when the room must be auto-burned (owner-set via {@code setTtl}).
+     * When set, activity TTL extension is capped at this instant.
+     */
+    private Long autoBurnAt;
 }

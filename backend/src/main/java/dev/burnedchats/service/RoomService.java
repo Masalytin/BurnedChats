@@ -1,12 +1,22 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
 import dev.burnedchats.dto.event.RoomRoleUpdatedEvent;
+import dev.burnedchats.dto.event.RoomTtlUpdatedEvent;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomRole;
+import dev.burnedchats.repository.InviteTokenRepository;
+import dev.burnedchats.repository.RoomBansRepository;
+import dev.burnedchats.repository.RoomKeysRepository;
+import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
+import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.RoomRolesRepository;
+import dev.burnedchats.service.FileBurnService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +24,7 @@ import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,10 +36,20 @@ import java.util.UUID;
 @SuppressWarnings("checkstyle:JavadocMethod")
 public class RoomService {
 
+    private static final String ROOM_BURNED_DESTINATION = "/queue/room-burned";
+
     private final RoomRepository roomRepository;
     private final RoomMembersRepository roomMembersRepository;
     private final RoomRolesRepository roomRolesRepository;
     private final PasswordProofService passwordProofService;
+    private final FileBurnService fileBurnService;
+    private final InviteTokenRepository inviteTokenRepository;
+    private final RoomKeysRepository roomKeysRepository;
+    private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
+    private final RoomMessageRepository roomMessageRepository;
+    private final RoomBansRepository roomBansRepository;
+    private final RoomMutedRepository roomMutedRepository;
+    private final StompUserMessenger stompUserMessenger;
 
     /**
      * Create a new room owned by {@code ownerInternalId}.
@@ -84,6 +105,100 @@ public class RoomService {
     public Mono<Void> extendTtl(String roomId) {
         return roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL)
                 .then();
+    }
+
+    /**
+     * Owner-only: set managed room lifetime via relative seconds or absolute auto-burn instant.
+     */
+    public Mono<RoomTtlUpdatedEvent> setRoomTtl(String roomId,
+                                                String ownerInternalId,
+                                                Long ttlSeconds,
+                                                Long autoBurnAtEpoch) {
+        return requireOwner(roomId, ownerInternalId)
+                .flatMap(room -> {
+                    long resolvedAutoBurnAt = resolveAutoBurnAt(ttlSeconds, autoBurnAtEpoch);
+                    return roomRepository.updateAutoBurnAt(roomId, resolvedAutoBurnAt)
+                            .flatMap(ok -> {
+                                if (!Boolean.TRUE.equals(ok)) {
+                                    return Mono.error(new IllegalStateException("INTERNAL_ERROR"));
+                                }
+                                return Mono.just(RoomTtlUpdatedEvent.of(roomId, resolvedAutoBurnAt));
+                            });
+                });
+    }
+
+    /**
+     * Burn a room as the owner (manual {@code BURN_ROOM}).
+     */
+    public Mono<List<String>> burnRoomAsOwner(String roomId, String ownerInternalId) {
+        return requireOwner(roomId, ownerInternalId)
+                .flatMap(room -> burnRoomCascade(roomId));
+    }
+
+    /**
+     * Deterministic auto-burn when the dedicated trigger key expires. Idempotent if already burned.
+     */
+    public Mono<Void> executeAutoBurnAndNotify(String roomId) {
+        return roomRepository.findById(roomId)
+                .flatMap(room -> {
+                    Long autoBurnAt = room.getAutoBurnAt();
+                    if (autoBurnAt == null || autoBurnAt > System.currentTimeMillis()) {
+                        return Mono.empty();
+                    }
+                    Long burnedBy = room.getOwnerTgId();
+                    return burnRoomCascade(roomId)
+                            .flatMap(members -> notifyRoomBurned(roomId, burnedBy, members));
+                })
+                .then();
+    }
+
+    private Mono<List<String>> burnRoomCascade(String roomId) {
+        return roomMembersRepository.getMembers(roomId)
+                .collectList()
+                .flatMap(members ->
+                        fileBurnService.deleteFilesForContext(roomId)
+                                .then(Mono.when(
+                                        roomRepository.cancelAutoBurnTrigger(roomId),
+                                        roomRepository.delete(roomId),
+                                        roomMembersRepository.deleteAll(roomId),
+                                        inviteTokenRepository.deleteAllForRoom(roomId),
+                                        roomKeysRepository.deleteRoom(roomId),
+                                        memberPublicKeyRepository.deleteRoom(roomId),
+                                        roomMessageRepository.deleteRoomMessages(roomId),
+                                        roomBansRepository.deleteAll(roomId),
+                                        roomMutedRepository.deleteAll(roomId),
+                                        roomRolesRepository.deleteAll(roomId)
+                                ))
+                                .thenReturn(members))
+                .doOnSuccess(members -> LOG.info("Room burned (cascade): roomId={}, memberCount={}",
+                        roomId, members != null ? members.size() : 0));
+    }
+
+    public Mono<Void> notifyRoomBurned(String roomId, Long burnedBy, List<String> members) {
+        RoomBurnedEvent event = RoomBurnedEvent.success(roomId, burnedBy);
+        if (members == null || members.isEmpty()) {
+            return Mono.empty();
+        }
+        members.stream()
+                .filter(StringUtils::hasText)
+                .forEach(memberInternalId -> stompUserMessenger.convertAndSendToInternalId(
+                        memberInternalId,
+                        ROOM_BURNED_DESTINATION,
+                        event));
+        return Mono.empty();
+    }
+
+    private static long resolveAutoBurnAt(Long ttlSeconds, Long autoBurnAtEpoch) {
+        if (autoBurnAtEpoch != null) {
+            return autoBurnAtEpoch;
+        }
+        if (ttlSeconds != null) {
+            if (ttlSeconds <= 0) {
+                throw new IllegalArgumentException("INVALID_TTL");
+            }
+            return System.currentTimeMillis() + ttlSeconds * 1000L;
+        }
+        throw new IllegalArgumentException("TTL_OR_AUTOBURN_REQUIRED");
     }
 
     /**

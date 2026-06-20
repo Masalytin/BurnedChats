@@ -98,7 +98,15 @@ class RoomHandlerKickTest {
                 roomRepository,
                 roomMembersRepository,
                 roomRolesRepository,
-                passwordProofService);
+                passwordProofService,
+                fileBurnService,
+                inviteTokenRepository,
+                roomKeysRepository,
+                memberPublicKeyRepository,
+                roomMessageRepository,
+                roomBansRepository,
+                roomMutedRepository,
+                stompUserMessenger);
         roomHandler = new RoomHandler(
                 roomService,
                 inviteTokenService,

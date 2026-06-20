@@ -281,6 +281,7 @@ HSET room:uuid-room-1
   nameEncrypted   "base64..."     # опционально; opaque ciphertext
   nameIv          "base64..."     # опционально; 12-byte GCM IV
   readOnly        "false"         # опционально; true = только owner постит
+  autoBurnAt      "1706745600000" # опционально; epoch ms дедлайна auto-burn (IMP-ROOM-16)
 
 EXPIRE room:uuid-room-1 2592000
 ```
@@ -296,8 +297,23 @@ EXPIRE room:uuid-room-1 2592000
 | `nameEncrypted` | string | Зашифрованное имя комнаты (AES-GCM ciphertext, Base64). Пустая строка = не задано. Сервер не расшифровывает |
 | `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
 | `readOnly` | boolean | Режим «только чтение»: при `true` отправлять сообщения может только владелец. По умолчанию `false` (отсутствие поля) |
+| `autoBurnAt` | number | Опционально: абсолютный момент auto-burn (Unix ms). Задаётся owner через `/app/room.setTtl`. При наличии activity-продление TTL hash-ключа **капится** этим instant; детерминированный burn — по trigger key ниже |
 
-**TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`)
+**TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`), но **не выше** `autoBurnAt`, если поле задано.
+
+### `room:autoburn:{roomId}`
+
+Dedicated trigger key (string value = `roomId`), TTL = `autoBurnAt - now`. **Не** продлевается активностью. При истечении Redis keyspace listener выполняет полный каскад BURN_ROOM и рассылает `ROOM_BURNED` (IMP-ROOM-16).
+
+```redis
+SET room:autoburn:uuid-room-1 uuid-room-1 EX 3600
+```
+
+| Операция | Описание |
+|----------|----------|
+| setTtl | `SET` + `EX`/`PX` до `autoBurnAt` |
+| Manual burn / auto-burn cascade | `DEL` trigger key вместе с остальными ключами комнаты |
+| Activity | trigger key **не** обновляется |
 
 ### `room_members:{roomId}`
 

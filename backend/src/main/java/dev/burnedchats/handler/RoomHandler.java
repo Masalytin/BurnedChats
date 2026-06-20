@@ -7,7 +7,7 @@ import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomModerationEvent;
 import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
-import dev.burnedchats.dto.event.RoomRoleUpdatedEvent;
+import dev.burnedchats.dto.event.RoomTtlUpdatedEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
@@ -43,6 +43,7 @@ import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
 import dev.burnedchats.dto.request.SetRoleRequest;
 import dev.burnedchats.dto.request.SetRoomNameRequest;
+import dev.burnedchats.dto.request.SetRoomTtlRequest;
 import dev.burnedchats.dto.request.TransferOwnershipRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
 import dev.burnedchats.model.Room;
@@ -760,37 +761,11 @@ public class RoomHandler {
         String roomId = request.getRoomId();
         LOG.info("BURN_ROOM requested: roomId={}, ownerInternalId={}", roomId, owner.internalId());
 
-        roomService.requireOwner(roomId, owner.internalId())
-                .flatMap(room ->
-                        roomMembersRepository.getMembers(roomId)
-                                .collectList()
-                                .flatMap(members ->
-                                        fileBurnService.deleteFilesForContext(roomId)
-                                                .then(Mono.when(
-                                                        roomRepository.delete(roomId),
-                                                        roomMembersRepository.deleteAll(roomId),
-                                                        inviteTokenRepository.deleteAllForRoom(roomId),
-                                                        roomKeysRepository.deleteRoom(roomId),
-                                                        memberPublicKeyRepository.deleteRoom(roomId),
-                                                        roomMessageRepository.deleteRoomMessages(roomId),
-                                                        roomBansRepository.deleteAll(roomId),
-                                                        roomMutedRepository.deleteAll(roomId),
-                                                        roomRolesRepository.deleteAll(roomId)
-                                                ))
-                                                .thenReturn(members))
-                )
+        roomService.burnRoomAsOwner(roomId, owner.internalId())
+                .flatMap(members -> roomService.notifyRoomBurned(roomId, owner.telegramId(), members))
                 .subscribe(
-                        members -> {
-                            RoomBurnedEvent event = RoomBurnedEvent.success(roomId, owner.telegramId());
-                            members.stream()
-                                    .filter(StringUtils::hasText)
-                                    .forEach(memberInternalId -> stompUserMessenger.convertAndSendToInternalId(
-                                            memberInternalId,
-                                            ROOM_BURNED_DESTINATION,
-                                            event));
-                            LOG.info("ROOM_BURNED sent: roomId={}, internalId={}, memberCount={}",
-                                    roomId, owner.internalId(), members.size());
-                        },
+                        v -> LOG.info("ROOM_BURNED sent: roomId={}, internalId={}",
+                                roomId, owner.internalId()),
                         error -> {
                             String code = error instanceof SecurityException ? "NOT_OWNER"
                                     : error instanceof IllegalArgumentException ? error.getMessage()
@@ -800,6 +775,29 @@ public class RoomHandler {
                             sendStompToInternalId(owner.internalId(), ROOM_BURNED_DESTINATION,
                                     RoomBurnedEvent.error(roomId, code));
                         }
+            );
+    }
+
+    @MessageMapping("/room.setTtl")
+    public void setRoomTtl(@Payload @Valid SetRoomTtlRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        LOG.info("SET_ROOM_TTL requested: roomId={}, ownerInternalId={}, ttlSeconds={}, autoBurnAt={}",
+                roomId, owner.internalId(), request.getTtlSeconds(), request.getAutoBurnAt());
+
+        roomService.setRoomTtl(roomId, owner.internalId(), request.getTtlSeconds(), request.getAutoBurnAt())
+                .subscribe(
+                        event -> {
+                            messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+                            LOG.info("ROOM_TTL_UPDATED broadcast: roomId={}, autoBurnAt={}",
+                                    roomId, event.getAutoBurnAt());
+                        },
+                        error -> LOG.warn("SET_ROOM_TTL failed: roomId={}, ownerInternalId={}, error={}",
+                                roomId, owner.internalId(), mapSetTtlError(error))
             );
     }
 
@@ -1357,6 +1355,16 @@ public class RoomHandler {
         }
         if (error instanceof IllegalStateException ise) {
             return ise.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapSetTtlError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
         }
         if (error instanceof SecurityException) {
             return "NOT_OWNER";

@@ -26,6 +26,8 @@ import java.util.Map;
 public class RoomRepository {
 
     private static final String KEY_PREFIX = "room:";
+    /** Dedicated trigger key; expiry fires deterministic auto-burn (not extended on activity). */
+    public static final String AUTO_BURN_TRIGGER_PREFIX = "room:autoburn:";
     public static final Duration DEFAULT_TTL = Duration.ofDays(Room.DEFAULT_TTL_DAYS);
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
@@ -42,7 +44,7 @@ public class RoomRepository {
 
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
-                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(refreshTtl(room.getId(), room))
                 .doOnSuccess(ok -> LOG.debug("Saved room {}", room.getId()))
                 .onErrorResume(e -> {
                     LOG.error("Failed to save room {}: {}", room.getId(), e.getMessage());
@@ -90,13 +92,88 @@ public class RoomRepository {
     /**
      * Extend the TTL of an existing room (called on activity).
      *
+     * <p>When {@code autoBurnAt} is set on the room, the effective TTL is capped so activity
+     * cannot extend the room beyond that instant.
+     *
      * @param roomId the room UUID
-     * @param ttl    new TTL duration
+     * @param ttl    requested TTL duration
      * @return Mono with {@code true} if TTL was set
      */
     public Mono<Boolean> extendTtl(String roomId, Duration ttl) {
-        return redisTemplate.expire(keyFor(roomId), ttl)
+        return findById(roomId)
+                .flatMap(room -> applyTtl(roomId, effectiveTtl(room, ttl)))
+                .switchIfEmpty(applyTtl(roomId, ttl))
                 .doOnSuccess(ok -> LOG.debug("Extended TTL for room {}", roomId));
+    }
+
+    /**
+     * Persist {@code autoBurnAt} on the room hash, align {@code room:{roomId}} TTL, and schedule
+     * the dedicated auto-burn trigger key.
+     *
+     * @param roomId     room UUID
+     * @param autoBurnAt absolute burn instant (epoch ms), must be in the future
+     * @return Mono completing when hash, room TTL, and trigger key are updated
+     */
+    public Mono<Boolean> updateAutoBurnAt(String roomId, long autoBurnAt) {
+        long remainingMs = autoBurnAt - System.currentTimeMillis();
+        if (remainingMs <= 0) {
+            return Mono.error(new IllegalArgumentException("AUTO_BURN_IN_PAST"));
+        }
+        Duration untilBurn = Duration.ofMillis(remainingMs);
+        String key = keyFor(roomId);
+        return redisTemplate.opsForHash()
+                .put(key, "autoBurnAt", String.valueOf(autoBurnAt))
+                .then(scheduleAutoBurnTrigger(roomId, untilBurn))
+                .then(applyTtl(roomId, untilBurn))
+                .doOnSuccess(ok -> LOG.debug("Updated autoBurnAt for room {} to {}", roomId, autoBurnAt))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to update autoBurnAt for room {}: {}", roomId, e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    /**
+     * Set or refresh the dedicated auto-burn trigger key (not extended on room activity).
+     */
+    public Mono<Boolean> scheduleAutoBurnTrigger(String roomId, Duration ttl) {
+        if (ttl.isZero() || ttl.isNegative()) {
+            return Mono.just(true);
+        }
+        return redisTemplate.opsForValue()
+                .set(autoBurnKeyFor(roomId), roomId, ttl)
+                .doOnSuccess(ok -> LOG.debug("Scheduled auto-burn trigger for room {} in {}", roomId, ttl));
+    }
+
+    /**
+     * Remove the auto-burn trigger key (e.g. after manual burn).
+     */
+    public Mono<Long> cancelAutoBurnTrigger(String roomId) {
+        return redisTemplate.delete(autoBurnKeyFor(roomId));
+    }
+
+    /**
+     * Compute TTL capped at {@code autoBurnAt} when present.
+     */
+    public static Duration effectiveTtl(Room room, Duration requested) {
+        if (room == null || room.getAutoBurnAt() == null) {
+            return requested;
+        }
+        long remainingMs = room.getAutoBurnAt() - System.currentTimeMillis();
+        if (remainingMs <= 0) {
+            return Duration.ZERO;
+        }
+        return Duration.ofMillis(Math.min(remainingMs, requested.toMillis()));
+    }
+
+    public static boolean isAutoBurnTriggerKey(String key) {
+        return key != null && key.startsWith(AUTO_BURN_TRIGGER_PREFIX);
+    }
+
+    public static String parseRoomIdFromAutoBurnKey(String key) {
+        if (!isAutoBurnTriggerKey(key)) {
+            return null;
+        }
+        return key.substring(AUTO_BURN_TRIGGER_PREFIX.length());
     }
 
     /**
@@ -112,7 +189,7 @@ public class RoomRepository {
         return redisTemplate.opsForHash()
                 .put(key, "nameEncrypted", nameEncrypted != null ? nameEncrypted : "")
                 .then(redisTemplate.opsForHash().put(key, "nameIv", nameIv != null ? nameIv : ""))
-                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(refreshTtl(roomId, null))
                 .doOnSuccess(ok -> LOG.debug("Updated encrypted name for room {}", roomId))
                 .onErrorResume(e -> {
                     LOG.error("Failed to update encrypted name for room {}: {}", roomId, e.getMessage());
@@ -131,7 +208,7 @@ public class RoomRepository {
         String key = keyFor(roomId);
         return redisTemplate.opsForHash()
                 .put(key, "readOnly", String.valueOf(readOnly))
-                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(refreshTtl(roomId, null))
                 .doOnSuccess(ok -> LOG.debug("Updated readOnly={} for room {}", readOnly, roomId))
                 .onErrorResume(e -> {
                     LOG.error("Failed to update readOnly for room {}: {}", roomId, e.getMessage());
@@ -151,7 +228,7 @@ public class RoomRepository {
         String value = newOwnerInternalId != null ? newOwnerInternalId : "";
         return redisTemplate.opsForHash()
                 .put(key, "ownerInternalId", value)
-                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(refreshTtl(roomId, null))
                 .doOnSuccess(ok -> LOG.debug("Updated ownerInternalId for room {}", roomId))
                 .onErrorResume(e -> {
                     LOG.error("Failed to update owner for room {}: {}", roomId, e.getMessage());
@@ -167,6 +244,26 @@ public class RoomRepository {
         return KEY_PREFIX + roomId;
     }
 
+    private String autoBurnKeyFor(String roomId) {
+        return AUTO_BURN_TRIGGER_PREFIX + roomId;
+    }
+
+    private Mono<Boolean> applyTtl(String roomId, Duration ttl) {
+        if (ttl.isZero() || ttl.isNegative()) {
+            return Mono.just(true);
+        }
+        return redisTemplate.expire(keyFor(roomId), ttl);
+    }
+
+    private Mono<Boolean> refreshTtl(String roomId, Room knownRoom) {
+        if (knownRoom != null) {
+            return applyTtl(roomId, effectiveTtl(knownRoom, DEFAULT_TTL));
+        }
+        return findById(roomId)
+                .flatMap(room -> applyTtl(roomId, effectiveTtl(room, DEFAULT_TTL)))
+                .switchIfEmpty(applyTtl(roomId, DEFAULT_TTL));
+    }
+
     private Map<String, String> toHash(Room room) {
         Map<String, String> map = new HashMap<>();
         map.put("id", room.getId());
@@ -179,6 +276,9 @@ public class RoomRepository {
         map.put("nameEncrypted", room.getNameEncrypted() != null ? room.getNameEncrypted() : "");
         map.put("nameIv", room.getNameIv() != null ? room.getNameIv() : "");
         map.put("readOnly", String.valueOf(room.isReadOnly()));
+        if (room.getAutoBurnAt() != null) {
+            map.put("autoBurnAt", String.valueOf(room.getAutoBurnAt()));
+        }
         return map;
     }
 
@@ -190,6 +290,7 @@ public class RoomRepository {
         String ownerInternalRaw = hash.getOrDefault("ownerInternalId", "");
         Long ownerTgId = parseLongOrNull(hash.get("ownerTgId"));
         String ownerInternalId = normalizeStoredOwnerInternalId(ownerInternalRaw, ownerTgId);
+        Long autoBurnAt = parseLongOrNull(hash.get("autoBurnAt"));
         return Room.builder()
                 .id(hash.get("id"))
                 .ownerInternalId(ownerInternalId)
@@ -201,6 +302,7 @@ public class RoomRepository {
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)
                 .nameIv(nameIv.isBlank() ? null : nameIv)
                 .readOnly(parseBooleanOrDefault(hash.get("readOnly"), false))
+                .autoBurnAt(autoBurnAt)
                 .build();
     }
 

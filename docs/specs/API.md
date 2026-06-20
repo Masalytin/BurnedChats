@@ -1907,6 +1907,49 @@ Owner и admin могут отправлять в read-only.
 
 ---
 
+---
+
+### SET_ROOM_TTL (`/app/room.setTtl`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`SetRoomTtlRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `ttlSeconds` | number | Нет* | Относительный срок жизни в секундах от «сейчас» |
+| `autoBurnAt` | number | Нет* | Абсолютный момент auto-burn (Unix epoch ms) |
+
+\* Требуется **ровно одно** из `ttlSeconds` или `autoBurnAt`. Если заданы оба — используется `autoBurnAt`.
+
+**Сервер:** owner-only; `HSET room:{roomId} autoBurnAt {value}`; `EXPIRE room:{roomId}` до дедлайна (cap);
+`SET room:autoburn:{roomId}` с TTL до дедлайна (trigger, не продлевается активностью).
+
+**Ошибки (лог):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `TTL_OR_AUTOBURN_REQUIRED`, `INVALID_TTL`,
+`AUTO_BURN_IN_PAST`, `INTERNAL_ERROR`.
+
+**Событие после успеха:** `ROOM_TTL_UPDATED` на `/topic/room/{roomId}`.
+
+---
+
+### ROOM_TTL_UPDATED (topic event)
+
+**Destination:** `/topic/room/{roomId}`
+
+```json
+{
+  "eventType": "ROOM_TTL_UPDATED",
+  "roomId": "uuid-v4",
+  "autoBurnAt": 1706745600000
+}
+```
+
+**Auto-burn:** по истечении `room:autoburn:{roomId}` сервер выполняет тот же каскад, что и
+`/app/room.burn`, и рассылает `ROOM_BURNED` на `/user/queue/room-burned` каждому члену.
+
+---
+
 ### TRANSFER_OWNERSHIP (`/app/room.transferOwnership`)
 
 **Направление:** Client → Server (owner-only)
