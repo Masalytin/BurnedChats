@@ -292,6 +292,8 @@ function mapErrorMessage(
       return t('room.join.errorAlreadyMember');
     case 'REQUEST_PENDING':
       return t('room.join.errorRequestPending');
+    case 'USER_BANNED':
+      return t('room.join.errorBanned');
     case 'NETWORK_ERROR':
     case 'CONNECTION_ERROR':
     case 'CRYPTO_ERROR':

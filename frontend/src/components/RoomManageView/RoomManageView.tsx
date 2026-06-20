@@ -8,12 +8,12 @@ import {
   Link,
   Pencil,
   Settings,
+  ShieldBan,
   User,
   UserMinus,
   Users,
 } from 'lucide-react';
 import { Button } from '../Button';
-import { ConfirmDialog } from '../ConfirmDialog';
 import { Input } from '../Input';
 import { CopyIcon } from '../../icons';
 import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
@@ -232,6 +232,13 @@ interface RoomManageViewProps {
   onRenameRoom?: (name: string) => void;
   /** Owner removes a member (IMP-ROOM-04) */
   onKickMember?: (targetInternalId: string) => void;
+  /** Owner permanently bans a member (IMP-ROOM-10) */
+  onBanMember?: (targetInternalId: string) => void;
+  /** Banned internal IDs for this room */
+  bannedInternalIds?: string[];
+  isBansLoading?: boolean;
+  onRefreshBans?: () => void;
+  onUnban?: (targetInternalId: string) => void;
 }
 
 // ============================================
@@ -272,13 +279,20 @@ export const RoomManageView = memo(function RoomManageView({
   onBurnRoom,
   onRenameRoom,
   onKickMember,
+  onBanMember,
+  bannedInternalIds = [],
+  isBansLoading = false,
+  onRefreshBans,
+  onUnban,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
   const [copiedInviteUrl, setCopiedInviteUrl] = useState<string | null>(null);
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
+  const [bansExpanded, setBansExpanded] = useState(false);
   const [kickTarget, setKickTarget] = useState<{ internalId: string; displayName: string } | null>(null);
+  const [banPermanently, setBanPermanently] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -308,6 +322,18 @@ export const RoomManageView = memo(function RoomManageView({
   useEffect(() => {
     onRefreshInvites?.();
   }, [onRefreshInvites]);
+
+  // Load bans when manage view mounts
+  useEffect(() => {
+    onRefreshBans?.();
+  }, [onRefreshBans]);
+
+  // Auto-fetch bans when section is expanded
+  useEffect(() => {
+    if (bansExpanded && onRefreshBans) {
+      onRefreshBans();
+    }
+  }, [bansExpanded, onRefreshBans]);
 
   // Auto-fetch members when section is expanded
   useEffect(() => {
@@ -360,19 +386,33 @@ export const RoomManageView = memo(function RoomManageView({
   const handleKickClick = useCallback((member: RoomMember) => {
     const displayName = member.displayName?.trim()
       || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
+    setBanPermanently(false);
     setKickTarget({ internalId: member.internalId, displayName });
   }, [t]);
 
   const handleKickConfirm = useCallback(() => {
-    if (kickTarget && onKickMember) {
-      onKickMember(kickTarget.internalId);
+    if (kickTarget) {
+      if (banPermanently && onBanMember) {
+        onBanMember(kickTarget.internalId);
+      } else if (onKickMember) {
+        onKickMember(kickTarget.internalId);
+      }
     }
     setKickTarget(null);
-  }, [kickTarget, onKickMember]);
+    setBanPermanently(false);
+  }, [kickTarget, banPermanently, onBanMember, onKickMember]);
 
   const handleKickCancel = useCallback(() => {
     setKickTarget(null);
+    setBanPermanently(false);
   }, []);
+
+  const resolveBannedLabel = useCallback((internalId: string): string => {
+    const member = members?.find(m => m.internalId === internalId);
+    const displayName = member?.displayName?.trim();
+    if (displayName) return displayName;
+    return t('room.manage.memberFallback', { id: shortInternalId(internalId) });
+  }, [members, t]);
 
   const handleStartRename = useCallback(() => {
     setEditNameValue(displayTitle === formatShortRoomId(roomId) ? '' : displayTitle);
@@ -640,6 +680,62 @@ export const RoomManageView = memo(function RoomManageView({
           )}
         </section>
 
+        {/* ── Banned users ─────────────────────────────── */}
+        {onRefreshBans != null && (
+          <section className="room-manage-section">
+            <button
+              type="button"
+              className="room-manage-nav-item"
+              onClick={() => setBansExpanded(v => !v)}
+            >
+              <span className="room-manage-nav-item__label">
+                <ShieldBan size={18} aria-hidden="true" />
+                {t('room.manage.bannedTitle')}
+              </span>
+              {bannedInternalIds.length > 0 && (
+                <span className="room-manage-nav-item__badge">{bannedInternalIds.length}</span>
+              )}
+              <ChevronRight
+                size={18}
+                className={`room-manage-nav-item__arrow ${bansExpanded ? 'room-manage-nav-item__arrow--open' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+
+            {bansExpanded && (
+              <div className="room-manage-banned">
+                {isBansLoading ? (
+                  <p className="room-manage-banned__loading">{t('common.loading')}</p>
+                ) : bannedInternalIds.length > 0 ? (
+                  <ul className="room-manage-banned__list">
+                    {bannedInternalIds.map(internalId => (
+                      <li key={internalId} className="room-manage-banned-row">
+                        <div className="room-manage-banned-row__info">
+                          <span className="room-manage-banned-row__name">
+                            {resolveBannedLabel(internalId)}
+                          </span>
+                          <span className="room-manage-banned-row__id">{internalId}</span>
+                        </div>
+                        {onUnban != null && (
+                          <button
+                            type="button"
+                            className="room-manage-banned-row__unban-btn"
+                            onClick={() => onUnban(internalId)}
+                          >
+                            {t('room.manage.unbanButton')}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="room-manage-banned__empty">{t('room.manage.bannedEmpty')}</p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* ── Burn room ────────────────────────────────── */}
         <section className="room-manage-section room-manage-section--danger">
           <Button
@@ -655,17 +751,46 @@ export const RoomManageView = memo(function RoomManageView({
       </div>
 
       {kickTarget && (
-        <ConfirmDialog
-          isOpen
-          onClose={handleKickCancel}
-          onConfirm={handleKickConfirm}
-          title={t('room.manage.kickConfirmTitle', { name: kickTarget.displayName })}
-          description={t('room.manage.kickConfirmDescription')}
-          warning={t('room.manage.kickConfirmWarning')}
-          confirmLabel={t('room.manage.kickConfirmButton')}
-          variant="destructive"
-          iconType="delete"
-        />
+        <div className="room-manage-kick-dialog-overlay" role="dialog" aria-modal="true">
+          <div className="room-manage-kick-dialog">
+            <div className="room-manage-kick-dialog__icon" aria-hidden="true">
+              <UserMinus size={40} strokeWidth={1.5} />
+            </div>
+            <h3 className="room-manage-kick-dialog__title">
+              {t('room.manage.kickConfirmTitle', { name: kickTarget.displayName })}
+            </h3>
+            <p className="room-manage-kick-dialog__text">
+              {t('room.manage.kickConfirmDescription')}
+            </p>
+            <p className="room-manage-kick-dialog__warning">
+              {t('room.manage.kickConfirmWarning')}
+            </p>
+            {onBanMember != null && (
+              <label className="room-manage-kick-dialog__ban-option">
+                <input
+                  type="checkbox"
+                  checked={banPermanently}
+                  onChange={(e) => setBanPermanently(e.target.checked)}
+                />
+                <span>{t('room.manage.banOption')}</span>
+              </label>
+            )}
+            <div className="room-manage-kick-dialog__actions">
+              <Button variant="secondary" onClick={handleKickCancel} fullWidth>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleKickConfirm}
+                fullWidth
+              >
+                {banPermanently
+                  ? t('room.manage.banConfirmButton')
+                  : t('room.manage.kickConfirmButton')}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Burn confirmation overlay */}

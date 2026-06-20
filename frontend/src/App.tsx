@@ -29,6 +29,7 @@ import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { useKickMember } from './hooks/useKickMember';
+import { useManageBans } from './hooks/useManageBans';
 import { Layout } from './components/Layout/Layout';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -662,10 +663,24 @@ function AppContent() {
     publish,
   });
 
+  const {
+    bans: roomBans,
+    isLoading: isBansLoading,
+    refresh: refreshBans,
+    unban: unbanMember,
+    ban: banMember,
+  } = useManageBans({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
   const handleKickSuccess = useCallback((roomId: string, _targetInternalId: string) => {
     toast.success(t('room.manage.kickSuccess'));
     fetchMembers(roomId);
-  }, [toast, t, fetchMembers]);
+    refreshBans(roomId);
+  }, [toast, t, fetchMembers, refreshBans]);
 
   const handleKickError = useCallback((errorCode: string) => {
     const key = `room.manage.kickError.${errorCode}`;
@@ -1717,6 +1732,23 @@ function AppContent() {
     debugLog('info', `[RoomManage] KICK_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, kickMember]);
 
+  const handleBanMember = useCallback((targetInternalId: string) => {
+    if (!activeRoomChat || !isConnected) return;
+    banMember(activeRoomChat.roomId, targetInternalId);
+    debugLog('info', `[RoomManage] BAN_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, banMember]);
+
+  const handleRefreshBans = useCallback(() => {
+    if (!activeRoomChat || !isConnected) return;
+    refreshBans(activeRoomChat.roomId);
+  }, [activeRoomChat, isConnected, refreshBans]);
+
+  const handleUnbanMember = useCallback((targetInternalId: string) => {
+    if (!activeRoomChat || !isConnected) return;
+    unbanMember(activeRoomChat.roomId, targetInternalId);
+    debugLog('info', `[RoomManage] UNBAN_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, unbanMember]);
+
   // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
   const roomBurnedDepsRef = useRef({
     currentView,
@@ -2622,6 +2654,11 @@ function AppContent() {
             onBurnRoom={handleBurnRoom}
             onRenameRoom={handleRenameRoom}
             onKickMember={handleKickMember}
+            onBanMember={handleBanMember}
+            bannedInternalIds={roomBans}
+            isBansLoading={isBansLoading}
+            onRefreshBans={handleRefreshBans}
+            onUnban={handleUnbanMember}
           />
         </Layout>
         {debugPanelElement}

@@ -468,6 +468,173 @@
 }
 
 /* ============================================
+ * Banned Users List (IMP-ROOM-10)
+ * ============================================ */
+
+.room-manage-banned {
+  border-top: 1px solid var(--bc-border-color);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+}
+
+.room-manage-banned__loading,
+.room-manage-banned__empty {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-muted);
+  padding: var(--bc-spacing-xs) 0;
+}
+
+.room-manage-banned__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-manage-banned-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-xs) 0;
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.room-manage-banned-row:last-child {
+  border-bottom: none;
+}
+
+.room-manage-banned-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-2xs);
+}
+
+.room-manage-banned-row__name {
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+  color: var(--bc-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-manage-banned-row__id {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  font-family: var(--bc-font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-manage-banned-row__unban-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--bc-border-color);
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-xs);
+  font-weight: 500;
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border-radius: var(--bc-radius-md);
+  cursor: pointer;
+  transition: background-color var(--bc-transition-fast);
+}
+
+.room-manage-banned-row__unban-btn:hover {
+  background: var(--bc-bg-secondary);
+}
+
+.room-manage-banned-row__unban-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
+ * Kick Confirmation Dialog (IMP-ROOM-10)
+ * ============================================ */
+
+.room-manage-kick-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bc-overlay-scrim-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--bc-z-modal);
+  padding: var(--bc-spacing-lg);
+}
+
+.room-manage-kick-dialog {
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-xl);
+  padding: var(--bc-spacing-xl);
+  max-width: 20rem;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+}
+
+.room-manage-kick-dialog__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bc-error);
+  line-height: 1;
+}
+
+.room-manage-kick-dialog__title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+}
+
+.room-manage-kick-dialog__text {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  line-height: 1.5;
+}
+
+.room-manage-kick-dialog__warning {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-warning, var(--bc-text-muted));
+  line-height: 1.4;
+}
+
+.room-manage-kick-dialog__ban-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
+  text-align: left;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
+  cursor: pointer;
+  padding: var(--bc-spacing-sm);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-elevated);
+}
+
+.room-manage-kick-dialog__ban-option input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.room-manage-kick-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+/* ============================================
  * Member Row (reusable in kick/roles/presence)
  * ============================================ */
 

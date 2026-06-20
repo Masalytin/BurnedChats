@@ -36,6 +36,7 @@ export type JoinRoomErrorCode =
   | 'WRONG_PASSWORD'
   | 'ALREADY_MEMBER'
   | 'REQUEST_PENDING'
+  | 'USER_BANNED'
   | 'INTERNAL_ERROR'
   | 'CONNECTION_ERROR'
   | 'CRYPTO_ERROR';

@@ -934,6 +934,7 @@
       "errorInvalidToken": "Invalid invite link",
       "errorAlreadyMember": "You are already a member of this room",
       "errorRequestPending": "Your join request is already pending",
+      "errorBanned": "You have been blocked from this room",
       "errorRejected": "Your join request was declined by the owner",
       "errorNetwork": "Network error. Please try again"
     },
@@ -994,6 +995,11 @@
       "kickConfirmDescription": "They will immediately lose access to this room and its messages.",
       "kickConfirmWarning": "The room encryption key will be rotated after removal.",
       "kickConfirmButton": "Remove from room",
+      "banOption": "Block permanently",
+      "banConfirmButton": "Remove and block",
+      "bannedTitle": "Blocked",
+      "bannedEmpty": "No blocked users",
+      "unbanButton": "Unblock",
       "kickSuccess": "Member removed from the room",
       "kickError": {
         "NOT_MEMBER": "This user is no longer in the room",
