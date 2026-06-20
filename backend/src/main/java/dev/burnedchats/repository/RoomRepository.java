@@ -120,6 +120,25 @@ public class RoomRepository {
                 });
     }
 
+    /**
+     * Update read-only mode and refresh TTL.
+     *
+     * @param roomId   room UUID
+     * @param readOnly when {@code true}, only the owner may send messages
+     * @return Mono completing when the hash field and TTL are updated
+     */
+    public Mono<Boolean> updateReadOnly(String roomId, boolean readOnly) {
+        String key = keyFor(roomId);
+        return redisTemplate.opsForHash()
+                .put(key, "readOnly", String.valueOf(readOnly))
+                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .doOnSuccess(ok -> LOG.debug("Updated readOnly={} for room {}", readOnly, roomId))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to update readOnly for room {}: {}", roomId, e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -139,6 +158,7 @@ public class RoomRepository {
         map.put("createdAt", String.valueOf(room.getCreatedAt()));
         map.put("nameEncrypted", room.getNameEncrypted() != null ? room.getNameEncrypted() : "");
         map.put("nameIv", room.getNameIv() != null ? room.getNameIv() : "");
+        map.put("readOnly", String.valueOf(room.isReadOnly()));
         return map;
     }
 
@@ -160,7 +180,15 @@ public class RoomRepository {
                 .createdAt(Long.parseLong(hash.get("createdAt")))
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)
                 .nameIv(nameIv.isBlank() ? null : nameIv)
+                .readOnly(parseBooleanOrDefault(hash.get("readOnly"), false))
                 .build();
+    }
+
+    private static boolean parseBooleanOrDefault(String value, boolean defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value);
     }
 
     /**

@@ -86,4 +86,11 @@ public class Room implements Serializable {
      * Stored separately from ciphertext (see IMP-ROOM-05 decision log). May be null when no name is set.
      */
     private String nameIv;
+
+    /**
+     * When {@code true}, only the owner may send messages; members may still read.
+     * Defaults to {@code false} when absent in Redis.
+     */
+    @Builder.Default
+    private boolean readOnly = false;
 }

@@ -1635,6 +1635,10 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 **Отправка:** `/app/room.message.send` (`SendRoomMessageRequest` — те же файловые поля, что у DM).
 
+**Ack отправителю:** `/user/queue/room-message-sent` (`RoomMessageSentEvent`). При отказе модерации:
+`error` = `MUTED` (отправитель в `room_muted:{roomId}`) или `ROOM_READ_ONLY` (комната в режиме read-only и отправитель не owner).
+Сообщение **не** записывается в offline-очередь.
+
 **Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
 
 **Subscribe guard (IMP-ROOM-22):** клиент **обязан** быть аутентифицирован (`AppPrincipal` на STOMP-сессии)
@@ -1814,6 +1818,81 @@ Rate-limit: `SESSION_ACTION` (10/min).
 ```
 
 **Error:** `{ "success": false, "error": "NOT_OWNER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
+
+---
+
+### MUTE_MEMBER (`/app/room.mute`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`MuteMemberRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `targetInternalId` | string | Да | Internal ID участника для mute |
+
+Участник **остаётся** в `room_members`; сервер добавляет `internalId` в `room_muted:{roomId}`.
+Rekey **не** требуется.
+
+**Ошибки (лог):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+
+**Событие после успеха:** `ROOM_MODERATION` на `/topic/room/{roomId}` (`RoomModerationEvent` с `mutedAdded`).
+
+Rate-limit: `SESSION_ACTION` (10/min).
+
+---
+
+### UNMUTE_MEMBER (`/app/room.unmute`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос:** тот же payload, что у mute — `{ "roomId": "string", "targetInternalId": "string" }`
+(`MuteMemberRequest`).
+
+**Сервер:** `SREM room_muted:{roomId} {targetInternalId}`. При успешном удалении — broadcast
+`ROOM_MODERATION` с `mutedRemoved` на `/topic/room/{roomId}`.
+
+---
+
+### SET_READ_ONLY (`/app/room.setReadOnly`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`SetReadOnlyRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `readOnly` | boolean | Да | `true` — постит только owner; `false` — все члены |
+
+**Сервер:** `HSET room:{roomId} readOnly {true|false}`; broadcast `ROOM_MODERATION` с полем `readOnly`.
+
+**Send enforce:** non-owner при `readOnly=true` → `/user/queue/room-message-sent` с `error=ROOM_READ_ONLY`.
+
+> Co-admin может постить в read-only — **IMP-ROOM-14** (пока только owner).
+
+---
+
+### ROOM_MODERATION (topic event)
+
+**Destination:** `/topic/room/{roomId}`
+
+```json
+{
+  "eventType": "ROOM_MODERATION",
+  "roomId": "uuid-v4",
+  "readOnly": false,
+  "mutedAdded": "internal-id",
+  "mutedRemoved": null
+}
+```
+
+| Поле | Описание |
+|------|----------|
+| `readOnly` | Текущий флаг read-only после изменения |
+| `mutedAdded` | При mute — internalId добавленного |
+| `mutedRemoved` | При unmute — internalId удалённого |
 
 ---
 

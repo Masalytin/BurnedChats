@@ -15,6 +15,7 @@ import dev.burnedchats.model.RoomMessage;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.UserIdentityRepository;
@@ -68,6 +69,7 @@ public class RoomMessageHandler {
     private final RoomMembersRepository roomMembersRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomRepository roomRepository;
+    private final RoomMutedRepository roomMutedRepository;
     private final UserIdentityRepository userIdentityRepository;
     private final StompUserMessenger stompUserMessenger;
     private final SimpMessagingTemplate messagingTemplate;
@@ -222,15 +224,21 @@ public class RoomMessageHandler {
                         return Mono.empty();
                     }
 
-                    Mono<Void> fileValidation = Mono.empty();
-                    if (FileMessageRelayValidator.isFileMessage(request.getType())) {
-                        fileValidation = fileMessageRelayValidator.validateFileMessage(
-                                request.getFileId(), request.getThumbnailFileId(),
-                                sender.internalId(), sender.telegramId(), roomId);
-                    }
-
-                    return fileValidation
-                            .then(Mono.defer(() -> saveAndBroadcast(request, sender, principal, roomId, messageId)));
+                    return enforceSendModeration(roomId, sender, principal, messageId)
+                            .flatMap(allowed -> {
+                                if (!allowed) {
+                                    return Mono.empty();
+                                }
+                                Mono<Void> fileValidation = Mono.empty();
+                                if (FileMessageRelayValidator.isFileMessage(request.getType())) {
+                                    fileValidation = fileMessageRelayValidator.validateFileMessage(
+                                            request.getFileId(), request.getThumbnailFileId(),
+                                            sender.internalId(), sender.telegramId(), roomId);
+                                }
+                                return fileValidation
+                                        .then(Mono.defer(() ->
+                                                saveAndBroadcast(request, sender, principal, roomId, messageId)));
+                            });
                 })
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for room message {} in room {}: {}",
@@ -246,6 +254,32 @@ public class RoomMessageHandler {
                             sendError(principal, roomId, messageId, "INTERNAL_ERROR");
                         }
             );
+    }
+
+    private Mono<Boolean> enforceSendModeration(
+            String roomId, ParticipantContext sender, Principal principal, String messageId) {
+        return roomMutedRepository.isMuted(roomId, sender.internalId())
+                .flatMap(muted -> {
+                    if (muted) {
+                        LOG.debug("SEND_ROOM_MESSAGE rejected: user {} is muted in room {}",
+                                sender.internalId(), roomId);
+                        sendError(principal, roomId, messageId, "MUTED");
+                        return Mono.just(false);
+                    }
+                    return roomRepository.findById(roomId)
+                            .map(room -> {
+                                boolean isOwner = StringUtils.hasText(room.getOwnerInternalId())
+                                        && room.getOwnerInternalId().equals(sender.internalId());
+                                if (room.isReadOnly() && !isOwner) {
+                                    LOG.debug("SEND_ROOM_MESSAGE rejected: room {} is read-only for non-owner {}",
+                                            roomId, sender.internalId());
+                                    sendError(principal, roomId, messageId, "ROOM_READ_ONLY");
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .defaultIfEmpty(false);
+                });
     }
 
     private Mono<Void> saveAndBroadcast(

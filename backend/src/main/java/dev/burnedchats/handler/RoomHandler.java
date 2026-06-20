@@ -5,6 +5,7 @@ import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
+import dev.burnedchats.dto.event.RoomModerationEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
@@ -24,6 +25,8 @@ import dev.burnedchats.dto.request.BanMemberRequest;
 import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.KickMemberRequest;
+import dev.burnedchats.dto.request.MuteMemberRequest;
+import dev.burnedchats.dto.request.SetReadOnlyRequest;
 import dev.burnedchats.dto.request.LeaveRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
@@ -44,6 +47,7 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
+import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -124,6 +128,7 @@ public class RoomHandler {
     private final RoomMessageRepository roomMessageRepository;
     private final RoomTopicSubscriptionService roomTopicSubscriptionService;
     private final RoomBansRepository roomBansRepository;
+    private final RoomMutedRepository roomMutedRepository;
     private final RateLimitService rateLimitService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -791,7 +796,8 @@ public class RoomHandler {
                                                         roomKeysRepository.deleteRoom(roomId),
                                                         memberPublicKeyRepository.deleteRoom(roomId),
                                                         roomMessageRepository.deleteRoomMessages(roomId),
-                                                        roomBansRepository.deleteAll(roomId)
+                                                        roomBansRepository.deleteAll(roomId),
+                                                        roomMutedRepository.deleteAll(roomId)
                                                 ))
                                                 .thenReturn(members))
                 )
@@ -1005,6 +1011,96 @@ public class RoomHandler {
             );
     }
 
+    @MessageMapping("/room.mute")
+    public void muteMember(@Payload @Valid MuteMemberRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("MUTE_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
+                roomId, targetInternalId, owner.internalId());
+
+        rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
+                .then(Mono.defer(() -> roomRepository.findById(roomId)
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                        .flatMap(room -> validateMuteTarget(room, owner.internalId(), targetInternalId)
+                                .then(roomMutedRepository.add(roomId, targetInternalId))
+                                .thenReturn(room))))
+                .subscribe(
+                        room -> broadcastRoomModeration(
+                                roomId, RoomModerationEvent.muted(roomId, room.isReadOnly(), targetInternalId)),
+                        error -> LOG.warn("MUTE_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, "
+                                        + "error={}",
+                                roomId, targetInternalId, owner.internalId(), mapMuteError(error))
+            );
+    }
+
+    @MessageMapping("/room.unmute")
+    public void unmuteMember(@Payload @Valid MuteMemberRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("UNMUTE_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
+                roomId, targetInternalId, owner.internalId());
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return roomMutedRepository.remove(roomId, targetInternalId)
+                            .flatMap(removed -> {
+                                if (removed > 0) {
+                                    return Mono.just(room);
+                                }
+                                return Mono.empty();
+                            });
+                })
+                .subscribe(
+                        room -> broadcastRoomModeration(
+                                roomId, RoomModerationEvent.unmuted(roomId, room.isReadOnly(), targetInternalId)),
+                        error -> LOG.warn("UNMUTE_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, "
+                                        + "error={}",
+                                roomId, targetInternalId, owner.internalId(), mapMuteError(error))
+            );
+    }
+
+    @MessageMapping("/room.setReadOnly")
+    public void setReadOnly(@Payload @Valid SetReadOnlyRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        boolean readOnly = Boolean.TRUE.equals(request.getReadOnly());
+        LOG.info("SET_READ_ONLY requested: roomId={}, readOnly={}, ownerInternalId={}",
+                roomId, readOnly, owner.internalId());
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return roomRepository.updateReadOnly(roomId, readOnly).thenReturn(readOnly);
+                })
+                .subscribe(
+                        updatedReadOnly -> broadcastRoomModeration(
+                                roomId, RoomModerationEvent.readOnlyChanged(roomId, updatedReadOnly)),
+                        error -> LOG.warn("SET_READ_ONLY failed: roomId={}, ownerInternalId={}, error={}",
+                                roomId, owner.internalId(), mapMuteError(error))
+            );
+    }
+
     @MessageMapping("/room.leave")
     public void leaveRoom(@Payload @Valid LeaveRoomRequest request, Principal principal) {
         ParticipantContext caller = ParticipantContext.from(principal);
@@ -1070,6 +1166,31 @@ public class RoomHandler {
         messagingTemplate.convertAndSend(
                 ROOM_TOPIC_PREFIX + roomId,
                 RoomNameUpdatedEvent.of(roomId, nameEncrypted, nameIv));
+    }
+
+    private void broadcastRoomModeration(String roomId, RoomModerationEvent event) {
+        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+        LOG.info("ROOM_MODERATION broadcast: roomId={}, readOnly={}, mutedAdded={}, mutedRemoved={}",
+                roomId, event.isReadOnly(), event.getMutedAdded(), event.getMutedRemoved());
+    }
+
+    private Mono<Void> validateMuteTarget(Room room, String ownerInternalId, String targetInternalId) {
+        if (!isRoomOwner(room, ownerInternalId)) {
+            return Mono.error(new SecurityException("NOT_OWNER"));
+        }
+        if (ownerInternalId.equals(targetInternalId)) {
+            return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
+        }
+        if (isRoomOwner(room, targetInternalId)) {
+            return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
+        }
+        return roomMembersRepository.isMember(room.getId(), targetInternalId)
+                .flatMap(isMember -> {
+                    if (!isMember) {
+                        return Mono.error(new SecurityException("NOT_MEMBER"));
+                    }
+                    return Mono.empty();
+                });
     }
 
     private Mono<Void> performKickCleanup(String roomId, String targetInternalId) {
@@ -1226,6 +1347,26 @@ public class RoomHandler {
         }
         if (error instanceof SecurityException) {
             return "NOT_OWNER";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapMuteError(Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        if (root instanceof RateLimitException) {
+            return "RATE_LIMITED";
+        }
+        if (root instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (root instanceof IllegalStateException ise) {
+            return ise.getMessage();
+        }
+        if (root instanceof SecurityException se) {
+            return se.getMessage();
         }
         return "INTERNAL_ERROR";
     }

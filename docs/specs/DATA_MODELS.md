@@ -280,6 +280,7 @@ HSET room:uuid-room-1
   createdAt       "1704067200000"
   nameEncrypted   "base64..."     # опционально; opaque ciphertext
   nameIv          "base64..."     # опционально; 12-byte GCM IV
+  readOnly        "false"         # опционально; true = только owner постит
 
 EXPIRE room:uuid-room-1 2592000
 ```
@@ -294,6 +295,7 @@ EXPIRE room:uuid-room-1 2592000
 | `createdAt` | number | Unix timestamp в мс |
 | `nameEncrypted` | string | Зашифрованное имя комнаты (AES-GCM ciphertext, Base64). Пустая строка = не задано. Сервер не расшифровывает |
 | `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
+| `readOnly` | boolean | Режим «только чтение»: при `true` отправлять сообщения может только владелец. По умолчанию `false` (отсутствие поля) |
 
 **TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`)
 
@@ -323,6 +325,23 @@ EXPIRE room_bans:uuid-room-1 2592000
 | Join enforce | `SISMEMBER` в `requestJoin` / `acceptJoin` → `USER_BANNED` |
 | TTL | 30 дней; продлевается при активности комнаты (вместе с `room:{roomId}`) |
 | BURN_ROOM | `DEL room_bans:{roomId}` |
+
+### `room_muted:{roomId}`
+
+Список заглушённых участников (Set internalId). Mute **не** удаляет из membership и **не** требует rekey (IMP-ROOM-11).
+
+```redis
+SADD room_muted:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
+EXPIRE room_muted:uuid-room-1 2592000
+```
+
+| Операция | Описание |
+|----------|----------|
+| Mute | `SADD` (`/app/room.mute`); участник остаётся членом |
+| Unmute | `SREM` (`/app/room.unmute`) |
+| Send enforce | `SISMEMBER` в `/app/room.message.send` → `MUTED` (без записи в очередь) |
+| TTL | 30 дней; продлевается при мутациях |
+| BURN_ROOM | `DEL room_muted:{roomId}` |
 
 ### `invite:{token}`
 
