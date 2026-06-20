@@ -6,7 +6,6 @@ import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomModerationEvent;
-import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
