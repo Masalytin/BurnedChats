@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
+import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -15,6 +16,8 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -49,16 +52,19 @@ public class RoomMessageRepository {
     private final ObjectMapper objectMapper;
     private final MessagesProperties messagesProperties;
     private final OfflineQueueMetrics offlineQueueMetrics;
+    private final RoomRepository roomRepository;
 
     public RoomMessageRepository(
             ReactiveRedisTemplate<String, String> redisTemplate,
             ObjectMapper objectMapper,
             MessagesProperties messagesProperties,
-            OfflineQueueMetrics offlineQueueMetrics) {
+            OfflineQueueMetrics offlineQueueMetrics,
+            RoomRepository roomRepository) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.messagesProperties = messagesProperties;
         this.offlineQueueMetrics = offlineQueueMetrics;
+        this.roomRepository = roomRepository;
     }
 
     /**
@@ -94,6 +100,14 @@ public class RoomMessageRepository {
                             return redisTemplate.expire(key, ttl).thenReturn(true);
                         })
                 )
+                .flatMap(saved -> {
+                    if (!Boolean.TRUE.equals(saved)) {
+                        return Mono.just(false);
+                    }
+                    return resolveMessageTtl(message.getRoomId())
+                            .flatMap(ttlSeconds -> pruneExpiredMessages(message.getRoomId(), ttlSeconds))
+                            .thenReturn(true);
+                })
                 .doOnSuccess(r -> {
                     if (Boolean.TRUE.equals(r)) {
                         offlineQueueMetrics.recordEnqueued(OfflineSessionType.room);
@@ -118,12 +132,21 @@ public class RoomMessageRepository {
      * @return flux of room messages
      */
     public Flux<RoomMessage> getRoomMessages(String roomId) {
-        String key = keyFor(roomId);
+        return resolveMessageTtl(roomId)
+                .flatMapMany(messageTtl -> loadMessagesWithOptionalPrune(roomId, messageTtl));
+    }
 
-        return redisTemplate.opsForList()
-                .range(key, 0, -1)
-                .flatMap(this::deserializeMessage)
-                .doOnComplete(() -> LOG.debug("Retrieved messages for room {}", roomId));
+    /**
+     * Remove messages older than {@code messageTtlSeconds} from the room list.
+     *
+     * <p>No-op when {@code messageTtlSeconds <= 0}. Uses {@link RoomMessage#getServerTimestamp()}
+     * with fallback to {@link RoomMessage#getClientTimestamp()}.
+     */
+    public Mono<Void> pruneExpiredMessages(String roomId, int messageTtlSeconds) {
+        if (messageTtlSeconds <= 0) {
+            return Mono.empty();
+        }
+        return rewriteListKeepingLiveMessages(roomId, messageTtlSeconds).then();
     }
 
     /**
@@ -256,10 +279,6 @@ public class RoomMessageRepository {
                 });
     }
 
-    private String keyFor(String roomId) {
-        return KEY_PREFIX + roomId;
-    }
-
     private Mono<String> serializeMessage(RoomMessage message) {
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(message))
                 .onErrorMap(JsonProcessingException.class, e ->
@@ -272,5 +291,86 @@ public class RoomMessageRepository {
                     LOG.warn("Failed to deserialize room message: {}", e.getMessage());
                     return Mono.empty();
                 });
+    }
+
+    private Mono<Integer> resolveMessageTtl(String roomId) {
+        return roomRepository.findById(roomId)
+                .map(Room::getMessageTtl)
+                .defaultIfEmpty(0);
+    }
+
+    private Flux<RoomMessage> loadMessagesWithOptionalPrune(String roomId, int messageTtlSeconds) {
+        String key = keyFor(roomId);
+        if (messageTtlSeconds <= 0) {
+            return redisTemplate.opsForList()
+                    .range(key, 0, -1)
+                    .flatMap(this::deserializeMessage)
+                    .doOnComplete(() -> LOG.debug("Retrieved messages for room {}", roomId));
+        }
+        return rewriteListKeepingLiveMessages(roomId, messageTtlSeconds)
+                .flatMapMany(liveJson -> Flux.fromIterable(liveJson).flatMap(this::deserializeMessage))
+                .doOnComplete(() -> LOG.debug("Retrieved pruned messages for room {}", roomId));
+    }
+
+    private Mono<List<String>> rewriteListKeepingLiveMessages(String roomId, int messageTtlSeconds) {
+        String key = keyFor(roomId);
+        Instant cutoff = Instant.now().minusSeconds(messageTtlSeconds);
+        Duration ttl = messagesProperties.getOfflineQueue().getTtl();
+
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    if (jsonList.isEmpty()) {
+                        return Mono.just(List.of());
+                    }
+                    List<String> kept = new ArrayList<>(jsonList.size());
+                    for (String json : jsonList) {
+                        if (!isExpiredJson(json, cutoff)) {
+                            kept.add(json);
+                        }
+                    }
+                    if (kept.size() == jsonList.size()) {
+                        return Mono.just(kept);
+                    }
+                    long pruned = jsonList.size() - kept.size();
+                    LOG.debug("Pruning {} expired room messages for room {}", pruned, roomId);
+                    if (kept.isEmpty()) {
+                        offlineQueueMetrics.removeTrackedListKey(key);
+                        return redisTemplate.delete(key).thenReturn(List.of());
+                    }
+                    return redisTemplate.delete(key)
+                            .then(Flux.fromIterable(kept)
+                                    .concatMap(json -> redisTemplate.opsForList().rightPush(key, json))
+                                    .then())
+                            .then(redisTemplate.expire(key, ttl))
+                            .doOnSuccess(ok -> offlineQueueMetrics.setTrackedListSize(key, (long) kept.size()))
+                            .thenReturn(kept);
+                });
+    }
+
+    private boolean isExpiredJson(String json, Instant cutoff) {
+        try {
+            RoomMessage message = objectMapper.readValue(json, RoomMessage.class);
+            return isExpired(message, cutoff);
+        } catch (JsonProcessingException e) {
+            LOG.warn("Skipping bad room list entry during prune: {}", e.getMessage());
+            return true;
+        }
+    }
+
+    private static boolean isExpired(RoomMessage message, Instant cutoff) {
+        Instant timestamp = message.getServerTimestamp();
+        if (timestamp == null && message.getClientTimestamp() != null) {
+            timestamp = Instant.ofEpochMilli(message.getClientTimestamp());
+        }
+        if (timestamp == null) {
+            return false;
+        }
+        return timestamp.isBefore(cutoff);
+    }
+
+    private String keyFor(String roomId) {
+        return KEY_PREFIX + roomId;
     }
 }

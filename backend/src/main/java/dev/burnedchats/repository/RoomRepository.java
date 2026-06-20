@@ -198,6 +198,28 @@ public class RoomRepository {
     }
 
     /**
+     * Update per-room message auto-destruction timer and refresh room TTL.
+     *
+     * @param roomId            room UUID
+     * @param messageTtlSeconds seconds; {@code 0} disables per-message pruning
+     * @return Mono completing when the hash field and TTL are updated
+     */
+    public Mono<Boolean> updateMessageTtl(String roomId, int messageTtlSeconds) {
+        if (messageTtlSeconds < 0) {
+            return Mono.error(new IllegalArgumentException("INVALID_MESSAGE_TTL"));
+        }
+        String key = keyFor(roomId);
+        return redisTemplate.opsForHash()
+                .put(key, "messageTtl", String.valueOf(messageTtlSeconds))
+                .then(refreshTtl(roomId, null))
+                .doOnSuccess(ok -> LOG.debug("Updated messageTtl={} for room {}", messageTtlSeconds, roomId))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to update messageTtl for room {}: {}", roomId, e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
+    /**
      * Update read-only mode and refresh TTL.
      *
      * @param roomId   room UUID
@@ -279,6 +301,9 @@ public class RoomRepository {
         if (room.getAutoBurnAt() != null) {
             map.put("autoBurnAt", String.valueOf(room.getAutoBurnAt()));
         }
+        if (room.getMessageTtl() > 0) {
+            map.put("messageTtl", String.valueOf(room.getMessageTtl()));
+        }
         return map;
     }
 
@@ -291,6 +316,7 @@ public class RoomRepository {
         Long ownerTgId = parseLongOrNull(hash.get("ownerTgId"));
         String ownerInternalId = normalizeStoredOwnerInternalId(ownerInternalRaw, ownerTgId);
         Long autoBurnAt = parseLongOrNull(hash.get("autoBurnAt"));
+        int messageTtl = parseIntOrDefault(hash.get("messageTtl"), 0);
         return Room.builder()
                 .id(hash.get("id"))
                 .ownerInternalId(ownerInternalId)
@@ -303,7 +329,19 @@ public class RoomRepository {
                 .nameIv(nameIv.isBlank() ? null : nameIv)
                 .readOnly(parseBooleanOrDefault(hash.get("readOnly"), false))
                 .autoBurnAt(autoBurnAt)
+                .messageTtl(messageTtl)
                 .build();
+    }
+
+    private static int parseIntOrDefault(String value, int defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private static boolean parseBooleanOrDefault(String value, boolean defaultValue) {

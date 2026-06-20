@@ -99,4 +99,11 @@ public class Room implements Serializable {
      * When set, activity TTL extension is capped at this instant.
      */
     private Long autoBurnAt;
+
+    /**
+     * Per-room message auto-destruction timer in seconds; {@code 0} = disabled (global offline-queue TTL only).
+     * Owner-set via {@code setMessageTtl}. Pruning uses {@code serverTimestamp} metadata only.
+     */
+    @Builder.Default
+    private int messageTtl = 0;
 }

@@ -1950,6 +1950,40 @@ Owner и admin могут отправлять в read-only.
 
 ---
 
+### SET_MESSAGE_TTL (`/app/room.setMessageTtl`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`SetMessageTtlRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `messageTtlSeconds` | number | Да | Таймер самоуничтожения сообщений в секундах; `0` = выкл |
+
+**Сервер:** owner-only; `HSET room:{roomId} messageTtl {value}`; немедленный lazy prune
+`messages:{roomId}`; broadcast события.
+
+**Ошибки (лог):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `INVALID_MESSAGE_TTL`, `INTERNAL_ERROR`.
+
+**Событие после успеха:** `ROOM_MESSAGE_TTL_UPDATED` на `/topic/room/{roomId}`.
+
+---
+
+### ROOM_MESSAGE_TTL_UPDATED (topic event)
+
+**Destination:** `/topic/room/{roomId}`
+
+```json
+{
+  "eventType": "ROOM_MESSAGE_TTL_UPDATED",
+  "roomId": "uuid-v4",
+  "messageTtlSeconds": 3600
+}
+```
+
+---
+
 ### TRANSFER_OWNERSHIP (`/app/room.transferOwnership`)
 
 **Направление:** Client → Server (owner-only)

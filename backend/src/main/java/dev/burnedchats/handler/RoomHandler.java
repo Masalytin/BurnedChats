@@ -19,6 +19,7 @@ import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomMembersListEvent;
+import dev.burnedchats.dto.event.RoomMessageTtlUpdatedEvent;
 import dev.burnedchats.dto.event.RoomNameUpdatedEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.BanMemberRequest;
@@ -26,6 +27,7 @@ import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.KickMemberRequest;
 import dev.burnedchats.dto.request.MuteMemberRequest;
+import dev.burnedchats.dto.request.SetMessageTtlRequest;
 import dev.burnedchats.dto.request.SetReadOnlyRequest;
 import dev.burnedchats.dto.request.LeaveRoomRequest;
 import dev.burnedchats.dto.request.GetInviteInfoRequest;
@@ -799,6 +801,38 @@ public class RoomHandler {
             );
     }
 
+    @MessageMapping("/room.setMessageTtl")
+    public void setMessageTtl(@Payload @Valid SetMessageTtlRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        int messageTtlSeconds = request.getMessageTtlSeconds();
+        LOG.info("SET_MESSAGE_TTL requested: roomId={}, ownerInternalId={}, messageTtlSeconds={}",
+                roomId, owner.internalId(), messageTtlSeconds);
+
+        roomService.requireOwner(roomId, owner.internalId())
+                .flatMap(room -> roomRepository.updateMessageTtl(roomId, messageTtlSeconds)
+                        .flatMap(ok -> {
+                            if (!Boolean.TRUE.equals(ok)) {
+                                return Mono.error(new IllegalStateException("INTERNAL_ERROR"));
+                            }
+                            return roomMessageRepository.pruneExpiredMessages(roomId, messageTtlSeconds)
+                                    .thenReturn(RoomMessageTtlUpdatedEvent.of(roomId, messageTtlSeconds));
+                        }))
+                .subscribe(
+                        event -> {
+                            messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+                            LOG.info("ROOM_MESSAGE_TTL_UPDATED broadcast: roomId={}, messageTtlSeconds={}",
+                                    roomId, event.getMessageTtlSeconds());
+                        },
+                        error -> LOG.warn("SET_MESSAGE_TTL failed: roomId={}, ownerInternalId={}, error={}",
+                                roomId, owner.internalId(), mapSetMessageTtlError(error))
+            );
+    }
+
     @MessageMapping("/room.kick")
     public void kickMember(@Payload @Valid KickMemberRequest request, Principal principal) {
         ParticipantContext owner = ParticipantContext.from(principal);
@@ -1361,6 +1395,16 @@ public class RoomHandler {
     }
 
     private String mapSetTtlError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapSetMessageTtlError(Throwable error) {
         if (error instanceof IllegalArgumentException iae) {
             return iae.getMessage();
         }

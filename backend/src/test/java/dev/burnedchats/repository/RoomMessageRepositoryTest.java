@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
+import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomMessage;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import reactor.test.StepVerifier;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -49,6 +51,9 @@ class RoomMessageRepositoryTest {
     @Mock
     private ReactiveListOperations<String, String> listOperations;
 
+    @Mock
+    private RoomRepository roomRepository;
+
     private RoomMessageRepository repository;
     private ObjectMapper objectMapper;
     private MessagesProperties messagesProperties;
@@ -65,9 +70,11 @@ class RoomMessageRepositoryTest {
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         when(redisTemplate.opsForList()).thenReturn(listOperations);
+        when(roomRepository.findById(anyString())).thenReturn(Mono.empty());
         messagesProperties = new MessagesProperties();
         offlineQueueMetrics = new OfflineQueueMetrics(new SimpleMeterRegistry());
-        repository = new RoomMessageRepository(redisTemplate, objectMapper, messagesProperties, offlineQueueMetrics);
+        repository = new RoomMessageRepository(
+                redisTemplate, objectMapper, messagesProperties, offlineQueueMetrics, roomRepository);
     }
 
     private RoomMessage createTestMessage() {
@@ -252,6 +259,103 @@ class RoomMessageRepositoryTest {
 
             StepVerifier.create(repository.deleteRoomMessages(TEST_ROOM_ID))
                     .expectNext(0L)
+                    .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("pruneExpiredMessages")
+    class PruneExpiredMessages {
+
+        @Test
+        @DisplayName("should drop messages older than messageTtl on sync")
+        void shouldDropExpiredMessagesOnSync() {
+            String key = "messages:" + TEST_ROOM_ID;
+            RoomMessage fresh = RoomMessage.builder()
+                    .messageId("msg-fresh")
+                    .roomId(TEST_ROOM_ID)
+                    .senderTgId(SENDER_TG_ID)
+                    .encryptedContent("fresh")
+                    .iv("iv")
+                    .clientTimestamp(System.currentTimeMillis())
+                    .serverTimestamp(Instant.now())
+                    .build();
+            RoomMessage stale = RoomMessage.builder()
+                    .messageId("msg-stale")
+                    .roomId(TEST_ROOM_ID)
+                    .senderTgId(SENDER_TG_ID)
+                    .encryptedContent("stale")
+                    .iv("iv")
+                    .clientTimestamp(System.currentTimeMillis() - 7200_000L)
+                    .serverTimestamp(Instant.now().minus(2, ChronoUnit.HOURS))
+                    .build();
+
+            when(roomRepository.findById(TEST_ROOM_ID)).thenReturn(Mono.just(
+                    Room.builder().id(TEST_ROOM_ID).messageTtl(3600).build()));
+            when(listOperations.range(key, 0, -1))
+                    .thenReturn(Flux.just(toJson(stale), toJson(fresh)));
+            when(redisTemplate.delete(key)).thenReturn(Mono.just(1L));
+            when(listOperations.rightPush(eq(key), eq(toJson(fresh)))).thenReturn(Mono.just(1L));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
+
+            StepVerifier.create(repository.getRoomMessages(TEST_ROOM_ID))
+                    .assertNext(found -> assertEquals("msg-fresh", found.getMessageId()))
+                    .verifyComplete();
+
+            verify(redisTemplate).delete(key);
+            verify(listOperations).rightPush(key, toJson(fresh));
+        }
+
+        @Test
+        @DisplayName("should skip prune when messageTtl is zero")
+        void shouldSkipPruneWhenMessageTtlZero() {
+            RoomMessage stale = RoomMessage.builder()
+                    .messageId("msg-stale")
+                    .roomId(TEST_ROOM_ID)
+                    .senderTgId(SENDER_TG_ID)
+                    .encryptedContent("stale")
+                    .iv("iv")
+                    .clientTimestamp(System.currentTimeMillis())
+                    .serverTimestamp(Instant.now().minus(2, ChronoUnit.HOURS))
+                    .build();
+            String key = "messages:" + TEST_ROOM_ID;
+
+            when(roomRepository.findById(TEST_ROOM_ID)).thenReturn(Mono.just(
+                    Room.builder().id(TEST_ROOM_ID).messageTtl(0).build()));
+            when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(stale)));
+
+            StepVerifier.create(repository.getRoomMessages(TEST_ROOM_ID))
+                    .assertNext(found -> assertEquals("msg-stale", found.getMessageId()))
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("pruneExpiredMessages should delete key when all messages expired")
+        void shouldDeleteKeyWhenAllExpired() {
+            String key = "messages:" + TEST_ROOM_ID;
+            RoomMessage stale = RoomMessage.builder()
+                    .messageId("msg-stale")
+                    .roomId(TEST_ROOM_ID)
+                    .senderTgId(SENDER_TG_ID)
+                    .encryptedContent("stale")
+                    .iv("iv")
+                    .clientTimestamp(System.currentTimeMillis())
+                    .serverTimestamp(Instant.now().minus(2, ChronoUnit.HOURS))
+                    .build();
+
+            when(listOperations.range(key, 0, -1)).thenReturn(Flux.just(toJson(stale)));
+            when(redisTemplate.delete(key)).thenReturn(Mono.just(1L));
+
+            StepVerifier.create(repository.pruneExpiredMessages(TEST_ROOM_ID, 3600))
+                    .verifyComplete();
+
+            verify(redisTemplate).delete(key);
+        }
+
+        @Test
+        @DisplayName("pruneExpiredMessages should no-op when ttl is zero")
+        void shouldNoOpWhenTtlZero() {
+            StepVerifier.create(repository.pruneExpiredMessages(TEST_ROOM_ID, 0))
                     .verifyComplete();
         }
     }

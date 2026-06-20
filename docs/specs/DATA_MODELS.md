@@ -282,6 +282,7 @@ HSET room:uuid-room-1
   nameIv          "base64..."     # опционально; 12-byte GCM IV
   readOnly        "false"         # опционально; true = только owner постит
   autoBurnAt      "1706745600000" # опционально; epoch ms дедлайна auto-burn (IMP-ROOM-16)
+  messageTtl      "3600"          # опционально; секунды автоуничтожения сообщений; 0 = выкл (IMP-ROOM-18)
 
 EXPIRE room:uuid-room-1 2592000
 ```
@@ -298,6 +299,7 @@ EXPIRE room:uuid-room-1 2592000
 | `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
 | `readOnly` | boolean | Режим «только чтение»: при `true` отправлять сообщения может только владелец. По умолчанию `false` (отсутствие поля) |
 | `autoBurnAt` | number | Опционально: абсолютный момент auto-burn (Unix ms). Задаётся owner через `/app/room.setTtl`. При наличии activity-продление TTL hash-ключа **капится** этим instant; детерминированный burn — по trigger key ниже |
+| `messageTtl` | number | Опционально: таймер самоуничтожения сообщений комнаты в **секундах**; `0` или отсутствие поля = выкл (только глобальный TTL list `messages:{roomId}`). Задаётся owner через `/app/room.setMessageTtl` (IMP-ROOM-18) |
 
 **TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`), но **не выше** `autoBurnAt`, если поле задано.
 
@@ -450,7 +452,13 @@ Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не м�
 | `senderTgId` | Deprecated; best-effort для Telegram-отправителя |
 | `encryptedContent`, `iv`, `messageId`, … | Opaque ciphertext |
 
-`RoomMessage.getSenderKey()` резолвит identity для edit/delete и legacy JSON (только `senderTgId`). Переполнение: `max-size-per-room` (по умолчанию 500). **TTL:** `burnedchats.messages.offline-queue.ttl` (24 ч).
+`RoomMessage.getSenderKey()` резолвит identity для edit/delete и legacy JSON (только `senderTgId`). Переполнение: `max-size-per-room` (по умолчанию 500). **TTL ключа:** `burnedchats.messages.offline-queue.ttl` (24 ч).
+
+**Per-room message TTL (IMP-ROOM-18):** когда в `room:{roomId}` задано `messageTtl > 0`, сервер при
+`/app/room.message.send`, `/app/room.message.sync` и `/app/room.setMessageTtl` выполняет **lazy prune**:
+удаляет из list элементы с `serverTimestamp` (fallback `clientTimestamp`) старше `now - messageTtl`.
+Сервер не расшифровывает ciphertext — только метаданные времени. `messageTtl = 0` — prune отключён,
+действует только TTL всего list-ключа.
 
 ---
 
