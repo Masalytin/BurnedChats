@@ -1429,6 +1429,64 @@ client.activate();
 | `ownerPublicKey` | string (Base64) | Нет | Публичный ключ владельца (ECDH) |
 | `nameEncrypted` | string (Base64) | Нет | Зашифрованное имя комнаты |
 
+**Ответ:** `/user/queue/room-created` — `RoomCreatedEvent` с `roomId` и опциональным `inviteUrl` (default token, 7d TTL, unlimited uses).
+
+---
+
+### GET_INVITE_LINK (`/app/room.getInviteLink`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`GetInviteLinkRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `expiresInSeconds` | number | Нет | TTL от текущего момента (60 с … 30 д); default 7 дней |
+| `maxUses` | number | Нет | Лимит успешных join; `0`/отсутствует = безлимит |
+
+**Ответ:** `/user/queue/invite-link` — `InviteLinkEvent` с `inviteUrl`.
+
+Ошибки: `ROOM_NOT_FOUND`, `NOT_OWNER`, `INTERNAL_ERROR`.
+
+---
+
+### REVOKE_INVITE (`/app/room.revokeInvite`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`RevokeInviteRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `token` | string | Да | Token string (не URL) |
+
+Удаляет `invite:{token}` и убирает token из `room_invites:{roomId}`. Отдельный ack не рассылается (fire-and-forget); ошибки логируются (`NOT_OWNER`, `INVALID_TOKEN`, `ROOM_NOT_FOUND`).
+
+---
+
+### GET_INVITES (`/app/room.getInvites`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос:** `{ "roomId": "uuid" }` (тот же DTO, что у `getInviteLink`, без опциональных полей).
+
+**Ответ:** `/user/queue/room-invites` — `RoomInvitesEvent`:
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `success` | boolean | |
+| `roomId` | string | UUID комнаты |
+| `invites[]` | array | Активные токены из `room_invites:{roomId}` |
+| `invites[].token` | string | Token string |
+| `invites[].url` | string | Telegram deep link |
+| `invites[].createdAt` | number | Unix ms |
+| `invites[].expiresAt` | number | Unix ms |
+| `invites[].maxUses` | number? | `null`/0 = безлимит |
+| `invites[].usedCount` | number | Текущий счётчик |
+| `error` | string | При `success=false`: `NOT_OWNER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR` |
+
 ---
 
 ### GET_INVITE_INFO / room-invite-info
@@ -1438,6 +1496,8 @@ client.activate();
 **Ответ:** Server → Client, destination `/user/queue/room-invite-info`.
 
 При успехе клиент получает `salt`, `joinMode` и **`hasPassword`** (boolean). Если `hasPassword === false`, комната без пароля (BY_REQUEST): на экране «Войти по ссылке» не показывать поле пароля, только кнопку «Отправить заявку».
+
+Ошибки (без раскрытия данных комнаты): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`.
 
 ---
 
@@ -1451,6 +1511,8 @@ client.activate();
 | `inviteToken` | string | Да | Токен из deep link |
 | `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
 | `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
+
+**Ошибки join:** `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`.
 
 **Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
 

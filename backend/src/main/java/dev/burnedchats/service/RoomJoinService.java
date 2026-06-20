@@ -1,5 +1,6 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.model.InviteToken;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomJoinRequest;
 import dev.burnedchats.repository.InviteTokenRepository;
@@ -28,6 +29,7 @@ public class RoomJoinService {
     private final RoomMembersRepository roomMembersRepository;
     private final RoomJoinRequestRepository joinRequestRepository;
     private final InviteTokenRepository inviteTokenRepository;
+    private final InviteTokenService inviteTokenService;
     private final PasswordProofService passwordProofService;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
 
@@ -47,36 +49,24 @@ public class RoomJoinService {
                                         String senderPublicKey) {
         return inviteTokenRepository.findByToken(inviteToken)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN")))
-                .flatMap(token -> {
-                    if (token.getExpiresAt() < Instant.now().toEpochMilli()) {
-                        return Mono.error(new IllegalArgumentException("INVITE_EXPIRED"));
-                    }
-                    return roomRepository.findById(token.getRoomId())
-                            .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")));
-                })
-                .flatMap(room -> {
-                    boolean roomHasPassword = room.getPasswordProofHash() != null
-                            && !room.getPasswordProofHash().isBlank();
-                    if (roomHasPassword) {
-                        if (passwordProof == null || passwordProof.isBlank()) {
-                            return Mono.error(new SecurityException("WRONG_PASSWORD"));
-                        }
-                        if (!passwordProofService.verifyProof(passwordProof, room.getPasswordProofHash())) {
-                            return Mono.error(new SecurityException("WRONG_PASSWORD"));
-                        }
-                    }
-                    return roomMembersRepository.isMember(room.getId(), senderInternalId)
-                            .flatMap(alreadyMember -> {
-                                if (alreadyMember) {
-                                    return Mono.error(new IllegalStateException("ALREADY_MEMBER"));
-                                }
-                                if (room.getJoinMode() == Room.JoinMode.BY_PASSWORD) {
-                                    return joinByPassword(room, senderInternalId, senderTgId, senderPublicKey);
-                                }
-                                return joinByRequest(room, senderInternalId, senderTgId, senderUsername,
-                                        senderFirstName, senderPublicKey);
-                            });
-                });
+                .flatMap(token -> validateInviteToken(token).thenReturn(token))
+                .flatMap(token -> roomRepository.findById(token.getRoomId())
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN"))))
+                .flatMap(room -> validatePasswordAndJoin(new JoinAttempt(
+                        room, senderInternalId, senderTgId, senderUsername,
+                        senderFirstName, inviteToken, passwordProof, senderPublicKey)));
+    }
+
+    private record JoinAttempt(
+            Room room,
+            String senderInternalId,
+            Long senderTgId,
+            String senderUsername,
+            String senderFirstName,
+            String inviteToken,
+            String passwordProof,
+            String senderPublicKey
+    ) {
     }
 
     public Mono<Void> acceptJoin(String ownerInternalId, String roomId, String senderInternalId) {
@@ -103,6 +93,49 @@ public class RoomJoinService {
                 })
                 .doOnSuccess(v -> LOG.info("Join rejected: roomId={}, senderInternalId={}, ownerInternalId={}",
                         roomId, senderInternalId, ownerInternalId));
+    }
+
+    private Mono<JoinResult> validatePasswordAndJoin(JoinAttempt attempt) {
+        boolean roomHasPassword = attempt.room().getPasswordProofHash() != null
+                && !attempt.room().getPasswordProofHash().isBlank();
+        if (roomHasPassword) {
+            if (attempt.passwordProof() == null || attempt.passwordProof().isBlank()) {
+                return Mono.error(new SecurityException("WRONG_PASSWORD"));
+            }
+            if (!passwordProofService.verifyProof(attempt.passwordProof(),
+                    attempt.room().getPasswordProofHash())) {
+                return Mono.error(new SecurityException("WRONG_PASSWORD"));
+            }
+        }
+        return roomMembersRepository.isMember(attempt.room().getId(), attempt.senderInternalId())
+                .flatMap(alreadyMember -> {
+                    if (alreadyMember) {
+                        return Mono.error(new IllegalStateException("ALREADY_MEMBER"));
+                    }
+                    Mono<JoinResult> joinResult = attempt.room().getJoinMode() == Room.JoinMode.BY_PASSWORD
+                            ? joinByPassword(attempt.room(), attempt.senderInternalId(),
+                                    attempt.senderTgId(), attempt.senderPublicKey())
+                            : joinByRequest(attempt.room(), attempt.senderInternalId(), attempt.senderTgId(),
+                                    attempt.senderUsername(), attempt.senderFirstName(), attempt.senderPublicKey());
+                    return joinResult.flatMap(result ->
+                            consumeInviteUse(attempt.inviteToken()).thenReturn(result));
+                });
+    }
+
+    private Mono<Void> validateInviteToken(InviteToken token) {
+        if (token.getExpiresAt() < Instant.now().toEpochMilli()) {
+            return inviteTokenRepository.deleteTokenAndIndex(token.getToken(), token.getRoomId())
+                    .then(Mono.error(new IllegalArgumentException("INVITE_EXPIRED")));
+        }
+        if (InviteTokenService.isExhausted(token)) {
+            return inviteTokenRepository.deleteTokenAndIndex(token.getToken(), token.getRoomId())
+                    .then(Mono.error(new IllegalArgumentException("INVITE_EXHAUSTED")));
+        }
+        return Mono.empty();
+    }
+
+    private Mono<Void> consumeInviteUse(String inviteToken) {
+        return inviteTokenService.consumeInviteUse(inviteToken);
     }
 
     private Mono<JoinResult> joinByPassword(Room room, String senderInternalId, Long senderTgId,

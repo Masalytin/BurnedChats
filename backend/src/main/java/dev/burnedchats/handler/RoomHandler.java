@@ -12,6 +12,7 @@ import dev.burnedchats.dto.event.RoomLeftEvent;
 import dev.burnedchats.dto.event.RoomMemberKickedEvent;
 import dev.burnedchats.dto.event.RoomMemberLeftEvent;
 import dev.burnedchats.dto.event.RoomMemberRemovedEvent;
+import dev.burnedchats.dto.event.RoomInvitesEvent;
 import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
@@ -27,8 +28,9 @@ import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
 import dev.burnedchats.dto.request.GetMyRoomsRequest;
 import dev.burnedchats.dto.request.GetRoomMembersRequest;
-import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
+import dev.burnedchats.dto.request.RevokeInviteRequest;
+import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestKeyBundleRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
@@ -87,6 +89,7 @@ public class RoomHandler {
     private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
     private static final String ROOM_CREATED_DESTINATION = "/queue/room-created";
     private static final String INVITE_LINK_DESTINATION = "/queue/invite-link";
+    private static final String ROOM_INVITES_DESTINATION = "/queue/room-invites";
     private static final String INVITE_INFO_DESTINATION = "/queue/room-invite-info";
     private static final String JOIN_RESULT_DESTINATION = "/queue/room-join-result";
     private static final String JOIN_REQUESTS_DESTINATION = "/queue/room-join-requests";
@@ -177,7 +180,11 @@ public class RoomHandler {
 
         LOG.info("GET_INVITE_LINK requested: roomId={}, internalId={}", request.getRoomId(), requester.internalId());
 
-        inviteTokenService.generateInviteLink(request.getRoomId(), requester.internalId())
+        inviteTokenService.generateInviteLink(
+                        request.getRoomId(),
+                        requester.internalId(),
+                        request.getExpiresInSeconds(),
+                        request.getMaxUses())
                 .subscribe(
                         inviteUrl -> {
                             stompUserMessenger.convertAndSendToUser(
@@ -197,6 +204,51 @@ public class RoomHandler {
                                     INVITE_LINK_DESTINATION,
                                     InviteLinkEvent.error(errorCode)
                         );
+                        }
+            );
+    }
+
+    @MessageMapping("/room.revokeInvite")
+    public void revokeInvite(@Payload @Valid RevokeInviteRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        LOG.info("REVOKE_INVITE requested: roomId={}, internalId={}", request.getRoomId(), owner.internalId());
+
+        inviteTokenService.revokeInvite(request.getRoomId(), request.getToken(), owner.internalId())
+                .subscribe(
+                        v -> LOG.info("REVOKE_INVITE completed: roomId={}, internalId={}",
+                                request.getRoomId(), owner.internalId()),
+                        error -> LOG.warn("REVOKE_INVITE failed: roomId={}, internalId={}, error={}",
+                                request.getRoomId(), owner.internalId(), mapInviteManagementError(error))
+            );
+    }
+
+    @MessageMapping("/room.getInvites")
+    public void getInvites(@Payload @Valid GetInviteLinkRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        LOG.info("GET_INVITES requested: roomId={}, internalId={}", request.getRoomId(), owner.internalId());
+
+        inviteTokenService.getInvites(request.getRoomId(), owner.internalId())
+                .subscribe(
+                        event -> {
+                            sendStompToInternalId(owner.internalId(), ROOM_INVITES_DESTINATION, event);
+                            LOG.info("ROOM_INVITES sent: roomId={}, count={}",
+                                    request.getRoomId(),
+                                    event.getInvites() != null ? event.getInvites().size() : 0);
+                        },
+                        error -> {
+                            String code = mapInviteManagementError(error);
+                            LOG.warn("GET_INVITES failed: roomId={}, internalId={}, error={}",
+                                    request.getRoomId(), owner.internalId(), code);
+                            sendStompToInternalId(owner.internalId(), ROOM_INVITES_DESTINATION,
+                                    RoomInvitesEvent.error(code));
                         }
             );
     }
@@ -964,6 +1016,20 @@ public class RoomHandler {
                 ROOM_CREATED_DESTINATION,
                 RoomCreatedEvent.error(errorCode)
         );
+    }
+
+    private String mapInviteManagementError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            String message = iae.getMessage();
+            if ("ROOM_NOT_FOUND".equals(message) || "INVALID_TOKEN".equals(message)) {
+                return message;
+            }
+            return "ROOM_NOT_FOUND";
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
+        }
+        return "INTERNAL_ERROR";
     }
 
     private String mapInviteError(Throwable error) {

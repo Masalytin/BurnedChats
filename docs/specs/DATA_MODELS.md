@@ -309,19 +309,40 @@ SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 
 ### `invite:{token}`
 
-Инвайт-токен для ссылки приглашения.
+Инвайт-токен для ссылки приглашения. Обратный индекс: `room_invites:{roomId}` (Set token strings).
 
 ```redis
 HSET invite:abc123token
+  token       "abc123token"
   roomId      "uuid-room-1"
   createdBy   "111222333"
+  createdAt   "1704067200000"
   expiresAt   "1704153600000"
   maxUses     "10"
+  usedCount   "3"
 
+SADD room_invites:uuid-room-1 "abc123token"
 EXPIRE invite:abc123token 604800
 ```
 
-**TTL:** по expiresAt или 7 дней
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `token` | string | 64-char hex (32 random bytes) |
+| `roomId` | string | UUID комнаты |
+| `createdBy` | string | Telegram ID создателя; `""` для wallet-only владельца |
+| `createdAt` | string (ms) | Unix ms создания токена |
+| `expiresAt` | string (ms) | Unix ms истечения |
+| `maxUses` | string | Лимит успешных join; пусто = безлимит |
+| `usedCount` | string | Счётчик использований (HINCRBY при join) |
+
+**Enforcement (IMP-ROOM-07):**
+- При join: `usedCount++` (атомарно); если `usedCount >= maxUses` (и `maxUses > 0`) → токен удаляется (`DEL invite:{token}` + `SREM room_invites:{roomId}`), клиенту `INVITE_EXHAUSTED`.
+- При `usedCount >= maxUses` до join → `INVITE_EXHAUSTED`, токен удаляется.
+- При `expiresAt < now` → `INVITE_EXPIRED`, токен удаляется.
+- Owner-only: `/app/room.revokeInvite`, `/app/room.getInvites`.
+- `GET_INVITE_LINK` принимает опциональные `expiresInSeconds`, `maxUses` (0/отсутствует = безлимит).
+
+**TTL:** `EXPIRE` = `expiresAt - now` (default 7 дней при создании без `expiresInSeconds`).
 
 ### `room_join_request:{roomId}:{senderInternalId}`
 
