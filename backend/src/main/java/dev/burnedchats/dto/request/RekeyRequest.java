@@ -1,12 +1,14 @@
 package dev.burnedchats.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -38,6 +40,26 @@ public class RekeyRequest {
     @NotEmpty
     @Valid
     private List<BundleItem> bundles;
+
+    /**
+     * Optional: room name re-encrypted under the new group key epoch.
+     * When present, both {@code nameEncrypted} and {@code nameIv} must be supplied.
+     */
+    @Size(max = 512)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "nameEncrypted must be Base64")
+    private String nameEncrypted;
+
+    /** Base64-encoded 12-byte AES-GCM IV for {@link #nameEncrypted}. */
+    @Size(max = 32)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "nameIv must be Base64")
+    private String nameIv;
+
+    @AssertTrue(message = "nameEncrypted and nameIv must both be present or both omitted")
+    public boolean isNameFieldsConsistent() {
+        boolean hasEncrypted = StringUtils.hasText(nameEncrypted);
+        boolean hasIv = StringUtils.hasText(nameIv);
+        return hasEncrypted == hasIv;
+    }
 
     /**
      * Encrypted group-key bundle for one room member.

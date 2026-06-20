@@ -57,6 +57,9 @@ public class RoomListEvent {
          * Clients decrypt it using the group key.
          */
         private String nameEncrypted;
+
+        /** Base64 12-byte AES-GCM IV for {@link #nameEncrypted}; null when no name is set. */
+        private String nameIv;
     }
 
     public static RoomListEvent success(List<RoomInfo> rooms) {

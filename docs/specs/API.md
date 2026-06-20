@@ -1510,12 +1510,62 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 | `roomId` | string | Да | UUID комнаты |
 | `newEpoch` | number | Да | `currentEpoch + 1` |
 | `bundles` | array | Да | По одному bundle на оставшегося члена |
+| `nameEncrypted` | string (Base64) | Нет* | Имя, пере-шифрованное под новую эпоху группового ключа |
+| `nameIv` | string (Base64) | Нет* | 12-byte GCM IV для `nameEncrypted` |
 | `bundles[].recipientInternalId` | string | Да | Получатель bundle |
 | `bundles[].ephemeralPublicKey` | string | Да | Base64 |
 | `bundles[].encryptedKey` | string | Да | Base64 |
 | `bundles[].iv` | string | Да | Base64 |
 
+\* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии атомарно
+обновляются в `room:{roomId}` вместе с ротацией ключей. На `/topic/room/{roomId}` рассылается
+`ROOM_NAME_UPDATED` (см. SET_ROOM_NAME).
+
 Каждый bundle доставляется на `/user/queue/key-bundle` соответствующему `recipientInternalId`.
+
+---
+
+### SET_ROOM_NAME (`/app/room.setName`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`SetRoomNameRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `nameEncrypted` | string (Base64) | Да | AES-GCM ciphertext имени (opaque, max 512 chars) |
+| `nameIv` | string (Base64) | Да | 12-byte GCM IV (max 32 chars Base64) |
+
+Сервер **не расшифровывает** имя; сохраняет оба поля в `room:{roomId}` и продлевает TTL.
+
+**Fan-out:** `/topic/room/{roomId}` — `RoomNameUpdatedEvent`:
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `eventType` | string | `"ROOM_NAME_UPDATED"` |
+| `roomId` | string | UUID комнаты |
+| `nameEncrypted` | string | Base64 ciphertext |
+| `nameIv` | string | Base64 IV |
+
+Ошибки логируются на сервере (`NOT_OWNER`, `ROOM_NOT_FOUND`); отдельный user-queue ack
+не предусмотрен (fire-and-forget, как у ранних room lifecycle endpoints).
+
+---
+
+### GET_MY_ROOMS (`/app/room.getMyRooms`)
+
+**Запрос:** пустое тело или `{}`.
+
+**Ответ:** `/user/queue/room-list` (`RoomListEvent`):
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `rooms[].roomId` | string | UUID |
+| `rooms[].role` | enum | `owner` \| `member` |
+| `rooms[].createdAt` | number | Unix ms |
+| `rooms[].nameEncrypted` | string? | Зашифрованное имя (opaque) |
+| `rooms[].nameIv` | string? | GCM IV для имени |
 
 ---
 

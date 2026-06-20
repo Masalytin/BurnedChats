@@ -278,6 +278,8 @@ HSET room:uuid-room-1
   passwordProofHash "base64..."   # пустая строка, если комната без пароля
   joinMode        "by_password"   # или "by_request"
   createdAt       "1704067200000"
+  nameEncrypted   "base64..."     # опционально; opaque ciphertext
+  nameIv          "base64..."     # опционально; 12-byte GCM IV
 
 EXPIRE room:uuid-room-1 2592000
 ```
@@ -290,8 +292,10 @@ EXPIRE room:uuid-room-1 2592000
 | `passwordProofHash` | string | Хеш proof. Пустая строка, если комната без пароля |
 | `joinMode` | enum | `by_password` \| `by_request` |
 | `createdAt` | number | Unix timestamp в мс |
+| `nameEncrypted` | string | Зашифрованное имя комнаты (AES-GCM ciphertext, Base64). Пустая строка = не задано. Сервер не расшифровывает |
+| `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
 
-**TTL:** 30 дней (продлевается при активности)
+**TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`)
 
 ### `room_members:{roomId}`
 

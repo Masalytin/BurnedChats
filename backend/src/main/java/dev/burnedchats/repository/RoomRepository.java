@@ -99,6 +99,27 @@ public class RoomRepository {
                 .doOnSuccess(ok -> LOG.debug("Extended TTL for room {}", roomId));
     }
 
+    /**
+     * Update encrypted room name fields and refresh TTL.
+     *
+     * @param roomId         room UUID
+     * @param nameEncrypted  Base64 AES-GCM ciphertext (opaque to server)
+     * @param nameIv         Base64 12-byte GCM IV
+     * @return Mono completing when both hash fields and TTL are updated
+     */
+    public Mono<Boolean> updateEncryptedName(String roomId, String nameEncrypted, String nameIv) {
+        String key = keyFor(roomId);
+        return redisTemplate.opsForHash()
+                .put(key, "nameEncrypted", nameEncrypted != null ? nameEncrypted : "")
+                .then(redisTemplate.opsForHash().put(key, "nameIv", nameIv != null ? nameIv : ""))
+                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .doOnSuccess(ok -> LOG.debug("Updated encrypted name for room {}", roomId))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to update encrypted name for room {}: {}", roomId, e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -117,11 +138,13 @@ public class RoomRepository {
         map.put("joinMode", room.getJoinMode().name());
         map.put("createdAt", String.valueOf(room.getCreatedAt()));
         map.put("nameEncrypted", room.getNameEncrypted() != null ? room.getNameEncrypted() : "");
+        map.put("nameIv", room.getNameIv() != null ? room.getNameIv() : "");
         return map;
     }
 
     private Room fromHash(Map<String, String> hash) {
         String nameEncrypted = hash.getOrDefault("nameEncrypted", "");
+        String nameIv = hash.getOrDefault("nameIv", "");
         String salt = hash.getOrDefault("salt", "");
         String passwordProofHash = hash.getOrDefault("passwordProofHash", "");
         String ownerInternalRaw = hash.getOrDefault("ownerInternalId", "");
@@ -136,6 +159,7 @@ public class RoomRepository {
                 .joinMode(Room.JoinMode.valueOf(hash.get("joinMode")))
                 .createdAt(Long.parseLong(hash.get("createdAt")))
                 .nameEncrypted(nameEncrypted.isBlank() ? null : nameEncrypted)
+                .nameIv(nameIv.isBlank() ? null : nameIv)
                 .build();
     }
 

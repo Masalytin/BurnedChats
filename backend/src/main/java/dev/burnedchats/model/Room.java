@@ -76,8 +76,14 @@ public class Room implements Serializable {
     private Long createdAt;
 
     /**
-     * Optionally: room name, encrypted client-side with the room key.
+     * Optionally: room name, encrypted client-side with the room group key (AES-GCM ciphertext).
      * May be null if the owner did not set a name.
      */
     private String nameEncrypted;
+
+    /**
+     * Base64-encoded 12-byte AES-GCM IV for {@link #nameEncrypted}.
+     * Stored separately from ciphertext (see IMP-ROOM-05 decision log). May be null when no name is set.
+     */
+    private String nameIv;
 }

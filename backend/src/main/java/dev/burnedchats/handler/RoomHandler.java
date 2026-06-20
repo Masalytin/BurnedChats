@@ -16,6 +16,7 @@ import dev.burnedchats.dto.event.RoomInviteInfoEvent;
 import dev.burnedchats.dto.event.RoomJoinRequestEvent;
 import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomMembersListEvent;
+import dev.burnedchats.dto.event.RoomNameUpdatedEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
@@ -31,6 +32,7 @@ import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RequestKeyBundleRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
+import dev.burnedchats.dto.request.SetRoomNameRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.UnifiedUser;
@@ -59,6 +61,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
@@ -81,6 +84,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class RoomHandler {
 
+    private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
     private static final String ROOM_CREATED_DESTINATION = "/queue/room-created";
     private static final String INVITE_LINK_DESTINATION = "/queue/invite-link";
     private static final String INVITE_INFO_DESTINATION = "/queue/room-invite-info";
@@ -113,6 +117,7 @@ public class RoomHandler {
     private final RoomMessageRepository roomMessageRepository;
     private final RoomTopicSubscriptionService roomTopicSubscriptionService;
     private final RateLimitService rateLimitService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
@@ -495,14 +500,30 @@ public class RoomHandler {
                             });
 
                     int oldEpoch = request.getNewEpoch() - 1;
+                    Mono<Boolean> updateName = StringUtils.hasText(request.getNameEncrypted())
+                            ? roomRepository.updateEncryptedName(
+                                    request.getRoomId(),
+                                    request.getNameEncrypted(),
+                                    request.getNameIv())
+                            : Mono.just(true);
+
                     return storeBundles.collectList()
-                            .flatMap(bundles -> roomKeysRepository.setCurrentEpoch(
-                                            request.getRoomId(), request.getNewEpoch())
+                            .flatMap(bundles -> updateName
+                                    .then(roomKeysRepository.setCurrentEpoch(
+                                            request.getRoomId(), request.getNewEpoch()))
                                     .then(roomKeysRepository.deleteEpoch(request.getRoomId(), oldEpoch))
                                     .thenReturn(bundles));
                 })
                 .subscribe(
-                        bundles -> deliverRekeyStompEvents(request, bundles),
+                        bundles -> {
+                            deliverRekeyStompEvents(request, bundles);
+                            if (StringUtils.hasText(request.getNameEncrypted())) {
+                                broadcastRoomNameUpdated(
+                                        request.getRoomId(),
+                                        request.getNameEncrypted(),
+                                        request.getNameIv());
+                            }
+                        },
                         error -> LOG.warn("REKEY failed: roomId={}, internalId={}, error={}",
                                 request.getRoomId(), owner.internalId(), error.getMessage())
             );
@@ -588,6 +609,7 @@ public class RoomHandler {
                         .role(isRoomOwner(room, participant.internalId()) ? "owner" : "member")
                         .createdAt(room.getCreatedAt())
                         .nameEncrypted(room.getNameEncrypted())
+                        .nameIv(room.getNameIv())
                         .build())
                 .collectList()
                 .subscribe(
@@ -602,6 +624,41 @@ public class RoomHandler {
                             sendStompToInternalId(participant.internalId(), ROOM_LIST_DESTINATION,
                                     RoomListEvent.error("INTERNAL_ERROR"));
                         }
+            );
+    }
+
+    @MessageMapping("/room.setName")
+    public void setRoomName(@Payload @Valid SetRoomNameRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        LOG.info("SET_ROOM_NAME requested: roomId={}, ownerInternalId={}",
+                request.getRoomId(), owner.internalId());
+
+        roomRepository.findById(request.getRoomId())
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return roomRepository.updateEncryptedName(
+                            request.getRoomId(),
+                            request.getNameEncrypted(),
+                            request.getNameIv());
+                })
+                .subscribe(
+                        ok -> {
+                            broadcastRoomNameUpdated(
+                                    request.getRoomId(),
+                                    request.getNameEncrypted(),
+                                    request.getNameIv());
+                            LOG.info("SET_ROOM_NAME completed: roomId={}, ownerInternalId={}",
+                                    request.getRoomId(), owner.internalId());
+                        },
+                        error -> LOG.warn("SET_ROOM_NAME failed: roomId={}, ownerInternalId={}, error={}",
+                                request.getRoomId(), owner.internalId(), mapSetNameError(error))
             );
     }
 
@@ -826,6 +883,12 @@ public class RoomHandler {
     // Helpers
     // -------------------------------------------------------------------------
 
+    private void broadcastRoomNameUpdated(String roomId, String nameEncrypted, String nameIv) {
+        messagingTemplate.convertAndSend(
+                ROOM_TOPIC_PREFIX + roomId,
+                RoomNameUpdatedEvent.of(roomId, nameEncrypted, nameIv));
+    }
+
     private Mono<Void> performKickCleanup(String roomId, String targetInternalId) {
         return roomMembersRepository.remove(roomId, targetInternalId)
                 .then(memberPublicKeyRepository.remove(roomId, targetInternalId))
@@ -946,6 +1009,16 @@ public class RoomHandler {
         }
         if (root instanceof SecurityException se) {
             return se.getMessage();
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapSetNameError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
         }
         return "INTERNAL_ERROR";
     }
