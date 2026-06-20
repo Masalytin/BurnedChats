@@ -71,6 +71,9 @@ public abstract class StompIntegrationTestBase {
 
     @DynamicPropertySource
     static void registerRedis(DynamicPropertyRegistry registry) {
+        if (!dockerAvailable()) {
+            return;
+        }
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
     }

@@ -65,7 +65,9 @@ subprojects {
 // Root project tasks
 tasks.register("checkAll") {
     group = "verification"
-    description = "Runs all checks (checkstyle, spotbugs, tests)"
+    description =
+        "Runs all checks (checkstyle, spotbugs, unit tests). " +
+            "Docker IT: ./gradlew :backend:integrationTest"
     dependsOn(subprojects.map { "${it.path}:check" })
 }
 

@@ -9,6 +9,18 @@ val mapstructVersion: String by project
 val telegramBotsVersion: String by project
 val testcontainersVersion: String by project
 
+fun isDockerEngineAvailable(): Boolean {
+    return try {
+        val process = ProcessBuilder("docker", "info")
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .start()
+        process.waitFor() == 0
+    } catch (_: Exception) {
+        false
+    }
+}
+
 dependencies {
     // Spring Boot Starters
     // Using spring-boot-starter-web for STOMP WebSocket support (servlet-based)
@@ -58,6 +70,28 @@ dependencies {
 
 tasks.bootJar {
     archiveFileName.set("burned-chats-backend.jar")
+}
+
+// Unit/component tests — no Testcontainers (see IMP-AUDIT-32).
+tasks.named<Test>("test") {
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
+}
+
+// Docker-backed integration tests — opt-in; requires Docker Engine (see IMP-AUDIT-32).
+tasks.register<Test>("integrationTest") {
+    description = "Runs @Tag(\"integration\") tests (Testcontainers). Requires Docker Engine."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+    shouldRunAfter(tasks.named("test"))
+    onlyIf("Docker Engine is required for integration tests") {
+        isDockerEngineAvailable()
+    }
 }
 
 // Ensure Lombok and MapStruct work together
