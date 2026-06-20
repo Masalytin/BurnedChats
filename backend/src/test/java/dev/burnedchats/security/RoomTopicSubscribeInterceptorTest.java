@@ -1,6 +1,5 @@
 package dev.burnedchats.security;
 
-import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.repository.RoomMembersRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +16,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -115,8 +113,10 @@ class RoomTopicSubscribeInterceptorTest {
     void rejectsWithoutPrincipal() {
         Message<?> message = stompSubscribe("/topic/room/" + ROOM_ID, null);
 
-        assertThatThrownBy(() -> interceptor.preSend(message, channel))
-                .isInstanceOf(AuthenticationException.class);
+        Message<?> result = interceptor.preSend(message, channel);
+
+        assertThat(result).isNull();
+        verify(clientOutboundChannel).send(argThat(RoomTopicSubscribeInterceptorTest::isAuthErrorStompError));
         verifyNoInteractions(roomMembersRepository);
     }
 
@@ -130,6 +130,14 @@ class RoomTopicSubscribeInterceptorTest {
         assertThat(result).isNull();
         verify(clientOutboundChannel).send(argThat(RoomTopicSubscribeInterceptorTest::isSubscribeDeniedStompError));
         verifyNoInteractions(roomMembersRepository);
+    }
+
+    private static boolean isAuthErrorStompError(Message<?> message) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        return accessor != null
+                && accessor.getCommand() == StompCommand.ERROR
+                && accessor.getMessage() != null
+                && accessor.getMessage().contains("AUTH_ERROR");
     }
 
     private static boolean isNotMemberStompError(Message<?> message) {

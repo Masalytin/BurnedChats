@@ -1525,10 +1525,14 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 **Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
 
-**Subscribe guard (IMP-ROOM-22):** клиент **обязан** быть членом комнаты (`room_members:{roomId}`) для
-`SUBSCRIBE /topic/room/{roomId}`. Иначе сервер отклоняет подписку STOMP ERROR с кодом
-`NOT_MEMBER` в теле/заголовке сообщения (не регистрирует subscription). Guard дополняет, но не
-заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
+**Subscribe guard (IMP-ROOM-22):** клиент **обязан** быть аутентифицирован (`AppPrincipal` на STOMP-сессии)
+и членом комнаты (`room_members:{roomId}`) для `SUBSCRIBE /topic/room/{roomId}`. Иначе сервер
+отклоняет подписку STOMP ERROR (не регистрирует subscription; WebSocket остаётся открытым):
+
+- без principal — код `AUTH_ERROR` в теле/заголовке сообщения (IMP-ROOM-30);
+- без membership — код `NOT_MEMBER` в теле/заголовке сообщения (IMP-ROOM-29).
+
+Guard дополняет, но не заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
 
 **Force-unsubscribe (IMP-ROOM-25):** после успешного `/app/room.kick` или `/app/room.leave` сервер
 снимает **все** активные подписки удалённого участника на `/topic/room/{roomId}` через

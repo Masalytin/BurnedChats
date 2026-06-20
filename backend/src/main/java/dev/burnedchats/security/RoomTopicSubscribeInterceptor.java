@@ -1,6 +1,5 @@
 package dev.burnedchats.security;
 
-import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.exception.RoomSubscribeDeniedException;
 import dev.burnedchats.repository.RoomMembersRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -71,7 +70,9 @@ public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
         Principal principal = accessor.getUser();
         if (!(principal instanceof AppPrincipal appPrincipal)) {
             LOG.warn("Rejected room topic subscribe: missing principal, roomId={}", roomId);
-            throw new AuthenticationException("Authentication required to subscribe to room topics");
+            denySubscribe(accessor.getSessionId(),
+                    "AUTH_ERROR: Authentication required to subscribe to room topics");
+            return null;
         }
 
         String internalId = appPrincipal.getInternalId();
