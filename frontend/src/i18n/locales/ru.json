@@ -1054,7 +1054,14 @@
       "unmuteButton": "Разглушить",
       "readOnlyToggle": "Только чтение",
       "readOnlyHint": "Когда включено, писать могут только владелец и админы",
-      "readOnlyHintModerator": "Когда включено, писать могут только владелец и админы"
+      "readOnlyHintModerator": "Когда включено, писать могут только владелец и админы",
+      "ttlTitle": "Срок жизни комнаты",
+      "ttlPreset1h": "1 ч",
+      "ttlPreset24h": "24 ч",
+      "ttlPreset7d": "7 д",
+      "ttlPreset30d": "30 д",
+      "ttlPresetNone": "Без авто-burn",
+      "autoBurnIn": "Авто-сжигание через {{time}}"
     },
 
     "invite": {

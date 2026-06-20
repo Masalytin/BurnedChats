@@ -442,6 +442,60 @@
 }
 
 /* ============================================
+ * Room TTL / auto-burn (IMP-ROOM-17)
+ * ============================================ */
+
+.room-manage-ttl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-ttl__countdown {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+}
+
+.room-manage-ttl__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-manage-ttl__chip {
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    border-color var(--bc-transition-fast),
+    color var(--bc-transition-fast);
+}
+
+.room-manage-ttl__chip:hover {
+  border-color: var(--bc-brand-primary);
+  color: var(--bc-text-primary);
+}
+
+.room-manage-ttl__chip--active {
+  background: var(--bc-button-primary-bg);
+  border-color: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+}
+
+.room-manage-ttl__chip:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
  * Members List
  * ============================================ */
 

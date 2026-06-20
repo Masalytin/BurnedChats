@@ -1038,7 +1038,14 @@
       "unmuteButton": "Unmute",
       "readOnlyToggle": "Read-only mode",
       "readOnlyHint": "When enabled, only owners and admins can send messages",
-      "readOnlyHintModerator": "When enabled, only owners and admins can send messages"
+      "readOnlyHintModerator": "When enabled, only owners and admins can send messages",
+      "ttlTitle": "Room lifetime",
+      "ttlPreset1h": "1 hour",
+      "ttlPreset24h": "24 hours",
+      "ttlPreset7d": "7 days",
+      "ttlPreset30d": "30 days",
+      "ttlPresetNone": "No auto-burn",
+      "autoBurnIn": "Auto-burn in {{time}}"
     },
 
     "invite": {
