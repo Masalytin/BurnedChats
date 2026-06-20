@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../Button';
 import { CopyIcon } from '../../icons';
+import type { RoomMember } from '../../types';
 import './RoomManageView.css';
 
 // ============================================
@@ -36,6 +37,63 @@ function CopyButtonIcon() {
   return <CopyIcon size={16} aria-hidden="true" />;
 }
 
+function shortInternalId(id: string): string {
+  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+}
+
+function memberInitials(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// ============================================
+// Reusable member row (kick/roles/presence hooks later)
+// ============================================
+
+export interface RoomMemberRowProps {
+  member: RoomMember;
+  isYou?: boolean;
+  actions?: ReactNode;
+}
+
+export function RoomMemberRow({ member, isYou = false, actions }: RoomMemberRowProps) {
+  const { t } = useTranslation();
+  const displayName = member.displayName?.trim();
+  const label = displayName
+    || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
+
+  return (
+    <li className="room-member-row">
+      <div
+        className={`room-member-row__avatar ${displayName ? 'room-member-row__avatar--initials' : ''}`}
+        aria-hidden="true"
+      >
+        {displayName ? (
+          <span className="room-member-row__initials">{memberInitials(displayName)}</span>
+        ) : (
+          <User size={16} />
+        )}
+      </div>
+      <div className="room-member-row__info">
+        <span className="room-member-row__name">{label}</span>
+        <div className="room-member-row__meta">
+          {isYou && (
+            <span className="room-member-row__you">{t('room.manage.memberYou')}</span>
+          )}
+          {member.role === 'owner' && (
+            <span className="room-member-row__badge">{t('room.manage.roleOwner')}</span>
+          )}
+        </div>
+      </div>
+      {actions != null && (
+        <div className="room-member-row__actions">{actions}</div>
+      )}
+    </li>
+  );
+}
+
 // ============================================
 // Props
 // ============================================
@@ -46,9 +104,11 @@ interface RoomManageViewProps {
   isOwner: boolean;
   /** Pending join requests count (for badge) */
   pendingRequestsCount?: number;
-  /** List of member tgIds */
-  members?: string[];
+  /** Enriched room members from GET_ROOM_MEMBERS */
+  members?: RoomMember[];
   isMembersLoading?: boolean;
+  /** Current user's internal id — highlights "You" on the member row */
+  currentUserInternalId?: string;
   /** Current invite URL (null if not fetched yet) */
   inviteUrl?: string | null;
   isInviteLoading?: boolean;
@@ -79,6 +139,7 @@ export const RoomManageView = memo(function RoomManageView({
   pendingRequestsCount = 0,
   members,
   isMembersLoading = false,
+  currentUserInternalId,
   inviteUrl,
   isInviteLoading = false,
   inviteError,
@@ -237,11 +298,12 @@ export const RoomManageView = memo(function RoomManageView({
                 <p className="room-manage-members__loading">{t('common.loading')}</p>
               ) : members && members.length > 0 ? (
                 <ul className="room-manage-members__list">
-                  {members.map(tgId => (
-                    <li key={tgId} className="room-manage-members__item">
-                      <User size={16} className="room-manage-members__avatar" aria-hidden="true" />
-                      <span className="room-manage-members__id">tg:{tgId}</span>
-                    </li>
+                  {members.map(member => (
+                    <RoomMemberRow
+                      key={member.internalId}
+                      member={member}
+                      isYou={member.internalId === currentUserInternalId}
+                    />
                   ))}
                 </ul>
               ) : (

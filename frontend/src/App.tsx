@@ -652,6 +652,13 @@ function AppContent() {
   // Active room chat state (P2-3.2.3)
   const [activeRoomChat, setActiveRoomChat] = useState<ActiveRoomChat | null>(null);
 
+  // Refresh member list for room chat header + manage view (IMP-ROOM-02)
+  useEffect(() => {
+    if (isConnected && activeRoomChat) {
+      fetchMembers(activeRoomChat.roomId);
+    }
+  }, [isConnected, activeRoomChat?.roomId, fetchMembers]);
+
   // Track which session is being resumed
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
 
@@ -2255,6 +2262,9 @@ function AppContent() {
             isOwner={isRoomOwner}
             isRequestingKey={isRequestingKey}
             onRequestKey={retryKeyRequest}
+            memberCount={
+              activeRoomChat && !isMembersLoading ? roomMembers.length : undefined
+            }
             onBack={() => {
               setActiveRoomChat(null);
               setCurrentView('home');
@@ -2280,6 +2290,7 @@ function AppContent() {
             pendingRequestsCount={pendingJoinCount}
             members={roomMembers}
             isMembersLoading={isMembersLoading}
+            currentUserInternalId={myInternalId ?? undefined}
             inviteUrl={inviteUrl}
             isInviteLoading={isInviteLoading}
             inviteError={inviteError}

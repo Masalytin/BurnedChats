@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import type { RoomMember } from '../types';
 
 const GET_ROOM_MEMBERS_DESTINATION = '/app/room.getMembers';
 const ROOM_MEMBERS_DESTINATION = '/user/queue/room-members';
@@ -7,7 +8,7 @@ const ROOM_MEMBERS_DESTINATION = '/user/queue/room-members';
 interface ServerRoomMembersEvent {
   success: boolean;
   roomId?: string;
-  members?: string[];
+  members?: RoomMember[];
   error?: string;
 }
 
@@ -19,14 +20,14 @@ interface UseRoomMembersOptions {
 }
 
 interface UseRoomMembersReturn {
-  members: string[];
+  members: RoomMember[];
   isLoading: boolean;
   error: string | null;
   fetchMembers: (roomId: string) => void;
 }
 
 /**
- * Hook for fetching the list of member internalIds for a room.
+ * Hook for fetching enriched room members.
  *
  * Sends GET_ROOM_MEMBERS to /app/room.getMembers and listens on
  * /user/queue/room-members for the response.
@@ -37,7 +38,7 @@ export function useRoomMembers({
   unsubscribe,
   publish,
 }: UseRoomMembersOptions): UseRoomMembersReturn {
-  const [members, setMembers] = useState<string[]>([]);
+  const [members, setMembers] = useState<RoomMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

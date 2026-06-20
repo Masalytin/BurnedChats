@@ -970,6 +970,9 @@
       "leaveButton": "Leave Room",
       "membersTitle": "Members",
       "membersEmpty": "No members yet",
+      "memberYou": "You",
+      "roleOwner": "Owner",
+      "memberFallback": "{{id}}",
       "burnConfirmTitle": "Burn this room?",
       "burnConfirmText": "This will permanently destroy the room and all its messages for everyone. This cannot be undone."
     },

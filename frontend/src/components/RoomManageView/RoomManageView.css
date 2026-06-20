@@ -289,7 +289,11 @@
   gap: var(--bc-spacing-xs);
 }
 
-.room-manage-members__item {
+/* ============================================
+ * Member Row (reusable in kick/roles/presence)
+ * ============================================ */
+
+.room-member-row {
   display: flex;
   align-items: center;
   gap: var(--bc-spacing-sm);
@@ -297,19 +301,79 @@
   border-bottom: 1px solid var(--bc-border-color);
 }
 
-.room-manage-members__item:last-child {
+.room-member-row:last-child {
   border-bottom: none;
 }
 
-.room-manage-members__avatar {
+.room-member-row__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
   flex-shrink: 0;
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-elevated);
   color: var(--bc-text-secondary);
 }
 
-.room-manage-members__id {
+.room-member-row__avatar--initials {
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+}
+
+.room-member-row__initials {
+  font-size: var(--bc-text-xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.room-member-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-2xs);
+}
+
+.room-member-row__name {
   font-size: var(--bc-text-sm);
+  font-weight: 500;
+  color: var(--bc-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-member-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-member-row__you {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.room-member-row__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--bc-spacing-xs);
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-bg-elevated);
   color: var(--bc-text-secondary);
-  font-family: var(--bc-font-mono, monospace);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+}
+
+.room-member-row__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  min-height: var(--bc-touch-target);
 }
 
 /* ============================================

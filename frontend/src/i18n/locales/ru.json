@@ -986,6 +986,9 @@
       "leaveButton": "Покинуть комнату",
       "membersTitle": "Участники",
       "membersEmpty": "Нет участников",
+      "memberYou": "Вы",
+      "roleOwner": "Владелец",
+      "memberFallback": "{{id}}",
       "burnConfirmTitle": "Сжечь комнату?",
       "burnConfirmText": "Это навсегда уничтожит комнату и все сообщения для всех участников. Это действие нельзя отменить."
     },

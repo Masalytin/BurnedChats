@@ -335,6 +335,17 @@ export interface RoomListEntry {
   nameEncrypted?: string | null;
 }
 
+/** Room member row returned by GET_ROOM_MEMBERS / RoomMembersListEvent. */
+export type RoomMemberRole = 'owner' | 'member';
+
+export interface RoomMember {
+  internalId: string;
+  displayName?: string | null;
+  username?: string | null;
+  role: RoomMemberRole;
+  joinedAt?: number | null;
+}
+
 // ============================================
 // View Types
 // ============================================
