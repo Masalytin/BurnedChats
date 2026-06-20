@@ -1,6 +1,7 @@
 package dev.burnedchats.config;
 
 import dev.burnedchats.security.RateLimitInterceptor;
+import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor;
 import dev.burnedchats.security.StompHandshakeAuthInterceptor;
 import dev.burnedchats.security.StompPrincipalHandshakeHandler;
@@ -42,6 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompHandshakeAuthInterceptor stompHandshakeAuthInterceptor;
     private final StompPrincipalHandshakeHandler stompPrincipalHandshakeHandler;
     private final RateLimitInterceptor rateLimitInterceptor;
+    private final RoomTopicSubscribeInterceptor roomTopicSubscribeInterceptor;
 
     /**
      * Heartbeat interval from server to client (ms).
@@ -195,11 +197,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .maxPoolSize(10)
                 .queueCapacity(100);
 
-        // Confirm handshake principal on STOMP CONNECT; rate limiting on all inbound frames
-        registration.interceptors(stompAuthInterceptor, rateLimitInterceptor);
+        // Auth on CONNECT; room topic membership on SUBSCRIBE; rate limiting on SEND
+        registration.interceptors(
+                stompAuthInterceptor,
+                roomTopicSubscribeInterceptor,
+                rateLimitInterceptor);
 
-        LOG.info("Inbound channel configured with StompAuthInterceptor (CONNECT confirm) "
-                + "and RateLimitInterceptor");
+        LOG.info("Inbound channel configured with StompAuthInterceptor, "
+                + "RoomTopicSubscribeInterceptor, and RateLimitInterceptor");
     }
 
     /**

@@ -1525,6 +1525,11 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 **Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
 
+**Subscribe guard (IMP-ROOM-22):** клиент **обязан** быть членом комнаты (`room_members:{roomId}`) для
+`SUBSCRIBE /topic/room/{roomId}`. Иначе сервер отклоняет подписку STOMP ERROR с кодом
+`NOT_MEMBER` в теле/заголовке сообщения (не регистрирует subscription). Guard дополняет, но не
+заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
+
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `senderInternalId` | string | **Primary** — canonical sender |
