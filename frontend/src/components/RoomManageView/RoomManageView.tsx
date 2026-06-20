@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
   ClipboardList,
+  Clock,
   Crown,
   Flame,
   Home,
@@ -18,6 +19,11 @@ import {
   Users,
   Volume2,
 } from 'lucide-react';
+import {
+  ROOM_TTL_PRESETS,
+  matchRoomTtlPreset,
+  type RoomTtlPreset,
+} from '../../hooks/useRoomTtl';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -264,6 +270,10 @@ interface RoomManageViewProps {
   onSetMemberRole?: (targetInternalId: string, role: 'admin' | 'member') => void;
   /** Owner-only: transfer room ownership */
   onTransferOwnership?: (targetInternalId: string) => void;
+  /** Owner-only: managed room auto-burn deadline (epoch ms), from ROOM_TTL_UPDATED */
+  autoBurnAt?: number | null;
+  /** Owner-only: apply a TTL preset via `/app/room.setTtl` */
+  onApplyTtlPreset?: (preset: RoomTtlPreset) => void;
 }
 
 // ============================================
@@ -317,6 +327,8 @@ export const RoomManageView = memo(function RoomManageView({
   onSetReadOnly,
   onSetMemberRole,
   onTransferOwnership,
+  autoBurnAt = null,
+  onApplyTtlPreset,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
@@ -336,6 +348,34 @@ export const RoomManageView = memo(function RoomManageView({
   const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d');
   const [limitPreset, setLimitPreset] = useState<LimitPreset>('unlimited');
   const [showAllInvites, setShowAllInvites] = useState(false);
+  const [autoBurnRemainingSec, setAutoBurnRemainingSec] = useState(() =>
+    autoBurnAt != null
+      ? Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000))
+      : 0,
+  );
+
+  useEffect(() => {
+    if (autoBurnAt == null) {
+      setAutoBurnRemainingSec(0);
+      return;
+    }
+    const tick = () => {
+      setAutoBurnRemainingSec(Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000)));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [autoBurnAt]);
+
+  const activeTtlPreset = matchRoomTtlPreset(autoBurnAt);
+
+  const ttlPresetLabelKey = (preset: RoomTtlPreset): string => {
+    if (preset === 'none') return 'room.manage.ttlPresetNone';
+    if (preset === '1h') return 'room.manage.ttlPreset1h';
+    if (preset === '24h') return 'room.manage.ttlPreset24h';
+    if (preset === '7d') return 'room.manage.ttlPreset7d';
+    return 'room.manage.ttlPreset30d';
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -587,6 +627,42 @@ export const RoomManageView = memo(function RoomManageView({
                 <p className="room-manage-section__error" role="alert">{renameError}</p>
               )}
               <p className="room-manage-rename__hint">{roomShortId}</p>
+            </div>
+          </section>
+        )}
+
+        {isOwner && onApplyTtlPreset && (
+          <section className="room-manage-section">
+            <h3 className="room-manage-section__heading">
+              <Clock size={16} aria-hidden="true" />
+              {t('room.manage.ttlTitle')}
+            </h3>
+            <div className="room-manage-section__body room-manage-ttl">
+              {autoBurnAt != null && autoBurnRemainingSec > 0 && (
+                <p className="room-manage-ttl__countdown">
+                  {t('room.manage.autoBurnIn', {
+                    time: formatRemainingDuration(autoBurnRemainingSec),
+                  })}
+                </p>
+              )}
+              <div
+                className="room-manage-ttl__presets"
+                role="group"
+                aria-label={t('room.manage.ttlTitle')}
+              >
+                {ROOM_TTL_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`room-manage-ttl__chip ${
+                      activeTtlPreset === preset ? 'room-manage-ttl__chip--active' : ''
+                    }`}
+                    onClick={() => onApplyTtlPreset(preset)}
+                  >
+                    {t(ttlPresetLabelKey(preset))}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
         )}

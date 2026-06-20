@@ -32,6 +32,7 @@ import { useRoomRoles } from './hooks/useRoomRoles';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
 import { useRoomModeration } from './hooks/useRoomModeration';
+import { useRoomTtl } from './hooks/useRoomTtl';
 import { Layout } from './components/Layout/Layout';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -871,6 +872,16 @@ function AppContent() {
     ownsTopicSubscription: ownsModerationTopic,
     subscribe,
     unsubscribe,
+    publish,
+  });
+
+  const {
+    autoBurnAt: roomAutoBurnAt,
+    applyPreset: applyRoomTtlPreset,
+  } = useRoomTtl({
+    isConnected,
+    roomId: activeRoomIdForRoles,
+    topicMultiplexer,
     publish,
   });
 
@@ -2780,6 +2791,8 @@ function AppContent() {
             onSetReadOnly={handleSetRoomReadOnly}
             onSetMemberRole={isManageOwner ? setMemberRole : undefined}
             onTransferOwnership={isManageOwner ? transferOwnership : undefined}
+            autoBurnAt={roomAutoBurnAt}
+            onApplyTtlPreset={isManageOwner ? applyRoomTtlPreset : undefined}
           />
         </Layout>
         {debugPanelElement}
