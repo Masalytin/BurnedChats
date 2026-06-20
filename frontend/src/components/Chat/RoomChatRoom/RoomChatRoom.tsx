@@ -10,6 +10,7 @@ import {
   MicOff,
   RefreshCw,
   Settings,
+  Timer,
 } from 'lucide-react';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
@@ -81,6 +82,8 @@ interface RoomChatRoomProps {
   isCurrentUserMuted?: boolean;
   /** Forward ROOM_MODERATION events from the room topic to App-level state */
   onRoomModeration?: (event: RoomModerationEvent) => void;
+  /** Per-message auto-destruction window in seconds; 0 = disabled (IMP-ROOM-19) */
+  messageTtlSeconds?: number;
 }
 
 // ============================================
@@ -110,6 +113,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   roomReadOnly = false,
   isCurrentUserMuted = false,
   onRoomModeration,
+  messageTtlSeconds = 0,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -258,11 +262,14 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       userId: roomMessageUserId,
       userInternalId,
       ws,
+      messageTtlSeconds,
       onError: handleRoomMessageError,
       onEditError: handleRoomEditError,
       onMessageDeletedByOwner,
       onRoomModeration,
     });
+
+  const isEphemeralMode = messageTtlSeconds > 0;
 
   const isSendBlocked = isCurrentUserMuted || (roomReadOnly && !canBypassReadOnly);
   const moderationBannerKey = isCurrentUserMuted
@@ -510,6 +517,18 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             aria-label={t('room.chat.encryptedTitle')}
           >
             <Lock size={16} strokeWidth={2} aria-hidden />
+          </span>
+        )}
+        {isEphemeralMode && (
+          <span
+            className="room-chat-room-ephemeral-badge"
+            title={t('room.chat.ephemeralBadge')}
+            aria-label={t('room.chat.ephemeralBadge')}
+          >
+            <Timer size={14} strokeWidth={2} aria-hidden />
+            <span className="room-chat-room-ephemeral-badge__label">
+              {t('room.chat.ephemeralBadge')}
+            </span>
           </span>
         )}
       </div>

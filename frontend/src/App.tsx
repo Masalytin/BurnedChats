@@ -33,6 +33,7 @@ import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
 import { useRoomModeration } from './hooks/useRoomModeration';
 import { useRoomTtl } from './hooks/useRoomTtl';
+import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -879,6 +880,16 @@ function AppContent() {
     autoBurnAt: roomAutoBurnAt,
     applyPreset: applyRoomTtlPreset,
   } = useRoomTtl({
+    isConnected,
+    roomId: activeRoomIdForRoles,
+    topicMultiplexer,
+    publish,
+  });
+
+  const {
+    messageTtlSeconds: roomMessageTtlSeconds,
+    applyPreset: applyRoomMessageTtlPreset,
+  } = useRoomMessageTtl({
     isConnected,
     roomId: activeRoomIdForRoles,
     topicMultiplexer,
@@ -2721,6 +2732,7 @@ function AppContent() {
             roomReadOnly={roomReadOnly}
             isCurrentUserMuted={myInternalId != null && isRoomMemberMuted(myInternalId)}
             onRoomModeration={handleRoomModerationEvent}
+            messageTtlSeconds={roomMessageTtlSeconds}
           />
         </Layout>
         {debugPanelElement}
@@ -2793,6 +2805,8 @@ function AppContent() {
             onTransferOwnership={isManageOwner ? transferOwnership : undefined}
             autoBurnAt={roomAutoBurnAt}
             onApplyTtlPreset={isManageOwner ? applyRoomTtlPreset : undefined}
+            messageTtlSeconds={roomMessageTtlSeconds}
+            onApplyMessageTtlPreset={isManageOwner ? applyRoomMessageTtlPreset : undefined}
           />
         </Layout>
         {debugPanelElement}

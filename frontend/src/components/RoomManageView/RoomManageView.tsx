@@ -14,6 +14,7 @@ import {
   Shield,
   ShieldBan,
   ShieldMinus,
+  Timer,
   User,
   UserMinus,
   Users,
@@ -24,6 +25,11 @@ import {
   matchRoomTtlPreset,
   type RoomTtlPreset,
 } from '../../hooks/useRoomTtl';
+import {
+  MESSAGE_TTL_PRESETS,
+  matchMessageTtlPreset,
+  type MessageTtlPreset,
+} from '../../hooks/useRoomMessageTtl';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -274,6 +280,10 @@ interface RoomManageViewProps {
   autoBurnAt?: number | null;
   /** Owner-only: apply a TTL preset via `/app/room.setTtl` */
   onApplyTtlPreset?: (preset: RoomTtlPreset) => void;
+  /** Owner-only: current message auto-destruction TTL in seconds (IMP-ROOM-19) */
+  messageTtlSeconds?: number;
+  /** Owner-only: apply a message TTL preset via `/app/room.setMessageTtl` */
+  onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
 }
 
 // ============================================
@@ -329,6 +339,8 @@ export const RoomManageView = memo(function RoomManageView({
   onTransferOwnership,
   autoBurnAt = null,
   onApplyTtlPreset,
+  messageTtlSeconds = 0,
+  onApplyMessageTtlPreset,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
@@ -368,6 +380,14 @@ export const RoomManageView = memo(function RoomManageView({
   }, [autoBurnAt]);
 
   const activeTtlPreset = matchRoomTtlPreset(autoBurnAt);
+  const activeMessageTtlPreset = matchMessageTtlPreset(messageTtlSeconds);
+
+  const msgTtlPresetLabelKey = (preset: MessageTtlPreset): string => {
+    if (preset === 'off') return 'room.manage.msgTtlPresetOff';
+    if (preset === '5m') return 'room.manage.msgTtlPreset5m';
+    if (preset === '1h') return 'room.manage.msgTtlPreset1h';
+    return 'room.manage.msgTtlPreset24h';
+  };
 
   const ttlPresetLabelKey = (preset: RoomTtlPreset): string => {
     if (preset === 'none') return 'room.manage.ttlPresetNone';
@@ -660,6 +680,35 @@ export const RoomManageView = memo(function RoomManageView({
                     onClick={() => onApplyTtlPreset(preset)}
                   >
                     {t(ttlPresetLabelKey(preset))}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {isOwner && onApplyMessageTtlPreset && (
+          <section className="room-manage-section">
+            <h3 className="room-manage-section__heading">
+              <Timer size={16} aria-hidden="true" />
+              {t('room.manage.msgTtlTitle')}
+            </h3>
+            <div className="room-manage-section__body room-manage-msg-ttl">
+              <div
+                className="room-manage-msg-ttl__presets"
+                role="group"
+                aria-label={t('room.manage.msgTtlTitle')}
+              >
+                {MESSAGE_TTL_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`room-manage-msg-ttl__chip ${
+                      activeMessageTtlPreset === preset ? 'room-manage-msg-ttl__chip--active' : ''
+                    }`}
+                    onClick={() => onApplyMessageTtlPreset(preset)}
+                  >
+                    {t(msgTtlPresetLabelKey(preset))}
                   </button>
                 ))}
               </div>

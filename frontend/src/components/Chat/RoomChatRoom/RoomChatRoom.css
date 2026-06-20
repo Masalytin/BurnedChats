@@ -82,6 +82,33 @@
   color: var(--bc-success);
 }
 
+.room-chat-room-ephemeral-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 1px var(--bc-spacing-xs);
+  border-radius: var(--bc-radius-full);
+  background: color-mix(in srgb, var(--bc-warning) 18%, transparent);
+  color: var(--bc-warning);
+  font-size: var(--bc-text-2xs, 10px);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.room-chat-room-ephemeral-badge__label {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .room-chat-room-ephemeral-badge__label {
+    display: none;
+  }
+}
+
 .room-chat-room-id {
   font-family: var(--bc-font-mono);
   font-size: var(--bc-text-sm);
