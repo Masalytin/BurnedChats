@@ -23,8 +23,13 @@ public class RoomMembersListEvent {
     /** The room UUID. Present on success. */
     private String roomId;
 
-    /** List of member Telegram IDs as strings. Present when {@code success = true}. */
-    private List<String> members;
+    /**
+     * Enriched room members. Present when {@code success = true}.
+     *
+     * <p>Each entry carries {@code internalId}, optional profile fields from the user catalog,
+     * and {@code role} ({@code owner} or {@code member}).
+     */
+    private List<MemberDto> members;
 
     /**
      * Error code when {@code success = false}.
@@ -32,7 +37,35 @@ public class RoomMembersListEvent {
      */
     private String error;
 
-    public static RoomMembersListEvent success(String roomId, List<String> members) {
+    /**
+     * Single member row in {@link #members}.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberDto {
+
+        /** Stable internal user id (primary identity). */
+        private String internalId;
+
+        /** Display name from {@code user:{internalId}} catalog; omitted when unknown. */
+        private String displayName;
+
+        /** Telegram username when known; not persisted in the user catalog today. */
+        private String username;
+
+        /**
+         * Member role in the room.
+         * Values: {@code "owner"} or {@code "member"}.
+         */
+        private String role;
+
+        /** Unix timestamp (ms) when the user joined; not tracked yet. */
+        private Long joinedAt;
+    }
+
+    public static RoomMembersListEvent success(String roomId, List<MemberDto> members) {
         return RoomMembersListEvent.builder()
                 .success(true)
                 .roomId(roomId)

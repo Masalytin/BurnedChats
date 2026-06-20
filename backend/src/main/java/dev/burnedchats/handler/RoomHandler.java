@@ -605,18 +605,24 @@ public class RoomHandler {
                     if (!isMember) {
                         return Mono.error(new SecurityException("NOT_MEMBER"));
                     }
-                    return roomMembersRepository.getMembers(request.getRoomId()).collectList();
+                    return roomRepository.findById(request.getRoomId())
+                            .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                            .flatMap(room -> roomMembersRepository.getMembers(request.getRoomId())
+                                    .flatMap(internalId -> enrichRoomMember(room, internalId))
+                                    .collectList()
+                                    .map(enriched -> RoomMembersListEvent.success(request.getRoomId(), enriched)));
                 })
                 .subscribe(
-                        members -> {
-                            sendStompToInternalId(requester.internalId(), ROOM_MEMBERS_LIST_DESTINATION,
-                                    RoomMembersListEvent.success(request.getRoomId(), members));
+                        event -> {
+                            sendStompToInternalId(requester.internalId(), ROOM_MEMBERS_LIST_DESTINATION, event);
                             LOG.info("ROOM_MEMBERS_LIST sent: roomId={}, count={}",
-                                    request.getRoomId(), members.size());
+                                    request.getRoomId(), event.getMembers().size());
                         },
                         error -> {
                             String code = error instanceof SecurityException
                                     ? "NOT_MEMBER"
+                                    : error instanceof IllegalArgumentException iae
+                                    ? iae.getMessage()
                                     : "INTERNAL_ERROR";
                             LOG.warn("GET_ROOM_MEMBERS failed: roomId={}, internalId={}, error={}",
                                     request.getRoomId(), requester.internalId(), code);
@@ -759,6 +765,25 @@ public class RoomHandler {
         return userIdentityRepository.findById(ctx.internalId())
                 .map(UnifiedUser::displayName)
                 .defaultIfEmpty("User");
+    }
+
+    private Mono<RoomMembersListEvent.MemberDto> enrichRoomMember(Room room, String internalId) {
+        String role = isRoomOwner(room, internalId) ? "owner" : "member";
+        return userIdentityRepository.findById(internalId)
+                .map(user -> RoomMembersListEvent.MemberDto.builder()
+                        .internalId(internalId)
+                        .displayName(blankToNull(user.displayName()))
+                        .username(null)
+                        .role(role)
+                        .build())
+                .defaultIfEmpty(RoomMembersListEvent.MemberDto.builder()
+                        .internalId(internalId)
+                        .role(role)
+                        .build());
+    }
+
+    private static String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value : null;
     }
 
     private Mono<String> resolveSenderInternalId(RoomJoinDecisionRequest request) {

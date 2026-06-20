@@ -1541,6 +1541,47 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 ---
 
+### GET_ROOM_MEMBERS (`/app/room.getMembers`)
+
+**Запрос:** Client → Server, body `{ "roomId": "string" }`. Только член комнаты.
+
+**Ответ:** Server → Client, destination `/user/queue/room-members` (`RoomMembersListEvent`).
+
+**Success:**
+
+```json
+{
+  "success": true,
+  "roomId": "uuid-v4",
+  "members": [
+    {
+      "internalId": "uuid-or-tg-prefixed-id",
+      "displayName": "Alice",
+      "username": null,
+      "role": "owner"
+    },
+    {
+      "internalId": "another-internal-id",
+      "displayName": "UQCD...xyz",
+      "role": "member"
+    }
+  ]
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `members` | array | Обогащённые участники (breaking change: раньше `string[]` internalId) |
+| `members[].internalId` | string | Стабильный internal id |
+| `members[].displayName` | string? | Имя из каталога `user:{internalId}`; опущено для неизвестных |
+| `members[].username` | string? | Telegram username (каталог пока не хранит — часто `null`) |
+| `members[].role` | enum | `owner` если `internalId == room.ownerInternalId`, иначе `member` |
+| `members[].joinedAt` | number? | Не заполняется (Redis Set не хранит время вступления) |
+
+**Error:** `{ "success": false, "error": "NOT_MEMBER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
+
+---
+
 ### ROOM_CREATED
 
 **Направление:** Server → Client  
