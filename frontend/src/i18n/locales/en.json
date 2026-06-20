@@ -927,7 +927,10 @@
       "requestButton": "Send Request",
       "requestSent": "Your request has been sent. Waiting for approval.",
       "errorInvalidPassword": "Incorrect password",
-      "errorExpiredToken": "This invite link has expired",
+      "errorExpiredToken": "This invite link has expired or is invalid",
+      "errorInviteExpired": "This invite link has expired",
+      "errorInviteExhausted": "This invite link is no longer active",
+      "errorInviteHint": "Ask the room owner to create a new link",
       "errorInvalidToken": "Invalid invite link",
       "errorAlreadyMember": "You are already a member of this room",
       "errorRequestPending": "Your join request is already pending",
@@ -972,6 +975,9 @@
       "renameSuccess": "Room name updated",
       "renameError": "Failed to update room name",
       "inviteButton": "Invite",
+      "invitesTitle": "Invite Links",
+      "invitesEmpty": "No active invite links",
+      "invitesMore": "{{count}} more",
       "requestsButton": "Join Requests",
       "membersButton": "Members",
       "burnButton": "Burn Room",
@@ -999,6 +1005,25 @@
         "INTERNAL_ERROR": "Failed to remove member — please try again",
         "unknown": "Failed to remove member"
       }
+    },
+
+    "invite": {
+      "expiresIn": "Expires in {{time}}",
+      "usesLeft": "{{used}}/{{max}} uses",
+      "usesUnlimited": "{{used}} uses · unlimited",
+      "revoke": "Revoke",
+      "createTitle": "Create link",
+      "createButton": "Create link",
+      "createExpiryLabel": "Expires after",
+      "createExpiry1h": "1 hour",
+      "createExpiry24h": "24 hours",
+      "createExpiry7d": "7 days",
+      "createExpiryNone": "No limit",
+      "createLimitLabel": "Use limit",
+      "createLimit1": "1",
+      "createLimit5": "5",
+      "createLimit10": "10",
+      "createLimitUnlimited": "∞"
     },
 
     "kicked": {

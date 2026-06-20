@@ -26,6 +26,7 @@ import { useRekeyRoom } from './hooks/useRekeyRoom';
 import { createRoomTopicMultiplexer, useSetRoomName } from './hooks/useSetRoomName';
 import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
+import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { useKickMember } from './hooks/useKickMember';
 import { Layout } from './components/Layout/Layout';
@@ -636,6 +637,19 @@ function AppContent() {
     publish,
   });
 
+  const {
+    invites: roomInvites,
+    isLoading: isInvitesLoading,
+    error: invitesError,
+    refresh: refreshInvites,
+    revoke: revokeInvite,
+  } = useManageInvites({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
   // Room members hook (P2-4.3.1)
   const {
     members: roomMembers,
@@ -1054,6 +1068,28 @@ function AppContent() {
     resetInviteLink();
     setCurrentView('room-manage');
   }, [resetInviteLink]);
+
+  const handleRefreshInvites = useCallback(() => {
+    if (activeRoomChat) {
+      refreshInvites(activeRoomChat.roomId);
+    }
+  }, [activeRoomChat, refreshInvites]);
+
+  const handleCreateInviteLink = useCallback((options: { expiresInSeconds?: number; maxUses?: number }) => {
+    if (!activeRoomChat) return;
+    getInviteLink(activeRoomChat.roomId, options);
+  }, [activeRoomChat, getInviteLink]);
+
+  const handleRevokeInvite = useCallback((token: string) => {
+    if (!activeRoomChat) return;
+    revokeInvite(activeRoomChat.roomId, token);
+  }, [activeRoomChat, revokeInvite]);
+
+  useEffect(() => {
+    if (inviteUrl && activeRoomChat && currentView === 'room-manage') {
+      refreshInvites(activeRoomChat.roomId);
+    }
+  }, [inviteUrl, activeRoomChat, currentView, refreshInvites]);
 
   // Handle burn room from manage view (P2-4.3.2 / P2-4.3.3)
   const handleBurnRoom = useCallback(() => {
@@ -2565,14 +2601,18 @@ function AppContent() {
             members={roomMembers}
             isMembersLoading={isMembersLoading}
             currentUserInternalId={myInternalId ?? undefined}
-            inviteUrl={inviteUrl}
-            isInviteLoading={isInviteLoading}
-            inviteError={inviteError}
+            invites={roomInvites}
+            isInvitesLoading={isInvitesLoading}
+            invitesError={invitesError}
+            isCreateInviteLoading={isInviteLoading}
+            createInviteError={inviteError}
             onBack={() => {
               resetInviteLink();
               setCurrentView('room-chat');
             }}
-            onGetInviteLink={() => getInviteLink(activeRoomChat.roomId)}
+            onRefreshInvites={handleRefreshInvites}
+            onRevokeInvite={handleRevokeInvite}
+            onCreateInviteLink={handleCreateInviteLink}
             onViewRequests={() => {
               setActiveRoomId(activeRoomChat.roomId);
               setRequestsReturnView('room-manage');

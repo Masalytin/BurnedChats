@@ -943,7 +943,10 @@
       "requestButton": "Отправить заявку",
       "requestSent": "Ваша заявка отправлена. Ожидайте одобрения.",
       "errorInvalidPassword": "Неверный пароль",
-      "errorExpiredToken": "Срок действия ссылки истёк",
+      "errorExpiredToken": "Ссылка недействительна или истекла",
+      "errorInviteExpired": "Срок действия ссылки истёк",
+      "errorInviteExhausted": "Ссылка больше не активна",
+      "errorInviteHint": "Попросите владельца создать новую ссылку",
       "errorInvalidToken": "Недействительная ссылка",
       "errorAlreadyMember": "Вы уже являетесь участником этой комнаты",
       "errorRequestPending": "Ваша заявка уже ожидает рассмотрения",
@@ -988,6 +991,9 @@
       "renameSuccess": "Название комнаты обновлено",
       "renameError": "Не удалось обновить название",
       "inviteButton": "Пригласить",
+      "invitesTitle": "Пригласительные ссылки",
+      "invitesEmpty": "Нет активных ссылок",
+      "invitesMore": "ещё {{count}}",
       "requestsButton": "Заявки на вход",
       "membersButton": "Участники",
       "burnButton": "Сжечь комнату",
@@ -1015,6 +1021,25 @@
         "INTERNAL_ERROR": "Не удалось удалить участника — попробуйте снова",
         "unknown": "Не удалось удалить участника"
       }
+    },
+
+    "invite": {
+      "expiresIn": "Истекает через {{time}}",
+      "usesLeft": "{{used}}/{{max}} использований",
+      "usesUnlimited": "{{used}} исп. · без лимита",
+      "revoke": "Отозвать",
+      "createTitle": "Создать ссылку",
+      "createButton": "Создать ссылку",
+      "createExpiryLabel": "Срок действия",
+      "createExpiry1h": "1 час",
+      "createExpiry24h": "24 часа",
+      "createExpiry7d": "7 дней",
+      "createExpiryNone": "Без срока",
+      "createLimitLabel": "Лимит использований",
+      "createLimit1": "1",
+      "createLimit5": "5",
+      "createLimit10": "10",
+      "createLimitUnlimited": "∞"
     },
 
     "kicked": {

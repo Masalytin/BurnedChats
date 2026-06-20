@@ -17,11 +17,16 @@ interface UseGetInviteLinkOptions {
   publish: (destination: string, body: unknown) => void;
 }
 
+export interface GetInviteLinkOptions {
+  expiresInSeconds?: number;
+  maxUses?: number;
+}
+
 interface UseGetInviteLinkReturn {
   inviteUrl: string | null;
   isLoading: boolean;
   error: string | null;
-  getInviteLink: (roomId: string) => void;
+  getInviteLink: (roomId: string, options?: GetInviteLinkOptions) => void;
   reset: () => void;
 }
 
@@ -44,12 +49,19 @@ export function useGetInviteLink({
   const publishRef = useRef(publish);
   useEffect(() => { publishRef.current = publish; }, [publish]);
 
-  const getInviteLink = useCallback((roomId: string) => {
+  const getInviteLink = useCallback((roomId: string, options?: GetInviteLinkOptions) => {
     if (!isConnected) return;
     setIsLoading(true);
     setError(null);
     setInviteUrl(null);
-    publishRef.current(GET_INVITE_LINK_DESTINATION, { roomId });
+    const body: Record<string, unknown> = { roomId };
+    if (options?.expiresInSeconds != null) {
+      body.expiresInSeconds = options.expiresInSeconds;
+    }
+    if (options?.maxUses != null) {
+      body.maxUses = options.maxUses;
+    }
+    publishRef.current(GET_INVITE_LINK_DESTINATION, body);
   }, [isConnected]);
 
   const reset = useCallback(() => {

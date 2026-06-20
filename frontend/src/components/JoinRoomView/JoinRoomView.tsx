@@ -71,7 +71,9 @@ export function JoinRoomView({
   const isLoading = status === 'loading-info' || status === 'submitting';
   const isExpiredToken =
     error === 'INVALID_TOKEN' ||
+    error === 'INVITE_EXPIRED' ||
     (typeof error === 'string' && (error.includes('expired') || error.includes('INVALID_TOKEN')));
+  const isExhaustedToken = error === 'INVITE_EXHAUSTED';
 
   // ----------------------------------------
   // Pending state: waiting for owner approval
@@ -122,7 +124,32 @@ export function JoinRoomView({
   }
 
   // ----------------------------------------
-  // Error state: expired / invalid token
+  // Error state: exhausted invite link (Case R3)
+  // ----------------------------------------
+  if (isExhaustedToken) {
+    return (
+      <div className="join-room-view">
+        <div className="join-room-view__header">
+          <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
+            <XCircle size={36} strokeWidth={1.75} />
+          </div>
+          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <p className="join-room-view__error join-room-view__error--expired" role="alert">
+            {t('room.join.errorInviteExhausted')}
+          </p>
+          <p className="join-room-view__subtitle">{t('room.join.errorInviteHint')}</p>
+        </div>
+        {onCancel && (
+          <Button variant="secondary" onClick={onCancel} fullWidth>
+            {t('common.back')}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // ----------------------------------------
+  // Error state: expired / invalid token (Case R2)
   // ----------------------------------------
   if (isExpiredToken) {
     return (
@@ -133,8 +160,11 @@ export function JoinRoomView({
           </div>
           <h2 className="join-room-view__title">{t('room.join.title')}</h2>
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
-            {t('room.join.errorExpiredToken')}
+            {error === 'INVITE_EXPIRED'
+              ? t('room.join.errorInviteExpired')
+              : t('room.join.errorExpiredToken')}
           </p>
+          <p className="join-room-view__subtitle">{t('room.join.errorInviteHint')}</p>
         </div>
         {onCancel && (
           <Button variant="secondary" onClick={onCancel} fullWidth>
@@ -252,6 +282,8 @@ function mapErrorMessage(
   if (!error) return null;
   switch (error) {
     case 'INVALID_TOKEN':
+    case 'INVITE_EXPIRED':
+    case 'INVITE_EXHAUSTED':
     case 'ROOM_NOT_FOUND':
       return null; // shown as full-screen state above
     case 'WRONG_PASSWORD':

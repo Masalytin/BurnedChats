@@ -30,6 +30,8 @@ export type JoinRoomStatus =
 
 export type JoinRoomErrorCode =
   | 'INVALID_TOKEN'
+  | 'INVITE_EXPIRED'
+  | 'INVITE_EXHAUSTED'
   | 'ROOM_NOT_FOUND'
   | 'WRONG_PASSWORD'
   | 'ALREADY_MEMBER'

@@ -17,8 +17,33 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import { Input } from '../Input';
 import { CopyIcon } from '../../icons';
 import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
+import type { RoomInvite } from '../../hooks/useManageInvites';
+import type { GetInviteLinkOptions } from '../../hooks/useGetInviteLink';
 import type { RoomMember } from '../../types';
 import './RoomManageView.css';
+
+/** Max invite rows shown before collapsing the rest. */
+const MAX_VISIBLE_INVITES = 10;
+
+/** Backend max TTL (30 days) — used for the "no expiry" preset. */
+const NO_EXPIRY_SECONDS = 30 * 24 * 3600;
+
+type ExpiryPreset = '1h' | '24h' | '7d' | 'none';
+type LimitPreset = '1' | '5' | '10' | 'unlimited';
+
+const EXPIRY_PRESET_SECONDS: Record<ExpiryPreset, number | undefined> = {
+  '1h': 3600,
+  '24h': 86400,
+  '7d': 604800,
+  none: NO_EXPIRY_SECONDS,
+};
+
+const LIMIT_PRESET_VALUES: Record<LimitPreset, number | undefined> = {
+  '1': 1,
+  '5': 5,
+  '10': 10,
+  unlimited: undefined,
+};
 
 // ============================================
 // Sub-components
@@ -38,12 +63,83 @@ function BackIcon() {
   );
 }
 
-function CopyButtonIcon() {
-  return <CopyIcon size={16} aria-hidden="true" />;
+function formatRemainingDuration(seconds: number): string {
+  if (seconds <= 0) return '0:00';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function isUnlimitedUses(maxUses: number | null | undefined): boolean {
+  return maxUses == null || maxUses <= 0;
+}
+
+interface InviteRowProps {
+  invite: RoomInvite;
+  onCopy: (url: string) => void;
+  onRevoke: (token: string) => void;
+  copiedUrl: string | null;
+}
+
+function InviteRow({ invite, onCopy, onRevoke, copiedUrl }: InviteRowProps) {
+  const { t } = useTranslation();
+  const [remainingSeconds, setRemainingSeconds] = useState(() =>
+    Math.max(0, Math.floor((invite.expiresAt - Date.now()) / 1000)),
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRemainingSeconds(Math.max(0, Math.floor((invite.expiresAt - Date.now()) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [invite.expiresAt]);
+
+  const usesLabel = isUnlimitedUses(invite.maxUses)
+    ? t('room.invite.usesUnlimited', { used: invite.usedCount })
+    : t('room.invite.usesLeft', { used: invite.usedCount, max: invite.maxUses });
+
+  return (
+    <li className="room-manage-invite-row">
+      <div className="room-manage-invite-row__info">
+        <span className="room-manage-invite-row__url" title={invite.url}>{invite.url}</span>
+        <div className="room-manage-invite-row__meta">
+          <span>{t('room.invite.expiresIn', { time: formatRemainingDuration(remainingSeconds) })}</span>
+          <span className="room-manage-invite-row__dot" aria-hidden="true">·</span>
+          <span>{usesLabel}</span>
+        </div>
+      </div>
+      <div className="room-manage-invite-row__actions">
+        <button
+          type="button"
+          className={`room-manage-invite__copy ${copiedUrl === invite.url ? 'room-manage-invite__copy--copied' : ''}`}
+          onClick={() => onCopy(invite.url)}
+          aria-label={t('common.copy')}
+        >
+          <CopyButtonIcon />
+          {copiedUrl === invite.url ? t('common.copied') : t('common.copy')}
+        </button>
+        <button
+          type="button"
+          className="room-manage-invite-row__revoke"
+          onClick={() => onRevoke(invite.token)}
+        >
+          {t('room.invite.revoke')}
+        </button>
+      </div>
+    </li>
+  );
 }
 
 function shortInternalId(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+}
+
+function CopyButtonIcon() {
+  return <CopyIcon size={16} aria-hidden="true" />;
 }
 
 function memberInitials(displayName: string): string {
@@ -118,13 +214,17 @@ interface RoomManageViewProps {
   isMembersLoading?: boolean;
   /** Current user's internal id — highlights "You" on the member row */
   currentUserInternalId?: string;
-  /** Current invite URL (null if not fetched yet) */
-  inviteUrl?: string | null;
-  isInviteLoading?: boolean;
-  inviteError?: string | null;
+  /** Active invite links for this room */
+  invites?: RoomInvite[];
+  isInvitesLoading?: boolean;
+  invitesError?: string | null;
+  isCreateInviteLoading?: boolean;
+  createInviteError?: string | null;
   /** Callbacks */
   onBack?: () => void;
-  onGetInviteLink: () => void;
+  onRefreshInvites?: () => void;
+  onRevokeInvite?: (token: string) => void;
+  onCreateInviteLink?: (options: GetInviteLinkOptions) => void;
   onViewRequests: () => void;
   onFetchMembers: () => void;
   onBurnRoom: () => void;
@@ -158,11 +258,15 @@ export const RoomManageView = memo(function RoomManageView({
   members,
   isMembersLoading = false,
   currentUserInternalId,
-  inviteUrl,
-  isInviteLoading = false,
-  inviteError,
+  invites = [],
+  isInvitesLoading = false,
+  invitesError,
+  isCreateInviteLoading = false,
+  createInviteError,
   onBack,
-  onGetInviteLink,
+  onRefreshInvites,
+  onRevokeInvite,
+  onCreateInviteLink,
   onViewRequests,
   onFetchMembers,
   onBurnRoom,
@@ -171,13 +275,16 @@ export const RoomManageView = memo(function RoomManageView({
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
-  const [copied, setCopied] = useState(false);
+  const [copiedInviteUrl, setCopiedInviteUrl] = useState<string | null>(null);
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [kickTarget, setKickTarget] = useState<{ internalId: string; displayName: string } | null>(null);
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
+  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d');
+  const [limitPreset, setLimitPreset] = useState<LimitPreset>('unlimited');
+  const [showAllInvites, setShowAllInvites] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +304,11 @@ export const RoomManageView = memo(function RoomManageView({
     }
   }, [displayTitle, isEditingName, roomId]);
 
+  // Load invites when manage view mounts
+  useEffect(() => {
+    onRefreshInvites?.();
+  }, [onRefreshInvites]);
+
   // Auto-fetch members when section is expanded
   useEffect(() => {
     if (membersExpanded && !members?.length && !isMembersLoading) {
@@ -204,16 +316,33 @@ export const RoomManageView = memo(function RoomManageView({
     }
   }, [membersExpanded, members?.length, isMembersLoading, onFetchMembers]);
 
-  const handleCopyInvite = useCallback(async () => {
-    if (!inviteUrl) return;
+  const handleCopyInviteUrl = useCallback(async (url: string) => {
     try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(url);
+      setCopiedInviteUrl(url);
+      setTimeout(() => setCopiedInviteUrl(null), 2000);
     } catch {
       // Fallback: select text manually
     }
-  }, [inviteUrl]);
+  }, []);
+
+  const handleCreateInvite = useCallback(() => {
+    if (!onCreateInviteLink) return;
+    const options: GetInviteLinkOptions = {};
+    const expiresInSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
+    if (expiresInSeconds != null) {
+      options.expiresInSeconds = expiresInSeconds;
+    }
+    const maxUses = LIMIT_PRESET_VALUES[limitPreset];
+    if (maxUses != null) {
+      options.maxUses = maxUses;
+    }
+    onCreateInviteLink(options);
+  }, [onCreateInviteLink, expiryPreset, limitPreset]);
+
+  const handleRevokeInvite = useCallback((token: string) => {
+    onRevokeInvite?.(token);
+  }, [onRevokeInvite]);
 
   const handleBurnClick = useCallback(() => {
     setShowBurnConfirm(true);
@@ -345,38 +474,90 @@ export const RoomManageView = memo(function RoomManageView({
           </section>
         )}
 
-        {/* ── Invite link ─────────────────────────────── */}
+        {/* ── Invite links ─────────────────────────────── */}
         <section className="room-manage-section">
           <h3 className="room-manage-section__heading">
             <Link size={16} aria-hidden="true" />
-            {t('room.manage.inviteButton')}
+            {t('room.manage.invitesTitle')}
           </h3>
-          <div className="room-manage-section__body">
-            {inviteUrl ? (
-              <div className="room-manage-invite">
-                <span className="room-manage-invite__url">{inviteUrl}</span>
-                <button
-                  type="button"
-                  className={`room-manage-invite__copy ${copied ? 'room-manage-invite__copy--copied' : ''}`}
-                  onClick={handleCopyInvite}
-                  aria-label={t('common.copy')}
-                >
-                  <CopyButtonIcon />
-                  {copied ? t('common.copied') : t('common.copy')}
-                </button>
-              </div>
+          <div className="room-manage-section__body room-manage-invites">
+            {isInvitesLoading && invites.length === 0 ? (
+              <p className="room-manage-invites__loading">{t('common.loading')}</p>
+            ) : invites.length === 0 ? (
+              <p className="room-manage-invites__empty">{t('room.manage.invitesEmpty')}</p>
             ) : (
-              <Button
-                variant="secondary"
-                onClick={onGetInviteLink}
-                disabled={isInviteLoading}
-                fullWidth
-              >
-                {isInviteLoading ? t('common.loading') : t('room.manage.inviteButton')}
-              </Button>
+              <>
+                <ul className="room-manage-invites__list">
+                  {(showAllInvites ? invites : invites.slice(0, MAX_VISIBLE_INVITES)).map(invite => (
+                    <InviteRow
+                      key={invite.token}
+                      invite={invite}
+                      onCopy={handleCopyInviteUrl}
+                      onRevoke={handleRevokeInvite}
+                      copiedUrl={copiedInviteUrl}
+                    />
+                  ))}
+                </ul>
+                {invites.length > MAX_VISIBLE_INVITES && !showAllInvites && (
+                  <button
+                    type="button"
+                    className="room-manage-invites__more"
+                    onClick={() => setShowAllInvites(true)}
+                  >
+                    {t('room.manage.invitesMore', { count: invites.length - MAX_VISIBLE_INVITES })}
+                  </button>
+                )}
+              </>
             )}
-            {inviteError && (
-              <p className="room-manage-section__error">{inviteError}</p>
+            {invitesError && (
+              <p className="room-manage-section__error" role="alert">{invitesError}</p>
+            )}
+
+            {onCreateInviteLink && (
+              <div className="room-manage-invites-create">
+                <h4 className="room-manage-invites-create__title">{t('room.invite.createTitle')}</h4>
+                <div className="room-manage-invites-create__group">
+                  <span className="room-manage-invites-create__label">{t('room.invite.createExpiryLabel')}</span>
+                  <div className="room-manage-invites-create__presets" role="group" aria-label={t('room.invite.createExpiryLabel')}>
+                    {(['1h', '24h', '7d', 'none'] as ExpiryPreset[]).map(key => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`room-manage-invites-create__chip ${expiryPreset === key ? 'room-manage-invites-create__chip--active' : ''}`}
+                        onClick={() => setExpiryPreset(key)}
+                      >
+                        {t(`room.invite.createExpiry${key === 'none' ? 'None' : key}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="room-manage-invites-create__group">
+                  <span className="room-manage-invites-create__label">{t('room.invite.createLimitLabel')}</span>
+                  <div className="room-manage-invites-create__presets" role="group" aria-label={t('room.invite.createLimitLabel')}>
+                    {(['1', '5', '10', 'unlimited'] as LimitPreset[]).map(key => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`room-manage-invites-create__chip ${limitPreset === key ? 'room-manage-invites-create__chip--active' : ''}`}
+                        onClick={() => setLimitPreset(key)}
+                      >
+                        {t(`room.invite.createLimit${key === 'unlimited' ? 'Unlimited' : key}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={handleCreateInvite}
+                  disabled={isCreateInviteLoading}
+                  fullWidth
+                >
+                  {isCreateInviteLoading ? t('common.loading') : t('room.invite.createButton')}
+                </Button>
+                {createInviteError && (
+                  <p className="room-manage-section__error" role="alert">{createInviteError}</p>
+                )}
+              </div>
             )}
           </div>
         </section>

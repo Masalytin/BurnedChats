@@ -264,6 +264,184 @@
 }
 
 /* ============================================
+ * Invite list & create form (IMP-ROOM-08)
+ * ============================================ */
+
+.room-manage-invites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+}
+
+.room-manage-invites__loading,
+.room-manage-invites__empty {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-muted);
+}
+
+.room-manage-invites__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-invite-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm);
+  background: var(--bc-bg-elevated);
+  border-radius: var(--bc-radius-md);
+}
+
+.room-manage-invite-row__info {
+  min-width: 0;
+}
+
+.room-manage-invite-row__url {
+  display: block;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bc-font-mono, monospace);
+}
+
+.room-manage-invite-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  margin-top: var(--bc-spacing-2xs);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.room-manage-invite-row__dot {
+  opacity: 0.6;
+}
+
+.room-manage-invite-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex-wrap: wrap;
+}
+
+.room-manage-invite-row__revoke {
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-error);
+  border-radius: var(--bc-radius-sm);
+  background: transparent;
+  color: var(--bc-error);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast);
+}
+
+.room-manage-invite-row__revoke:hover {
+  background: color-mix(in srgb, var(--bc-error) 12%, transparent);
+}
+
+.room-manage-invite-row__revoke:active {
+  transform: scale(0.97);
+}
+
+.room-manage-invite-row__revoke:focus-visible {
+  outline: 2px solid var(--bc-error);
+  outline-offset: 2px;
+}
+
+.room-manage-invites__more {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--bc-brand-primary);
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--bc-spacing-xs) 0;
+}
+
+.room-manage-invites__more:hover {
+  text-decoration: underline;
+}
+
+.room-manage-invites-create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-sm);
+  border-top: 1px solid var(--bc-border-color);
+}
+
+.room-manage-invites-create__title {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+}
+
+.room-manage-invites-create__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-manage-invites-create__label {
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.room-manage-invites-create__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-manage-invites-create__chip {
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    border-color var(--bc-transition-fast),
+    color var(--bc-transition-fast);
+}
+
+.room-manage-invites-create__chip:hover {
+  border-color: var(--bc-brand-primary);
+  color: var(--bc-text-primary);
+}
+
+.room-manage-invites-create__chip--active {
+  background: var(--bc-button-primary-bg);
+  border-color: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+}
+
+.room-manage-invites-create__chip:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
  * Members List
  * ============================================ */
 
