@@ -307,6 +307,23 @@ SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 
 Удаляется при BURN_ROOM.
 
+### `room_bans:{roomId}`
+
+Банлист комнаты (Set internalId). Запрет повторного join для перечисленных identity (IMP-ROOM-09).
+
+```redis
+SADD room_bans:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
+EXPIRE room_bans:uuid-room-1 2592000
+```
+
+| Операция | Описание |
+|----------|----------|
+| Ban | `SADD` после kick-cleanup (`/app/room.ban`) |
+| Unban | `SREM` (`/app/room.unban`) |
+| Join enforce | `SISMEMBER` в `requestJoin` / `acceptJoin` → `USER_BANNED` |
+| TTL | 30 дней; продлевается при активности комнаты (вместе с `room:{roomId}`) |
+| BURN_ROOM | `DEL room_bans:{roomId}` |
+
 ### `invite:{token}`
 
 Инвайт-токен для ссылки приглашения. Обратный индекс: `room_invites:{roomId}` (Set token strings).

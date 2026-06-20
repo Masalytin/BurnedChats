@@ -3,6 +3,7 @@ package dev.burnedchats.service;
 import dev.burnedchats.model.InviteToken;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.repository.InviteTokenRepository;
+import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -50,6 +51,9 @@ class RoomJoinServiceInviteLimitTest {
 
     @Mock
     private RoomMemberPublicKeyRepository memberPublicKeyRepository;
+
+    @Mock
+    private RoomBansRepository roomBansRepository;
 
     @InjectMocks
     private RoomJoinService roomJoinService;
@@ -114,9 +118,11 @@ class RoomJoinServiceInviteLimitTest {
         when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(passwordRoom));
         when(passwordProofService.verifyProof("proof", "hash")).thenReturn(true);
         when(roomMembersRepository.isMember(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
+        when(roomBansRepository.isBanned(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
         when(roomMembersRepository.add(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(1L));
         when(memberPublicKeyRepository.put(ROOM_ID, SENDER_INTERNAL, "pubkey")).thenReturn(Mono.empty());
         when(roomRepository.extendTtl(ROOM_ID, RoomRepository.DEFAULT_TTL)).thenReturn(Mono.just(true));
+        when(roomBansRepository.extendTtl(ROOM_ID)).thenReturn(Mono.just(true));
         when(inviteTokenService.consumeInviteUse(TOKEN)).thenReturn(Mono.empty());
 
         StepVerifier.create(roomJoinService.requestJoin(

@@ -4,6 +4,7 @@ import dev.burnedchats.model.InviteToken;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomJoinRequest;
 import dev.burnedchats.repository.InviteTokenRepository;
+import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -32,6 +33,7 @@ public class RoomJoinService {
     private final InviteTokenService inviteTokenService;
     private final PasswordProofService passwordProofService;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
+    private final RoomBansRepository roomBansRepository;
 
     public sealed interface JoinResult permits JoinResult.Approved, JoinResult.Pending {
 
@@ -71,12 +73,14 @@ public class RoomJoinService {
 
     public Mono<Void> acceptJoin(String ownerInternalId, String roomId, String senderInternalId) {
         return loadRoomAsOwner(ownerInternalId, roomId)
+                .then(ensureNotBanned(roomId, senderInternalId))
                 .then(joinRequestRepository.findByRoomAndSender(roomId, senderInternalId))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("REQUEST_NOT_FOUND")))
                 .flatMap(joinRequest -> roomMembersRepository.add(roomId, senderInternalId)
                         .then(memberPublicKeyRepository.put(roomId, senderInternalId, joinRequest.getPublicKey()))
                         .then(joinRequestRepository.remove(roomId, senderInternalId))
                         .then(roomRepository.extendTtl(roomId, RoomRepository.DEFAULT_TTL))
+                        .then(roomBansRepository.extendTtl(roomId))
                         .then())
                 .doOnSuccess(v -> LOG.info("Join accepted: roomId={}, senderInternalId={}, ownerInternalId={}",
                         roomId, senderInternalId, ownerInternalId));
@@ -112,13 +116,17 @@ public class RoomJoinService {
                     if (alreadyMember) {
                         return Mono.error(new IllegalStateException("ALREADY_MEMBER"));
                     }
-                    Mono<JoinResult> joinResult = attempt.room().getJoinMode() == Room.JoinMode.BY_PASSWORD
-                            ? joinByPassword(attempt.room(), attempt.senderInternalId(),
-                                    attempt.senderTgId(), attempt.senderPublicKey())
-                            : joinByRequest(attempt.room(), attempt.senderInternalId(), attempt.senderTgId(),
-                                    attempt.senderUsername(), attempt.senderFirstName(), attempt.senderPublicKey());
-                    return joinResult.flatMap(result ->
-                            consumeInviteUse(attempt.inviteToken()).thenReturn(result));
+                    return ensureNotBanned(attempt.room().getId(), attempt.senderInternalId())
+                            .then(Mono.defer(() -> {
+                                Mono<JoinResult> joinResult = attempt.room().getJoinMode() == Room.JoinMode.BY_PASSWORD
+                                        ? joinByPassword(attempt.room(), attempt.senderInternalId(),
+                                                attempt.senderTgId(), attempt.senderPublicKey())
+                                        : joinByRequest(attempt.room(), attempt.senderInternalId(),
+                                                attempt.senderTgId(), attempt.senderUsername(),
+                                                attempt.senderFirstName(), attempt.senderPublicKey());
+                                return joinResult.flatMap(result ->
+                                        consumeInviteUse(attempt.inviteToken()).thenReturn(result));
+                            }));
                 });
     }
 
@@ -143,6 +151,7 @@ public class RoomJoinService {
         return roomMembersRepository.add(room.getId(), senderInternalId)
                 .then(memberPublicKeyRepository.put(room.getId(), senderInternalId, senderPublicKey))
                 .then(roomRepository.extendTtl(room.getId(), RoomRepository.DEFAULT_TTL))
+                .then(roomBansRepository.extendTtl(room.getId()))
                 .thenReturn((JoinResult) new JoinResult.Approved(
                         room.getId(), ownerInternalIdOrEmpty(room)))
                 .doOnSuccess(r -> LOG.info("User {} joined room {} directly (BY_PASSWORD)",
@@ -177,6 +186,16 @@ public class RoomJoinService {
 
     private static String ownerInternalIdOrEmpty(Room room) {
         return room.getOwnerInternalId() != null ? room.getOwnerInternalId() : "";
+    }
+
+    private Mono<Void> ensureNotBanned(String roomId, String internalId) {
+        return roomBansRepository.isBanned(roomId, internalId)
+                .flatMap(banned -> {
+                    if (Boolean.TRUE.equals(banned)) {
+                        return Mono.error(new IllegalArgumentException("USER_BANNED"));
+                    }
+                    return Mono.empty();
+                });
     }
 
     private Mono<Room> loadRoomAsOwner(String ownerInternalId, String roomId) {

@@ -1512,7 +1512,7 @@ client.activate();
 | `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
 | `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
 
-**Ошибки join:** `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`.
+**Ошибки join:** `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
 
 **Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
 
@@ -1646,7 +1646,7 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 Guard дополняет, но не заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
 
-**Force-unsubscribe (IMP-ROOM-25):** после успешного `/app/room.kick` или `/app/room.leave` сервер
+**Force-unsubscribe (IMP-ROOM-25):** после успешного `/app/room.kick`, `/app/room.ban` или `/app/room.leave` сервер
 снимает **все** активные подписки удалённого участника на `/topic/room/{roomId}` через
 `SubscriptionRegistry` (все STOMP-сессии пользователя). Это закрывает окно, когда подписка была
 открыта до kick/leave и продолжала получать ciphertext до client disconnect. Re-subscribe по-прежнему
@@ -1755,6 +1755,65 @@ Guard дополняет, но не заменяет обязательный re
 Владелец **обязан** выполнить rekey после `ROOM_MEMBER_REMOVED` (см. [SECURITY.md](./SECURITY.md) — forward secrecy при kick).
 
 Rate-limit: `SESSION_ACTION` (10/min), как у accept/reject join.
+
+---
+
+### BAN_MEMBER (`/app/room.ban`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`BanMemberRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `targetInternalId` | string | Да | Internal ID участника для бана |
+
+Логически = kick (IMP-ROOM-03) **+** запись в `room_bans:{roomId}`. Жертва удаляется из membership
+и получает те же события, что при kick (`ROOM_KICKED`, `ROOM_MEMBER_REMOVED` остальным); инициатору —
+`ROOM_KICK_RESULT` на `/user/queue/room-kick-result`.
+
+**Ошибки:** те же, что у `KICK_MEMBER` (`NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`,
+`NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`).
+
+**Серверный cleanup:** как у kick + `SADD room_bans:{roomId} {targetInternalId}`; force-unsubscribe
+с `/topic/room/{roomId}` (IMP-ROOM-25).
+
+Забаненный `internalId` не может повторно вступить (`requestJoin` / `acceptJoin`) → `USER_BANNED`.
+
+Rate-limit: `SESSION_ACTION` (10/min).
+
+---
+
+### UNBAN_MEMBER (`/app/room.unban`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос:** тот же payload, что у ban — `{ "roomId": "string", "targetInternalId": "string" }`
+(`BanMemberRequest`).
+
+**Сервер:** `SREM room_bans:{roomId} {targetInternalId}`. Отдельный user-queue ack не предусмотрен
+(fire-and-forget); ошибки логируются (`NOT_OWNER`, `ROOM_NOT_FOUND`).
+
+---
+
+### GET_ROOM_BANS (`/app/room.getBans`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос:** `{ "roomId": "string" }` (тот же shape, что у `GET_ROOM_MEMBERS`).
+
+**Ответ:** `/user/queue/room-bans` (`RoomBanListEvent`):
+
+```json
+{
+  "success": true,
+  "roomId": "uuid-v4",
+  "bans": ["internal-id-1", "internal-id-2"]
+}
+```
+
+**Error:** `{ "success": false, "error": "NOT_OWNER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
 
 ---
 

@@ -5,6 +5,7 @@ import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
+import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
 import dev.burnedchats.dto.event.RoomKickResultEvent;
@@ -19,6 +20,7 @@ import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomNameUpdatedEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
+import dev.burnedchats.dto.request.BanMemberRequest;
 import dev.burnedchats.dto.request.BurnRoomRequest;
 import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.request.KickMemberRequest;
@@ -42,6 +44,7 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
+import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
@@ -104,6 +107,7 @@ public class RoomHandler {
     private static final String ROOM_KICKED_DESTINATION = "/queue/room-kicked";
     private static final String ROOM_KICK_RESULT_DESTINATION = "/queue/room-kick-result";
     private static final String ROOM_MEMBER_REMOVED_DESTINATION = "/queue/room-member-removed";
+    private static final String ROOM_BANS_DESTINATION = "/queue/room-bans";
 
     private final RoomService roomService;
     private final InviteTokenService inviteTokenService;
@@ -119,6 +123,7 @@ public class RoomHandler {
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomTopicSubscriptionService roomTopicSubscriptionService;
+    private final RoomBansRepository roomBansRepository;
     private final RateLimitService rateLimitService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -785,7 +790,8 @@ public class RoomHandler {
                                                         inviteTokenRepository.deleteAllForRoom(roomId),
                                                         roomKeysRepository.deleteRoom(roomId),
                                                         memberPublicKeyRepository.deleteRoom(roomId),
-                                                        roomMessageRepository.deleteRoomMessages(roomId)
+                                                        roomMessageRepository.deleteRoomMessages(roomId),
+                                                        roomBansRepository.deleteAll(roomId)
                                                 ))
                                                 .thenReturn(members))
                 )
@@ -870,6 +876,131 @@ public class RoomHandler {
                                     roomId, targetInternalId, owner.internalId(), code);
                             sendKickResult(owner.internalId(),
                                     RoomKickResultEvent.failure(roomId, targetInternalId, code));
+                        }
+            );
+    }
+
+    @MessageMapping("/room.ban")
+    public void banMember(@Payload @Valid BanMemberRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("BAN_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
+                roomId, targetInternalId, owner.internalId());
+
+        rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
+                .then(Mono.defer(() -> roomRepository.findById(roomId)
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                        .flatMap(room -> {
+                            if (!isRoomOwner(room, owner.internalId())) {
+                                return Mono.error(new SecurityException("NOT_OWNER"));
+                            }
+                            if (owner.internalId().equals(targetInternalId)) {
+                                return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
+                            }
+                            if (isRoomOwner(room, targetInternalId)) {
+                                return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
+                            }
+                            return roomMembersRepository.isMember(roomId, targetInternalId)
+                                    .flatMap(isMember -> {
+                                        if (!isMember) {
+                                            return Mono.error(new SecurityException("NOT_MEMBER"));
+                                        }
+                                        return performKickCleanup(roomId, targetInternalId)
+                                                .then(roomBansRepository.add(roomId, targetInternalId))
+                                                .then(roomMembersRepository.getMembers(roomId).collectList());
+                                    });
+                        })))
+                .subscribe(
+                        remainingMembers -> {
+                            sendStompToInternalId(targetInternalId, ROOM_KICKED_DESTINATION,
+                                    RoomMemberKickedEvent.of(roomId, owner.internalId()));
+                            RoomMemberRemovedEvent removedEvent =
+                                    RoomMemberRemovedEvent.of(roomId, targetInternalId);
+                            remainingMembers.stream()
+                                    .filter(StringUtils::hasText)
+                                    .forEach(memberInternalId -> stompUserMessenger.convertAndSendToInternalId(
+                                            memberInternalId,
+                                            ROOM_MEMBER_REMOVED_DESTINATION,
+                                            removedEvent));
+                            sendKickResult(owner.internalId(),
+                                    RoomKickResultEvent.success(roomId, targetInternalId));
+                            LOG.info("BAN_MEMBER processed: roomId={}, targetInternalId={}, remainingMembers={}",
+                                    roomId, targetInternalId, remainingMembers.size());
+                        },
+                        error -> {
+                            String code = mapKickError(error);
+                            LOG.warn("BAN_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, error={}",
+                                    roomId, targetInternalId, owner.internalId(), code);
+                            sendKickResult(owner.internalId(),
+                                    RoomKickResultEvent.failure(roomId, targetInternalId, code));
+                        }
+            );
+    }
+
+    @MessageMapping("/room.unban")
+    public void unbanMember(@Payload @Valid BanMemberRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("UNBAN_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
+                roomId, targetInternalId, owner.internalId());
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return roomBansRepository.remove(roomId, targetInternalId);
+                })
+                .subscribe(
+                        removed -> LOG.info("UNBAN_MEMBER completed: roomId={}, targetInternalId={}, removed={}",
+                                roomId, targetInternalId, removed),
+                        error -> LOG.warn("UNBAN_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, "
+                                        + "error={}",
+                                roomId, targetInternalId, owner.internalId(), mapBanManagementError(error))
+            );
+    }
+
+    @MessageMapping("/room.getBans")
+    public void getBans(@Payload @Valid GetRoomMembersRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        LOG.info("GET_BANS requested: roomId={}, ownerInternalId={}", roomId, owner.internalId());
+
+        roomRepository.findById(roomId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .flatMap(room -> {
+                    if (!isRoomOwner(room, owner.internalId())) {
+                        return Mono.error(new SecurityException("NOT_OWNER"));
+                    }
+                    return roomBansRepository.list(roomId).collectList();
+                })
+                .subscribe(
+                        bans -> {
+                            sendStompToInternalId(owner.internalId(), ROOM_BANS_DESTINATION,
+                                    RoomBanListEvent.success(roomId, bans));
+                            LOG.info("ROOM_BANS sent: roomId={}, count={}", roomId, bans.size());
+                        },
+                        error -> {
+                            String code = mapBanManagementError(error);
+                            LOG.warn("GET_BANS failed: roomId={}, ownerInternalId={}, error={}",
+                                    roomId, owner.internalId(), code);
+                            sendStompToInternalId(owner.internalId(), ROOM_BANS_DESTINATION,
+                                    RoomBanListEvent.error(code));
                         }
             );
     }
@@ -1080,6 +1211,16 @@ public class RoomHandler {
     }
 
     private String mapSetNameError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapBanManagementError(Throwable error) {
         if (error instanceof IllegalArgumentException iae) {
             return iae.getMessage();
         }
