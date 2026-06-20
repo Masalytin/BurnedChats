@@ -721,6 +721,63 @@
   min-height: var(--bc-touch-target);
 }
 
+.room-member-row__badge--owner {
+  background: color-mix(in srgb, var(--bc-brand-primary) 16%, var(--bc-bg-elevated));
+  color: var(--bc-brand-primary);
+}
+
+.room-member-row__badge--admin {
+  background: color-mix(in srgb, var(--bc-warning) 16%, var(--bc-bg-elevated));
+  color: var(--bc-warning);
+}
+
+.room-member-row__role-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-2xs);
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-border-color-strong);
+  border-radius: var(--bc-radius-sm);
+  background: transparent;
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    border-color var(--bc-transition-fast),
+    color var(--bc-transition-fast),
+    transform var(--bc-transition-fast);
+}
+
+.room-member-row__role-btn:hover {
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-primary);
+}
+
+.room-member-row__role-btn:active {
+  transform: scale(0.97);
+}
+
+.room-member-row__role-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.room-member-row__role-btn--transfer {
+  border-color: color-mix(in srgb, var(--bc-warning) 60%, var(--bc-border-color-strong));
+  color: var(--bc-warning);
+}
+
+.room-member-row__role-btn--transfer:hover {
+  background: color-mix(in srgb, var(--bc-warning) 12%, transparent);
+}
+
+.room-member-row__role-label {
+  white-space: nowrap;
+}
+
 .room-member-row__kick-btn {
   display: inline-flex;
   align-items: center;

@@ -327,18 +327,20 @@ export interface RoomJoinRequest {
   requestedAt: number;
 }
 
+/** Room role in list / membership context (owner, co-admin overlay, or member). */
+export type RoomRole = 'owner' | 'admin' | 'member';
+
 /** Single room entry returned by GET_MY_ROOMS / ROOM_LIST. */
 export interface RoomListEntry {
   roomId: string;
-  /** "owner" | "member" */
-  role: 'owner' | 'member';
+  role: RoomRole;
   createdAt: number;
   nameEncrypted?: string | null;
   nameIv?: string | null;
 }
 
 /** Room member row returned by GET_ROOM_MEMBERS / RoomMembersListEvent. */
-export type RoomMemberRole = 'owner' | 'member';
+export type RoomMemberRole = RoomRole;
 
 export interface RoomMember {
   internalId: string;

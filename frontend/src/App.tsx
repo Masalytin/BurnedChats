@@ -28,6 +28,7 @@ import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
+import { useRoomRoles } from './hooks/useRoomRoles';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
 import { useRoomModeration } from './hooks/useRoomModeration';
@@ -76,7 +77,7 @@ import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
-import type { UserInfo, ChatRequest } from './types';
+import type { UserInfo, ChatRequest, RoomRole } from './types';
 import type { UseRoomMessagesWebSocket } from './hooks/useRoomMessages';
 import './App.css';
 
@@ -93,6 +94,21 @@ type AppView =
   | 'room-join-requests'
   | 'room-chat'
   | 'room-manage';
+
+function canModerateRoom(role: RoomRole): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+function resolveActiveRoomRole(
+  hookRole: RoomRole | null,
+  room: { role: RoomRole } | undefined,
+  cachedIsOwner: boolean | undefined,
+): RoomRole {
+  if (hookRole) return hookRole;
+  if (room) return room.role;
+  if (cachedIsOwner) return 'owner';
+  return 'member';
+}
 
 /** Active room chat state */
 interface ActiveRoomChat {
@@ -438,6 +454,7 @@ function AppContent() {
     isLoading: isLoadingRooms,
     fetchRooms,
     updateRoomName,
+    updateRoomRole,
   } = useMyRooms({
     isConnected,
     subscribe,
@@ -657,6 +674,8 @@ function AppContent() {
     members: roomMembers,
     isLoading: isMembersLoading,
     fetchMembers,
+    updateMemberRole,
+    applyOwnershipTransfer,
   } = useRoomMembers({
     isConnected,
     subscribe,
@@ -809,6 +828,34 @@ function AppContent() {
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
 
   const ownsModerationTopic = currentView === 'room-manage' && activeRoomChat != null;
+
+  const activeRoomIdForRoles = (
+    currentView === 'room-chat' || currentView === 'room-manage'
+  ) ? activeRoomChat?.roomId ?? null : null;
+
+  const { myRole: activeRoomMyRole, setRole: setMemberRole, transferOwnership } = useRoomRoles({
+    isConnected,
+    roomId: activeRoomIdForRoles,
+    myInternalId,
+    myRooms,
+    topicMultiplexer,
+    publish,
+    updateRoomRole,
+    onMemberRoleUpdated: updateMemberRole,
+    onOwnershipTransferred: applyOwnershipTransfer,
+  });
+
+  const manageRoleForGuard = useMemo(() => {
+    if (currentView !== 'room-manage' || !activeRoomChat) return null;
+    const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+    return resolveActiveRoomRole(activeRoomMyRole, activeRoom, activeRoomChat.isOwner);
+  }, [currentView, activeRoomChat, myRooms, activeRoomMyRole]);
+
+  useEffect(() => {
+    if (manageRoleForGuard != null && !canModerateRoom(manageRoleForGuard)) {
+      setCurrentView('room-chat');
+    }
+  }, [manageRoleForGuard]);
 
   const {
     readOnly: roomReadOnly,
@@ -2627,9 +2674,13 @@ function AppContent() {
   // Room chat view (P2-4.2.2) — entered after KEY_BUNDLE received
   if (currentView === 'room-chat' && activeRoomChat && myInternalId !== null) {
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
-    // Fall back to the cached isOwner flag when myRooms hasn't loaded yet
-    // (e.g. immediately after room creation before fetchRooms completes).
-    const isRoomOwner = activeRoom ? activeRoom.role === 'owner' : (activeRoomChat.isOwner ?? false);
+    const activeRoomRole = resolveActiveRoomRole(
+      activeRoomMyRole,
+      activeRoom,
+      activeRoomChat.isOwner,
+    );
+    const isRoomOwner = activeRoomRole === 'owner';
+    const isRoomModerator = canModerateRoom(activeRoomRole);
 
     return wrapWalletProvider(
       <>
@@ -2643,6 +2694,7 @@ function AppContent() {
             userTelegramId={telegramUserId ?? undefined}
             ws={roomChatWs}
             isOwner={isRoomOwner}
+            canBypassReadOnly={isRoomModerator}
             isRequestingKey={isRequestingKey}
             onRequestKey={retryKeyRequest}
             memberCount={
@@ -2652,7 +2704,7 @@ function AppContent() {
               setActiveRoomChat(null);
               setCurrentView('home');
             }}
-            onManage={isRoomOwner ? handleOpenRoomManage : undefined}
+            onManage={isRoomModerator ? handleOpenRoomManage : undefined}
             onLeave={!isRoomOwner ? handleLeaveRoom : undefined}
             syncMessagesRef={roomSyncMessagesRef}
             roomReadOnly={roomReadOnly}
@@ -2665,16 +2717,27 @@ function AppContent() {
     );
   }
 
-  // Room manage view (P2-4.3.1) — owner only
+  // Room manage view (P2-4.3.1) — owner and co-admin
   if (currentView === 'room-manage' && activeRoomChat) {
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+    const manageRole = resolveActiveRoomRole(
+      activeRoomMyRole,
+      activeRoom,
+      activeRoomChat.isOwner,
+    );
+
+    const isManageOwner = manageRole === 'owner';
+
+    if (!canModerateRoom(manageRole)) {
+      return null;
+    }
 
     return wrapWalletProvider(
       <>
         <Layout>
           <RoomManageView
             roomId={activeRoomChat.roomId}
-            isOwner
+            myRole={manageRole}
             nameEncrypted={activeRoom?.nameEncrypted}
             nameIv={activeRoom?.nameIv}
             isRenaming={isRenamingRoom}
@@ -2702,19 +2765,21 @@ function AppContent() {
             }}
             onFetchMembers={() => fetchMembers(activeRoomChat.roomId)}
             onBurnRoom={handleBurnRoom}
-            onRenameRoom={handleRenameRoom}
+            onRenameRoom={isManageOwner ? handleRenameRoom : undefined}
             onKickMember={handleKickMember}
-            onBanMember={handleBanMember}
+            onBanMember={isManageOwner ? handleBanMember : undefined}
             bannedInternalIds={roomBans}
             isBansLoading={isBansLoading}
-            bansError={bansError}
-            onRefreshBans={handleRefreshBans}
-            onUnban={handleUnbanMember}
+            bansError={isManageOwner ? bansError : null}
+            onRefreshBans={isManageOwner ? handleRefreshBans : undefined}
+            onUnban={isManageOwner ? handleUnbanMember : undefined}
             mutedInternalIds={roomMutedIds}
             roomReadOnly={roomReadOnly}
             onMuteMember={handleMuteMember}
             onUnmuteMember={handleUnmuteMember}
             onSetReadOnly={handleSetRoomReadOnly}
+            onSetMemberRole={isManageOwner ? setMemberRole : undefined}
+            onTransferOwnership={isManageOwner ? transferOwnership : undefined}
           />
         </Layout>
         {debugPanelElement}

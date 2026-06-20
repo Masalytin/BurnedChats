@@ -15,7 +15,7 @@ interface RoomNameUpdatedEvent {
 
 type RoomTopicHandler = (message: IMessage) => void;
 
-interface TopicMultiplexer {
+export interface TopicMultiplexer {
   subscribe: (destination: string, callback: RoomTopicHandler) => unknown;
   unsubscribe: (destination: string, callback: RoomTopicHandler) => void;
 }

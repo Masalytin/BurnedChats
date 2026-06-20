@@ -992,6 +992,14 @@
       "membersEmpty": "No members yet",
       "memberYou": "You",
       "roleOwner": "Owner",
+      "roleAdmin": "Admin",
+      "promoteAdmin": "Make admin",
+      "demoteAdmin": "Remove admin",
+      "transferOwnership": "Transfer ownership",
+      "transferConfirmTitle": "Transfer ownership to {{name}}?",
+      "transferConfirmDescription": "They will become the room owner with full control. You will become an admin and lose owner-only actions.",
+      "transferConfirmWarning": "This cannot be undone from your side. Only the new owner can transfer ownership back.",
+      "transferConfirmButton": "Transfer ownership",
       "memberFallback": "{{id}}",
       "burnConfirmTitle": "Burn this room?",
       "burnConfirmText": "This will permanently destroy the room and all its messages for everyone. This cannot be undone.",
@@ -1018,7 +1026,9 @@
         "NOT_MEMBER": "This user is no longer in the room",
         "CANNOT_KICK_SELF": "You cannot remove yourself — use Leave Room instead",
         "CANNOT_KICK_OWNER": "The room owner cannot be removed",
+        "CANNOT_KICK_ADMIN": "Admins cannot remove other admins or the owner",
         "NOT_OWNER": "Only the room owner can remove members",
+        "NOT_ADMIN_OR_OWNER": "You do not have permission to remove members",
         "ROOM_NOT_FOUND": "Room not found",
         "RATE_LIMITED": "Too many requests — please try again later",
         "INTERNAL_ERROR": "Failed to remove member — please try again",
@@ -1027,7 +1037,8 @@
       "muteButton": "Mute",
       "unmuteButton": "Unmute",
       "readOnlyToggle": "Read-only mode",
-      "readOnlyHint": "When enabled, only you can send messages"
+      "readOnlyHint": "When enabled, only owners and admins can send messages",
+      "readOnlyHintModerator": "When enabled, only owners and admins can send messages"
     },
 
     "invite": {

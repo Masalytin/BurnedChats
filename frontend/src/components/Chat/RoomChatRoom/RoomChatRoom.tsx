@@ -58,7 +58,10 @@ interface RoomChatRoomProps {
   userTelegramId?: number;
   ws: UseRoomMessagesWebSocket;
   memberCount?: number;
+  /** Whether the current user is the room owner (delete-for-everyone, key UI). */
   isOwner?: boolean;
+  /** Whether the current user can post when the room is read-only (owner or admin). */
+  canBypassReadOnly?: boolean;
   /** Whether a key re-request is currently in flight (P2-3.2.3). */
   isRequestingKey?: boolean;
   /** Retry callback for manual key re-request (P2-3.2.3). */
@@ -97,6 +100,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   ws,
   memberCount,
   isOwner = false,
+  canBypassReadOnly = false,
   isRequestingKey = false,
   onRequestKey,
   onBack,
@@ -260,10 +264,10 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       onRoomModeration,
     });
 
-  const isSendBlocked = isCurrentUserMuted || (roomReadOnly && !isOwner);
+  const isSendBlocked = isCurrentUserMuted || (roomReadOnly && !canBypassReadOnly);
   const moderationBannerKey = isCurrentUserMuted
     ? 'room.chat.mutedBanner'
-    : roomReadOnly && !isOwner
+    : roomReadOnly && !canBypassReadOnly
       ? 'room.chat.readOnlyBanner'
       : null;
 
@@ -513,10 +517,10 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     </div>
   );
 
-  const hasHeaderRight = (isOwner && onManage) || (!isOwner && onLeave);
+  const hasHeaderRight = onManage != null || onLeave != null;
   const headerRight = hasHeaderRight ? (
     <>
-      {isOwner && onManage && (
+      {onManage && (
         <button
           type="button"
           className="chat-screen-icon-btn room-chat-room-manage"
@@ -526,7 +530,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           <Settings size={20} strokeWidth={2} aria-hidden />
         </button>
       )}
-      {!isOwner && onLeave && (
+      {onLeave && (
         <button
           type="button"
           className="chat-screen-icon-btn room-chat-room-leave"

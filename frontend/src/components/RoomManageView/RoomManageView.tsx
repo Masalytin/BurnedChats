@@ -3,13 +3,16 @@ import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
   ClipboardList,
+  Crown,
   Flame,
   Home,
   Link,
   MicOff,
   Pencil,
   Settings,
+  Shield,
   ShieldBan,
+  ShieldMinus,
   User,
   UserMinus,
   Users,
@@ -17,11 +20,12 @@ import {
 } from 'lucide-react';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { CopyIcon } from '../../icons';
 import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
 import type { RoomInvite } from '../../hooks/useManageInvites';
 import type { GetInviteLinkOptions } from '../../hooks/useGetInviteLink';
-import type { RoomMember } from '../../types';
+import type { RoomMember, RoomRole } from '../../types';
 import './RoomManageView.css';
 
 /** Max invite rows shown before collapsing the rest. */
@@ -186,7 +190,14 @@ export function RoomMemberRow({ member, isYou = false, actions }: RoomMemberRowP
             <span className="room-member-row__you">{t('room.manage.memberYou')}</span>
           )}
           {member.role === 'owner' && (
-            <span className="room-member-row__badge">{t('room.manage.roleOwner')}</span>
+            <span className="room-member-row__badge room-member-row__badge--owner">
+              {t('room.manage.roleOwner')}
+            </span>
+          )}
+          {member.role === 'admin' && (
+            <span className="room-member-row__badge room-member-row__badge--admin">
+              {t('room.manage.roleAdmin')}
+            </span>
           )}
         </div>
       </div>
@@ -203,8 +214,8 @@ export function RoomMemberRow({ member, isYou = false, actions }: RoomMemberRowP
 
 interface RoomManageViewProps {
   roomId: string;
-  /** Whether the current user is the room owner */
-  isOwner: boolean;
+  /** Current user's role in this room */
+  myRole: RoomRole;
   nameEncrypted?: string | null;
   nameIv?: string | null;
   isRenaming?: boolean;
@@ -249,6 +260,10 @@ interface RoomManageViewProps {
   onMuteMember?: (targetInternalId: string) => void;
   onUnmuteMember?: (targetInternalId: string) => void;
   onSetReadOnly?: (readOnly: boolean) => void;
+  /** Owner-only: promote/demote co-admin overlay */
+  onSetMemberRole?: (targetInternalId: string, role: 'admin' | 'member') => void;
+  /** Owner-only: transfer room ownership */
+  onTransferOwnership?: (targetInternalId: string) => void;
 }
 
 // ============================================
@@ -256,7 +271,7 @@ interface RoomManageViewProps {
 // ============================================
 
 /**
- * RoomManageView — owner-only room management screen (P2-4.3.1).
+ * RoomManageView — room management screen for owners and co-admins (P2-4.3.1, IMP-ROOM-15).
  *
  * Sections:
  * - Invite: request & copy invite link
@@ -266,7 +281,7 @@ interface RoomManageViewProps {
  */
 export const RoomManageView = memo(function RoomManageView({
   roomId,
-  isOwner,
+  myRole,
   nameEncrypted,
   nameIv,
   isRenaming = false,
@@ -300,14 +315,20 @@ export const RoomManageView = memo(function RoomManageView({
   onMuteMember,
   onUnmuteMember,
   onSetReadOnly,
+  onSetMemberRole,
+  onTransferOwnership,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
+
+  const isOwner = myRole === 'owner';
+  const isModerator = myRole === 'owner' || myRole === 'admin';
 
   const [copiedInviteUrl, setCopiedInviteUrl] = useState<string | null>(null);
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [bansExpanded, setBansExpanded] = useState(false);
   const [kickTarget, setKickTarget] = useState<{ internalId: string; displayName: string } | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{ internalId: string; displayName: string } | null>(null);
   const [banPermanently, setBanPermanently] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [isEditingName, setIsEditingName] = useState(false);
@@ -422,6 +443,37 @@ export const RoomManageView = memo(function RoomManageView({
     setKickTarget(null);
     setBanPermanently(false);
   }, []);
+
+  const handleTransferClick = useCallback((member: RoomMember) => {
+    const displayName = member.displayName?.trim()
+      || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
+    setTransferTarget({ internalId: member.internalId, displayName });
+  }, [t]);
+
+  const handleTransferConfirm = useCallback(() => {
+    if (transferTarget && onTransferOwnership) {
+      onTransferOwnership(transferTarget.internalId);
+    }
+    setTransferTarget(null);
+  }, [transferTarget, onTransferOwnership]);
+
+  const handleTransferCancel = useCallback(() => {
+    setTransferTarget(null);
+  }, []);
+
+  const canKickMember = useCallback((member: RoomMember, isYou: boolean): boolean => {
+    if (!onKickMember || isYou || member.role === 'owner') return false;
+    if (isOwner) return true;
+    if (myRole === 'admin') return member.role === 'member';
+    return false;
+  }, [onKickMember, isOwner, myRole]);
+
+  const canMuteMember = useCallback((member: RoomMember, isYou: boolean): boolean => {
+    if (!onMuteMember || !onUnmuteMember || isYou || member.role === 'owner') return false;
+    if (isOwner) return true;
+    if (myRole === 'admin') return member.role === 'member';
+    return false;
+  }, [onMuteMember, onUnmuteMember, isOwner, myRole]);
 
   const resolveBansErrorMessage = useCallback((errorCode: string | null | undefined): string | null => {
     if (!errorCode) return null;
@@ -627,23 +679,25 @@ export const RoomManageView = memo(function RoomManageView({
           </div>
         </section>
 
-        {/* ── Join requests ────────────────────────────── */}
-        <section className="room-manage-section">
-          <button
-            type="button"
-            className="room-manage-nav-item"
-            onClick={onViewRequests}
-          >
-            <span className="room-manage-nav-item__label">
-              <ClipboardList size={18} aria-hidden="true" />
-              {t('room.manage.requestsButton')}
-            </span>
-            {pendingRequestsCount > 0 && (
-              <span className="room-manage-nav-item__badge">{pendingRequestsCount}</span>
-            )}
-            <ChevronRight size={18} className="room-manage-nav-item__arrow" aria-hidden="true" />
-          </button>
-        </section>
+        {/* ── Join requests (owner-only) ───────────────── */}
+        {isOwner && (
+          <section className="room-manage-section">
+            <button
+              type="button"
+              className="room-manage-nav-item"
+              onClick={onViewRequests}
+            >
+              <span className="room-manage-nav-item__label">
+                <ClipboardList size={18} aria-hidden="true" />
+                {t('room.manage.requestsButton')}
+              </span>
+              {pendingRequestsCount > 0 && (
+                <span className="room-manage-nav-item__badge">{pendingRequestsCount}</span>
+              )}
+              <ChevronRight size={18} className="room-manage-nav-item__arrow" aria-hidden="true" />
+            </button>
+          </section>
+        )}
 
         {/* ── Members ──────────────────────────────────── */}
         <section className="room-manage-section">
@@ -674,14 +728,21 @@ export const RoomManageView = memo(function RoomManageView({
                 <ul className="room-manage-members__list">
                   {members.map(member => {
                     const isYou = member.internalId === currentUserInternalId;
-                    const canKick = onKickMember != null
-                      && member.role !== 'owner'
-                      && !isYou;
+                    const canKick = canKickMember(member, isYou);
                     const isMuted = mutedInternalIds.includes(member.internalId);
-                    const canMute = onMuteMember != null
-                      && onUnmuteMember != null
+                    const canMute = canMuteMember(member, isYou);
+                    const canPromote = isOwner
+                      && onSetMemberRole != null
+                      && member.role === 'member'
+                      && !isYou;
+                    const canDemote = isOwner
+                      && onSetMemberRole != null
+                      && member.role === 'admin';
+                    const canTransfer = isOwner
+                      && onTransferOwnership != null
                       && member.role !== 'owner'
                       && !isYou;
+                    const hasActions = canKick || canMute || canPromote || canDemote || canTransfer;
 
                     return (
                       <RoomMemberRow
@@ -689,16 +750,61 @@ export const RoomManageView = memo(function RoomManageView({
                         member={member}
                         isYou={isYou}
                         actions={
-                          (canKick || canMute) ? (
+                          hasActions ? (
                             <div className="room-member-row__action-group">
+                              {canPromote && (
+                                <button
+                                  type="button"
+                                  className="room-member-row__role-btn"
+                                  onClick={() => onSetMemberRole!(member.internalId, 'admin')}
+                                  aria-label={t('room.manage.promoteAdmin', {
+                                    name: member.displayName?.trim() || member.internalId,
+                                  })}
+                                >
+                                  <Shield size={16} aria-hidden="true" />
+                                  <span className="room-member-row__role-label">
+                                    {t('room.manage.promoteAdmin')}
+                                  </span>
+                                </button>
+                              )}
+                              {canDemote && (
+                                <button
+                                  type="button"
+                                  className="room-member-row__role-btn"
+                                  onClick={() => onSetMemberRole!(member.internalId, 'member')}
+                                  aria-label={t('room.manage.demoteAdmin', {
+                                    name: member.displayName?.trim() || member.internalId,
+                                  })}
+                                >
+                                  <ShieldMinus size={16} aria-hidden="true" />
+                                  <span className="room-member-row__role-label">
+                                    {t('room.manage.demoteAdmin')}
+                                  </span>
+                                </button>
+                              )}
+                              {canTransfer && (
+                                <button
+                                  type="button"
+                                  className="room-member-row__role-btn room-member-row__role-btn--transfer"
+                                  onClick={() => handleTransferClick(member)}
+                                  aria-label={t('room.manage.transferOwnership', {
+                                    name: member.displayName?.trim() || member.internalId,
+                                  })}
+                                >
+                                  <Crown size={16} aria-hidden="true" />
+                                  <span className="room-member-row__role-label">
+                                    {t('room.manage.transferOwnership')}
+                                  </span>
+                                </button>
+                              )}
                               {canMute && (
                                 <button
                                   type="button"
                                   className={`room-member-row__mute-btn${isMuted ? ' room-member-row__mute-btn--active' : ''}`}
                                   onClick={() => (
                                     isMuted
-                                      ? onUnmuteMember(member.internalId)
-                                      : onMuteMember(member.internalId)
+                                      ? onUnmuteMember!(member.internalId)
+                                      : onMuteMember!(member.internalId)
                                   )}
                                   aria-label={
                                     isMuted
@@ -747,8 +853,8 @@ export const RoomManageView = memo(function RoomManageView({
           )}
         </section>
 
-        {/* ── Banned users ─────────────────────────────── */}
-        {onRefreshBans != null && (
+        {/* ── Banned users (owner-only) ────────────────── */}
+        {isOwner && onRefreshBans != null && (
           <section className="room-manage-section">
             <button
               type="button"
@@ -807,7 +913,7 @@ export const RoomManageView = memo(function RoomManageView({
           </section>
         )}
 
-        {isOwner && onSetReadOnly != null && (
+        {isModerator && onSetReadOnly != null && (
           <section className="room-manage-section">
             <div className="room-manage-readonly">
               <div className="room-manage-readonly__info">
@@ -816,7 +922,7 @@ export const RoomManageView = memo(function RoomManageView({
                   {t('room.manage.readOnlyToggle')}
                 </h3>
                 <p className="room-manage-readonly__hint">
-                  {t('room.manage.readOnlyHint')}
+                  {t(isOwner ? 'room.manage.readOnlyHint' : 'room.manage.readOnlyHintModerator')}
                 </p>
               </div>
               <label className="room-manage-readonly__switch">
@@ -832,7 +938,8 @@ export const RoomManageView = memo(function RoomManageView({
           </section>
         )}
 
-        {/* ── Burn room ────────────────────────────────── */}
+        {/* ── Burn room (owner-only) ───────────────────── */}
+        {isOwner && (
         <section className="room-manage-section room-manage-section--danger">
           <Button
             variant="secondary"
@@ -844,6 +951,7 @@ export const RoomManageView = memo(function RoomManageView({
             {t('room.manage.burnButton')}
           </Button>
         </section>
+        )}
       </div>
 
       {kickTarget && (
@@ -888,6 +996,19 @@ export const RoomManageView = memo(function RoomManageView({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={transferTarget != null}
+        onClose={handleTransferCancel}
+        onConfirm={handleTransferConfirm}
+        title={t('room.manage.transferConfirmTitle', {
+          name: transferTarget?.displayName ?? '',
+        })}
+        description={t('room.manage.transferConfirmDescription')}
+        warning={t('room.manage.transferConfirmWarning')}
+        confirmLabel={t('room.manage.transferConfirmButton')}
+        variant="destructive"
+      />
 
       {/* Burn confirmation overlay */}
       {showBurnConfirm && (

@@ -9,7 +9,7 @@ interface ServerRoomListEvent {
   success: boolean;
   rooms?: Array<{
     roomId: string;
-    role: 'owner' | 'member';
+    role: 'owner' | 'admin' | 'member';
     createdAt: number;
     nameEncrypted?: string | null;
     nameIv?: string | null;
@@ -29,6 +29,7 @@ interface UseMyRoomsReturn {
   isLoading: boolean;
   fetchRooms: () => void;
   updateRoomName: (roomId: string, nameEncrypted: string, nameIv: string) => void;
+  updateRoomRole: (roomId: string, role: RoomListEntry['role']) => void;
 }
 
 /**
@@ -59,6 +60,12 @@ export function useMyRooms({
       room.roomId === roomId
         ? { ...room, nameEncrypted, nameIv }
         : room,
+    ));
+  }, []);
+
+  const updateRoomRole = useCallback((roomId: string, role: RoomListEntry['role']) => {
+    setRooms(prev => prev.map(room =>
+      room.roomId === roomId ? { ...room, role } : room,
     ));
   }, []);
 
@@ -96,5 +103,5 @@ export function useMyRooms({
     }
   }, [isConnected, fetchRooms]);
 
-  return { rooms, isLoading, fetchRooms, updateRoomName };
+  return { rooms, isLoading, fetchRooms, updateRoomName, updateRoomRole };
 }

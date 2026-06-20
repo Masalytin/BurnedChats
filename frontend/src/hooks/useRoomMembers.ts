@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import type { RoomMember } from '../types';
+import type { RoomMember, RoomMemberRole } from '../types';
 
 const GET_ROOM_MEMBERS_DESTINATION = '/app/room.getMembers';
 const ROOM_MEMBERS_DESTINATION = '/user/queue/room-members';
@@ -24,6 +24,8 @@ interface UseRoomMembersReturn {
   isLoading: boolean;
   error: string | null;
   fetchMembers: (roomId: string) => void;
+  updateMemberRole: (internalId: string, role: RoomMemberRole) => void;
+  applyOwnershipTransfer: (newOwnerInternalId: string, previousOwnerInternalId: string) => void;
 }
 
 /**
@@ -52,6 +54,27 @@ export function useRoomMembers({
     publishRef.current(GET_ROOM_MEMBERS_DESTINATION, { roomId });
   }, [isConnected]);
 
+  const updateMemberRole = useCallback((internalId: string, role: RoomMemberRole) => {
+    setMembers(prev => prev.map(member =>
+      member.internalId === internalId ? { ...member, role } : member,
+    ));
+  }, []);
+
+  const applyOwnershipTransfer = useCallback(
+    (newOwnerInternalId: string, previousOwnerInternalId: string) => {
+      setMembers(prev => prev.map(member => {
+        if (member.internalId === newOwnerInternalId) {
+          return { ...member, role: 'owner' };
+        }
+        if (member.internalId === previousOwnerInternalId) {
+          return { ...member, role: 'admin' };
+        }
+        return member;
+      }));
+    },
+    [],
+  );
+
   useEffect(() => {
     const handleMessage = (message: IMessage) => {
       try {
@@ -73,5 +96,12 @@ export function useRoomMembers({
     return () => unsubscribe(ROOM_MEMBERS_DESTINATION);
   }, [subscribe, unsubscribe]);
 
-  return { members, isLoading, error, fetchMembers };
+  return {
+    members,
+    isLoading,
+    error,
+    fetchMembers,
+    updateMemberRole,
+    applyOwnershipTransfer,
+  };
 }
