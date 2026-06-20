@@ -3,18 +3,21 @@ package dev.burnedchats.security;
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.exception.RoomSubscribeDeniedException;
 import dev.burnedchats.repository.RoomMembersRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 import reactor.core.scheduler.Schedulers;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.Duration;
 
@@ -27,7 +30,6 @@ import java.time.Duration;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
 
     /** Must match {@link dev.burnedchats.handler.RoomMessageHandler} fan-out prefix. */
@@ -36,6 +38,14 @@ public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
     private static final Duration MEMBERSHIP_CHECK_TIMEOUT = Duration.ofSeconds(5);
 
     private final RoomMembersRepository roomMembersRepository;
+    private final MessageChannel clientOutboundChannel;
+
+    public RoomTopicSubscribeInterceptor(
+            RoomMembersRepository roomMembersRepository,
+            @Lazy @Qualifier("clientOutboundChannel") MessageChannel clientOutboundChannel) {
+        this.roomMembersRepository = roomMembersRepository;
+        this.clientOutboundChannel = clientOutboundChannel;
+    }
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
@@ -52,8 +62,10 @@ public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
         String roomId = destination.substring(ROOM_TOPIC_PREFIX.length());
         if (roomId.isBlank() || roomId.contains("/")) {
             LOG.warn("Rejected room topic subscribe: invalid destination {}", destination);
-            throw new RoomSubscribeDeniedException("SUBSCRIBE_DENIED: invalid room topic destination",
-                    "SUBSCRIBE_DENIED");
+            denySubscribe(accessor.getSessionId(),
+                    new RoomSubscribeDeniedException("SUBSCRIBE_DENIED: invalid room topic destination",
+                            "SUBSCRIBE_DENIED").getMessage());
+            return null;
         }
 
         Principal principal = accessor.getUser();
@@ -63,11 +75,13 @@ public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
         }
 
         String internalId = appPrincipal.getInternalId();
-        awaitMembership(roomId, internalId, accessor.getSessionId());
+        if (!isMember(roomId, internalId, accessor.getSessionId())) {
+            return null;
+        }
         return message;
     }
 
-    private void awaitMembership(String roomId, String internalId, String sessionId) {
+    private boolean isMember(String roomId, String internalId, String sessionId) {
         try {
             Boolean isMember = roomMembersRepository.isMember(roomId, internalId)
                     .subscribeOn(Schedulers.boundedElastic())
@@ -76,18 +90,46 @@ public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
             if (!Boolean.TRUE.equals(isMember)) {
                 LOG.info("Room topic subscribe denied: sessionId={}, roomId={}, internalId={}",
                         sessionId, roomId, internalId);
-                throw new RoomSubscribeDeniedException(roomId);
+                denySubscribe(sessionId, new RoomSubscribeDeniedException(roomId).getMessage());
+                return false;
             }
 
             LOG.debug("Room topic subscribe allowed: sessionId={}, roomId={}, internalId={}",
                     sessionId, roomId, internalId);
-        } catch (RoomSubscribeDeniedException e) {
-            throw e;
+            return true;
         } catch (RuntimeException e) {
             LOG.error("Room membership check failed for subscribe roomId={}, internalId={}: {}",
                     roomId, internalId, e.getMessage());
-            throw new RoomSubscribeDeniedException("SUBSCRIBE_DENIED: membership check failed",
-                    "SUBSCRIBE_DENIED");
+            denySubscribe(sessionId, new RoomSubscribeDeniedException("SUBSCRIBE_DENIED: membership check failed",
+                    "SUBSCRIBE_DENIED").getMessage());
+            return false;
+        }
+    }
+
+    private void denySubscribe(String sessionId, String errorMessage) {
+        publishSubscribeDeniedError(sessionId, errorMessage);
+    }
+
+    private void publishSubscribeDeniedError(String sessionId, String errorMessage) {
+        if (sessionId == null || errorMessage == null) {
+            LOG.warn("Subscribe denial STOMP ERROR skipped: missing sessionId or message");
+            return;
+        }
+
+        StompHeaderAccessor errorAccessor = StompHeaderAccessor.create(StompCommand.ERROR);
+        errorAccessor.setSessionId(sessionId);
+        errorAccessor.setMessage(errorMessage);
+        errorAccessor.setLeaveMutable(true);
+
+        byte[] payload = errorMessage.getBytes(StandardCharsets.UTF_8);
+        Message<byte[]> errorFrame = MessageBuilder.createMessage(payload, errorAccessor.getMessageHeaders());
+        try {
+            clientOutboundChannel.send(errorFrame);
+            LOG.debug("Sent STOMP ERROR for subscribe denial: sessionId={}, message={}",
+                    sessionId, errorMessage);
+        } catch (Exception sendError) {
+            LOG.warn("Failed to send STOMP ERROR for subscribe denial sessionId={}: {}",
+                    sessionId, sendError.getMessage());
         }
     }
 }

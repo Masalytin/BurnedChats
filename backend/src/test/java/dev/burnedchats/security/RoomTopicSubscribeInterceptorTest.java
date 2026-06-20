@@ -1,7 +1,6 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
-import dev.burnedchats.exception.RoomSubscribeDeniedException;
 import dev.burnedchats.repository.RoomMembersRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,11 +13,14 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -33,13 +35,16 @@ class RoomTopicSubscribeInterceptorTest {
     private RoomMembersRepository roomMembersRepository;
 
     @Mock
+    private MessageChannel clientOutboundChannel;
+
+    @Mock
     private MessageChannel channel;
 
     private RoomTopicSubscribeInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
-        interceptor = new RoomTopicSubscribeInterceptor(roomMembersRepository);
+        interceptor = new RoomTopicSubscribeInterceptor(roomMembersRepository, clientOutboundChannel);
     }
 
     @Test
@@ -62,10 +67,10 @@ class RoomTopicSubscribeInterceptorTest {
 
         Message<?> message = stompSubscribe("/topic/room/" + ROOM_ID, principal);
 
-        assertThatThrownBy(() -> interceptor.preSend(message, channel))
-                .isInstanceOf(RoomSubscribeDeniedException.class)
-                .satisfies(ex -> assertThat(((RoomSubscribeDeniedException) ex).getErrorCode())
-                        .isEqualTo("NOT_MEMBER"));
+        Message<?> result = interceptor.preSend(message, channel);
+
+        assertThat(result).isNull();
+        verify(clientOutboundChannel).send(argThat(RoomTopicSubscribeInterceptorTest::isNotMemberStompError));
     }
 
     @Test
@@ -76,9 +81,10 @@ class RoomTopicSubscribeInterceptorTest {
 
         Message<?> message = stompSubscribe("/topic/room/" + ROOM_ID, principal);
 
-        assertThatThrownBy(() -> interceptor.preSend(message, channel))
-                .isInstanceOf(RoomSubscribeDeniedException.class)
-                .hasMessageContaining("NOT_MEMBER");
+        Message<?> result = interceptor.preSend(message, channel);
+
+        assertThat(result).isNull();
+        verify(clientOutboundChannel).send(argThat(RoomTopicSubscribeInterceptorTest::isNotMemberStompError));
     }
 
     @Test
@@ -119,11 +125,27 @@ class RoomTopicSubscribeInterceptorTest {
     void rejectsMalformedDestination() {
         Message<?> message = stompSubscribe("/topic/room/", mock(AppPrincipal.class));
 
-        assertThatThrownBy(() -> interceptor.preSend(message, channel))
-                .isInstanceOf(RoomSubscribeDeniedException.class)
-                .satisfies(ex -> assertThat(((RoomSubscribeDeniedException) ex).getErrorCode())
-                        .isEqualTo("SUBSCRIBE_DENIED"));
+        Message<?> result = interceptor.preSend(message, channel);
+
+        assertThat(result).isNull();
+        verify(clientOutboundChannel).send(argThat(RoomTopicSubscribeInterceptorTest::isSubscribeDeniedStompError));
         verifyNoInteractions(roomMembersRepository);
+    }
+
+    private static boolean isNotMemberStompError(Message<?> message) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        return accessor != null
+                && accessor.getCommand() == StompCommand.ERROR
+                && accessor.getMessage() != null
+                && accessor.getMessage().contains("NOT_MEMBER");
+    }
+
+    private static boolean isSubscribeDeniedStompError(Message<?> message) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        return accessor != null
+                && accessor.getCommand() == StompCommand.ERROR
+                && accessor.getMessage() != null
+                && accessor.getMessage().contains("SUBSCRIBE_DENIED");
     }
 
     private static AppPrincipal mockPrincipal(String internalId) {
