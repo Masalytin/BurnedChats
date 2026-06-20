@@ -519,6 +519,21 @@ const aesKey = await crypto.subtle.deriveKey(
 | **Modification** | Изменение сообщений | GCM auth tag |
 | **Утечка filesystem / бэкапа файлов** | Физический доступ к диску сервера | Только файлы `.enc` без ключей; отдельно нужен доступ к целевому устройству пользователя |
 | **Утечка «метаданных» файла** | Анализ трафика или Redis | Имя и MIME передаются только в `encryptedMeta`; сервер не может их прочитать |
+| **Room presence (IMP-ROOM-20)** | Член комнаты запрашивает snapshot или подписан на topic | Видит `online` + грубый `lastSeen` других членов — **не** содержимое сообщений |
+
+### Room presence (metadata)
+
+> Реализация: IMP-ROOM-20. Redis key `room_presence:{roomId}`.
+
+Presence — **метаданные WebSocket-соединения**, которые сервер и так наблюдает при relay STOMP.
+Это **снижает приватность** относительно «никто не знает, кто онлайн»:
+
+- Члены комнаты получают `online` (глобальный heartbeat, ~30s TTL) и `lastSeen` (округление **до минуты**).
+- Данные эфемерны: hash TTL **10 минут**, удаление при manual `BURN_ROOM`.
+- Не затрагивает zero-knowledge invariant для **сообщений и ключей** — только connection metadata.
+- Опциональное room-level отключение presence — отдельная карточка (не реализовано).
+
+Mitigations в текущей версии: member-only access, coarse last-seen, короткий TTL.
 
 ### Что видит атакующий
 

@@ -361,6 +361,25 @@ EXPIRE room_muted:uuid-room-1 2592000
 | TTL | 30 дней; продлевается при мутациях |
 | BURN_ROOM | `DEL room_muted:{roomId}` |
 
+### `room_presence:{roomId}`
+
+Эфемерный presence участников комнаты (Hash internalId → lastSeenMs). **Только метаданные соединения** — не затрагивает ciphertext сообщений или ключи (IMP-ROOM-20).
+
+```redis
+HSET room_presence:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "1710000000000"
+EXPIRE room_presence:uuid-room-1 600
+```
+
+| Поле / операция | Описание |
+|-----------------|----------|
+| Значение hash | `lastSeenMs` — epoch millis, **округление вниз до минуты** (privacy) |
+| TTL | **10 минут**; ключ не продлевается вместе с lifetime комнаты |
+| Connect / subscribe | `HSET` + broadcast `RoomPresenceEvent{ online: true }` на `/topic/room/{roomId}` |
+| Disconnect | `HSET` (финальный lastSeen) + broadcast `{ online: false }` |
+| Snapshot | `/app/room.getPresence` → `/user/queue/room-presence` (только членам) |
+| `online` в snapshot | Глобальный heartbeat (`online:{internalId}`, 30s TTL) ∧ членство |
+| BURN_ROOM | `DEL room_presence:{roomId}` (manual burn в `RoomHandler`; auto-burn — TTL fallback) |
+
 ### `room_roles:{roomId}`
 
 Overlay ролей участников (Hash internalId → `admin` | `member`). Роль **owner** не хранится в этом ключе — источник истины `room.ownerInternalId` (IMP-ROOM-13).

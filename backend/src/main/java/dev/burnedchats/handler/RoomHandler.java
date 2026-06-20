@@ -21,6 +21,7 @@ import dev.burnedchats.dto.event.RoomListEvent;
 import dev.burnedchats.dto.event.RoomMembersListEvent;
 import dev.burnedchats.dto.event.RoomMessageTtlUpdatedEvent;
 import dev.burnedchats.dto.event.RoomNameUpdatedEvent;
+import dev.burnedchats.dto.event.RoomPresenceEvent;
 import dev.burnedchats.dto.event.RoomRekeyEvent;
 import dev.burnedchats.dto.request.BanMemberRequest;
 import dev.burnedchats.dto.request.BurnRoomRequest;
@@ -34,6 +35,7 @@ import dev.burnedchats.dto.request.GetInviteInfoRequest;
 import dev.burnedchats.dto.request.GetInviteLinkRequest;
 import dev.burnedchats.dto.request.GetMemberPubkeysRequest;
 import dev.burnedchats.dto.request.GetMyRoomsRequest;
+import dev.burnedchats.dto.request.GetRoomPresenceRequest;
 import dev.burnedchats.dto.request.GetRoomMembersRequest;
 import dev.burnedchats.dto.request.RequestJoinRoomRequest;
 import dev.burnedchats.dto.request.RevokeInviteRequest;
@@ -57,9 +59,11 @@ import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomPresenceRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.RoomRolesRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.exception.RateLimitException;
@@ -111,6 +115,7 @@ public class RoomHandler {
     private static final String MEMBER_PUBKEYS_DESTINATION = "/queue/member-pubkeys";
     private static final String ROOM_LIST_DESTINATION = "/queue/room-list";
     private static final String ROOM_MEMBERS_LIST_DESTINATION = "/queue/room-members";
+    private static final String ROOM_PRESENCE_DESTINATION = "/queue/room-presence";
     private static final String ROOM_BURNED_DESTINATION = "/queue/room-burned";
     private static final String ROOM_LEFT_DESTINATION = "/queue/room-left";
     private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
@@ -129,6 +134,7 @@ public class RoomHandler {
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
     private final RoomRepository roomRepository;
     private final RoomMembersRepository roomMembersRepository;
+    private final RoomPresenceRepository roomPresenceRepository;
     private final RoomJoinRequestRepository roomJoinRequestRepository;
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomMessageRepository roomMessageRepository;
@@ -137,6 +143,7 @@ public class RoomHandler {
     private final RoomMutedRepository roomMutedRepository;
     private final RoomRolesRepository roomRolesRepository;
     private final RateLimitService rateLimitService;
+    private final OnlineStatusRepository onlineStatusRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/room.create")
@@ -751,6 +758,59 @@ public class RoomHandler {
             );
     }
 
+    @MessageMapping("/room.getPresence")
+    public void getRoomPresence(@Payload @Valid GetRoomPresenceRequest request, Principal principal) {
+        ParticipantContext requester = ParticipantContext.from(principal);
+        if (requester == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        LOG.info("GET_ROOM_PRESENCE requested: roomId={}, internalId={}", roomId, requester.internalId());
+
+        roomMembersRepository.isMember(roomId, requester.internalId())
+                .flatMap(isMember -> {
+                    if (!isMember) {
+                        return Mono.error(new SecurityException("NOT_MEMBER"));
+                    }
+                    return roomRepository.findById(roomId)
+                            .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                            .flatMap(room -> roomMembersRepository.getMembers(roomId)
+                                    .flatMap(internalId -> onlineStatusRepository.isOnline(internalId)
+                                            .defaultIfEmpty(false)
+                                            .flatMap(online -> roomPresenceRepository.getLastSeen(roomId, internalId)
+                                                    .map(lastSeen -> RoomPresenceEvent.Snapshot.Entry.builder()
+                                                            .internalId(internalId)
+                                                            .online(Boolean.TRUE.equals(online))
+                                                            .lastSeen(lastSeen)
+                                                            .build())
+                                                    .defaultIfEmpty(RoomPresenceEvent.Snapshot.Entry.builder()
+                                                            .internalId(internalId)
+                                                            .online(Boolean.TRUE.equals(online))
+                                                            .build())))
+                                    .collectList()
+                                    .map(entries -> RoomPresenceEvent.Snapshot.success(roomId, entries)));
+                })
+                .subscribe(
+                        snapshot -> {
+                            sendStompToInternalId(requester.internalId(), ROOM_PRESENCE_DESTINATION, snapshot);
+                            LOG.info("ROOM_PRESENCE snapshot sent: roomId={}, count={}",
+                                    roomId, snapshot.getMembers() != null ? snapshot.getMembers().size() : 0);
+                        },
+                        error -> {
+                            String code = error instanceof SecurityException
+                                    ? "NOT_MEMBER"
+                                    : error instanceof IllegalArgumentException iae
+                                    ? iae.getMessage()
+                                    : "INTERNAL_ERROR";
+                            LOG.warn("GET_ROOM_PRESENCE failed: roomId={}, internalId={}, error={}",
+                                    roomId, requester.internalId(), code);
+                            sendStompToInternalId(requester.internalId(), ROOM_PRESENCE_DESTINATION,
+                                    RoomPresenceEvent.Snapshot.error(code));
+                        }
+            );
+    }
+
     @MessageMapping("/room.burn")
     public void burnRoom(@Payload @Valid BurnRoomRequest request, Principal principal) {
         ParticipantContext owner = ParticipantContext.from(principal);
@@ -762,6 +822,7 @@ public class RoomHandler {
         LOG.info("BURN_ROOM requested: roomId={}, ownerInternalId={}", roomId, owner.internalId());
 
         roomService.burnRoomAsOwner(roomId, owner.internalId())
+                .flatMap(members -> roomPresenceRepository.deleteAll(roomId).thenReturn(members))
                 .flatMap(members -> roomService.notifyRoomBurned(roomId, owner.telegramId(), members))
                 .subscribe(
                         v -> LOG.info("ROOM_BURNED sent: roomId={}, internalId={}",

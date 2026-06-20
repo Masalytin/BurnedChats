@@ -1713,6 +1713,43 @@ Guard дополняет, но не заменяет обязательный re
 
 ---
 
+### GET_ROOM_PRESENCE (`/app/room.getPresence`)
+
+**Запрос:** Client → Server, body `{ "roomId": "string" }`. Только член комнаты.
+
+**Ответ:** Server → Client, destination `/user/queue/room-presence` (`RoomPresenceEvent.Snapshot`).
+
+**Success:**
+
+```json
+{
+  "success": true,
+  "roomId": "uuid-v4",
+  "members": [
+    {
+      "internalId": "uuid-or-tg-prefixed-id",
+      "online": true,
+      "lastSeen": 1710000000000
+    }
+  ]
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `members[].internalId` | string | Стабильный internal id |
+| `members[].online` | boolean | Активное WS-соединение (глобальный heartbeat, 30s TTL) |
+| `members[].lastSeen` | number? | Epoch ms, округление до минуты; опущено если presence ещё не наблюдался |
+
+**Live updates:** Server → Client broadcast на `/topic/room/{roomId}` — `RoomPresenceEvent`
+(`roomId`, `internalId`, `online`, `lastSeen`) при connect / subscribe / disconnect члена.
+
+**Error:** `{ "success": false, "error": "NOT_MEMBER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
+
+> **Metadata leak:** presence раскрывает, кто когда был активен в комнате. См. [SECURITY.md](./SECURITY.md#room-presence-metadata).
+
+---
+
 ### KICK_MEMBER (`/app/room.kick`)
 
 **Направление:** Client → Server (owner or admin; admin may kick members only)

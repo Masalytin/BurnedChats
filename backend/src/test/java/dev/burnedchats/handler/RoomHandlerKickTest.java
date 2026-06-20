@@ -14,10 +14,12 @@ import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomPresenceRepository;
 import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.RoomRolesRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.model.TelegramUser;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.model.enums.AuthType;
@@ -77,6 +79,7 @@ class RoomHandlerKickTest {
     @Mock private RoomMemberPublicKeyRepository memberPublicKeyRepository;
     @Mock private RoomRepository roomRepository;
     @Mock private RoomMembersRepository roomMembersRepository;
+    @Mock private RoomPresenceRepository roomPresenceRepository;
     @Mock private RoomJoinRequestRepository roomJoinRequestRepository;
     @Mock private InviteTokenRepository inviteTokenRepository;
     @Mock private RoomMessageRepository roomMessageRepository;
@@ -85,6 +88,7 @@ class RoomHandlerKickTest {
     @Mock private RoomMutedRepository roomMutedRepository;
     @Mock private RoomRolesRepository roomRolesRepository;
     @Mock private RateLimitService rateLimitService;
+    @Mock private OnlineStatusRepository onlineStatusRepository;
     @Mock private SimpMessagingTemplate messagingTemplate;
     @Mock private PasswordProofService passwordProofService;
 
@@ -118,6 +122,7 @@ class RoomHandlerKickTest {
                 memberPublicKeyRepository,
                 roomRepository,
                 roomMembersRepository,
+                roomPresenceRepository,
                 roomJoinRequestRepository,
                 inviteTokenRepository,
                 roomMessageRepository,
@@ -126,6 +131,7 @@ class RoomHandlerKickTest {
                 roomMutedRepository,
                 roomRolesRepository,
                 rateLimitService,
+                onlineStatusRepository,
                 messagingTemplate);
         when(rateLimitService.enforceRateLimit(anyString(), eq(RateLimitType.SESSION_ACTION)))
                 .thenReturn(Mono.empty());

@@ -14,12 +14,16 @@ import dev.burnedchats.model.Message;
 import dev.burnedchats.model.MessageDeletion;
 import dev.burnedchats.model.MessageEdit;
 import dev.burnedchats.model.TelegramUser;
+import dev.burnedchats.dto.event.RoomPresenceEvent;
 import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
+import dev.burnedchats.repository.RoomMembersRepository;
+import dev.burnedchats.repository.RoomPresenceRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.AppPrincipal;
+import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +33,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.web.socket.messaging.SessionSubscribeEvent;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
@@ -70,7 +76,11 @@ public class WebSocketEventListener {
      */
     private static final String SYNC_MESSAGES_DESTINATION = "/queue/sync-messages";
 
+    private static final String ROOM_TOPIC_PREFIX = RoomTopicSubscribeInterceptor.ROOM_TOPIC_PREFIX;
+
     private final OnlineStatusRepository onlineStatusRepository;
+    private final RoomMembersRepository roomMembersRepository;
+    private final RoomPresenceRepository roomPresenceRepository;
     private final RequestRepository requestRepository;
     private final UserRepository userRepository;
     private final UserIdentityRepository userIdentityRepository;
@@ -134,6 +144,8 @@ public class WebSocketEventListener {
         if (messagesProperties.getServerPushSync().isEnabled()) {
             pushPendingMessagesFanOut(internalId);
         }
+
+        markOnlineInMemberRooms(internalId);
     }
 
     /**
@@ -161,10 +173,82 @@ public class WebSocketEventListener {
             onlineStatusRepository.setOffline(internalId)
                     .doOnSuccess(v -> LOG.debug("User {} marked as offline", internalId))
                     .subscribe();
+
+            markOfflineInMemberRooms(internalId);
         } else if (principal != null) {
             LOG.warn("Session disconnected with unsupported principal type: sessionId={}, type={}",
                     event.getSessionId(), principal.getClass().getName());
         }
+    }
+
+    /**
+     * Refresh room presence when a member subscribes to a room topic.
+     *
+     * @param event STOMP subscribe event
+     */
+    @EventListener
+    public void handleRoomTopicSubscribe(SessionSubscribeEvent event) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        Principal principal = accessor.getUser();
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            return;
+        }
+
+        String destination = accessor.getDestination();
+        if (!StringUtils.hasText(destination) || !destination.startsWith(ROOM_TOPIC_PREFIX)) {
+            return;
+        }
+
+        String roomId = destination.substring(ROOM_TOPIC_PREFIX.length());
+        if (!StringUtils.hasText(roomId) || roomId.contains("/")) {
+            return;
+        }
+
+        String internalId = appPrincipal.getInternalId();
+        roomMembersRepository.isMember(roomId, internalId)
+                .filter(Boolean::booleanValue)
+                .flatMap(member -> publishRoomPresence(roomId, internalId, true))
+                .subscribe(
+                        v -> LOG.debug("Room presence refreshed on subscribe: roomId={}, internalId={}",
+                                roomId, internalId),
+                        error -> LOG.warn("Room presence subscribe refresh failed: roomId={}, internalId={}, error={}",
+                                roomId, internalId, error.getMessage())
+            );
+    }
+
+    private void markOnlineInMemberRooms(String internalId) {
+        roomMembersRepository.getRoomsForMember(internalId)
+                .flatMap(roomId -> roomMembersRepository.isMember(roomId, internalId)
+                        .filter(Boolean::booleanValue)
+                        .flatMap(member -> publishRoomPresence(roomId, internalId, true)))
+                .subscribe(
+                        v -> {},
+                        error -> LOG.warn("Room presence connect refresh failed for internalId={}: {}",
+                                internalId, error.getMessage())
+            );
+    }
+
+    private void markOfflineInMemberRooms(String internalId) {
+        roomMembersRepository.getRoomsForMember(internalId)
+                .flatMap(roomId -> roomMembersRepository.isMember(roomId, internalId)
+                        .filter(Boolean::booleanValue)
+                        .flatMap(member -> publishRoomPresence(roomId, internalId, false)))
+                .subscribe(
+                        v -> {},
+                        error -> LOG.warn("Room presence disconnect refresh failed for internalId={}: {}",
+                                internalId, error.getMessage())
+            );
+    }
+
+    private Mono<Void> publishRoomPresence(String roomId, String internalId, boolean online) {
+        return roomPresenceRepository.upsertLastSeen(roomId, internalId)
+                .doOnNext(lastSeen -> {
+                    RoomPresenceEvent presenceEvent = RoomPresenceEvent.of(roomId, internalId, online, lastSeen);
+                    messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, presenceEvent);
+                    LOG.debug("Room presence broadcast: roomId={}, internalId={}, online={}, lastSeen={}",
+                            roomId, internalId, online, lastSeen);
+                })
+                .then();
     }
 
     /**

@@ -10,8 +10,10 @@ import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
+import dev.burnedchats.repository.RoomPresenceRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
+import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
@@ -53,10 +55,12 @@ class RoomHandlerLeaveTest {
     @Mock private RoomMemberPublicKeyRepository memberPublicKeyRepository;
     @Mock private RoomRepository roomRepository;
     @Mock private RoomMembersRepository roomMembersRepository;
+    @Mock private RoomPresenceRepository roomPresenceRepository;
     @Mock private RoomJoinRequestRepository roomJoinRequestRepository;
     @Mock private InviteTokenRepository inviteTokenRepository;
     @Mock private RoomMessageRepository roomMessageRepository;
     @Mock private RoomTopicSubscriptionService roomTopicSubscriptionService;
+    @Mock private OnlineStatusRepository onlineStatusRepository;
 
     @InjectMocks
     private RoomHandler roomHandler;
