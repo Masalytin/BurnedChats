@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { derivePasswordProof } from '../crypto/kdf';
-import { generateGroupKey } from '../crypto/groupKey';
+import { encryptRoomName, generateGroupKey } from '../crypto/groupKey';
 import { storeGroupKey, storeKeyPair } from '../crypto/keyStore';
 import { generateKeyPair, exportPublicKey } from '../crypto/ecdh';
 import type { Room } from '../types/index';
 
 const CREATE_ROOM_DESTINATION = '/app/room.create';
+const SET_ROOM_NAME_DESTINATION = '/app/room.setName';
 const ROOM_CREATED_DESTINATION = '/user/queue/room-created';
 
 export type RoomJoinMode = 'BY_PASSWORD' | 'BY_REQUEST';
@@ -45,13 +46,18 @@ interface UseCreateRoomOptions {
    * @param inviteUrl Telegram deep-link from server, or null if missing.
    */
   onCreated?: (room: Room, inviteUrl: string | null) => void;
+  onRoomNameSet?: (roomId: string, nameEncrypted: string, nameIv: string) => void;
   onError?: (error: CreateRoomErrorCode) => void;
 }
 
 interface UseCreateRoomReturn {
   result: CreateRoomResult;
   /** When joinMode is BY_REQUEST, password may be null (room without password). */
-  createRoom: (password: string | null, joinMode: RoomJoinMode, nameEncrypted?: string) => Promise<void>;
+  createRoom: (
+    password: string | null,
+    joinMode: RoomJoinMode,
+    roomName?: string,
+  ) => Promise<void>;
   reset: () => void;
   isCreating: boolean;
 }
@@ -77,16 +83,21 @@ export function useCreateRoom({
   unsubscribe,
   publish,
   onCreated,
+  onRoomNameSet,
   onError,
 }: UseCreateRoomOptions): UseCreateRoomReturn {
   const [result, setResult] = useState<CreateRoomResult>(initialResult);
   const isSubscribedRef = useRef(false);
   const onCreatedRef = useRef(onCreated);
+  const onRoomNameSetRef = useRef(onRoomNameSet);
   const onErrorRef = useRef(onError);
+  const publishRef = useRef(publish);
 
   useEffect(() => {
     onCreatedRef.current = onCreated;
+    onRoomNameSetRef.current = onRoomNameSet;
     onErrorRef.current = onError;
+    publishRef.current = publish;
   });
 
   const handleRoomCreated = useCallback((message: IMessage) => {
@@ -104,6 +115,25 @@ export function useCreateRoom({
       // epoch=0 is the initial key; it will be incremented on rekey after member leaves.
       const groupKey = await generateGroupKey();
       storeGroupKey(data.roomId, 0, groupKey);
+
+      // Optional display name: backend CREATE_ROOM lacks nameIv — set via SET_ROOM_NAME (IMP-ROOM-06).
+      const pendingName = pendingRoomNameRef.current?.trim();
+      if (pendingName) {
+        try {
+          const encryptedName = await encryptRoomName(pendingName, groupKey, data.roomId);
+          publishRef.current(SET_ROOM_NAME_DESTINATION, {
+            roomId: data.roomId,
+            nameEncrypted: encryptedName.nameEncrypted,
+            nameIv: encryptedName.nameIv,
+          });
+          onRoomNameSetRef.current?.(data.roomId, encryptedName.nameEncrypted, encryptedName.nameIv);
+        } catch {
+          setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CRYPTO_ERROR' });
+          onErrorRef.current?.('CRYPTO_ERROR');
+          return;
+        }
+      }
+      pendingRoomNameRef.current = null;
 
       // Move the pending room keypair from the temp key to the canonical room-join:{roomId} key
       if (pendingRoomKeypairRef.current) {
@@ -142,9 +172,11 @@ export function useCreateRoom({
 
   // Ref to store the room keypair between createRoom() call and ROOM_CREATED response
   const pendingRoomKeypairRef = useRef<{ roomKeyId: string } | null>(null);
+  /** Plaintext room name held until ROOM_CREATED (never logged). */
+  const pendingRoomNameRef = useRef<string | null>(null);
 
   const createRoom = useCallback(
-    async (password: string | null, joinMode: RoomJoinMode, nameEncrypted?: string) => {
+    async (password: string | null, joinMode: RoomJoinMode, roomName?: string) => {
       if (!isConnected) {
         setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CONNECTION_ERROR' });
         onErrorRef.current?.('CONNECTION_ERROR');
@@ -152,6 +184,7 @@ export function useCreateRoom({
       }
 
       setResult({ status: 'creating', roomId: null, inviteUrl: null, error: null });
+      pendingRoomNameRef.current = roomName?.trim() || null;
 
       const hasPassword = password != null && password.length > 0;
 
@@ -181,9 +214,6 @@ export function useCreateRoom({
           payload.salt = salt;
           payload.passwordProof = proof;
         }
-        if (nameEncrypted) {
-          payload.nameEncrypted = nameEncrypted;
-        }
 
         publish(CREATE_ROOM_DESTINATION, payload);
       } catch {
@@ -195,6 +225,7 @@ export function useCreateRoom({
   );
 
   const reset = useCallback(() => {
+    pendingRoomNameRef.current = null;
     setResult(initialResult);
   }, []);
 

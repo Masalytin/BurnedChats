@@ -12,6 +12,7 @@ interface ServerRoomListEvent {
     role: 'owner' | 'member';
     createdAt: number;
     nameEncrypted?: string | null;
+    nameIv?: string | null;
   }>;
   error?: string;
 }
@@ -27,6 +28,7 @@ interface UseMyRoomsReturn {
   rooms: RoomListEntry[];
   isLoading: boolean;
   fetchRooms: () => void;
+  updateRoomName: (roomId: string, nameEncrypted: string, nameIv: string) => void;
 }
 
 /**
@@ -52,6 +54,14 @@ export function useMyRooms({
     publishRef.current(GET_MY_ROOMS_DESTINATION, {});
   }, [isConnected]);
 
+  const updateRoomName = useCallback((roomId: string, nameEncrypted: string, nameIv: string) => {
+    setRooms(prev => prev.map(room =>
+      room.roomId === roomId
+        ? { ...room, nameEncrypted, nameIv }
+        : room,
+    ));
+  }, []);
+
   // Subscribe to room-list response
   useEffect(() => {
     const handleMessage = (message: IMessage) => {
@@ -63,6 +73,7 @@ export function useMyRooms({
             role: r.role,
             createdAt: r.createdAt,
             nameEncrypted: r.nameEncrypted,
+            nameIv: r.nameIv,
           })));
         } else {
           console.warn('[useMyRooms] ROOM_LIST error:', event.error);
@@ -85,5 +96,5 @@ export function useMyRooms({
     }
   }, [isConnected, fetchRooms]);
 
-  return { rooms, isLoading, fetchRooms };
+  return { rooms, isLoading, fetchRooms, updateRoomName };
 }

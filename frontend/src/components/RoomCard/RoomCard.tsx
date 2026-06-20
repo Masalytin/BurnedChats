@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Flame } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
 import type { RoomListEntry } from '../../types';
 import './RoomCard.css';
 
@@ -13,10 +15,6 @@ function formatDate(ts: number): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function shortRoomId(roomId: string): string {
-  return roomId.substring(0, 8).toUpperCase();
-}
-
 /**
  * Card component displaying a single room entry on the home page.
  */
@@ -24,6 +22,19 @@ export function RoomCard({ room, onClick }: RoomCardProps) {
   const { t } = useTranslation();
   const isOwner = room.role === 'owner';
   const roleLabel = isOwner ? t('room.roleOwner') : t('room.roleMember');
+  const [displayLabel, setDisplayLabel] = useState(() => formatShortRoomId(room.roomId));
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveRoomDisplayName(room.roomId, room.nameEncrypted, room.nameIv).then((label) => {
+      if (!cancelled) {
+        setDisplayLabel(label);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [room.roomId, room.nameEncrypted, room.nameIv]);
 
   return (
     <button
@@ -35,9 +46,7 @@ export function RoomCard({ room, onClick }: RoomCardProps) {
         <Flame size={24} strokeWidth={1.75} />
       </div>
       <div className="room-card-content">
-        <span className="room-card-id">
-          {t('room.roomLabel', { id: shortRoomId(room.roomId), defaultValue: `Room ${shortRoomId(room.roomId)}` })}
-        </span>
+        <span className="room-card-id">{displayLabel}</span>
         <span className="room-card-date">{formatDate(room.createdAt)}</span>
       </div>
       <span className={`room-card-badge ${isOwner ? 'room-card-badge--owner' : 'room-card-badge--member'}`}>

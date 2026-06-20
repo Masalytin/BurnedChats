@@ -910,6 +910,8 @@
 
     "create": {
       "title": "Создать комнату",
+      "nameLabel": "Название (необязательно)",
+      "namePlaceholder": "Например, Проект Alpha",
       "passwordLabel": "Пароль",
       "passwordPlaceholder": "Введите пароль комнаты...",
       "passwordConfirmLabel": "Подтверждение пароля",
@@ -979,6 +981,12 @@
 
     "manage": {
       "title": "Настройки комнаты",
+      "nameLabel": "Название комнаты",
+      "namePlaceholder": "Введите название…",
+      "renameButton": "Переименовать",
+      "renameSave": "Сохранить название",
+      "renameSuccess": "Название комнаты обновлено",
+      "renameError": "Не удалось обновить название",
       "inviteButton": "Пригласить",
       "requestsButton": "Заявки на вход",
       "membersButton": "Участники",

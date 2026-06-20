@@ -6,6 +6,7 @@ import {
   Flame,
   Home,
   Link,
+  Pencil,
   Settings,
   User,
   UserMinus,
@@ -13,7 +14,9 @@ import {
 } from 'lucide-react';
 import { Button } from '../Button';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { Input } from '../Input';
 import { CopyIcon } from '../../icons';
+import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
 import type { RoomMember } from '../../types';
 import './RoomManageView.css';
 
@@ -104,6 +107,10 @@ interface RoomManageViewProps {
   roomId: string;
   /** Whether the current user is the room owner */
   isOwner: boolean;
+  nameEncrypted?: string | null;
+  nameIv?: string | null;
+  isRenaming?: boolean;
+  renameError?: string | null;
   /** Pending join requests count (for badge) */
   pendingRequestsCount?: number;
   /** Enriched room members from GET_ROOM_MEMBERS */
@@ -121,6 +128,8 @@ interface RoomManageViewProps {
   onViewRequests: () => void;
   onFetchMembers: () => void;
   onBurnRoom: () => void;
+  /** Owner renames the room (encrypted client-side). */
+  onRenameRoom?: (name: string) => void;
   /** Owner removes a member (IMP-ROOM-04) */
   onKickMember?: (targetInternalId: string) => void;
 }
@@ -140,6 +149,11 @@ interface RoomManageViewProps {
  */
 export const RoomManageView = memo(function RoomManageView({
   roomId,
+  isOwner,
+  nameEncrypted,
+  nameIv,
+  isRenaming = false,
+  renameError,
   pendingRequestsCount = 0,
   members,
   isMembersLoading = false,
@@ -152,6 +166,7 @@ export const RoomManageView = memo(function RoomManageView({
   onViewRequests,
   onFetchMembers,
   onBurnRoom,
+  onRenameRoom,
   onKickMember,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
@@ -160,6 +175,27 @@ export const RoomManageView = memo(function RoomManageView({
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [kickTarget, setKickTarget] = useState<{ internalId: string; displayName: string } | null>(null);
+  const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveRoomDisplayName(roomId, nameEncrypted, nameIv).then((label) => {
+      if (!cancelled) {
+        setDisplayTitle(label);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, nameEncrypted, nameIv]);
+
+  useEffect(() => {
+    if (!isEditingName) {
+      setEditNameValue(displayTitle === formatShortRoomId(roomId) ? '' : displayTitle);
+    }
+  }, [displayTitle, isEditingName, roomId]);
 
   // Auto-fetch members when section is expanded
   useEffect(() => {
@@ -209,7 +245,24 @@ export const RoomManageView = memo(function RoomManageView({
     setKickTarget(null);
   }, []);
 
-  const roomShortId = roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId;
+  const handleStartRename = useCallback(() => {
+    setEditNameValue(displayTitle === formatShortRoomId(roomId) ? '' : displayTitle);
+    setIsEditingName(true);
+  }, [displayTitle, roomId]);
+
+  const handleCancelRename = useCallback(() => {
+    setIsEditingName(false);
+    setEditNameValue(displayTitle === formatShortRoomId(roomId) ? '' : displayTitle);
+  }, [displayTitle, roomId]);
+
+  const handleSaveRename = useCallback(() => {
+    const trimmed = editNameValue.trim();
+    if (!trimmed || !onRenameRoom) return;
+    onRenameRoom(trimmed);
+    setIsEditingName(false);
+  }, [editNameValue, onRenameRoom]);
+
+  const roomShortId = formatShortRoomId(roomId);
 
   return (
     <div className="room-manage-view">
@@ -232,13 +285,65 @@ export const RoomManageView = memo(function RoomManageView({
           </h2>
           <p className="room-manage-view__subtitle">
             <Home size={14} aria-hidden="true" />
-            {roomShortId}
+            {displayTitle}
           </p>
         </div>
       </div>
 
       {/* Content */}
       <div className="room-manage-view__content">
+
+        {isOwner && onRenameRoom && (
+          <section className="room-manage-section">
+            <h3 className="room-manage-section__heading">
+              <Pencil size={16} aria-hidden="true" />
+              {t('room.manage.nameLabel')}
+            </h3>
+            <div className="room-manage-section__body">
+              {isEditingName ? (
+                <div className="room-manage-rename">
+                  <Input
+                    type="text"
+                    label={t('room.manage.nameLabel')}
+                    placeholder={t('room.manage.namePlaceholder')}
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    disabled={isRenaming}
+                    autoComplete="off"
+                    maxLength={64}
+                  />
+                  <div className="room-manage-rename__actions">
+                    <Button
+                      variant="secondary"
+                      onClick={handleCancelRename}
+                      disabled={isRenaming}
+                    >
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      onClick={handleSaveRename}
+                      isLoading={isRenaming}
+                      disabled={!editNameValue.trim() || isRenaming}
+                    >
+                      {t('room.manage.renameSave')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="room-manage-rename-display">
+                  <span className="room-manage-rename-display__value">{displayTitle}</span>
+                  <Button variant="secondary" onClick={handleStartRename}>
+                    {t('room.manage.renameButton')}
+                  </Button>
+                </div>
+              )}
+              {renameError && (
+                <p className="room-manage-section__error" role="alert">{renameError}</p>
+              )}
+              <p className="room-manage-rename__hint">{roomShortId}</p>
+            </div>
+          </section>
+        )}
 
         {/* ── Invite link ─────────────────────────────── */}
         <section className="room-manage-section">

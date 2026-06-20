@@ -495,6 +495,44 @@
 }
 
 /* ============================================
+ * Room name (IMP-ROOM-06)
+ * ============================================ */
+
+.room-manage-rename {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-rename__actions {
+  display: flex;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-rename-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+}
+
+.room-manage-rename-display__value {
+  font-size: var(--bc-text-base);
+  font-weight: 600;
+  color: var(--bc-text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-manage-rename__hint {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-tertiary);
+}
+
+/* ============================================
  * Mobile Safe Area
  * ============================================ */
 

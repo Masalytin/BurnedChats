@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
-import { generateGroupKey, wrapGroupKey } from '../crypto/groupKey';
+import { decryptRoomName, encryptRoomName, generateGroupKey, wrapGroupKey } from '../crypto/groupKey';
 import { storeGroupKey, getGroupKeyEntry } from '../crypto/keyStore';
 import { importPublicKey } from '../crypto/ecdh';
 
@@ -48,8 +48,14 @@ interface UseRekeyRoomOptions {
   publish: (destination: string, body: unknown) => void;
   /** Owner's internalId — excluded from bundle wrapping (owner updates key directly). */
   myId: string | null;
+  /** Current encrypted name fields for the room being rekeyed (from myRooms). */
+  getRoomNameCipher?: (roomId: string) => {
+    nameEncrypted?: string | null;
+    nameIv?: string | null;
+  } | undefined;
   onRekeyCompleted?: (roomId: string, newEpoch: number) => void;
   onRekeyReceived?: (roomId: string, newEpoch: number) => void;
+  onRekeyNameUpdated?: (roomId: string, nameEncrypted: string, nameIv: string) => void;
 }
 
 export interface UseRekeyRoomReturn {
@@ -85,8 +91,10 @@ export function useRekeyRoom({
   unsubscribe,
   publish,
   myId,
+  getRoomNameCipher,
   onRekeyCompleted,
   onRekeyReceived,
+  onRekeyNameUpdated,
 }: UseRekeyRoomOptions): UseRekeyRoomReturn {
   const [status, setStatus] = useState<RekeyStatus>('idle');
 
@@ -94,10 +102,14 @@ export function useRekeyRoom({
   const pendingRoomIdRef = useRef<string | null>(null);
   const onRekeyCompletedRef = useRef(onRekeyCompleted);
   const onRekeyReceivedRef = useRef(onRekeyReceived);
+  const onRekeyNameUpdatedRef = useRef(onRekeyNameUpdated);
+  const getRoomNameCipherRef = useRef(getRoomNameCipher);
 
   useEffect(() => {
     onRekeyCompletedRef.current = onRekeyCompleted;
     onRekeyReceivedRef.current = onRekeyReceived;
+    onRekeyNameUpdatedRef.current = onRekeyNameUpdated;
+    getRoomNameCipherRef.current = getRoomNameCipher;
   });
 
   // ----------------------------------------
@@ -164,8 +176,27 @@ export function useRekeyRoom({
 
         const bundles = await Promise.all(bundlePromises);
 
+        let namePayload: { nameEncrypted?: string; nameIv?: string } = {};
+        const cipher = getRoomNameCipherRef.current?.(roomId);
+        if (cipher?.nameEncrypted && cipher?.nameIv) {
+          try {
+            const plaintext = await decryptRoomName(
+              cipher.nameEncrypted,
+              cipher.nameIv,
+              currentEntry.key,
+              roomId,
+            );
+            namePayload = await encryptRoomName(plaintext, newGroupKey, roomId);
+          } catch (err) {
+            console.error('[useRekeyRoom] Failed to re-encrypt room name for room', roomId, err);
+          }
+        }
+
         if (bundles.length === 0) {
           // No other members — rekey is trivially complete
+          if (namePayload.nameEncrypted && namePayload.nameIv) {
+            onRekeyNameUpdatedRef.current?.(roomId, namePayload.nameEncrypted, namePayload.nameIv);
+          }
           setStatus('done');
           onRekeyCompletedRef.current?.(roomId, newEpoch);
           return;
@@ -175,7 +206,12 @@ export function useRekeyRoom({
           roomId,
           newEpoch,
           bundles,
+          ...namePayload,
         });
+
+        if (namePayload.nameEncrypted && namePayload.nameIv) {
+          onRekeyNameUpdatedRef.current?.(roomId, namePayload.nameEncrypted, namePayload.nameIv);
+        }
 
         pendingRoomIdRef.current = null;
         setStatus('done');

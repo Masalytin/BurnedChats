@@ -26,6 +26,7 @@ import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
+import { formatShortRoomId, resolveRoomDisplayName } from '@/crypto/groupKey';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
 import type {
@@ -47,6 +48,8 @@ import './RoomChatRoom.css';
 interface RoomChatRoomProps {
   roomId: string;
   epoch?: number;
+  nameEncrypted?: string | null;
+  nameIv?: string | null;
   /** Current user's stable internal id (IMP-WALLETID-07) */
   userId: string;
   /** Telegram numeric id when linked — room message wire still uses tg id until IMP-WALLETID-08 */
@@ -79,6 +82,8 @@ interface RoomChatRoomProps {
 export const RoomChatRoom = memo(function RoomChatRoom({
   roomId,
   epoch = 0,
+  nameEncrypted,
+  nameIv,
   userId: userInternalId,
   userTelegramId,
   ws,
@@ -98,6 +103,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const { announce, announcerRef } = useAnnouncer();
   const prevSelectionModeRef = useRef<'idle' | 'selecting'>('idle');
   const hasKey = hasGroupKey(roomId);
+  const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
   const [deleteEveryoneIds, setDeleteEveryoneIds] = useState<string[] | null>(null);
@@ -106,6 +112,18 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const roomPeerDisplayName = t('room.chat.fallbackPeer');
   const roomMessageUserId = userTelegramId ?? 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveRoomDisplayName(roomId, nameEncrypted, nameIv).then((label) => {
+      if (!cancelled) {
+        setDisplayTitle(label);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, nameEncrypted, nameIv]);
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -452,7 +470,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           <Home size={18} strokeWidth={2} />
         </span>
         <span className="room-chat-room-id">
-          {roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId}
+          {displayTitle}
         </span>
         {hasKey && (
           <span

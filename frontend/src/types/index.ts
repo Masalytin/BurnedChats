@@ -296,6 +296,7 @@ export interface Room {
   joinMode?: RoomJoinMode;
   createdAt?: number;
   nameEncrypted?: string;
+  nameIv?: string;
 }
 
 /**
@@ -333,6 +334,7 @@ export interface RoomListEntry {
   role: 'owner' | 'member';
   createdAt: number;
   nameEncrypted?: string | null;
+  nameIv?: string | null;
 }
 
 /** Room member row returned by GET_ROOM_MEMBERS / RoomMembersListEvent. */

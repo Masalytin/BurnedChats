@@ -10,6 +10,8 @@
  */
 
 import type { KeyBundle } from '@/types';
+import { decrypt, encrypt } from './aes';
+import { getGroupKey } from './keyStore';
 
 // ============================================
 // Constants
@@ -216,4 +218,73 @@ export async function unwrapGroupKey(
     false, // non-extractable when used for messages
     ['encrypt', 'decrypt']
   );
+}
+
+// ============================================
+// Room name encryption (IMP-ROOM-06)
+// ============================================
+
+export interface EncryptedRoomName {
+  nameEncrypted: string;
+  nameIv: string;
+}
+
+/**
+ * Encrypts a room display name with the group key (AES-256-GCM, roomId as AAD).
+ */
+export async function encryptRoomName(
+  name: string,
+  groupKey: CryptoKey,
+  roomId: string,
+): Promise<EncryptedRoomName> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Room name cannot be empty');
+  }
+  const { ciphertext, iv } = await encrypt(groupKey, trimmed, { additionalData: roomId });
+  return { nameEncrypted: ciphertext, nameIv: iv };
+}
+
+/**
+ * Decrypts a room display name. Never log the return value.
+ */
+export async function decryptRoomName(
+  nameEncrypted: string,
+  nameIv: string,
+  groupKey: CryptoKey,
+  roomId: string,
+): Promise<string> {
+  return decrypt(groupKey, nameEncrypted, nameIv, { additionalData: roomId });
+}
+
+/** Short fallback label when name is missing or cannot be decrypted. */
+export function formatShortRoomId(roomId: string): string {
+  if (roomId.length <= 12) {
+    return roomId.substring(0, 8).toUpperCase();
+  }
+  return `${roomId.slice(0, 8)}…`;
+}
+
+/**
+ * Resolves the display label for a room (decrypted name or short room id fallback).
+ */
+export async function resolveRoomDisplayName(
+  roomId: string,
+  nameEncrypted?: string | null,
+  nameIv?: string | null,
+): Promise<string> {
+  if (!nameEncrypted || !nameIv) {
+    return formatShortRoomId(roomId);
+  }
+  const groupKey = getGroupKey(roomId);
+  if (!groupKey) {
+    return formatShortRoomId(roomId);
+  }
+  try {
+    const plaintext = await decryptRoomName(nameEncrypted, nameIv, groupKey, roomId);
+    const trimmed = plaintext.trim();
+    return trimmed || formatShortRoomId(roomId);
+  } catch {
+    return formatShortRoomId(roomId);
+  }
 }

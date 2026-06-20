@@ -15,7 +15,7 @@ interface CreateRoomViewProps {
   /** Error code from the server or crypto layer */
   error?: string | null;
   /** Called when the user submits the form. When joinMode is BY_REQUEST, password may be null (room without password). */
-  onSubmit: (password: string | null, joinMode: RoomJoinMode) => void;
+  onSubmit: (password: string | null, joinMode: RoomJoinMode, roomName?: string) => void;
   /** Called when the user cancels */
   onCancel?: () => void;
   /** CSS class override */
@@ -72,6 +72,7 @@ export function CreateRoomView({
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [roomName, setRoomName] = useState('');
   const [joinMode, setJoinMode] = useState<RoomJoinMode>('BY_PASSWORD');
   const [noPassword, setNoPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -118,9 +119,10 @@ export function CreateRoomView({
       if (isLoading) return;
       if (!validate()) return;
       const submitPassword = joinMode === 'BY_REQUEST' && noPassword ? null : password;
-      onSubmit(submitPassword, joinMode);
+      const trimmedName = roomName.trim();
+      onSubmit(submitPassword, joinMode, trimmedName || undefined);
     },
-    [isLoading, validate, onSubmit, joinMode, noPassword, password]
+    [isLoading, validate, onSubmit, joinMode, noPassword, password, roomName]
   );
 
   const displayError = validationError ?? (error ? t(`room.create.${mapErrorCode(error)}`) : null);
@@ -135,6 +137,17 @@ export function CreateRoomView({
       </div>
 
       <form className="create-room-view__form" onSubmit={handleSubmit} noValidate>
+        <Input
+          type="text"
+          label={t('room.create.nameLabel')}
+          placeholder={t('room.create.namePlaceholder')}
+          value={roomName}
+          onChange={(e) => setRoomName(e.target.value)}
+          disabled={isLoading}
+          autoComplete="off"
+          maxLength={64}
+        />
+
         {/* Join mode first so "no password" option is contextual */}
         <fieldset className="create-room-view__fieldset">
           <legend className="create-room-view__fieldset-legend">

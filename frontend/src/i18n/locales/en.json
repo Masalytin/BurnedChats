@@ -894,6 +894,8 @@
 
     "create": {
       "title": "Create Room",
+      "nameLabel": "Room name (optional)",
+      "namePlaceholder": "e.g. Project Alpha",
       "passwordLabel": "Password",
       "passwordPlaceholder": "Enter room password...",
       "passwordConfirmLabel": "Confirm Password",
@@ -963,6 +965,12 @@
 
     "manage": {
       "title": "Room Settings",
+      "nameLabel": "Room name",
+      "namePlaceholder": "Enter a room name…",
+      "renameButton": "Rename",
+      "renameSave": "Save name",
+      "renameSuccess": "Room name updated",
+      "renameError": "Failed to update room name",
       "inviteButton": "Invite",
       "requestsButton": "Join Requests",
       "membersButton": "Members",

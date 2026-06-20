@@ -23,6 +23,7 @@ import { useMyRooms } from './hooks/useMyRooms';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { useKeyBundle } from './hooks/useKeyBundle';
 import { useRekeyRoom } from './hooks/useRekeyRoom';
+import { createRoomTopicMultiplexer, useSetRoomName } from './hooks/useSetRoomName';
 import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
@@ -73,6 +74,7 @@ import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
 import type { UserInfo, ChatRequest } from './types';
+import type { UseRoomMessagesWebSocket } from './hooks/useRoomMessages';
 import './App.css';
 
 /** Application view states */
@@ -427,6 +429,71 @@ function AppContent() {
     pendingBurnsRef.current.clear();
   }, [isConnected, publish]);
 
+  // My rooms hook (P2-4.1.2) — room list drives name subscriptions and rekey metadata
+  const {
+    rooms: myRooms,
+    isLoading: isLoadingRooms,
+    fetchRooms,
+    updateRoomName,
+  } = useMyRooms({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
+  const myRoomsRef = useRef(myRooms);
+  useEffect(() => {
+    myRoomsRef.current = myRooms;
+  }, [myRooms]);
+
+  const myRoomIds = useMemo(() => myRooms.map(r => r.roomId), [myRooms]);
+
+  const topicMultiplexer = useMemo(
+    () => createRoomTopicMultiplexer(subscribe, unsubscribe),
+    [subscribe, unsubscribe],
+  );
+
+  const activeRoomMessageHandlerRef = useRef<((message: import('@stomp/stompjs').IMessage) => void) | null>(null);
+
+  const roomChatWs = useMemo((): UseRoomMessagesWebSocket => ({
+    isConnected,
+    isReconnection,
+    subscribe: (destination, callback) => {
+      if (destination.startsWith('/topic/room/')) {
+        if (activeRoomMessageHandlerRef.current) {
+          topicMultiplexer.unsubscribe(destination, activeRoomMessageHandlerRef.current);
+        }
+        activeRoomMessageHandlerRef.current = callback;
+        topicMultiplexer.subscribe(destination, callback);
+        return null;
+      }
+      return subscribe(destination, callback);
+    },
+    unsubscribe: (destination) => {
+      if (destination.startsWith('/topic/room/')) {
+        if (activeRoomMessageHandlerRef.current) {
+          topicMultiplexer.unsubscribe(destination, activeRoomMessageHandlerRef.current);
+          activeRoomMessageHandlerRef.current = null;
+        }
+        return;
+      }
+      unsubscribe(destination);
+    },
+    publish,
+  }), [isConnected, isReconnection, topicMultiplexer, subscribe, unsubscribe, publish]);
+
+  const { setRoomName } = useSetRoomName({
+    isConnected,
+    publish,
+    topicMultiplexer,
+    roomIds: myRoomIds,
+    onNameUpdated: updateRoomName,
+  });
+
+  const [isRenamingRoom, setIsRenamingRoom] = useState(false);
+  const [renameRoomError, setRenameRoomError] = useState<string | null>(null);
+
   // Create room hook
   const {
     result: createRoomResult,
@@ -442,9 +509,11 @@ function AppContent() {
       notificationOccurred('success');
       toast.success(t('room.create.createdToast'), { duration: 4000 });
       resetCreateRoom();
+      fetchRooms();
       setActiveRoomChat({ roomId: room.id, epoch: 0, isOwner: true });
       setCurrentView('room-chat');
     },
+    onRoomNameSet: updateRoomName,
     onError: (errorCode) => {
       notificationOccurred('error');
       toast.error(t('room.create.errorToast', { error: errorCode }), {
@@ -533,6 +602,11 @@ function AppContent() {
     unsubscribe,
     publish,
     myId: myInternalId,
+    getRoomNameCipher: (roomId) => {
+      const room = myRoomsRef.current.find(r => r.roomId === roomId);
+      if (!room) return undefined;
+      return { nameEncrypted: room.nameEncrypted, nameIv: room.nameIv };
+    },
     onRekeyCompleted: (roomId, newEpoch) => {
       debugLog('success', `[Rekey] Rekey completed for room ${roomId} epoch ${newEpoch}`);
       // Update epoch for the active room chat
@@ -545,6 +619,7 @@ function AppContent() {
       // New KEY_BUNDLE is en route — useKeyBundle will handle the actual key update
       toast.info('Room key is being rotated…', { duration: 2000 });
     },
+    onRekeyNameUpdated: updateRoomName,
   });
 
   // Invite link hook (P2-4.3.1)
@@ -595,18 +670,6 @@ function AppContent() {
 
   // Track which requests are being processed (for loading state)
   const [processingJoinKeys, setProcessingJoinKeys] = useState<Set<string>>(new Set());
-
-  // My rooms hook (P2-4.1.2)
-  const {
-    rooms: myRooms,
-    isLoading: isLoadingRooms,
-    fetchRooms,
-  } = useMyRooms({
-    isConnected,
-    subscribe,
-    unsubscribe,
-    publish,
-  });
 
   // Active sessions hook (4.6.5 - 4.6.8)
   const {
@@ -1035,9 +1098,23 @@ function AppContent() {
   }, [rejectJoinRequest, removeJoinRequest, toast]);
 
   // Handle CreateRoomView form submit (password may be null for BY_REQUEST without password)
-  const handleCreateRoomSubmit = useCallback((password: string | null, joinMode: RoomJoinMode) => {
-    createRoom(password, joinMode);
+  const handleCreateRoomSubmit = useCallback((password: string | null, joinMode: RoomJoinMode, roomName?: string) => {
+    createRoom(password, joinMode, roomName);
   }, [createRoom]);
+
+  const handleRenameRoom = useCallback(async (name: string) => {
+    if (!activeRoomChat) return;
+    setIsRenamingRoom(true);
+    setRenameRoomError(null);
+    try {
+      await setRoomName(activeRoomChat.roomId, name);
+      toast.success(t('room.manage.renameSuccess'));
+    } catch {
+      setRenameRoomError(t('room.manage.renameError'));
+    } finally {
+      setIsRenamingRoom(false);
+    }
+  }, [activeRoomChat, setRoomName, toast, t]);
 
   // Handle invite deep link from startapp parameter (P2-2.1.3)
   // startParam format: "invite_{token}" → route to join-room view
@@ -2445,9 +2522,11 @@ function AppContent() {
           <RoomChatRoom
             roomId={activeRoomChat.roomId}
             epoch={activeRoomChat.epoch}
+            nameEncrypted={activeRoom?.nameEncrypted}
+            nameIv={activeRoom?.nameIv}
             userId={myInternalId}
             userTelegramId={telegramUserId ?? undefined}
-            ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
+            ws={roomChatWs}
             isOwner={isRoomOwner}
             isRequestingKey={isRequestingKey}
             onRequestKey={retryKeyRequest}
@@ -2470,12 +2549,18 @@ function AppContent() {
 
   // Room manage view (P2-4.3.1) — owner only
   if (currentView === 'room-manage' && activeRoomChat) {
+    const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+
     return wrapWalletProvider(
       <>
         <Layout>
           <RoomManageView
             roomId={activeRoomChat.roomId}
             isOwner
+            nameEncrypted={activeRoom?.nameEncrypted}
+            nameIv={activeRoom?.nameIv}
+            isRenaming={isRenamingRoom}
+            renameError={renameRoomError}
             pendingRequestsCount={pendingJoinCount}
             members={roomMembers}
             isMembersLoading={isMembersLoading}
@@ -2495,6 +2580,7 @@ function AppContent() {
             }}
             onFetchMembers={() => fetchMembers(activeRoomChat.roomId)}
             onBurnRoom={handleBurnRoom}
+            onRenameRoom={handleRenameRoom}
             onKickMember={handleKickMember}
           />
         </Layout>
