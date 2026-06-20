@@ -979,7 +979,18 @@
       "kickConfirmTitle": "Remove {{name}} from the room?",
       "kickConfirmDescription": "They will immediately lose access to this room and its messages.",
       "kickConfirmWarning": "The room encryption key will be rotated after removal.",
-      "kickConfirmButton": "Remove from room"
+      "kickConfirmButton": "Remove from room",
+      "kickSuccess": "Member removed from the room",
+      "kickError": {
+        "NOT_MEMBER": "This user is no longer in the room",
+        "CANNOT_KICK_SELF": "You cannot remove yourself — use Leave Room instead",
+        "CANNOT_KICK_OWNER": "The room owner cannot be removed",
+        "NOT_OWNER": "Only the room owner can remove members",
+        "ROOM_NOT_FOUND": "Room not found",
+        "RATE_LIMITED": "Too many requests — please try again later",
+        "INTERNAL_ERROR": "Failed to remove member — please try again",
+        "unknown": "Failed to remove member"
+      }
     },
 
     "kicked": {

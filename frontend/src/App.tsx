@@ -573,9 +573,24 @@ function AppContent() {
     publish,
   });
 
+  const handleKickSuccess = useCallback((roomId: string, _targetInternalId: string) => {
+    toast.success(t('room.manage.kickSuccess'));
+    fetchMembers(roomId);
+  }, [toast, t, fetchMembers]);
+
+  const handleKickError = useCallback((errorCode: string) => {
+    const key = `room.manage.kickError.${errorCode}`;
+    const message = t(key);
+    toast.error(message !== key ? message : t('room.manage.kickError.unknown'));
+  }, [toast, t]);
+
   const { kick: kickMember } = useKickMember({
     isConnected,
+    subscribe,
+    unsubscribe,
     publish,
+    onKickSuccess: handleKickSuccess,
+    onKickError: handleKickError,
   });
 
   // Track which requests are being processed (for loading state)
@@ -1582,16 +1597,12 @@ function AppContent() {
     debugLog('info', `[RoomChat] LEAVE_ROOM sent for ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, publish]);
 
-  // Owner removes a member from manage view (IMP-ROOM-04)
+  // Owner removes a member from manage view (IMP-ROOM-04, IMP-ROOM-24)
   const handleKickMember = useCallback((targetInternalId: string) => {
     if (!activeRoomChat || !isConnected) return;
     kickMember(activeRoomChat.roomId, targetInternalId);
     debugLog('info', `[RoomManage] KICK_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
-    // Refresh member list after a short delay (backend has no STOMP ack for owner)
-    window.setTimeout(() => {
-      fetchMembers(activeRoomChat.roomId);
-    }, 400);
-  }, [activeRoomChat, isConnected, kickMember, fetchMembers]);
+  }, [activeRoomChat, isConnected, kickMember]);
 
   // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
   const roomBurnedDepsRef = useRef({
@@ -1667,6 +1678,7 @@ function AppContent() {
     notificationOccurred,
     toast,
     fetchRooms,
+    fetchMembers,
   });
   useEffect(() => {
     roomLeftDepsRef.current = {
@@ -1676,6 +1688,7 @@ function AppContent() {
       notificationOccurred,
       toast,
       fetchRooms,
+      fetchMembers,
     };
   });
 
@@ -1788,6 +1801,13 @@ function AppContent() {
 
         if (isOwner) {
           rekeyRoomRef.current(roomId);
+        }
+
+        if (
+          deps.currentView === 'room-manage' &&
+          deps.activeRoomChat?.roomId === roomId
+        ) {
+          deps.fetchMembers(roomId);
         }
       } catch (err) {
         console.error('[App] Failed to parse ROOM_MEMBER_REMOVED event:', err);
