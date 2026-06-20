@@ -801,6 +801,34 @@
   color: var(--bc-text-muted);
 }
 
+.room-member-row__presence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-2xs);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-success);
+}
+
+.room-member-row__online-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-success);
+  flex-shrink: 0;
+}
+
+.room-member-row__last-seen {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.room-manage-view__online-count {
+  margin: var(--bc-spacing-2xs) 0 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-success);
+  line-height: var(--bc-leading-normal);
+}
+
 .room-member-row__badge {
   display: inline-flex;
   align-items: center;

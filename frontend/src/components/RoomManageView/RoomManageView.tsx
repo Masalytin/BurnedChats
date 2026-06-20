@@ -38,6 +38,10 @@ import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey
 import type { RoomInvite } from '../../hooks/useManageInvites';
 import type { GetInviteLinkOptions } from '../../hooks/useGetInviteLink';
 import type { RoomMember, RoomRole } from '../../types';
+import {
+  formatPresenceRelativeTime,
+  type MemberPresence,
+} from '../../hooks/useRoomPresence';
 import './RoomManageView.css';
 
 /** Max invite rows shown before collapsing the rest. */
@@ -174,14 +178,33 @@ function memberInitials(displayName: string): string {
 export interface RoomMemberRowProps {
   member: RoomMember;
   isYou?: boolean;
+  presence?: MemberPresence;
+  /** Bumps on interval so relative last-seen labels stay fresh. */
+  presenceTick?: number;
   actions?: ReactNode;
 }
 
-export function RoomMemberRow({ member, isYou = false, actions }: RoomMemberRowProps) {
+export function RoomMemberRow({
+  member,
+  isYou = false,
+  presence,
+  presenceTick = 0,
+  actions,
+}: RoomMemberRowProps) {
   const { t } = useTranslation();
   const displayName = member.displayName?.trim();
   const label = displayName
     || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
+
+  void presenceTick;
+
+  const presenceLabel = presence?.online
+    ? t('room.manage.online')
+    : presence?.lastSeen != null
+      ? t('room.manage.lastSeen', {
+        time: formatPresenceRelativeTime(presence.lastSeen, t),
+      })
+      : null;
 
   return (
     <li className="room-member-row">
@@ -198,6 +221,15 @@ export function RoomMemberRow({ member, isYou = false, actions }: RoomMemberRowP
       <div className="room-member-row__info">
         <span className="room-member-row__name">{label}</span>
         <div className="room-member-row__meta">
+          {presence?.online && (
+            <span className="room-member-row__presence room-member-row__presence--online">
+              <span className="room-member-row__online-dot" aria-hidden="true" />
+              {t('room.manage.online')}
+            </span>
+          )}
+          {!presence?.online && presenceLabel != null && (
+            <span className="room-member-row__last-seen">{presenceLabel}</span>
+          )}
           {isYou && (
             <span className="room-member-row__you">{t('room.manage.memberYou')}</span>
           )}
@@ -239,6 +271,10 @@ interface RoomManageViewProps {
   isMembersLoading?: boolean;
   /** Current user's internal id — highlights "You" on the member row */
   currentUserInternalId?: string;
+  /** Member presence map from useRoomPresence (IMP-ROOM-21) */
+  memberPresence?: Map<string, MemberPresence>;
+  /** Count of online members for header badge */
+  onlineMemberCount?: number;
   /** Active invite links for this room */
   invites?: RoomInvite[];
   isInvitesLoading?: boolean;
@@ -310,6 +346,8 @@ export const RoomManageView = memo(function RoomManageView({
   members,
   isMembersLoading = false,
   currentUserInternalId,
+  memberPresence,
+  onlineMemberCount = 0,
   invites = [],
   isInvitesLoading = false,
   invitesError,
@@ -365,6 +403,14 @@ export const RoomManageView = memo(function RoomManageView({
       ? Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000))
       : 0,
   );
+  const [presenceTick, setPresenceTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPresenceTick(tick => tick + 1);
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (autoBurnAt == null) {
@@ -593,6 +639,11 @@ export const RoomManageView = memo(function RoomManageView({
             <Home size={14} aria-hidden="true" />
             {displayTitle}
           </p>
+          {onlineMemberCount > 0 && (
+            <p className="room-manage-view__online-count">
+              {t('room.manage.onlineCount', { count: onlineMemberCount })}
+            </p>
+          )}
         </div>
       </div>
 
@@ -874,6 +925,8 @@ export const RoomManageView = memo(function RoomManageView({
                         key={member.internalId}
                         member={member}
                         isYou={isYou}
+                        presence={memberPresence?.get(member.internalId)}
+                        presenceTick={presenceTick}
                         actions={
                           hasActions ? (
                             <div className="room-member-row__action-group">

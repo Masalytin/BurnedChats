@@ -1051,7 +1051,14 @@
       "msgTtlPresetOff": "Off",
       "msgTtlPreset5m": "5 min",
       "msgTtlPreset1h": "1 hour",
-      "msgTtlPreset24h": "24 hours"
+      "msgTtlPreset24h": "24 hours",
+      "online": "Online",
+      "onlineCount": "{{count}} online",
+      "lastSeen": "Last seen {{time}} ago",
+      "relativeJustNow": "just now",
+      "relativeMinutes": "{{count}} min",
+      "relativeHours": "{{count}} h",
+      "relativeDays": "{{count}} d"
     },
 
     "invite": {

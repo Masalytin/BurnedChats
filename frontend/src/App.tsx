@@ -28,6 +28,7 @@ import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
+import { useRoomPresence } from './hooks/useRoomPresence';
 import { useRoomRoles } from './hooks/useRoomRoles';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
@@ -893,6 +894,22 @@ function AppContent() {
     isConnected,
     roomId: activeRoomIdForRoles,
     topicMultiplexer,
+    publish,
+  });
+
+  const manageRoomIdForPresence = currentView === 'room-manage'
+    ? activeRoomChat?.roomId ?? null
+    : null;
+
+  const {
+    presence: roomMemberPresence,
+    onlineCount: roomOnlineMemberCount,
+  } = useRoomPresence({
+    isConnected,
+    roomId: manageRoomIdForPresence,
+    topicMultiplexer,
+    subscribe,
+    unsubscribe,
     publish,
   });
 
@@ -2769,6 +2786,8 @@ function AppContent() {
             members={roomMembers}
             isMembersLoading={isMembersLoading}
             currentUserInternalId={myInternalId ?? undefined}
+            memberPresence={roomMemberPresence}
+            onlineMemberCount={roomOnlineMemberCount}
             invites={roomInvites}
             isInvitesLoading={isInvitesLoading}
             invitesError={invitesError}

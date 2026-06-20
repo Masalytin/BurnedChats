@@ -1067,7 +1067,14 @@
       "msgTtlPresetOff": "Выкл",
       "msgTtlPreset5m": "5 мин",
       "msgTtlPreset1h": "1 ч",
-      "msgTtlPreset24h": "24 ч"
+      "msgTtlPreset24h": "24 ч",
+      "online": "В сети",
+      "onlineCount": "онлайн {{count}}",
+      "lastSeen": "был(а) {{time}} назад",
+      "relativeJustNow": "только что",
+      "relativeMinutes": "{{count}} мин",
+      "relativeHours": "{{count}} ч",
+      "relativeDays": "{{count}} д"
     },
 
     "invite": {
