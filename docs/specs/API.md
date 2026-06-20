@@ -1530,6 +1530,12 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 `NOT_MEMBER` в теле/заголовке сообщения (не регистрирует subscription). Guard дополняет, но не
 заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
 
+**Force-unsubscribe (IMP-ROOM-25):** после успешного `/app/room.kick` или `/app/room.leave` сервер
+снимает **все** активные подписки удалённого участника на `/topic/room/{roomId}` через
+`SubscriptionRegistry` (все STOMP-сессии пользователя). Это закрывает окно, когда подписка была
+открыта до kick/leave и продолжала получать ciphertext до client disconnect. Re-subscribe по-прежнему
+блокируется subscribe-guard (`NOT_MEMBER`).
+
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `senderInternalId` | string | **Primary** — canonical sender |
@@ -1600,7 +1606,7 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 **Ошибки (логируются, STOMP-ответ не отправляется):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`
 
-**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`.
+**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`; **force-unsubscribe** с `/topic/room/{roomId}` для всех STOMP-сессий жертвы (IMP-ROOM-25).
 
 **События после успешного кика:**
 

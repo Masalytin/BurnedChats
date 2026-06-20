@@ -31,7 +31,7 @@ import java.time.Duration;
 public class RoomTopicSubscribeInterceptor implements ChannelInterceptor {
 
     /** Must match {@link dev.burnedchats.handler.RoomMessageHandler} fan-out prefix. */
-    static final String ROOM_TOPIC_PREFIX = "/topic/room/";
+    public static final String ROOM_TOPIC_PREFIX = "/topic/room/";
 
     private static final Duration MEMBERSHIP_CHECK_TIMEOUT = Duration.ofSeconds(5);
 

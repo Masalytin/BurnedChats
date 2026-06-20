@@ -18,6 +18,7 @@ import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
+import dev.burnedchats.service.RoomTopicSubscriptionService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +60,7 @@ class RoomHandlerKickTest {
     @Mock private RoomJoinRequestRepository roomJoinRequestRepository;
     @Mock private InviteTokenRepository inviteTokenRepository;
     @Mock private RoomMessageRepository roomMessageRepository;
+    @Mock private RoomTopicSubscriptionService roomTopicSubscriptionService;
 
     @InjectMocks
     private RoomHandler roomHandler;
@@ -130,6 +132,7 @@ class RoomHandlerKickTest {
         verify(memberPublicKeyRepository).remove(ROOM, TARGET_INTERNAL);
         verify(roomJoinRequestRepository).remove(ROOM, TARGET_INTERNAL);
         verify(roomKeysRepository).removeRecipientAllEpochs(ROOM, TARGET_INTERNAL);
+        verify(roomTopicSubscriptionService).unsubscribeUserFromRoomTopic(ROOM, TARGET_INTERNAL);
 
         ArgumentCaptor<RoomMemberKickedEvent> kickedCaptor =
                 ArgumentCaptor.forClass(RoomMemberKickedEvent.class);

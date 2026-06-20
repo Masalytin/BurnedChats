@@ -48,6 +48,7 @@ import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
+import dev.burnedchats.service.RoomTopicSubscriptionService;
 import dev.burnedchats.util.InternalIds;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +106,7 @@ public class RoomHandler {
     private final RoomJoinRequestRepository roomJoinRequestRepository;
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomMessageRepository roomMessageRepository;
+    private final RoomTopicSubscriptionService roomTopicSubscriptionService;
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
@@ -778,6 +780,9 @@ public class RoomHandler {
                                 }
                                 return roomMembersRepository.remove(roomId, caller.internalId())
                                         .then(memberPublicKeyRepository.remove(roomId, caller.internalId()))
+                                        .then(Mono.fromRunnable(() ->
+                                                roomTopicSubscriptionService.unsubscribeUserFromRoomTopic(
+                                                        roomId, caller.internalId())))
                                         .then(roomMembersRepository.getMembers(roomId).collectList());
                             });
                 })
@@ -818,6 +823,8 @@ public class RoomHandler {
                 .then(memberPublicKeyRepository.remove(roomId, targetInternalId))
                 .then(roomJoinRequestRepository.remove(roomId, targetInternalId))
                 .then(roomKeysRepository.removeRecipientAllEpochs(roomId, targetInternalId))
+                .then(Mono.fromRunnable(() ->
+                        roomTopicSubscriptionService.unsubscribeUserFromRoomTopic(roomId, targetInternalId)))
                 .then();
     }
 
