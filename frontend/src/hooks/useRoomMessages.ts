@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage } from '@/crypto/aes';
 import { isWithinEditWindow } from '@/utils/editWindow';
@@ -151,6 +151,8 @@ interface UseRoomMessagesOptions {
   userInternalId: string;
   ws: UseRoomMessagesWebSocket;
   isReconnection?: boolean;
+  /** Per-message auto-destruction window in seconds; 0 = disabled (IMP-ROOM-19). */
+  messageTtlSeconds?: number;
   onNewMessage?: (message: DecryptedMessage) => void;
   onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   onEditError?: (errorCode: string) => void;
@@ -180,8 +182,21 @@ export interface UseRoomMessagesReturn {
 // Hook Implementation
 // ============================================
 
+const MESSAGE_TTL_TICK_MS = 1000;
+
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, userInternalId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner, onRoomModeration } = options;
+  const {
+    roomId,
+    userId,
+    userInternalId,
+    ws,
+    messageTtlSeconds = 0,
+    onNewMessage,
+    onError,
+    onEditError,
+    onMessageDeletedByOwner,
+    onRoomModeration,
+  } = options;
   const ownershipCtx = useMemo(
     (): RoomMessageOwnershipContext => ({
       userInternalId,
@@ -766,8 +781,37 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     coreSyncMessages(() => Boolean(getRoomEncryptionKey()));
   }, [coreSyncMessages, getRoomEncryptionKey]);
 
+  const [messageTtlTick, setMessageTtlTick] = useState(0);
+
+  useEffect(() => {
+    if (messageTtlSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setMessageTtlTick(t => t + 1);
+    }, MESSAGE_TTL_TICK_MS);
+    return () => clearInterval(interval);
+  }, [messageTtlSeconds]);
+
+  useEffect(() => {
+    if (messageTtlSeconds <= 0) return;
+    const cutoff = Date.now() - messageTtlSeconds * 1000;
+    const expiredIds = messages
+      .filter(m => m.timestamp <= cutoff)
+      .map(m => m.id);
+    if (expiredIds.length > 0) {
+      hideMessages(expiredIds);
+    }
+  }, [messages, messageTtlSeconds, messageTtlTick, hideMessages]);
+
+  const ttlFilteredMessages = useMemo(() => {
+    if (messageTtlSeconds <= 0) {
+      return visibleMessages;
+    }
+    const cutoff = Date.now() - messageTtlSeconds * 1000;
+    return visibleMessages.filter(m => m.timestamp > cutoff);
+  }, [visibleMessages, messageTtlSeconds, messageTtlTick]);
+
   return {
-    messages: visibleMessages,
+    messages: ttlFilteredMessages,
     isLoading,
     isSyncing,
     sendMessage,

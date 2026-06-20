@@ -985,7 +985,8 @@
       "errorReadOnly": "Комната в режиме «только чтение» — писать может только владелец",
       "mutedBanner": "Вы заглушены и не можете отправлять сообщения",
       "readOnlyBanner": "Комната в режиме «только чтение» — писать может только владелец",
-      "keyLoadError": "Не удалось загрузить ключ шифрования"
+      "keyLoadError": "Не удалось загрузить ключ шифрования",
+      "ephemeralBadge": "Исчезающие сообщения"
     },
 
     "manage": {
@@ -1061,7 +1062,12 @@
       "ttlPreset7d": "7 д",
       "ttlPreset30d": "30 д",
       "ttlPresetNone": "Без авто-burn",
-      "autoBurnIn": "Авто-сжигание через {{time}}"
+      "autoBurnIn": "Авто-сжигание через {{time}}",
+      "msgTtlTitle": "Таймер сообщений",
+      "msgTtlPresetOff": "Выкл",
+      "msgTtlPreset5m": "5 мин",
+      "msgTtlPreset1h": "1 ч",
+      "msgTtlPreset24h": "24 ч"
     },
 
     "invite": {
