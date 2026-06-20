@@ -16,7 +16,6 @@ import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.RoomRolesRepository;
-import dev.burnedchats.service.FileBurnService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
