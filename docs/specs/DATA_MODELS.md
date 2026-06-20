@@ -343,6 +343,25 @@ EXPIRE room_muted:uuid-room-1 2592000
 | TTL | 30 дней; продлевается при мутациях |
 | BURN_ROOM | `DEL room_muted:{roomId}` |
 
+### `room_roles:{roomId}`
+
+Overlay ролей участников (Hash internalId → `admin` | `member`). Роль **owner** не хранится в этом ключе — источник истины `room.ownerInternalId` (IMP-ROOM-13).
+
+```redis
+HSET room_roles:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "admin"
+EXPIRE room_roles:uuid-room-1 2592000
+```
+
+| Операция | Описание |
+|----------|----------|
+| Transfer ownership | `HSET` предыдущему владельцу → `admin`; `HDEL` у нового владельца (owner из `room` hash) |
+| Set role (IMP-ROOM-14) | `HSET` / `HDEL` для `admin` \| `member` |
+| Role resolve | `roleOf`: owner ← `room.ownerInternalId`; admin ← hash; иначе member |
+| TTL | 30 дней; продлевается при мутациях |
+| BURN_ROOM | `DEL room_roles:{roomId}` |
+
+Передача владения (`/app/room.transferOwnership`) **не** требует rekey — новый владелец уже член с групповым ключом.
+
 ### `invite:{token}`
 
 Инвайт-токен для ссылки приглашения. Обратный индекс: `room_invites:{roomId}` (Set token strings).

@@ -82,13 +82,14 @@ class RoomHandlerKickTest {
     @Test
     void kickMember_whenNotOwner_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
-        TelegramPrincipal caller = principalFor(InternalIds.forTelegramId(99L));
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        String caller = InternalIds.forTelegramId(99L);
+        TelegramPrincipal callerPrincipal = principalFor(caller);
+        stubNotOwner(caller);
 
-        roomHandler.kickMember(request, caller);
+        roomHandler.kickMember(request, callerPrincipal);
 
         verify(roomMembersRepository, never()).remove(anyString(), anyString());
-        verifyKickResult(InternalIds.forTelegramId(99L), TARGET_INTERNAL, false, "NOT_OWNER");
+        verifyKickResult(caller, TARGET_INTERNAL, false, "NOT_OWNER");
         verify(stompUserMessenger, never()).convertAndSendToInternalId(
                 eq(TARGET_INTERNAL), eq("/queue/room-kicked"), any());
     }
@@ -97,7 +98,7 @@ class RoomHandlerKickTest {
     void kickMember_whenKickSelf_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(OWNER_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        stubOwnerAccess(OWNER_INTERNAL);
 
         roomHandler.kickMember(request, owner);
 
@@ -111,7 +112,7 @@ class RoomHandlerKickTest {
     void kickMember_whenKickRoomOwnerId_sendsCannotKickSelfWithoutCleanup() {
         KickMemberRequest request = kickRequest(OWNER_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        stubOwnerAccess(OWNER_INTERNAL);
 
         roomHandler.kickMember(request, owner);
 
@@ -123,7 +124,7 @@ class RoomHandlerKickTest {
     void kickMember_whenMemberTriesToKickOwner_sendsNotOwnerWithoutCleanup() {
         KickMemberRequest request = kickRequest(OWNER_INTERNAL);
         TelegramPrincipal member = principalFor(TARGET_INTERNAL);
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        stubNotOwner(TARGET_INTERNAL);
 
         roomHandler.kickMember(request, member);
 
@@ -135,7 +136,7 @@ class RoomHandlerKickTest {
     void kickMember_whenRoomNotFound_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.empty());
+        stubRoomNotFound(OWNER_INTERNAL);
 
         roomHandler.kickMember(request, owner);
 
@@ -149,7 +150,8 @@ class RoomHandlerKickTest {
     void kickMember_whenTargetNotMember_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        stubOwnerAccess(OWNER_INTERNAL);
+        when(roomService.isOwner(ownerRoom(), TARGET_INTERNAL)).thenReturn(false);
         when(roomMembersRepository.isMember(ROOM, TARGET_INTERNAL)).thenReturn(Mono.just(false));
 
         roomHandler.kickMember(request, owner);
@@ -169,7 +171,7 @@ class RoomHandlerKickTest {
 
         roomHandler.kickMember(request, owner);
 
-        verify(roomRepository, never()).findById(anyString());
+        verify(roomService, never()).requireOwner(anyString(), anyString());
         verify(roomMembersRepository, never()).remove(anyString(), anyString());
         verifyKickResult(OWNER_INTERNAL, TARGET_INTERNAL, false, "RATE_LIMITED");
     }
@@ -178,7 +180,9 @@ class RoomHandlerKickTest {
     void kickMember_whenSuccess_performsCleanupSendsEventsAndSuccessAck() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
-        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        Room room = ownerRoom();
+        stubOwnerAccess(OWNER_INTERNAL);
+        when(roomService.isOwner(room, TARGET_INTERNAL)).thenReturn(false);
         when(roomMembersRepository.isMember(ROOM, TARGET_INTERNAL)).thenReturn(Mono.just(true));
         when(roomMembersRepository.remove(ROOM, TARGET_INTERNAL)).thenReturn(Mono.just(1L));
         when(memberPublicKeyRepository.remove(ROOM, TARGET_INTERNAL)).thenReturn(Mono.empty());
@@ -244,6 +248,20 @@ class RoomHandlerKickTest {
                 .ownerInternalId(OWNER_INTERNAL)
                 .joinMode(Room.JoinMode.BY_REQUEST)
                 .build();
+    }
+
+    private void stubOwnerAccess(String callerInternalId) {
+        when(roomService.requireOwner(ROOM, callerInternalId)).thenReturn(Mono.just(ownerRoom()));
+    }
+
+    private void stubNotOwner(String callerInternalId) {
+        when(roomService.requireOwner(ROOM, callerInternalId))
+                .thenReturn(Mono.error(new SecurityException("NOT_OWNER")));
+    }
+
+    private void stubRoomNotFound(String callerInternalId) {
+        when(roomService.requireOwner(ROOM, callerInternalId))
+                .thenReturn(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")));
     }
 
     private static TelegramPrincipal ownerPrincipal() {

@@ -1624,7 +1624,7 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `rooms[].roomId` | string | UUID |
-| `rooms[].role` | enum | `owner` \| `member` |
+| `rooms[].role` | enum | `owner` \| `admin` \| `member` |
 | `rooms[].createdAt` | number | Unix ms |
 | `rooms[].nameEncrypted` | string? | Зашифрованное имя (opaque) |
 | `rooms[].nameIv` | string? | GCM IV для имени |
@@ -1706,7 +1706,7 @@ Guard дополняет, но не заменяет обязательный re
 | `members[].internalId` | string | Стабильный internal id |
 | `members[].displayName` | string? | Имя из каталога `user:{internalId}`; опущено для неизвестных |
 | `members[].username` | string? | Telegram username (каталог пока не хранит — часто `null`) |
-| `members[].role` | enum | `owner` если `internalId == room.ownerInternalId`, иначе `member` |
+| `members[].role` | enum | `owner` если `internalId == room.ownerInternalId`; `admin` если overlay в `room_roles`; иначе `member` |
 | `members[].joinedAt` | number? | Не заполняется (Redis Set не хранит время вступления) |
 
 **Error:** `{ "success": false, "error": "NOT_MEMBER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
@@ -1871,6 +1871,43 @@ Rate-limit: `SESSION_ACTION` (10/min).
 **Send enforce:** non-owner при `readOnly=true` → `/user/queue/room-message-sent` с `error=ROOM_READ_ONLY`.
 
 > Co-admin может постить в read-only — **IMP-ROOM-14** (пока только owner).
+
+---
+
+### TRANSFER_OWNERSHIP (`/app/room.transferOwnership`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`TransferOwnershipRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `newOwnerInternalId` | string | Да | Internal ID действующего члена, который станет владельцем |
+
+**Сервер:** проверка owner-only; `newOwnerInternalId` ∈ `room_members`; атомарно
+`HSET room:{roomId} ownerInternalId {newOwnerInternalId}`; предыдущий владелец →
+`HSET room_roles:{roomId} {previousOwner} admin`; `HDEL room_roles:{roomId} {newOwner}`.
+**Rekey не требуется** — новый владелец уже член с групповым ключом.
+
+**Ошибки (лог):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_TRANSFER_TO_SELF`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`.
+
+**Событие после успеха:** `ROOM_OWNERSHIP_TRANSFERRED` на `/topic/room/{roomId}`.
+
+---
+
+### ROOM_OWNERSHIP_TRANSFERRED (topic event)
+
+**Destination:** `/topic/room/{roomId}`
+
+```json
+{
+  "eventType": "ROOM_OWNERSHIP_TRANSFERRED",
+  "roomId": "uuid-v4",
+  "newOwnerInternalId": "internal-id-new-owner",
+  "previousOwnerInternalId": "internal-id-previous-owner"
+}
+```
 
 ---
 

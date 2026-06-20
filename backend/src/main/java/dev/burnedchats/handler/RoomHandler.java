@@ -6,6 +6,7 @@ import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomModerationEvent;
+import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
@@ -40,6 +41,7 @@ import dev.burnedchats.dto.request.RequestKeyBundleRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
 import dev.burnedchats.dto.request.SetRoomNameRequest;
+import dev.burnedchats.dto.request.TransferOwnershipRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.UnifiedUser;
@@ -53,6 +55,7 @@ import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomRepository;
+import dev.burnedchats.repository.RoomRolesRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
@@ -129,6 +132,7 @@ public class RoomHandler {
     private final RoomTopicSubscriptionService roomTopicSubscriptionService;
     private final RoomBansRepository roomBansRepository;
     private final RoomMutedRepository roomMutedRepository;
+    private final RoomRolesRepository roomRolesRepository;
     private final RateLimitService rateLimitService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -441,12 +445,8 @@ public class RoomHandler {
                 request.getRoomId(), request.getRecipientInternalId(), request.getEpoch(),
                 owner.internalId());
 
-        roomRepository.findById(request.getRoomId())
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+        roomService.requireOwner(request.getRoomId(), owner.internalId())
                 .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
                     EncryptedKeyBundle bundle = EncryptedKeyBundle.builder()
                             .roomId(request.getRoomId())
                             .epoch(request.getEpoch())
@@ -482,7 +482,7 @@ public class RoomHandler {
         roomRepository.findById(request.getRoomId())
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
-                    if (isRoomOwner(room, caller.internalId())) {
+                    if (roomService.isOwner(room, caller.internalId())) {
                         return Mono.error(new IllegalStateException("OWNER_SHOULD_REKEY"));
                     }
                     return roomMembersRepository.isMember(request.getRoomId(), caller.internalId())
@@ -538,14 +538,7 @@ public class RoomHandler {
                 request.getRoomId(), request.getNewEpoch(), request.getBundles().size(),
                 owner.internalId());
 
-        roomRepository.findById(request.getRoomId())
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return Mono.just(room);
-                })
+        roomService.requireOwner(request.getRoomId(), owner.internalId())
                 .flatMap(room -> {
                     Flux<EncryptedKeyBundle> storeBundles = Flux.fromIterable(request.getBundles())
                             .flatMap(item -> {
@@ -616,19 +609,13 @@ public class RoomHandler {
         LOG.info("GET_MEMBER_PUBKEYS: roomId={}, ownerInternalId={}",
                 request.getRoomId(), owner.internalId());
 
-        roomRepository.findById(request.getRoomId())
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return memberPublicKeyRepository.getAll(request.getRoomId())
-                            .map(pubkeys -> filterOwnerPubkeys(pubkeys, owner.internalId()))
-                            .flatMap(pubkeys -> roomKeysRepository.getCurrentEpoch(request.getRoomId())
-                                    .defaultIfEmpty(0)
-                                    .map(epoch -> MemberPublicKeysEvent.success(
-                                            request.getRoomId(), pubkeys, epoch)));
-                })
+        roomService.requireOwner(request.getRoomId(), owner.internalId())
+                .flatMap(room -> memberPublicKeyRepository.getAll(request.getRoomId())
+                        .map(pubkeys -> filterOwnerPubkeys(pubkeys, owner.internalId()))
+                        .flatMap(pubkeys -> roomKeysRepository.getCurrentEpoch(request.getRoomId())
+                                .defaultIfEmpty(0)
+                                .map(epoch -> MemberPublicKeysEvent.success(
+                                        request.getRoomId(), pubkeys, epoch))))
                 .subscribe(
                         event -> {
                             sendStompToInternalId(owner.internalId(), MEMBER_PUBKEYS_DESTINATION, event);
@@ -666,13 +653,14 @@ public class RoomHandler {
                         })
                         .onErrorComplete())
                 .filter(Objects::nonNull)
-                .map(room -> RoomListEvent.RoomInfo.builder()
+                .flatMap(room -> roomService.roleOf(room, participant.internalId())
+                        .map(role -> RoomListEvent.RoomInfo.builder()
                         .roomId(room.getId())
-                        .role(isRoomOwner(room, participant.internalId()) ? "owner" : "member")
+                        .role(role.apiValue())
                         .createdAt(room.getCreatedAt())
                         .nameEncrypted(room.getNameEncrypted())
                         .nameIv(room.getNameIv())
-                        .build())
+                        .build()))
                 .collectList()
                 .subscribe(
                         rooms -> {
@@ -699,17 +687,11 @@ public class RoomHandler {
         LOG.info("SET_ROOM_NAME requested: roomId={}, ownerInternalId={}",
                 request.getRoomId(), owner.internalId());
 
-        roomRepository.findById(request.getRoomId())
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return roomRepository.updateEncryptedName(
+        roomService.requireOwner(request.getRoomId(), owner.internalId())
+                .flatMap(room -> roomRepository.updateEncryptedName(
                             request.getRoomId(),
                             request.getNameEncrypted(),
-                            request.getNameIv());
-                })
+                            request.getNameIv()))
                 .subscribe(
                         ok -> {
                             broadcastRoomNameUpdated(
@@ -776,14 +758,7 @@ public class RoomHandler {
         String roomId = request.getRoomId();
         LOG.info("BURN_ROOM requested: roomId={}, ownerInternalId={}", roomId, owner.internalId());
 
-        roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return Mono.just(room);
-                })
+        roomService.requireOwner(roomId, owner.internalId())
                 .flatMap(room ->
                         roomMembersRepository.getMembers(roomId)
                                 .collectList()
@@ -797,7 +772,8 @@ public class RoomHandler {
                                                         memberPublicKeyRepository.deleteRoom(roomId),
                                                         roomMessageRepository.deleteRoomMessages(roomId),
                                                         roomBansRepository.deleteAll(roomId),
-                                                        roomMutedRepository.deleteAll(roomId)
+                                                        roomMutedRepository.deleteAll(roomId),
+                                                        roomRolesRepository.deleteAll(roomId)
                                                 ))
                                                 .thenReturn(members))
                 )
@@ -838,16 +814,12 @@ public class RoomHandler {
                 roomId, targetInternalId, owner.internalId());
 
         rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
-                .then(Mono.defer(() -> roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .then(Mono.defer(() -> roomService.requireOwner(roomId, owner.internalId())
                 .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
                     if (owner.internalId().equals(targetInternalId)) {
                         return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
                     }
-                    if (isRoomOwner(room, targetInternalId)) {
+                    if (roomService.isOwner(room, targetInternalId)) {
                         return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
                     }
                     return roomMembersRepository.isMember(roomId, targetInternalId)
@@ -899,16 +871,12 @@ public class RoomHandler {
                 roomId, targetInternalId, owner.internalId());
 
         rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
-                .then(Mono.defer(() -> roomRepository.findById(roomId)
-                        .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
+                .then(Mono.defer(() -> roomService.requireOwner(roomId, owner.internalId())
                         .flatMap(room -> {
-                            if (!isRoomOwner(room, owner.internalId())) {
-                                return Mono.error(new SecurityException("NOT_OWNER"));
-                            }
                             if (owner.internalId().equals(targetInternalId)) {
                                 return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
                             }
-                            if (isRoomOwner(room, targetInternalId)) {
+                            if (roomService.isOwner(room, targetInternalId)) {
                                 return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
                             }
                             return roomMembersRepository.isMember(roomId, targetInternalId)
@@ -960,14 +928,8 @@ public class RoomHandler {
         LOG.info("UNBAN_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
                 roomId, targetInternalId, owner.internalId());
 
-        roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return roomBansRepository.remove(roomId, targetInternalId);
-                })
+        roomService.requireOwner(roomId, owner.internalId())
+                .flatMap(room -> roomBansRepository.remove(roomId, targetInternalId))
                 .subscribe(
                         removed -> LOG.info("UNBAN_MEMBER completed: roomId={}, targetInternalId={}, removed={}",
                                 roomId, targetInternalId, removed),
@@ -987,14 +949,8 @@ public class RoomHandler {
         String roomId = request.getRoomId();
         LOG.info("GET_BANS requested: roomId={}, ownerInternalId={}", roomId, owner.internalId());
 
-        roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return roomBansRepository.list(roomId).collectList();
-                })
+        roomService.requireOwner(roomId, owner.internalId())
+                .flatMap(room -> roomBansRepository.list(roomId).collectList())
                 .subscribe(
                         bans -> {
                             sendStompToInternalId(owner.internalId(), ROOM_BANS_DESTINATION,
@@ -1050,20 +1006,14 @@ public class RoomHandler {
         LOG.info("UNMUTE_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
                 roomId, targetInternalId, owner.internalId());
 
-        roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return roomMutedRepository.remove(roomId, targetInternalId)
-                            .flatMap(removed -> {
-                                if (removed > 0) {
-                                    return Mono.just(room);
-                                }
-                                return Mono.empty();
-                            });
-                })
+        roomService.requireOwner(roomId, owner.internalId())
+                .flatMap(room -> roomMutedRepository.remove(roomId, targetInternalId)
+                        .flatMap(removed -> {
+                            if (removed > 0) {
+                                return Mono.just(room);
+                            }
+                            return Mono.empty();
+                        }))
                 .subscribe(
                         room -> broadcastRoomModeration(
                                 roomId, RoomModerationEvent.unmuted(roomId, room.isReadOnly(), targetInternalId)),
@@ -1085,19 +1035,39 @@ public class RoomHandler {
         LOG.info("SET_READ_ONLY requested: roomId={}, readOnly={}, ownerInternalId={}",
                 roomId, readOnly, owner.internalId());
 
-        roomRepository.findById(roomId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (!isRoomOwner(room, owner.internalId())) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return roomRepository.updateReadOnly(roomId, readOnly).thenReturn(readOnly);
-                })
+        roomService.requireOwner(roomId, owner.internalId())
+                .flatMap(room -> roomRepository.updateReadOnly(roomId, readOnly).thenReturn(readOnly))
                 .subscribe(
                         updatedReadOnly -> broadcastRoomModeration(
                                 roomId, RoomModerationEvent.readOnlyChanged(roomId, updatedReadOnly)),
                         error -> LOG.warn("SET_READ_ONLY failed: roomId={}, ownerInternalId={}, error={}",
                                 roomId, owner.internalId(), mapMuteError(error))
+            );
+    }
+
+    @MessageMapping("/room.transferOwnership")
+    public void transferOwnership(@Payload @Valid TransferOwnershipRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String newOwnerInternalId = request.getNewOwnerInternalId();
+        LOG.info("TRANSFER_OWNERSHIP requested: roomId={}, newOwnerInternalId={}, ownerInternalId={}",
+                roomId, newOwnerInternalId, owner.internalId());
+
+        roomService.transferOwnership(roomId, owner.internalId(), newOwnerInternalId)
+                .subscribe(
+                        event -> {
+                            messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+                            LOG.info("ROOM_OWNERSHIP_TRANSFERRED broadcast: roomId={}, previousOwner={}, newOwner={}",
+                                    roomId, event.getPreviousOwnerInternalId(), event.getNewOwnerInternalId());
+                        },
+                        error -> LOG.warn(
+                                "TRANSFER_OWNERSHIP failed: roomId={}, newOwnerInternalId={}, ownerInternalId={}, "
+                                        + "error={}",
+                                roomId, newOwnerInternalId, owner.internalId(), mapTransferOwnershipError(error))
             );
     }
 
@@ -1114,7 +1084,7 @@ public class RoomHandler {
         roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
-                    if (isRoomOwner(room, caller.internalId())) {
+                    if (roomService.isOwner(room, caller.internalId())) {
                         return Mono.error(new IllegalStateException("OWNER_CANNOT_LEAVE"));
                     }
                     return roomMembersRepository.isMember(roomId, caller.internalId())
@@ -1175,21 +1145,21 @@ public class RoomHandler {
     }
 
     private Mono<Void> validateMuteTarget(Room room, String ownerInternalId, String targetInternalId) {
-        if (!isRoomOwner(room, ownerInternalId)) {
-            return Mono.error(new SecurityException("NOT_OWNER"));
-        }
-        if (ownerInternalId.equals(targetInternalId)) {
-            return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
-        }
-        if (isRoomOwner(room, targetInternalId)) {
-            return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
-        }
-        return roomMembersRepository.isMember(room.getId(), targetInternalId)
-                .flatMap(isMember -> {
-                    if (!isMember) {
-                        return Mono.error(new SecurityException("NOT_MEMBER"));
+        return roomService.requireOwner(room, ownerInternalId)
+                .flatMap(authorizedRoom -> {
+                    if (ownerInternalId.equals(targetInternalId)) {
+                        return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
                     }
-                    return Mono.empty();
+                    if (roomService.isOwner(authorizedRoom, targetInternalId)) {
+                        return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
+                    }
+                    return roomMembersRepository.isMember(authorizedRoom.getId(), targetInternalId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return Mono.error(new SecurityException("NOT_MEMBER"));
+                                }
+                                return Mono.empty();
+                            });
                 });
     }
 
@@ -1201,11 +1171,6 @@ public class RoomHandler {
                 .then(Mono.fromRunnable(() ->
                         roomTopicSubscriptionService.unsubscribeUserFromRoomTopic(roomId, targetInternalId)))
                 .then();
-    }
-
-    private boolean isRoomOwner(Room room, String ownerInternalId) {
-        return StringUtils.hasText(room.getOwnerInternalId())
-                && room.getOwnerInternalId().equals(ownerInternalId);
     }
 
     private Map<String, String> filterOwnerPubkeys(Map<String, String> pubkeys, String ownerInternalId) {
@@ -1224,18 +1189,18 @@ public class RoomHandler {
     }
 
     private Mono<RoomMembersListEvent.MemberDto> enrichRoomMember(Room room, String internalId) {
-        String role = isRoomOwner(room, internalId) ? "owner" : "member";
-        return userIdentityRepository.findById(internalId)
-                .map(user -> RoomMembersListEvent.MemberDto.builder()
-                        .internalId(internalId)
-                        .displayName(blankToNull(user.displayName()))
-                        .username(null)
-                        .role(role)
-                        .build())
-                .defaultIfEmpty(RoomMembersListEvent.MemberDto.builder()
-                        .internalId(internalId)
-                        .role(role)
-                        .build());
+        return roomService.roleOf(room, internalId)
+                .flatMap(role -> userIdentityRepository.findById(internalId)
+                        .map(user -> RoomMembersListEvent.MemberDto.builder()
+                                .internalId(internalId)
+                                .displayName(blankToNull(user.displayName()))
+                                .username(null)
+                                .role(role.apiValue())
+                                .build())
+                        .defaultIfEmpty(RoomMembersListEvent.MemberDto.builder()
+                                .internalId(internalId)
+                                .role(role.apiValue())
+                                .build()));
     }
 
     private static String blankToNull(String value) {
@@ -1367,6 +1332,19 @@ public class RoomHandler {
         }
         if (root instanceof SecurityException se) {
             return se.getMessage();
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapTransferOwnershipError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (error instanceof IllegalStateException ise) {
+            return ise.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
         }
         return "INTERNAL_ERROR";
     }

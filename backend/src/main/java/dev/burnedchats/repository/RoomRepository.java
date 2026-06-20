@@ -139,6 +139,26 @@ public class RoomRepository {
                 });
     }
 
+    /**
+     * Update room owner internal ID and refresh TTL.
+     *
+     * @param roomId              room UUID
+     * @param newOwnerInternalId  canonical internal ID of the new owner
+     * @return Mono completing when the hash field and TTL are updated
+     */
+    public Mono<Boolean> updateOwnerInternalId(String roomId, String newOwnerInternalId) {
+        String key = keyFor(roomId);
+        String value = newOwnerInternalId != null ? newOwnerInternalId : "";
+        return redisTemplate.opsForHash()
+                .put(key, "ownerInternalId", value)
+                .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .doOnSuccess(ok -> LOG.debug("Updated ownerInternalId for room {}", roomId))
+                .onErrorResume(e -> {
+                    LOG.error("Failed to update owner for room {}: {}", roomId, e.getMessage());
+                    return Mono.just(false);
+                });
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

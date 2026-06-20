@@ -27,7 +27,7 @@ public class RoomMembersListEvent {
      * Enriched room members. Present when {@code success = true}.
      *
      * <p>Each entry carries {@code internalId}, optional profile fields from the user catalog,
-     * and {@code role} ({@code owner} or {@code member}).
+         * and {@code role} ({@code owner}, {@code admin}, or {@code member}).
      */
     private List<MemberDto> members;
 
@@ -57,7 +57,7 @@ public class RoomMembersListEvent {
 
         /**
          * Member role in the room.
-         * Values: {@code "owner"} or {@code "member"}.
+         * Values: {@code "owner"}, {@code "admin"}, or {@code "member"}.
          */
         private String role;
 
