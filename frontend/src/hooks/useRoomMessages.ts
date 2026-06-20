@@ -4,6 +4,7 @@ import { encryptMessage } from '@/crypto/aes';
 import { isWithinEditWindow } from '@/utils/editWindow';
 import type { DecryptedMessage, DecryptedFileMessage, MessageStatus, MessageType } from '@/types';
 import type { ChatWebSocketApi } from '@/hooks/useWebSocket';
+import type { RoomModerationEvent } from '@/hooks/useRoomModeration';
 import {
   useMessageCore,
   getEncryptionKey,
@@ -154,6 +155,7 @@ interface UseRoomMessagesOptions {
   onError?: (error: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   onEditError?: (errorCode: string) => void;
   onMessageDeletedByOwner?: () => void;
+  onRoomModeration?: (event: RoomModerationEvent) => void;
 }
 
 export interface UseRoomMessagesReturn {
@@ -179,7 +181,7 @@ export interface UseRoomMessagesReturn {
 // ============================================
 
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
-  const { roomId, userId, userInternalId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner } = options;
+  const { roomId, userId, userInternalId, ws, onNewMessage, onError, onEditError, onMessageDeletedByOwner, onRoomModeration } = options;
   const ownershipCtx = useMemo(
     (): RoomMessageOwnershipContext => ({
       userInternalId,
@@ -453,6 +455,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       const event = JSON.parse(message.body) as NewRoomMessageEvent & Partial<RoomMessageEditedEventPayload>;
       if (event.roomId !== roomId) return;
 
+      if (event.eventType === 'ROOM_MODERATION') {
+        onRoomModeration?.(event as RoomModerationEvent);
+        return;
+      }
+
       if (event.eventType === 'ROOM_MESSAGE_DELETED') {
         const del = event as unknown as {
           success?: boolean;
@@ -531,7 +538,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       console.error('[useRoomMessages] Failed to parse message:', parseErr);
     }
   }, [
-    roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner,
+    roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner, onRoomModeration,
     userId, getRoomEncryptionKey, setMessages, pendingDeleteResolversRef, buildFileMessage,
     applyRoomEditFromBroadcast,
   ]);
@@ -599,7 +606,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           msg.id === event.messageId ? { ...msg, status: 'failed' as MessageStatus } : msg
         ));
         const fileErrorKey = serverFileRelayErrorI18nKey(event.error);
-        handleError('SEND_FAILED', fileErrorKey ?? event.error);
+        if (event.error === 'MUTED' || event.error === 'ROOM_READ_ONLY') {
+          handleError('SEND_FAILED', event.error);
+        } else {
+          handleError('SEND_FAILED', fileErrorKey ?? event.error);
+        }
       }
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse room-message-sent event:', parseErr);

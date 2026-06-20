@@ -6,12 +6,14 @@ import {
   Flame,
   Home,
   Link,
+  MicOff,
   Pencil,
   Settings,
   ShieldBan,
   User,
   UserMinus,
   Users,
+  Volume2,
 } from 'lucide-react';
 import { Button } from '../Button';
 import { Input } from '../Input';
@@ -240,6 +242,13 @@ interface RoomManageViewProps {
   bansError?: string | null;
   onRefreshBans?: () => void;
   onUnban?: (targetInternalId: string) => void;
+  /** Muted member internal IDs (IMP-ROOM-12) */
+  mutedInternalIds?: string[];
+  /** Room read-only flag */
+  roomReadOnly?: boolean;
+  onMuteMember?: (targetInternalId: string) => void;
+  onUnmuteMember?: (targetInternalId: string) => void;
+  onSetReadOnly?: (readOnly: boolean) => void;
 }
 
 // ============================================
@@ -286,6 +295,11 @@ export const RoomManageView = memo(function RoomManageView({
   bansError,
   onRefreshBans,
   onUnban,
+  mutedInternalIds = [],
+  roomReadOnly = false,
+  onMuteMember,
+  onUnmuteMember,
+  onSetReadOnly,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
@@ -663,23 +677,65 @@ export const RoomManageView = memo(function RoomManageView({
                     const canKick = onKickMember != null
                       && member.role !== 'owner'
                       && !isYou;
+                    const isMuted = mutedInternalIds.includes(member.internalId);
+                    const canMute = onMuteMember != null
+                      && onUnmuteMember != null
+                      && member.role !== 'owner'
+                      && !isYou;
 
                     return (
                       <RoomMemberRow
                         key={member.internalId}
                         member={member}
                         isYou={isYou}
-                        actions={canKick ? (
-                          <button
-                            type="button"
-                            className="room-member-row__kick-btn"
-                            onClick={() => handleKickClick(member)}
-                            aria-label={t('room.manage.kickButton', { name: member.displayName?.trim() || member.internalId })}
-                          >
-                            <UserMinus size={16} aria-hidden="true" />
-                            <span className="room-member-row__kick-label">{t('room.manage.kickButton')}</span>
-                          </button>
-                        ) : undefined}
+                        actions={
+                          (canKick || canMute) ? (
+                            <div className="room-member-row__action-group">
+                              {canMute && (
+                                <button
+                                  type="button"
+                                  className={`room-member-row__mute-btn${isMuted ? ' room-member-row__mute-btn--active' : ''}`}
+                                  onClick={() => (
+                                    isMuted
+                                      ? onUnmuteMember(member.internalId)
+                                      : onMuteMember(member.internalId)
+                                  )}
+                                  aria-label={
+                                    isMuted
+                                      ? t('room.manage.unmuteButton', {
+                                        name: member.displayName?.trim() || member.internalId,
+                                      })
+                                      : t('room.manage.muteButton', {
+                                        name: member.displayName?.trim() || member.internalId,
+                                      })
+                                  }
+                                >
+                                  {isMuted ? (
+                                    <Volume2 size={16} aria-hidden="true" />
+                                  ) : (
+                                    <MicOff size={16} aria-hidden="true" />
+                                  )}
+                                  <span className="room-member-row__mute-label">
+                                    {isMuted
+                                      ? t('room.manage.unmuteButton')
+                                      : t('room.manage.muteButton')}
+                                  </span>
+                                </button>
+                              )}
+                              {canKick && (
+                                <button
+                                  type="button"
+                                  className="room-member-row__kick-btn"
+                                  onClick={() => handleKickClick(member)}
+                                  aria-label={t('room.manage.kickButton', { name: member.displayName?.trim() || member.internalId })}
+                                >
+                                  <UserMinus size={16} aria-hidden="true" />
+                                  <span className="room-member-row__kick-label">{t('room.manage.kickButton')}</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : undefined
+                        }
                       />
                     );
                   })}
@@ -748,6 +804,31 @@ export const RoomManageView = memo(function RoomManageView({
                 )}
               </div>
             )}
+          </section>
+        )}
+
+        {isOwner && onSetReadOnly != null && (
+          <section className="room-manage-section">
+            <div className="room-manage-readonly">
+              <div className="room-manage-readonly__info">
+                <h3 className="room-manage-section__heading room-manage-readonly__heading">
+                  <MicOff size={16} aria-hidden="true" />
+                  {t('room.manage.readOnlyToggle')}
+                </h3>
+                <p className="room-manage-readonly__hint">
+                  {t('room.manage.readOnlyHint')}
+                </p>
+              </div>
+              <label className="room-manage-readonly__switch">
+                <input
+                  type="checkbox"
+                  checked={roomReadOnly}
+                  onChange={(e) => onSetReadOnly(e.target.checked)}
+                  aria-label={t('room.manage.readOnlyToggle')}
+                />
+                <span className="room-manage-readonly__slider" aria-hidden="true" />
+              </label>
+            </div>
           </section>
         )}
 

@@ -7,6 +7,7 @@ import {
   Key,
   Lock,
   LogOut,
+  MicOff,
   RefreshCw,
   Settings,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ import type {
   SendRoomFileOptions,
   RoomMessageErrorCode,
 } from '@/hooks/useRoomMessages';
+import type { RoomModerationEvent } from '@/hooks/useRoomModeration';
 import { useHaptics } from '@/hooks/useHaptics';
 import { isFilesErrorI18nKey } from '@/services/fileTransferErrors';
 import type { UploadStage } from '../UploadProgressOverlay';
@@ -70,6 +72,12 @@ interface RoomChatRoomProps {
    * e.g. when the Mini App returns from background (FIX-SYNC-3).
    */
   syncMessagesRef?: MutableRefObject<(() => void) | null>;
+  /** Whether the room is in read-only mode (IMP-ROOM-12) */
+  roomReadOnly?: boolean;
+  /** Whether the current user is muted in this room */
+  isCurrentUserMuted?: boolean;
+  /** Forward ROOM_MODERATION events from the room topic to App-level state */
+  onRoomModeration?: (event: RoomModerationEvent) => void;
 }
 
 // ============================================
@@ -95,6 +103,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onManage,
   onLeave,
   syncMessagesRef,
+  roomReadOnly = false,
+  isCurrentUserMuted = false,
+  onRoomModeration,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -189,6 +200,14 @@ export const RoomChatRoom = memo(function RoomChatRoom({
 
   const handleRoomMessageError = useCallback(
     (_code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
+      if (details === 'MUTED') {
+        toast.error(t('room.chat.errorMuted'), { duration: 4000 });
+        return;
+      }
+      if (details === 'ROOM_READ_ONLY') {
+        toast.error(t('room.chat.errorReadOnly'), { duration: 4000 });
+        return;
+      }
       const msg = isFilesErrorI18nKey(details)
         ? t(details!, i18nValues)
         : t('room.chat.sendError');
@@ -238,7 +257,15 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       onError: handleRoomMessageError,
       onEditError: handleRoomEditError,
       onMessageDeletedByOwner,
+      onRoomModeration,
     });
+
+  const isSendBlocked = isCurrentUserMuted || (roomReadOnly && !isOwner);
+  const moderationBannerKey = isCurrentUserMuted
+    ? 'room.chat.mutedBanner'
+    : roomReadOnly && !isOwner
+      ? 'room.chat.readOnlyBanner'
+      : null;
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
   // visibility-restore handler can invoke it (FIX-SYNC-3).
@@ -559,22 +586,34 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             onEditMessage={handleStartEdit}
             className="room-chat-room-messages chat-screen-messages"
           />
-          <div className="chat-screen-input">
-            <MessageInput
-              onSend={handleSend}
-              onFileSelected={handleFileSelected}
-              isUploading={isUploading}
-              placeholder={t('room.chat.messagePlaceholder')}
-              replyTo={editingMessage ? null : replyChip}
-              onReplyCancel={editingMessage ? undefined : handleCancelReply}
-              editMode={
-                editingMessage
-                  ? { initialText: editingMessage.content, onCancel: handleCancelEdit }
-                  : null
-              }
-              textAreaRef={messageInputTextAreaRef}
-            />
-          </div>
+          {moderationBannerKey && (
+            <div className="room-chat-room-moderation-banner" role="status">
+              {isCurrentUserMuted ? (
+                <MicOff size={16} className="room-chat-room-moderation-banner__icon" aria-hidden />
+              ) : (
+                <Lock size={16} className="room-chat-room-moderation-banner__icon" aria-hidden />
+              )}
+              <span>{t(moderationBannerKey)}</span>
+            </div>
+          )}
+          {!isSendBlocked && (
+            <div className="chat-screen-input">
+              <MessageInput
+                onSend={handleSend}
+                onFileSelected={handleFileSelected}
+                isUploading={isUploading}
+                placeholder={t('room.chat.messagePlaceholder')}
+                replyTo={editingMessage ? null : replyChip}
+                onReplyCancel={editingMessage ? undefined : handleCancelReply}
+                editMode={
+                  editingMessage
+                    ? { initialText: editingMessage.content, onCancel: handleCancelEdit }
+                    : null
+                }
+                textAreaRef={messageInputTextAreaRef}
+              />
+            </div>
+          )}
         </>
       ) : (
         <div className="room-chat-room-body">

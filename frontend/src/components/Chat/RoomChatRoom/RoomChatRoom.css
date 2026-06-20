@@ -223,6 +223,24 @@
   }
 }
 
+.room-chat-room-moderation-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  flex-shrink: 0;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
+  background: var(--bc-warning-muted);
+  color: var(--bc-text-primary);
+  border-top: 1px solid color-mix(in srgb, var(--bc-warning) 24%, transparent);
+}
+
+.room-chat-room-moderation-banner__icon {
+  flex-shrink: 0;
+  color: var(--bc-warning);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .room-chat-room-placeholder {
     @starting-style {

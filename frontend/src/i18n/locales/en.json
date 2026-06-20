@@ -965,6 +965,10 @@
       "encryptedTitle": "End-to-end encrypted",
       "messagePlaceholder": "Message room...",
       "sendError": "Failed to send message",
+      "errorMuted": "You have been muted in this room and cannot send messages",
+      "errorReadOnly": "This room is read-only — only the owner can post",
+      "mutedBanner": "You have been muted and cannot send messages",
+      "readOnlyBanner": "This room is read-only — only the owner can post",
       "keyLoadError": "Failed to load encryption key"
     },
 
@@ -1019,7 +1023,11 @@
         "RATE_LIMITED": "Too many requests — please try again later",
         "INTERNAL_ERROR": "Failed to remove member — please try again",
         "unknown": "Failed to remove member"
-      }
+      },
+      "muteButton": "Mute",
+      "unmuteButton": "Unmute",
+      "readOnlyToggle": "Read-only mode",
+      "readOnlyHint": "When enabled, only you can send messages"
     },
 
     "invite": {

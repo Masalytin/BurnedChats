@@ -30,6 +30,7 @@ import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
+import { useRoomModeration } from './hooks/useRoomModeration';
 import { Layout } from './components/Layout/Layout';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -806,6 +807,25 @@ function AppContent() {
   
   // Active chat state
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
+
+  const ownsModerationTopic = currentView === 'room-manage' && activeRoomChat != null;
+
+  const {
+    readOnly: roomReadOnly,
+    mutedIds: roomMutedIds,
+    mute: muteMember,
+    unmute: unmuteMember,
+    setReadOnly: setRoomReadOnlyMode,
+    handleModerationEvent: handleRoomModerationEvent,
+    isMuted: isRoomMemberMuted,
+  } = useRoomModeration({
+    isConnected,
+    roomId: activeRoomChat?.roomId ?? null,
+    ownsTopicSubscription: ownsModerationTopic,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
 
   // Ref for activeChat to use in key refresh effect without causing re-subscriptions
   const activeChatRef = useRef<ActiveChat | null>(null);
@@ -1758,6 +1778,24 @@ function AppContent() {
     debugLog('info', `[RoomManage] UNBAN_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, unbanMember]);
 
+  const handleMuteMember = useCallback((targetInternalId: string) => {
+    if (!activeRoomChat || !isConnected) return;
+    muteMember(activeRoomChat.roomId, targetInternalId);
+    debugLog('info', `[RoomManage] MUTE_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, muteMember]);
+
+  const handleUnmuteMember = useCallback((targetInternalId: string) => {
+    if (!activeRoomChat || !isConnected) return;
+    unmuteMember(activeRoomChat.roomId, targetInternalId);
+    debugLog('info', `[RoomManage] UNMUTE_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, unmuteMember]);
+
+  const handleSetRoomReadOnly = useCallback((readOnly: boolean) => {
+    if (!activeRoomChat || !isConnected) return;
+    setRoomReadOnlyMode(activeRoomChat.roomId, readOnly);
+    debugLog('info', `[RoomManage] SET_READ_ONLY=${readOnly} for ${activeRoomChat.roomId}`);
+  }, [activeRoomChat, isConnected, setRoomReadOnlyMode]);
+
   // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
   const roomBurnedDepsRef = useRef({
     currentView,
@@ -2617,6 +2655,9 @@ function AppContent() {
             onManage={isRoomOwner ? handleOpenRoomManage : undefined}
             onLeave={!isRoomOwner ? handleLeaveRoom : undefined}
             syncMessagesRef={roomSyncMessagesRef}
+            roomReadOnly={roomReadOnly}
+            isCurrentUserMuted={myInternalId != null && isRoomMemberMuted(myInternalId)}
+            onRoomModeration={handleRoomModerationEvent}
           />
         </Layout>
         {debugPanelElement}
@@ -2669,6 +2710,11 @@ function AppContent() {
             bansError={bansError}
             onRefreshBans={handleRefreshBans}
             onUnban={handleUnbanMember}
+            mutedInternalIds={roomMutedIds}
+            roomReadOnly={roomReadOnly}
+            onMuteMember={handleMuteMember}
+            onUnmuteMember={handleUnmuteMember}
+            onSetReadOnly={handleSetRoomReadOnly}
           />
         </Layout>
         {debugPanelElement}
