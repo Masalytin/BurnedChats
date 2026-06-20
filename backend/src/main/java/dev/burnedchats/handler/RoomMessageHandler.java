@@ -12,6 +12,7 @@ import dev.burnedchats.dto.request.SyncRoomMessagesRequest;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.model.RoomMessage;
+import dev.burnedchats.model.RoomRole;
 import dev.burnedchats.model.UnifiedUser;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
@@ -24,6 +25,7 @@ import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
+import dev.burnedchats.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +78,7 @@ public class RoomMessageHandler {
     private final FileMessageRelayValidator fileMessageRelayValidator;
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
+    private final RoomService roomService;
 
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.edit")
@@ -267,16 +270,22 @@ public class RoomMessageHandler {
                         return Mono.just(false);
                     }
                     return roomRepository.findById(roomId)
-                            .map(room -> {
-                                boolean isOwner = StringUtils.hasText(room.getOwnerInternalId())
-                                        && room.getOwnerInternalId().equals(sender.internalId());
-                                if (room.isReadOnly() && !isOwner) {
-                                    LOG.debug("SEND_ROOM_MESSAGE rejected: room {} is read-only for non-owner {}",
-                                            roomId, sender.internalId());
-                                    sendError(principal, roomId, messageId, "ROOM_READ_ONLY");
-                                    return false;
+                            .flatMap(room -> {
+                                if (!room.isReadOnly()) {
+                                    return Mono.just(true);
                                 }
-                                return true;
+                                return roomService.roleOf(room, sender.internalId())
+                                        .map(role -> role == RoomRole.OWNER || role == RoomRole.ADMIN)
+                                        .flatMap(canPost -> {
+                                            if (!canPost) {
+                                                LOG.debug(
+                                                        "SEND_ROOM_MESSAGE rejected: room {} is read-only for {}",
+                                                        roomId, sender.internalId());
+                                                sendError(principal, roomId, messageId, "ROOM_READ_ONLY");
+                                                return Mono.just(false);
+                                            }
+                                            return Mono.just(true);
+                                        });
                             })
                             .defaultIfEmpty(false);
                 });

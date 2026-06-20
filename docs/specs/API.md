@@ -1435,7 +1435,7 @@ client.activate();
 
 ### GET_INVITE_LINK (`/app/room.getInviteLink`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin)
 
 **Запрос** (`GetInviteLinkRequest`):
 
@@ -1453,7 +1453,7 @@ client.activate();
 
 ### REVOKE_INVITE (`/app/room.revokeInvite`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin)
 
 **Запрос** (`RevokeInviteRequest`):
 
@@ -1468,7 +1468,7 @@ client.activate();
 
 ### GET_INVITES (`/app/room.getInvites`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin)
 
 **Запрос:** `{ "roomId": "uuid" }` (тот же DTO, что у `getInviteLink`, без опциональных полей).
 
@@ -1715,7 +1715,7 @@ Guard дополняет, но не заменяет обязательный re
 
 ### KICK_MEMBER (`/app/room.kick`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin; admin may kick members only)
 
 **Запрос** (`KickMemberRequest`):
 
@@ -1742,7 +1742,7 @@ Guard дополняет, но не заменяет обязательный re
   "success": false,
   "roomId": "uuid-v4",
   "targetInternalId": "internal-id",
-  "error": "NOT_OWNER | CANNOT_KICK_SELF | CANNOT_KICK_OWNER | NOT_MEMBER | ROOM_NOT_FOUND | RATE_LIMITED | INTERNAL_ERROR"
+  "error": "NOT_OWNER | CANNOT_KICK_SELF | CANNOT_KICK_OWNER | CANNOT_KICK_ADMIN | NOT_MEMBER | ROOM_NOT_FOUND | RATE_LIMITED | INTERNAL_ERROR"
 }
 ```
 
@@ -1823,7 +1823,7 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### MUTE_MEMBER (`/app/room.mute`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin; admin may mute members only)
 
 **Запрос** (`MuteMemberRequest`):
 
@@ -1835,7 +1835,7 @@ Rate-limit: `SESSION_ACTION` (10/min).
 Участник **остаётся** в `room_members`; сервер добавляет `internalId` в `room_muted:{roomId}`.
 Rekey **не** требуется.
 
-**Ошибки (лог):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+**Ошибки (лог):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`.
 
 **Событие после успеха:** `ROOM_MODERATION` на `/topic/room/{roomId}` (`RoomModerationEvent` с `mutedAdded`).
 
@@ -1845,7 +1845,7 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### UNMUTE_MEMBER (`/app/room.unmute`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin)
 
 **Запрос:** тот же payload, что у mute — `{ "roomId": "string", "targetInternalId": "string" }`
 (`MuteMemberRequest`).
@@ -1857,20 +1857,53 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### SET_READ_ONLY (`/app/room.setReadOnly`)
 
-**Направление:** Client → Server (owner-only)
+**Направление:** Client → Server (owner or admin)
 
 **Запрос** (`SetReadOnlyRequest`):
 
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
 | `roomId` | string | Да | UUID комнаты |
-| `readOnly` | boolean | Да | `true` — постит только owner; `false` — все члены |
+| `readOnly` | boolean | Да | `true` — постят owner и admin; member получает `ROOM_READ_ONLY` |
 
 **Сервер:** `HSET room:{roomId} readOnly {true|false}`; broadcast `ROOM_MODERATION` с полем `readOnly`.
 
-**Send enforce:** non-owner при `readOnly=true` → `/user/queue/room-message-sent` с `error=ROOM_READ_ONLY`.
+**Send enforce:** member при `readOnly=true` → `/user/queue/room-message-sent` с `error=ROOM_READ_ONLY`.
+Owner и admin могут отправлять в read-only.
 
-> Co-admin может постить в read-only — **IMP-ROOM-14** (пока только owner).
+---
+
+### SET_ROLE (`/app/room.setRole`)
+
+**Направление:** Client → Server (owner-only)
+
+**Запрос** (`SetRoleRequest`):
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| `roomId` | string | Да | UUID комнаты |
+| `targetInternalId` | string | Да | Internal ID члена |
+| `role` | enum | Да | `admin` или `member` (снятие overlay) |
+
+**Сервер:** owner-only; target ∈ `room_members`; нельзя менять роль owner; `admin` → `HSET room_roles`;
+`member` → `HDEL room_roles`. Broadcast `ROOM_ROLE_UPDATED` на `/topic/room/{roomId}`.
+
+**Ошибки (лог):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_SET_ROLE_ON_OWNER`, `INVALID_ROLE`, `ROOM_NOT_FOUND`.
+
+---
+
+### ROOM_ROLE_UPDATED (topic event)
+
+**Destination:** `/topic/room/{roomId}`
+
+```json
+{
+  "eventType": "ROOM_ROLE_UPDATED",
+  "roomId": "uuid-v4",
+  "targetInternalId": "internal-id",
+  "role": "admin"
+}
+```
 
 ---
 

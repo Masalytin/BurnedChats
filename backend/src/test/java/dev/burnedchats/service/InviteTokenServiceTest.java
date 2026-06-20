@@ -35,6 +35,9 @@ class InviteTokenServiceTest {
     private RoomRepository roomRepository;
 
     @Mock
+    private RoomService roomService;
+
+    @Mock
     private TelegramProperties telegramProperties;
 
     @InjectMocks
@@ -58,6 +61,7 @@ class InviteTokenServiceTest {
                     .build();
 
             when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(room));
+            when(roomService.requireAdminOrOwner(room, OWNER_INTERNAL)).thenReturn(Mono.just(room));
             when(inviteTokenRepository.findByToken(TOKEN)).thenReturn(Mono.just(inviteToken));
             when(inviteTokenRepository.deleteTokenAndIndex(TOKEN, ROOM_ID)).thenReturn(Mono.empty());
 
@@ -76,6 +80,8 @@ class InviteTokenServiceTest {
                     .build();
 
             when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(room));
+            when(roomService.requireAdminOrOwner(room, "other-user"))
+                    .thenReturn(Mono.error(new SecurityException("NOT_OWNER")));
 
             StepVerifier.create(inviteTokenService.revokeInvite(ROOM_ID, TOKEN, "other-user"))
                     .expectError(SecurityException.class)

@@ -15,7 +15,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -131,6 +134,121 @@ class RoomServiceRolesTest {
 
         StepVerifier.create(roomService.requireAdminOrOwner(ROOM_ID, MEMBER))
                 .expectError(SecurityException.class)
+                .verify();
+    }
+
+    @Test
+    void setRole_whenNotOwner_fails() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+
+        StepVerifier.create(roomService.setRole(ROOM_ID, MEMBER, ADMIN, RoomRole.ADMIN.apiValue()))
+                .expectError(SecurityException.class)
+                .verify();
+
+        verify(roomRolesRepository, never()).setRole(eq(ROOM_ID), eq(ADMIN), anyString());
+    }
+
+    @Test
+    void setRole_whenTargetNotMember_fails() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+        when(roomMembersRepository.isMember(ROOM_ID, MEMBER)).thenReturn(Mono.just(false));
+
+        StepVerifier.create(roomService.setRole(ROOM_ID, OWNER, MEMBER, RoomRole.ADMIN.apiValue()))
+                .expectErrorMatches(error -> error instanceof IllegalArgumentException
+                        && "NOT_MEMBER".equals(error.getMessage()))
+                .verify();
+    }
+
+    @Test
+    void setRole_whenPromoteToAdmin_persistsAndReturnsEvent() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+        when(roomMembersRepository.isMember(ROOM_ID, MEMBER)).thenReturn(Mono.just(true));
+        when(roomRolesRepository.setRole(ROOM_ID, MEMBER, RoomRole.ADMIN.apiValue())).thenReturn(Mono.just(true));
+
+        StepVerifier.create(roomService.setRole(ROOM_ID, OWNER, MEMBER, RoomRole.ADMIN.apiValue()))
+                .assertNext(event -> {
+                    assertThat(event.getRoomId()).isEqualTo(ROOM_ID);
+                    assertThat(event.getTargetInternalId()).isEqualTo(MEMBER);
+                    assertThat(event.getRole()).isEqualTo("admin");
+                    assertThat(event.getEventType()).isEqualTo("ROOM_ROLE_UPDATED");
+                })
+                .verifyComplete();
+
+        verify(roomRolesRepository).setRole(ROOM_ID, MEMBER, RoomRole.ADMIN.apiValue());
+    }
+
+    @Test
+    void setRole_whenDemoteToMember_removesOverlay() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+        when(roomMembersRepository.isMember(ROOM_ID, ADMIN)).thenReturn(Mono.just(true));
+        when(roomRolesRepository.remove(ROOM_ID, ADMIN)).thenReturn(Mono.just(1L));
+
+        StepVerifier.create(roomService.setRole(ROOM_ID, OWNER, ADMIN, RoomRole.MEMBER.apiValue()))
+                .assertNext(event -> assertThat(event.getRole()).isEqualTo("member"))
+                .verifyComplete();
+
+        verify(roomRolesRepository).remove(ROOM_ID, ADMIN);
+    }
+
+    @Test
+    void kickChain_whenSelfKick_errorsBeforeCleanup() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+        AtomicBoolean cleaned = new AtomicBoolean();
+
+        StepVerifier.create(
+                        roomService.requireAdminOrOwner(ROOM_ID, OWNER)
+                                .flatMap(room -> roomService.validateModerationTarget(room, OWNER, OWNER)
+                                        .then(Mono.defer(() -> Mono.fromRunnable(() -> cleaned.set(true))))))
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "CANNOT_KICK_SELF".equals(error.getMessage()))
+                .verify();
+
+        assertThat(cleaned.get()).isFalse();
+    }
+
+    @Test
+    void kickChain_whenSelfKick_doesNotRunPostValidationStep() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(roomOwnedBy(OWNER)));
+        AtomicBoolean cleaned = new AtomicBoolean();
+
+        roomService.requireAdminOrOwner(ROOM_ID, OWNER)
+                .flatMap(room -> roomService.validateModerationTarget(room, OWNER, OWNER)
+                        .then(Mono.fromRunnable(() -> cleaned.set(true))))
+                .subscribe(v -> { }, e -> { });
+
+        assertThat(cleaned).isFalse();
+    }
+
+    @Test
+    void validateModerationTarget_whenSelfKick_fails() {
+        StepVerifier.create(roomService.validateModerationTarget(roomOwnedBy(OWNER), OWNER, OWNER))
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "CANNOT_KICK_SELF".equals(error.getMessage()))
+                .verify();
+    }
+
+    private static final String OTHER_ADMIN = InternalIds.forTelegramId(4L);
+
+    @Test
+    void validateModerationTarget_whenAdminTargetsMember_succeeds() {
+        Room room = roomOwnedBy(OWNER);
+        when(roomRolesRepository.getStoredRole(ROOM_ID, ADMIN)).thenReturn(Mono.just("admin"));
+        when(roomRolesRepository.getStoredRole(ROOM_ID, MEMBER)).thenReturn(Mono.empty());
+        when(roomMembersRepository.isMember(ROOM_ID, MEMBER)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(roomService.validateModerationTarget(room, ADMIN, MEMBER))
+                .verifyComplete();
+    }
+
+    @Test
+    void validateModerationTarget_whenAdminTargetsAdmin_fails() {
+        Room room = roomOwnedBy(OWNER);
+        when(roomRolesRepository.getStoredRole(ROOM_ID, ADMIN)).thenReturn(Mono.just("admin"));
+        when(roomRolesRepository.getStoredRole(ROOM_ID, OTHER_ADMIN)).thenReturn(Mono.just("admin"));
+
+        StepVerifier.create(roomService.validateModerationTarget(room, ADMIN, OTHER_ADMIN))
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "CANNOT_KICK_ADMIN".equals(error.getMessage()))
                 .verify();
     }
 

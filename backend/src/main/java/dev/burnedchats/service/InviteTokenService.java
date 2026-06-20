@@ -36,13 +36,14 @@ public class InviteTokenService {
 
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomRepository roomRepository;
+    private final RoomService roomService;
     private final TelegramProperties telegramProperties;
 
     /**
      * Generate a new invite token for the given room, only if the requester is the owner.
      *
      * @param roomId               the room UUID
-     * @param requesterInternalId  internal id of the user requesting the link (must be owner)
+     * @param requesterInternalId  internal id of the user requesting the link (must be owner or admin)
      * @return Mono with the invite URL, or error if not owner / room not found
      */
     public Mono<String> generateInviteLink(String roomId, String requesterInternalId) {
@@ -53,7 +54,7 @@ public class InviteTokenService {
      * Generate a new invite token with optional lifetime and use limit.
      *
      * @param roomId               the room UUID
-     * @param requesterInternalId  internal id of the user requesting the link (must be owner)
+     * @param requesterInternalId  internal id of the user requesting the link (must be owner or admin)
      * @param expiresInSeconds     optional TTL from now; defaults to {@link InviteToken#DEFAULT_TTL_DAYS} days
      * @param maxUses              optional use cap; {@code null} or {@code <= 0} means unlimited
      */
@@ -63,13 +64,8 @@ public class InviteTokenService {
                                            @Nullable Integer maxUses) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (room.getOwnerInternalId() == null
-                            || !room.getOwnerInternalId().equals(requesterInternalId)) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return saveInviteToken(roomId, room.getOwnerTgId(), expiresInSeconds, maxUses);
-                })
+                .flatMap(room -> roomService.requireAdminOrOwner(room, requesterInternalId)
+                        .flatMap(authorized -> saveInviteToken(roomId, room.getOwnerTgId(), expiresInSeconds, maxUses)))
                 .doOnSuccess(url -> LOG.info("Invite link generated for room={} by internalId={}",
                         roomId, requesterInternalId))
                 .doOnError(e -> LOG.warn("Failed to generate invite link for room={}: {}", roomId, e.getMessage()));
@@ -98,20 +94,15 @@ public class InviteTokenService {
     public Mono<Void> revokeInvite(String roomId, String token, String requesterInternalId) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (room.getOwnerInternalId() == null
-                            || !room.getOwnerInternalId().equals(requesterInternalId)) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return inviteTokenRepository.findByToken(token)
+                .flatMap(room -> roomService.requireAdminOrOwner(room, requesterInternalId)
+                        .flatMap(authorized -> inviteTokenRepository.findByToken(token)
                             .switchIfEmpty(Mono.error(new IllegalArgumentException("INVALID_TOKEN")))
                             .flatMap(stored -> {
                                 if (!roomId.equals(stored.getRoomId())) {
                                     return Mono.error(new IllegalArgumentException("INVALID_TOKEN"));
                                 }
                                 return inviteTokenRepository.deleteTokenAndIndex(token, roomId);
-                            });
-                })
+                            })))
                 .doOnSuccess(v -> LOG.info("Invite token revoked for room={} by internalId={}", roomId,
                         requesterInternalId));
     }
@@ -122,16 +113,11 @@ public class InviteTokenService {
     public Mono<RoomInvitesEvent> getInvites(String roomId, String requesterInternalId) {
         return roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
-                .flatMap(room -> {
-                    if (room.getOwnerInternalId() == null
-                            || !room.getOwnerInternalId().equals(requesterInternalId)) {
-                        return Mono.error(new SecurityException("NOT_OWNER"));
-                    }
-                    return inviteTokenRepository.findAllByRoomId(roomId)
-                            .map(this::toInviteInfo)
-                            .collectList()
-                            .map(invites -> RoomInvitesEvent.success(roomId, invites));
-                });
+                .flatMap(room -> roomService.requireAdminOrOwner(room, requesterInternalId)
+                        .flatMap(authorized -> inviteTokenRepository.findAllByRoomId(roomId)
+                                .map(this::toInviteInfo)
+                                .collectList()
+                                .map(invites -> RoomInvitesEvent.success(roomId, invites))));
     }
 
     private Mono<String> saveInviteToken(String roomId,

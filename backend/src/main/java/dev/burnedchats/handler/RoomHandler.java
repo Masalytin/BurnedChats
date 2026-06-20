@@ -7,6 +7,7 @@ import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomModerationEvent;
 import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
+import dev.burnedchats.dto.event.RoomRoleUpdatedEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
@@ -40,6 +41,7 @@ import dev.burnedchats.dto.request.RekeyRequest;
 import dev.burnedchats.dto.request.RequestKeyBundleRequest;
 import dev.burnedchats.dto.request.RoomJoinDecisionRequest;
 import dev.burnedchats.dto.request.SendKeyBundleRequest;
+import dev.burnedchats.dto.request.SetRoleRequest;
 import dev.burnedchats.dto.request.SetRoomNameRequest;
 import dev.burnedchats.dto.request.TransferOwnershipRequest;
 import dev.burnedchats.model.EncryptedKeyBundle;
@@ -814,23 +816,11 @@ public class RoomHandler {
                 roomId, targetInternalId, owner.internalId());
 
         rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
-                .then(Mono.defer(() -> roomService.requireOwner(roomId, owner.internalId())
-                .flatMap(room -> {
-                    if (owner.internalId().equals(targetInternalId)) {
-                        return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
-                    }
-                    if (roomService.isOwner(room, targetInternalId)) {
-                        return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
-                    }
-                    return roomMembersRepository.isMember(roomId, targetInternalId)
-                            .flatMap(isMember -> {
-                                if (!isMember) {
-                                    return Mono.error(new SecurityException("NOT_MEMBER"));
-                                }
-                                return performKickCleanup(roomId, targetInternalId)
-                                        .then(roomMembersRepository.getMembers(roomId).collectList());
-                            });
-                })))
+                .then(Mono.defer(() -> roomService.requireAdminOrOwner(roomId, owner.internalId())
+                        .flatMap(room -> roomService.validateModerationTarget(
+                                        room, owner.internalId(), targetInternalId)
+                                .then(Mono.defer(() -> performKickCleanup(roomId, targetInternalId)))
+                                .then(Mono.defer(() -> roomMembersRepository.getMembers(roomId).collectList())))))
                 .subscribe(
                         remainingMembers -> {
                             sendStompToInternalId(targetInternalId, ROOM_KICKED_DESTINATION,
@@ -1006,7 +996,7 @@ public class RoomHandler {
         LOG.info("UNMUTE_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
                 roomId, targetInternalId, owner.internalId());
 
-        roomService.requireOwner(roomId, owner.internalId())
+        roomService.requireAdminOrOwner(roomId, owner.internalId())
                 .flatMap(room -> roomMutedRepository.remove(roomId, targetInternalId)
                         .flatMap(removed -> {
                             if (removed > 0) {
@@ -1035,13 +1025,38 @@ public class RoomHandler {
         LOG.info("SET_READ_ONLY requested: roomId={}, readOnly={}, ownerInternalId={}",
                 roomId, readOnly, owner.internalId());
 
-        roomService.requireOwner(roomId, owner.internalId())
+        roomService.requireAdminOrOwner(roomId, owner.internalId())
                 .flatMap(room -> roomRepository.updateReadOnly(roomId, readOnly).thenReturn(readOnly))
                 .subscribe(
                         updatedReadOnly -> broadcastRoomModeration(
                                 roomId, RoomModerationEvent.readOnlyChanged(roomId, updatedReadOnly)),
                         error -> LOG.warn("SET_READ_ONLY failed: roomId={}, ownerInternalId={}, error={}",
                                 roomId, owner.internalId(), mapMuteError(error))
+            );
+    }
+
+    @MessageMapping("/room.setRole")
+    public void setRole(@Payload @Valid SetRoleRequest request, Principal principal) {
+        ParticipantContext owner = ParticipantContext.from(principal);
+        if (owner == null) {
+            return;
+        }
+
+        String roomId = request.getRoomId();
+        String targetInternalId = request.getTargetInternalId();
+        LOG.info("SET_ROLE requested: roomId={}, targetInternalId={}, role={}, ownerInternalId={}",
+                roomId, targetInternalId, request.getRole(), owner.internalId());
+
+        roomService.setRole(roomId, owner.internalId(), targetInternalId, request.getRole())
+                .subscribe(
+                        event -> {
+                            messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+                            LOG.info("ROOM_ROLE_UPDATED broadcast: roomId={}, targetInternalId={}, role={}",
+                                    roomId, targetInternalId, event.getRole());
+                        },
+                        error -> LOG.warn(
+                                "SET_ROLE failed: roomId={}, targetInternalId={}, ownerInternalId={}, error={}",
+                                roomId, targetInternalId, owner.internalId(), mapSetRoleError(error))
             );
     }
 
@@ -1144,23 +1159,9 @@ public class RoomHandler {
                 roomId, event.isReadOnly(), event.getMutedAdded(), event.getMutedRemoved());
     }
 
-    private Mono<Void> validateMuteTarget(Room room, String ownerInternalId, String targetInternalId) {
-        return roomService.requireOwner(room, ownerInternalId)
-                .flatMap(authorizedRoom -> {
-                    if (ownerInternalId.equals(targetInternalId)) {
-                        return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
-                    }
-                    if (roomService.isOwner(authorizedRoom, targetInternalId)) {
-                        return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
-                    }
-                    return roomMembersRepository.isMember(authorizedRoom.getId(), targetInternalId)
-                            .flatMap(isMember -> {
-                                if (!isMember) {
-                                    return Mono.error(new SecurityException("NOT_MEMBER"));
-                                }
-                                return Mono.empty();
-                            });
-                });
+    private Mono<Void> validateMuteTarget(Room room, String actorInternalId, String targetInternalId) {
+        return roomService.requireAdminOrOwner(room, actorInternalId)
+                .then(roomService.validateModerationTarget(room, actorInternalId, targetInternalId));
     }
 
     private Mono<Void> performKickCleanup(String roomId, String targetInternalId) {
@@ -1168,6 +1169,7 @@ public class RoomHandler {
                 .then(memberPublicKeyRepository.remove(roomId, targetInternalId))
                 .then(roomJoinRequestRepository.remove(roomId, targetInternalId))
                 .then(roomKeysRepository.removeRecipientAllEpochs(roomId, targetInternalId))
+                .then(roomRolesRepository.remove(roomId, targetInternalId))
                 .then(Mono.fromRunnable(() ->
                         roomTopicSubscriptionService.unsubscribeUserFromRoomTopic(roomId, targetInternalId)))
                 .then();
@@ -1332,6 +1334,19 @@ public class RoomHandler {
         }
         if (root instanceof SecurityException se) {
             return se.getMessage();
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private String mapSetRoleError(Throwable error) {
+        if (error instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (error instanceof IllegalStateException ise) {
+            return ise.getMessage();
+        }
+        if (error instanceof SecurityException) {
+            return "NOT_OWNER";
         }
         return "INTERNAL_ERROR";
     }

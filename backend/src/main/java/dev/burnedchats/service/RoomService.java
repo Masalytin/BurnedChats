@@ -1,6 +1,7 @@
 package dev.burnedchats.service;
 
 import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
+import dev.burnedchats.dto.event.RoomRoleUpdatedEvent;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomRole;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -149,6 +150,87 @@ public class RoomService {
                     }
                     return Mono.error(new SecurityException("NOT_OWNER"));
                 });
+    }
+
+    /**
+     * Validate that {@code actorInternalId} may kick or mute {@code targetInternalId}.
+     *
+     * <p>Owner may act on any member except themselves and the owner record. Admin may act
+     * only on plain members — not on the owner or another admin.
+     */
+    public Mono<Void> validateModerationTarget(Room room, String actorInternalId, String targetInternalId) {
+        if (actorInternalId.equals(targetInternalId)) {
+            return Mono.error(new IllegalStateException("CANNOT_KICK_SELF"));
+        }
+        if (isOwner(room, targetInternalId)) {
+            return Mono.error(new IllegalStateException("CANNOT_KICK_OWNER"));
+        }
+        return roleOf(room, actorInternalId)
+                .zipWith(roleOf(room, targetInternalId))
+                .flatMap(tuple -> {
+                    RoomRole actorRole = tuple.getT1();
+                    RoomRole targetRole = tuple.getT2();
+                    if (actorRole == RoomRole.ADMIN && targetRole == RoomRole.ADMIN) {
+                        return Mono.error(new IllegalStateException("CANNOT_KICK_ADMIN"));
+                    }
+                    return roomMembersRepository.isMember(room.getId(), targetInternalId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return Mono.error(new SecurityException("NOT_MEMBER"));
+                                }
+                                return Mono.empty();
+                            });
+                });
+    }
+
+    /**
+     * Assign or revoke co-admin overlay for a member. Owner-only.
+     *
+     * @param roomId             room UUID
+     * @param ownerInternalId    acting owner internal ID
+     * @param targetInternalId   member whose overlay changes
+     * @param roleValue          {@code admin} or {@code member}
+     * @return Mono with broadcast payload on success
+     */
+    public Mono<RoomRoleUpdatedEvent> setRole(String roomId,
+                                              String ownerInternalId,
+                                              String targetInternalId,
+                                              String roleValue) {
+        RoomRole requestedRole = parseAssignableRole(roleValue);
+        if (requestedRole == null) {
+            return Mono.error(new IllegalArgumentException("INVALID_ROLE"));
+        }
+        return requireOwner(roomId, ownerInternalId)
+                .flatMap(room -> {
+                    if (isOwner(room, targetInternalId)) {
+                        return Mono.error(new IllegalStateException("CANNOT_SET_ROLE_ON_OWNER"));
+                    }
+                    return roomMembersRepository.isMember(roomId, targetInternalId)
+                            .flatMap(isMember -> {
+                                if (!isMember) {
+                                    return Mono.error(new IllegalArgumentException("NOT_MEMBER"));
+                                }
+                                Mono<Void> persist = requestedRole == RoomRole.ADMIN
+                                        ? roomRolesRepository.setRole(
+                                                roomId, targetInternalId, RoomRole.ADMIN.apiValue()).then()
+                                        : roomRolesRepository.remove(roomId, targetInternalId).then();
+                                return persist.thenReturn(RoomRoleUpdatedEvent.builder()
+                                        .roomId(roomId)
+                                        .targetInternalId(targetInternalId)
+                                        .role(requestedRole.apiValue())
+                                        .build());
+                            });
+                });
+    }
+
+    private static RoomRole parseAssignableRole(String roleValue) {
+        if (RoomRole.ADMIN.apiValue().equals(roleValue)) {
+            return RoomRole.ADMIN;
+        }
+        if (RoomRole.MEMBER.apiValue().equals(roleValue)) {
+            return RoomRole.MEMBER;
+        }
+        return null;
     }
 
     /**
