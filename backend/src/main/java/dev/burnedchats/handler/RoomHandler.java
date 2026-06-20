@@ -7,6 +7,7 @@ import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomCreatedEvent;
+import dev.burnedchats.dto.event.RoomKickResultEvent;
 import dev.burnedchats.dto.event.RoomLeftEvent;
 import dev.burnedchats.dto.event.RoomMemberKickedEvent;
 import dev.burnedchats.dto.event.RoomMemberLeftEvent;
@@ -44,8 +45,11 @@ import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
+import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
+import dev.burnedchats.service.RateLimitService;
+import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
 import dev.burnedchats.service.RoomTopicSubscriptionService;
@@ -91,6 +95,7 @@ public class RoomHandler {
     private static final String ROOM_LEFT_DESTINATION = "/queue/room-left";
     private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
     private static final String ROOM_KICKED_DESTINATION = "/queue/room-kicked";
+    private static final String ROOM_KICK_RESULT_DESTINATION = "/queue/room-kick-result";
     private static final String ROOM_MEMBER_REMOVED_DESTINATION = "/queue/room-member-removed";
 
     private final RoomService roomService;
@@ -107,6 +112,7 @@ public class RoomHandler {
     private final InviteTokenRepository inviteTokenRepository;
     private final RoomMessageRepository roomMessageRepository;
     private final RoomTopicSubscriptionService roomTopicSubscriptionService;
+    private final RateLimitService rateLimitService;
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
@@ -710,7 +716,8 @@ public class RoomHandler {
         LOG.info("KICK_MEMBER requested: roomId={}, targetInternalId={}, ownerInternalId={}",
                 roomId, targetInternalId, owner.internalId());
 
-        roomRepository.findById(roomId)
+        rateLimitService.enforceRateLimit(owner.internalId(), RateLimitType.SESSION_ACTION)
+                .then(Mono.defer(() -> roomRepository.findById(roomId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("ROOM_NOT_FOUND")))
                 .flatMap(room -> {
                     if (!isRoomOwner(room, owner.internalId())) {
@@ -730,7 +737,7 @@ public class RoomHandler {
                                 return performKickCleanup(roomId, targetInternalId)
                                         .then(roomMembersRepository.getMembers(roomId).collectList());
                             });
-                })
+                })))
                 .subscribe(
                         remainingMembers -> {
                             sendStompToInternalId(targetInternalId, ROOM_KICKED_DESTINATION,
@@ -743,16 +750,17 @@ public class RoomHandler {
                                             memberInternalId,
                                             ROOM_MEMBER_REMOVED_DESTINATION,
                                             removedEvent));
+                            sendKickResult(owner.internalId(),
+                                    RoomKickResultEvent.success(roomId, targetInternalId));
                             LOG.info("KICK_MEMBER processed: roomId={}, targetInternalId={}, remainingMembers={}",
                                     roomId, targetInternalId, remainingMembers.size());
                         },
                         error -> {
-                            String code = error instanceof IllegalArgumentException iae ? iae.getMessage()
-                                    : error instanceof IllegalStateException ise ? ise.getMessage()
-                                    : error instanceof SecurityException se ? se.getMessage()
-                                    : "INTERNAL_ERROR";
+                            String code = mapKickError(error);
                             LOG.warn("KICK_MEMBER failed: roomId={}, targetInternalId={}, ownerInternalId={}, error={}",
                                     roomId, targetInternalId, owner.internalId(), code);
+                            sendKickResult(owner.internalId(),
+                                    RoomKickResultEvent.failure(roomId, targetInternalId, code));
                         }
             );
     }
@@ -914,6 +922,30 @@ public class RoomHandler {
         }
         if (error instanceof IllegalStateException ise) {
             return ise.getMessage();
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    private void sendKickResult(String ownerInternalId, RoomKickResultEvent event) {
+        sendStompToInternalId(ownerInternalId, ROOM_KICK_RESULT_DESTINATION, event);
+    }
+
+    private String mapKickError(Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        if (root instanceof RateLimitException) {
+            return "RATE_LIMITED";
+        }
+        if (root instanceof IllegalArgumentException iae) {
+            return iae.getMessage();
+        }
+        if (root instanceof IllegalStateException ise) {
+            return ise.getMessage();
+        }
+        if (root instanceof SecurityException se) {
+            return se.getMessage();
         }
         return "INTERNAL_ERROR";
     }

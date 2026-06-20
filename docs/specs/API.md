@@ -1608,7 +1608,27 @@ Guard дополняет, но не заменяет обязательный re
 | `roomId` | string | Да | UUID комнаты |
 | `targetInternalId` | string | Да | Internal ID участника для удаления |
 
-**Ошибки (логируются, STOMP-ответ не отправляется):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`
+**Ответ инициатору (IMP-ROOM-23):** `/user/queue/room-kick-result` (`RoomKickResultEvent`) — ровно одно
+событие на каждый запрос kick (success или failure).
+
+**Success:**
+```json
+{
+  "success": true,
+  "roomId": "uuid-v4",
+  "targetInternalId": "internal-id"
+}
+```
+
+**Failure:**
+```json
+{
+  "success": false,
+  "roomId": "uuid-v4",
+  "targetInternalId": "internal-id",
+  "error": "NOT_OWNER | CANNOT_KICK_SELF | CANNOT_KICK_OWNER | NOT_MEMBER | ROOM_NOT_FOUND | RATE_LIMITED | INTERNAL_ERROR"
+}
+```
 
 **Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`; **force-unsubscribe** с `/topic/room/{roomId}` для всех STOMP-сессий жертвы (IMP-ROOM-25).
 
@@ -1618,6 +1638,7 @@ Guard дополняет, но не заменяет обязательный re
 |---------|-------------|------------|------|
 | `ROOM_KICKED` | `/user/queue/room-kicked` | Жертва | `roomId`, `byInternalId` |
 | `ROOM_MEMBER_REMOVED` | `/user/queue/room-member-removed` | Каждый оставшийся член (включая owner) | `roomId`, `removedInternalId` |
+| `ROOM_KICK_RESULT` | `/user/queue/room-kick-result` | Инициатор (owner) | `success`, `roomId`, `targetInternalId`, `error?` |
 
 Владелец **обязан** выполнить rekey после `ROOM_MEMBER_REMOVED` (см. [SECURITY.md](./SECURITY.md) — forward secrecy при kick).
 

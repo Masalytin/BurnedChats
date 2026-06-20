@@ -1,8 +1,10 @@
 package dev.burnedchats.handler;
 
+import dev.burnedchats.dto.event.RoomKickResultEvent;
 import dev.burnedchats.dto.event.RoomMemberKickedEvent;
 import dev.burnedchats.dto.event.RoomMemberRemovedEvent;
 import dev.burnedchats.dto.request.KickMemberRequest;
+import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.repository.InviteTokenRepository;
@@ -16,10 +18,13 @@ import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.InviteTokenService;
+import dev.burnedchats.service.RateLimitService;
+import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
 import dev.burnedchats.service.RoomTopicSubscriptionService;
 import dev.burnedchats.util.InternalIds;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,6 +52,7 @@ class RoomHandlerKickTest {
     private static final String OWNER_INTERNAL = InternalIds.forTelegramId(1L);
     private static final String TARGET_INTERNAL = InternalIds.forTelegramId(2L);
     private static final String OTHER_MEMBER = InternalIds.forTelegramId(3L);
+    private static final String KICK_RESULT_DESTINATION = "/queue/room-kick-result";
 
     @Mock private RoomService roomService;
     @Mock private InviteTokenService inviteTokenService;
@@ -61,12 +68,19 @@ class RoomHandlerKickTest {
     @Mock private InviteTokenRepository inviteTokenRepository;
     @Mock private RoomMessageRepository roomMessageRepository;
     @Mock private RoomTopicSubscriptionService roomTopicSubscriptionService;
+    @Mock private RateLimitService rateLimitService;
 
     @InjectMocks
     private RoomHandler roomHandler;
 
+    @BeforeEach
+    void allowRateLimit() {
+        when(rateLimitService.enforceRateLimit(anyString(), eq(RateLimitType.SESSION_ACTION)))
+                .thenReturn(Mono.empty());
+    }
+
     @Test
-    void kickMember_whenNotOwner_doesNotPerformCleanup() {
+    void kickMember_whenNotOwner_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal caller = principalFor(InternalIds.forTelegramId(99L));
         when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
@@ -74,11 +88,13 @@ class RoomHandlerKickTest {
         roomHandler.kickMember(request, caller);
 
         verify(roomMembersRepository, never()).remove(anyString(), anyString());
-        verify(stompUserMessenger, never()).convertAndSendToInternalId(any(), any(), any());
+        verifyKickResult(InternalIds.forTelegramId(99L), TARGET_INTERNAL, false, "NOT_OWNER");
+        verify(stompUserMessenger, never()).convertAndSendToInternalId(
+                eq(TARGET_INTERNAL), eq("/queue/room-kicked"), any());
     }
 
     @Test
-    void kickMember_whenKickSelf_doesNotPerformCleanup() {
+    void kickMember_whenKickSelf_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(OWNER_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
         when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
@@ -86,11 +102,25 @@ class RoomHandlerKickTest {
         roomHandler.kickMember(request, owner);
 
         verify(roomMembersRepository, never()).remove(anyString(), anyString());
-        verify(stompUserMessenger, never()).convertAndSendToInternalId(any(), any(), any());
+        verifyKickResult(OWNER_INTERNAL, OWNER_INTERNAL, false, "CANNOT_KICK_SELF");
+        verify(stompUserMessenger, never()).convertAndSendToInternalId(
+                eq(TARGET_INTERNAL), eq("/queue/room-kicked"), any());
     }
 
     @Test
-    void kickMember_whenMemberTriesToKickOwner_doesNotPerformCleanup() {
+    void kickMember_whenKickRoomOwnerId_sendsCannotKickSelfWithoutCleanup() {
+        KickMemberRequest request = kickRequest(OWNER_INTERNAL);
+        TelegramPrincipal owner = ownerPrincipal();
+        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+
+        roomHandler.kickMember(request, owner);
+
+        verify(roomMembersRepository, never()).remove(anyString(), anyString());
+        verifyKickResult(OWNER_INTERNAL, OWNER_INTERNAL, false, "CANNOT_KICK_SELF");
+    }
+
+    @Test
+    void kickMember_whenMemberTriesToKickOwner_sendsNotOwnerWithoutCleanup() {
         KickMemberRequest request = kickRequest(OWNER_INTERNAL);
         TelegramPrincipal member = principalFor(TARGET_INTERNAL);
         when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
@@ -98,10 +128,25 @@ class RoomHandlerKickTest {
         roomHandler.kickMember(request, member);
 
         verify(roomMembersRepository, never()).remove(anyString(), anyString());
+        verifyKickResult(TARGET_INTERNAL, OWNER_INTERNAL, false, "NOT_OWNER");
     }
 
     @Test
-    void kickMember_whenTargetNotMember_doesNotPerformCleanup() {
+    void kickMember_whenRoomNotFound_sendsFailureAckWithoutCleanup() {
+        KickMemberRequest request = kickRequest(TARGET_INTERNAL);
+        TelegramPrincipal owner = ownerPrincipal();
+        when(roomRepository.findById(ROOM)).thenReturn(Mono.empty());
+
+        roomHandler.kickMember(request, owner);
+
+        verify(roomMembersRepository, never()).remove(anyString(), anyString());
+        verifyKickResult(OWNER_INTERNAL, TARGET_INTERNAL, false, "ROOM_NOT_FOUND");
+        verify(stompUserMessenger, never()).convertAndSendToInternalId(
+                eq(TARGET_INTERNAL), eq("/queue/room-kicked"), any());
+    }
+
+    @Test
+    void kickMember_whenTargetNotMember_sendsFailureAckWithoutCleanup() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
         when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
@@ -110,11 +155,27 @@ class RoomHandlerKickTest {
         roomHandler.kickMember(request, owner);
 
         verify(roomMembersRepository, never()).remove(eq(ROOM), eq(TARGET_INTERNAL));
-        verify(stompUserMessenger, never()).convertAndSendToInternalId(any(), any(), any());
+        verifyKickResult(OWNER_INTERNAL, TARGET_INTERNAL, false, "NOT_MEMBER");
+        verify(stompUserMessenger, never()).convertAndSendToInternalId(
+                eq(TARGET_INTERNAL), eq("/queue/room-kicked"), any());
     }
 
     @Test
-    void kickMember_whenSuccess_performsCleanupAndSendsEvents() {
+    void kickMember_whenRateLimited_sendsFailureAckWithoutCleanup() {
+        KickMemberRequest request = kickRequest(TARGET_INTERNAL);
+        TelegramPrincipal owner = ownerPrincipal();
+        when(rateLimitService.enforceRateLimit(OWNER_INTERNAL, RateLimitType.SESSION_ACTION))
+                .thenReturn(Mono.error(new RateLimitException(Duration.ofSeconds(30))));
+
+        roomHandler.kickMember(request, owner);
+
+        verify(roomRepository, never()).findById(anyString());
+        verify(roomMembersRepository, never()).remove(anyString(), anyString());
+        verifyKickResult(OWNER_INTERNAL, TARGET_INTERNAL, false, "RATE_LIMITED");
+    }
+
+    @Test
+    void kickMember_whenSuccess_performsCleanupSendsEventsAndSuccessAck() {
         KickMemberRequest request = kickRequest(TARGET_INTERNAL);
         TelegramPrincipal owner = ownerPrincipal();
         when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
@@ -149,6 +210,25 @@ class RoomHandlerKickTest {
                 eq(OTHER_MEMBER), eq("/queue/room-member-removed"), any(RoomMemberRemovedEvent.class));
         assertThat(removedCaptor.getValue().getRoomId()).isEqualTo(ROOM);
         assertThat(removedCaptor.getValue().getRemovedInternalId()).isEqualTo(TARGET_INTERNAL);
+
+        verifyKickResult(OWNER_INTERNAL, TARGET_INTERNAL, true, null);
+    }
+
+    private void verifyKickResult(
+            String ownerInternalId, String expectedTargetInternalId, boolean success, String errorCode) {
+        ArgumentCaptor<RoomKickResultEvent> resultCaptor =
+                ArgumentCaptor.forClass(RoomKickResultEvent.class);
+        verify(stompUserMessenger).convertAndSendToInternalId(
+                eq(ownerInternalId), eq(KICK_RESULT_DESTINATION), resultCaptor.capture());
+        RoomKickResultEvent result = resultCaptor.getValue();
+        assertThat(result.isSuccess()).isEqualTo(success);
+        assertThat(result.getRoomId()).isEqualTo(ROOM);
+        assertThat(result.getTargetInternalId()).isEqualTo(expectedTargetInternalId);
+        if (success) {
+            assertThat(result.getError()).isNull();
+        } else {
+            assertThat(result.getError()).isEqualTo(errorCode);
+        }
     }
 
     private static KickMemberRequest kickRequest(String targetInternalId) {
