@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Client, IMessage, StompSubscription, IFrame } from '@stomp/stompjs';
 import type { AuthCredentials } from '../auth';
 
@@ -25,13 +25,18 @@ export type WebSocketErrorType =
   | 'auth_expired'    // Authentication data expired
   | 'connection_error' // General connection error
   | 'timeout'         // Connection timeout
+  | 'room_subscribe_denied' // Room topic SUBSCRIBE rejected (NOT_MEMBER / SUBSCRIBE_DENIED)
   | 'unknown';        // Unknown error
 
-interface WebSocketError {
+export interface WebSocketError {
   type: WebSocketErrorType;
   message: string;
   recoverable: boolean;
+  /** Present when {@link WebSocketErrorType.room_subscribe_denied} */
+  roomId?: string;
 }
+
+const ROOM_TOPIC_PREFIX = '/topic/room/';
 
 /** Stored subscription for reconnect restoration */
 interface StoredSubscription {
@@ -114,11 +119,85 @@ const PRESENCE_HEARTBEAT_INTERVAL = 20000;
 const PRESENCE_HEARTBEAT_DESTINATION = '/app/heartbeat';
 
 /**
+ * Extract roomId from STOMP ERROR frame for room topic subscribe denial (IMP-ROOM-22/26).
+ */
+function extractRoomIdFromSubscribeError(frame: IFrame, message: string): string | undefined {
+  const fromMessage = message.match(/subscribe denied for room\s+(\S+)/i)?.[1];
+  if (fromMessage) {
+    return fromMessage;
+  }
+
+  const subscriptionHeader = frame.headers?.subscription;
+  if (typeof subscriptionHeader === 'string') {
+    const fromSubscription = subscriptionHeader.match(/\/topic\/room\/([^/\s]+)/)?.[1];
+    if (fromSubscription) {
+      return fromSubscription;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Detect room topic SUBSCRIBE denial (NOT_MEMBER / SUBSCRIBE_DENIED from IMP-ROOM-22).
+ */
+function parseRoomSubscribeDeniedError(frame: IFrame, message: string): WebSocketError | null {
+  const upperMessage = message.toUpperCase();
+  const isNotMember = upperMessage.includes('NOT_MEMBER');
+  const isSubscribeDenied = upperMessage.includes('SUBSCRIBE_DENIED');
+
+  if (!isNotMember && !isSubscribeDenied) {
+    return null;
+  }
+
+  // NOT_MEMBER appears in user-queue JSON acks too; STOMP ERROR from subscribe guard
+  // always includes NOT_MEMBER or SUBSCRIBE_DENIED in the ERROR frame message header.
+  return {
+    type: 'room_subscribe_denied',
+    message,
+    recoverable: true,
+    roomId: extractRoomIdFromSubscribeError(frame, message),
+  };
+}
+
+/**
+ * Drop stored/active room topic subscriptions so reconnect does not retry denied SUBSCRIBE.
+ */
+function clearRoomTopicSubscriptions(
+  subscriptionsRef: MutableRefObject<Map<string, StompSubscription>>,
+  storedSubscriptionsRef: MutableRefObject<Map<string, StoredSubscription>>,
+  roomId?: string,
+): void {
+  const targets = roomId
+    ? [`${ROOM_TOPIC_PREFIX}${roomId}`]
+    : [...storedSubscriptionsRef.current.keys()].filter((dest) => dest.startsWith(ROOM_TOPIC_PREFIX));
+
+  for (const destination of targets) {
+    storedSubscriptionsRef.current.delete(destination);
+    const subscription = subscriptionsRef.current.get(destination);
+    if (subscription) {
+      try {
+        subscription.unsubscribe();
+      } catch {
+        // Ignore unsubscribe errors
+      }
+      subscriptionsRef.current.delete(destination);
+    }
+    debugLog('info', `Cleared room topic subscription after NOT_MEMBER: ${destination}`);
+  }
+}
+
+/**
  * Parse STOMP error frame to determine error type.
  */
 function parseStompError(frame: IFrame): WebSocketError {
   const message = frame.headers?.message || frame.body || 'Unknown error';
   const lowerMessage = message.toLowerCase();
+
+  const roomSubscribeDenied = parseRoomSubscribeDeniedError(frame, message);
+  if (roomSubscribeDenied) {
+    return roomSubscribeDenied;
+  }
 
   // Check for authentication errors
   if (lowerMessage.includes('auth') || 
@@ -329,6 +408,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           body: frame.body,
         });
         const wsError = parseStompError(frame);
+        if (wsError.type === 'room_subscribe_denied') {
+          clearRoomTopicSubscriptions(subscriptionsRef, storedSubscriptionsRef, wsError.roomId);
+        }
         handleError(wsError);
         isConnectingRef.current = false;
         setIsConnecting(false);

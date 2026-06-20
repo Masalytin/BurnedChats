@@ -988,6 +988,8 @@
       "offlineMessage": "You no longer have access to this room"
     },
 
+    "subscribeDenied": "You no longer have access to this room",
+
     "burn": {
       "title": "Burn this room?",
       "description": "This will permanently destroy the room and all its messages.",

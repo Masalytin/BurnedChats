@@ -175,6 +175,9 @@ function AppContent() {
     },
     onError: (error) => {
       debugLog('error', 'WebSocket error', error);
+      if (error.type === 'room_subscribe_denied') {
+        return;
+      }
       if (error.recoverable) {
         toast.warning('Connection lost. Reconnecting...', { duration: 3000 });
       } else {
@@ -1868,6 +1871,45 @@ function AppContent() {
       debugLog('info', `[RoomChat] Evicted from room ${roomId} (not in myRooms after refresh)`);
     }
   }, [myRooms, isLoadingRooms, activeRoomChat, currentView, notificationOccurred, toast, t]);
+
+  // STOMP ERROR NOT_MEMBER on room topic subscribe — reconnect / race before ROOM_KICKED (IMP-ROOM-26)
+  const lastRoomSubscribeDeniedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!wsError || wsError.type !== 'room_subscribe_denied') return;
+
+    const errorKey = `${wsError.type}:${wsError.roomId ?? 'unknown'}:${wsError.message}`;
+    if (lastRoomSubscribeDeniedRef.current === errorKey) return;
+    lastRoomSubscribeDeniedRef.current = errorKey;
+
+    const deps = roomLeftDepsRef.current;
+    const roomId =
+      wsError.roomId ??
+      ((deps.currentView === 'room-chat' || deps.currentView === 'room-manage')
+        ? deps.activeRoomChat?.roomId
+        : undefined);
+
+    if (!roomId) {
+      debugLog('warn', '[RoomChat] NOT_MEMBER subscribe without roomId — skipped evict');
+      return;
+    }
+
+    cancelAll();
+    burnGroupKey(roomId);
+
+    const isViewingRoom =
+      (deps.currentView === 'room-chat' || deps.currentView === 'room-manage') &&
+      deps.activeRoomChat?.roomId === roomId;
+
+    if (isViewingRoom) {
+      setActiveRoomChat(null);
+      setCurrentView('home');
+    }
+
+    deps.fetchRooms();
+    deps.notificationOccurred('warning');
+    deps.toast.warning(t('room.subscribeDenied'), { title: t('room.kicked.title') });
+    debugLog('info', `[RoomChat] Evicted from room ${roomId} (NOT_MEMBER on subscribe)`);
+  }, [wsError, t]);
 
   // -----------------------------------------------------------------------
   // FIX-SYNC-3: Re-sync offline messages when Mini App returns from background
