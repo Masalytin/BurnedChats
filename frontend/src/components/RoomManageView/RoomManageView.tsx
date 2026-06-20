@@ -8,9 +8,11 @@ import {
   Link,
   Settings,
   User,
+  UserMinus,
   Users,
 } from 'lucide-react';
 import { Button } from '../Button';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { CopyIcon } from '../../icons';
 import type { RoomMember } from '../../types';
 import './RoomManageView.css';
@@ -119,6 +121,8 @@ interface RoomManageViewProps {
   onViewRequests: () => void;
   onFetchMembers: () => void;
   onBurnRoom: () => void;
+  /** Owner removes a member (IMP-ROOM-04) */
+  onKickMember?: (targetInternalId: string) => void;
 }
 
 // ============================================
@@ -148,12 +152,14 @@ export const RoomManageView = memo(function RoomManageView({
   onViewRequests,
   onFetchMembers,
   onBurnRoom,
+  onKickMember,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
   const [copied, setCopied] = useState(false);
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
+  const [kickTarget, setKickTarget] = useState<{ internalId: string; displayName: string } | null>(null);
 
   // Auto-fetch members when section is expanded
   useEffect(() => {
@@ -184,6 +190,23 @@ export const RoomManageView = memo(function RoomManageView({
 
   const handleBurnCancel = useCallback(() => {
     setShowBurnConfirm(false);
+  }, []);
+
+  const handleKickClick = useCallback((member: RoomMember) => {
+    const displayName = member.displayName?.trim()
+      || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
+    setKickTarget({ internalId: member.internalId, displayName });
+  }, [t]);
+
+  const handleKickConfirm = useCallback(() => {
+    if (kickTarget && onKickMember) {
+      onKickMember(kickTarget.internalId);
+    }
+    setKickTarget(null);
+  }, [kickTarget, onKickMember]);
+
+  const handleKickCancel = useCallback(() => {
+    setKickTarget(null);
   }, []);
 
   const roomShortId = roomId.length > 12 ? `${roomId.slice(0, 8)}…` : roomId;
@@ -298,13 +321,31 @@ export const RoomManageView = memo(function RoomManageView({
                 <p className="room-manage-members__loading">{t('common.loading')}</p>
               ) : members && members.length > 0 ? (
                 <ul className="room-manage-members__list">
-                  {members.map(member => (
-                    <RoomMemberRow
-                      key={member.internalId}
-                      member={member}
-                      isYou={member.internalId === currentUserInternalId}
-                    />
-                  ))}
+                  {members.map(member => {
+                    const isYou = member.internalId === currentUserInternalId;
+                    const canKick = onKickMember != null
+                      && member.role !== 'owner'
+                      && !isYou;
+
+                    return (
+                      <RoomMemberRow
+                        key={member.internalId}
+                        member={member}
+                        isYou={isYou}
+                        actions={canKick ? (
+                          <button
+                            type="button"
+                            className="room-member-row__kick-btn"
+                            onClick={() => handleKickClick(member)}
+                            aria-label={t('room.manage.kickButton', { name: member.displayName?.trim() || member.internalId })}
+                          >
+                            <UserMinus size={16} aria-hidden="true" />
+                            <span className="room-member-row__kick-label">{t('room.manage.kickButton')}</span>
+                          </button>
+                        ) : undefined}
+                      />
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="room-manage-members__empty">{t('room.manage.membersEmpty')}</p>
@@ -326,6 +367,20 @@ export const RoomManageView = memo(function RoomManageView({
           </Button>
         </section>
       </div>
+
+      {kickTarget && (
+        <ConfirmDialog
+          isOpen
+          onClose={handleKickCancel}
+          onConfirm={handleKickConfirm}
+          title={t('room.manage.kickConfirmTitle', { name: kickTarget.displayName })}
+          description={t('room.manage.kickConfirmDescription')}
+          warning={t('room.manage.kickConfirmWarning')}
+          confirmLabel={t('room.manage.kickConfirmButton')}
+          variant="destructive"
+          iconType="delete"
+        />
+      )}
 
       {/* Burn confirmation overlay */}
       {showBurnConfirm && (

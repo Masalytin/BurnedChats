@@ -974,7 +974,18 @@
       "roleOwner": "Owner",
       "memberFallback": "{{id}}",
       "burnConfirmTitle": "Burn this room?",
-      "burnConfirmText": "This will permanently destroy the room and all its messages for everyone. This cannot be undone."
+      "burnConfirmText": "This will permanently destroy the room and all its messages for everyone. This cannot be undone.",
+      "kickButton": "Remove",
+      "kickConfirmTitle": "Remove {{name}} from the room?",
+      "kickConfirmDescription": "They will immediately lose access to this room and its messages.",
+      "kickConfirmWarning": "The room encryption key will be rotated after removal.",
+      "kickConfirmButton": "Remove from room"
+    },
+
+    "kicked": {
+      "title": "Removed from room",
+      "message": "You were removed from the room",
+      "offlineMessage": "You no longer have access to this room"
     },
 
     "burn": {

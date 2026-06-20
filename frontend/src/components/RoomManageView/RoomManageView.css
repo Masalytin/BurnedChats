@@ -376,6 +376,55 @@
   min-height: var(--bc-touch-target);
 }
 
+.room-member-row__kick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-2xs);
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-error);
+  border-radius: var(--bc-radius-sm);
+  background: transparent;
+  color: var(--bc-error);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast);
+}
+
+.room-member-row__kick-btn:hover {
+  background: color-mix(in srgb, var(--bc-error) 12%, transparent);
+}
+
+.room-member-row__kick-btn:active {
+  transform: scale(0.97);
+}
+
+.room-member-row__kick-btn:focus-visible {
+  outline: 2px solid var(--bc-error);
+  outline-offset: 2px;
+}
+
+.room-member-row__kick-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .room-member-row__kick-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* ============================================
  * Burn Button
  * ============================================ */

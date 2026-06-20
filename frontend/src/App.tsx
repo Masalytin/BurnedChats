@@ -26,6 +26,7 @@ import { useRekeyRoom } from './hooks/useRekeyRoom';
 import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useRoomMembers } from './hooks/useRoomMembers';
+import { useKickMember } from './hooks/useKickMember';
 import { Layout } from './components/Layout/Layout';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -566,6 +567,11 @@ function AppContent() {
     isConnected,
     subscribe,
     unsubscribe,
+    publish,
+  });
+
+  const { kick: kickMember } = useKickMember({
+    isConnected,
     publish,
   });
 
@@ -1573,6 +1579,17 @@ function AppContent() {
     debugLog('info', `[RoomChat] LEAVE_ROOM sent for ${activeRoomChat.roomId}`);
   }, [activeRoomChat, isConnected, publish]);
 
+  // Owner removes a member from manage view (IMP-ROOM-04)
+  const handleKickMember = useCallback((targetInternalId: string) => {
+    if (!activeRoomChat || !isConnected) return;
+    kickMember(activeRoomChat.roomId, targetInternalId);
+    debugLog('info', `[RoomManage] KICK_MEMBER sent for ${targetInternalId} in ${activeRoomChat.roomId}`);
+    // Refresh member list after a short delay (backend has no STOMP ack for owner)
+    window.setTimeout(() => {
+      fetchMembers(activeRoomChat.roomId);
+    }, 400);
+  }, [activeRoomChat, isConnected, kickMember, fetchMembers]);
+
   // Refs for ROOM_BURNED handler dependencies — avoids re-subscription on state changes
   const roomBurnedDepsRef = useRef({
     currentView,
@@ -1639,13 +1656,14 @@ function AppContent() {
     };
   }, [isConnected, subscribe, unsubscribe, t]);
 
-  // Refs for ROOM_LEFT / ROOM_MEMBER_LEFT handler dependencies
+  // Refs for ROOM_LEFT / ROOM_MEMBER_LEFT / kick handler dependencies
   const roomLeftDepsRef = useRef({
     currentView,
     activeRoomChat,
     myRooms,
     notificationOccurred,
     toast,
+    fetchRooms,
   });
   useEffect(() => {
     roomLeftDepsRef.current = {
@@ -1654,6 +1672,7 @@ function AppContent() {
       myRooms,
       notificationOccurred,
       toast,
+      fetchRooms,
     };
   });
 
@@ -1741,6 +1760,114 @@ function AppContent() {
       unsubscribe('/user/queue/room-member-left');
     };
   }, [isConnected, subscribe, unsubscribe]);
+
+  // Subscribe to ROOM_MEMBER_REMOVED — owner must rekey after kick (IMP-ROOM-03/04)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRoomMemberRemoved = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body) as {
+          roomId?: string;
+          removedInternalId?: string;
+        };
+        const deps = roomLeftDepsRef.current;
+
+        if (!data.roomId) return;
+
+        const roomId = data.roomId;
+        const isOwner = deps.myRooms.find(r => r.roomId === roomId)?.role === 'owner';
+
+        debugLog(
+          'info',
+          `[RoomChat] ROOM_MEMBER_REMOVED: room=${roomId}, removedInternalId=${data.removedInternalId}, isOwner=${isOwner}`,
+        );
+
+        if (isOwner) {
+          rekeyRoomRef.current(roomId);
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse ROOM_MEMBER_REMOVED event:', err);
+      }
+    };
+
+    subscribe('/user/queue/room-member-removed', handleRoomMemberRemoved);
+
+    return () => {
+      unsubscribe('/user/queue/room-member-removed');
+    };
+  }, [isConnected, subscribe, unsubscribe]);
+
+  // Subscribe to ROOM_KICKED — victim is forcibly removed (IMP-ROOM-04)
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleRoomKicked = (message: { body: string }) => {
+      try {
+        const data = JSON.parse(message.body) as {
+          roomId?: string;
+          byInternalId?: string;
+        };
+        const deps = roomLeftDepsRef.current;
+
+        if (!data.roomId) return;
+
+        const roomId = data.roomId;
+
+        debugLog(
+          'info',
+          `[RoomChat] ROOM_KICKED: room=${roomId}, byInternalId=${data.byInternalId}`,
+        );
+
+        cancelAll();
+        burnGroupKey(roomId);
+
+        const isViewingRoom =
+          (deps.currentView === 'room-chat' || deps.currentView === 'room-manage') &&
+          deps.activeRoomChat?.roomId === roomId;
+
+        if (isViewingRoom) {
+          setActiveRoomChat(null);
+          setCurrentView('home');
+        }
+
+        deps.fetchRooms();
+        deps.notificationOccurred('warning');
+        deps.toast.warning(t('room.kicked.message'), { title: t('room.kicked.title') });
+      } catch (err) {
+        console.error('[App] Failed to parse ROOM_KICKED event:', err);
+      }
+    };
+
+    subscribe('/user/queue/room-kicked', handleRoomKicked);
+
+    return () => {
+      unsubscribe('/user/queue/room-kicked');
+    };
+  }, [isConnected, subscribe, unsubscribe, t]);
+
+  // Kicked while offline: after ROOM_LIST refresh, active room may no longer be listed (IMP-ROOM-04)
+  useEffect(() => {
+    if (isLoadingRooms || !activeRoomChat) return;
+    if (currentView !== 'room-chat' && currentView !== 'room-manage') return;
+
+    const roomId = activeRoomChat.roomId;
+    const isMember = myRooms.some(r => r.roomId === roomId);
+
+    if (!isMember && myRooms.length === 0 && activeRoomChat.isOwner) {
+      return;
+    }
+
+    if (!isMember) {
+      cancelAll();
+      burnGroupKey(roomId);
+      setActiveRoomChat(null);
+      setCurrentView('home');
+      notificationOccurred('warning');
+      toast.warning(t('room.kicked.offlineMessage'), { title: t('room.kicked.title') });
+      debugLog('info', `[RoomChat] Evicted from room ${roomId} (not in myRooms after refresh)`);
+    }
+  }, [myRooms, isLoadingRooms, activeRoomChat, currentView, notificationOccurred, toast, t]);
 
   // -----------------------------------------------------------------------
   // FIX-SYNC-3: Re-sync offline messages when Mini App returns from background
@@ -2306,6 +2433,7 @@ function AppContent() {
             }}
             onFetchMembers={() => fetchMembers(activeRoomChat.roomId)}
             onBurnRoom={handleBurnRoom}
+            onKickMember={handleKickMember}
           />
         </Layout>
         {debugPanelElement}
