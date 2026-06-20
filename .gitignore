@@ -202,3 +202,7 @@ certs/*.p12
 
 # Python cache (skill scripts)
 __pycache__/
+
+# Claude Council (local API keys + query cache)
+.claude/council-cache/
+.claude/claude-council.local.md

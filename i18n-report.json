@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T18:32:54.040Z",
+  "generated_at": "2026-06-18T18:44:11.199Z",
   "summary": {
     "frontend_languages": [
       "ar",
@@ -22,7 +22,7 @@
       "uk",
       "zh"
     ],
-    "frontend_reference_keys": 781,
+    "frontend_reference_keys": 852,
     "backend_reference_keys": 13,
     "total_missing_keys": 0,
     "total_empty_values": 0,
@@ -50,78 +50,46 @@
       "uk": "uk.json",
       "zh": "zh-CN.json"
     },
-    "reference_key_count": 781,
-    "reference_family_count": 757,
-    "plural_families": [
-      "chat.select.countSelected",
-      "chat.selectionCount",
-      "governance.timePartDay",
-      "governance.timePartHour",
-      "governance.timePartMinute",
-      "room.chat.memberCount",
-      "staking.timePartDay",
-      "staking.timePartHour",
-      "staking.timePartMonth",
-      "staking.timePartYear"
-    ],
-    "missing_keys": {
-      "ar": [],
-      "de": [],
-      "en": [],
-      "es": [],
-      "fr": [],
-      "ru": [],
-      "uk": [],
-      "zh": []
-    },
-    "empty_values": {
-      "ar": [],
-      "de": [],
-      "en": [],
-      "es": [],
-      "fr": [],
-      "ru": [],
-      "uk": [],
-      "zh": []
-    },
+    "reference_key_count": 852,
+    "reference_family_count": 818,
     "stats": {
       "ar": {
-        "total_keys": 767,
+        "total_keys": 838,
         "missing_count": 0,
         "empty_count": 0
       },
       "de": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       },
       "en": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       },
       "es": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       },
       "fr": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       },
       "ru": {
-        "total_keys": 781,
+        "total_keys": 848,
         "missing_count": 0,
         "empty_count": 0
       },
       "uk": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       },
       "zh": {
-        "total_keys": 767,
+        "total_keys": 830,
         "missing_count": 0,
         "empty_count": 0
       }
@@ -140,9 +108,9 @@
       "zh"
     ],
     "files": {
-      "default": "messages.properties",
       "ar": "messages_ar.properties",
       "de": "messages_de.properties",
+      "default": "messages.properties",
       "en": "messages_en.properties",
       "es": "messages_es.properties",
       "fr": "messages_fr.properties",
@@ -152,29 +120,6 @@
     },
     "reference_key_count": 13,
     "reference_family_count": 13,
-    "plural_families": [],
-    "missing_keys": {
-      "ar": [],
-      "de": [],
-      "default": [],
-      "en": [],
-      "es": [],
-      "fr": [],
-      "ru": [],
-      "uk": [],
-      "zh": []
-    },
-    "empty_values": {
-      "ar": [],
-      "de": [],
-      "default": [],
-      "en": [],
-      "es": [],
-      "fr": [],
-      "ru": [],
-      "uk": [],
-      "zh": []
-    },
     "stats": {
       "ar": {
         "total_keys": 13,
@@ -274,5 +219,6 @@
   "parse_errors": {
     "frontend": [],
     "backend": []
-  }
+  },
+  "mode": "summary-only"
 }
