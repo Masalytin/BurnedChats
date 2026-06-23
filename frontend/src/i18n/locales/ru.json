@@ -12,7 +12,16 @@
     "copied": "Скопировано!",
     "unknown": "Неизвестно",
     "showPassword": "Показать пароль",
-    "hidePassword": "Скрыть пароль"
+    "hidePassword": "Скрыть пароль",
+    "duration": {
+      "unitMinutes": "мин",
+      "unitHours": "ч",
+      "unitDays": "д",
+      "errorEmpty": "Введите значение",
+      "errorNaN": "Введите корректное число",
+      "errorBelowMin": "Минимум — {{min}}",
+      "errorAboveMax": "Максимум — {{max}}"
+    }
   },
 
   "nav": {

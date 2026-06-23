@@ -12,7 +12,16 @@
     "copied": "Copied!",
     "unknown": "Unknown",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "duration": {
+      "unitMinutes": "min",
+      "unitHours": "h",
+      "unitDays": "d",
+      "errorEmpty": "Enter a value",
+      "errorNaN": "Enter a valid number",
+      "errorBelowMin": "Minimum is {{min}}",
+      "errorAboveMax": "Maximum is {{max}}"
+    }
   },
 
   "nav": {
