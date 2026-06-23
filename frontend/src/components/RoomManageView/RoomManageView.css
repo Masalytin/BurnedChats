@@ -108,6 +108,7 @@
   background: var(--bc-bg-secondary);
   border-radius: var(--bc-radius-lg);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .room-manage-section--danger {
