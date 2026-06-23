@@ -880,6 +880,7 @@ function AppContent() {
   const {
     autoBurnAt: roomAutoBurnAt,
     applyPreset: applyRoomTtlPreset,
+    applyCustomSeconds: applyCustomRoomTtlSeconds,
   } = useRoomTtl({
     isConnected,
     roomId: activeRoomIdForRoles,
@@ -2824,6 +2825,7 @@ function AppContent() {
             onTransferOwnership={isManageOwner ? transferOwnership : undefined}
             autoBurnAt={roomAutoBurnAt}
             onApplyTtlPreset={isManageOwner ? applyRoomTtlPreset : undefined}
+            onApplyCustomTtlSeconds={isManageOwner ? applyCustomRoomTtlSeconds : undefined}
             messageTtlSeconds={roomMessageTtlSeconds}
             onApplyMessageTtlPreset={isManageOwner ? applyRoomMessageTtlPreset : undefined}
           />

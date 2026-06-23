@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import {
   ROOM_TTL_PRESETS,
+  ROOM_TTL_CUSTOM_MIN_SECONDS,
+  ROOM_TTL_CUSTOM_MAX_SECONDS,
   matchRoomTtlPreset,
   type RoomTtlPreset,
 } from '../../hooks/useRoomTtl';
@@ -32,6 +34,8 @@ import {
 } from '../../hooks/useRoomMessageTtl';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { DurationField } from '../DurationField';
+import { validateDurationSeconds } from '../../utils/duration';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { CopyIcon } from '../../icons';
 import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
@@ -316,6 +320,8 @@ interface RoomManageViewProps {
   autoBurnAt?: number | null;
   /** Owner-only: apply a TTL preset via `/app/room.setTtl` */
   onApplyTtlPreset?: (preset: RoomTtlPreset) => void;
+  /** Owner-only: apply a custom TTL in seconds via `/app/room.setTtl` (IMP-RCV-02) */
+  onApplyCustomTtlSeconds?: (ttlSeconds: number) => void;
   /** Owner-only: current message auto-destruction TTL in seconds (IMP-ROOM-19) */
   messageTtlSeconds?: number;
   /** Owner-only: apply a message TTL preset via `/app/room.setMessageTtl` */
@@ -377,6 +383,7 @@ export const RoomManageView = memo(function RoomManageView({
   onTransferOwnership,
   autoBurnAt = null,
   onApplyTtlPreset,
+  onApplyCustomTtlSeconds,
   messageTtlSeconds = 0,
   onApplyMessageTtlPreset,
 }: RoomManageViewProps) {
@@ -403,6 +410,8 @@ export const RoomManageView = memo(function RoomManageView({
       ? Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000))
       : 0,
   );
+  const [isCustomTtlExpanded, setIsCustomTtlExpanded] = useState(false);
+  const [customTtlSeconds, setCustomTtlSeconds] = useState<number | null>(null);
   const [presenceTick, setPresenceTick] = useState(0);
 
   useEffect(() => {
@@ -427,6 +436,49 @@ export const RoomManageView = memo(function RoomManageView({
 
   const activeTtlPreset = matchRoomTtlPreset(autoBurnAt);
   const activeMessageTtlPreset = matchMessageTtlPreset(messageTtlSeconds);
+
+  const isCustomTtlActive =
+    activeTtlPreset === null && autoBurnAt != null;
+  const showCustomTtlPanel = isCustomTtlExpanded || isCustomTtlActive;
+
+  const customTtlValidation = validateDurationSeconds(customTtlSeconds, {
+    min: ROOM_TTL_CUSTOM_MIN_SECONDS,
+    max: ROOM_TTL_CUSTOM_MAX_SECONDS,
+  });
+  const canApplyCustomTtl =
+    customTtlValidation === 'ok' && customTtlSeconds != null && onApplyCustomTtlSeconds != null;
+
+  useEffect(() => {
+    if (activeTtlPreset !== null) {
+      setIsCustomTtlExpanded(false);
+      return;
+    }
+    if (autoBurnAt != null) {
+      setIsCustomTtlExpanded(true);
+      setCustomTtlSeconds(Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000)));
+    }
+  }, [activeTtlPreset, autoBurnAt]);
+
+  const handleSelectTtlPreset = useCallback((preset: RoomTtlPreset) => {
+    setIsCustomTtlExpanded(false);
+    onApplyTtlPreset?.(preset);
+  }, [onApplyTtlPreset]);
+
+  const handleSelectCustomTtl = useCallback(() => {
+    setIsCustomTtlExpanded(true);
+    if (autoBurnAt != null && autoBurnRemainingSec > 0) {
+      setCustomTtlSeconds(autoBurnRemainingSec);
+    } else {
+      setCustomTtlSeconds(null);
+    }
+  }, [autoBurnAt, autoBurnRemainingSec]);
+
+  const handleApplyCustomTtl = useCallback(() => {
+    if (!canApplyCustomTtl || customTtlSeconds == null) {
+      return;
+    }
+    onApplyCustomTtlSeconds?.(customTtlSeconds);
+  }, [canApplyCustomTtl, customTtlSeconds, onApplyCustomTtlSeconds]);
 
   const msgTtlPresetLabelKey = (preset: MessageTtlPreset): string => {
     if (preset === 'off') return 'room.manage.msgTtlPresetOff';
@@ -728,12 +780,44 @@ export const RoomManageView = memo(function RoomManageView({
                     className={`room-manage-ttl__chip ${
                       activeTtlPreset === preset ? 'room-manage-ttl__chip--active' : ''
                     }`}
-                    onClick={() => onApplyTtlPreset(preset)}
+                    onClick={() => handleSelectTtlPreset(preset)}
                   >
                     {t(ttlPresetLabelKey(preset))}
                   </button>
                 ))}
+                {onApplyCustomTtlSeconds && (
+                  <button
+                    type="button"
+                    className={`room-manage-ttl__chip ${
+                      isCustomTtlExpanded || isCustomTtlActive
+                        ? 'room-manage-ttl__chip--active'
+                        : ''
+                    }`}
+                    onClick={handleSelectCustomTtl}
+                  >
+                    {t('room.manage.ttlPresetCustom')}
+                  </button>
+                )}
               </div>
+              {onApplyCustomTtlSeconds && showCustomTtlPanel && (
+                <div className="room-manage-ttl__custom">
+                  <DurationField
+                    id="room-manage-ttl-custom"
+                    label={t('room.manage.ttlCustomLabel')}
+                    valueSeconds={customTtlSeconds}
+                    onChange={setCustomTtlSeconds}
+                    minSeconds={ROOM_TTL_CUSTOM_MIN_SECONDS}
+                    maxSeconds={ROOM_TTL_CUSTOM_MAX_SECONDS}
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={handleApplyCustomTtl}
+                    disabled={!canApplyCustomTtl}
+                  >
+                    {t('room.manage.ttlCustomApply')}
+                  </Button>
+                </div>
+              )}
             </div>
           </section>
         )}

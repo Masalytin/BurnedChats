@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import { clampSeconds } from '../utils/duration';
 import type { TopicMultiplexer } from './useSetRoomName';
 
 const SET_ROOM_TTL_DESTINATION = '/app/room.setTtl';
@@ -17,6 +18,10 @@ export const ROOM_TTL_PRESET_SECONDS: Record<Exclude<RoomTtlPreset, 'none'>, num
 
 /** Tolerance when matching server `autoBurnAt` back to a preset chip (seconds). */
 const PRESET_MATCH_TOLERANCE_SEC = 120;
+
+/** UX soft-cap bounds for custom room TTL input (IMP-RCV-02). */
+export const ROOM_TTL_CUSTOM_MIN_SECONDS = 5 * 60;
+export const ROOM_TTL_CUSTOM_MAX_SECONDS = 30 * 24 * 3600;
 
 export interface RoomTtlUpdatedEvent {
   eventType: 'ROOM_TTL_UPDATED';
@@ -40,6 +45,7 @@ interface UseRoomTtlReturn {
   autoBurnAt: number | null;
   setTtl: (options: SetRoomTtlOptions) => void;
   applyPreset: (preset: RoomTtlPreset) => void;
+  applyCustomSeconds: (seconds: number) => void;
   matchPreset: (value: number | null) => RoomTtlPreset | null;
   handleTtlUpdatedEvent: (event: RoomTtlUpdatedEvent) => void;
 }
@@ -133,6 +139,15 @@ export function useRoomTtl({
     setTtl({ ttlSeconds: ROOM_TTL_PRESET_SECONDS[preset] });
   }, [setTtl]);
 
+  const applyCustomSeconds = useCallback((seconds: number) => {
+    const clamped = clampSeconds(
+      seconds,
+      ROOM_TTL_CUSTOM_MIN_SECONDS,
+      ROOM_TTL_CUSTOM_MAX_SECONDS,
+    );
+    setTtl({ ttlSeconds: clamped });
+  }, [setTtl]);
+
   const matchPreset = useCallback(
     (value: number | null) => matchRoomTtlPreset(value),
     [],
@@ -142,6 +157,7 @@ export function useRoomTtl({
     autoBurnAt,
     setTtl,
     applyPreset,
+    applyCustomSeconds,
     matchPreset,
     handleTtlUpdatedEvent,
   };

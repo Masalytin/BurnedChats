@@ -496,6 +496,13 @@
   outline-offset: 2px;
 }
 
+.room-manage-ttl__custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-xs);
+}
+
 /* Message auto-destruction TTL presets (IMP-ROOM-19) */
 .room-manage-msg-ttl {
   display: flex;
