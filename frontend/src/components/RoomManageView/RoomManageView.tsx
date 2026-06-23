@@ -29,6 +29,8 @@ import {
 } from '../../hooks/useRoomTtl';
 import {
   MESSAGE_TTL_PRESETS,
+  MESSAGE_TTL_CUSTOM_MIN_SECONDS,
+  MESSAGE_TTL_CUSTOM_MAX_SECONDS,
   matchMessageTtlPreset,
   type MessageTtlPreset,
 } from '../../hooks/useRoomMessageTtl';
@@ -326,6 +328,8 @@ interface RoomManageViewProps {
   messageTtlSeconds?: number;
   /** Owner-only: apply a message TTL preset via `/app/room.setMessageTtl` */
   onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
+  /** Owner-only: apply a custom message TTL in seconds (IMP-RCV-03) */
+  onApplyCustomMessageTtlSeconds?: (messageTtlSeconds: number) => void;
 }
 
 // ============================================
@@ -386,6 +390,7 @@ export const RoomManageView = memo(function RoomManageView({
   onApplyCustomTtlSeconds,
   messageTtlSeconds = 0,
   onApplyMessageTtlPreset,
+  onApplyCustomMessageTtlSeconds,
 }: RoomManageViewProps) {
   const { t } = useTranslation();
 
@@ -412,6 +417,8 @@ export const RoomManageView = memo(function RoomManageView({
   );
   const [isCustomTtlExpanded, setIsCustomTtlExpanded] = useState(false);
   const [customTtlSeconds, setCustomTtlSeconds] = useState<number | null>(null);
+  const [isCustomMsgTtlExpanded, setIsCustomMsgTtlExpanded] = useState(false);
+  const [customMsgTtlSeconds, setCustomMsgTtlSeconds] = useState<number | null>(null);
   const [presenceTick, setPresenceTick] = useState(0);
 
   useEffect(() => {
@@ -441,12 +448,25 @@ export const RoomManageView = memo(function RoomManageView({
     activeTtlPreset === null && autoBurnAt != null;
   const showCustomTtlPanel = isCustomTtlExpanded || isCustomTtlActive;
 
+  const isCustomMsgTtlActive =
+    activeMessageTtlPreset === null && messageTtlSeconds > 0;
+  const showCustomMsgTtlPanel = isCustomMsgTtlExpanded || isCustomMsgTtlActive;
+
   const customTtlValidation = validateDurationSeconds(customTtlSeconds, {
     min: ROOM_TTL_CUSTOM_MIN_SECONDS,
     max: ROOM_TTL_CUSTOM_MAX_SECONDS,
   });
   const canApplyCustomTtl =
     customTtlValidation === 'ok' && customTtlSeconds != null && onApplyCustomTtlSeconds != null;
+
+  const customMsgTtlValidation = validateDurationSeconds(customMsgTtlSeconds, {
+    min: MESSAGE_TTL_CUSTOM_MIN_SECONDS,
+    max: MESSAGE_TTL_CUSTOM_MAX_SECONDS,
+  });
+  const canApplyCustomMsgTtl =
+    customMsgTtlValidation === 'ok'
+    && customMsgTtlSeconds != null
+    && onApplyCustomMessageTtlSeconds != null;
 
   useEffect(() => {
     if (activeTtlPreset !== null) {
@@ -458,6 +478,17 @@ export const RoomManageView = memo(function RoomManageView({
       setCustomTtlSeconds(Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000)));
     }
   }, [activeTtlPreset, autoBurnAt]);
+
+  useEffect(() => {
+    if (activeMessageTtlPreset !== null) {
+      setIsCustomMsgTtlExpanded(false);
+      return;
+    }
+    if (messageTtlSeconds > 0) {
+      setIsCustomMsgTtlExpanded(true);
+      setCustomMsgTtlSeconds(messageTtlSeconds);
+    }
+  }, [activeMessageTtlPreset, messageTtlSeconds]);
 
   const handleSelectTtlPreset = useCallback((preset: RoomTtlPreset) => {
     setIsCustomTtlExpanded(false);
@@ -479,6 +510,27 @@ export const RoomManageView = memo(function RoomManageView({
     }
     onApplyCustomTtlSeconds?.(customTtlSeconds);
   }, [canApplyCustomTtl, customTtlSeconds, onApplyCustomTtlSeconds]);
+
+  const handleSelectMessageTtlPreset = useCallback((preset: MessageTtlPreset) => {
+    setIsCustomMsgTtlExpanded(false);
+    onApplyMessageTtlPreset?.(preset);
+  }, [onApplyMessageTtlPreset]);
+
+  const handleSelectCustomMsgTtl = useCallback(() => {
+    setIsCustomMsgTtlExpanded(true);
+    if (messageTtlSeconds > 0 && activeMessageTtlPreset === null) {
+      setCustomMsgTtlSeconds(messageTtlSeconds);
+    } else {
+      setCustomMsgTtlSeconds(null);
+    }
+  }, [messageTtlSeconds, activeMessageTtlPreset]);
+
+  const handleApplyCustomMsgTtl = useCallback(() => {
+    if (!canApplyCustomMsgTtl || customMsgTtlSeconds == null) {
+      return;
+    }
+    onApplyCustomMessageTtlSeconds?.(customMsgTtlSeconds);
+  }, [canApplyCustomMsgTtl, customMsgTtlSeconds, onApplyCustomMessageTtlSeconds]);
 
   const msgTtlPresetLabelKey = (preset: MessageTtlPreset): string => {
     if (preset === 'off') return 'room.manage.msgTtlPresetOff';
@@ -841,12 +893,45 @@ export const RoomManageView = memo(function RoomManageView({
                     className={`room-manage-msg-ttl__chip ${
                       activeMessageTtlPreset === preset ? 'room-manage-msg-ttl__chip--active' : ''
                     }`}
-                    onClick={() => onApplyMessageTtlPreset(preset)}
+                    onClick={() => handleSelectMessageTtlPreset(preset)}
                   >
                     {t(msgTtlPresetLabelKey(preset))}
                   </button>
                 ))}
+                {onApplyCustomMessageTtlSeconds && (
+                  <button
+                    type="button"
+                    className={`room-manage-msg-ttl__chip ${
+                      isCustomMsgTtlExpanded || isCustomMsgTtlActive
+                        ? 'room-manage-msg-ttl__chip--active'
+                        : ''
+                    }`}
+                    onClick={handleSelectCustomMsgTtl}
+                  >
+                    {t('room.manage.msgTtlPresetCustom')}
+                  </button>
+                )}
               </div>
+              {onApplyCustomMessageTtlSeconds && showCustomMsgTtlPanel && (
+                <div className="room-manage-msg-ttl__custom">
+                  <DurationField
+                    id="room-manage-msg-ttl-custom"
+                    label={t('room.manage.msgTtlCustomLabel')}
+                    valueSeconds={customMsgTtlSeconds}
+                    onChange={setCustomMsgTtlSeconds}
+                    minSeconds={MESSAGE_TTL_CUSTOM_MIN_SECONDS}
+                    maxSeconds={MESSAGE_TTL_CUSTOM_MAX_SECONDS}
+                    units={['minute', 'hour']}
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={handleApplyCustomMsgTtl}
+                    disabled={!canApplyCustomMsgTtl}
+                  >
+                    {t('room.manage.msgTtlCustomApply')}
+                  </Button>
+                </div>
+              )}
             </div>
           </section>
         )}

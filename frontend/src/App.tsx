@@ -891,6 +891,7 @@ function AppContent() {
   const {
     messageTtlSeconds: roomMessageTtlSeconds,
     applyPreset: applyRoomMessageTtlPreset,
+    applyCustomSeconds: applyCustomRoomMessageTtlSeconds,
   } = useRoomMessageTtl({
     isConnected,
     roomId: activeRoomIdForRoles,
@@ -2828,6 +2829,7 @@ function AppContent() {
             onApplyCustomTtlSeconds={isManageOwner ? applyCustomRoomTtlSeconds : undefined}
             messageTtlSeconds={roomMessageTtlSeconds}
             onApplyMessageTtlPreset={isManageOwner ? applyRoomMessageTtlPreset : undefined}
+            onApplyCustomMessageTtlSeconds={isManageOwner ? applyCustomRoomMessageTtlSeconds : undefined}
           />
         </Layout>
         {debugPanelElement}

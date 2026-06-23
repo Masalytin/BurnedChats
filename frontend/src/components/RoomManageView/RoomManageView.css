@@ -548,6 +548,13 @@
   outline-offset: 2px;
 }
 
+.room-manage-msg-ttl__custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-xs);
+}
+
 /* ============================================
  * Members List
  * ============================================ */

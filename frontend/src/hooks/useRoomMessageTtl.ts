@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import { clampSeconds } from '../utils/duration';
 import type { TopicMultiplexer } from './useSetRoomName';
 
 const SET_MESSAGE_TTL_DESTINATION = '/app/room.setMessageTtl';
@@ -14,6 +15,10 @@ export const MESSAGE_TTL_PRESET_SECONDS: Record<MessageTtlPreset, number> = {
   '1h': 3600,
   '24h': 86400,
 };
+
+/** UI soft-cap: min 30s avoids near-instant hide; max 24h matches offline queue TTL. */
+export const MESSAGE_TTL_CUSTOM_MIN_SECONDS = 30;
+export const MESSAGE_TTL_CUSTOM_MAX_SECONDS = 24 * 3600;
 
 export interface RoomMessageTtlUpdatedEvent {
   eventType: 'ROOM_MESSAGE_TTL_UPDATED';
@@ -32,7 +37,8 @@ interface UseRoomMessageTtlReturn {
   messageTtlSeconds: number;
   setMessageTtl: (messageTtlSeconds: number) => void;
   applyPreset: (preset: MessageTtlPreset) => void;
-  matchPreset: (seconds: number) => MessageTtlPreset;
+  applyCustomSeconds: (seconds: number) => void;
+  matchPreset: (seconds: number) => MessageTtlPreset | null;
   handleMessageTtlUpdatedEvent: (event: RoomMessageTtlUpdatedEvent) => void;
 }
 
@@ -56,14 +62,14 @@ function parseRoomMessageTtlUpdated(message: IMessage): RoomMessageTtlUpdatedEve
   return null;
 }
 
-/** Map server seconds back to a preset chip, defaulting to off when disabled. */
-export function matchMessageTtlPreset(messageTtlSeconds: number): MessageTtlPreset {
+/** Map server seconds to a preset chip, or null when a custom value is active. */
+export function matchMessageTtlPreset(messageTtlSeconds: number): MessageTtlPreset | null {
   for (const preset of MESSAGE_TTL_PRESETS) {
     if (MESSAGE_TTL_PRESET_SECONDS[preset] === messageTtlSeconds) {
       return preset;
     }
   }
-  return messageTtlSeconds <= 0 ? 'off' : 'off';
+  return messageTtlSeconds <= 0 ? 'off' : null;
 }
 
 /**
@@ -116,6 +122,15 @@ export function useRoomMessageTtl({
     setMessageTtl(MESSAGE_TTL_PRESET_SECONDS[preset]);
   }, [setMessageTtl]);
 
+  const applyCustomSeconds = useCallback((seconds: number) => {
+    const clamped = clampSeconds(
+      seconds,
+      MESSAGE_TTL_CUSTOM_MIN_SECONDS,
+      MESSAGE_TTL_CUSTOM_MAX_SECONDS,
+    );
+    setMessageTtl(clamped);
+  }, [setMessageTtl]);
+
   const matchPreset = useCallback(
     (seconds: number) => matchMessageTtlPreset(seconds),
     [],
@@ -125,6 +140,7 @@ export function useRoomMessageTtl({
     messageTtlSeconds,
     setMessageTtl,
     applyPreset,
+    applyCustomSeconds,
     matchPreset,
     handleMessageTtlUpdatedEvent,
   };
