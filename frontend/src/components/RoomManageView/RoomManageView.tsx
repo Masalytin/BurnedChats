@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
@@ -72,6 +72,74 @@ const LIMIT_PRESET_VALUES: Record<LimitPreset, number | undefined> = {
   '10': 10,
   unlimited: undefined,
 };
+
+/** Invite expiry bounds — mirror backend InviteTokenService / API.md. */
+const INVITE_EXPIRY_MIN_SECONDS = 60;
+const INVITE_EXPIRY_MAX_SECONDS = 30 * 24 * 3600;
+
+/** UX soft-cap for invite maxUses (backend accepts any positive Integer). */
+const INVITE_LIMIT_MIN = 1;
+const INVITE_LIMIT_MAX = 10_000;
+
+type LimitValidationResult =
+  | 'ok'
+  | 'empty'
+  | 'nan'
+  | 'not-integer'
+  | 'below-min'
+  | 'above-max';
+
+function matchExpiryPreset(seconds: number): ExpiryPreset | null {
+  for (const [preset, presetSeconds] of Object.entries(EXPIRY_PRESET_SECONDS) as [
+    ExpiryPreset,
+    number | undefined,
+  ][]) {
+    if (presetSeconds != null && presetSeconds === seconds) {
+      return preset;
+    }
+  }
+  return null;
+}
+
+function matchLimitPreset(maxUses: number): LimitPreset | null {
+  for (const [preset, value] of Object.entries(LIMIT_PRESET_VALUES) as [
+    LimitPreset,
+    number | undefined,
+  ][]) {
+    if (value != null && value === maxUses) {
+      return preset;
+    }
+  }
+  return null;
+}
+
+function parseLimitInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function validateLimitValue(value: number | null): LimitValidationResult {
+  if (value === null) {
+    return 'empty';
+  }
+  if (Number.isNaN(value)) {
+    return 'nan';
+  }
+  if (!Number.isInteger(value)) {
+    return 'not-integer';
+  }
+  if (value < INVITE_LIMIT_MIN) {
+    return 'below-min';
+  }
+  if (value > INVITE_LIMIT_MAX) {
+    return 'above-max';
+  }
+  return 'ok';
+}
 
 // ============================================
 // Sub-components
@@ -409,6 +477,10 @@ export const RoomManageView = memo(function RoomManageView({
   const [editNameValue, setEditNameValue] = useState('');
   const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d');
   const [limitPreset, setLimitPreset] = useState<LimitPreset>('unlimited');
+  const [isCustomExpiryExpanded, setIsCustomExpiryExpanded] = useState(false);
+  const [customExpirySeconds, setCustomExpirySeconds] = useState<number | null>(null);
+  const [isCustomLimitExpanded, setIsCustomLimitExpanded] = useState(false);
+  const [customLimitInput, setCustomLimitInput] = useState('');
   const [showAllInvites, setShowAllInvites] = useState(false);
   const [autoBurnRemainingSec, setAutoBurnRemainingSec] = useState(() =>
     autoBurnAt != null
@@ -532,6 +604,81 @@ export const RoomManageView = memo(function RoomManageView({
     onApplyCustomMessageTtlSeconds?.(customMsgTtlSeconds);
   }, [canApplyCustomMsgTtl, customMsgTtlSeconds, onApplyCustomMessageTtlSeconds]);
 
+  const customExpiryValidation = validateDurationSeconds(customExpirySeconds, {
+    min: INVITE_EXPIRY_MIN_SECONDS,
+    max: INVITE_EXPIRY_MAX_SECONDS,
+  });
+  const parsedCustomLimit = parseLimitInput(customLimitInput);
+  const customLimitValidation = validateLimitValue(parsedCustomLimit);
+  const matchedExpiryPreset =
+    customExpiryValidation === 'ok' && customExpirySeconds != null
+      ? matchExpiryPreset(customExpirySeconds)
+      : null;
+  const matchedLimitPreset =
+    customLimitValidation === 'ok' && parsedCustomLimit != null
+      ? matchLimitPreset(parsedCustomLimit)
+      : null;
+
+  const canCreateInvite = useMemo(() => {
+    if (isCustomExpiryExpanded && customExpiryValidation !== 'ok') {
+      return false;
+    }
+    if (isCustomLimitExpanded && customLimitValidation !== 'ok') {
+      return false;
+    }
+    return true;
+  }, [
+    isCustomExpiryExpanded,
+    customExpiryValidation,
+    isCustomLimitExpanded,
+    customLimitValidation,
+  ]);
+
+  const limitErrorMessage = useMemo(() => {
+    if (customLimitValidation === 'ok') {
+      return undefined;
+    }
+    if (customLimitValidation === 'empty') {
+      return t('room.invite.limitErrorEmpty');
+    }
+    if (customLimitValidation === 'nan') {
+      return t('room.invite.limitErrorNaN');
+    }
+    if (customLimitValidation === 'not-integer') {
+      return t('room.invite.limitErrorNotInteger');
+    }
+    if (customLimitValidation === 'below-min') {
+      return t('room.invite.limitErrorBelowMin', { min: INVITE_LIMIT_MIN });
+    }
+    return t('room.invite.limitErrorAboveMax', { max: INVITE_LIMIT_MAX });
+  }, [customLimitValidation, t]);
+
+  const handleSelectExpiryPreset = useCallback((preset: ExpiryPreset) => {
+    setExpiryPreset(preset);
+    setIsCustomExpiryExpanded(false);
+  }, []);
+
+  const handleSelectCustomExpiry = useCallback(() => {
+    setIsCustomExpiryExpanded(true);
+    const presetSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
+    setCustomExpirySeconds(presetSeconds ?? null);
+  }, [expiryPreset]);
+
+  const handleSelectLimitPreset = useCallback((preset: LimitPreset) => {
+    setLimitPreset(preset);
+    setIsCustomLimitExpanded(false);
+  }, []);
+
+  const handleSelectCustomLimit = useCallback(() => {
+    setIsCustomLimitExpanded(true);
+    const presetValue = LIMIT_PRESET_VALUES[limitPreset];
+    setCustomLimitInput(presetValue != null ? String(presetValue) : '');
+  }, [limitPreset]);
+
+  const handleCustomLimitInputChange = useCallback((raw: string) => {
+    setCustomLimitInput(raw.replace(/\D/g, ''));
+  }, []);
+
   const msgTtlPresetLabelKey = (preset: MessageTtlPreset): string => {
     if (preset === 'off') return 'room.manage.msgTtlPresetOff';
     if (preset === '5m') return 'room.manage.msgTtlPreset5m';
@@ -600,18 +747,43 @@ export const RoomManageView = memo(function RoomManageView({
   }, []);
 
   const handleCreateInvite = useCallback(() => {
-    if (!onCreateInviteLink) return;
+    if (!onCreateInviteLink || !canCreateInvite) return;
     const options: GetInviteLinkOptions = {};
-    const expiresInSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
-    if (expiresInSeconds != null) {
-      options.expiresInSeconds = expiresInSeconds;
+
+    if (isCustomExpiryExpanded) {
+      if (customExpirySeconds != null) {
+        options.expiresInSeconds = customExpirySeconds;
+      }
+    } else {
+      const expiresInSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
+      if (expiresInSeconds != null) {
+        options.expiresInSeconds = expiresInSeconds;
+      }
     }
-    const maxUses = LIMIT_PRESET_VALUES[limitPreset];
-    if (maxUses != null) {
-      options.maxUses = maxUses;
+
+    if (isCustomLimitExpanded) {
+      if (parsedCustomLimit != null && customLimitValidation === 'ok') {
+        options.maxUses = parsedCustomLimit;
+      }
+    } else {
+      const maxUses = LIMIT_PRESET_VALUES[limitPreset];
+      if (maxUses != null) {
+        options.maxUses = maxUses;
+      }
     }
+
     onCreateInviteLink(options);
-  }, [onCreateInviteLink, expiryPreset, limitPreset]);
+  }, [
+    onCreateInviteLink,
+    canCreateInvite,
+    isCustomExpiryExpanded,
+    customExpirySeconds,
+    expiryPreset,
+    isCustomLimitExpanded,
+    parsedCustomLimit,
+    customLimitValidation,
+    limitPreset,
+  ]);
 
   const handleRevokeInvite = useCallback((token: string) => {
     onRevokeInvite?.(token);
@@ -985,13 +1157,40 @@ export const RoomManageView = memo(function RoomManageView({
                       <button
                         key={key}
                         type="button"
-                        className={`room-manage-invites-create__chip ${expiryPreset === key ? 'room-manage-invites-create__chip--active' : ''}`}
-                        onClick={() => setExpiryPreset(key)}
+                        className={`room-manage-invites-create__chip ${
+                          (isCustomExpiryExpanded ? matchedExpiryPreset === key : expiryPreset === key)
+                            ? 'room-manage-invites-create__chip--active'
+                            : ''
+                        }`}
+                        onClick={() => handleSelectExpiryPreset(key)}
                       >
                         {t(`room.invite.createExpiry${key === 'none' ? 'None' : key}`)}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className={`room-manage-invites-create__chip ${
+                        isCustomExpiryExpanded && matchedExpiryPreset === null
+                          ? 'room-manage-invites-create__chip--active'
+                          : ''
+                      }`}
+                      onClick={handleSelectCustomExpiry}
+                    >
+                      {t('room.invite.createExpiryCustom')}
+                    </button>
                   </div>
+                  {isCustomExpiryExpanded && (
+                    <div className="room-manage-invites-create__custom">
+                      <DurationField
+                        id="room-manage-invite-expiry-custom"
+                        label={t('room.invite.expiryCustomLabel')}
+                        valueSeconds={customExpirySeconds}
+                        onChange={setCustomExpirySeconds}
+                        minSeconds={INVITE_EXPIRY_MIN_SECONDS}
+                        maxSeconds={INVITE_EXPIRY_MAX_SECONDS}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="room-manage-invites-create__group">
                   <span className="room-manage-invites-create__label">{t('room.invite.createLimitLabel')}</span>
@@ -1000,18 +1199,47 @@ export const RoomManageView = memo(function RoomManageView({
                       <button
                         key={key}
                         type="button"
-                        className={`room-manage-invites-create__chip ${limitPreset === key ? 'room-manage-invites-create__chip--active' : ''}`}
-                        onClick={() => setLimitPreset(key)}
+                        className={`room-manage-invites-create__chip ${
+                          (isCustomLimitExpanded ? matchedLimitPreset === key : limitPreset === key)
+                            ? 'room-manage-invites-create__chip--active'
+                            : ''
+                        }`}
+                        onClick={() => handleSelectLimitPreset(key)}
                       >
                         {t(`room.invite.createLimit${key === 'unlimited' ? 'Unlimited' : key}`)}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className={`room-manage-invites-create__chip ${
+                        isCustomLimitExpanded && matchedLimitPreset === null
+                          ? 'room-manage-invites-create__chip--active'
+                          : ''
+                      }`}
+                      onClick={handleSelectCustomLimit}
+                    >
+                      {t('room.invite.createLimitCustom')}
+                    </button>
                   </div>
+                  {isCustomLimitExpanded && (
+                    <div className="room-manage-invites-create__custom">
+                      <Input
+                        id="room-manage-invite-limit-custom"
+                        type="text"
+                        inputMode="numeric"
+                        label={t('room.invite.limitCustomLabel')}
+                        value={customLimitInput}
+                        onChange={(e) => handleCustomLimitInputChange(e.target.value)}
+                        error={limitErrorMessage}
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="secondary"
                   onClick={handleCreateInvite}
-                  disabled={isCreateInviteLoading}
+                  disabled={isCreateInviteLoading || !canCreateInvite}
                   fullWidth
                 >
                   {isCreateInviteLoading ? t('common.loading') : t('room.invite.createButton')}

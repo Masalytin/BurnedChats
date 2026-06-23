@@ -1088,11 +1088,20 @@
       "createExpiry24h": "24 hours",
       "createExpiry7d": "7 days",
       "createExpiryNone": "No limit",
+      "createExpiryCustom": "Custom",
+      "expiryCustomLabel": "Custom expiry",
       "createLimitLabel": "Use limit",
       "createLimit1": "1",
       "createLimit5": "5",
       "createLimit10": "10",
-      "createLimitUnlimited": "∞"
+      "createLimitUnlimited": "∞",
+      "createLimitCustom": "Custom",
+      "limitCustomLabel": "Custom use limit",
+      "limitErrorEmpty": "Enter a use limit",
+      "limitErrorNaN": "Enter a valid number",
+      "limitErrorNotInteger": "Use a whole number",
+      "limitErrorBelowMin": "Minimum is {{min}}",
+      "limitErrorAboveMax": "Maximum is {{max}}"
     },
 
     "kicked": {

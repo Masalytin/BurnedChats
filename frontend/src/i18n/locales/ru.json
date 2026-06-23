@@ -1104,11 +1104,20 @@
       "createExpiry24h": "24 часа",
       "createExpiry7d": "7 дней",
       "createExpiryNone": "Без срока",
+      "createExpiryCustom": "Своё",
+      "expiryCustomLabel": "Срок действия",
       "createLimitLabel": "Лимит использований",
       "createLimit1": "1",
       "createLimit5": "5",
       "createLimit10": "10",
-      "createLimitUnlimited": "∞"
+      "createLimitUnlimited": "∞",
+      "createLimitCustom": "Своё",
+      "limitCustomLabel": "Лимит использований",
+      "limitErrorEmpty": "Укажите лимит",
+      "limitErrorNaN": "Введите число",
+      "limitErrorNotInteger": "Только целое число",
+      "limitErrorBelowMin": "Минимум — {{min}}",
+      "limitErrorAboveMax": "Максимум — {{max}}"
     },
 
     "kicked": {

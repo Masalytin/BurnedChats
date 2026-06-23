@@ -442,6 +442,13 @@
   outline-offset: 2px;
 }
 
+.room-manage-invites-create__custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-xs);
+}
+
 /* ============================================
  * Room TTL / auto-burn (IMP-ROOM-17)
  * ============================================ */
