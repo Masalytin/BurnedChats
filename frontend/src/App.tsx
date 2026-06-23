@@ -2774,7 +2774,7 @@ function AppContent() {
 
     return wrapWalletProvider(
       <>
-        <Layout>
+        <Layout fullBleed>
           <RoomManageView
             roomId={activeRoomChat.roomId}
             myRole={manageRole}
