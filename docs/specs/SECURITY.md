@@ -13,6 +13,7 @@
 - [Модель угроз](#модель-угроз)
 - [Антиспам / Sybil-защита (PoW)](#антиспам--sybil-защита-pow)
 - [Защитные механизмы](#защитные-механизмы)
+- [Governance on-chain (Phase 5)](#governance-on-chain-phase-5)
 - [Комнаты (Phase 2)](#комнаты-phase-2)
 
 ---
@@ -901,6 +902,40 @@ public class HmacUtils {
     }
 }
 ```
+
+---
+
+## Governance on-chain (Phase 5)
+
+### Cashback-петля между auto-cashback контрактами (RC-2)
+
+**Класс уязвимости:** два (или более) служебных контракта с безусловным или рефлексивным
+`receive() { cashback(sender()); }`, где один контракт завершает relay-хендлер терминальным
+`cashback(sender())` в адрес «партнёра», который сам авто-cashback'ает обратно. `cashback`
+использует `SendRemainingValue` — остаток TON переносится почти целиком на каждый хоп →
+сотни пустых переводов (`opcode: null`) и **self-DoS** (out-of-gas, exit `-14`) на одном из
+контрактов. Не атака извне: срабатывает на **каждом** штатном relayed-голосе.
+
+**Подтверждённый инцидент (testnet):** Governor ⇄ StakingMaster при `GovernorVoteRelay` —
+см. [REPORT IMP-GOVOTE](../improvements/governance-vote-tx-fail/REPORT.md) §3 RC-2
+(~349 пустых hop'ов в одном trace).
+
+**Принятый паттерн предотвращения (IMP-GOVOTE-02):**
+
+1. **Refund voter, не partner:** в `StakingMaster.GovernorVoteRelay` после форварда
+   `ProposalVoteRelay` остаток relay отправляется на **`msg.voter`** терминальным режимом
+   (`SendRemainingValue | SendIgnoreErrors`), а не `cashback(sender())` в Governor.
+2. **Non-reflective `receive()`:** plain TON от «партнёра по петле» поглощается без cashback:
+   - `governor.tact` — `receive()`: cashback только если `sender() != stakingMaster`;
+   - `staking-master.tact` — `receive()`: cashback только если `sender() != governorAddr`.
+3. **Bounce-хендлеры без re-ping:** `bounced<GovernorVoteRelay>` / `bounced<ProposalVoteRelay>`
+   не вызывают `cashback(sender())` в адрес партнёра (IMP-GOVOTE-03).
+
+Паттерн (2) уже используется в staking stack (Pool ↔ Master). При добавлении новых
+relay-цепочек между auto-cashback контрактами — **не** завершать relay терминальным cashback
+в служебный контракт-партнёр; возвращать остаток инициатору или явному beneficiary.
+
+Decision log: [IMP-GOVOTE-02 break cashback loop](../improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-02-break-cashback-loop.md).
 
 ---
 

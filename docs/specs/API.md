@@ -470,6 +470,24 @@ public ResponseEntity<?> onWebhook(
 
 Тела соответствуют `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Перечисления Jackson сериализует как строки (`PARAMETER_CHANGE`, …).
 
+**Окно голосования и состояние `ACTIVE`**
+
+- `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. IMP-PREMNT-08).
+- `startTime = creationTime + CANCEL_LAG` (`governor.tact`); голосование доступно только при **`now >= startTime`** и `now <= endTime`.
+- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается). См. [REPORT IMP-GOVOTE](../improvements/governance-vote-tx-fail/REPORT.md) RC-1.
+- Клиент обязан блокировать `CastVote`, пока `now < startTime` (IMP-GOVOTE-01), даже если backend возвращает `ACTIVE`.
+
+**On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04)**
+
+| Шаг | От → К | Сообщение | Value (TON) | Примечание |
+|-----|--------|-----------|-------------|------------|
+| 1 | Wallet → **Governor** | `CastVote` (`0x5a040102`) | attach **≥ `GasVoteAttach` = 0.18** | `require(context().value >= GasVoteAttach, "Need TON for vote")` |
+| 2 | Governor → **StakingMaster** | `GovernorVoteRelay` (`0x5a040019`) | **`GasVoteRelayForward` = 0.14** | `SendPayGasSeparately`; VP relay |
+| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **0.07** | VP cap по on-chain staking |
+
+- Остаток relay возвращается **voter'у** (IMP-GOVOTE-02); избыточный attach сверх `0.18` — через `cashback` на Governor и refund на StakingMaster.
+- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decision: [IMP-GOVOTE-04](../improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md).
+
 Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
 
 | Метод | Путь | Описание |
