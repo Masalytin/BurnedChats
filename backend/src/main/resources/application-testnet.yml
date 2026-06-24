@@ -1,12 +1,9 @@
-# Testnet profile.
-# Activate from OUTSIDE this file (env or CLI), typically:
+# Testnet profile — sync addresses from contracts/deployments/testnet.json [P5-6-1-1]
+# Activate from env (NOT inside this file):
 #   SPRING_PROFILES_ACTIVE=prod,testnet
-# Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects it
-# in profile-specific resources (see
-# docs/improvements/backend-testnet-profile-load-error/REPORT.md
-# and IMP-TESTNET-PROFILE-01).
-# Contract addresses: set env vars after `npm run deploy:burn:testnet`
-# (see contracts/deployments/testnet.json).
+# Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects
+# it in profile-specific resources (IMP-TESTNET-PROFILE-01).
+# Last deploy sync: 2026-06-24T08:54:31.945Z
 
 app:
   ton:
@@ -19,10 +16,10 @@ app:
     cache:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
-      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:}
-      staking-master: ${BURN_STAKING_MASTER_ADDRESS:}
-      governor: ${BURN_GOVERNOR_ADDRESS:}
-      treasury: ${BURN_TREASURY_ADDRESS:}
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQD_e0eE4AfDQZZBazf9zD91J2medkuDb-oY8QtJjAf1TiZG}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQAE87mDn0vZCSVa90qm95ji5sw8QfoT04n57jc482OPWRDe}
+      governor: ${BURN_GOVERNOR_ADDRESS:kQA9rPLkGga9ZBzfjdQmBQ6v3zfYkSO6Yjna7V7enE4shHcP}
+      treasury: ${BURN_TREASURY_ADDRESS:kQARjOIQsVqIEcFttH8iV5R_wIEie79C27VOXrjkgV444wqU}
 
 burnedchats:
   wallet-auth:
