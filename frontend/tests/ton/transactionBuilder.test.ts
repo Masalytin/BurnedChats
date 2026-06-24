@@ -2,6 +2,7 @@ import { Address, Cell, beginCell, toNano } from '@ton/core';
 import { TonConnectUIError, type TonConnectUI } from '@tonconnect/ui';
 import { describe, expect, it, vi } from 'vitest';
 import { sendTonTransaction } from '@/ton/connector';
+import { STAKE_ATTACHED_TON } from '@/ton/estimateStakeTon';
 import type { TransactionMessage } from '@/ton/types';
 import {
   buildClaimMsg,
@@ -40,7 +41,7 @@ describe('transactionBuilder payload encoding', () => {
     expect(msg.amount).toBe(String(3_500_000_000n));
   });
 
-  it('buildStakeMsg attaches 7.6 TON, forwards 5 TON, routes excess to the user wallet', () => {
+  it('buildStakeMsg attaches excluded-path TON, forwards 5 TON, routes excess to the user wallet', () => {
     const userWallet = Address.parse(`0:${'33'.repeat(32)}`);
     const msg = buildStakeMsg({
       stakingMaster: ADDR,
@@ -49,7 +50,7 @@ describe('transactionBuilder payload encoding', () => {
       tier: 2,
       responseAddress: userWallet,
     });
-    expect(msg.amount).toBe(String(7_600_000_000n));
+    expect(msg.amount).toBe(String(STAKE_ATTACHED_TON));
     const s = firstBocCellBase64(msg.payload).beginParse();
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
     s.loadUintBig(64);

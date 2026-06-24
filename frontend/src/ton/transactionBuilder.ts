@@ -1,6 +1,23 @@
 import { Address, type Cell, type Slice, beginCell, toNano } from '@ton/core';
 
 import type { TransactionMessage } from './types';
+import {
+  STAKE_ATTACHED_TON,
+  STAKE_FEE_PATH_ATTACHED_TON,
+  STAKE_FEE_PATH_RESTAKE_ATTACHED_TON,
+  STAKE_FORWARD_TON,
+  STAKE_RESTAKE_ATTACHED_TON,
+  STAKE_RESTAKE_NOTIFY_FORWARD_NANO,
+} from '@/ton/estimateStakeTon';
+
+export {
+  STAKE_ATTACHED_TON,
+  STAKE_FEE_PATH_ATTACHED_TON,
+  STAKE_FEE_PATH_RESTAKE_ATTACHED_TON,
+  STAKE_FORWARD_TON,
+  STAKE_RESTAKE_ATTACHED_TON,
+  STAKE_RESTAKE_NOTIFY_FORWARD_NANO,
+};
 
 /** TEP-74 jetton transfer opcode (`JettonTransfer` in burn-jetton-wallet.tact). */
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
@@ -19,20 +36,6 @@ const TIMELOCK_EXECUTE_OP = 0x5a040202;
 
 /** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
 export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
-
-/**
- * forward_ton_amount for stake deposits: funds StakingMaster's notify handler out-messages —
- * `GasForwardStakeJetton` (3.5) + `GasToPool` ×2 (0.12) + optional `GasPayRewards` leg on restake.
- * Mirrors `contracts/tests/staking-helpers.ts` `stakeViaTransfer` (forwardTonAmount 5 TON).
- */
-export const STAKE_FORWARD_TON = toNano('5');
-
-/**
- * Total attach for stake: must pass the BurnJettonWallet gate
- * `value > forwardTonAmount + fwd_fees + minTonFeePath(2.1)`; unspent TON returns to
- * `response_destination` (the user) as TEP-74 Excesses.
- */
-export const STAKE_ATTACHED_TON = toNano('7.6');
 
 /** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
 export const VOTE_ATTACHED_TON = toNano('0.18');
@@ -112,6 +115,9 @@ export function buildJettonTransferMsg(params: {
  *
  * `responseAddress` MUST be the user's wallet: TEP-74 Excesses go there. Routing excess to the
  * staking master bounces (no receiver for 0xd53276db) and loses the refund.
+ *
+ * Default attach uses the excluded path (IMP-STKFEE-02). Pass `feePath: true` or explicit
+ * `attachedTon` when commission fanout is expected.
  */
 export function buildStakeMsg(params: {
   stakingMaster: Address;
@@ -121,9 +127,25 @@ export function buildStakeMsg(params: {
   /** User wallet receiving TEP-74 Excesses refund. */
   responseAddress: Address;
   forwardTon?: bigint;
+  /** Commission-path fanout (legacy / non-excluded destination). */
+  feePath?: boolean;
+  /** Restake with pending rewards — selects restake forward/attach profile. */
+  restakeWithPendingReward?: boolean;
+  attachedTon?: bigint;
 }): TransactionMessage {
   const forwardPayload = stakeForwardPayloadSlice(params.tier);
-  const forwardTon = params.forwardTon ?? STAKE_FORWARD_TON;
+  const restake = params.restakeWithPendingReward === true;
+  const forwardTon =
+    params.forwardTon ?? (restake ? STAKE_RESTAKE_NOTIFY_FORWARD_NANO : STAKE_FORWARD_TON);
+  const attached =
+    params.attachedTon ??
+    (params.feePath === true
+      ? restake
+        ? STAKE_FEE_PATH_RESTAKE_ATTACHED_TON
+        : STAKE_FEE_PATH_ATTACHED_TON
+      : restake
+        ? STAKE_RESTAKE_ATTACHED_TON
+        : STAKE_ATTACHED_TON);
   return buildJettonTransferMsg({
     jettonWallet: params.userJettonWallet,
     recipient: params.stakingMaster,
@@ -131,7 +153,7 @@ export function buildStakeMsg(params: {
     forwardPayload,
     forwardAmount: forwardTon,
     responseAddress: params.responseAddress,
-    attachedTon: STAKE_ATTACHED_TON,
+    attachedTon: attached,
   });
 }
 
