@@ -431,8 +431,12 @@ contract StakingMaster(
         });
     }
 
+    /// Plain TON from Governor (e.g. vote-relay remainder) must not bounce back — that caused
+    /// Governor↔StakingMaster cashback loops (IMP-GOVOTE-02 / RC-2).
     receive() {
-        cashback(sender());
+        if (sender() != self.governorAddr) {
+            cashback(sender());
+        }
     }
 
     receive(msg: JettonExcesses) {
@@ -693,7 +697,15 @@ contract StakingMaster(
                 vp: vpEff,
             }.toCell(),
         });
-        cashback(sender());
+        /// Return relay remainder to the voter, not Governor — terminal cashback to Governor
+        /// ping-ponged with Governor.receive() until out-of-gas (IMP-GOVOTE-02 / RC-2).
+        message(MessageParameters {
+            to: msg.voter,
+            value: 0,
+            mode: SendRemainingValue | SendIgnoreErrors,
+            bounce: false,
+            body: beginCell().endCell(),
+        });
     }
 
     /// IMP-AUDIT-03 — trusted push sync from StakingLock (Timelock-governed tier table).

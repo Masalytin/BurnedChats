@@ -32,8 +32,12 @@ contract Governor(
     timelock: Address,
     timelockDelaySec: Int as uint64,
 ) {
+    /// Plain TON from StakingMaster (e.g. old vote-relay cashback) must not bounce back —
+    /// that caused Governor↔StakingMaster loops (IMP-GOVOTE-02 / RC-2).
     receive() {
-        cashback(sender());
+        if (sender() != self.stakingMaster) {
+            cashback(sender());
+        }
     }
 
     inline fun quorumAbsFromSnapshot(totalVp: Int, quorumPct: Int): Int {
