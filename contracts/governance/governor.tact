@@ -21,6 +21,14 @@ const GV_CANCELLED: Int = 5;
 /// (`endTime = startTime + cfg.period`) intact.
 const CANCEL_LAG: Int = 3600; // 1 hour
 
+/// Vote gas budget (IMP-GOVOTE-04 / AD-2). Source of truth — mirror in `Governor.ts` and
+/// `frontend/src/ton/transactionBuilder.ts`.
+/// Covers StakingMaster→Proposal `0.07` forward, relay compute, and voter refund (IMP-GOVOTE-02).
+const GasVoteRelayForward: Int = ton("0.14");
+/// Minimum voter attachment for `CastVote`: relay forward + Governor handler gas
+/// (`SendPayGasSeparately` + `cashback`). Same 0.04 TON margin as `ExecuteProposal` (0.11 vs 0.07).
+const GasVoteAttach: Int = ton("0.18");
+
 contract Governor(
     proposalCount: Int as uint64,
     proposals: map<Int as uint64, Address>,
@@ -152,6 +160,7 @@ contract Governor(
 
     receive(msg: CastVote) {
         require(msg.claimedVp > 0, "Zero vp");
+        require(context().value >= GasVoteAttach, "Need TON for vote");
 
         let addrOpt = self.proposals.get(msg.proposalId);
         require(addrOpt != null, "Unknown proposal");
@@ -159,7 +168,7 @@ contract Governor(
 
         message(MessageParameters {
             to: self.stakingMaster,
-            value: ton("0.14"),
+            value: GasVoteRelayForward,
             mode: SendPayGasSeparately,
             bounce: true,
             body: GovernorVoteRelay {

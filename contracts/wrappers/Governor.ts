@@ -17,6 +17,11 @@ import {
 } from '@ton/core';
 import { StakingMaster } from './StakingMaster';
 
+/** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
+export const GOVERNOR_VOTE_ATTACH_NANO = toNano('0.18');
+/** Matches `GasVoteRelayForward` in governor.tact (IMP-GOVOTE-04). */
+export const GOVERNOR_VOTE_RELAY_FORWARD_NANO = toNano('0.14');
+
 export function emptyGovernorProposalMap() {
     return Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address());
 }
@@ -126,7 +131,7 @@ export class Governor extends GovernorBase {
             support: p.support,
             claimedVp: p.claimedVp,
         };
-        return this.send(provider, via, { value: toNano('0.08') }, msg);
+        return this.send(provider, via, { value: GOVERNOR_VOTE_ATTACH_NANO }, msg);
     }
 
     async sendExecuteProposal(provider: ContractProvider, via: Sender, p: { proposalId: bigint }) {

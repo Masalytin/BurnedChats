@@ -34,6 +34,9 @@ export const STAKE_FORWARD_TON = toNano('5');
  */
 export const STAKE_ATTACHED_TON = toNano('7.6');
 
+/** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
+export const VOTE_ATTACHED_TON = toNano('0.18');
+
 function emptyForwardPayloadSlice(): Slice {
   return beginCell().storeUint(0, 1).endCell().asSlice();
 }
@@ -175,7 +178,7 @@ export function buildClaimMsg(params: {
 }
 
 /**
- * `CastVote` on governor (~0.2 TON; gas forwarded internally to staking).
+ * `CastVote` on governor — attach `VOTE_ATTACHED_TON` (covers relay forward + Governor gas).
  */
 export function buildVoteMsg(params: {
   governor: Address;
@@ -193,7 +196,7 @@ export function buildVoteMsg(params: {
     .endCell();
   return {
     address: params.governor.toString(),
-    amount: toNano('0.2').toString(),
+    amount: VOTE_ATTACHED_TON.toString(),
     payload: body.toBoc({ idx: false }).toString('base64'),
   };
 }
