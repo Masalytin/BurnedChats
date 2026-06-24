@@ -334,6 +334,7 @@
     "tonBalanceLabel": "TON: {{amount}}",
     "tonGasDepositHint": "~{{attach}} TON прикрепляется к сообщению на сетевой газ; неиспользованный TON вернётся на ваш кошелёк.",
     "insufficientTonForStake": "Держите на кошельке не менее ~{{attach}} TON для стейка.",
+    "stakeNetWithFee": "К стейку: ≈{{net}} (комиссия перевода 1%: {{fee}})",
     "unstakeTitle": "Вывод {{tier}}",
     "unstakeAvailable": "Доступно к выводу: {{amount}}",
     "unstakeLockMeta": "Политика блокировки: {{lock}}",

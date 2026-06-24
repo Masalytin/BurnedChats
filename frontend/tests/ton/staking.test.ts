@@ -246,6 +246,21 @@ describe('stakeTx', () => {
           result: { exit_code: 0, stack: [['tvm.Slice', jwB64]] },
         });
       }
+      if (method === 'get_is_excluded') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '0xffffffffffffffff']] },
+        });
+      }
+      if (method === 'get_effective_fee_params') {
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [['num', '0x32'], ['num', '0x1e'], ['num', '0x14']],
+          },
+        });
+      }
       return jsonResponse({ ok: false, error: method }, 500);
     });
 
@@ -260,7 +275,10 @@ describe('stakeTx', () => {
       },
     );
 
-    expect(res).toEqual({ ok: true, boc: 'abcd' });
+    expect(res).toEqual({
+      tx: { ok: true, boc: 'abcd' },
+      netStakedNano: 5n * 1_000_000_000n,
+    });
     expect(sendTransactionImpl).toHaveBeenCalledTimes(1);
     const messages = sendTransactionImpl.mock.calls[0]![0] as Array<{ address: string; payload: string }>;
     expect(messages).toHaveLength(1);

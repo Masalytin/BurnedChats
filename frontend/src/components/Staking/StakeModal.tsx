@@ -5,6 +5,7 @@ import { useToast } from '@/components/Toast';
 import { CloseIcon, SuccessIcon } from '@/icons';
 import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sendModalGasReserve';
 import { useTonConnect } from '@/hooks/useTonConnect';
+import { estimateStakeNet, type StakeNetEstimate } from '@/ton/estimateStakeNet';
 import { estimateStakeTon } from '@/ton/estimateStakeTon';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { StakingTier, type TierConfig } from '@/types/ton';
@@ -55,6 +56,9 @@ export function StakeModal({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
+  const [stakeNetEstimate, setStakeNetEstimate] = useState<StakeNetEstimate | null>(null);
+
+  const stakingMasterAddress = (import.meta.env.VITE_STAKING_MASTER ?? '').trim();
 
   const [tier, setTier] = useState<StakingTier>(initialTier);
   const [amountStr, setAmountStr] = useState('0');
@@ -105,6 +109,48 @@ export function StakeModal({
     };
   }, [open, walletAddress]);
 
+  const amountNano = useMemo(() => {
+    try {
+      return parseBurn(amountStr);
+    } catch {
+      return 0n;
+    }
+  }, [amountStr]);
+
+  useEffect(() => {
+    const addr = walletAddress?.trim();
+    if (!open || !addr || !stakingMasterAddress || amountNano <= 0n) {
+      setStakeNetEstimate(null);
+      return;
+    }
+
+    let cancelled = false;
+    void estimateStakeNet({
+      ownerAddress: addr,
+      stakingMaster: stakingMasterAddress,
+      grossNano: amountNano,
+    })
+      .then((est) => {
+        if (!cancelled) {
+          setStakeNetEstimate(est);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStakeNetEstimate({
+            willChargeFee: true,
+            grossNano: amountNano,
+            feeNano: 0n,
+            netNano: amountNano,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, walletAddress, stakingMasterAddress, amountNano]);
+
   const tonEstimate = useMemo(
     () =>
       estimateStakeTon({
@@ -127,14 +173,6 @@ export function StakeModal({
 
   const selectedCfg = cfgByTier.get(tier);
   const balance = walletBalanceNano ?? 0n;
-
-  const amountNano = useMemo(() => {
-    try {
-      return parseBurn(amountStr);
-    } catch {
-      return 0n;
-    }
-  }, [amountStr]);
 
   const unlockDate = useMemo((): Date | null => {
     if (!selectedCfg || selectedCfg.lockDurationSec <= 0) {
@@ -326,10 +364,21 @@ export function StakeModal({
             {selectedCfg ? (
               <StakeMiniApyBlock
                 tier={tier}
-                amountNano={amountNano}
+                amountNano={
+                  stakeNetEstimate?.willChargeFee ? stakeNetEstimate.netNano : amountNano
+                }
                 existingStakeInTierNano={existingStakeInTierNano}
                 rewardSharePercent={selectedCfg.rewardSharePercent}
               />
+            ) : null}
+
+            {stakeNetEstimate?.willChargeFee && stakeNetEstimate.feeNano > 0n ? (
+              <p className={`${styles.muted} ${styles.textSm} ${styles.mtSm}`} role="status">
+                {t('staking.stakeNetWithFee', {
+                  net: formatBurn(stakeNetEstimate.netNano),
+                  fee: formatBurn(stakeNetEstimate.feeNano),
+                })}
+              </p>
             ) : null}
 
             {error || insufficientTon ? (

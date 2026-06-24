@@ -240,16 +240,17 @@ export function useStaking(): UseStaking {
       if (!walletAddress) {
         return { ok: false, kind: 'unknown', message: 'Connect wallet before staking' };
       }
-      let tx: TxResult;
+      let outcome: Awaited<ReturnType<typeof stakeTx>>;
       try {
-        tx = await stakeTx({ ...params, walletAddress });
+        outcome = await stakeTx({ ...params, walletAddress });
       } catch (e) {
         return txResultFromError(e);
       }
+      const { tx, netStakedNano } = outcome;
       if (tx.ok) {
         setOptimisticByTier((prev) => ({
           ...prev,
-          [params.tier]: (prev[params.tier] ?? 0n) + params.amount,
+          [params.tier]: (prev[params.tier] ?? 0n) + netStakedNano,
         }));
         scheduleTxTriggeredRefresh();
         scheduleOptimisticClear();

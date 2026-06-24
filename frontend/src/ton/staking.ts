@@ -1,6 +1,7 @@
 import { Address } from '@ton/core';
 
 import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
+import { estimateStakeNet } from '@/ton/estimateStakeNet';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 import { sendTonTransaction } from '@/ton/connector';
 import { buildClaimMsg, buildStakeMsg, buildUnstakeMsg } from '@/ton/transactionBuilder';
@@ -568,9 +569,16 @@ export function calculateApy(
 
 export type StakeActionParams = { tier: StakingTier; amount: bigint; walletAddress: string };
 
-export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Promise<TxResult> {
+export type StakeTxOutcome = {
+  tx: TxResult;
+  /** Expected on-chain staked amount after jetton fee-split (net when fee applies). */
+  netStakedNano: bigint;
+};
+
+export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Promise<StakeTxOutcome> {
   const r = resolveDeps(deps);
   const master = Address.parse(r.stakingMaster.trim());
+  const netEstimate = await estimateStakeNetForStake(params, r);
   let jw: string;
   try {
     jw = await getUserJettonWalletAddress(params.walletAddress.trim(), r);
@@ -586,7 +594,27 @@ export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Pr
     tier: params.tier,
     responseAddress: Address.parse(params.walletAddress.trim()),
   });
-  return r.sendTransactionImpl([msg]);
+  const tx = await r.sendTransactionImpl([msg]);
+  return { tx, netStakedNano: netEstimate.netNano };
+}
+
+async function estimateStakeNetForStake(
+  params: StakeActionParams,
+  r: ResolvedStakingDeps,
+): Promise<{ netNano: bigint }> {
+  return estimateStakeNet(
+    {
+      ownerAddress: params.walletAddress.trim(),
+      stakingMaster: r.stakingMaster.trim(),
+      grossNano: params.amount,
+    },
+    {
+      rpcBaseUrl: r.rpcBaseUrl,
+      jettonMaster: resolveJettonMaster(r.jettonMaster),
+      apiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    },
+  );
 }
 
 export type UnstakeActionParams = { tier: StakingTier; amount: bigint; walletAddress: string };

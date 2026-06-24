@@ -326,6 +326,7 @@
     "tonBalanceLabel": "TON: {{amount}}",
     "tonGasDepositHint": "~{{attach}} TON is attached for network gas; unused TON returns to your wallet.",
     "insufficientTonForStake": "Keep at least ~{{attach}} TON in your wallet to stake.",
+    "stakeNetWithFee": "Will stake: ≈{{net}} (1% transfer fee: {{fee}})",
     "unstakeTitle": "Unstake {{tier}}",
     "unstakeAvailable": "Available to unstake: {{amount}}",
     "unstakeLockMeta": "Lock policy: {{lock}}",
