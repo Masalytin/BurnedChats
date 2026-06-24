@@ -21,6 +21,7 @@ import {
     transferAndAssertFees,
     type JettonDeployedContext,
 } from './helpers';
+import { setupStakingEnvironment, stakeAs } from './staking-helpers';
 import { ACTIVITY_THRESHOLD_DEFAULT, LARGE_TX_THRESHOLD_10_BURN } from './fixtures/jetton-presets';
 import '@ton/test-utils';
 
@@ -866,6 +867,84 @@ describe('BurnJetton', () => {
             expect(bounceTx.transactions).toHaveTransaction({ on: wx.address, success: true });
             expect((await wx.getGetWalletData()).balance).toBe(100n * NANO_PER_BURN);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+        });
+    });
+
+    describe('IMP-STKFEE-02 stale excluded snapshot', () => {
+        it('transfer to excluded destination with notify forward after stale sender sync is fee-exempt (live master check)', async () => {
+            const amount = 3n * NANO_PER_BURN;
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.staking.address);
+            expect(await ctx.master.getGetIsExcluded(ctx.staking.address)).toBe(true);
+
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.staking.address,
+                responseDestination: ctx.userX.address,
+                forwardTonAmount: toNano('1'),
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+
+            const wSt = await getWallet(ctx, ctx.staking.address);
+            expect((await wSt.getGetWalletData()).balance).toBe(amount);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+        });
+
+        it('fresh snapshot: transfer to excluded destination remains fee-exempt', async () => {
+            const amount = 10n * NANO_PER_BURN;
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.staking.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            const wx = await getWallet(ctx, ctx.userX.address);
+            await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.staking.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON_EXCLUDED,
+            });
+
+            const wSt = await getWallet(ctx, ctx.staking.address);
+            expect((await wSt.getGetWalletData()).balance).toBe(amount);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+        });
+
+        it('non-excluded transfer still charges 1% fee (direct fee path, no master hop)', async () => {
+            const amount = 100n * NANO_PER_BURN;
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const burn = (5n * NANO_PER_BURN) / 10n;
+            const staking = (3n * NANO_PER_BURN) / 10n;
+            const treasury = (2n * NANO_PER_BURN) / 10n;
+            await transferAndAssertFees(ctx, ctx.userX, ctx.userY.address, amount, burn, staking, treasury);
+        });
+
+        it('staking deposit with stale snapshot stakes full gross amount (3 BURN → 3 staked)', async () => {
+            const env = await setupStakingEnvironment();
+            const user = await env.blockchain.treasury('staker');
+            const amount = 3n * NANO_PER_BURN;
+
+            await env.jettonMaster.sendRemoveExcluded(env.deployer.getSender(), env.stakingMaster.address);
+            await env.jettonMaster.sendMint(env.deployer.getSender(), user.address, amount, 1n, MINT_TON);
+            await env.jettonMaster.sendSyncFeeConfigToWallet(env.deployer.getSender(), user.address);
+            await env.jettonMaster.sendAddExcluded(env.deployer.getSender(), env.stakingMaster.address);
+            expect(await env.jettonMaster.getGetIsExcluded(env.stakingMaster.address)).toBe(true);
+
+            const stakeRes = await stakeAs(env, user, 0, amount);
+            expect(stakeRes.transactions).toHaveTransaction({ success: true });
+
+            const stake = await env.stakingMaster.getGetStake(user.address, 0n);
+            expect(stake).not.toBeNull();
+            expect(stake!.amount).toBe(amount);
         });
     });
 });

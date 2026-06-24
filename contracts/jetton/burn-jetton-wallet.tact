@@ -9,6 +9,8 @@ const perInternalDeployTon: Int = ton("0.55");
 const minTonFeePath: Int = ton("2.1");
 /// Minimum TON attach gate for excluded sender/recipient bypass (1 deploy + propagate).
 const minTonExcludedPath: Int = ton("0.65");
+/// Forward TON at or above this threshold triggers live excluded resolution on master (staking deposits).
+const minForwardForLiveExcludedCheck: Int = ton("1");
 /// TON StakingPool attaches on StakeFeeRewardsAccrue (shared with staking-pool.tact).
 const gasPoolToMasterAccrual: Int = ton("0.06");
 /// Floor for staking-leg JettonNotification forward (notify handler + accrual msg).
@@ -134,6 +136,28 @@ message(0x6a3b2c1d) PropagateFeeConfigToOwner {
     queryId: Int as uint64;
     sender_owner: Address;
     recipient_owner: Address;
+}
+
+/// Sender wallet defers to master for live excluded-list check when local fee-config snapshot is stale (IMP-STKFEE-02).
+message(0x6a3b2c20) ResolveJettonTransfer {
+    queryId: Int as uint64;
+    sender_owner: Address;
+    amount: Int as coins;
+    destination: Address;
+    responseDestination: Address?;
+    forwardTonAmount: Int as coins;
+    forwardPayload: Cell;
+}
+
+/// Master commits transfer execution after authoritative excluded resolution (IMP-STKFEE-02).
+message(0x6a3b2c21) CommitJettonTransfer {
+    queryId: Int as uint64;
+    amount: Int as coins;
+    destination: Address;
+    responseDestination: Address?;
+    forwardTonAmount: Int as coins;
+    forwardPayload: Cell;
+    excludedTransfer: Bool;
 }
 
 /// Master-only: update fee parameters and destination owner addresses on a wallet.
@@ -483,6 +507,10 @@ inline fun makeTakeWalletAddressMsg(targetJettonWallet: BasechainAddress, msg: P
         .endCell();
 }
 
+inline fun packForwardPayloadCell(forwardPayload: Slice): Cell {
+    return beginCell().storeSlice(forwardPayload).endCell();
+}
+
 contract BurnJettonWallet(
     owner: Address,
     master: Address,
@@ -516,41 +544,31 @@ contract BurnJettonWallet(
         );
     }
 
-    receive(msg: JettonTransfer) {
-        forceBasechain(msg.destination);
-        require(sender() == self.owner, "Incorrect sender");
-        require(msg.amount > 0, "Amount must be positive");
-
+    /// Shared JettonTransfer execution after excluded resolution (local snapshot or master commit).
+    fun executeJettonTransfer(
+        queryId: Int,
+        amount: Int,
+        destination: Address,
+        responseDestination: Address?,
+        forwardTonAmount: Int,
+        forwardPayload: Slice,
+        excludedTransfer: Bool,
+    ) {
         let cfg = decodeFeeConfig(self.feeConfig);
         require(cfg.active, "Fee destinations not configured");
         forceBasechain(cfg.poolOwner);
         forceBasechain(cfg.treasuryOwner);
 
-        let excludedTransfer = isExcludedMember(
-            self.owner,
-            cfg.excludedHead,
-            cfg.excludedCount,
-        ) || isExcludedMember(msg.destination, cfg.excludedHead, cfg.excludedCount);
-
-        checkEitherForwardPayload(msg.forwardPayload);
-
+        let emptyCfg = jettonWalletEmptyFeeConfig();
         let ctx = context();
         let fwd = ctx.readForwardFee();
-        let recipientForwards = 1 + sign(msg.forwardTonAmount);
-        let minTonRequired = excludedTransfer ? minTonExcludedPath : minTonFeePath;
-        require(
-            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
-            "Insufficient amount of TON attached",
-        );
-
-        let emptyCfg = jettonWalletEmptyFeeConfig();
         let deliverTon = max(
             perInternalDeployTon,
-            msg.forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
+            forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
         );
 
         if (excludedTransfer) {
-            self.balance -= msg.amount;
+            self.balance -= amount;
             require(self.balance >= 0, "Incorrect balance after send");
 
             deploy(DeployParameters {
@@ -558,25 +576,25 @@ contract BurnJettonWallet(
                 bounce: true,
                 mode: SendPayGasSeparately,
                 body: JettonTransferInternal {
-                    queryId: msg.queryId,
-                    amount: msg.amount,
+                    queryId: queryId,
+                    amount: amount,
                     sender: self.owner,
-                    responseDestination: msg.responseDestination,
-                    forwardTonAmount: msg.forwardTonAmount,
-                    forwardPayload: msg.forwardPayload,
+                    responseDestination: responseDestination,
+                    forwardTonAmount: forwardTonAmount,
+                    forwardPayload: forwardPayload,
                 }.toCell(),
-                init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
+                init: initOf BurnJettonWallet(destination, self.master, 0, emptyCfg),
             });
-            requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
-            returnTransferSurplusToOwner(msg.queryId, msg.responseDestination, self.owner);
+            requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination);
+            returnTransferSurplusToOwner(queryId, responseDestination, self.owner);
             return;
         }
 
-        let burnBps = computeDynamicBurnBps(cfg, msg.amount);
-        let parts = computeFeeParts(msg.amount, burnBps, cfg.stakeBps, cfg.treasBps);
-        require(parts.burn + parts.staking + parts.treasury + parts.net == msg.amount, "Fee split invariant");
+        let burnBps = computeDynamicBurnBps(cfg, amount);
+        let parts = computeFeeParts(amount, burnBps, cfg.stakeBps, cfg.treasBps);
+        require(parts.burn + parts.staking + parts.treasury + parts.net == amount, "Fee split invariant");
 
-        self.balance -= msg.amount;
+        self.balance -= amount;
         require(self.balance >= 0, "Incorrect balance after send");
 
         let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
@@ -596,14 +614,14 @@ contract BurnJettonWallet(
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
-                queryId: msg.queryId,
+                queryId: queryId,
                 amount: parts.net,
                 sender: self.owner,
-                responseDestination: msg.responseDestination,
-                forwardTonAmount: msg.forwardTonAmount,
-                forwardPayload: msg.forwardPayload,
+                responseDestination: responseDestination,
+                forwardTonAmount: forwardTonAmount,
+                forwardPayload: forwardPayload,
             }.toCell(),
-            init: initOf BurnJettonWallet(msg.destination, self.master, 0, emptyCfg),
+            init: initOf BurnJettonWallet(destination, self.master, 0, emptyCfg),
         });
 
         deploy(DeployParameters {
@@ -611,10 +629,10 @@ contract BurnJettonWallet(
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
-                queryId: msg.queryId,
+                queryId: queryId,
                 amount: parts.staking,
                 sender: self.owner,
-                responseDestination: msg.responseDestination,
+                responseDestination: responseDestination,
                 forwardTonAmount: poolFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
@@ -633,10 +651,10 @@ contract BurnJettonWallet(
             bounce: true,
             mode: SendPayGasSeparately,
             body: JettonTransferInternal {
-                queryId: msg.queryId,
+                queryId: queryId,
                 amount: parts.treasury,
                 sender: self.owner,
-                responseDestination: msg.responseDestination,
+                responseDestination: responseDestination,
                 forwardTonAmount: treasFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
@@ -649,15 +667,106 @@ contract BurnJettonWallet(
             mode: SendPayGasSeparately,
             bounce: true,
             body: JettonBurnNotification {
-                queryId: msg.queryId,
+                queryId: queryId,
                 amount: parts.burn,
                 sender: self.owner,
-                responseDestination: msg.responseDestination,
+                responseDestination: responseDestination,
             }.toCell(),
         });
 
-        requestRecipientFeeConfigSync(self.master, msg.queryId, self.owner, msg.destination);
-        returnTransferSurplusToOwner(msg.queryId, msg.responseDestination, self.owner);
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination);
+        returnTransferSurplusToOwner(queryId, responseDestination, self.owner);
+    }
+
+    receive(msg: JettonTransfer) {
+        forceBasechain(msg.destination);
+        require(sender() == self.owner, "Incorrect sender");
+        require(msg.amount > 0, "Amount must be positive");
+
+        let cfg = decodeFeeConfig(self.feeConfig);
+        require(cfg.active, "Fee destinations not configured");
+        forceBasechain(cfg.poolOwner);
+        forceBasechain(cfg.treasuryOwner);
+
+        checkEitherForwardPayload(msg.forwardPayload);
+
+        let senderExcludedLocal = isExcludedMember(
+            self.owner,
+            cfg.excludedHead,
+            cfg.excludedCount,
+        );
+        let destExcludedLocal = isExcludedMember(
+            msg.destination,
+            cfg.excludedHead,
+            cfg.excludedCount,
+        );
+
+        let ctx = context();
+        let fwd = ctx.readForwardFee();
+        let recipientForwards = 1 + sign(msg.forwardTonAmount);
+        let minTonRequired = senderExcludedLocal || destExcludedLocal ? minTonExcludedPath : minTonFeePath;
+        require(
+            ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
+            "Insufficient amount of TON attached",
+        );
+
+        if (senderExcludedLocal || destExcludedLocal) {
+            self.executeJettonTransfer(
+                msg.queryId,
+                msg.amount,
+                msg.destination,
+                msg.responseDestination,
+                msg.forwardTonAmount,
+                msg.forwardPayload,
+                true,
+            );
+            return;
+        }
+
+        if (msg.forwardTonAmount >= minForwardForLiveExcludedCheck) {
+            nativeReserve(minTonsForStorage, ReserveAtMost);
+            message(MessageParameters {
+                to: self.master,
+                value: 0,
+                mode: SendRemainingBalance + SendIgnoreErrors,
+                bounce: true,
+                body: ResolveJettonTransfer {
+                    queryId: msg.queryId,
+                    sender_owner: self.owner,
+                    amount: msg.amount,
+                    destination: msg.destination,
+                    responseDestination: msg.responseDestination,
+                    forwardTonAmount: msg.forwardTonAmount,
+                    forwardPayload: packForwardPayloadCell(msg.forwardPayload),
+                }.toCell(),
+            });
+            return;
+        }
+
+        self.executeJettonTransfer(
+            msg.queryId,
+            msg.amount,
+            msg.destination,
+            msg.responseDestination,
+            msg.forwardTonAmount,
+            msg.forwardPayload,
+            false,
+        );
+    }
+
+    receive(msg: CommitJettonTransfer) {
+        require(sender() == self.master, "Incorrect sender");
+        let payload = msg.forwardPayload.beginParse();
+        checkEitherForwardPayload(payload);
+        self.executeJettonTransfer(
+            msg.queryId,
+            msg.amount,
+            msg.destination,
+            msg.responseDestination,
+            msg.forwardTonAmount,
+            payload,
+            msg.excludedTransfer,
+        );
     }
 
     receive(msg: JettonTransferInternal) {

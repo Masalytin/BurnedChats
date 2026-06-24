@@ -231,6 +231,66 @@ contract BurnJettonMaster(
         self.pushFeeConfigToOwner(msg.queryId, msg.recipient_owner);
     }
 
+    /// Live excluded-list resolution for transfers with stale wallet fee-config snapshots (IMP-STKFEE-02).
+    receive(msg: ResolveJettonTransfer) {
+        require(self.feeDestinationsActive, "Fee destinations not configured on master");
+        require(getBurnJettonWalletByOwner(msg.sender_owner) == sender(), "Unauthorized jetton wallet");
+
+        let excludedTransfer = isInExcludedChain(msg.sender_owner, self.excludedHead)
+            || isInExcludedChain(msg.destination, self.excludedHead);
+
+        let ctx = context();
+        let cfgPushTon = ton("0.04");
+        require(ctx.value > cfgPushTon + ton("0.05"), "Insufficient TON for resolve");
+
+        let low = self.totalSupply < self.autoReduceThreshold;
+        let effBurn = low ? self.lowBurnBps : self.burnRateBps;
+        let effStake = low ? self.lowStakingBps : self.stakingRateBps;
+        let effTreas = low ? self.lowTreasuryBps : self.treasuryRateBps;
+
+        let cfg = JettonUpdateFeeConfig {
+            queryId: msg.queryId,
+            burn_rate_bps: effBurn,
+            staking_rate_bps: effStake,
+            treasury_rate_bps: effTreas,
+            staking_pool: self.stakingPoolOwner,
+            treasury: self.treasuryOwner,
+            dynamic_burn_enabled: self.dynamicBurnEnabled,
+            large_tx_threshold: self.largeTxThreshold,
+            activity_threshold: self.activityThreshold,
+            max_burn_rate_bps: self.maxBurnRateBps,
+            tx_count_snapshot: self.txCountLastHour,
+            activity_hour_bucket: self.activityHourBucket,
+            low_supply_mode: low,
+            excluded_count: self.excludedCount,
+            excluded_head: self.excludedHead,
+        };
+
+        message(MessageParameters {
+            body: cfg.toCell(),
+            to: getBurnJettonWalletByOwner(msg.sender_owner),
+            value: cfgPushTon,
+            bounce: false,
+            mode: SendPayGasSeparately | SendIgnoreErrors,
+        });
+
+        message(MessageParameters {
+            body: CommitJettonTransfer {
+                queryId: msg.queryId,
+                amount: msg.amount,
+                destination: msg.destination,
+                responseDestination: msg.responseDestination,
+                forwardTonAmount: msg.forwardTonAmount,
+                forwardPayload: msg.forwardPayload,
+                excludedTransfer: excludedTransfer,
+            }.toCell(),
+            to: getBurnJettonWalletByOwner(msg.sender_owner),
+            value: 0,
+            bounce: true,
+            mode: SendRemainingValue | SendIgnoreErrors,
+        });
+    }
+
     inline fun pushFeeConfigToOwner(queryId: Int, owner: Address) {
         let low = self.totalSupply < self.autoReduceThreshold;
         let effBurn = low ? self.lowBurnBps : self.burnRateBps;

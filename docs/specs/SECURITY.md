@@ -937,6 +937,31 @@ relay-цепочек между auto-cashback контрактами — **не*
 
 Decision log: [IMP-GOVOTE-02 break cashback loop](../improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-02-break-cashback-loop.md).
 
+### Fee-exempt transfers и stale excluded snapshot (IMP-STKFEE-02)
+
+**Проблема:** `BurnJettonWallet.JettonTransfer` проверяет excluded-статус по **локальному снимку**
+`feeConfig` отправителя. Если `StakingMaster` (или другой protocol sink) добавлен в excluded на
+мастере после sync кошелька пользователя, депозит в стейкинг облагается стандартным 1% fee
+(расхождение с `TOKENOMICS.md`).
+
+**Принятый механизм (live resolve на master):**
+
+1. Локальный fast-path: отправитель или получатель в локальном excluded-снимке → excluded transfer.
+2. Обычный P2P (`forwardTonAmount < 1 TON`, не excluded локально) → fee path без hop на master
+   (газовый профиль IMP-JETTON-GAS-06 сохранён).
+3. Protocol notify path (`forwardTonAmount ≥ 1 TON`, типичный стейкинг) при отсутствии локального
+   excluded → `ResolveJettonTransfer` (wallet → master). Мастер сверяет **живой** `excludedHead`,
+   пушит актуальный `JettonUpdateFeeConfig` на отправителя и выполняет `CommitJettonTransfer`.
+
+**Безопасность:** `excludedTransfer=true` в commit выставляется только если адрес есть в
+timelock-управляемом excluded-листе мастера (`AddExcluded` / `RemoveExcluded`). Произвольный
+получатель не может обойти комиссию. Wallet авторизован: sender jetton wallet == caller;
+`CommitJettonTransfer` принимается только от master.
+
+Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
+
+Decision log: [IMP-STKFEE-02 live excluded resolution](../improvements/staking-deposit-fee/decisions/IMP-STKFEE-02-live-excluded-resolution.md).
+
 ---
 
 ## Аудит безопасности (чеклист)
