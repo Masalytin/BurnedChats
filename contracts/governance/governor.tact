@@ -174,6 +174,14 @@ contract Governor(
         cashback(sender());
     }
 
+    /// IMP-GOVOTE-03 / AD-1 — StakingMaster rejected `GovernorVoteRelay` (Only governor, Zero effective vp).
+    /// Bounce prefix carries `queryId` and `proposal` only — `voter` is not available; value stays on
+    /// Governor (see decision log). No `cashback(sender())` — that would ping StakingMaster (RC-2).
+    bounced(msg: bounced<GovernorVoteRelay>) {
+        /// Absorb bounce value on Governor; voter was already cashback'd by `CastVote` for the input
+        /// remainder, and cannot be targeted from the truncated bounce body.
+    }
+
     receive(msg: ExecuteProposal) {
         let addrOpt = self.proposals.get(msg.proposalId);
         require(addrOpt != null, "Unknown proposal");

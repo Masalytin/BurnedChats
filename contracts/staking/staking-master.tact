@@ -708,6 +708,14 @@ contract StakingMaster(
         });
     }
 
+    /// IMP-GOVOTE-03 / AD-1 — Proposal rejected `ProposalVoteRelay` (Not started, Already voted, …).
+    /// Bounce returns the forwarded vote value. `voter` does not fit the ~224-bit bounce prefix
+    /// (Address after opcode) — value stays on StakingMaster; see decision log. No cashback to
+    /// Governor (IMP-GOVOTE-02 / RC-2).
+    bounced(msg: bounced<ProposalVoteRelay>) {
+        /// Absorb bounce value; voter already received relay remainder from `GovernorVoteRelay`.
+    }
+
     /// IMP-AUDIT-03 — trusted push sync from StakingLock (Timelock-governed tier table).
     receive(msg: TierConfigSync) {
         require(sender() == self.stakingLock, "Only staking lock");
