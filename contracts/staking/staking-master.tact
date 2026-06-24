@@ -369,6 +369,19 @@ contract StakingMaster(
         return minNotify;
     }
 
+    /// True when forward_payload carries a `StakeForward` ref (user stake intent), not mint/refill dust.
+    inline fun hasStakeForwardPayload(forwardPayload: Slice): Bool {
+        if (forwardPayload.preloadUint(1) != 1) {
+            return false;
+        }
+        let br = calculateSliceBitsAndRefs(forwardPayload);
+        if (br.refs != 1 || br.bits != 1) {
+            return false;
+        }
+        let inner = forwardPayload.preloadRef().beginParse();
+        return inner.preloadUint(32) == StakeForward.opcode();
+    }
+
     fun parseStakeTier(forwardPayload: Slice): Int {
         require(forwardPayload.preloadUint(1) == 1, "Stake payload required");
         let br = calculateSliceBitsAndRefs(forwardPayload);
@@ -379,6 +392,27 @@ contract StakingMaster(
         let sf = StakeForward.fromSlice(inner);
         self.assertTier(sf.tier);
         return sf.tier;
+    }
+
+    /// Return sub-minimum stake jettons to the depositor (IMP-STKFEE-04 / V-1).
+    fun returnSubMinStakeJettons(amount: Int, recipient: Address, queryId: Int) {
+        require(context().value >= self.GasForwardStakeJetton, "Low TON return");
+        message(MessageParameters {
+            to: self.masterJettonWalletAddr(),
+            value: self.GasForwardStakeJetton,
+            bounce: true,
+            mode: SendPayGasSeparately,
+            body: JettonTransferOut {
+                queryId: queryId,
+                amount: amount,
+                destination: recipient,
+                responseDestination: myAddress(),
+                customPayload: null,
+                forwardTonAmount: 0,
+                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            }.toCell(),
+        });
+        cashback(sender());
     }
 
     fun forwardStakeJettonsToPool(amount: Int, queryId: Int) {
@@ -480,9 +514,13 @@ contract StakingMaster(
         require(self.jwConfigured, "JW not configured");
         require(sender() == self.stakingJettonWallet, "Only master JW");
 
-        // Mint/refill notifications use tiny amounts (below MIN stake); ignore without parsing payload.
+        // Sub-minimum net: mint/refill dust (no StakeForward) is ignored; user stake attempts are refunded.
         if (msg.amount < self.MinStakeNano) {
-            cashback(sender());
+            if (self.hasStakeForwardPayload(msg.forwardPayload)) {
+                self.returnSubMinStakeJettons(msg.amount, msg.sender, msg.queryId);
+            } else {
+                cashback(sender());
+            }
             return;
         }
 

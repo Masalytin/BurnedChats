@@ -1,5 +1,5 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { toNano } from '@ton/core';
+import { beginCell, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { StakingLock, TIER_DIAMOND_SECONDS, TIER_GOLD_SECONDS, TIER_SILVER_SECONDS } from '../wrappers/StakingLock';
@@ -677,14 +677,27 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
             expect(await env.stakingMaster.getGetMasterTotalStake(2n)).toBe(amt);
         });
 
-        it('stake below MIN_STAKE is ignored (no stake record / no pool increment)', async () => {
+        it('stake below MIN_STAKE is rejected and jettons returned (IMP-STKFEE-04)', async () => {
             const env = await setupStakingEnvironment('https://example.com/md-p5224-minignore.json');
             const user = await env.blockchain.treasury('submin-user');
+            const subMin = MIN_STAKE_NANO - 1n;
             await mintAndSyncUser(env, user, MIN_STAKE_NANO);
-            const tx = await stakeAs(env, user, 0, MIN_STAKE_NANO - 1n);
+
+            const masterJw = env.blockchain.openContract(
+                BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+            );
+            const masterJwBefore = (await masterJw.getGetWalletData()).balance;
+
+            const tx = await stakeAs(env, user, 0, subMin);
             expect(tx.transactions).toHaveTransaction({ success: true });
             expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
             expect(await env.pool.getGetTotalStake(0n)).toBe(0n);
+
+            const userJw = env.blockchain.openContract(
+                BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+            );
+            expect((await userJw.getGetWalletData()).balance).toBe(MIN_STAKE_NANO);
+            expect((await masterJw.getGetWalletData()).balance).toBe(masterJwBefore);
         });
 
         it('one user can stake into multiple tiers independently', async () => {
@@ -1091,6 +1104,74 @@ describe('IMP-AUDIT-03 — StakingLock runtime wiring', () => {
 
         const vp = await env.stakingMaster.getGetVotingPower(user.address);
         expect(vp).toBe((stakeAmt * newMultiplier) / 100n);
+    });
+});
+
+describe('IMP-STKFEE-04 — sub-min net stuck funds', () => {
+    it('returns jettons to sender when net is below MinStakeNano with StakeForward', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stkfee04-return.json');
+        const user = await env.blockchain.treasury('stkfee04-return');
+        const subMin = MIN_STAKE_NANO - 1n;
+        await mintAndSyncUser(env, user, MIN_STAKE_NANO * 2n);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const masterBefore = (await masterJw.getGetWalletData()).balance;
+
+        const tx = await stakeAs(env, user, 1, subMin);
+        expect(tx.transactions).toHaveTransaction({ success: true });
+        expect(tx.transactions).toHaveTransaction({
+            from: env.stakingMaster.address,
+            op: 0xf8a7ea5,
+            success: true,
+        });
+
+        const userJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+        );
+        expect((await userJw.getGetWalletData()).balance).toBe(MIN_STAKE_NANO * 2n);
+        expect((await masterJw.getGetWalletData()).balance).toBe(masterBefore);
+        expect(await env.stakingMaster.getGetStake(user.address, 1n)).toBeNull();
+    });
+
+    it('ignores mint/refill dust without StakeForward (no refund path)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stkfee04-dust.json');
+        const sender = await env.blockchain.treasury('stkfee04-dust');
+        const dust = MIN_STAKE_NANO - 1n;
+        await mintAndSyncUser(env, sender, dust);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const masterBefore = (await masterJw.getGetWalletData()).balance;
+
+        const senderJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(sender.address)),
+        );
+        const tx = await senderJw.sendTransfer(sender.getSender(), {
+            jettonAmount: dust,
+            destinationOwner: env.stakingMaster.address,
+            responseDestination: sender.address,
+            forwardTonAmount: 0n,
+            forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            value: toNano('0.7'),
+        });
+        expect(tx.transactions).toHaveTransaction({ success: true });
+
+        expect((await masterJw.getGetWalletData()).balance).toBe(masterBefore + dust);
+        expect((await senderJw.getGetWalletData()).balance).toBe(0n);
+        expect(await env.stakingMaster.getGetStake(sender.address, 0n)).toBeNull();
+    });
+
+    it('normal stake at MinStakeNano is unchanged', async () => {
+        const env = await setupStakingEnvironment('https://example.com/stkfee04-normal.json');
+        const user = await env.blockchain.treasury('stkfee04-normal');
+        await mintAndSyncUser(env, user, MIN_STAKE_NANO);
+        const tx = await stakeAs(env, user, 0, MIN_STAKE_NANO);
+        expect(tx.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(MIN_STAKE_NANO);
+        expect(await env.pool.getGetTotalStake(0n)).toBe(MIN_STAKE_NANO);
     });
 });
 
