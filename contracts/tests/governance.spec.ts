@@ -196,6 +196,45 @@ async function castVote(
     return env.governor.sendCastVote(voter.getSender(), { proposalId: id, support, claimedVp: 10n ** 30n });
 }
 
+/** Count empty-body hops between Governor and StakingMaster (RC-2 cashback ping-pong). */
+function countEmptyGovernorStakingHops(
+    transactions: SendMessageResult['transactions'],
+    governor: Address,
+    stakingMaster: Address,
+): number {
+    let count = 0;
+    for (const tx of transactions) {
+        const inMsg = tx.inMessage;
+        if (!inMsg || inMsg.info.type !== 'internal') {
+            continue;
+        }
+        const from = inMsg.info.src;
+        const to = inMsg.info.dest;
+        const isHop =
+            (from.equals(governor) && to.equals(stakingMaster)) ||
+            (from.equals(stakingMaster) && to.equals(governor));
+        if (!isHop) {
+            continue;
+        }
+        if (inMsg.body.bits.length === 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+function assertNoOutOfGas(transactions: SendMessageResult['transactions']): void {
+    for (const tx of transactions) {
+        if (tx.description.type !== 'generic') {
+            continue;
+        }
+        const phase = tx.description.computePhase;
+        if (phase.type === 'vm') {
+            expect(phase.exitCode).not.toBe(-14);
+        }
+    }
+}
+
 /** Pull the exact `TimelockQueue` body the Governor emitted on finalize. */
 function extractQueue(result: SendMessageResult, timelockAddr: Address) {
     for (const tx of result.transactions) {
@@ -719,5 +758,84 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(await env.governor.getGetProposalState(id)).toBe(PS_ACTIVE);
             expect(await proposal.getGetState()).toBe(PS_ACTIVE);
         });
+    });
+});
+
+describe('Vote regressions (IMP-GOVOTE-05 / AD-3)', () => {
+    it('relayed vote does not create Governor⇄StakingMaster cashback loop (RC-2)', async () => {
+        const env = await setupGovernance('https://example.com/gov-no-loop.json');
+        const voter = await env.blockchain.treasury('gov-no-loop-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('no-loop-target');
+        const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 1));
+
+        const voteTx = await castVote(env, voter, id, true);
+        expect(voteTx.transactions).toHaveTransaction({ on: proposal.address, success: true });
+
+        // Original bug trace had 354 tx including ~349 empty hops; keep a generous but tight cap.
+        expect(voteTx.transactions.length).toBeLessThan(50);
+        assertNoOutOfGas(voteTx.transactions);
+        expect(
+            countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
+        ).toBe(0);
+    });
+
+    it('rejects vote inside CANCEL_LAG window with Not started and does not record the vote (RC-1)', async () => {
+        const env = await setupGovernance('https://example.com/gov-prevote.json');
+        const voter = await env.blockchain.treasury('gov-prevote-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('prevote-target');
+        const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 1), {
+            openVoting: false,
+        });
+
+        const voteTx = await castVote(env, voter, id, true);
+        expect(voteTx.transactions).toHaveTransaction({
+            on: proposal.address,
+            success: false,
+            exitCode: Proposal_errors_backward['Not started'],
+        });
+        expect(await proposal.getGetForVotes()).toBe(0n);
+        expect(await proposal.getHasVoted(voter.address)).toBe(false);
+
+        // IMP-GOVOTE-03: bounced ProposalVoteRelay is handled on StakingMaster (not silently dropped).
+        expect(voteTx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            inMessageBounced: true,
+            success: true,
+        });
+        assertNoOutOfGas(voteTx.transactions);
+        expect(
+            countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
+        ).toBe(0);
+    });
+
+    it('handles bounced GovernorVoteRelay on Governor when StakingMaster rejects relay (IMP-GOVOTE-03)', async () => {
+        const env = await setupGovernance('https://example.com/gov-bounce-gov-relay.json');
+        const staker = await env.blockchain.treasury('gov-bounce-gov-staker');
+        await stakeForVp(env, staker, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('bounce-gov-target');
+        const { id, proposal } = await createProposal(env, staker, TYPE_PARAM, paramPayload(target.address, 1));
+
+        const unstaked = await env.blockchain.treasury('gov-bounce-unstaked');
+        const voteTx = await castVote(env, unstaked, id, true);
+        expect(voteTx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: false,
+            exitCode: StakingMaster_errors_backward['Zero effective vp'],
+        });
+        expect(voteTx.transactions).toHaveTransaction({
+            on: env.governor.address,
+            inMessageBounced: true,
+            success: true,
+        });
+        expect(await proposal.getHasVoted(unstaked.address)).toBe(false);
+        assertNoOutOfGas(voteTx.transactions);
+        expect(
+            countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
+        ).toBe(0);
     });
 });
