@@ -457,6 +457,8 @@
     "voteAgainst": "Vote AGAINST",
     "voteDisabledNeedWallet": "Connect wallet to vote",
     "voteDisabledEnded": "Voting ended",
+    "voteNotOpenYet": "Voting has not opened yet",
+    "voteOpensIn": "Voting opens in {{parts}}",
     "voteAlready": "You voted {{side}} with {{vp}} VP.",
     "voteSideFor": "FOR",
     "voteSideAgainst": "AGAINST",

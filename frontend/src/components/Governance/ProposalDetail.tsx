@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { ProposalTimeline } from './ProposalTimeline';
 import { VoteModal } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
-import { formatEndsInRemaining, truncateMiddle } from './governanceUi';
+import { formatEndsInRemaining, formatStartsInRemaining, truncateMiddle } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
@@ -199,10 +199,16 @@ export function ProposalDetail() {
     return (
       isConnected &&
       summary.state === ProposalState.Active &&
+      nowSec >= summary.startTime &&
       nowSec < summary.endTime &&
       (userVote === undefined || userVote.support === null)
     );
   }, [summary, userVote, isConnected, nowSec]);
+
+  const isPreVoteWindow = useMemo(() => {
+    if (!summary) return false;
+    return summary.state === ProposalState.Active && nowSec < summary.startTime;
+  }, [summary, nowSec]);
 
   const executeAfterSec = useMemo(() => {
     if (!lifecycle) return 0;
@@ -411,7 +417,7 @@ export function ProposalDetail() {
             })}
           </p>
         ) : null}
-        <div className={styles.voteActions}>
+        <div className={styles.voteActions} aria-label={isPreVoteWindow ? t('governance.voteNotOpenYet') : undefined}>
           <button type="button" className={styles.voteForBtn} disabled={!canVote} onClick={() => openVote(true)}>
             {t('governance.voteFor')}
           </button>
@@ -424,6 +430,9 @@ export function ProposalDetail() {
             {t('governance.voteAgainst')}
           </button>
         </div>
+        {isPreVoteWindow ? (
+          <p className={styles.muted}>{formatStartsInRemaining(summary.startTime, t, nowSec)}</p>
+        ) : null}
         {!isConnected ? <p className={styles.muted}>{t('governance.voteDisabledNeedWallet')}</p> : null}
         {summary.state !== ProposalState.Active ? (
           <p className={styles.muted}>{t('governance.voteDisabledEnded')}</p>

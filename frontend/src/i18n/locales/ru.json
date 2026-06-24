@@ -471,6 +471,8 @@
     "voteAgainst": "Против",
     "voteDisabledNeedWallet": "Подключите кошелёк для голосования",
     "voteDisabledEnded": "Голосование завершено",
+    "voteNotOpenYet": "Голосование ещё не открыто",
+    "voteOpensIn": "Голосование откроется через {{parts}}",
     "voteAlready": "Вы проголосовали {{side}} с {{vp}} VP.",
     "voteSideFor": "ЗА",
     "voteSideAgainst": "ПРОТИВ",

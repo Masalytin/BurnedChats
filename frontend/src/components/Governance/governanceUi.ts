@@ -38,7 +38,11 @@ export function formatEndsInRemaining(sec: number, t: TFunction, nowSec = Math.f
   if (sec <= nowSec) {
     return t('governance.ended');
   }
-  let remaining = sec - nowSec;
+  return t('governance.endsIn', { parts: formatTimePartsRemaining(sec, nowSec, t) });
+}
+
+function formatTimePartsRemaining(targetSec: number, nowSec: number, t: TFunction): string {
+  let remaining = targetSec - nowSec;
   const days = Math.floor(remaining / SEC_PER_DAY);
   remaining -= days * SEC_PER_DAY;
   const hours = Math.floor(remaining / 3600);
@@ -56,7 +60,18 @@ export function formatEndsInRemaining(sec: number, t: TFunction, nowSec = Math.f
     parts.push(t('governance.timePartMinute', { count: Math.max(1, mins) }));
   }
 
-  return t('governance.endsIn', { parts: parts.join('\u00a0') });
+  return parts.join('\u00a0');
+}
+
+export function formatStartsInRemaining(
+  startSec: number,
+  t: TFunction,
+  nowSec = Math.floor(Date.now() / 1000),
+): string {
+  if (startSec <= nowSec) {
+    return '';
+  }
+  return t('governance.voteOpensIn', { parts: formatTimePartsRemaining(startSec, nowSec, t) });
 }
 
 export function mergeProposalsUnique(primary: ProposalSummary[], secondary: ProposalSummary[]): ProposalSummary[] {
