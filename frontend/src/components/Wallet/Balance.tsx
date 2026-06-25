@@ -7,24 +7,13 @@ import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { BurnTokenError } from '@/ton/burnToken';
 import { shortenTonDisplayAddress } from '@/ton/connector';
+import { formatNativeCoin, nativeCoinSymbol } from '@/ton/nativeCoin';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { formatBurn } from '@/utils/format';
 
 import { Skeleton } from '@/components/Skeleton/Skeleton';
 import { balanceErrorMessage, isBalanceErrorRetryable } from './balanceErrorMessage';
 import styles from './Wallet.module.css';
-
-const TON_DECIMALS = 9n;
-const NANOS_PER_TON = 10n ** TON_DECIMALS;
-
-function formatTonBalance(nano: bigint): string {
-  const neg = nano < 0n;
-  const a = neg ? -nano : nano;
-  const intPart = a / NANOS_PER_TON;
-  const frac = (a % NANOS_PER_TON).toString().padStart(Number(TON_DECIMALS), '0').replace(/0+$/, '');
-  const fracDisplay = frac.length ? `.${frac}` : '';
-  return `${neg ? '−' : ''}${intPart}${fracDisplay} TON`;
-}
 
 export interface BalanceProps {
   burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch'>;
@@ -108,7 +97,7 @@ export function Balance({
     ? t('wallet.balanceLoading')
     : tonFailed || tonNano == null
       ? t('wallet.tonBalanceUnavailable')
-      : formatTonBalance(tonNano);
+      : formatNativeCoin(tonNano);
 
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';
@@ -150,8 +139,11 @@ export function Balance({
             {t('wallet.balanceRetry')}
           </button>
         ) : null}
-        <div className={styles.balanceSecondary} aria-label={t('wallet.tonForGasAria')}>
-          {t('wallet.tonForGas')}:{' '}
+        <div
+          className={styles.balanceSecondary}
+          aria-label={t('wallet.tonForGasAria', { symbol: nativeCoinSymbol() })}
+        >
+          {t('wallet.tonForGas', { symbol: nativeCoinSymbol() })}:{' '}
           {tonLoading ? (
             <Skeleton variant="text" width="5rem" height={14} animation="pulse" />
           ) : (

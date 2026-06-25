@@ -2,6 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
 import { isTelegramMiniApp } from '../env/detector';
+import { nativeCoinSymbol } from '../ton/nativeCoin';
 import ar from './locales/ar.json';
 import de from './locales/de.json';
 import en from './locales/en.json';
@@ -43,7 +44,10 @@ i18n
     },
     lng: initialLang,
     fallbackLng: 'en',
-    interpolation: { escapeValue: false },
+    interpolation: {
+      escapeValue: false,
+      defaultVariables: { symbol: nativeCoinSymbol() },
+    },
   });
 
 // Async override from Telegram CloudStorage (after init, non-blocking)

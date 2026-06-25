@@ -9,6 +9,7 @@ import {
   PROPAGATE_FEE_CONFIG_NANO,
   estimateBurnTransferTon,
 } from '@/ton/estimateBurnTransferTon';
+import { formatNativeCoin, NATIVE_COIN_SYMBOL } from '@/ton/nativeCoin';
 
 /** Planned sender JW out_msgs from TX-5F37DA75 §3.2 (fee path, no user forward). */
 const PLANNED_OUT_MSGS_NANO = toNano('1.76');
@@ -34,6 +35,11 @@ describe('IMP-JETTON-GAS-09 — TON breakdown legs', () => {
     });
     expect(active.breakdown.propagateNano).toBe(0n);
     expect(active.recommendedNano).toBeGreaterThan(0n);
+  });
+
+  it('formatNativeCoin labels breakdown leg amounts with display symbol', () => {
+    const { breakdown } = estimateBurnTransferTon({ feePath: true });
+    expect(formatNativeCoin(breakdown.burnNotifyNano)).toMatch(new RegExp(`\\d+(\\.\\d+)? ${NATIVE_COIN_SYMBOL}$`));
   });
 
   it('en/ru i18n keys for TON breakdown legs exist', () => {

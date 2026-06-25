@@ -8,6 +8,7 @@ import {
   PROPAGATE_FEE_CONFIG_NANO,
   type BurnTransferGasEstimate,
 } from '@/ton/estimateBurnTransferTon';
+import { formatNativeCoin, nativeCoinSymbol } from '@/ton/nativeCoin';
 import type { EffectiveFeeParams } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 
@@ -241,7 +242,7 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
               ) : null}
             </span>
             <span>
-              {tonGas.preflightLoading ? '…' : `${formatTonAmount(tonGas.attachedNano)} TON`}
+              {tonGas.preflightLoading ? '…' : formatNativeCoin(tonGas.attachedNano)}
             </span>
           </div>
           {!tonGas.preflightLoading && tonBreakdownRows.length > 0 ? (
@@ -265,7 +266,7 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
                         ) : null}
                       </span>
                       <span className={row.skipped ? styles.feeTonSkippedAmount : undefined}>
-                        {formatTonAmount(row.nano)} TON
+                        {formatNativeCoin(row.nano)}
                       </span>
                     </div>
                   ))}
@@ -281,17 +282,20 @@ export function FeeBreakdown({ amountNano, feeParams, tonGas }: FeeBreakdownProp
               {tonGas.path === 'excluded'
                 ? t('wallet.sendGasExcludedHint', {
                     attach: formatTonAmount(tonGas.attachedNano),
+                    symbol: nativeCoinSymbol(),
                   })
                 : tonGas.path === 'warm'
                   ? t('wallet.sendGasWarmHint', {
                       attach: formatTonAmount(tonGas.attachedNano),
                       netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
                       netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                      symbol: nativeCoinSymbol(),
                     })
                   : t('wallet.sendGasColdHint', {
                       attach: formatTonAmount(tonGas.attachedNano),
                       netMin: formatTonAmount(ESTIMATED_NET_FEE_MIN_NANO),
                       netMax: formatTonAmount(ESTIMATED_NET_FEE_MAX_NANO),
+                      symbol: nativeCoinSymbol(),
                     })}
             </p>
           ) : null}
