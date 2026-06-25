@@ -3,7 +3,7 @@
 #   SPRING_PROFILES_ACTIVE=prod,testnet
 # Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects
 # it in profile-specific resources (IMP-TESTNET-PROFILE-01).
-# Last deploy sync: 2026-06-24T08:54:31.945Z
+# Last deploy sync: 2026-06-25T16:42:39.196Z
 
 app:
   ton:
@@ -16,10 +16,10 @@ app:
     cache:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
-      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQD_e0eE4AfDQZZBazf9zD91J2medkuDb-oY8QtJjAf1TiZG}
-      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQBcn-mHb9_Yh7RDI_nAV6cfrSchwsMzbQPSnT01z4JSfPuv}
-      governor: ${BURN_GOVERNOR_ADDRESS:kQBY92ODyq1XYGIUWIxhvpb21N1CcAxrLBiRLiwT2p6ZxVpl}
-      treasury: ${BURN_TREASURY_ADDRESS:kQARjOIQsVqIEcFttH8iV5R_wIEie79C27VOXrjkgV444wqU}
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQARGlQabCFsStDFmN8gAO1I2Ufm26ZTqdDPN-mz4z3Ic66l}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQCLxNu2uoLHKd8nmjMKVDDYrlAgxUzDnitZL_sACNxxP3XW}
+      governor: ${BURN_GOVERNOR_ADDRESS:kQDPToghVzb_Dv0bEPcLHgxbmz0pSYPoDulSW4cEI12qfSNA}
+      treasury: ${BURN_TREASURY_ADDRESS:kQARGEKOTdNTSUBr-KXL3S1i5Auzr9DA91aBTZCCSJ5TqPJ6}
 
 burnedchats:
   wallet-auth:
