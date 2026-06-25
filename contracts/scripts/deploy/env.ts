@@ -107,7 +107,7 @@ export function resolveToncenterApiKey(): string | undefined {
 }
 
 export function isForceRedeploy(): boolean {
-    return process.argv.includes('--force');
+    return process.argv.includes('--force') || process.env.DEPLOY_FORCE === '1';
 }
 
 export function isDryRun(): boolean {
