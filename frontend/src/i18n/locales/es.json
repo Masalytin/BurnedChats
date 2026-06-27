@@ -308,7 +308,7 @@
 
   "lifecycle": {
     "backgroundBurnTitle": "Sesión destruida",
-    "backgroundBurnMessage": "Las claves de cifrado se borraron porque la app permaneció en segundo plano demasiado tiempo. Abre el chat desde la lista para reconectar."
+    "backgroundBurnMessage": "Las claves de cifrado se borraron porque la app permaneció en segundo plano demasiado tiempo. Abre la sala desde la lista: como propietario, restaura el cifrado manualmente; como miembro, espera a que el propietario restaure la clave."
   },
 
   "room": {
@@ -317,6 +317,9 @@
     "createRoomButton": "Crear Sala",
     "roleOwner": "Propietario",
     "roleMember": "Miembro",
+    "list": {
+      "keysBurnedBadge": "Claves borradas"
+    },
     "burned": "Destruido",
     "left": "Abandonado",
     "create": {
@@ -370,6 +373,9 @@
       "noAccess": "Sin acceso",
       "noAccessHint": "No eres miembro de esta sala",
       "loadingKey": "Cargando clave de cifrado...",
+      "keyLost": "Clave de cifrado perdida",
+      "keyLostHint": "Tus claves de cifrado locales se borraron (por ejemplo, tras estar la app en segundo plano o recargar la página). Restaura el cifrado para seguir chateando.",
+      "waitingForKey": "Esperando clave de cifrado...",
       "memberCount": "{{count}} miembros",
       "memberCount_one": "1 miembro",
       "encryptedTitle": "Cifrado de extremo a extremo",
@@ -383,6 +389,19 @@
       "requestingKey": "Solicitando clave de cifrado al propietario de la sala...",
       "retryKey": "Reintentar",
       "sendError": "Error al enviar el mensaje"
+    },
+    "recovery": {
+      "neededToast": "Las claves de cifrado se borraron. Restaura el cifrado para continuar.",
+      "modalTitle": "Restaurar cifrado de la sala",
+      "modalDescription": "Tus claves de cifrado se eliminaron (por ejemplo, tras estar la app en segundo plano o recargar la página).",
+      "modalWarning": "Esto crea una nueva época de clave. Los mensajes anteriores ya no se podrán descifrar. Los nuevos mensajes funcionarán con normalidad.",
+      "confirmButton": "Restaurar cifrado",
+      "recoverButton": "Restaurar cifrado",
+      "errorGeneric": "No se pudo restaurar el cifrado. Inténtalo de nuevo desde la sala.",
+      "errorNoLocalKey": "No se puede restaurar el cifrado de esta forma. Usa el botón Restaurar y confirma.",
+      "errorPubkeysFailed": "No se pudo contactar con los miembros de la sala. Comprueba la conexión e inténtalo de nuevo.",
+      "errorParseFailed": "Respuesta inesperada del servidor. Inténtalo de nuevo.",
+      "errorRekeyFailed": "Error al restaurar el cifrado. Inténtalo de nuevo."
     },
     "manage": {
       "title": "Configuración de la Sala",

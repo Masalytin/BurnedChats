@@ -69,13 +69,28 @@
   color: var(--bc-text-muted);
 }
 
-.room-card-badge {
+.room-card-badges {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--bc-spacing-xs);
+}
+
+.room-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
   padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
   border-radius: var(--bc-radius-sm);
   font-size: var(--bc-text-xs);
   font-weight: 600;
   line-height: var(--bc-leading-tight);
+}
+
+.room-card-badge--keys-burned {
+  background: var(--bc-warning-muted);
+  color: var(--bc-warning);
 }
 
 .room-card-badge--owner {

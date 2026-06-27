@@ -308,7 +308,7 @@
 
   "lifecycle": {
     "backgroundBurnTitle": "Session détruite",
-    "backgroundBurnMessage": "Les clés de chiffrement ont été effacées car l'application est restée trop longtemps en arrière-plan. Ouvrez le chat depuis la liste pour vous reconnecter."
+    "backgroundBurnMessage": "Les clés de chiffrement ont été effacées car l'application est restée trop longtemps en arrière-plan. Ouvrez le salon depuis la liste — en tant que propriétaire, restaurez le chiffrement manuellement ; en tant que membre, attendez que le propriétaire restaure la clé."
   },
 
   "room": {
@@ -317,6 +317,9 @@
     "createRoomButton": "Créer un Salon",
     "roleOwner": "Propriétaire",
     "roleMember": "Membre",
+    "list": {
+      "keysBurnedBadge": "Clés effacées"
+    },
     "burned": "Détruit",
     "left": "Parti",
     "create": {
@@ -370,6 +373,9 @@
       "noAccess": "Pas d'accès",
       "noAccessHint": "Vous n'êtes pas membre de ce salon",
       "loadingKey": "Chargement de la clé de chiffrement...",
+      "keyLost": "Clé de chiffrement perdue",
+      "keyLostHint": "Vos clés de chiffrement locales ont été effacées (par exemple après un passage en arrière-plan ou un rechargement de page). Restaurez le chiffrement pour continuer à discuter.",
+      "waitingForKey": "En attente de la clé de chiffrement...",
       "memberCount": "{{count}} membres",
       "memberCount_one": "1 membre",
       "encryptedTitle": "Chiffrement de bout en bout",
@@ -383,6 +389,19 @@
       "requestingKey": "Demande de la clé de chiffrement au propriétaire du salon...",
       "retryKey": "Réessayer",
       "sendError": "Échec de l'envoi du message"
+    },
+    "recovery": {
+      "neededToast": "Les clés de chiffrement ont été effacées. Restaurez le chiffrement pour continuer.",
+      "modalTitle": "Restaurer le chiffrement du salon",
+      "modalDescription": "Vos clés de chiffrement ont été supprimées (par exemple après un passage en arrière-plan ou un rechargement de page).",
+      "modalWarning": "Cela crée une nouvelle époque de clé. Les anciens messages ne pourront plus être déchiffrés. Les nouveaux messages fonctionneront normalement.",
+      "confirmButton": "Restaurer le chiffrement",
+      "recoverButton": "Restaurer le chiffrement",
+      "errorGeneric": "Impossible de restaurer le chiffrement. Réessayez depuis le salon.",
+      "errorNoLocalKey": "Le chiffrement ne peut pas être restauré ainsi. Utilisez le bouton Restaurer et confirmez.",
+      "errorPubkeysFailed": "Impossible de joindre les membres du salon. Vérifiez la connexion et réessayez.",
+      "errorParseFailed": "Réponse serveur inattendue. Réessayez.",
+      "errorRekeyFailed": "Échec de la restauration du chiffrement. Réessayez."
     },
     "manage": {
       "title": "Paramètres du Salon",

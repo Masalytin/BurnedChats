@@ -903,7 +903,7 @@
 
   "lifecycle": {
     "backgroundBurnTitle": "Session burned",
-    "backgroundBurnMessage": "Encryption keys were cleared because the app stayed in the background too long. Open the chat from the list to reconnect."
+    "backgroundBurnMessage": "Encryption keys were cleared because the app stayed in the background too long. Open the room from the list — as owner, restore encryption manually; as a member, wait for the owner to restore the key."
   },
 
   "room": {
@@ -912,6 +912,9 @@
     "createRoomButton": "Create Room",
     "roleOwner": "Owner",
     "roleMember": "Member",
+    "list": {
+      "keysBurnedBadge": "Keys cleared"
+    },
     "burned": "Burned",
     "left": "Left",
 

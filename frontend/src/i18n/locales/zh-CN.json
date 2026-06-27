@@ -308,7 +308,7 @@
 
   "lifecycle": {
     "backgroundBurnTitle": "会话已销毁",
-    "backgroundBurnMessage": "加密密钥已清除，因为应用在后台停留时间过长。从列表打开聊天以重新连接。"
+    "backgroundBurnMessage": "加密密钥已清除，因为应用在后台停留时间过长。从列表打开房间——作为所有者请手动恢复加密；作为成员请等待所有者恢复密钥。"
   },
 
   "room": {
@@ -317,6 +317,9 @@
     "createRoomButton": "创建房间",
     "roleOwner": "所有者",
     "roleMember": "成员",
+    "list": {
+      "keysBurnedBadge": "密钥已清除"
+    },
     "burned": "已销毁",
     "left": "已离开",
     "create": {
@@ -370,6 +373,9 @@
       "noAccess": "无访问权限",
       "noAccessHint": "您不是此房间的成员",
       "loadingKey": "正在加载加密密钥...",
+      "keyLost": "加密密钥丢失",
+      "keyLostHint": "本地加密密钥已被清除（例如应用在后台运行或页面重新加载后）。请恢复加密以继续聊天。",
+      "waitingForKey": "正在等待加密密钥...",
       "memberCount": "{{count}} 位成员",
       "memberCount_one": "1 位成员",
       "encryptedTitle": "端到端加密",
@@ -383,6 +389,19 @@
       "requestingKey": "正在向房间所有者请求加密密钥...",
       "retryKey": "重试",
       "sendError": "发送消息失败"
+    },
+    "recovery": {
+      "neededToast": "加密密钥已清除。请恢复加密以继续。",
+      "modalTitle": "恢复房间加密",
+      "modalDescription": "您的加密密钥已被移除（例如应用在后台运行或页面重新加载后）。",
+      "modalWarning": "这将创建新的密钥 epoch。较早的消息将无法再解密。新消息将正常工作。",
+      "confirmButton": "恢复加密",
+      "recoverButton": "恢复加密",
+      "errorGeneric": "无法恢复加密。请从房间中重试。",
+      "errorNoLocalKey": "无法通过此方式恢复加密。请使用恢复按钮并确认。",
+      "errorPubkeysFailed": "无法联系房间成员。请检查连接后重试。",
+      "errorParseFailed": "服务器响应异常。请重试。",
+      "errorRekeyFailed": "加密恢复失败。请重试。"
     },
     "manage": {
       "title": "房间设置",

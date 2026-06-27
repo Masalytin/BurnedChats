@@ -563,7 +563,7 @@
 
   "lifecycle": {
     "backgroundBurnTitle": "Sitzung gelöscht",
-    "backgroundBurnMessage": "Verschlüsselungsschlüssel wurden gelöscht, weil die App zu lange im Hintergrund blieb. Öffnen Sie den Chat aus der Liste, um erneut zu verbinden."
+    "backgroundBurnMessage": "Verschlüsselungsschlüssel wurden gelöscht, weil die App zu lange im Hintergrund blieb. Öffnen Sie den Raum aus der Liste — als Besitzer stellen Sie die Verschlüsselung manuell wieder her; als Mitglied warten Sie, bis der Besitzer den Schlüssel wiederherstellt."
   },
 
   "room": {
@@ -572,6 +572,9 @@
     "createRoomButton": "Raum erstellen",
     "roleOwner": "Besitzer",
     "roleMember": "Mitglied",
+    "list": {
+      "keysBurnedBadge": "Schlüssel gelöscht"
+    },
     "burned": "Gelöscht",
     "left": "Verlassen",
     "create": {
@@ -625,6 +628,9 @@
       "noAccess": "Kein Zugriff",
       "noAccessHint": "Sie sind kein Mitglied dieses Raums",
       "loadingKey": "Verschlüsselungsschlüssel wird geladen...",
+      "keyLost": "Verschlüsselungsschlüssel verloren",
+      "keyLostHint": "Ihre lokalen Verschlüsselungsschlüssel wurden gelöscht (z. B. nach Hintergrundbetrieb oder Seitenneuladung). Stellen Sie die Verschlüsselung wieder her, um weiter zu chatten.",
+      "waitingForKey": "Warte auf Verschlüsselungsschlüssel...",
       "memberCount": "{{count}} Mitglieder",
       "memberCount_one": "1 Mitglied",
       "fallbackPeer": "Mitglied",
@@ -638,6 +644,19 @@
       "messagePlaceholder": "Nachricht an Raum...",
       "sendError": "Nachricht konnte nicht gesendet werden",
       "keyLoadError": "Verschlüsselungsschlüssel konnte nicht geladen werden"
+    },
+    "recovery": {
+      "neededToast": "Verschlüsselungsschlüssel wurden gelöscht. Stellen Sie die Verschlüsselung wieder her, um fortzufahren.",
+      "modalTitle": "Raumverschlüsselung wiederherstellen",
+      "modalDescription": "Ihre Verschlüsselungsschlüssel wurden entfernt (z. B. nach Hintergrundbetrieb oder Seitenneuladung).",
+      "modalWarning": "Dies erstellt eine neue Schlüsselepoche. Ältere Nachrichten können nicht mehr entschlüsselt werden. Neue Nachrichten funktionieren wie gewohnt.",
+      "confirmButton": "Verschlüsselung wiederherstellen",
+      "recoverButton": "Verschlüsselung wiederherstellen",
+      "errorGeneric": "Verschlüsselung konnte nicht wiederhergestellt werden. Versuchen Sie es erneut aus dem Raum.",
+      "errorNoLocalKey": "Verschlüsselung kann so nicht wiederhergestellt werden. Nutzen Sie die Wiederherstellen-Schaltfläche und bestätigen Sie.",
+      "errorPubkeysFailed": "Raummitglieder konnten nicht erreicht werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+      "errorParseFailed": "Unerwartete Serverantwort. Versuchen Sie es erneut.",
+      "errorRekeyFailed": "Verschlüsselungswiederherstellung fehlgeschlagen. Versuchen Sie es erneut."
     },
     "manage": {
       "title": "Raumeinstellungen",
