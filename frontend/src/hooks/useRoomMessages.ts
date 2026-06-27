@@ -500,6 +500,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         return;
       }
 
+      if (event.eventType) {
+        // Multiplexed topic service events (ROOM_NAME_UPDATED, ROOM_TTL_UPDATED,
+        // ROOM_MESSAGE_TTL_UPDATED, ROOM_ROLE_UPDATED, ROOM_OWNERSHIP_TRANSFERRED)
+        // and any unknown eventType — safe default: never decrypt as chat text.
+        return;
+      }
+
       if (!getRoomEncryptionKey()) {
         handleError('NO_GROUP_KEY', 'Cannot decrypt room message — no group key');
         return;
