@@ -37,6 +37,12 @@ interface DocumentMessageBubbleProps {
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
   onReplyIconClick?: () => void;
+  /** True when the message just entered the list — triggers the entrance animation. */
+  isNew?: boolean;
+  /** Cancel the in-flight upload of this own message (when available). */
+  onCancelUpload?: () => void;
+  /** Retry sending this own message after an upload failure (when available). */
+  onRetryUpload?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -65,6 +71,9 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   a11yLabelId,
   onRangeExtendKey,
   onReplyIconClick,
+  isNew = false,
+  onCancelUpload,
+  onRetryUpload,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -108,6 +117,12 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   const downloadedBlobRef = useRef<Blob | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Own message still being encrypted/uploaded (Variant B optimistic bubble).
+  const isUploading =
+    message.isOwn && message.status === 'sending' && typeof message.uploadProgress === 'number';
+  const isUploadFailed = message.isOwn && message.status === 'failed';
+  const uploadPct = Math.min(100, Math.max(0, Math.round(message.uploadProgress ?? 0)));
+
   const fileName = message.fileMeta?.fileName || t('files.bubble.document');
   const mimeType = message.fileMeta?.mimeType || 'application/octet-stream';
   const fileType = getFileTypeDisplay(mimeType);
@@ -121,6 +136,8 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       selection?.toggle(message.id);
       return;
     }
+    // Own message not yet uploaded — nothing to download.
+    if (message.status === 'sending' || message.status === 'failed') return;
     if (docState === 'downloading') return;
 
     if (docState === 'downloaded' && downloadedBlobRef.current) {
@@ -164,7 +181,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     } finally {
       abortRef.current = null;
     }
-  }, [isSelecting, selection, onRovingActivate, docState, message.fileId, message.sessionId, fileName, mimeType, decryptionKey, message.id]);
+  }, [isSelecting, selection, onRovingActivate, docState, message.fileId, message.sessionId, message.status, fileName, mimeType, decryptionKey, message.id]);
 
   const mediaTapMenu = useMediaBubblePrimaryAndMenu({
     menuEnabled,
@@ -251,7 +268,9 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
       ref={rootRef}
       className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
         isSelecting ? 'message--selectable' : ''
-      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''}`.trim()}
+      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''} ${
+        isNew ? 'message--new' : ''
+      }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       data-message-id={message.id}
       role={rowRole}
@@ -329,7 +348,64 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
           </div>
 
           <div className="doc-bubble__action">
-            {docState === 'idle' && (
+            {isUploading && (() => {
+              const ringInner = (
+                <>
+                  <svg viewBox="0 0 28 28" width="28" height="28">
+                    <circle cx="14" cy="14" r="12" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
+                    <circle
+                      cx="14" cy="14" r="12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 12}
+                      strokeDashoffset={2 * Math.PI * 12 * (1 - uploadPct / 100)}
+                      transform="rotate(-90 14 14)"
+                    />
+                  </svg>
+                  <span className="doc-bubble__progress-text">{uploadPct}%</span>
+                </>
+              );
+              const uploadLabel = t(`files.upload.${message.uploadStage ?? 'uploading'}`);
+              return onCancelUpload ? (
+                <button
+                  type="button"
+                  className="doc-bubble__progress-ring doc-bubble__progress-ring--cancel"
+                  aria-label={t('files.preview.cancel')}
+                  title={uploadLabel}
+                  onClick={(e) => { e.stopPropagation(); onCancelUpload(); }}
+                >
+                  {ringInner}
+                </button>
+              ) : (
+                <div
+                  className="doc-bubble__progress-ring"
+                  role="progressbar"
+                  aria-label={uploadLabel}
+                  aria-valuenow={uploadPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  {ringInner}
+                </div>
+              );
+            })()}
+
+            {!isUploading && isUploadFailed && onRetryUpload && (
+              <button
+                className="doc-bubble__retry-btn"
+                aria-label={t('files.upload.retry')}
+                onClick={(e) => { e.stopPropagation(); onRetryUpload(); }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                  <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 013.51 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            {!isUploading && !isUploadFailed && docState === 'idle' && (
               <button
                 className="doc-bubble__download-btn"
                 aria-label={t('files.download.fetch')}

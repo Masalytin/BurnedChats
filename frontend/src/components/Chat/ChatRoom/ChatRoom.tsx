@@ -456,7 +456,6 @@ export const ChatRoom = memo(function ChatRoom({
         isPeerTyping={isPeerTyping}
         peerName={displayName}
         isLoading={isLoading}
-        uploadState={uploadState ?? undefined}
         onCancelUpload={onCancelUpload}
         onRetryUpload={onRetryUpload}
         onOpenViewer={handleOpenViewer}

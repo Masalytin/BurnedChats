@@ -31,6 +31,15 @@
   transform: scale(0.97);
 }
 
+/* Non-interactive ring (no cancel handler, e.g. DM uploads). */
+.upload-overlay-circle-btn--static {
+  cursor: default;
+}
+
+.upload-overlay-circle-btn--static:active {
+  transform: none;
+}
+
 .upload-overlay-circle-btn:focus-visible {
   outline: 2px solid var(--bc-brand-primary);
   outline-offset: 2px;

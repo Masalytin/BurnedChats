@@ -346,13 +346,46 @@ export async function sendEncryptedFileMessage<TError extends string>(
   const timestamp = Date.now();
   const messageType = validated.messageType;
 
+  // Patch helper: update transient fields of the optimistic bubble in place.
+  const patchMessage = (fields: Partial<DecryptedFileMessage>) => {
+    setMessages(prev =>
+      prev.map(m => (m.id === messageId ? ({ ...m, ...fields } as DecryptedMessage) : m)),
+    );
+  };
+
+  // Insert the optimistic file bubble immediately (status 'sending', no fileId
+  // yet) so the user sees a single message whose progress fills in place — no
+  // separate placeholder, no swap. Real fileId/thumbnail are patched in once
+  // the upload completes.
+  const optimisticMessage = {
+    ...buildLocalFileMessage(
+      messageId,
+      timestamp,
+      messageType,
+      { fileId: '', thumbnailFileId: undefined, thumbnailDataUrl: undefined, size: file.size },
+      file,
+      validated.resolvedMime,
+      caption || '',
+      replyToMessageId,
+    ),
+    uploadProgress: 0,
+    uploadStage: 'encrypting' as const,
+  } as DecryptedMessage;
+  setMessages(prev => [...prev, optimisticMessage].sort((a, b) => a.timestamp - b.timestamp));
+
   try {
     const uploadHandle = enqueueUpload({
       file,
       key: aesKey,
       context: uploadContext,
-      onProgress,
-      onEncryptProgress,
+      onProgress: (percent) => {
+        patchMessage({ uploadStage: 'uploading', uploadProgress: percent });
+        onProgress?.(percent);
+      },
+      onEncryptProgress: (percent) => {
+        patchMessage({ uploadStage: 'encrypting', uploadProgress: percent });
+        onEncryptProgress?.(percent);
+      },
       signal,
     });
     const uploadResult = await uploadHandle.result;
@@ -365,17 +398,16 @@ export async function sendEncryptedFileMessage<TError extends string>(
     const encrypted = await encryptMessage(aesKey, caption || '', contextId);
     pendingMessagesRef.current.set(messageId, { text: caption || '', timestamp });
 
-    const localMessage = buildLocalFileMessage(
-      messageId,
-      timestamp,
-      messageType,
-      uploadResult,
-      file,
-      validated.resolvedMime,
-      caption || '',
-      replyToMessageId,
-    );
-    setMessages(prev => [...prev, localMessage].sort((a, b) => a.timestamp - b.timestamp));
+    // Upload done: fill in the real ids + local preview and clear progress.
+    // Status stays 'sending' until the server ack flips it to sent/delivered.
+    patchMessage({
+      fileId: uploadResult.fileId,
+      thumbnailFileId: uploadResult.thumbnailFileId,
+      thumbnailUrl: uploadResult.thumbnailDataUrl,
+      fileSize: uploadResult.size,
+      uploadProgress: undefined,
+      uploadStage: undefined,
+    });
 
     publish(sendDestination, buildPublishPayload({
       messageId,
@@ -392,15 +424,23 @@ export async function sendEncryptedFileMessage<TError extends string>(
 
     return { success: true, messageId, error: null };
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    const aborted =
+      (err instanceof DOMException && err.name === 'AbortError') ||
+      (err instanceof FileTransferError && err.kind === 'aborted');
+    if (aborted) {
+      // Cancelled by the user — drop the optimistic bubble entirely.
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      pendingMessagesRef.current.delete(messageId);
       return { success: false, messageId: null, error: sendFailedError };
     }
-    if (err instanceof FileTransferError && err.kind === 'aborted') {
-      return { success: false, messageId: null, error: sendFailedError };
-    }
+
+    // Encrypt/upload failed: keep the bubble but mark it failed so the user can
+    // retry from the bubble itself.
+    patchMessage({ status: 'failed', uploadProgress: undefined, uploadStage: undefined });
+    pendingMessagesRef.current.delete(messageId);
+
     if (err instanceof FileTransferError) {
-      const key = fileTransferErrorI18nKey(err);
-      handleError(sendFailedError, key);
+      handleError(sendFailedError, fileTransferErrorI18nKey(err));
       return { success: false, messageId: null, error: sendFailedError };
     }
     const errMsg = err instanceof Error ? err.message : 'Unknown error';

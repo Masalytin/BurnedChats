@@ -7,8 +7,6 @@ import { VideoMessageBubble } from '../VideoMessageBubble';
 import { DocumentMessageBubble } from '../DocumentMessageBubble';
 import { MessageActionMenu, type MessageAction } from '../MessageActionMenu';
 import { TypingIndicator } from '../TypingIndicator';
-import { UploadProgressOverlay } from '../UploadProgressOverlay';
-import type { UploadStage } from '../UploadProgressOverlay';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
 import type { DecryptedMessage, DecryptedFileMessage } from '@/types';
 import { useToast } from '@/components/Toast';
@@ -26,12 +24,6 @@ export type MessageListHandle = {
   scrollToMessage: (messageId: string) => void;
 };
 
-interface UploadStateInfo {
-  progress: number;
-  stage: UploadStage;
-  fileName: string;
-}
-
 interface MessageListProps {
   /** Array of decrypted messages to display */
   messages: DecryptedMessage[];
@@ -43,12 +35,10 @@ interface MessageListProps {
   isLoading?: boolean;
   /** Callback when user scrolls to top (for loading older messages) */
   onLoadMore?: () => void;
-  /** Active upload state for showing a placeholder bubble (P4-4-1-3) */
-  uploadState?: UploadStateInfo;
-  /** Cancel current upload */
+  /** Cancel the in-flight file upload (single upload at a time). */
   onCancelUpload?: () => void;
-  /** Retry failed upload */
-  onRetryUpload?: () => void;
+  /** Retry sending an own file message after an upload failure. */
+  onRetryUpload?: (messageId: string) => void;
   /** Open full-screen media viewer for an image message (P4-4-2-1 → P4-4-2-4) */
   onOpenViewer?: (message: DecryptedFileMessage) => void;
   /** Optional CSS class name */
@@ -89,7 +79,6 @@ export const MessageList = memo(
   peerName,
   isLoading = false,
   onLoadMore,
-  uploadState,
   onCancelUpload,
   onRetryUpload,
   onOpenViewer,
@@ -494,6 +483,9 @@ export const MessageList = memo(
                 onRovingActivate={() => { setA11yRovingId(message.id); }}
                 a11yLabelId={`message-a11y-${message.id}`}
                 onRangeExtendKey={handleRangeExtendKey}
+                isNew={newMessageIds.has(message.id)}
+                onCancelUpload={onCancelUpload}
+                onRetryUpload={onRetryUpload ? () => onRetryUpload(message.id) : undefined}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -529,6 +521,9 @@ export const MessageList = memo(
                 onRovingActivate={() => { setA11yRovingId(message.id); }}
                 a11yLabelId={`message-a11y-${message.id}`}
                 onRangeExtendKey={handleRangeExtendKey}
+                isNew={newMessageIds.has(message.id)}
+                onCancelUpload={onCancelUpload}
+                onRetryUpload={onRetryUpload ? () => onRetryUpload(message.id) : undefined}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -563,6 +558,9 @@ export const MessageList = memo(
                 onRovingActivate={() => { setA11yRovingId(message.id); }}
                 a11yLabelId={`message-a11y-${message.id}`}
                 onRangeExtendKey={handleRangeExtendKey}
+                isNew={newMessageIds.has(message.id)}
+                onCancelUpload={onCancelUpload}
+                onRetryUpload={onRetryUpload ? () => onRetryUpload(message.id) : undefined}
                 replyTo={message.replyTo}
                 replySenderLabel={
                   message.replyTo
@@ -611,21 +609,6 @@ export const MessageList = memo(
           />
         );
       })}
-
-      {/* P4-4-1-3: Upload placeholder bubble */}
-      {uploadState && (
-        <div className="message message--own message--uploading" role="listitem">
-          <div className="message-bubble message-bubble--uploading">
-            <span className="message-upload-filename">{uploadState.fileName}</span>
-            <UploadProgressOverlay
-              progress={uploadState.progress}
-              stage={uploadState.stage}
-              onCancel={onCancelUpload ?? (() => {})}
-              onRetry={onRetryUpload}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Typing indicator */}
       {isPeerTyping && <TypingIndicator userName={peerName} />}

@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, useMemo, type MouseEvent, type KeyboardEvent } from 'react';
+import { memo, useState, useCallback, useRef, useMemo, useEffect, type MouseEvent, type KeyboardEvent } from 'react';
 import { ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
@@ -12,6 +12,7 @@ import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
 import { MessageStatusIcon } from '../MessageStatusIcon';
+import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -35,6 +36,12 @@ interface ImageMessageBubbleProps {
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
   onReplyIconClick?: () => void;
+  /** True when the message just entered the list — triggers the entrance animation. */
+  isNew?: boolean;
+  /** Cancel the in-flight upload of this own message (when available). */
+  onCancelUpload?: () => void;
+  /** Retry sending this own message after an upload failure (when available). */
+  onRetryUpload?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -64,6 +71,9 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   a11yLabelId,
   onRangeExtendKey,
   onReplyIconClick,
+  isNew = false,
+  onCancelUpload,
+  onRetryUpload,
 }: ImageMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -101,13 +111,30 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   const shouldInteract = menuEnabled || isSelecting;
   const decryptionKey = useDecryptionKey(message.sessionId);
 
+  // Own message still being encrypted/uploaded (Variant B optimistic bubble).
+  const isUploading =
+    message.isOwn && message.status === 'sending' && typeof message.uploadProgress === 'number';
+  const isUploadFailed = message.isOwn && message.status === 'failed';
+
   const [thumbnailState, setThumbnailState] = useState<'loading' | 'loaded' | 'error'>(
-    message.thumbnailUrl ? 'loaded' : message.thumbnailFileId ? 'loading' : 'error',
+    message.thumbnailUrl
+      ? 'loaded'
+      : message.thumbnailFileId || (message.isOwn && message.status === 'sending')
+        ? 'loading'
+        : 'error',
   );
   const [thumbnailSrc, setThumbnailSrc] = useState<string | undefined>(message.thumbnailUrl);
   const [thumbnailErrorKey, setThumbnailErrorKey] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [fullDownloadErrorKey, setFullDownloadErrorKey] = useState<string | null>(null);
+
+  // Once the optimistic upload produces a local preview (thumbnailDataUrl), show it.
+  useEffect(() => {
+    if (message.thumbnailUrl && message.thumbnailUrl !== thumbnailSrc) {
+      setThumbnailSrc(message.thumbnailUrl);
+      setThumbnailState('loaded');
+    }
+  }, [message.thumbnailUrl, thumbnailSrc]);
 
   const hasCaption = message.content && !message.content.startsWith('📷');
   const labelId = a11yLabelId ?? `message-a11y-${message.id}`;
@@ -211,6 +238,8 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       selection?.toggle(message.id);
       return;
     }
+    // Own message not yet uploaded — nothing to download/open.
+    if (message.status === 'sending' || message.status === 'failed') return;
     if (downloadProgress !== null) return;
 
     if (onOpenViewer) {
@@ -255,7 +284,9 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
       ref={rootRef}
       className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
         isSelecting ? 'message--selectable' : ''
-      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''}`.trim()}
+      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''} ${
+        isNew ? 'message--new' : ''
+      }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       role={rowRole}
       aria-selected={isSelecting ? isSelected : undefined}
@@ -375,6 +406,22 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
                 {t('files.bubble.retry')}
               </button>
             </div>
+          )}
+
+          {isUploading && (
+            <UploadProgressOverlay
+              progress={message.uploadProgress ?? 0}
+              stage={message.uploadStage ?? 'uploading'}
+              onCancel={onCancelUpload}
+            />
+          )}
+
+          {isUploadFailed && onRetryUpload && (
+            <UploadProgressOverlay
+              progress={0}
+              stage="failed"
+              onRetry={onRetryUpload}
+            />
           )}
         </div>
 

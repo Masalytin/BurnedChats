@@ -39,7 +39,6 @@ import type {
 import type { RoomModerationEvent } from '@/hooks/useRoomModeration';
 import { useHaptics } from '@/hooks/useHaptics';
 import { isFilesErrorI18nKey } from '@/services/fileTransferErrors';
-import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedFileMessage, DecryptedMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
@@ -198,13 +197,13 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const [pendingFile, setPendingFile] = useState<SelectedFileInfo | null>(null);
   const pendingCaptionRef = useRef<string | undefined>(undefined);
 
-  // Upload progress tracking
-  const [uploadState, setUploadState] = useState<{
-    progress: number;
-    stage: UploadStage;
-    fileName: string;
-  } | null>(null);
+  // Upload in-flight tracking. Progress now lives on the optimistic message
+  // bubble (Variant B); here we only track whether a send is active (to block
+  // the composer + drive a single abort controller) and remember the last send
+  // args so a failed bubble can be retried.
+  const [isSendingFile, setIsSendingFile] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const lastSendRef = useRef<{ file: File; caption?: string; replyToMessageId?: string } | null>(null);
 
   const handleRoomMessageError = useCallback(
     (code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
@@ -340,39 +339,38 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setPendingFile(info);
   }, []);
 
-  const handlePreviewSend = useCallback(async (file: File, caption?: string) => {
-    pendingCaptionRef.current = caption;
-    setPendingFile(null);
+  const runFileSend = useCallback(
+    async (args: { file: File; caption?: string; replyToMessageId?: string }) => {
+      lastSendRef.current = args;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setIsSendingFile(true);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
+      const options: SendRoomFileOptions = {
+        signal: controller.signal,
+        replyToMessageId: args.replyToMessageId,
+      };
 
-    setUploadState({ progress: 0, stage: 'encrypting', fileName: file.name });
+      const result = await sendFileMessage(args.file, args.caption, options);
+      abortRef.current = null;
+      setIsSendingFile(false);
 
-    const options: SendRoomFileOptions = {
-      onEncryptProgress: (percent) => {
-        setUploadState(prev =>
-          prev ? { ...prev, progress: percent, stage: 'encrypting' } : null,
-        );
-      },
-      onProgress: (percent) => {
-        setUploadState(prev => prev ? { ...prev, progress: percent, stage: 'uploading' } : null);
-      },
-      signal: controller.signal,
-      replyToMessageId: replyTarget?.id,
-    };
+      if (result.success) {
+        setReplyTarget(null);
+        messageInputTextAreaRef.current?.focus();
+      }
+    },
+    [sendFileMessage],
+  );
 
-    const result = await sendFileMessage(file, caption, options);
-    abortRef.current = null;
-
-    if (result.success) {
-      setReplyTarget(null);
-      messageInputTextAreaRef.current?.focus();
-      setUploadState(null);
-    } else {
-      setUploadState(prev => prev ? { ...prev, stage: 'failed' } : null);
-    }
-  }, [sendFileMessage]);
+  const handlePreviewSend = useCallback(
+    async (file: File, caption?: string) => {
+      pendingCaptionRef.current = caption;
+      setPendingFile(null);
+      await runFileSend({ file, caption, replyToMessageId: replyTarget?.id });
+    },
+    [runFileSend, replyTarget],
+  );
 
   const handlePreviewCancel = useCallback(() => {
     setPendingFile(null);
@@ -381,14 +379,21 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const handleCancelUpload = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    setUploadState(null);
+    setIsSendingFile(false);
   }, []);
 
-  const handleRetryUpload = useCallback(() => {
-    setUploadState(null);
-  }, []);
+  const handleRetryUpload = useCallback(
+    (messageId: string) => {
+      const last = lastSendRef.current;
+      hideMessages([messageId]);
+      if (last) {
+        void runFileSend(last);
+      }
+    },
+    [hideMessages, runFileSend],
+  );
 
-  const isUploading = !!uploadState && uploadState.stage !== 'failed';
+  const isUploading = isSendingFile;
 
   const requestDeleteForMe = useCallback((ids: string[]) => {
     setDeleteConfirmIds(ids);
@@ -600,7 +605,6 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           <MessageList
             messages={messages}
             isLoading={isLoading || isSyncing}
-            uploadState={uploadState ?? undefined}
             onCancelUpload={handleCancelUpload}
             onRetryUpload={handleRetryUpload}
             onOpenViewer={handleOpenViewer}

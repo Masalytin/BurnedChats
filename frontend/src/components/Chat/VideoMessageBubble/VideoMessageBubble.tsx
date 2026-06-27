@@ -12,6 +12,7 @@ import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
 import { MessageStatusIcon } from '../MessageStatusIcon';
+import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import '../Message/Message.css';
 import { downloadThumbnail, evictCachedFile } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
@@ -37,6 +38,12 @@ interface VideoMessageBubbleProps {
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
   onReplyIconClick?: () => void;
+  /** True when the message just entered the list — triggers the entrance animation. */
+  isNew?: boolean;
+  /** Cancel the in-flight upload of this own message (when available). */
+  onCancelUpload?: () => void;
+  /** Retry sending this own message after an upload failure (when available). */
+  onRetryUpload?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -72,6 +79,9 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   a11yLabelId,
   onRangeExtendKey,
   onReplyIconClick,
+  isNew = false,
+  onCancelUpload,
+  onRetryUpload,
 }: VideoMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -112,8 +122,17 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);
 
+  // Own message still being encrypted/uploaded (Variant B optimistic bubble).
+  const isUploading =
+    message.isOwn && message.status === 'sending' && typeof message.uploadProgress === 'number';
+  const isUploadFailed = message.isOwn && message.status === 'failed';
+
   const [thumbnailState, setThumbnailState] = useState<'loading' | 'loaded' | 'error'>(
-    message.thumbnailUrl ? 'loaded' : message.thumbnailFileId ? 'loading' : 'error',
+    message.thumbnailUrl
+      ? 'loaded'
+      : message.thumbnailFileId || (message.isOwn && message.status === 'sending')
+        ? 'loading'
+        : 'error',
   );
   const [thumbnailSrc, setThumbnailSrc] = useState<string | undefined>(message.thumbnailUrl);
   const [thumbnailErrorKey, setThumbnailErrorKey] = useState<string | null>(null);
@@ -130,6 +149,14 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       }
     };
   }, []);
+
+  // Once the optimistic upload produces a local poster (thumbnailDataUrl), show it.
+  useEffect(() => {
+    if (message.thumbnailUrl && message.thumbnailUrl !== thumbnailSrc) {
+      setThumbnailSrc(message.thumbnailUrl);
+      setThumbnailState('loaded');
+    }
+  }, [message.thumbnailUrl, thumbnailSrc]);
 
   const handleThumbnailError = useCallback(() => {
     setThumbnailState('error');
@@ -169,6 +196,8 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       selection?.toggle(message.id);
       return;
     }
+    // Own message not yet uploaded — nothing to download/play.
+    if (message.status === 'sending' || message.status === 'failed') return;
     if (videoState === 'downloading' || videoState === 'playing') return;
 
     if (onOpenViewer) {
@@ -323,7 +352,9 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
       ref={rootRef}
       className={`message ${message.isOwn ? 'message--own' : 'message--peer'} ${
         isSelecting ? 'message--selectable' : ''
-      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''}`.trim()}
+      } ${menuEnabled && !isSelecting ? 'message--menu-gestures' : ''} ${
+        isNew ? 'message--new' : ''
+      }`.trim()}
       data-selected={isSelecting ? (isSelected ? 'true' : 'false') : undefined}
       role={rowRole}
       aria-selected={isSelecting ? isSelected : undefined}
@@ -435,13 +466,25 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
                 />
               )}
 
-              {videoState === 'idle' && (
+              {videoState === 'idle' && !isUploading && !isUploadFailed && (
                 <button className="video-bubble__play-btn" aria-label={t('files.download.open')}>
                   <svg className="video-bubble__play-icon" viewBox="0 0 48 48" fill="none">
                     <circle cx="24" cy="24" r="23" fill="rgba(0,0,0,0.5)" stroke="white" strokeWidth="2" />
                     <path d="M19 15L35 24L19 33V15Z" fill="white" />
                   </svg>
                 </button>
+              )}
+
+              {isUploading && (
+                <UploadProgressOverlay
+                  progress={message.uploadProgress ?? 0}
+                  stage={message.uploadStage ?? 'uploading'}
+                  onCancel={onCancelUpload}
+                />
+              )}
+
+              {isUploadFailed && onRetryUpload && (
+                <UploadProgressOverlay progress={0} stage="failed" onRetry={onRetryUpload} />
               )}
 
               {videoState === 'downloading' && (

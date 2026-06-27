@@ -180,6 +180,17 @@ export interface DecryptedFileMessage extends DecryptedMessage {
   fileMeta: FileMetadata;
   thumbnailFileId?: string;
   thumbnailUrl?: string;
+  /**
+   * Transient client-only upload progress (0–100) for an own in-flight file
+   * message. Set while `status === 'sending'` and the encrypt/upload pipeline
+   * is running; cleared once the file is uploaded. Never sent on the wire.
+   */
+  uploadProgress?: number;
+  /**
+   * Transient client-only upload stage for an own in-flight file message.
+   * Mirrors {@link UploadStage} ('encrypting' | 'uploading'). Never on the wire.
+   */
+  uploadStage?: 'encrypting' | 'uploading';
 }
 
 // ============================================
