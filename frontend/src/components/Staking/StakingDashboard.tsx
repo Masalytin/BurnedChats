@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { useToast } from '@/components/Toast';
-import { useBurnToken } from '@/hooks/useBurnToken';
+import { useWallet } from '@/components/Wallet/WalletProvider';
 import { useStaking } from '@/hooks/useStaking';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
@@ -65,12 +65,16 @@ function txFailMessage(r: TxResult, fallback: string): string {
 /**
  * Main staking dashboard: header, tier cards, timeline, rewards.
  */
-export function StakingDashboard() {
+export function StakingDashboard({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: (() => Promise<void>) | null) => void;
+} = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
   const ton = useTonConnect();
-  const burn = useBurnToken();
+  const { burn } = useWallet();
   const {
     stakes,
     tierConfigs,
@@ -83,6 +87,11 @@ export function StakingDashboard() {
     unstake,
     claim,
   } = useStaking();
+
+  useEffect(() => {
+    onRefetchReady?.(refetch);
+    return () => onRefetchReady?.(null);
+  }, [onRefetchReady, refetch]);
 
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [stakeModalTier, setStakeModalTier] = useState<StakingTier>(StakingTier.Flexible);
