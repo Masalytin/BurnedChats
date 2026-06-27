@@ -12,6 +12,12 @@ import { getRestAuthHeaders } from '@/auth/authCredentialsAccessor';
 import { decryptFile } from '@/crypto/fileEncryption';
 import { isTelegramMiniApp } from '@/env/detector';
 import {
+  buildEphemeralSaveUrl,
+  isDownloadSaveBridgeReady,
+  registerEphemeralSave,
+  revokeEphemeralSave,
+} from '@/services/downloadSaveBridge';
+import {
   decryptFailedError,
   fileTransferErrorFromDownloadResponse,
   FileTransferError,
@@ -213,6 +219,11 @@ export async function saveDecryptedFile(
   }
 
   if (isTelegramMobileSaveTarget()) {
+    const nativeResult = await saveViaTelegramDownloadFile(blob, name);
+    if (nativeResult !== null) {
+      return nativeResult;
+    }
+
     const result = await saveViaShare(blob, name, { ignoreCanShare: true, allowAnchorFallback: false });
     return result ?? 'unavailable';
   }
@@ -252,6 +263,61 @@ interface ShareSaveOptions {
   ignoreCanShare: boolean;
   /** When Share fails, fall back to `<a download>` instead of returning unavailable. */
   allowAnchorFallback: boolean;
+}
+
+type TelegramDownloadFileFn = (
+  params: { url: string; file_name: string },
+  callback: (accepted: boolean) => void,
+) => void;
+
+/**
+ * TG mobile native save via WebApp.downloadFile (Bot API 8.0+) + ephemeral SW URL.
+ * @returns Result when the native path completes; `null` to fall back to Share (SAVE-01).
+ */
+async function saveViaTelegramDownloadFile(
+  blob: Blob,
+  name: string,
+): Promise<SaveDecryptedFileResult | null> {
+  const downloadFile = getTelegramDownloadFileFn();
+  if (!downloadFile) {
+    return null;
+  }
+
+  if (!(await isDownloadSaveBridgeReady())) {
+    return null;
+  }
+
+  let token: string;
+  try {
+    token = await registerEphemeralSave(blob, name);
+  } catch {
+    return null;
+  }
+
+  const url = buildEphemeralSaveUrl(token);
+
+  return new Promise((resolve) => {
+    try {
+      downloadFile({ url, file_name: name }, (accepted) => {
+        revokeEphemeralSave(token);
+        resolve(accepted ? 'saved' : 'cancelled');
+      });
+    } catch {
+      revokeEphemeralSave(token);
+      resolve(null);
+    }
+  });
+}
+
+function getTelegramDownloadFileFn(): TelegramDownloadFileFn | undefined {
+  if (!WebApp.isVersionAtLeast('8.0')) {
+    return undefined;
+  }
+  const app = WebApp as typeof WebApp & { downloadFile?: TelegramDownloadFileFn };
+  if (typeof app.downloadFile !== 'function') {
+    return undefined;
+  }
+  return app.downloadFile.bind(WebApp);
 }
 
 /**

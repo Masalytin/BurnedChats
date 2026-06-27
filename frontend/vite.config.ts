@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     // Production: emit .map files for CI/Sentry but omit //# sourceMappingURL from JS.
     sourcemap: mode === 'production' ? 'hidden' : true,
+    // public/download-save-sw.js is copied to dist root for TG WebApp.downloadFile bridge.
   },
   test: {
     globals: true,
