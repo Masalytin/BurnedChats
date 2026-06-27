@@ -8,7 +8,6 @@ import {
   Lock,
   LogOut,
   MicOff,
-  RefreshCw,
   Settings,
   Timer,
 } from 'lucide-react';
@@ -138,6 +137,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<DecryptedMessage | null>(null);
   const messageInputTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const placeholderPrimaryRef = useRef<HTMLButtonElement>(null);
   const roomPeerDisplayName = t('room.chat.fallbackPeer');
   const roomMessageUserId = userTelegramId ?? 0;
 
@@ -152,6 +152,14 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       cancelled = true;
     };
   }, [roomId, nameEncrypted, nameIv]);
+
+  useEffect(() => {
+    if (hasKey) return;
+    const frameId = requestAnimationFrame(() => {
+      placeholderPrimaryRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [hasKey, roomId]);
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -507,16 +515,30 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     setShowLeaveConfirm(false);
   }, []);
 
+  const placeholderTitle = isOwner
+    ? isOwnerRekeying
+      ? t('room.chat.ownerRekeying')
+      : t('room.chat.keyLost')
+    : isRequestingKey
+      ? t('room.chat.requestingKey')
+      : t('room.chat.waitingForKey');
+
+  const placeholderHint = isOwner
+    ? isOwnerRekeying
+      ? t('room.chat.ownerRekeyingHint')
+      : t('room.chat.keyLostHint')
+    : t('room.chat.ownerOfflineHint');
+
   const subtitle = hasKey
     ? memberCount != null
       ? t('room.chat.memberCount', { count: memberCount })
       : t('room.chat.epochSubtitle', { epoch })
-    : t('room.chat.loadingKey');
+    : placeholderTitle;
 
   const placeholderIcon = showKeySpinner ? (
     <Key size={28} strokeWidth={1.75} aria-hidden />
   ) : isOwner ? (
-    <RefreshCw size={28} strokeWidth={1.75} aria-hidden />
+    <Key size={28} strokeWidth={1.75} aria-hidden />
   ) : (
     <Hourglass size={28} strokeWidth={1.75} aria-hidden />
   );
@@ -659,55 +681,70 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         </>
       ) : (
         <div className="room-chat-room-body">
-          <div className="room-chat-room-placeholder">
-            <div className="room-chat-room-placeholder-icon" aria-hidden>
+          <div
+            className="room-chat-room-placeholder"
+            aria-busy={showKeySpinner || undefined}
+          >
+            <div
+              className={`room-chat-room-placeholder-icon${showKeySpinner ? ' room-chat-room-placeholder-icon--busy' : ''}`}
+              aria-hidden
+            >
               {placeholderIcon}
             </div>
-            <div className="room-chat-room-placeholder-text">
-              {isOwner
-                ? t('room.chat.ownerRekeying')
-                : isRequestingKey
-                  ? t('room.chat.requestingKey')
-                  : t('room.chat.loadingKey')}
+            <div className="room-chat-room-placeholder-text">{placeholderTitle}</div>
+            <div className="room-chat-room-placeholder-hint">{placeholderHint}</div>
+            <div className="room-chat-room-placeholder-actions">
+              {isOwner ? (
+                isOwnerRekeying ? (
+                  <div
+                    className="room-chat-room-retry-btn room-chat-room-retry-btn--loading"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="room-chat-room-retry-btn__spinner" aria-hidden />
+                    {t('room.chat.ownerRekeying')}
+                  </div>
+                ) : (
+                  onOwnerRecoverKeys && (
+                    <button
+                      ref={placeholderPrimaryRef}
+                      type="button"
+                      className="room-chat-room-retry-btn room-chat-room-retry-btn--primary"
+                      onClick={onOwnerRecoverKeys}
+                    >
+                      {t('room.recovery.recoverButton')}
+                    </button>
+                  )
+                )
+              ) : (
+                <>
+                  {onRequestKey && (
+                    <button
+                      ref={placeholderPrimaryRef}
+                      type="button"
+                      className={`room-chat-room-retry-btn room-chat-room-retry-btn--primary${isRequestingKey ? ' room-chat-room-retry-btn--loading' : ''}`}
+                      onClick={onRequestKey}
+                      disabled={isRequestingKey}
+                      aria-busy={isRequestingKey || undefined}
+                    >
+                      {isRequestingKey && (
+                        <span className="room-chat-room-retry-btn__spinner" aria-hidden />
+                      )}
+                      {isRequestingKey ? t('room.chat.requestingKey') : t('room.chat.retryKey')}
+                    </button>
+                  )}
+                  {onLeave && (
+                    <button
+                      type="button"
+                      className="room-chat-room-retry-btn room-chat-room-retry-btn--ghost"
+                      onClick={handleLeaveClick}
+                    >
+                      {t('room.manage.leaveButton')}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
-            <div className="room-chat-room-placeholder-hint">
-              {isOwner
-                ? t('room.chat.ownerRekeyingHint')
-                : t('room.chat.ownerOfflineHint')}
-            </div>
-            {isOwner && onOwnerRecoverKeys && !isOwnerRekeying && (
-              <button
-                type="button"
-                className="room-chat-room-retry-btn"
-                onClick={onOwnerRecoverKeys}
-              >
-                {t('room.recovery.recoverButton')}
-              </button>
-            )}
-            {!isOwner && onRequestKey && (
-              <button
-                type="button"
-                className={`room-chat-room-retry-btn${isRequestingKey ? ' room-chat-room-retry-btn--loading' : ''}`}
-                onClick={onRequestKey}
-                disabled={isRequestingKey}
-                aria-busy={isRequestingKey}
-              >
-                {isRequestingKey && (
-                  <span className="room-chat-room-retry-btn__spinner" aria-hidden />
-                )}
-                {isRequestingKey ? t('room.chat.requestingKey') : t('room.chat.retryKey')}
-              </button>
-            )}
-            {isOwner && isOwnerRekeying && (
-              <div
-                className="room-chat-room-retry-btn room-chat-room-retry-btn--loading"
-                aria-busy="true"
-                role="status"
-              >
-                <span className="room-chat-room-retry-btn__spinner" aria-hidden />
-                {t('room.chat.ownerRekeying')}
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -171,6 +171,20 @@
   color: var(--bc-brand-primary);
 }
 
+.room-chat-room-placeholder-icon--busy {
+  position: relative;
+}
+
+.room-chat-room-placeholder-icon--busy::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--bc-spacing-xs));
+  border: 2px solid var(--bc-border-color);
+  border-top-color: var(--bc-brand-primary);
+  border-radius: var(--bc-radius-full);
+  animation: room-chat-room-spin var(--bc-transition-slow) linear infinite;
+}
+
 .room-chat-room-placeholder-text {
   font-size: var(--bc-text-base);
   font-weight: 600;
@@ -182,6 +196,15 @@
   line-height: var(--bc-leading-relaxed);
   color: var(--bc-text-secondary);
   max-width: 20rem;
+}
+
+.room-chat-room-placeholder-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  width: 100%;
+  margin-top: var(--bc-spacing-xs);
 }
 
 .room-chat-room-retry-btn {
@@ -232,6 +255,35 @@
   pointer-events: none;
 }
 
+.room-chat-room-retry-btn--primary {
+  border-color: transparent;
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+  box-shadow: var(--bc-shadow-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .room-chat-room-retry-btn--primary:hover:not(:disabled) {
+    background: var(--bc-brand-primary-hover);
+    border-color: transparent;
+    box-shadow: var(--bc-shadow-md);
+  }
+}
+
+.room-chat-room-retry-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--bc-text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .room-chat-room-retry-btn--ghost:hover:not(:disabled) {
+    background: var(--bc-bg-hover);
+    border-color: transparent;
+    color: var(--bc-text-primary);
+  }
+}
+
 .room-chat-room-retry-btn__spinner {
   display: inline-block;
   width: var(--bc-spacing-md);
@@ -277,6 +329,11 @@
   }
 
   .room-chat-room-retry-btn__spinner {
+    animation: none;
+    border-top-color: var(--bc-border-color);
+  }
+
+  .room-chat-room-placeholder-icon--busy::after {
     animation: none;
     border-top-color: var(--bc-border-color);
   }
