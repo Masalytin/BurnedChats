@@ -157,4 +157,46 @@ describe('useRoomMessages handleNewMessage topic event routing (IMP-RCDF-01)', (
     expect(onError).not.toHaveBeenCalledWith('DECRYPTION_FAILED', expect.anything());
     expect(result.current.messages.some(m => m.content === 'Hello room')).toBe(true);
   });
+
+  it('uses [encrypted] placeholder for undecryptable live message without onError (IMP-RCDF-03)', async () => {
+    const groupKey = await generateGroupKey();
+    storeGroupKey(ROOM_ID, 0, groupKey);
+
+    const onError = vi.fn();
+    const { ws, getTopicHandler } = createCapturingWs();
+
+    const { result } = renderHook(() =>
+      useRoomMessages({
+        roomId: ROOM_ID,
+        userId: 100,
+        userInternalId: 'user-internal-1',
+        ws,
+        onError,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getTopicHandler()).toBeDefined();
+    });
+
+    await act(async () => {
+      getTopicHandler()!(makeStompMessage({
+        roomId: ROOM_ID,
+        messageId: 'msg-undecryptable-1',
+        encryptedContent: '!!!not-valid-ciphertext!!!',
+        iv: '!!!not-valid-iv!!!',
+        senderTgId: 200,
+        clientTimestamp: Date.now(),
+      }));
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.some(
+        m => m.id === 'msg-undecryptable-1' && m.content === '[encrypted]',
+      )).toBe(true);
+    });
+
+    expect(onError).not.toHaveBeenCalledWith('DECRYPTION_FAILED', expect.anything());
+    expect(onError).not.toHaveBeenCalled();
+  });
 });

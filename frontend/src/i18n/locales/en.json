@@ -982,6 +982,7 @@
       "encryptedTitle": "End-to-end encrypted",
       "messagePlaceholder": "Message room...",
       "sendError": "Failed to send message",
+      "decryptError": "Could not decrypt message",
       "errorMuted": "You have been muted in this room and cannot send messages",
       "errorReadOnly": "This room is read-only — only the owner can post",
       "mutedBanner": "You have been muted and cannot send messages",

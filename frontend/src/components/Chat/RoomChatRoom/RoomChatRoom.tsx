@@ -207,7 +207,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const abortRef = useRef<AbortController | null>(null);
 
   const handleRoomMessageError = useCallback(
-    (_code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
+    (code: RoomMessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => {
       if (details === 'MUTED') {
         toast.error(t('room.chat.errorMuted'), { duration: 4000 });
         return;
@@ -216,10 +216,15 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         toast.error(t('room.chat.errorReadOnly'), { duration: 4000 });
         return;
       }
-      const msg = isFilesErrorI18nKey(details)
-        ? t(details!, i18nValues)
-        : t('room.chat.sendError');
-      toast.error(msg, { duration: 4000 });
+      if (isFilesErrorI18nKey(details)) {
+        toast.error(t(details!, i18nValues), { duration: 4000 });
+        return;
+      }
+      if (code === 'DECRYPTION_FAILED') {
+        toast.error(t('room.chat.decryptError'), { duration: 4000 });
+        return;
+      }
+      toast.error(t('room.chat.sendError'), { duration: 4000 });
     },
     [t, toast],
   );

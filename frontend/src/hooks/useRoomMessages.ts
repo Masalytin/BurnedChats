@@ -554,7 +554,24 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         onNewMessage?.(decryptedMsg);
       } catch (decryptErr) {
         console.error('[useRoomMessages] Decryption failed:', decryptErr);
-        handleError('DECRYPTION_FAILED', decryptErr instanceof Error ? decryptErr.message : 'Unknown error');
+        if (!event.messageId) return;
+        const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+        const placeholderMsg: DecryptedMessage = {
+          id: event.messageId,
+          sessionId: roomId,
+          fromUserId: event.senderTgId ?? 0,
+          senderName: event.senderName ?? undefined,
+          content: UNDECRYPTABLE_MESSAGE_PLACEHOLDER,
+          timestamp: ts,
+          status: 'delivered',
+          isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
+          type: 'text',
+          replyToMessageId: event.replyToMessageId || undefined,
+        };
+        setMessages(prev => {
+          if (prev.some(m => m.id === event.messageId)) return prev;
+          return [...prev, placeholderMsg].sort((a, b) => a.timestamp - b.timestamp);
+        });
       }
     } catch (parseErr) {
       console.error('[useRoomMessages] Failed to parse message:', parseErr);
