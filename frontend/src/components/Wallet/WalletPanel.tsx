@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
 import { useToast } from '@/components/Toast';
 
 import { Balance } from './Balance';
@@ -25,7 +26,7 @@ export function WalletPanel({
   onTitleChange,
   onSendOpenChange,
 }: WalletPanelProps) {
-  const { burn, ton } = useWallet();
+  const { burn, ton, refreshWallet, isRefreshing } = useWallet();
 
   const { t } = useTranslation();
   const toast = useToast();
@@ -83,14 +84,16 @@ export function WalletPanel({
           />
         </>
       ) : (
-        <Balance
-          burn={burn}
-          ton={ton}
-          receiveExpanded={receiveExpanded}
-          onReceiveToggle={() => setReceiveExpanded((v) => !v)}
-          onSend={() => setSendOpen(true)}
-          onHistory={() => setPanel('history')}
-        />
+        <PullToRefresh onRefresh={refreshWallet} isRefreshing={isRefreshing}>
+          <Balance
+            burn={burn}
+            ton={ton}
+            receiveExpanded={receiveExpanded}
+            onReceiveToggle={() => setReceiveExpanded((v) => !v)}
+            onSend={() => setSendOpen(true)}
+            onHistory={() => setPanel('history')}
+          />
+        </PullToRefresh>
       )}
       <SendModal
         isOpen={sendOpen}

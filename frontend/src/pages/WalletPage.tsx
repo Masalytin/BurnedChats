@@ -6,8 +6,33 @@ import { WalletPanel } from '@/components/Wallet/WalletPanel';
 import { WalletContext } from '@/components/Wallet/WalletProvider';
 import { WalletSegmentBar } from '@/components/Wallet/WalletSegmentBar';
 import { readWalletSegment, type WalletSegment } from '@/components/Wallet/WalletSegmentControl';
+import { RefreshIcon } from '@/icons';
 import { StakingPage } from './StakingPage';
 import './WalletPage.css';
+
+function WalletRefreshButton() {
+  const { t } = useTranslation();
+  const walletCtx = useContext(WalletContext);
+
+  if (!walletCtx) {
+    return null;
+  }
+
+  const { refreshWallet, isRefreshing, ton } = walletCtx;
+
+  return (
+    <button
+      type="button"
+      className={`wallet-page__refresh-btn${isRefreshing ? ' wallet-page__refresh-btn--spinning' : ''}`}
+      onClick={() => void refreshWallet()}
+      disabled={!ton.isConnected || isRefreshing}
+      aria-label={t('aria.refreshWallet')}
+      title={t('aria.refreshWallet')}
+    >
+      <RefreshIcon size={16} />
+    </button>
+  );
+}
 
 function WalletPanelSection() {
   const { t } = useTranslation();
@@ -50,7 +75,10 @@ export function WalletPage() {
 
   return (
     <div className="wallet-page">
-      <h1 className="wallet-page__title">{t('nav.wallet')}</h1>
+      <div className="wallet-page__header">
+        <h1 className="wallet-page__title">{t('nav.wallet')}</h1>
+        {segment === 'wallet' ? <WalletRefreshButton /> : null}
+      </div>
       <WalletSegmentBar activeSegment={segment} onSegmentChange={setSegment} />
       {segment === 'wallet' ? <WalletPanelSection /> : <StakingPage />}
     </div>

@@ -555,6 +555,7 @@
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",
+    "refreshWallet": "Обновить кошелёк",
     "scrollToTopRefresh": "Наверх и обновить",
     "closeDialog": "Закрыть диалог"
   },

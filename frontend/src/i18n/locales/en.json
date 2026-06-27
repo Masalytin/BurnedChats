@@ -541,6 +541,7 @@
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",
+    "refreshWallet": "Refresh wallet",
     "scrollToTopRefresh": "Scroll to top and refresh",
     "closeDialog": "Close dialog"
   },

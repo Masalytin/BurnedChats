@@ -8,11 +8,64 @@
   padding-bottom: var(--bc-spacing-xl);
 }
 
+.wallet-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+}
+
 .wallet-page__title {
   font-size: var(--bc-text-xl);
   font-weight: 700;
   color: var(--bc-text-primary);
   margin: 0;
+}
+
+.wallet-page__refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bc-text-muted);
+  cursor: pointer;
+  border-radius: var(--bc-radius-sm);
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out);
+  flex-shrink: 0;
+}
+
+.wallet-page__refresh-btn:hover:not(:disabled) {
+  color: var(--bc-brand-primary);
+  background: var(--bc-bg-secondary);
+}
+
+.wallet-page__refresh-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.wallet-page__refresh-btn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.wallet-page__refresh-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.wallet-page__refresh-btn--spinning svg {
+  animation: wallet-page-spin 0.8s linear infinite;
+}
+
+@keyframes wallet-page-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .wallet-page__panel {
