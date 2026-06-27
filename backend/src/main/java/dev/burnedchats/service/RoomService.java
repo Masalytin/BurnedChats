@@ -1,5 +1,6 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.dto.request.CreateRoomRequest;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
 import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
 import dev.burnedchats.dto.event.RoomRoleUpdatedEvent;
@@ -55,22 +56,18 @@ public class RoomService {
      *
      * @param ownerInternalId stable internal user id (from {@link dev.burnedchats.security.AppPrincipal})
      * @param ownerTgId       Telegram id when linked; null for wallet-only owners
-     * @param salt            KDF salt (Base64), or empty when room has no password
-     * @param passwordProof   PBKDF2 proof (Base64), or null when room has no password
-     * @param joinMode        how participants enter the room
-     * @param nameEncrypted   optional encrypted room name (may be null)
+     * @param request         validated create-room payload
      * @return Mono with the newly created {@link Room}
      */
-    public Mono<Room> createRoom(String ownerInternalId,
-                                 Long ownerTgId,
-                                 String salt,
-                                 String passwordProof,
-                                 Room.JoinMode joinMode,
-                                 String nameEncrypted) {
-        String roomId = UUID.randomUUID().toString();
-        boolean hasPassword = passwordProof != null && !passwordProof.isBlank();
-        String proofHash = hasPassword ? passwordProofService.hashProof(passwordProof) : "";
-        String saltStored = (salt != null && !salt.isBlank()) ? salt : "";
+    public Mono<Room> createRoom(String ownerInternalId, Long ownerTgId, CreateRoomRequest request) {
+        String proposedRoomId = request.getRoomId();
+        String roomId = StringUtils.hasText(proposedRoomId)
+                ? proposedRoomId
+                : UUID.randomUUID().toString();
+        boolean hasPassword = request.getPasswordProof() != null && !request.getPasswordProof().isBlank();
+        String proofHash = hasPassword ? passwordProofService.hashProof(request.getPasswordProof()) : "";
+        String salt = request.getSalt() != null ? request.getSalt() : "";
+        String saltStored = !salt.isBlank() ? salt : "";
 
         Room room = Room.builder()
                 .id(roomId)
@@ -78,16 +75,24 @@ public class RoomService {
                 .ownerTgId(ownerTgId)
                 .salt(saltStored)
                 .passwordProofHash(proofHash)
-                .joinMode(joinMode)
+                .joinMode(request.getJoinMode())
                 .createdAt(Instant.now().toEpochMilli())
-                .nameEncrypted(nameEncrypted)
+                .nameEncrypted(request.getNameEncrypted())
+                .nameIv(request.getNameIv())
                 .build();
 
-        return roomRepository.save(room)
+        Mono<Void> ensureRoomIdAvailable = StringUtils.hasText(proposedRoomId)
+                ? roomRepository.findById(roomId)
+                .flatMap(existing -> Mono.error(new IllegalStateException("ROOM_ID_COLLISION")))
+                .then()
+                : Mono.empty();
+
+        return ensureRoomIdAvailable
+                .then(roomRepository.save(room))
                 .then(roomMembersRepository.add(roomId, ownerInternalId))
                 .thenReturn(room)
                 .doOnSuccess(r -> LOG.info("Room created: id={}, ownerInternalId={}, joinMode={}",
-                        r.getId(), ownerInternalId, joinMode))
+                        r.getId(), ownerInternalId, r.getJoinMode()))
                 .onErrorResume(e -> {
                     LOG.error("Failed to create room for owner {}: {}", ownerInternalId, e.getMessage());
                     return Mono.error(e);

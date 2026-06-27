@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { derivePasswordProof } from '../crypto/kdf';
-import { encryptRoomName, generateGroupKey } from '../crypto/groupKey';
+import { encryptRoomName, generateGroupKey, type EncryptedRoomName } from '../crypto/groupKey';
 import { storeGroupKey, storeKeyPair } from '../crypto/keyStore';
 import { generateKeyPair, exportPublicKey } from '../crypto/ecdh';
 import type { Room } from '../types/index';
 
 const CREATE_ROOM_DESTINATION = '/app/room.create';
-const SET_ROOM_NAME_DESTINATION = '/app/room.setName';
 const ROOM_CREATED_DESTINATION = '/user/queue/room-created';
 
 export type RoomJoinMode = 'BY_PASSWORD' | 'BY_REQUEST';
@@ -74,6 +73,7 @@ const initialResult: CreateRoomResult = {
  *
  * Handles:
  * - Client-side KDF (PBKDF2) before sending — password never leaves the device
+ * - Optional room name encrypted in CREATE_ROOM (nameEncrypted + nameIv + client roomId)
  * - Sending CREATE_ROOM payload
  * - Subscribing to ROOM_CREATED response
  */
@@ -91,13 +91,11 @@ export function useCreateRoom({
   const onCreatedRef = useRef(onCreated);
   const onRoomNameSetRef = useRef(onRoomNameSet);
   const onErrorRef = useRef(onError);
-  const publishRef = useRef(publish);
 
   useEffect(() => {
     onCreatedRef.current = onCreated;
     onRoomNameSetRef.current = onRoomNameSet;
     onErrorRef.current = onError;
-    publishRef.current = publish;
   });
 
   const handleRoomCreated = useCallback((message: IMessage) => {
@@ -111,29 +109,26 @@ export function useCreateRoom({
         return;
       }
 
-      // Generate group key for the room (owner is the first and only member at this point).
+      // Store pre-generated group key (when set) or generate for unnamed rooms.
       // epoch=0 is the initial key; it will be incremented on rekey after member leaves.
-      const groupKey = await generateGroupKey();
-      storeGroupKey(data.roomId, 0, groupKey);
-
-      // Optional display name: backend CREATE_ROOM lacks nameIv — set via SET_ROOM_NAME (IMP-ROOM-06).
-      const pendingName = pendingRoomNameRef.current?.trim();
-      if (pendingName) {
-        try {
-          const encryptedName = await encryptRoomName(pendingName, groupKey, data.roomId);
-          publishRef.current(SET_ROOM_NAME_DESTINATION, {
-            roomId: data.roomId,
-            nameEncrypted: encryptedName.nameEncrypted,
-            nameIv: encryptedName.nameIv,
-          });
-          onRoomNameSetRef.current?.(data.roomId, encryptedName.nameEncrypted, encryptedName.nameIv);
-        } catch {
-          setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CRYPTO_ERROR' });
-          onErrorRef.current?.('CRYPTO_ERROR');
-          return;
-        }
+      const pendingKey = pendingGroupKeyRef.current;
+      if (pendingKey) {
+        storeGroupKey(data.roomId, 0, pendingKey);
+        pendingGroupKeyRef.current = null;
+      } else {
+        const groupKey = await generateGroupKey();
+        storeGroupKey(data.roomId, 0, groupKey);
       }
-      pendingRoomNameRef.current = null;
+
+      const encryptedName = pendingEncryptedNameRef.current;
+      if (encryptedName) {
+        onRoomNameSetRef.current?.(
+          data.roomId,
+          encryptedName.nameEncrypted,
+          encryptedName.nameIv,
+        );
+        pendingEncryptedNameRef.current = null;
+      }
 
       // Move the pending room keypair from the temp key to the canonical room-join:{roomId} key
       if (pendingRoomKeypairRef.current) {
@@ -170,10 +165,11 @@ export function useCreateRoom({
     };
   }, [subscribe, unsubscribe, handleRoomCreated]);
 
-  // Ref to store the room keypair between createRoom() call and ROOM_CREATED response
   const pendingRoomKeypairRef = useRef<{ roomKeyId: string } | null>(null);
-  /** Plaintext room name held until ROOM_CREATED (never logged). */
-  const pendingRoomNameRef = useRef<string | null>(null);
+  /** Group key generated before CREATE_ROOM when a display name is set (IMP-RCDF-05). */
+  const pendingGroupKeyRef = useRef<CryptoKey | null>(null);
+  /** Encrypted name included in CREATE_ROOM payload; applied to local room list on ROOM_CREATED. */
+  const pendingEncryptedNameRef = useRef<EncryptedRoomName | null>(null);
 
   const createRoom = useCallback(
     async (password: string | null, joinMode: RoomJoinMode, roomName?: string) => {
@@ -184,8 +180,10 @@ export function useCreateRoom({
       }
 
       setResult({ status: 'creating', roomId: null, inviteUrl: null, error: null });
-      pendingRoomNameRef.current = roomName?.trim() || null;
+      pendingGroupKeyRef.current = null;
+      pendingEncryptedNameRef.current = null;
 
+      const trimmedName = roomName?.trim() || null;
       const hasPassword = password != null && password.length > 0;
 
       try {
@@ -199,7 +197,6 @@ export function useCreateRoom({
 
         const ownerKeyPair = await generateKeyPair();
 
-        // Store keypair under a temp key; moved to room-join:{roomId} in handleRoomCreated
         const tempKeyId = `room-join-pending-${Date.now()}`;
         storeKeyPair(tempKeyId, ownerKeyPair);
         pendingRoomKeypairRef.current = { roomKeyId: tempKeyId };
@@ -215,8 +212,21 @@ export function useCreateRoom({
           payload.passwordProof = proof;
         }
 
+        if (trimmedName) {
+          const proposedRoomId = crypto.randomUUID();
+          const groupKey = await generateGroupKey();
+          const encryptedName = await encryptRoomName(trimmedName, groupKey, proposedRoomId);
+          pendingGroupKeyRef.current = groupKey;
+          pendingEncryptedNameRef.current = encryptedName;
+          payload.roomId = proposedRoomId;
+          payload.nameEncrypted = encryptedName.nameEncrypted;
+          payload.nameIv = encryptedName.nameIv;
+        }
+
         publish(CREATE_ROOM_DESTINATION, payload);
       } catch {
+        pendingGroupKeyRef.current = null;
+        pendingEncryptedNameRef.current = null;
         setResult({ status: 'error', roomId: null, inviteUrl: null, error: 'CRYPTO_ERROR' });
         onErrorRef.current?.('CRYPTO_ERROR');
       }
@@ -225,7 +235,8 @@ export function useCreateRoom({
   );
 
   const reset = useCallback(() => {
-    pendingRoomNameRef.current = null;
+    pendingGroupKeyRef.current = null;
+    pendingEncryptedNameRef.current = null;
     setResult(initialResult);
   }, []);
 

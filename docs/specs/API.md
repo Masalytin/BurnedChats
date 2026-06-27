@@ -1435,7 +1435,9 @@ client.activate();
   "passwordProof": "base64... (optional when BY_REQUEST)",
   "joinMode": "BY_PASSWORD | BY_REQUEST",
   "ownerPublicKey": "base64... (optional)",
-  "nameEncrypted": "base64... (optional)"
+  "roomId": "uuid (optional; required when nameEncrypted is set)",
+  "nameEncrypted": "base64... (optional)",
+  "nameIv": "base64... (optional; required together with nameEncrypted)"
 }
 ```
 
@@ -1445,7 +1447,15 @@ client.activate();
 | `passwordProof` | string (Base64, 32 bytes) | При BY_PASSWORD | PBKDF2 proof. При BY_REQUEST без пароля — не передавать |
 | `joinMode` | enum | Да | `BY_PASSWORD` — вход сразу; `BY_REQUEST` — по одобрению (пароль опционален) |
 | `ownerPublicKey` | string (Base64) | Нет | Публичный ключ владельца (ECDH) |
-| `nameEncrypted` | string (Base64) | Нет | Зашифрованное имя комнаты |
+| `roomId` | string (UUID v4) | При `nameEncrypted`* | Client-proposed UUID комнаты; сервер использует его при отсутствии коллизии. Без имени — сервер генерирует UUID |
+| `nameEncrypted` | string (Base64) | Нет* | AES-GCM ciphertext имени (opaque, max 512 chars) |
+| `nameIv` | string (Base64) | Нет* | 12-byte GCM IV для `nameEncrypted` (max 32 chars Base64) |
+
+\* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии **обязателен**
+client `roomId` (AES-GCM AAD = `roomId`, см.
+[IMP-RCDF-05](../improvements/room-create-decryption-fix/decisions/IMP-RCDF-05-group-key-and-room-id-order.md)).
+При создании с именем отдельный `SET_ROOM_NAME` **не** требуется — имя сохраняется в Redis
+атомарно с create; `ROOM_NAME_UPDATED` при create **не** публикуется.
 
 **Ответ:** `/user/queue/room-created` — `RoomCreatedEvent` с `roomId` и опциональным `inviteUrl` (default token, 7d TTL, unlimited uses).
 

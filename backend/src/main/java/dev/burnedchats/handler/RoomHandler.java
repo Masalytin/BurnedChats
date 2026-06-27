@@ -157,14 +157,7 @@ public class RoomHandler {
         LOG.info("CREATE_ROOM requested: internalId={}, telegramId={}, joinMode={}",
                 owner.internalId(), owner.telegramId(), request.getJoinMode());
 
-        roomService.createRoom(
-                        owner.internalId(),
-                        owner.telegramId(),
-                        request.getSalt() != null ? request.getSalt() : "",
-                        request.getPasswordProof(),
-                        request.getJoinMode(),
-                        request.getNameEncrypted()
-                )
+        roomService.createRoom(owner.internalId(), owner.telegramId(), request)
                 .flatMap(room ->
                         inviteTokenService.generateInviteLink(room.getId(), owner.internalId())
                                 .map(inviteUrl -> RoomCreatedEvent.success(room.getId(), inviteUrl))

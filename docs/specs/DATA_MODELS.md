@@ -532,7 +532,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 | `encryptedContent` | AES-GCM ciphertext сообщения / медиа-подписи | room messages, DM, edit-события |
 | `iv` | 12-byte GCM IV для `encryptedContent` | те же |
 | `encryptedMeta` | ciphertext метаданных файла (`{ fileName, mimeType }`) | медиа-сообщения |
-| `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `ROOM_NAME_UPDATED`, room-list |
+| `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `CREATE_ROOM` (optional), `ROOM_NAME_UPDATED`, room-list |
 | `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же ([IMP-ROOM-05](../improvements/room-management/decisions/IMP-ROOM-05-name-iv-separate-fields.md)) |
 | key-bundle: `ephemeralPublicKey`, `encryptedKey`, `iv` | wrapped group key (ECDH + AES-GCM) | `KEY_BUNDLE`, `room_keys:{roomId}:{epoch}` |
 | `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW-proof / ECDH pubkeys | CREATE_ROOM, JOIN |

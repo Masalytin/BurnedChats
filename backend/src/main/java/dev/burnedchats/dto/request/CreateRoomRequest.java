@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import org.springframework.util.StringUtils;
 
 /**
  * Payload for the STOMP {@code /app/room.create} destination.
@@ -54,11 +55,45 @@ public class CreateRoomRequest {
     }
 
     /**
+     * Optional client-proposed room UUID (v4). Required when {@code nameEncrypted} is set so the
+     * client can bind the name ciphertext with {@code roomId} as AES-GCM AAD before create.
+     * When omitted, the server generates a new UUID.
+     */
+    @Size(max = 36)
+    @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            message = "roomId must be a UUID")
+    private String roomId;
+
+    /**
      * Optional encrypted room name.
      * If provided, it must be an opaque Base64 ciphertext encrypted client-side.
      */
     @Size(max = 512)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "nameEncrypted must be Base64")
     private String nameEncrypted;
+
+    /**
+     * Base64-encoded 12-byte AES-GCM IV for {@link #nameEncrypted}.
+     * Must be supplied together with {@code nameEncrypted}.
+     */
+    @Size(max = 32)
+    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$", message = "nameIv must be Base64")
+    private String nameIv;
+
+    @AssertTrue(message = "nameEncrypted and nameIv must both be present or both omitted")
+    public boolean isNameFieldsConsistent() {
+        boolean hasEncrypted = StringUtils.hasText(nameEncrypted);
+        boolean hasIv = StringUtils.hasText(nameIv);
+        return hasEncrypted == hasIv;
+    }
+
+    @AssertTrue(message = "roomId is required when nameEncrypted is set (client-proposed UUID for AAD)")
+    public boolean isRoomIdPresentWhenNameSet() {
+        if (!StringUtils.hasText(nameEncrypted)) {
+            return true;
+        }
+        return StringUtils.hasText(roomId);
+    }
 
     /**
      * ECDH P-256 public key of the room owner — Base64 SPKI-encoded (~124 bytes ≈ 165 chars).
