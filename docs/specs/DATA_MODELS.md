@@ -5,6 +5,7 @@
 ## 📋 Содержание
 
 - [Redis Schema](#redis-schema)
+- [Формат кодировки шифртекста (encoding contract)](#формат-кодировки-шифртекста-encoding-contract)
 - [Java DTOs](#java-dtos)
 - [TypeScript Interfaces](#typescript-interfaces)
 - [Валидация данных](#валидация-данных)
@@ -517,6 +518,40 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 **Set** из `fileId`, привязанных к одной сессии или комнате. Используется для каскадного удаления файлов при burn сессии/комнаты (`FileBurnService`): по списку `fileId` удаляются записи в `file_meta:*`, объекты на filesystem и члены множества.
 
 **TTL:** продлевается при каждом добавлении файла (как у `file_meta`), чтобы индекс не переживал метаданные.
+
+---
+
+## Формат кодировки шифртекста (encoding contract)
+
+Все криптографические blob'ы на стыке **frontend ↔ backend ↔ Redis** кодируются
+**стандартным Base64** (RFC 4648 §4, алфавит `A–Z a–z 0–9 + /` с `=`-padding) —
+**не** base64url (`-`/`_`). Контракт единый для всех полей:
+
+| Поле | Назначение | Где |
+|------|------------|-----|
+| `encryptedContent` | AES-GCM ciphertext сообщения / медиа-подписи | room messages, DM, edit-события |
+| `iv` | 12-byte GCM IV для `encryptedContent` | те же |
+| `encryptedMeta` | ciphertext метаданных файла (`{ fileName, mimeType }`) | медиа-сообщения |
+| `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `ROOM_NAME_UPDATED`, room-list |
+| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же ([IMP-ROOM-05](../improvements/room-management/decisions/IMP-ROOM-05-name-iv-separate-fields.md)) |
+| key-bundle: `ephemeralPublicKey`, `encryptedKey`, `iv` | wrapped group key (ECDH + AES-GCM) | `KEY_BUNDLE`, `room_keys:{roomId}:{epoch}` |
+| `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW-proof / ECDH pubkeys | CREATE_ROOM, JOIN |
+
+**Реализация (источник истины):**
+
+- **Frontend** — `frontend/src/crypto/aes.ts`: `arrayBufferToBase64` использует `btoa`,
+  `base64ToArrayBuffer` — `atob` (стандартный Base64). Эти же helpers применяются для
+  `encryptRoomName` (`crypto/groupKey.ts`) → `{ nameEncrypted, nameIv }`.
+- **Backend** — валидация `@Base64` (`validation/Base64Validator.java`) декодирует через
+  `java.util.Base64.getDecoder()` (стандартный, **не** `getUrlDecoder()`).
+
+**Zero-knowledge инвариант.** Сервер хранит и ретранслирует эти поля как **opaque-строки**
+и **никогда** не декодирует/расшифровывает содержимое — только метаданные (длина для
+валидации, временные метки для prune). Ключей шифрования сервер не видит.
+
+> **Зачем зафиксировано.** Аудит кода ↔ спека выявил, что формат кодировки был описан
+> разрозненно. Несоответствий base64 vs base64url **не обнаружено** — контракт един; см.
+> [room-create-decryption-fix/ANALYSIS.md](../improvements/room-create-decryption-fix/ANALYSIS.md) §4.
 
 ---
 

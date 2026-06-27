@@ -1649,6 +1649,60 @@ Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](.
 
 ---
 
+### Мультиплексированный топик `/topic/room/{roomId}` (таксономия событий)
+
+`/topic/room/{roomId}` — **мультиплексированный** канал: на нём публикуются и
+обычные зашифрованные сообщения, и служебные события комнаты (имя, TTL, роли,
+передача владения, модерация, edit/delete, presence). Все они приходят в **одну**
+STOMP-подписку, поэтому клиент обязан маршрутизировать payload по дискриминатору
+`eventType` (см. контракт ниже). Сервер во всех случаях видит только opaque-данные
+и метаданные — формат кодировки шифртекста/IV единый (стандартный Base64), см.
+[DATA_MODELS.md → Формат кодировки шифртекста](./DATA_MODELS.md#формат-кодировки-шифртекста-encoding-contract).
+
+**Полная таблица событий топика:**
+
+| `eventType` | Источник (backend) | Frontend-обработчик | Ключевые поля payload |
+|-------------|--------------------|---------------------|-----------------------|
+| _(отсутствует)_ — сообщение | `RoomMessageHandler` → `NewRoomMessageEvent` | `handleNewMessage` → дешифровка | `messageId`, `encryptedContent`, `iv`, `senderInternalId`, опц. `type`/`fileId`/`thumbnailFileId`/`encryptedMeta`/`fileSize`, `replyToMessageId` |
+| `ROOM_MESSAGE_DELETED` | `RoomMessageHandler` → `RoomMessageDeletedEvent` | `handleNewMessage` (ветка delete) | `messageId`, `deletedByInternalId`, `deletedByOwner` |
+| `ROOM_MESSAGE_EDITED` | `RoomMessageHandler` → `RoomMessageEditedEvent` | `handleNewMessage` (ветка edit) → дешифровка нового текста | `messageId`, `encryptedContent`, `iv`, опц. медиа-поля |
+| `ROOM_MODERATION` | `RoomHandler` → `RoomModerationEvent` | `handleNewMessage` → `onRoomModeration` | `readOnly`, `mutedAdded`, `mutedRemoved` |
+| `ROOM_NAME_UPDATED` | `RoomHandler` → `RoomNameUpdatedEvent` | `useSetRoomName` listener | `nameEncrypted`, `nameIv` |
+| `ROOM_TTL_UPDATED` | `RoomHandler` → `RoomTtlUpdatedEvent` | room-state listener | `autoBurnAt` |
+| `ROOM_MESSAGE_TTL_UPDATED` | `RoomHandler` → `RoomMessageTtlUpdatedEvent` | room-state listener | `messageTtlSeconds` |
+| `ROOM_ROLE_UPDATED` | `RoomHandler` → `RoomRoleUpdatedEvent` | room-roles listener | `targetInternalId`, `role` |
+| `ROOM_OWNERSHIP_TRANSFERRED` | `RoomHandler` → `RoomOwnershipTransferredEvent` | room-roles listener | `newOwnerInternalId`, `previousOwnerInternalId` |
+| _(отсутствует)_ — presence | `WebSocketEventListener` → `RoomPresenceEvent` | room-presence listener | `internalId`, `online`, `lastSeen` (нет `messageId`/`encryptedContent`) |
+
+**Контракт обработчика сообщений (`handleNewMessage`, `frontend/src/hooks/useRoomMessages.ts`):**
+
+- payload **без** `eventType`, с `messageId` и `encryptedContent`/`iv` (или файловыми
+  полями) — единственный случай, который трактуется как сообщение и **дешифруется**
+  групповым ключом комнаты;
+- `ROOM_MESSAGE_DELETED` / `ROOM_MESSAGE_EDITED` / `ROOM_MODERATION` обрабатываются
+  собственными ветками (удаление / правка / модерация);
+- **любой иной `eventType`** (`ROOM_NAME_UPDATED`, `ROOM_TTL_UPDATED`,
+  `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) и
+  **любой неизвестный `eventType`** — безопасный дефолт: ранний `return`, payload
+  **никогда** не попадает в путь дешифровки текста (фикс
+  [IMP-RCDF-01](../improvements/room-create-decryption-fix/cards/IMP-RCDF-01.md));
+- payload **без** `eventType` и **без** `messageId` (например `RoomPresenceEvent`) не
+  порождает ни сообщения, ни тоста: служебный listener обрабатывает его сам, а в
+  `handleNewMessage` отсутствие `encryptedContent` приводит к типизированной ошибке
+  (`INVALID_CIPHERTEXT_ENCODING`, [IMP-RCDF-02](../improvements/room-create-decryption-fix/cards/IMP-RCDF-02.md))
+  и graceful-degrade без плейсхолдера (нет `messageId`,
+  [IMP-RCDF-03](../improvements/room-create-decryption-fix/cards/IMP-RCDF-03.md)).
+
+> **Зачем это зафиксировано.** Неявный контракт мультиплексора был корневой причиной
+> бага дешифровки при создании комнаты (служебное `ROOM_NAME_UPDATED` проваливалось в
+> путь дешифровки текста → `atob(undefined)`). Разбор:
+> [room-create-decryption-fix/ANALYSIS.md](../improvements/room-create-decryption-fix/ANALYSIS.md) §2, §4.
+
+Ниже — детальные payload'ы каждого служебного события (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
+`ROOM_ROLE_UPDATED`, и т.д.).
+
+---
+
 ### ROOM_MESSAGES (текст / медиа)
 
 **Отправка:** `/app/room.message.send` (`SendRoomMessageRequest` — те же файловые поля, что у DM).
