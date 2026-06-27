@@ -28,6 +28,22 @@ export type RekeyStatus =
   | 'done'
   | 'error';
 
+/** Why rekey ended in error — for UI (IMP-RKR-02). */
+export type RekeyErrorReason =
+  | 'no-local-key'
+  | 'pubkeys-failed'
+  | 'parse-failed'
+  | 'rekey-failed'
+  | null;
+
+/** Active rekey mode — bootstrap (owner recovery) vs normal (member left). */
+export type RekeyMode = 'bootstrap' | 'normal' | null;
+
+export interface RekeyOptions {
+  /** Owner recovery without local group key — explicit user intent only (IMP-RKR-01). */
+  bootstrap?: boolean;
+}
+
 interface ServerMemberPublicKeysEvent {
   success: boolean;
   roomId: string;
@@ -60,17 +76,24 @@ interface UseRekeyRoomOptions {
 
 export interface UseRekeyRoomReturn {
   status: RekeyStatus;
+  /** Last error reason when status === 'error'. */
+  errorReason: RekeyErrorReason;
+  /** Mode of the in-flight or last completed rekey. */
+  rekeyMode: RekeyMode;
   /**
    * Initiate a rekey for the given room (owner only).
    * Fetches member public keys, generates a new group key,
    * wraps it for each remaining member, and sends REKEY to the server.
+   *
+   * @param options.bootstrap — allow rekey without local group key (owner recovery).
    */
-  rekeyRoom: (roomId: string) => void;
+  rekeyRoom: (roomId: string, options?: RekeyOptions) => void;
   reset: () => void;
 }
 
 /**
- * Hook for the room owner to rotate the group key after a member leaves (P2-3.2.2).
+ * Hook for the room owner to rotate the group key after a member leaves (P2-3.2.2)
+ * or to bootstrap a new epoch after local key loss (IMP-RKR-01).
  *
  * Flow:
  * 1. `rekeyRoom(roomId)` sends `GET_MEMBER_PUBKEYS` to the server.
@@ -79,6 +102,9 @@ export interface UseRekeyRoomReturn {
  * 4. Wraps the new key for each OTHER member using ECIES-like scheme.
  * 5. Sends `REKEY { roomId, newEpoch, bundles }` to the server.
  * 6. Server stores bundles, relays KEY_BUNDLE to each member, broadcasts ROOM_REKEY.
+ *
+ * Bootstrap (`{ bootstrap: true }`): when owner has no local key, uses
+ * `newEpoch = (serverCurrentEpoch ?? -1) + 1` from the pubkeys response.
  *
  * Also subscribes to `ROOM_REKEY` events for non-owner members — they receive
  * `ROOM_REKEY` as a signal to wait for their new KEY_BUNDLE.
@@ -97,9 +123,12 @@ export function useRekeyRoom({
   onRekeyNameUpdated,
 }: UseRekeyRoomOptions): UseRekeyRoomReturn {
   const [status, setStatus] = useState<RekeyStatus>('idle');
+  const [errorReason, setErrorReason] = useState<RekeyErrorReason>(null);
+  const [rekeyMode, setRekeyMode] = useState<RekeyMode>(null);
 
   // The roomId for which we're currently waiting on pubkeys
   const pendingRoomIdRef = useRef<string | null>(null);
+  const pendingBootstrapRef = useRef(false);
   const onRekeyCompletedRef = useRef(onRekeyCompleted);
   const onRekeyReceivedRef = useRef(onRekeyReceived);
   const onRekeyNameUpdatedRef = useRef(onRekeyNameUpdated);
@@ -112,6 +141,13 @@ export function useRekeyRoom({
     getRoomNameCipherRef.current = getRoomNameCipher;
   });
 
+  const failRekey = useCallback((reason: RekeyErrorReason) => {
+    pendingRoomIdRef.current = null;
+    pendingBootstrapRef.current = false;
+    setErrorReason(reason);
+    setStatus('error');
+  }, []);
+
   // ----------------------------------------
   // Member public keys response handler
   // ----------------------------------------
@@ -123,39 +159,42 @@ export function useRekeyRoom({
         data = JSON.parse(message.body) as ServerMemberPublicKeysEvent;
       } catch {
         console.error('[useRekeyRoom] Failed to parse MEMBER_PUBKEYS message');
-        setStatus('error');
+        failRekey('parse-failed');
         return;
       }
 
       if (!data.success || !data.publicKeys) {
         console.error('[useRekeyRoom] GET_MEMBER_PUBKEYS failed:', data.error);
-        setStatus('error');
+        failRekey('pubkeys-failed');
         return;
       }
 
       const roomId = pendingRoomIdRef.current ?? data.roomId;
       if (!roomId) {
-        setStatus('error');
+        failRekey('pubkeys-failed');
         return;
       }
 
+      const isBootstrap = pendingBootstrapRef.current;
       const currentEntry = getGroupKeyEntry(roomId);
 
+      if (!currentEntry && !isBootstrap) {
+        console.error(
+          '[useRekeyRoom] Cannot rekey room %s: no local group key (owner must recover key or accept lost history)',
+          roomId,
+        );
+        failRekey('no-local-key');
+        return;
+      }
+
+      setRekeyMode(currentEntry ? 'normal' : 'bootstrap');
       setStatus('rekeying');
+      setErrorReason(null);
 
       try {
         const newGroupKey = await generateGroupKey();
-        if (!currentEntry) {
-          console.error(
-            '[useRekeyRoom] Cannot rekey room %s: no local group key (owner must recover key or accept lost history)',
-            roomId,
-          );
-          pendingRoomIdRef.current = null;
-          setStatus('error');
-          return;
-        }
-
-        const newEpoch = currentEntry.epoch + 1;
+        const serverEpoch = data.currentEpoch ?? -1;
+        const newEpoch = currentEntry ? currentEntry.epoch + 1 : serverEpoch + 1;
 
         // Update owner's key immediately (no wrapping needed for self)
         storeGroupKey(roomId, newEpoch, newGroupKey);
@@ -177,20 +216,26 @@ export function useRekeyRoom({
         const bundles = await Promise.all(bundlePromises);
 
         let namePayload: { nameEncrypted?: string; nameIv?: string } = {};
-        const cipher = getRoomNameCipherRef.current?.(roomId);
-        if (cipher?.nameEncrypted && cipher?.nameIv) {
-          try {
-            const plaintext = await decryptRoomName(
-              cipher.nameEncrypted,
-              cipher.nameIv,
-              currentEntry.key,
-              roomId,
-            );
-            namePayload = await encryptRoomName(plaintext, newGroupKey, roomId);
-          } catch (err) {
-            console.error('[useRekeyRoom] Failed to re-encrypt room name for room', roomId, err);
+        // Re-encrypt room name only when we still hold the previous group key
+        if (currentEntry) {
+          const cipher = getRoomNameCipherRef.current?.(roomId);
+          if (cipher?.nameEncrypted && cipher?.nameIv) {
+            try {
+              const plaintext = await decryptRoomName(
+                cipher.nameEncrypted,
+                cipher.nameIv,
+                currentEntry.key,
+                roomId,
+              );
+              namePayload = await encryptRoomName(plaintext, newGroupKey, roomId);
+            } catch (err) {
+              console.error('[useRekeyRoom] Failed to re-encrypt room name for room', roomId, err);
+            }
           }
         }
+
+        pendingRoomIdRef.current = null;
+        pendingBootstrapRef.current = false;
 
         if (bundles.length === 0) {
           // No other members — rekey is trivially complete
@@ -213,17 +258,16 @@ export function useRekeyRoom({
           onRekeyNameUpdatedRef.current?.(roomId, namePayload.nameEncrypted, namePayload.nameIv);
         }
 
-        pendingRoomIdRef.current = null;
         setStatus('done');
         onRekeyCompletedRef.current?.(roomId, newEpoch);
       } catch (err) {
         console.error('[useRekeyRoom] Rekey failed for room', roomId, err);
-        setStatus('error');
+        failRekey('rekey-failed');
       }
     };
 
     handleAsync();
-  }, [publish, myId]);
+  }, [publish, myId, failRekey]);
 
   // ----------------------------------------
   // ROOM_REKEY broadcast handler (non-owner members)
@@ -268,9 +312,12 @@ export function useRekeyRoom({
   // ----------------------------------------
 
   const rekeyRoom = useCallback(
-    (roomId: string) => {
+    (roomId: string, options?: RekeyOptions) => {
       if (!isConnected) return;
       pendingRoomIdRef.current = roomId;
+      pendingBootstrapRef.current = options?.bootstrap === true;
+      setErrorReason(null);
+      setRekeyMode(options?.bootstrap ? 'bootstrap' : 'normal');
       setStatus('fetching-keys');
       publish(GET_MEMBER_PUBKEYS_DESTINATION, { roomId });
     },
@@ -279,8 +326,11 @@ export function useRekeyRoom({
 
   const reset = useCallback(() => {
     pendingRoomIdRef.current = null;
+    pendingBootstrapRef.current = false;
+    setErrorReason(null);
+    setRekeyMode(null);
     setStatus('idle');
   }, []);
 
-  return { status, rekeyRoom, reset };
+  return { status, errorReason, rekeyMode, rekeyRoom, reset };
 }
