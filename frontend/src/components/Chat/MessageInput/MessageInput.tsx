@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent, type Ref, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
-import { validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
+import { FILE_INPUT_ACCEPT, validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import { Check } from 'lucide-react';
 import { ReplyChip, type ReplyChipModel } from '../ReplyChip';
@@ -161,12 +161,18 @@ export const MessageInput = memo(function MessageInput({
     [handleSubmit, text, replyTo, onReplyCancel, editMode],
   );
 
-  // P4-4-1-1: Open file picker
-  const handleAttachClick = useCallback(() => {
-    if (disabled || isUploading) return;
+  const canSend = text.trim().length > 0 && !disabled && !isSending;
+  const canAttach = !disabled && !isUploading && !!onFileSelected && !editMode;
+
+  const handleAttachPointerDown = useCallback(() => {
+    if (!canAttach) return;
     haptics.impact('light');
-    fileInputRef.current?.click();
-  }, [disabled, isUploading, haptics]);
+  }, [canAttach, haptics]);
+
+  const handleAttachLabelClick = useCallback(() => {
+    if (!canAttach) return;
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [canAttach]);
 
   // P4-4-1-1 / P4-5-1-2: Validate and forward selected file
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -230,9 +236,6 @@ export const MessageInput = memo(function MessageInput({
     };
   }, [onTypingChange]);
 
-  const canSend = text.trim().length > 0 && !disabled && !isSending;
-  const canAttach = !disabled && !isUploading && !!onFileSelected && !editMode;
-
   const setTextareaRef = useCallback(
     (el: HTMLTextAreaElement | null) => {
       textareaRef.current = el;
@@ -254,26 +257,28 @@ export const MessageInput = memo(function MessageInput({
         <ReplyChip replyTo={replyTo} onCancel={onReplyCancel} />
       )}
       <div className="message-input-container">
-        {/* P4-4-1-1: Attachment button */}
+        {/* P4-4-1-1 / IMP-ATTACH-PICKER-01: label activation for file picker */}
         {onFileSelected && (
           <>
-            <button
-              type="button"
-              className="message-input-attach"
-              onClick={handleAttachClick}
-              disabled={!canAttach}
-              aria-label={t('files.preview.attach')}
-            >
-              <AttachIcon />
-            </button>
             <input
               ref={fileInputRef}
+              id="message-input-file"
               type="file"
               className="message-input-file-hidden"
+              accept={FILE_INPUT_ACCEPT}
               onChange={handleFileChange}
               tabIndex={-1}
               aria-hidden="true"
             />
+            <label
+              htmlFor="message-input-file"
+              className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}`}
+              aria-label={t('files.preview.attach')}
+              onPointerDown={handleAttachPointerDown}
+              onClick={handleAttachLabelClick}
+            >
+              <AttachIcon />
+            </label>
           </>
         )}
 

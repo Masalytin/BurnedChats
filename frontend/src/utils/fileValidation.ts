@@ -6,6 +6,10 @@ import {
 
 export type FileMessageType = 'image' | 'video' | 'file';
 
+/** HTML `accept` attribute value — aligned with {@link ALLOWED_UPLOAD_MIMES}. */
+export const FILE_INPUT_ACCEPT =
+  'image/*,video/mp4,video/webm,application/pdf,text/plain,application/zip';
+
 /** Allowed upload MIME types (aligned with server / product spec). */
 export const ALLOWED_UPLOAD_MIMES: ReadonlySet<string> = new Set([
   'image/jpeg',
