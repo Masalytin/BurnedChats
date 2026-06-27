@@ -1,6 +1,7 @@
 import { Address, beginCell, Cell } from '@ton/core';
 
 import { firstStackSliceCellB64, type JettonWalletResolveDeps } from '@/ton/jettonWalletResolve';
+import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { defaultFetch, resolveApiKey, resolveIsTestNet, resolveRpcBaseUrl } from '@/ton/rpc';
 
 export type RecipientJettonPreflight = {
@@ -43,14 +44,8 @@ function parseStackSlots(stack: unknown): StackSlot[] {
   return out;
 }
 
-function parseNumHex(hex: string): bigint {
-  const s = hex.trim();
-  const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
-  return BigInt(withPrefix);
-}
-
 function isTonBoolTrue(hex: string): boolean {
-  const n = parseNumHex(hex);
+  const n = parseTonCenterNum(hex);
   if (n === -1n) {
     return true;
   }

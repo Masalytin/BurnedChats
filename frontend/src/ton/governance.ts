@@ -2,6 +2,7 @@ import { Address, Cell } from '@ton/core';
 
 import { sendTonTransaction } from '@/ton/connector';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
+import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { resolveIsTestNet } from '@/ton/rpc';
 import {
   buildCreateProposalMsg,
@@ -376,9 +377,7 @@ function numsFromStack(stackUnknown: unknown): bigint[] {
   const nums: bigint[] = [];
   for (const [t, v] of slots) {
     if (t === 'num') {
-      const s = v.trim();
-      const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
-      nums.push(BigInt(withPrefix));
+      nums.push(parseTonCenterNum(v));
     }
   }
   return nums;

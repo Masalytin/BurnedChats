@@ -31,6 +31,13 @@ function deps(fetchImpl: typeof fetch) {
   };
 }
 
+function signedExcludedStackResponse(): Response {
+  return jsonResponse({
+    ok: true,
+    result: { exit_code: 0, stack: [['num', '-0x1']] },
+  });
+}
+
 function excludedStackResponse(): Response {
   return jsonResponse({
     ok: true,
@@ -51,6 +58,13 @@ describe('IMP-JETTON-GAS-11 — excludedTransferPreflight', () => {
     const result = await isExcludedBurnHolder('bad', deps(fetchImpl));
     expect(result).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('isExcludedBurnHolder returns true for Ton Center signed hex -0x1', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(signedExcludedStackResponse());
+    const result = await isExcludedBurnHolder(SENDER, deps(fetchImpl));
+    expect(result).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('isExcludedBurnHolder calls get_is_excluded on master with owner slice', async () => {

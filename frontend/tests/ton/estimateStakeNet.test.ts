@@ -29,6 +29,42 @@ function isTonBoolTrue(): string {
 describe('estimateStakeNet', () => {
   const gross3 = 3n * 1_000_000_000n;
 
+  it('returns full gross when StakingMaster is excluded with signed hex -0x1', async () => {
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+      if (method === 'get_is_excluded') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '-0x1']] },
+        });
+      }
+      if (method === 'get_effective_fee_params') {
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [['num', '0x32'], ['num', '0x1e'], ['num', '0x14']],
+          },
+        });
+      }
+      return jsonResponse({ ok: false }, 500);
+    });
+
+    const est = await estimateStakeNet(
+      { ownerAddress: USER, stakingMaster: STAKING_MASTER, grossNano: gross3 },
+      {
+        rpcBaseUrl: 'https://stub.ton/api/v2',
+        jettonMaster: JETTON_MASTER,
+        fetchImpl,
+      },
+    );
+
+    expect(est.willChargeFee).toBe(false);
+    expect(est.netNano).toBe(gross3);
+    expect(est.feeNano).toBe(0n);
+  });
+
   it('returns full gross when StakingMaster is excluded on master', async () => {
     const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(String(init.body)) : {};

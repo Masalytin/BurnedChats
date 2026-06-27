@@ -285,6 +285,57 @@ describe('stakeTx', () => {
     expect(messages[0]!.address).toBeTruthy();
     expect(messages[0]!.payload.length).toBeGreaterThan(20);
   });
+
+  it('invokes Ton Connect when get_is_excluded returns signed hex -0x1', async () => {
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+
+    const jwCell = beginCell().storeAddress(Address.parse(JETTON_USER_WALLET)).endCell();
+    const jwB64 = jwCell.toBoc({ idx: false }).toString('base64');
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+      if (method === 'get_wallet_address') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['tvm.Slice', jwB64]] },
+        });
+      }
+      if (method === 'get_is_excluded') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '-0x1']] },
+        });
+      }
+      if (method === 'get_effective_fee_params') {
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [['num', '0x32'], ['num', '0x1e'], ['num', '0x14']],
+          },
+        });
+      }
+      return jsonResponse({ ok: false, error: method }, 500);
+    });
+
+    const res = await stakeTx(
+      { tier: StakingTier.Gold, amount: 5n * 1_000_000_000n, walletAddress: USER },
+      {
+        fetchImpl,
+        rpcBaseUrl: 'https://stub.ton/api/v2',
+        stakingMaster: STAKING_MASTER,
+        jettonMaster: JETTON_MASTER,
+        sendTransactionImpl: sendTransactionImpl as StakingDeps['sendTransactionImpl'],
+      },
+    );
+
+    expect(res).toEqual({
+      tx: { ok: true, boc: 'abcd' },
+      netStakedNano: 5n * 1_000_000_000n,
+    });
+    expect(sendTransactionImpl).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('staking-format i18n helpers', () => {

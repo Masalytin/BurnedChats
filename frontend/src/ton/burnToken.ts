@@ -6,6 +6,7 @@ import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
+import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import {
   createExcludedPreflightDeps,
   isExcludedTransfer,
@@ -99,17 +100,11 @@ function parseStackSlots(stack: unknown): StackSlot[] {
   return out;
 }
 
-function parseNumHex(hex: string): bigint {
-  const s = hex.trim();
-  const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
-  return BigInt(withPrefix);
-}
-
 function firstStackNum(stack: unknown): bigint | null {
   const slots = parseStackSlots(stack);
   for (const [t, v] of slots) {
     if (t === 'num') {
-      return parseNumHex(v);
+      return parseTonCenterNum(v);
     }
   }
   return null;
@@ -328,7 +323,7 @@ async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<Effective
   const nums: bigint[] = [];
   for (const [t, v] of slots) {
     if (t === 'num') {
-      nums.push(parseNumHex(v));
+      nums.push(parseTonCenterNum(v));
     }
   }
   if (nums.length < 3) {

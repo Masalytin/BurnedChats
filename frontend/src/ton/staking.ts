@@ -3,6 +3,7 @@ import { Address } from '@ton/core';
 import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
 import { estimateStakeNet } from '@/ton/estimateStakeNet';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
+import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { sendTonTransaction } from '@/ton/connector';
 import { buildClaimMsg, buildStakeMsg, buildUnstakeMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
@@ -128,16 +129,10 @@ function resolveDeps(deps?: StakingDeps): ResolvedStakingDeps {
   };
 }
 
-function parseNumHex(hex: string): bigint {
-  const s = hex.trim();
-  const withPrefix = s.startsWith('0x') || s.startsWith('0X') ? s : `0x${s}`;
-  return BigInt(withPrefix);
-}
-
 /** `tvm.stackEntryNumber` element inside a Ton Center v2 `tvm.tuple` / `tvm.list` value. */
 function numFromTupleElement(el: unknown): bigint | null {
   if (Array.isArray(el) && el.length >= 2 && el[0] === 'num' && typeof el[1] === 'string') {
-    return parseNumHex(el[1]);
+    return parseTonCenterNum(el[1]);
   }
   if (el !== null && typeof el === 'object') {
     const numberNode = (el as { number?: unknown }).number;
@@ -170,7 +165,7 @@ function numsFromStack(stackUnknown: unknown): bigint[] {
     }
     const [t, v] = row as [string, unknown];
     if (t === 'num' && typeof v === 'string') {
-      nums.push(parseNumHex(v));
+      nums.push(parseTonCenterNum(v));
     } else if (t === 'tuple' || t === 'list') {
       const elements = v !== null && typeof v === 'object' ? (v as { elements?: unknown }).elements : v;
       if (Array.isArray(elements)) {
