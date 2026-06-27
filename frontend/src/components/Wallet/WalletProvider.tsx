@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import { useBurnToken, type UseBurnToken } from '@/hooks/useBurnToken';
+import { useTonBalance } from '@/hooks/useTonBalance';
 import { useTonConnect, type UseTonConnectResult } from '@/hooks/useTonConnect';
 
 import { WalletSheet } from './WalletSheet';
@@ -15,6 +16,9 @@ import { WalletSheet } from './WalletSheet';
 export interface WalletContextValue {
   burn: UseBurnToken;
   ton: UseTonConnectResult;
+  tonBalance: { nano: bigint | null; isLoading: boolean; failed: boolean };
+  refreshWallet: () => Promise<void>;
+  isRefreshing: boolean;
   sheetOpen: boolean;
   openSheet: () => void;
   closeSheet: () => void;
@@ -28,6 +32,7 @@ export { WalletContext };
 export function WalletProvider({ children }: { children: ReactNode }) {
   const burn = useBurnToken();
   const ton = useTonConnect();
+  const tonBalanceHook = useTonBalance(ton.walletAddress, ton.isConnected);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const openSheet = useCallback(() => {
@@ -38,9 +43,38 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setSheetOpen(false);
   }, []);
 
+  const refreshWallet = useCallback(async () => {
+    if (!ton.isConnected || !ton.walletAddress) {
+      return;
+    }
+    await Promise.all([burn.refetch(), tonBalanceHook.refetch()]);
+  }, [burn, ton.isConnected, ton.walletAddress, tonBalanceHook]);
+
+  const tonRefreshing =
+    tonBalanceHook.isLoading && tonBalanceHook.nano !== null;
+  const isRefreshing = burn.isRefreshing || tonRefreshing;
+
+  const tonBalance = useMemo(
+    () => ({
+      nano: tonBalanceHook.nano,
+      isLoading: tonBalanceHook.isLoading,
+      failed: tonBalanceHook.failed,
+    }),
+    [tonBalanceHook.nano, tonBalanceHook.isLoading, tonBalanceHook.failed],
+  );
+
   const value = useMemo(
-    () => ({ burn, ton, sheetOpen, openSheet, closeSheet }),
-    [burn, ton, sheetOpen, openSheet, closeSheet],
+    () => ({
+      burn,
+      ton,
+      tonBalance,
+      refreshWallet,
+      isRefreshing,
+      sheetOpen,
+      openSheet,
+      closeSheet,
+    }),
+    [burn, ton, tonBalance, refreshWallet, isRefreshing, sheetOpen, openSheet, closeSheet],
   );
 
   return (

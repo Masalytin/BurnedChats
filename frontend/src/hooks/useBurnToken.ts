@@ -21,6 +21,8 @@ export interface UseBurnToken {
   balance: bigint | null;
   history: BurnTransaction[];
   isLoading: boolean;
+  /** True during refetch when a balance snapshot is already on screen. */
+  isRefreshing: boolean;
   error: Error | null;
   feeParams: EffectiveFeeParams | null;
   refetch(): Promise<void>;
@@ -40,7 +42,11 @@ export function useBurnToken(): UseBurnToken {
   const [history, setHistory] = useState<BurnTransaction[]>([]);
   const [feeParams, setFeeParams] = useState<EffectiveFeeParams | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  const balanceRef = useRef(balance);
+  balanceRef.current = balance;
   const [transferProgress, setTransferProgress] = useState<TransferProgressPayload | null>(null);
 
   const visibleRef = useRef(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
@@ -77,19 +83,33 @@ export function useBurnToken(): UseBurnToken {
       setHistory([]);
       setFeeParams(null);
       setError(null);
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    const hasSnapshot = balanceRef.current !== null;
+
+    if (hasSnapshot) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+      setError(null);
+    }
+
     try {
       const nano = await getBurnBalance(walletAddress);
       setBalance(nano);
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setBalance(null);
+      if (!hasSnapshot) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+        setBalance(null);
+      }
+      /* keep last snapshot on flaky RPC during refetch */
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
 
     void loadHistoryAndFees(walletAddress);
@@ -153,6 +173,7 @@ export function useBurnToken(): UseBurnToken {
     balance,
     history,
     isLoading,
+    isRefreshing,
     error,
     feeParams,
     refetch: load,

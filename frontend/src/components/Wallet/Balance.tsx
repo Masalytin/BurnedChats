@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -8,11 +8,11 @@ import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { BurnTokenError } from '@/ton/burnToken';
 import { shortenTonDisplayAddress } from '@/ton/connector';
 import { formatNativeCoin, nativeCoinSymbol } from '@/ton/nativeCoin';
-import { getTonBalanceNano } from '@/ton/tonBalance';
 import { formatBurn } from '@/utils/format';
 
 import { Skeleton } from '@/components/Skeleton/Skeleton';
 import { balanceErrorMessage, isBalanceErrorRetryable } from './balanceErrorMessage';
+import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
 export interface BalanceProps {
@@ -36,42 +36,7 @@ export function Balance({
   onHistory,
 }: BalanceProps) {
   const { t } = useTranslation();
-  const [tonNano, setTonNano] = useState<bigint | null>(null);
-  const [tonLoading, setTonLoading] = useState(false);
-  const [tonFailed, setTonFailed] = useState(false);
-
-  useEffect(() => {
-    const addr = ton.walletAddress?.trim();
-    if (!ton.isConnected || !addr) {
-      setTonNano(null);
-      setTonLoading(false);
-      setTonFailed(false);
-      return;
-    }
-
-    let cancelled = false;
-    setTonLoading(true);
-    setTonFailed(false);
-
-    void getTonBalanceNano(addr)
-      .then((nano) => {
-        if (cancelled) return;
-        setTonNano(nano);
-        setTonFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTonNano(null);
-        setTonFailed(true);
-      })
-      .finally(() => {
-        if (!cancelled) setTonLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ton.isConnected, ton.walletAddress]);
+  const { tonBalance, isRefreshing, refreshWallet } = useWallet();
 
   useEffect(() => {
     if (!(burn.error instanceof BurnTokenError) || burn.error.code !== 'CONFIG') {
@@ -81,7 +46,8 @@ export function Balance({
     debugLog('warn', '[Wallet] BURN balance CONFIG — check VITE_BURN_JETTON_MASTER', { configured });
   }, [burn.error]);
 
-  const showBurnRetry = burn.error != null && isBalanceErrorRetryable(burn.error) && !burn.isLoading;
+  const showBurnRetry =
+    burn.error != null && isBalanceErrorRetryable(burn.error) && !burn.isLoading && !isRefreshing;
 
   const burnLoading = burn.isLoading && burn.balance == null && burn.error == null;
 
@@ -93,11 +59,12 @@ export function Balance({
         ? balanceErrorMessage(burn.error, t)
         : '—';
 
-  const tonLine = tonLoading
+  const tonInitialLoading = tonBalance.isLoading && tonBalance.nano == null;
+  const tonLine = tonInitialLoading
     ? t('wallet.balanceLoading')
-    : tonFailed || tonNano == null
+    : tonBalance.failed || tonBalance.nano == null
       ? t('wallet.tonBalanceUnavailable')
-      : formatNativeCoin(tonNano);
+      : formatNativeCoin(tonBalance.nano);
 
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';
@@ -107,7 +74,11 @@ export function Balance({
       <h2 id="wallet-balance-heading" className={styles.srOnly}>
         {t('wallet.balanceSectionTitle')}
       </h2>
-      <div className={styles.balanceHero}>
+      <div
+        className={styles.balanceHero}
+        aria-busy={isRefreshing || undefined}
+        data-refreshing={isRefreshing || undefined}
+      >
         {burnLoading ? (
           <>
             <Skeleton
@@ -134,7 +105,7 @@ export function Balance({
           <button
             type="button"
             className={styles.balanceRetryBtn}
-            onClick={() => void burn.refetch()}
+            onClick={() => void refreshWallet()}
           >
             {t('wallet.balanceRetry')}
           </button>
@@ -144,7 +115,7 @@ export function Balance({
           aria-label={t('wallet.tonForGasAria', { symbol: nativeCoinSymbol() })}
         >
           {t('wallet.tonForGas', { symbol: nativeCoinSymbol() })}:{' '}
-          {tonLoading ? (
+          {tonInitialLoading ? (
             <Skeleton variant="text" width="5rem" height={14} animation="pulse" />
           ) : (
             tonLine

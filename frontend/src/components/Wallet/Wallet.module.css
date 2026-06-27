@@ -119,6 +119,11 @@
   margin-bottom: var(--bc-spacing-lg);
 }
 
+.balanceHero[data-refreshing] {
+  opacity: 0.92;
+  transition: opacity var(--bc-transition-fast) var(--bc-ease-out);
+}
+
 .balancePrimary {
   font-size: var(--bc-text-3xl);
   font-weight: 800;
