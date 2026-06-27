@@ -997,6 +997,20 @@
       "ephemeralBadge": "Disappearing messages"
     },
 
+    "recovery": {
+      "neededToast": "Encryption keys were cleared. Restore encryption to continue.",
+      "modalTitle": "Restore room encryption",
+      "modalDescription": "Your encryption keys were removed (for example after the app was in the background or the page reloaded).",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual.",
+      "confirmButton": "Restore encryption",
+      "recoverButton": "Restore encryption",
+      "errorGeneric": "Could not restore encryption. Try again from the room.",
+      "errorNoLocalKey": "Cannot restore encryption this way. Use the restore button and confirm.",
+      "errorPubkeysFailed": "Could not reach room members. Check your connection and try again.",
+      "errorParseFailed": "Unexpected server response. Try again.",
+      "errorRekeyFailed": "Encryption restore failed. Try again."
+    },
+
     "manage": {
       "title": "Room Settings",
       "nameLabel": "Room name",

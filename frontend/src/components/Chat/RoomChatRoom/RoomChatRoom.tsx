@@ -28,6 +28,7 @@ import { MediaViewer } from '../MediaViewer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
+import type { RekeyStatus } from '@/hooks/useRekeyRoom';
 import { formatShortRoomId, resolveRoomDisplayName } from '@/crypto/groupKey';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
@@ -66,6 +67,10 @@ interface RoomChatRoomProps {
   isRequestingKey?: boolean;
   /** Retry callback for manual key re-request (P2-3.2.3). */
   onRequestKey?: () => void;
+  /** Bootstrap rekey status when owner is recovering keys (IMP-RKR-02). */
+  rekeyStatus?: RekeyStatus;
+  /** Opens owner recovery confirm modal (IMP-RKR-02). */
+  onOwnerRecoverKeys?: () => void;
   onBack?: () => void;
   onManage?: () => void;
   onLeave?: () => void;
@@ -105,6 +110,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   canBypassReadOnly = false,
   isRequestingKey = false,
   onRequestKey,
+  rekeyStatus,
+  onOwnerRecoverKeys,
   onBack,
   onManage,
   onLeave,
@@ -121,6 +128,9 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const { announce, announcerRef } = useAnnouncer();
   const prevSelectionModeRef = useRef<'idle' | 'selecting'>('idle');
   const hasKey = hasGroupKey(roomId);
+  const isOwnerRekeying =
+    rekeyStatus === 'fetching-keys' || rekeyStatus === 'rekeying';
+  const showKeySpinner = isRequestingKey || isOwnerRekeying;
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
@@ -503,7 +513,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       : t('room.chat.epochSubtitle', { epoch })
     : t('room.chat.loadingKey');
 
-  const placeholderIcon = isRequestingKey ? (
+  const placeholderIcon = showKeySpinner ? (
     <Key size={28} strokeWidth={1.75} aria-hidden />
   ) : isOwner ? (
     <RefreshCw size={28} strokeWidth={1.75} aria-hidden />
@@ -665,6 +675,15 @@ export const RoomChatRoom = memo(function RoomChatRoom({
                 ? t('room.chat.ownerRekeyingHint')
                 : t('room.chat.ownerOfflineHint')}
             </div>
+            {isOwner && onOwnerRecoverKeys && !isOwnerRekeying && (
+              <button
+                type="button"
+                className="room-chat-room-retry-btn"
+                onClick={onOwnerRecoverKeys}
+              >
+                {t('room.recovery.recoverButton')}
+              </button>
+            )}
             {!isOwner && onRequestKey && (
               <button
                 type="button"
@@ -678,6 +697,16 @@ export const RoomChatRoom = memo(function RoomChatRoom({
                 )}
                 {isRequestingKey ? t('room.chat.requestingKey') : t('room.chat.retryKey')}
               </button>
+            )}
+            {isOwner && isOwnerRekeying && (
+              <div
+                className="room-chat-room-retry-btn room-chat-room-retry-btn--loading"
+                aria-busy="true"
+                role="status"
+              >
+                <span className="room-chat-room-retry-btn__spinner" aria-hidden />
+                {t('room.chat.ownerRekeying')}
+              </div>
             )}
           </div>
         </div>

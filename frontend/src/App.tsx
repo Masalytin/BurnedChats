@@ -22,7 +22,7 @@ import { useJoinRoom } from './hooks/useJoinRoom';
 import { useMyRooms } from './hooks/useMyRooms';
 import { useRoomJoinRequests } from './hooks/useRoomJoinRequests';
 import { useKeyBundle } from './hooks/useKeyBundle';
-import { useRekeyRoom } from './hooks/useRekeyRoom';
+import { useRekeyRoom, type RekeyErrorReason } from './hooks/useRekeyRoom';
 import { createRoomTopicMultiplexer, useSetRoomName } from './hooks/useSetRoomName';
 import { useRequestKeyBundle } from './hooks/useRequestKeyBundle';
 import { useGetInviteLink } from './hooks/useGetInviteLink';
@@ -47,6 +47,7 @@ import { HandshakeView, getHandshakeErrorMessage } from './components/HandshakeV
 import { VerificationView } from './components/VerificationView';
 import { ChatRoom } from './components/Chat';
 import { RoomChatRoom } from './components/Chat/RoomChatRoom';
+import { RoomKeyRecoveryModal } from './components/RoomKeyRecoveryModal';
 import { CreateRoomView } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
 import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
@@ -619,7 +620,7 @@ function AppContent() {
   });
 
   // ROOM_REKEY hook (P2-3.2.3): owner rotates key; members receive new KEY_BUNDLE via useKeyBundle
-  const { rekeyRoom } = useRekeyRoom({
+  const { status: rekeyStatus, errorReason, rekeyMode, rekeyRoom, reset: resetRekey } = useRekeyRoom({
     isConnected,
     subscribe,
     unsubscribe,
@@ -797,6 +798,8 @@ function AppContent() {
 
   // Active room chat state (P2-3.2.3)
   const [activeRoomChat, setActiveRoomChat] = useState<ActiveRoomChat | null>(null);
+  /** Owner bootstrap rekey confirm modal (IMP-RKR-02). */
+  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false);
 
   // Refresh member list for room chat header + manage view (IMP-ROOM-02)
   useEffect(() => {
@@ -1163,8 +1166,7 @@ function AppContent() {
   });
 
   // Owner flow: do NOT auto-rekey on re-entry — silent rekey invalidates history for all members.
-  // Owner without a local key must rekey manually from room manage (after a member leaves) or accept
-  // that encrypted history is unavailable until keys are restored.
+  // Owner without a local key must recover manually via confirm modal (IMP-RKR-02).
   const ownerKeyLostNotifiedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeRoomNeedsKey || !activeRoomIsOwner || !isConnected || !activeRoomChat) {
@@ -1176,10 +1178,65 @@ function AppContent() {
     ownerKeyLostNotifiedRef.current = roomId;
     debugLog(
       'warn',
-      `[App] Owner entered room ${roomId} without local group key — auto-rekey disabled; history may be unavailable`,
+      `[App] Owner entered room ${roomId} without local group key — auto-rekey disabled; use recovery modal`,
     );
-    toast.warning(t('room.chat.keyLoadError'), { duration: 6000 });
+    toast.warning(t('room.recovery.neededToast'), { duration: 6000 });
   }, [activeRoomNeedsKey, activeRoomIsOwner, isConnected, activeRoomChat, toast, t]);
+
+  const handleOwnerRecoverKeys = useCallback(() => {
+    setRecoveryModalOpen(true);
+  }, []);
+
+  const handleRecoveryModalClose = useCallback(() => {
+    setRecoveryModalOpen(false);
+  }, []);
+
+  const handleRecoveryConfirm = useCallback(() => {
+    if (!activeRoomChat) return;
+    rekeyRoom(activeRoomChat.roomId, { bootstrap: true });
+  }, [activeRoomChat, rekeyRoom]);
+
+  const isBootstrapRekeyInFlight =
+    rekeyMode === 'bootstrap' &&
+    (rekeyStatus === 'fetching-keys' || rekeyStatus === 'rekeying');
+
+  const rekeyErrorNotifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (rekeyStatus !== 'error' || rekeyMode !== 'bootstrap') {
+      if (rekeyStatus !== 'error') {
+        rekeyErrorNotifiedRef.current = null;
+      }
+      return;
+    }
+    const roomId = activeRoomChat?.roomId ?? 'unknown';
+    const notifyKey = `${roomId}:${errorReason ?? 'unknown'}`;
+    if (rekeyErrorNotifiedRef.current === notifyKey) return;
+    rekeyErrorNotifiedRef.current = notifyKey;
+
+    const reasonKey: Record<NonNullable<RekeyErrorReason>, string> = {
+      'no-local-key': 'room.recovery.errorNoLocalKey',
+      'pubkeys-failed': 'room.recovery.errorPubkeysFailed',
+      'parse-failed': 'room.recovery.errorParseFailed',
+      'rekey-failed': 'room.recovery.errorRekeyFailed',
+    };
+    const message = errorReason
+      ? t(reasonKey[errorReason])
+      : t('room.recovery.errorGeneric');
+    toast.error(message, { duration: 8000 });
+  }, [rekeyStatus, rekeyMode, errorReason, activeRoomChat?.roomId, toast, t]);
+
+  useEffect(() => {
+    if (rekeyStatus === 'done' && rekeyMode === 'bootstrap') {
+      setRecoveryModalOpen(false);
+      resetRekey();
+    }
+  }, [rekeyStatus, rekeyMode, resetRekey]);
+
+  useEffect(() => {
+    if (!activeRoomNeedsKey || !activeRoomIsOwner) {
+      setRecoveryModalOpen(false);
+    }
+  }, [activeRoomNeedsKey, activeRoomIsOwner]);
 
   // Handle "Create Room" click from HomePage
   const handleCreateRoom = useCallback(() => {
@@ -2738,11 +2795,14 @@ function AppContent() {
             canBypassReadOnly={isRoomModerator}
             isRequestingKey={isRequestingKey}
             onRequestKey={retryKeyRequest}
+            rekeyStatus={rekeyMode === 'bootstrap' ? rekeyStatus : undefined}
+            onOwnerRecoverKeys={isRoomOwner && activeRoomNeedsKey ? handleOwnerRecoverKeys : undefined}
             memberCount={
               activeRoomChat && !isMembersLoading ? roomMembers.length : undefined
             }
             onBack={() => {
               setActiveRoomChat(null);
+              setRecoveryModalOpen(false);
               setCurrentView('home');
             }}
             onManage={isRoomModerator ? handleOpenRoomManage : undefined}
@@ -2752,6 +2812,12 @@ function AppContent() {
             isCurrentUserMuted={myInternalId != null && isRoomMemberMuted(myInternalId)}
             onRoomModeration={handleRoomModerationEvent}
             messageTtlSeconds={roomMessageTtlSeconds}
+          />
+          <RoomKeyRecoveryModal
+            open={recoveryModalOpen}
+            onClose={handleRecoveryModalClose}
+            onConfirm={handleRecoveryConfirm}
+            isLoading={isBootstrapRekeyInFlight}
           />
         </Layout>
         {debugPanelElement}
