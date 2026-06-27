@@ -191,7 +191,37 @@ describe('AES-256-GCM Encryption', () => {
       
       await expect(
         decrypt(aesKey, 'not-valid-base64!!!', encrypted.iv)
-      ).rejects.toThrow();
+      ).rejects.toThrow('INVALID_CIPHERTEXT_ENCODING');
+    });
+
+    it('should throw domain error (not InvalidCharacterError) for undefined ciphertext', async () => {
+      const encrypted = await encrypt(aesKey, TEST_MESSAGES.simple);
+
+      await expect(
+        decrypt(aesKey, undefined as unknown as string, encrypted.iv)
+      ).rejects.toMatchObject({ message: 'INVALID_CIPHERTEXT_ENCODING' });
+
+      await expect(
+        decrypt(aesKey, undefined as unknown as string, encrypted.iv)
+      ).rejects.not.toSatisfy(
+        (error: unknown) => error instanceof DOMException && error.name === 'InvalidCharacterError'
+      );
+    });
+
+    it('should throw domain error for empty ciphertext', async () => {
+      const encrypted = await encrypt(aesKey, TEST_MESSAGES.simple);
+
+      await expect(
+        decrypt(aesKey, '', encrypted.iv)
+      ).rejects.toThrow('INVALID_CIPHERTEXT_ENCODING');
+    });
+
+    it('should throw domain error for undefined IV', async () => {
+      const encrypted = await encrypt(aesKey, TEST_MESSAGES.simple);
+
+      await expect(
+        decrypt(aesKey, encrypted.ciphertext, undefined as unknown as string)
+      ).rejects.toThrow('INVALID_CIPHERTEXT_ENCODING');
     });
   });
 });

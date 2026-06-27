@@ -247,11 +247,23 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+/** Domain error for invalid or empty base64 ciphertext/IV input */
+const INVALID_CIPHERTEXT_ENCODING = 'INVALID_CIPHERTEXT_ENCODING';
+
 /**
  * Converts a Base64 string to an ArrayBuffer.
+ * @throws Error with message {@link INVALID_CIPHERTEXT_ENCODING} when input is empty or not valid base64
  */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = atob(base64);
+  if (base64 == null || base64 === '') {
+    throw new Error(INVALID_CIPHERTEXT_ENCODING);
+  }
+  let binary: string;
+  try {
+    binary = atob(base64);
+  } catch {
+    throw new Error(INVALID_CIPHERTEXT_ENCODING);
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
