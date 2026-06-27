@@ -703,6 +703,11 @@
       "save": "Save",
       "fetch": "Download"
     },
+    "save": {
+      "shareHint": "In the share sheet, choose \"Save to Files\" or Files to save the file.",
+      "unavailable": "Could not save this file. Try again or use another app to share it.",
+      "cancelled": "Save cancelled."
+    },
     "error": {
       "tooLarge": "File too large (max {{size}})",
       "unsupportedType": "Unsupported file type",

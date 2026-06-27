@@ -2,6 +2,8 @@ import { memo, useState, useCallback, useRef, useMemo, type MouseEvent, type Key
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage, ReplyToInfo } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTelegram } from '@/hooks/useTelegram';
+import { useToast } from '@/components/Toast/ToastContext';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { useMediaBubblePrimaryAndMenu } from '@/hooks/useMediaBubblePrimaryAndMenu';
@@ -14,7 +16,7 @@ import { getFileTypeDisplay } from '../fileTypeDisplay';
 import { FileTypeIcon } from '../FileTypeIcon';
 import { MessageStatusIcon } from '../MessageStatusIcon';
 import '../Message/Message.css';
-import { saveDecryptedFile, evictCachedFile } from '@/services/fileDownloadService';
+import { saveDecryptedFile, evictCachedFile, type SaveDecryptedFileResult } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
@@ -76,6 +78,8 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   onRetryUpload,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
+  const { showAlert, platform, isInTelegram } = useTelegram();
+  const toast = useToast();
   const rootRef = useRef<HTMLDivElement>(null);
   const haptics = useHaptics();
   const menuEnabled = Boolean(onOpenActionMenu);
@@ -130,6 +134,28 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   const formattedTime = formatTime(message.timestamp);
   const hasCaption = message.content && !message.content.startsWith('📎');
 
+  const showSaveFeedback = useCallback(
+    (result: SaveDecryptedFileResult) => {
+      if (result === 'cancelled') {
+        showAlert(t('files.save.cancelled'));
+      } else if (result === 'unavailable') {
+        showAlert(t('files.save.unavailable'));
+      }
+    },
+    [showAlert, t],
+  );
+
+  const runSaveDecryptedFile = useCallback(
+    async (blob: Blob, name: string) => {
+      if (isInTelegram && (platform === 'android' || platform === 'ios')) {
+        toast.info(t('files.save.shareHint'));
+      }
+      const result = await saveDecryptedFile(blob, name);
+      showSaveFeedback(result);
+    },
+    [isInTelegram, platform, showSaveFeedback, t, toast],
+  );
+
   const handleDownload = useCallback(async () => {
     if (isSelecting) {
       onRovingActivate?.();
@@ -141,7 +167,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     if (docState === 'downloading') return;
 
     if (docState === 'downloaded' && downloadedBlobRef.current) {
-      void saveDecryptedFile(downloadedBlobRef.current, fileName);
+      void runSaveDecryptedFile(downloadedBlobRef.current, fileName);
       return;
     }
 
@@ -181,7 +207,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
     } finally {
       abortRef.current = null;
     }
-  }, [isSelecting, selection, onRovingActivate, docState, message.fileId, message.sessionId, message.status, fileName, mimeType, decryptionKey, message.id]);
+  }, [isSelecting, selection, onRovingActivate, docState, message.fileId, message.sessionId, message.status, fileName, mimeType, decryptionKey, message.id, runSaveDecryptedFile]);
 
   const mediaTapMenu = useMediaBubblePrimaryAndMenu({
     menuEnabled,
@@ -207,9 +233,9 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
   const handleSave = useCallback(() => {
     if (downloadedBlobRef.current) {
-      void saveDecryptedFile(downloadedBlobRef.current, fileName);
+      void runSaveDecryptedFile(downloadedBlobRef.current, fileName);
     }
-  }, [fileName]);
+  }, [fileName, runSaveDecryptedFile]);
 
   const labelId = a11yLabelId ?? `message-a11y-${message.id}`;
   const rowA11yLabel = useMemo(() => {

@@ -43,6 +43,11 @@ const DOWNLOAD_PATH = '/api/files';
 /** Telegram Mini App platforms where Share sheet is undesirable for file save. */
 const TELEGRAM_DESKTOP_PLATFORMS = new Set(['tdesktop', 'web', 'macos']);
 
+/** Telegram Mini App mobile platforms — Share-first, no blob download fallback. */
+const TELEGRAM_MOBILE_PLATFORMS = new Set(['android', 'ios']);
+
+export type SaveDecryptedFileResult = 'saved' | 'cancelled' | 'unavailable';
+
 /** Map MIME → preferred extension when {@code fileName} has none (saves / share sheet). */
 const MIME_TO_EXT: Readonly<Record<string, string>> = {
   'image/jpeg': '.jpg',
@@ -191,38 +196,37 @@ export async function downloadThumbnail(
 /**
  * Saves a decrypted file to the user's device.
  *
- * Tries Web Share API first on Telegram mobile (save to Files / share).
- * Skips Share on Telegram desktop (tdesktop / web / macos) — goes straight to
- * `<a download>` to avoid the Windows Share sheet. Falls back to download link
- * when Share is unavailable or cancelled.
+ * Platform matrix:
+ * - TG mobile (android / ios): Share API only — no `<a download>` blob fallback.
+ * - TG desktop (tdesktop / web / macos, non-mobile UA): native save via `<a download>`.
+ * - Browser: Share when available, then `<a download>` fallback.
  */
 export async function saveDecryptedFile(
   blob: Blob,
   fileName: string,
-): Promise<void> {
+): Promise<SaveDecryptedFileResult> {
   const name = ensureDownloadFileName(fileName, blob.type);
 
-  if (!isTelegramDesktopSaveTarget() && navigator.share && navigator.canShare) {
-    try {
-      const file = new File([blob], name, { type: blob.type });
-      const shareData = { files: [file] };
-      if (navigator.canShare(shareData)) {
-        await navigator.share(shareData);
-        return;
-      }
-    } catch {
-      // User cancelled or API unavailable — fall through
-    }
+  if (isTelegramDesktopSaveTarget()) {
+    saveViaAnchorDownload(blob, name);
+    return 'saved';
   }
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  if (isTelegramMobileSaveTarget()) {
+    const result = await saveViaShare(blob, name, { ignoreCanShare: true, allowAnchorFallback: false });
+    return result ?? 'unavailable';
+  }
+
+  const shareResult = await saveViaShare(blob, name, {
+    ignoreCanShare: false,
+    allowAnchorFallback: true,
+  });
+  if (shareResult !== null) {
+    return shareResult;
+  }
+
+  saveViaAnchorDownload(blob, name);
+  return 'saved';
 }
 
 /**
@@ -237,6 +241,69 @@ function isTelegramDesktopSaveTarget(): boolean {
     return false;
   }
   return !isLikelyMobileUserAgent();
+}
+
+function isTelegramMobileSaveTarget(): boolean {
+  return isTelegramMiniApp() && TELEGRAM_MOBILE_PLATFORMS.has(WebApp.platform);
+}
+
+interface ShareSaveOptions {
+  /** Try `navigator.share` even when `canShare()` returns false (Android WebView). */
+  ignoreCanShare: boolean;
+  /** When Share fails, fall back to `<a download>` instead of returning unavailable. */
+  allowAnchorFallback: boolean;
+}
+
+/**
+ * @returns Result when Share path completes; `null` when caller should use anchor fallback.
+ */
+async function saveViaShare(
+  blob: Blob,
+  name: string,
+  options: ShareSaveOptions,
+): Promise<SaveDecryptedFileResult | null> {
+  if (!navigator.share) {
+    return options.allowAnchorFallback ? null : 'unavailable';
+  }
+
+  const file = new File([blob], name, { type: blob.type });
+  const shareData: ShareData = { files: [file] };
+
+  if (
+    !options.ignoreCanShare
+    && navigator.canShare
+    && !navigator.canShare(shareData)
+  ) {
+    return options.allowAnchorFallback ? null : 'unavailable';
+  }
+
+  try {
+    await navigator.share(shareData);
+    return 'saved';
+  } catch (err) {
+    if (isShareAbortError(err)) {
+      return 'cancelled';
+    }
+    return options.allowAnchorFallback ? null : 'unavailable';
+  }
+}
+
+function saveViaAnchorDownload(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+function isShareAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    return true;
+  }
+  return err instanceof Error && err.name === 'AbortError';
 }
 
 function isLikelyMobileUserAgent(): boolean {

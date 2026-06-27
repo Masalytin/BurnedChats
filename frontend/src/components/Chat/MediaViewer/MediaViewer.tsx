@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedFileMessage } from '@/types';
-import { saveDecryptedFile, evictCachedFile, type DecryptedFile } from '@/services/fileDownloadService';
+import { saveDecryptedFile, evictCachedFile, type DecryptedFile, type SaveDecryptedFileResult } from '@/services/fileDownloadService';
 import { enqueueDownload } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
 import { resolveDecryptionKey } from '@/crypto/keyStore';
 import { useBackButton } from '@/hooks/useBackButton';
 import { useDecryptionKey } from '@/hooks/useDecryptionKey';
+import { useTelegram } from '@/hooks/useTelegram';
+import { useToast } from '@/components/Toast/ToastContext';
 import './MediaViewer.css';
 
 interface MediaViewerProps {
@@ -32,6 +34,8 @@ export const MediaViewer = memo(function MediaViewer({
   onClose,
 }: MediaViewerProps) {
   const { t } = useTranslation();
+  const { showAlert, platform, isInTelegram } = useTelegram();
+  const toast = useToast();
   const decryptionKey = useDecryptionKey(message.sessionId);
 
   const [state, setState] = useState<ViewerState>('loading');
@@ -111,12 +115,27 @@ export const MediaViewer = memo(function MediaViewer({
     if (e.target === overlayRef.current) handleClose();
   }, [handleClose]);
 
+  const showSaveFeedback = useCallback(
+    (result: SaveDecryptedFileResult) => {
+      if (result === 'cancelled') {
+        showAlert(t('files.save.cancelled'));
+      } else if (result === 'unavailable') {
+        showAlert(t('files.save.unavailable'));
+      }
+    },
+    [showAlert, t],
+  );
+
   // --- Save / download ---
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!file) return;
     const name = message.fileMeta?.fileName || 'file';
-    void saveDecryptedFile(file.blob, name);
-  }, [file, message.fileMeta]);
+    if (isInTelegram && (platform === 'android' || platform === 'ios')) {
+      toast.info(t('files.save.shareHint'));
+    }
+    const result = await saveDecryptedFile(file.blob, name);
+    showSaveFeedback(result);
+  }, [file, message.fileMeta, isInTelegram, platform, showSaveFeedback, t, toast]);
 
   // --- Double tap to zoom ---
   const handleDoubleTap = useCallback((clientX: number, clientY: number) => {
