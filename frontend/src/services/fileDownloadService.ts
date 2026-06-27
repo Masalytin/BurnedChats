@@ -6,8 +6,11 @@
  * (e.g. tapping a thumbnail to view full-size) are instant.
  */
 
+import WebApp from '@twa-dev/sdk';
+
 import { getRestAuthHeaders } from '@/auth/authCredentialsAccessor';
 import { decryptFile } from '@/crypto/fileEncryption';
+import { isTelegramMiniApp } from '@/env/detector';
 import {
   decryptFailedError,
   fileTransferErrorFromDownloadResponse,
@@ -36,6 +39,9 @@ export interface DownloadOptions {
 // ============================================
 
 const DOWNLOAD_PATH = '/api/files';
+
+/** Telegram Mini App platforms where Share sheet is undesirable for file save. */
+const TELEGRAM_DESKTOP_PLATFORMS = new Set(['tdesktop', 'web', 'macos']);
 
 /** Map MIME → preferred extension when {@code fileName} has none (saves / share sheet). */
 const MIME_TO_EXT: Readonly<Record<string, string>> = {
@@ -185,8 +191,10 @@ export async function downloadThumbnail(
 /**
  * Saves a decrypted file to the user's device.
  *
- * Tries Web Share API first (works in Telegram WebView on mobile),
- * then falls back to the `<a download>` trick (desktop browsers).
+ * Tries Web Share API first on Telegram mobile (save to Files / share).
+ * Skips Share on Telegram desktop (tdesktop / web / macos) — goes straight to
+ * `<a download>` to avoid the Windows Share sheet. Falls back to download link
+ * when Share is unavailable or cancelled.
  */
 export async function saveDecryptedFile(
   blob: Blob,
@@ -194,7 +202,7 @@ export async function saveDecryptedFile(
 ): Promise<void> {
   const name = ensureDownloadFileName(fileName, blob.type);
 
-  if (navigator.share && navigator.canShare) {
+  if (!isTelegramDesktopSaveTarget() && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], name, { type: blob.type });
       const shareData = { files: [file] };
@@ -215,6 +223,25 @@ export async function saveDecryptedFile(
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+/**
+ * Desktop Telegram (tdesktop / web / macos, non-mobile UA) should use a native
+ * save dialog instead of the Windows Share sheet triggered by `navigator.share`.
+ */
+function isTelegramDesktopSaveTarget(): boolean {
+  if (!isTelegramMiniApp()) {
+    return false;
+  }
+  if (!TELEGRAM_DESKTOP_PLATFORMS.has(WebApp.platform)) {
+    return false;
+  }
+  return !isLikelyMobileUserAgent();
+}
+
+function isLikelyMobileUserAgent(): boolean {
+  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  return uaData?.mobile === true;
 }
 
 /**
