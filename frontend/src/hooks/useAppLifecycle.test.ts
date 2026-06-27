@@ -2,7 +2,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAppLifecycle, BACKGROUND_BURN_THRESHOLD_MS } from './useAppLifecycle';
-import { burnAll, getActiveSessionIds } from '@/crypto/keyStore';
+import {
+  burnAll,
+  getActiveSessionIds,
+  hasGroupKey,
+  storeGroupKey,
+} from '@/crypto/keyStore';
 import { cancelAll } from '@/services/transferQueue';
 
 vi.mock('@/crypto/keyStore', async (importOriginal) => {
@@ -113,5 +118,82 @@ describe('useAppLifecycle background burn (IMP-AUDIT-10)', () => {
       reason: 'background_timeout',
       sessionIdsBurned: ['sess-a', 'sess-b'],
     });
+  });
+});
+
+describe('useAppLifecycle recovery regression (IMP-RKR-05)', () => {
+  let visibilityState: DocumentVisibilityState = 'visible';
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    visibilityState = 'visible';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibilityState,
+    });
+
+    const actual = await vi.importActual<typeof import('@/crypto/keyStore')>('@/crypto/keyStore');
+    vi.mocked(burnAll).mockImplementation(actual.burnAll);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    const actualBurn = vi.importActual<typeof import('@/crypto/keyStore')>('@/crypto/keyStore');
+    void actualBurn.then((mod) => mod.burnAll('manual'));
+  });
+
+  function setHidden() {
+    visibilityState = 'hidden';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+  }
+
+  function setVisible() {
+    visibilityState = 'visible';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+  }
+
+  it('background burn clears group keys and does not auto-rekey on restore (IMP-WFT-04)', () => {
+    const publish = vi.fn();
+    const rekeyRoom = vi.fn();
+    const ROOM_ID = 'room-lifecycle-burn';
+
+    const mockGroupKey = { type: 'secret' } as CryptoKey;
+    storeGroupKey(ROOM_ID, 1, mockGroupKey);
+    expect(hasGroupKey(ROOM_ID)).toBe(true);
+
+    const simulateOwnerReEntry = () => {
+      if (!hasGroupKey(ROOM_ID)) {
+        return;
+      }
+      rekeyRoom(ROOM_ID, { bootstrap: true });
+    };
+
+    renderHook(() =>
+      useAppLifecycle({
+        isConnected: true,
+        publish,
+        onBackgroundKeysBurned: vi.fn(),
+        onVisibilityRestored: simulateOwnerReEntry,
+      }),
+    );
+
+    setHidden();
+    act(() => {
+      vi.advanceTimersByTime(BACKGROUND_BURN_THRESHOLD_MS);
+    });
+
+    expect(burnAll).toHaveBeenCalledWith('background_timeout');
+    expect(hasGroupKey(ROOM_ID)).toBe(false);
+
+    setVisible();
+
+    expect(rekeyRoom).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalledWith('/app/room.getMemberPubkeys', expect.anything());
+    expect(publish).not.toHaveBeenCalledWith('/app/room.rekey', expect.anything());
   });
 });

@@ -208,6 +208,28 @@ describe('useRekeyRoom bootstrap rekey (IMP-RKR-01)', () => {
     expect(result.current.rekeyMode).toBe('normal');
   });
 
+  it('T5: bootstrap newEpoch is always serverEpoch + 1 before publishing rekey', async () => {
+    const { result, publish, stompHandlers } = createHarness();
+
+    act(() => {
+      result.current.rekeyRoom(ROOM_ID, { bootstrap: true });
+    });
+
+    emitMemberPubkeys(stompHandlers, { currentEpoch: 7 });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    const rekeyCall = publish.mock.calls.find(([dest]) => dest === '/app/room.rekey');
+    expect(rekeyCall?.[1]).toEqual(
+      expect.objectContaining({
+        roomId: ROOM_ID,
+        newEpoch: 8,
+      }),
+    );
+  });
+
   it('bootstrap skips room name re-encrypt without previous key', async () => {
     const getRoomNameCipher = vi.fn(() => ({
       nameEncrypted: 'cipher',
@@ -230,5 +252,45 @@ describe('useRekeyRoom bootstrap rekey (IMP-RKR-01)', () => {
     expect(groupKey.encryptRoomName).not.toHaveBeenCalled();
     const rekeyCall = publish.mock.calls.find(([dest]) => dest === '/app/room.rekey');
     expect(rekeyCall?.[1]).not.toHaveProperty('nameEncrypted');
+  });
+});
+
+describe('useRekeyRoom recovery regression (IMP-RKR-05)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(keyStore.getGroupKeyEntry).mockReturnValue(undefined);
+    vi.mocked(groupKey.generateGroupKey).mockResolvedValue(MOCK_GROUP_KEY);
+    vi.mocked(ecdh.importPublicKey).mockResolvedValue(MOCK_PUBKEY);
+    vi.mocked(groupKey.wrapGroupKey).mockResolvedValue({
+      roomId: ROOM_ID,
+      epoch: 3,
+      recipientInternalId: MEMBER_ID,
+      ephemeralPublicKey: 'eph-b64',
+      encryptedKey: 'enc-b64',
+      iv: 'iv-b64',
+    } satisfies KeyBundle);
+  });
+
+  it('T1: bootstrap end-to-end stores key and publishes KEY_BUNDLE via rekey', async () => {
+    const { result, publish, stompHandlers, onRekeyCompleted } = createHarness();
+
+    act(() => {
+      result.current.rekeyRoom(ROOM_ID, { bootstrap: true });
+    });
+
+    emitMemberPubkeys(stompHandlers, { currentEpoch: 2 });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    expect(keyStore.hasGroupKey(ROOM_ID)).toBe(true);
+    expect(onRekeyCompleted).toHaveBeenCalledWith(ROOM_ID, 3);
+    expect(publish).toHaveBeenCalledWith('/app/room.rekey', expect.objectContaining({
+      roomId: ROOM_ID,
+      bundles: expect.arrayContaining([
+        expect.objectContaining({ recipientInternalId: MEMBER_ID }),
+      ]),
+    }));
   });
 });
