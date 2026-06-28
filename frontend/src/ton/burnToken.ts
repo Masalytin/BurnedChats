@@ -19,6 +19,8 @@ import {
 export type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
+/** TEP-74 jetton wallet → jetton wallet delivery (`JettonInternalTransfer`). */
+const JETTON_INTERNAL_TRANSFER_OP = 0x178d4519;
 
 /** Stack entry Ton Center `[type, value]` pair. */
 type StackSlot = [string, string];
@@ -384,7 +386,26 @@ function tryDecodeJettonTransferAmount(bodyB64: string | undefined): bigint | nu
   }
 }
 
-function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
+function tryDecodeJettonInternalTransferAmount(bodyB64: string | undefined): bigint | null {
+  if (!bodyB64) {
+    return null;
+  }
+  try {
+    const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0]!;
+    const s = cell.beginParse();
+    const op = s.loadUint(32);
+    if (op !== JETTON_INTERNAL_TRANSFER_OP) {
+      return null;
+    }
+    s.loadUintBig(64);
+    return s.loadCoins();
+  } catch {
+    return null;
+  }
+}
+
+/** Maps Ton Center jetton-wallet tx to history row (exported for unit tests). */
+export function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
   const hash = tx.transaction_id?.hash ?? '';
   const tsMs = typeof tx.utime === 'number' ? tx.utime * 1000 : 0;
 
@@ -393,26 +414,36 @@ function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
   let counterparty = '';
 
   const bodyIn = tx.in_msg?.msg_data?.body;
+  const transferIn = tryDecodeJettonTransferAmount(bodyIn);
+  const internalIn = tryDecodeJettonInternalTransferAmount(bodyIn);
 
-  let recvAmount = tryDecodeJettonTransferAmount(bodyIn);
   const out = Array.isArray(tx.out_msgs) ? tx.out_msgs : [];
-  let sendAmount: bigint | null = null;
+  let internalOut: { amount: bigint; destination: string } | null = null;
   for (const m of out) {
-    sendAmount = tryDecodeJettonTransferAmount(m.msg_data?.body);
-    if (sendAmount !== null) {
-      counterparty = m.destination ?? m.source ?? '';
+    const internalAmount = tryDecodeJettonInternalTransferAmount(m.msg_data?.body);
+    if (internalAmount !== null) {
+      internalOut = { amount: internalAmount, destination: m.destination ?? m.source ?? '' };
       break;
     }
   }
 
-  if (recvAmount !== null) {
-    type = 'receive';
-    amount = recvAmount;
-    counterparty = tx.in_msg?.source ?? '';
-  } else if (sendAmount !== null) {
+  // Owner-initiated send: TON wallet → jetton wallet (JettonTransfer in) → peer JW (internal out).
+  if (transferIn !== null && internalOut !== null) {
     type = 'send';
-    amount = sendAmount;
-    counterparty = counterparty || (tx.in_msg?.destination ?? '');
+    amount = transferIn;
+    counterparty = internalOut.destination || (tx.in_msg?.destination ?? '');
+  } else if (internalIn !== null) {
+    type = 'receive';
+    amount = internalIn;
+    counterparty = tx.in_msg?.source ?? '';
+  } else if (internalOut !== null) {
+    type = 'send';
+    amount = internalOut.amount;
+    counterparty = internalOut.destination;
+  } else if (transferIn !== null) {
+    type = 'send';
+    amount = transferIn;
+    counterparty = tx.in_msg?.destination ?? '';
   } else {
     type = 'burn';
     amount = 0n;
