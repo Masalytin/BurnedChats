@@ -14,6 +14,10 @@ import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
 import { Treasury_errors_backward } from '../build/Treasury/Treasury_Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { NANO_PER_BURN } from './helpers';
+import {
+    countEmptyGovernorStakingHops,
+    countEmptyProposalStakingHops,
+} from './helpers/cashbackLoopAssert';
 import { advanceTime, mintAndSyncUser, setupStakingEnvironment, stakeAs, StakingTestEnv } from './staking-helpers';
 
 const DAY = 86_400;
@@ -194,60 +198,6 @@ async function castVote(
     support: boolean,
 ): Promise<SendMessageResult> {
     return env.governor.sendCastVote(voter.getSender(), { proposalId: id, support, claimedVp: 10n ** 30n });
-}
-
-/** Count empty-body hops between Governor and StakingMaster (RC-2 cashback ping-pong). */
-function countEmptyGovernorStakingHops(
-    transactions: SendMessageResult['transactions'],
-    governor: Address,
-    stakingMaster: Address,
-): number {
-    let count = 0;
-    for (const tx of transactions) {
-        const inMsg = tx.inMessage;
-        if (!inMsg || inMsg.info.type !== 'internal') {
-            continue;
-        }
-        const from = inMsg.info.src;
-        const to = inMsg.info.dest;
-        const isHop =
-            (from.equals(governor) && to.equals(stakingMaster)) ||
-            (from.equals(stakingMaster) && to.equals(governor));
-        if (!isHop) {
-            continue;
-        }
-        if (inMsg.body.bits.length === 0) {
-            count++;
-        }
-    }
-    return count;
-}
-
-/** Count empty-body hops between Proposal and StakingMaster (IMP-GOVOTE-08 cashback ping-pong). */
-function countEmptyProposalStakingHops(
-    transactions: SendMessageResult['transactions'],
-    proposal: Address,
-    stakingMaster: Address,
-): number {
-    let count = 0;
-    for (const tx of transactions) {
-        const inMsg = tx.inMessage;
-        if (!inMsg || inMsg.info.type !== 'internal') {
-            continue;
-        }
-        const from = inMsg.info.src;
-        const to = inMsg.info.dest;
-        const isHop =
-            (from.equals(proposal) && to.equals(stakingMaster)) ||
-            (from.equals(stakingMaster) && to.equals(proposal));
-        if (!isHop) {
-            continue;
-        }
-        if (inMsg.body.bits.length === 0) {
-            count++;
-        }
-    }
-    return count;
 }
 
 function assertNoOutOfGas(transactions: SendMessageResult['transactions']): void {
