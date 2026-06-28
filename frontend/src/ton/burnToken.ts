@@ -645,12 +645,14 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
     /* Ton balance probe is best-effort; sendTonTransaction still guards when wallet reports balance */
   }
 
+  const senderWallet = Address.parse(params.walletAddress.trim());
   const msg = buildJettonTransferMsg({
     jettonWallet: jettonWalletAddr,
     recipient,
     amount: params.amount,
     forwardPayload,
     attachedTon,
+    responseAddress: senderWallet,
   });
 
   let beforeLt = 0n;

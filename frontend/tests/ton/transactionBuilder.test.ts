@@ -41,6 +41,26 @@ describe('transactionBuilder payload encoding', () => {
     expect(msg.amount).toBe(String(3_500_000_000n));
   });
 
+  it('buildJettonTransferMsg routes TEP-74 excess to responseAddress, not recipient', () => {
+    const senderWallet = Address.parse(`0:${'44'.repeat(32)}`);
+    const recipientWallet = Address.parse(`0:${'55'.repeat(32)}`);
+    const msg = buildJettonTransferMsg({
+      jettonWallet: ADDR,
+      recipient: recipientWallet,
+      amount: 1_000_000_000n,
+      responseAddress: senderWallet,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x0f8a7ea5);
+    s.loadUintBig(64);
+    s.loadCoins();
+    const destination = s.loadAddress();
+    expect(destination?.equals(recipientWallet)).toBe(true);
+    const responseDest = s.loadMaybeAddress();
+    expect(responseDest?.equals(senderWallet)).toBe(true);
+    expect(responseDest?.equals(recipientWallet)).toBe(false);
+  });
+
   it('buildStakeMsg attaches excluded-path TON, forwards 5 TON, routes excess to the user wallet', () => {
     const userWallet = Address.parse(`0:${'33'.repeat(32)}`);
     const msg = buildStakeMsg({
