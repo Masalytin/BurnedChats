@@ -15,6 +15,7 @@ import { Treasury_errors_backward } from '../build/Treasury/Treasury_Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { NANO_PER_BURN } from './helpers';
 import {
+    assertRelayFlowClean,
     countEmptyGovernorStakingHops,
     countEmptyProposalStakingHops,
 } from './helpers/cashbackLoopAssert';
@@ -818,5 +819,143 @@ describe('Vote regressions (IMP-GOVOTE-05 / AD-3)', () => {
         expect(
             countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
         ).toBe(0);
+    });
+});
+
+describe('Execution relay audit (IMP-RELAY-02)', () => {
+    it('param proposal finalize → queue → execute has no partner cashback loops', async () => {
+        const env = await setupGovernance('https://example.com/gov-relay-param.json');
+        const voter = await env.blockchain.treasury('gov-relay-param-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('relay-param-target');
+        const { id, proposal } = await createProposal(
+            env,
+            voter,
+            TYPE_PARAM,
+            paramPayload(target.address, 0xabcd),
+        );
+        await castVote(env, voter, id, true);
+
+        advanceTime(env.blockchain, 3 * DAY + 1);
+        const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
+        expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
+        assertRelayFlowClean(finalizeTx.transactions, {
+            partnerPairs: [
+                [env.governor.address, proposal.address],
+                [env.timelock.address, env.governor.address],
+            ],
+        });
+
+        const queued = extractQueue(finalizeTx, env.timelock.address)!;
+        const queueTx = await env.timelock.sendQueue(env.deployer.getSender(), {
+            proposalId: queued.proposalId,
+            proposalContract: queued.proposalContract,
+            target: queued.target,
+            method: queued.method,
+            args: queued.args,
+            delay: queued.delay,
+        });
+        assertRelayFlowClean(queueTx.transactions, {
+            partnerPairs: [[env.timelock.address, env.governor.address]],
+        });
+
+        advanceTime(env.blockchain, DAY + 1);
+        const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
+        expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+        assertRelayFlowClean(execTx.transactions, {
+            partnerPairs: [
+                [env.timelock.address, proposal.address],
+                [env.governor.address, proposal.address],
+            ],
+        });
+    });
+
+    it('FeaturePriority off-chain execute has no Governor↔Proposal cashback loop', async () => {
+        const env = await setupGovernance('https://example.com/gov-relay-feature.json');
+        const voter = await env.blockchain.treasury('gov-relay-feat-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const { id, proposal } = await createProposal(
+            env,
+            voter,
+            TYPE_FEATURE,
+            featurePayload('relay audit feature'),
+        );
+        await castVote(env, voter, id, true);
+
+        advanceTime(env.blockchain, 7 * DAY + 1);
+        const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
+        expect(extractQueue(finalizeTx, env.timelock.address)).toBeUndefined();
+        assertRelayFlowClean(finalizeTx.transactions, {
+            partnerPairs: [[env.governor.address, proposal.address]],
+        });
+
+        const execTx = await env.governor.sendExecuteProposal(env.deployer.getSender(), { proposalId: id });
+        expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+        assertRelayFlowClean(execTx.transactions, {
+            partnerPairs: [[env.governor.address, proposal.address]],
+        });
+    });
+
+    it('TreasurySpend execute preserves PREMNT-07 payout and has no Timelock↔Proposal loop', async () => {
+        const env = await setupGovernance('https://example.com/gov-relay-treasury.json');
+        const voter = await env.blockchain.treasury('gov-relay-treas-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const treasury = env.blockchain.openContract(
+            await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+        );
+        await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const spendAmount = 5n * NANO_PER_BURN;
+        await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+        const recipient = await env.blockchain.treasury('relay-treas-recipient');
+        const { id, proposal } = await createProposal(
+            env,
+            voter,
+            TYPE_TREASURY,
+            treasurySpendPayload(treasury.address, recipient.address, spendAmount, 'relay grant'),
+        );
+        await castVote(env, voter, id, true);
+
+        advanceTime(env.blockchain, 7 * DAY + 1);
+        const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
+        assertRelayFlowClean(finalizeTx.transactions, {
+            partnerPairs: [
+                [env.governor.address, proposal.address],
+                [env.timelock.address, env.governor.address],
+            ],
+        });
+
+        const queued = extractQueue(finalizeTx, env.timelock.address)!;
+        await env.timelock.sendQueue(env.deployer.getSender(), {
+            proposalId: queued.proposalId,
+            proposalContract: queued.proposalContract,
+            target: queued.target,
+            method: queued.method,
+            args: queued.args,
+            delay: queued.delay,
+        });
+        advanceTime(env.blockchain, 2 * DAY + 1);
+
+        const execTx = await env.timelock.send(
+            env.deployer.getSender(),
+            { value: toNano('1.6') },
+            { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
+        );
+
+        expect(execTx.transactions).toHaveTransaction({
+            on: treasury.address,
+            op: OP_TREASURY_SPEND,
+            success: true,
+        });
+        expect(execTx.transactions).toHaveTransaction({ op: OP_JETTON_TRANSFER, success: true });
+        expect(await treasury.getGetTotalSpent()).toBe(spendAmount);
+        expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+        assertRelayFlowClean(execTx.transactions, {
+            partnerPairs: [[env.timelock.address, proposal.address]],
+        });
     });
 });

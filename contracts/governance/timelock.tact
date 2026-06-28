@@ -33,8 +33,12 @@ struct PendingAction {
 }
 
 contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingAction>) {
+    /// Plain TON from Governor (queue / execute cashback) must not bounce back —
+    /// that caused Timelock↔Governor loops (IMP-RELAY-02 / RC-A).
     receive() {
-        cashback(sender());
+        if (sender() != self.governor) {
+            cashback(sender());
+        }
     }
 
     receive(msg: TimelockQueue) {
@@ -54,7 +58,8 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
                 executed: false,
             },
         );
-        cashback(sender());
+        /// Absorb queue relay remainder — cashback to Governor ping-ponged via receive()
+        /// (IMP-RELAY-02 / RC-A).
     }
 
     receive(msg: TimelockExecutePending) {
@@ -111,7 +116,7 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
         require(actionOpt != null, "Not queued");
         require(!actionOpt!!.executed, "Already executed");
         self.pendingActions.del(msg.proposalId);
-        cashback(sender());
+        /// Absorb cancel relay remainder (IMP-RELAY-02 / RC-A).
     }
 
     get fun get_pending(id: Int): PendingAction? {

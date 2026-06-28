@@ -40,11 +40,22 @@ contract Governor(
     timelock: Address,
     timelockDelaySec: Int as uint64,
 ) {
-    /// Plain TON from StakingMaster (e.g. old vote-relay cashback) must not bounce back —
-    /// that caused Governor↔StakingMaster loops (IMP-GOVOTE-02 / RC-2).
+    /// Skip cashback for governance relay partners — plain TON ping-pong caused
+    /// Governor↔StakingMaster (IMP-GOVOTE-02), Governor↔Timelock / Governor↔Proposal
+    /// execution loops (IMP-RELAY-02 / RC-A).
+    inline fun isKnownProposal(addr: Address): Bool {
+        foreach (_, propAddr in self.proposals) {
+            if (propAddr == addr) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     receive() {
-        if (sender() != self.stakingMaster) {
-            cashback(sender());
+        let s = sender();
+        if (s != self.stakingMaster && s != self.timelock && !self.isKnownProposal(s)) {
+            cashback(s);
         }
     }
 
@@ -232,7 +243,8 @@ contract Governor(
             });
         }
 
-        cashback(sender());
+        /// Absorb relay remainder — cashback to Proposal ping-ponged via receive()
+        /// until out-of-gas (IMP-RELAY-02 / RC-A).
     }
 
     receive(msg: TimelockSetProposalConfig) {

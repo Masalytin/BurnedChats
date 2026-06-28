@@ -45,11 +45,13 @@ contract Proposal(
     timelockAddr: Address,
     voted: map<Address, Int as uint8>,
 ) {
-    /// Plain TON from vote relayer (StakingMaster) must not bounce back — that caused
-    /// Proposal↔StakingMaster cashback loops (IMP-GOVOTE-08).
+    /// Skip cashback for governance relay partners — plain TON ping-pong caused
+    /// Proposal↔StakingMaster loops (IMP-GOVOTE-08) and Proposal↔Governor /
+    /// Proposal↔Timelock execution loops (IMP-RELAY-02 / RC-A).
     receive() {
-        if (sender() != self.voteRelayer) {
-            cashback(sender());
+        let s = sender();
+        if (s != self.voteRelayer && s != self.governor && s != self.timelockAddr) {
+            cashback(s);
         }
     }
 
@@ -203,7 +205,8 @@ contract Proposal(
 
         self.state = PS_EXECUTED;
         self.reportStateEx(PS_EXECUTED, 0, zeroAddr(), 0, beginCell().endCell(), false);
-        cashback(sender());
+        /// Absorb relay remainder — cashback to Governor ping-ponged via receive()
+        /// (IMP-RELAY-02 / RC-A).
     }
 
     receive(msg: ProposalMarkExecuted) {
@@ -212,7 +215,8 @@ contract Proposal(
 
         self.state = PS_EXECUTED;
         self.reportStateEx(PS_EXECUTED, 0, zeroAddr(), 0, beginCell().endCell(), false);
-        cashback(sender());
+        /// Absorb relay remainder — cashback to Timelock ping-ponged via receive()
+        /// (IMP-RELAY-02 / RC-A).
     }
 
     /// Proposer-only cancellation, allowed solely in the pre-vote window
