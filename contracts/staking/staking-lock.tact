@@ -68,7 +68,10 @@ contract StakingLock(
     const GasPushSync: Int = ton("0.04");
 
     receive() {
-        cashback(sender());
+        /// Plain TON from StakingMaster (TierConfigSync cashback) must not bounce back — RC-A (IMP-RELAY-03).
+        if (sender() != self.stakingMaster) {
+            cashback(sender());
+        }
     }
 
     inline fun assertTimelock() {

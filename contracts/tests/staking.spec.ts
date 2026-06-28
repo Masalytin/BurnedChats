@@ -9,6 +9,7 @@ import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMas
 import { StakingLock_errors_backward } from '../build/StakingMaster/StakingMaster_StakingLock';
 import { StakingPool_errors_backward } from '../build/StakingPool/StakingPool_StakingPool';
 import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW } from './helpers';
+import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 import {
     advanceTime,
     assertPendingRewardCloseToNano,
@@ -1104,6 +1105,79 @@ describe('IMP-AUDIT-03 — StakingLock runtime wiring', () => {
 
         const vp = await env.stakingMaster.getGetVotingPower(user.address);
         expect(vp).toBe((stakeAmt * newMultiplier) / 100n);
+    });
+});
+
+describe('IMP-RELAY-03 — StakingLock ↔ StakingMaster tier sync relay', () => {
+    it('SetLockDuration TierConfigSync has zero empty-body hops Lock↔Master', async () => {
+        const env = await setupStakingEnvironment('https://example.com/relay03-duration.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const newSilverSeconds = 14n * 24n * 3600n;
+        const gov = await env.stakingLock.sendSetLockDuration(env.deployer.getSender(), {
+            tier: 1,
+            duration: newSilverSeconds,
+        });
+        expect(gov.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetTierConfig(1n)).durationSeconds).toBe(newSilverSeconds);
+
+        assertRelayFlowClean(gov.transactions, {
+            partnerPairs: [[env.stakingLock.address, env.stakingMaster.address]],
+        });
+    });
+
+    it('PushAllTierConfigs batch sync has zero empty-body hops Lock↔Master', async () => {
+        const env = await setupStakingEnvironment('https://example.com/relay03-pushall.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const push = await env.stakingLock.sendPushAllTierConfigs(env.deployer.getSender());
+        expect(push.transactions).toHaveTransaction({ success: true });
+
+        assertRelayFlowClean(push.transactions, {
+            maxTx: 25,
+            partnerPairs: [[env.stakingLock.address, env.stakingMaster.address]],
+        });
+    });
+
+    it('SetAllTierRewardShares multi-push has zero empty-body hops Lock↔Master', async () => {
+        const env = await setupStakingEnvironment('https://example.com/relay03-shares.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [
+            12n,
+            13n,
+            25n,
+            50n,
+        ]);
+        expect(gov.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetTierConfig(0n)).rewardShare).toBe(12n);
+
+        assertRelayFlowClean(gov.transactions, {
+            maxTx: 25,
+            partnerPairs: [[env.stakingLock.address, env.stakingMaster.address]],
+        });
+    });
+
+    it('stake/unstake after tier sync still succeeds (no regression)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/relay03-stake.json');
+        await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
+
+        const user = await env.blockchain.treasury('relay03-stake-user');
+        await mintAndSyncUser(env, user, 3n * MIN_STAKE_NANO);
+
+        await env.stakingLock.sendSetTierMultiplier(env.deployer.getSender(), {
+            tier: 0,
+            multiplier: 120n,
+        });
+
+        await stakeAs(env, user, 0, MIN_STAKE_NANO);
+        expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(MIN_STAKE_NANO);
+
+        const unstake = await env.stakingMaster.sendUnstakeJetton(user.getSender(), {
+            tier: 0,
+            amount: MIN_STAKE_NANO,
+        });
+        expect(unstake.transactions).toHaveTransaction({ success: true });
     });
 });
 

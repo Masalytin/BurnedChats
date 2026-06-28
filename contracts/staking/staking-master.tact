@@ -465,10 +465,10 @@ contract StakingMaster(
         });
     }
 
-    /// Plain TON from Governor (e.g. vote-relay remainder) must not bounce back — that caused
-    /// Governor↔StakingMaster cashback loops (IMP-GOVOTE-02 / RC-2).
+    /// Plain TON from Governor (e.g. vote-relay remainder) or StakingLock (TierConfigSync cashback)
+    /// must not bounce back — that caused cashback loops (IMP-GOVOTE-02 / IMP-RELAY-03).
     receive() {
-        if (sender() != self.governorAddr) {
+        if (sender() != self.governorAddr && sender() != self.stakingLock) {
             cashback(sender());
         }
     }
@@ -755,6 +755,7 @@ contract StakingMaster(
     }
 
     /// IMP-AUDIT-03 — trusted push sync from StakingLock (Timelock-governed tier table).
+    /// Remaining TON is absorbed (no cashback) to avoid ping-pong with Lock's generic receive().
     receive(msg: TierConfigSync) {
         require(sender() == self.stakingLock, "Only staking lock");
         let t = msg.tier;
@@ -769,7 +770,6 @@ contract StakingMaster(
                 rewardShare: msg.rewardShare,
             },
         );
-        cashback(sender());
     }
 
     /// IMP-AUDIT-02 — authoritative total-VP snapshot for governance quorum.
