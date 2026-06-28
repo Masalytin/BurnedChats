@@ -45,8 +45,12 @@ contract Proposal(
     timelockAddr: Address,
     voted: map<Address, Int as uint8>,
 ) {
+    /// Plain TON from vote relayer (StakingMaster) must not bounce back — that caused
+    /// Proposal↔StakingMaster cashback loops (IMP-GOVOTE-08).
     receive() {
-        cashback(sender());
+        if (sender() != self.voteRelayer) {
+            cashback(sender());
+        }
     }
 
     inline fun assertGov() {
@@ -102,7 +106,15 @@ contract Proposal(
         } else {
             self.againstVotes = self.againstVotes + msg.vp;
         }
-        cashback(sender());
+        /// Return vote-relay remainder to the voter, not vote relayer — terminal cashback to
+        /// StakingMaster ping-ponged with Proposal.receive() until out-of-gas (IMP-GOVOTE-08).
+        message(MessageParameters {
+            to: msg.voter,
+            value: 0,
+            mode: SendRemainingValue | SendIgnoreErrors,
+            bounce: false,
+            body: beginCell().endCell(),
+        });
     }
 
     receive(msg: ProposalFinalize) {

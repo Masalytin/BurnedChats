@@ -223,6 +223,33 @@ function countEmptyGovernorStakingHops(
     return count;
 }
 
+/** Count empty-body hops between Proposal and StakingMaster (IMP-GOVOTE-08 cashback ping-pong). */
+function countEmptyProposalStakingHops(
+    transactions: SendMessageResult['transactions'],
+    proposal: Address,
+    stakingMaster: Address,
+): number {
+    let count = 0;
+    for (const tx of transactions) {
+        const inMsg = tx.inMessage;
+        if (!inMsg || inMsg.info.type !== 'internal') {
+            continue;
+        }
+        const from = inMsg.info.src;
+        const to = inMsg.info.dest;
+        const isHop =
+            (from.equals(proposal) && to.equals(stakingMaster)) ||
+            (from.equals(stakingMaster) && to.equals(proposal));
+        if (!isHop) {
+            continue;
+        }
+        if (inMsg.body.bits.length === 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
 function assertNoOutOfGas(transactions: SendMessageResult['transactions']): void {
     for (const tx of transactions) {
         if (tx.description.type !== 'generic') {
@@ -772,12 +799,16 @@ describe('Vote regressions (IMP-GOVOTE-05 / AD-3)', () => {
 
         const voteTx = await castVote(env, voter, id, true);
         expect(voteTx.transactions).toHaveTransaction({ on: proposal.address, success: true });
+        expect(await proposal.getGetForVotes()).toBeGreaterThan(0n);
 
-        // Original bug trace had 354 tx including ~349 empty hops; keep a generous but tight cap.
-        expect(voteTx.transactions.length).toBeLessThan(50);
+        // Original RC-2 bug: 354 tx / ~349 empty hops; IMP-GOVOTE-08 RC-3: ~170 tx / ~164 Proposal↔SM hops.
+        expect(voteTx.transactions.length).toBeLessThan(15);
         assertNoOutOfGas(voteTx.transactions);
         expect(
             countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
+        ).toBe(0);
+        expect(
+            countEmptyProposalStakingHops(voteTx.transactions, proposal.address, env.stakingMaster.address),
         ).toBe(0);
     });
 
