@@ -56,8 +56,13 @@ contract BurnJettonMaster(
     lowStakingBps: Int,
     lowTreasuryBps: Int,
 ) {
+    /// Plain TON from Timelock (governance fee-config / excluded-list ops) must not bounce
+    /// back — that would ping-pong with Timelock's generic receive() (RC-A / IMP-RELAY-04).
+    /// Jetton wallets use typed handlers only (no bare receive), so no JW↔Master loop.
     receive() {
-        cashback(sender());
+        if (sender() != self.timelock) {
+            cashback(sender());
+        }
     }
 
     receive(msg: ProvideWalletAddress) {

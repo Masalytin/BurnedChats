@@ -4,6 +4,7 @@ import '@ton/test-utils';
 
 import { Vesting } from '../wrappers/Vesting';
 import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, setupExcluded } from './helpers';
+import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 
 const DEPLOY_TON = toNano('0.2');
 
@@ -165,5 +166,76 @@ describe('Vesting (P5-3-3-1)', () => {
         blockchain.now = SANDBOX_NOW + 500_000;
         const emptyRel = await v.beneficiaryRelease(beneficiary.getSender());
         expect(emptyRel.transactions).toHaveTransaction({ success: false });
+    });
+});
+
+describe('IMP-RELAY-04 — Vesting plain-TON relay', () => {
+    it('beneficiary Release has zero empty-body hops Vesting↔jetton wallet', async () => {
+        const ctx = await deployJetton();
+        const { blockchain, deployer, master, treasury } = ctx;
+        const beneficiary = await blockchain.treasury('relay04-benef');
+        const start = BigInt(SANDBOX_NOW);
+        const totalNano = 100n * NANO_PER_BURN;
+
+        const vest = await Vesting.prepareInit({
+            beneficiary: beneficiary.address,
+            totalNano,
+            startUnix: start,
+            cliffSeconds: 0n,
+            vestingSeconds: 10_000n,
+            timelock: deployer.address,
+            jettonMaster: master.address,
+            treasury: treasury.address,
+        });
+
+        const v = blockchain.openContract(vest);
+        await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
+
+        await setupExcluded(ctx, [v.address]);
+        await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
+
+        blockchain.now = SANDBOX_NOW + 10_000;
+
+        const vestJw = await master.getGetWalletAddress(v.address);
+        const releaseTx = await v.beneficiaryRelease(beneficiary.getSender());
+        expect(releaseTx.transactions).toHaveTransaction({ success: true });
+
+        assertRelayFlowClean(releaseTx.transactions, {
+            partnerPairs: [[v.address, vestJw]],
+        });
+    });
+
+    it('EmergencyRevoke has zero empty-body hops Vesting↔jetton wallet', async () => {
+        const ctx = await deployJetton();
+        const { blockchain, deployer, master, treasury } = ctx;
+        const beneficiary = await blockchain.treasury('relay04-emerg');
+        const start = BigInt(SANDBOX_NOW);
+        const totalNano = 50n * NANO_PER_BURN;
+
+        const vest = await Vesting.prepareInit({
+            beneficiary: beneficiary.address,
+            totalNano,
+            startUnix: start,
+            cliffSeconds: 0n,
+            vestingSeconds: 100_000n,
+            timelock: deployer.address,
+            jettonMaster: master.address,
+            treasury: treasury.address,
+        });
+
+        const v = blockchain.openContract(vest);
+        await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
+        await setupExcluded(ctx, [v.address]);
+        await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
+
+        const vestJw = await master.getGetWalletAddress(v.address);
+        const revokeTx = await v.timelockEmergencyRevoke(deployer.getSender());
+        expect(revokeTx.transactions).toHaveTransaction({ success: true });
+
+        assertRelayFlowClean(revokeTx.transactions, {
+            partnerPairs: [[v.address, vestJw]],
+        });
     });
 });

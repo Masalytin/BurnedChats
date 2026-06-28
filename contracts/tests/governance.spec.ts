@@ -419,6 +419,14 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                 BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(recipient.address)),
             );
             expect((await recipientWallet.getGetWalletData()).balance).toBe(spendAmount);
+
+            const treasuryJw = await env.jettonMaster.getGetWalletAddress(treasury.address);
+            assertRelayFlowClean(execTx.transactions, {
+                partnerPairs: [
+                    [env.timelock.address, treasury.address],
+                    [treasury.address, treasuryJw],
+                ],
+            });
         });
 
         it('Treasury rejects a TreasurySpend not coming from the Timelock', async () => {
@@ -954,8 +962,13 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
         expect(execTx.transactions).toHaveTransaction({ op: OP_JETTON_TRANSFER, success: true });
         expect(await treasury.getGetTotalSpent()).toBe(spendAmount);
         expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+        const treasuryJw = await env.jettonMaster.getGetWalletAddress(treasury.address);
         assertRelayFlowClean(execTx.transactions, {
-            partnerPairs: [[env.timelock.address, proposal.address]],
+            partnerPairs: [
+                [env.timelock.address, proposal.address],
+                [env.timelock.address, treasury.address],
+                [treasury.address, treasuryJw],
+            ],
         });
     });
 });

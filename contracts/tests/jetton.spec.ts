@@ -22,6 +22,7 @@ import {
     type JettonDeployedContext,
 } from './helpers';
 import { setupStakingEnvironment, stakeAs } from './staking-helpers';
+import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 import { ACTIVITY_THRESHOLD_DEFAULT, LARGE_TX_THRESHOLD_10_BURN } from './fixtures/jetton-presets';
 import '@ton/test-utils';
 
@@ -946,5 +947,46 @@ describe('BurnJetton', () => {
             expect(stake).not.toBeNull();
             expect(stake!.amount).toBe(amount);
         });
+    });
+});
+
+describe('IMP-RELAY-04 — BurnJettonMaster plain-TON relay', () => {
+    let ctx: JettonDeployedContext;
+
+    beforeEach(async () => {
+        ctx = await deployJetton();
+    });
+
+    it('Mint bootstrap has zero empty-body hops Master↔wallet', async () => {
+        const walletAddr = await ctx.master.getGetWalletAddress(ctx.userY.address);
+        const mintTx = await ctx.master.sendMint(
+            ctx.deployer.getSender(),
+            ctx.userY.address,
+            10n * NANO_PER_BURN,
+            1n,
+            MINT_TON,
+        );
+        expect(mintTx.transactions).toHaveTransaction({ success: true });
+
+        assertRelayFlowClean(mintTx.transactions, {
+            partnerPairs: [[ctx.master.address, walletAddr]],
+        });
+    });
+
+    it('SyncFeeConfigToWallet has zero empty-body hops Master↔wallet', async () => {
+        await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, NANO_PER_BURN, 1n, MINT_TON);
+
+        const walletAddr = await ctx.master.getGetWalletAddress(ctx.userX.address);
+        const syncTx = await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        expect(syncTx.transactions).toHaveTransaction({ success: true });
+
+        assertRelayFlowClean(syncTx.transactions, {
+            partnerPairs: [[ctx.master.address, walletAddr]],
+        });
+    });
+
+    it('external plain TON to Master cashbacks without relay loop', async () => {
+        const plainTx = await ctx.master.send(ctx.userX.getSender(), { value: toNano('0.05') }, null);
+        assertRelayFlowClean(plainTx.transactions, { maxTx: 5 });
     });
 });

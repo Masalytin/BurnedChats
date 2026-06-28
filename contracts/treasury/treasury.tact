@@ -37,12 +37,22 @@ contract Treasury(
     spending_log: map<Int, SpendRecord>,
     spending_count: Int,
 ) {
+    /// Plain TON from Timelock (governance relay) or the treasury jetton wallet must not
+    /// bounce back — that would ping-pong with Timelock's generic receive() (RC-A / IMP-RELAY-04).
+    /// External senders still get terminal cashback (Treasury is not a TON sink).
+    inline fun treasury_jetton_wallet(): Address {
+        return contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()));
+    }
+
     receive() {
-        cashback(sender());
+        let s = sender();
+        if (s != self.timelock && s != self.treasury_jetton_wallet()) {
+            cashback(s);
+        }
     }
 
     receive(msg: JettonNotification) {
-        let wallet = contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()));
+        let wallet = self.treasury_jetton_wallet();
         require(sender() == wallet, "Only treasury jetton wallet");
         self.total_received += msg.amount;
     }
@@ -76,7 +86,7 @@ contract Treasury(
         self.spending_count = idx + 1;
         self.total_spent += msg.amount;
 
-        let wallet = contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()));
+        let wallet = self.treasury_jetton_wallet();
         // Relay the inbound TON budget straight into the jetton transfer
         // (`SendRemainingValue`): the forwarded value is derived from the Timelock
         // message, never from a hardcoded constant or Treasury's storage balance.

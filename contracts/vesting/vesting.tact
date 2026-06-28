@@ -37,8 +37,13 @@ contract Vesting(
     /// Attached to outbound `JettonTransfer` toward the vesting jetton wallet (must satisfy excluded-transfer gates; same order as staking pool payouts).
     const ReleaseTon: Int = ton("3.5");
 
+    /// Plain TON from Timelock (emergency revoke relay) or the vesting jetton wallet must not
+    /// bounce back — RC-A defense (IMP-RELAY-04). External senders still get cashback.
     receive() {
-        cashback(sender());
+        let s = sender();
+        if (s != self.timelock && s != self.jetton_wallet_addr()) {
+            cashback(s);
+        }
     }
 
     inline fun jetton_wallet_addr(): Address {
