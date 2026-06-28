@@ -24,6 +24,7 @@ interface UseRoomMembersReturn {
   isLoading: boolean;
   error: string | null;
   fetchMembers: (roomId: string) => void;
+  removeMember: (internalId: string) => void;
   updateMemberRole: (internalId: string, role: RoomMemberRole) => void;
   applyOwnershipTransfer: (newOwnerInternalId: string, previousOwnerInternalId: string) => void;
 }
@@ -47,12 +48,19 @@ export function useRoomMembers({
   const publishRef = useRef(publish);
   useEffect(() => { publishRef.current = publish; }, [publish]);
 
+  const pendingRoomIdRef = useRef<string | null>(null);
+
   const fetchMembers = useCallback((roomId: string) => {
     if (!isConnected) return;
+    pendingRoomIdRef.current = roomId;
     setIsLoading(true);
     setError(null);
     publishRef.current(GET_ROOM_MEMBERS_DESTINATION, { roomId });
   }, [isConnected]);
+
+  const removeMember = useCallback((internalId: string) => {
+    setMembers(prev => prev.filter(member => member.internalId !== internalId));
+  }, []);
 
   const updateMemberRole = useCallback((internalId: string, role: RoomMemberRole) => {
     setMembers(prev => prev.map(member =>
@@ -79,6 +87,16 @@ export function useRoomMembers({
     const handleMessage = (message: IMessage) => {
       try {
         const event: ServerRoomMembersEvent = JSON.parse(message.body);
+        const requestedRoomId = pendingRoomIdRef.current;
+
+        if (
+          requestedRoomId
+          && event.roomId
+          && event.roomId !== requestedRoomId
+        ) {
+          return;
+        }
+
         if (event.success && event.members) {
           setMembers(event.members);
         } else {
@@ -101,6 +119,7 @@ export function useRoomMembers({
     isLoading,
     error,
     fetchMembers,
+    removeMember,
     updateMemberRole,
     applyOwnershipTransfer,
   };

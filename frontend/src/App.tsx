@@ -678,6 +678,7 @@ function AppContent() {
     members: roomMembers,
     isLoading: isMembersLoading,
     fetchMembers,
+    removeMember,
     updateMemberRole,
     applyOwnershipTransfer,
   } = useRoomMembers({
@@ -703,15 +704,16 @@ function AppContent() {
 
   const lastRemovalOpRef = useRef<'kick' | 'ban'>('kick');
 
-  const handleKickSuccess = useCallback((roomId: string, _targetInternalId: string) => {
+  const handleKickSuccess = useCallback((roomId: string, targetInternalId: string) => {
     toast.success(
       lastRemovalOpRef.current === 'ban'
         ? t('room.manage.banSuccess')
         : t('room.manage.kickSuccess'),
     );
+    removeMember(targetInternalId);
     fetchMembers(roomId);
     refreshBans(roomId);
-  }, [toast, t, fetchMembers, refreshBans]);
+  }, [toast, t, removeMember, fetchMembers, refreshBans]);
 
   const handleKickError = useCallback((errorCode: string) => {
     const key = `room.manage.kickError.${errorCode}`;
@@ -1291,6 +1293,9 @@ function AppContent() {
     const key = `${roomId}:${senderInternalId}`;
     setProcessingJoinKeys(prev => new Set(prev).add(key));
     acceptJoinRequest(roomId, senderInternalId);
+    if (activeRoomChat?.roomId === roomId) {
+      fetchMembers(roomId);
+    }
     // Optimistically remove from list after a short delay
     setTimeout(() => {
       removeJoinRequest(roomId, senderInternalId);
@@ -1302,7 +1307,14 @@ function AppContent() {
       notificationOccurred('success');
       toast.success('Request accepted');
     }, 500);
-  }, [acceptJoinRequest, removeJoinRequest, notificationOccurred, toast]);
+  }, [
+    acceptJoinRequest,
+    removeJoinRequest,
+    notificationOccurred,
+    toast,
+    activeRoomChat?.roomId,
+    fetchMembers,
+  ]);
 
   const handleRejectJoinRequest = useCallback((roomId: string, senderInternalId: string) => {
     const key = `${roomId}:${senderInternalId}`;
@@ -2016,6 +2028,7 @@ function AppContent() {
     toast,
     fetchRooms,
     fetchMembers,
+    removeMember,
   });
   useEffect(() => {
     roomLeftDepsRef.current = {
@@ -2026,6 +2039,7 @@ function AppContent() {
       toast,
       fetchRooms,
       fetchMembers,
+      removeMember,
     };
   });
 
@@ -2102,6 +2116,17 @@ function AppContent() {
           // Owner must rotate the group key so the departed member loses access
           rekeyRoomRef.current(roomId);
         }
+
+        const isViewingRoom =
+          (deps.currentView === 'room-chat' || deps.currentView === 'room-manage')
+          && deps.activeRoomChat?.roomId === roomId;
+
+        if (isViewingRoom) {
+          if (leftMemberId) {
+            deps.removeMember(leftMemberId);
+          }
+          deps.fetchMembers(roomId);
+        }
       } catch (err) {
         console.error('[App] Failed to parse ROOM_MEMBER_LEFT event:', err);
       }
@@ -2140,10 +2165,14 @@ function AppContent() {
           rekeyRoomRef.current(roomId);
         }
 
-        if (
-          deps.currentView === 'room-manage' &&
-          deps.activeRoomChat?.roomId === roomId
-        ) {
+        const isViewingRoom =
+          (deps.currentView === 'room-chat' || deps.currentView === 'room-manage')
+          && deps.activeRoomChat?.roomId === roomId;
+
+        if (isViewingRoom) {
+          if (data.removedInternalId) {
+            deps.removeMember(data.removedInternalId);
+          }
           deps.fetchMembers(roomId);
         }
       } catch (err) {
@@ -2289,6 +2318,8 @@ function AppContent() {
   // spurious floods when users rapidly toggle between tabs.
   const lastVisibilitySyncAtRef = useRef(0);
   const MIN_VISIBILITY_SYNC_INTERVAL_MS = 5_000;
+  const membersVisibilityTimerRef = useRef<number | null>(null);
+  const MEMBERS_VISIBILITY_DEBOUNCE_MS = 400;
   const backgroundBurnPendingToastRef = useRef(false);
 
   // Keep the latest view/chat state in a ref so the visibility callback can
@@ -2297,14 +2328,18 @@ function AppContent() {
     currentView,
     hasActiveChat: activeChat != null,
     hasActiveRoom: activeRoomChat != null,
+    activeRoomId: activeRoomChat?.roomId ?? null,
     isConnected,
+    fetchMembers,
   });
   useEffect(() => {
     visibilitySyncDepsRef.current = {
       currentView,
       hasActiveChat: activeChat != null,
       hasActiveRoom: activeRoomChat != null,
+      activeRoomId: activeRoomChat?.roomId ?? null,
       isConnected,
+      fetchMembers,
     };
   });
 
@@ -2363,6 +2398,28 @@ function AppContent() {
       lastVisibilitySyncAtRef.current = now;
       debugLog('info', '[App] Visibility restored — triggering room sync');
       roomSyncMessagesRef.current();
+    }
+
+    if (
+      deps.hasActiveRoom
+      && deps.activeRoomId
+      && (deps.currentView === 'room-chat' || deps.currentView === 'room-manage')
+    ) {
+      if (membersVisibilityTimerRef.current !== null) {
+        window.clearTimeout(membersVisibilityTimerRef.current);
+      }
+      membersVisibilityTimerRef.current = window.setTimeout(() => {
+        membersVisibilityTimerRef.current = null;
+        const latest = visibilitySyncDepsRef.current;
+        if (
+          latest.isConnected
+          && latest.activeRoomId
+          && (latest.currentView === 'room-chat' || latest.currentView === 'room-manage')
+        ) {
+          debugLog('info', '[App] Visibility restored — refreshing room members');
+          latest.fetchMembers(latest.activeRoomId);
+        }
+      }, MEMBERS_VISIBILITY_DEBOUNCE_MS);
     }
   }, [notificationOccurred, toast, t, fetchSessions, fetchRooms]);
 

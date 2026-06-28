@@ -729,12 +729,12 @@ export const RoomManageView = memo(function RoomManageView({
     }
   }, [bansExpanded, onRefreshBans]);
 
-  // Auto-fetch members when section is expanded
+  // Auto-fetch members when section is expanded (always refresh, like bans)
   useEffect(() => {
-    if (membersExpanded && !members?.length && !isMembersLoading) {
+    if (membersExpanded) {
       onFetchMembers();
     }
-  }, [membersExpanded, members?.length, isMembersLoading, onFetchMembers]);
+  }, [membersExpanded, onFetchMembers]);
 
   const handleCopyInviteUrl = useCallback(async (url: string) => {
     try {
