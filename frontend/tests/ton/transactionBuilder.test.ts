@@ -11,6 +11,7 @@ import {
   buildStakeMsg,
   buildUnstakeMsg,
   buildVoteMsg,
+  VOTE_ATTACHED_TON,
 } from '@/ton/transactionBuilder';
 
 /** Placeholder basechain user-friendly address for layout tests. */
@@ -119,6 +120,17 @@ describe('transactionBuilder payload encoding', () => {
     expect(s.loadUintBig(64)).toBe(7n);
     expect(s.loadBit()).toBe(true);
     expect(s.loadIntBig(257)).toBe(12345n);
+  });
+
+  it('buildVoteMsg attaches GasVoteAttach (0.18 TON) per governor.tact', () => {
+    const msg = buildVoteMsg({
+      governor: ADDR,
+      proposalId: 1n,
+      support: true,
+      claimedVp: 1n,
+    });
+    expect(BigInt(msg.amount)).toBe(VOTE_ATTACHED_TON);
+    expect(BigInt(msg.amount)).toBe(toNano('0.18'));
   });
 
   it('buildCreateProposalMsg encodes CreateProposal (0x5a040101)', () => {
