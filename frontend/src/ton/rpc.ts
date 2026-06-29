@@ -14,6 +14,13 @@ export function resolveRpcBaseUrl(override?: string): string {
   return base.replace(/\/$/, '');
 }
 
+/** Optional secondary Ton Center RPC when primary is unreachable (IMP-WGRAM-05). */
+export function resolveRpcFallbackUrl(override?: string): string | undefined {
+  const fromEnv = (import.meta.env.VITE_TON_RPC_FALLBACK_URL ?? '').trim();
+  const url = (override ?? fromEnv).trim();
+  return url ? url.replace(/\/$/, '') : undefined;
+}
+
 export function resolveApiKey(override?: string): string | undefined {
   const k = (override ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
   return k || undefined;

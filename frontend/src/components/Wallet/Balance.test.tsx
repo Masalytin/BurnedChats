@@ -36,7 +36,14 @@ function renderBalance(
   const refreshWallet = walletOverrides.refreshWallet ?? vi.fn().mockResolvedValue(undefined);
 
   mockUseWallet.mockReturnValue({
-    tonBalance: { nano: 1_500_000_000n, isLoading: false, failed: false },
+    tonBalance: {
+      nano: 1_500_000_000n,
+      isLoading: false,
+      failed: false,
+      refreshFailed: false,
+      errorKind: null,
+      lastErrorAt: null,
+    },
     isRefreshing: false,
     refreshWallet,
     ...walletOverrides,
@@ -76,7 +83,14 @@ describe('Balance GRAM card', () => {
 
   it('shows skeleton during initial GRAM load', () => {
     renderBalance({
-      tonBalance: { nano: null, isLoading: true, failed: false },
+      tonBalance: {
+        nano: null,
+        isLoading: true,
+        failed: false,
+        refreshFailed: false,
+        errorKind: null,
+        lastErrorAt: null,
+      },
     });
 
     const gramCard = document.getElementById('wallet-gram-balance-heading')?.parentElement;
@@ -86,7 +100,14 @@ describe('Balance GRAM card', () => {
 
   it('shows formatted GRAM amount on success', () => {
     renderBalance({
-      tonBalance: { nano: 1_500_000_000n, isLoading: false, failed: false },
+      tonBalance: {
+        nano: 1_500_000_000n,
+        isLoading: false,
+        failed: false,
+        refreshFailed: false,
+        errorKind: null,
+        lastErrorAt: null,
+      },
     });
 
     expect(screen.getByText('1.5 GRAM')).toBeTruthy();
@@ -96,7 +117,14 @@ describe('Balance GRAM card', () => {
     const refreshWallet = vi.fn().mockResolvedValue(undefined);
 
     renderBalance({
-      tonBalance: { nano: null, isLoading: false, failed: true },
+      tonBalance: {
+        nano: null,
+        isLoading: false,
+        failed: true,
+        refreshFailed: false,
+        errorKind: 'network',
+        lastErrorAt: Date.now(),
+      },
       refreshWallet,
     });
 

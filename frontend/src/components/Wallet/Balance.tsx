@@ -67,6 +67,8 @@ export function Balance({
   const gramInitialLoading = tonBalance.isLoading && tonBalance.nano == null;
   const gramFailedNoSnapshot =
     tonBalance.failed && tonBalance.nano == null && !gramInitialLoading;
+  const gramRefreshFailed =
+    tonBalance.refreshFailed && tonBalance.nano != null && !gramInitialLoading;
 
   const gramAmountLine = gramInitialLoading
     ? null
@@ -76,7 +78,12 @@ export function Balance({
         ? t('wallet.tonBalanceUnavailable')
         : '—';
 
-  const showGramRetry = gramFailedNoSnapshot && !isRefreshing;
+  const showGramRetry = (gramFailedNoSnapshot || gramRefreshFailed) && !isRefreshing;
+
+  const showGramDevHint =
+    import.meta.env.DEV &&
+    (gramFailedNoSnapshot || gramRefreshFailed) &&
+    tonBalance.errorKind != null;
 
   const showLowGram =
     tonBalance.nano != null &&
@@ -170,6 +177,11 @@ export function Balance({
             >
               {t('wallet.balanceRetry')}
             </button>
+          ) : null}
+          {showGramDevHint ? (
+            <p className={styles.balanceDevHint} aria-hidden="true">
+              RPC: {tonBalance.errorKind}
+            </p>
           ) : null}
           <p className={styles.balanceAssetHint}>{t('wallet.gramTopUpHint')}</p>
         </div>

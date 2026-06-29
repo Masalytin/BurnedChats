@@ -260,6 +260,14 @@
   color: var(--bc-text-secondary);
 }
 
+.balanceDevHint {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-family: var(--bc-font-mono, monospace);
+  font-size: 0.65rem;
+  line-height: var(--bc-leading-normal);
+  color: color-mix(in srgb, var(--bc-text-secondary) 65%, transparent);
+}
+
 .actionsRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
