@@ -707,6 +707,11 @@
       "title": "Предпросмотр",
       "captionPlaceholder": "Добавить подпись..."
     },
+    "picker": {
+      "photo": "Фото",
+      "video": "Видео",
+      "document": "Документ"
+    },
     "upload": {
       "encrypting": "Шифрование…",
       "uploading": "Загрузка…",

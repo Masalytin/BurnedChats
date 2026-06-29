@@ -199,6 +199,11 @@
       "title": "Vorschau",
       "captionPlaceholder": "Beschriftung hinzufügen..."
     },
+    "picker": {
+      "photo": "Foto",
+      "video": "Video",
+      "document": "Dokument"
+    },
     "upload": {
       "encrypting": "Wird verschlüsselt...",
       "uploading": "Wird hochgeladen...",

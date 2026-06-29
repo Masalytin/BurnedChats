@@ -542,6 +542,11 @@
       "send": "إرسال",
       "title": "معاينة"
     },
+    "picker": {
+      "photo": "صورة",
+      "video": "فيديو",
+      "document": "مستند"
+    },
     "upload": {
       "encrypting": "جارٍ التشفير...",
       "failed": "فشل الرفع",

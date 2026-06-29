@@ -538,6 +538,11 @@
       "send": "Envoyer",
       "title": "Aperçu"
     },
+    "picker": {
+      "photo": "Photo",
+      "video": "Vidéo",
+      "document": "Document"
+    },
     "upload": {
       "encrypting": "Chiffrement...",
       "failed": "Échec du téléversement",

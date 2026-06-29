@@ -538,6 +538,11 @@
       "send": "发送",
       "title": "预览"
     },
+    "picker": {
+      "photo": "照片",
+      "video": "视频",
+      "document": "文档"
+    },
     "upload": {
       "encrypting": "加密中...",
       "failed": "上传失败",

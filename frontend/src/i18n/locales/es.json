@@ -538,6 +538,11 @@
       "send": "Enviar",
       "title": "Vista previa"
     },
+    "picker": {
+      "photo": "Foto",
+      "video": "Vídeo",
+      "document": "Documento"
+    },
     "upload": {
       "encrypting": "Cifrando...",
       "failed": "Error al subir",

@@ -693,6 +693,11 @@
       "title": "Preview",
       "captionPlaceholder": "Add a caption..."
     },
+    "picker": {
+      "photo": "Photo",
+      "video": "Video",
+      "document": "Document"
+    },
     "upload": {
       "encrypting": "Encrypting...",
       "uploading": "Uploading...",

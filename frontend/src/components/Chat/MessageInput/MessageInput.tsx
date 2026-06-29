@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef, useEffect, memo, type KeyboardEvent, type ChangeEvent, type Ref, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
+import { getEnvironment } from '@/env/detector';
 import { FILE_INPUT_ACCEPT, validateFileForUpload, type FileMessageType } from '@/utils/fileValidation';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
 import { Check } from 'lucide-react';
+import { AttachmentPickerSheet } from '../AttachmentPickerSheet';
 import { ReplyChip, type ReplyChipModel } from '../ReplyChip';
 import { EditChip } from '../EditChip';
 import './MessageInput.css';
@@ -89,6 +91,8 @@ export const MessageInput = memo(function MessageInput({
     key: string;
     params?: Record<string, string | number>;
   } | null>(null);
+  const [pickerSheetOpen, setPickerSheetOpen] = useState(false);
+  const useAttachmentPickerSheet = getEnvironment() === 'telegram';
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
@@ -174,11 +178,20 @@ export const MessageInput = memo(function MessageInput({
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [canAttach]);
 
+  const handleAttachButtonClick = useCallback(() => {
+    if (!canAttach) return;
+    setPickerSheetOpen(true);
+  }, [canAttach]);
+
+  const handlePickerSheetClose = useCallback(() => {
+    setPickerSheetOpen(false);
+  }, []);
+
   // P4-4-1-1 / P4-5-1-2: Validate and forward selected file
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    // Reset input so the same file can be re-selected
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    // Reset input so the same file can be re-selected (browser label or sheet split inputs)
+    e.target.value = '';
     if (!file || !onFileSelected) return;
 
     const result = validateFileForUpload(file);
@@ -260,25 +273,48 @@ export const MessageInput = memo(function MessageInput({
         {/* P4-4-1-1 / IMP-ATTACH-PICKER-01: label activation for file picker */}
         {onFileSelected && (
           <>
-            <input
-              ref={fileInputRef}
-              id="message-input-file"
-              type="file"
-              className="message-input-file-hidden"
-              accept={FILE_INPUT_ACCEPT}
-              onChange={handleFileChange}
-              tabIndex={-1}
-              aria-hidden="true"
-            />
-            <label
-              htmlFor="message-input-file"
-              className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}`}
-              aria-label={t('files.preview.attach')}
-              onPointerDown={handleAttachPointerDown}
-              onClick={handleAttachLabelClick}
-            >
-              <AttachIcon />
-            </label>
+            {!useAttachmentPickerSheet && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  id="message-input-file"
+                  type="file"
+                  className="message-input-file-hidden"
+                  accept={FILE_INPUT_ACCEPT}
+                  onChange={handleFileChange}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+                <label
+                  htmlFor="message-input-file"
+                  className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}`}
+                  aria-label={t('files.preview.attach')}
+                  onPointerDown={handleAttachPointerDown}
+                  onClick={handleAttachLabelClick}
+                >
+                  <AttachIcon />
+                </label>
+              </>
+            )}
+            {useAttachmentPickerSheet && (
+              <>
+                <button
+                  type="button"
+                  className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}`}
+                  aria-label={t('files.preview.attach')}
+                  disabled={!canAttach}
+                  onPointerDown={handleAttachPointerDown}
+                  onClick={handleAttachButtonClick}
+                >
+                  <AttachIcon />
+                </button>
+                <AttachmentPickerSheet
+                  open={pickerSheetOpen}
+                  onClose={handlePickerSheetClose}
+                  onFileChange={handleFileChange}
+                />
+              </>
+            )}
           </>
         )}
 
