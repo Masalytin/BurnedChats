@@ -965,6 +965,10 @@
     "tonBalanceUnavailable": "Недоступно",
     "tonForGas": "{{symbol}} на комісії",
     "tonForGasAria": "Нативний баланс {{symbol}} для мережевих комісій",
+    "gramBalanceLabel": "Баланс GRAM",
+    "gramBalanceAria": "Баланс GRAM: {{amount}}",
+    "gramTopUpHint": "Поповніть через Tonkeeper або @wallet",
+    "gramLowBalance": "Мало {{symbol}} для мережевих комісій",
     "usernameNotResolved": "Визначення Telegram @username у додатку поки недоступне — вкажіть адресу TON.",
     "waitingConfirmation": "Очікування подтверждения…",
     "walletAddressAria": "Адреса гаманця"

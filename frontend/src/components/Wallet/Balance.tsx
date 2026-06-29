@@ -7,13 +7,18 @@ import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { BurnTokenError } from '@/ton/burnToken';
 import { shortenTonDisplayAddress } from '@/ton/connector';
+import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import { formatNativeCoin, nativeCoinSymbol } from '@/ton/nativeCoin';
 import { formatBurn } from '@/utils/format';
 
 import { Skeleton } from '@/components/Skeleton/Skeleton';
 import { balanceErrorMessage, isBalanceErrorRetryable } from './balanceErrorMessage';
+import { canAffordGasReserve } from './sendModalGasReserve';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
+
+/** Minimum native attach for any BURN transfer (excluded path). */
+const MIN_GRAM_FOR_SEND_NANO = estimateBurnTransferTon({ feePath: false }).recommendedNano;
 
 export interface BalanceProps {
   burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch'>;
@@ -25,7 +30,7 @@ export interface BalanceProps {
 }
 
 /**
- * Primary BURN balance + TON for gas; quick actions for receive / send / history.
+ * Primary BURN balance + GRAM card; quick actions for receive / send / history.
  */
 export function Balance({
   burn,
@@ -59,12 +64,29 @@ export function Balance({
         ? balanceErrorMessage(burn.error, t)
         : '—';
 
-  const tonInitialLoading = tonBalance.isLoading && tonBalance.nano == null;
-  const tonLine = tonInitialLoading
-    ? t('wallet.balanceLoading')
-    : tonBalance.failed || tonBalance.nano == null
-      ? t('wallet.tonBalanceUnavailable')
-      : formatNativeCoin(tonBalance.nano);
+  const gramInitialLoading = tonBalance.isLoading && tonBalance.nano == null;
+  const gramFailedNoSnapshot =
+    tonBalance.failed && tonBalance.nano == null && !gramInitialLoading;
+
+  const gramAmountLine = gramInitialLoading
+    ? null
+    : tonBalance.nano != null
+      ? formatNativeCoin(tonBalance.nano)
+      : gramFailedNoSnapshot
+        ? t('wallet.tonBalanceUnavailable')
+        : '—';
+
+  const showGramRetry = gramFailedNoSnapshot && !isRefreshing;
+
+  const showLowGram =
+    tonBalance.nano != null &&
+    !gramInitialLoading &&
+    !canAffordGasReserve(tonBalance.nano, MIN_GRAM_FOR_SEND_NANO);
+
+  const gramAriaAmount =
+    tonBalance.nano != null && !gramInitialLoading
+      ? t('wallet.gramBalanceAria', { amount: formatNativeCoin(tonBalance.nano) })
+      : undefined;
 
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';
@@ -80,22 +102,13 @@ export function Balance({
         data-refreshing={isRefreshing || undefined}
       >
         {burnLoading ? (
-          <>
-            <Skeleton
-              variant="rounded"
-              height={36}
-              width="100%"
-              className={styles.balanceSkeleton}
-              animation="pulse"
-            />
-            <Skeleton
-              variant="text"
-              height={16}
-              width="100%"
-              className={styles.balanceSecondarySkeleton}
-              animation="pulse"
-            />
-          </>
+          <Skeleton
+            variant="rounded"
+            height={36}
+            width="100%"
+            className={styles.balanceSkeleton}
+            animation="pulse"
+          />
         ) : (
           <div className={styles.balancePrimary} role={burn.error ? 'alert' : undefined}>
             {burnLine}
@@ -110,22 +123,49 @@ export function Balance({
             {t('wallet.balanceRetry')}
           </button>
         ) : null}
-        <div
-          className={styles.balanceSecondary}
-          aria-label={t('wallet.tonForGasAria', { symbol: nativeCoinSymbol() })}
-        >
-          {t('wallet.tonForGas', { symbol: nativeCoinSymbol() })}:{' '}
-          {tonInitialLoading ? (
-            <Skeleton variant="text" width="5rem" height={14} animation="pulse" />
-          ) : (
-            tonLine
-          )}
-        </div>
         {addr ? (
           <p className={styles.mono} aria-label={t('wallet.walletAddressAria')}>
             {shortenTonDisplayAddress(addr)}
           </p>
         ) : null}
+
+        <div
+          className={styles.balanceAssetCard}
+          aria-labelledby="wallet-gram-balance-heading"
+          aria-busy={gramInitialLoading || undefined}
+        >
+          <h3 id="wallet-gram-balance-heading" className={styles.balanceAssetLabel}>
+            {t('wallet.gramBalanceLabel')}
+          </h3>
+          <div className={styles.balanceAssetAmount} aria-label={gramAriaAmount}>
+            {gramInitialLoading ? (
+              <Skeleton
+                variant="text"
+                width="6rem"
+                height={20}
+                className={styles.balanceAssetSkeleton}
+                animation="pulse"
+              />
+            ) : (
+              gramAmountLine
+            )}
+          </div>
+          {showLowGram ? (
+            <p className={styles.balanceAssetWarning}>
+              {t('wallet.gramLowBalance', { symbol: nativeCoinSymbol() })}
+            </p>
+          ) : null}
+          {showGramRetry ? (
+            <button
+              type="button"
+              className={styles.balanceRetryBtn}
+              onClick={() => void refreshWallet()}
+            >
+              {t('wallet.balanceRetry')}
+            </button>
+          ) : null}
+          <p className={styles.balanceAssetHint}>{t('wallet.gramTopUpHint')}</p>
+        </div>
       </div>
 
       <div className={styles.actionsRow}>

@@ -177,6 +177,46 @@
   color: var(--bc-text-secondary);
 }
 
+.balanceAssetCard {
+  margin-top: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-secondary);
+  border: 1px solid var(--bc-border-color);
+  text-align: center;
+}
+
+.balanceAssetLabel {
+  margin: 0 0 var(--bc-spacing-xs);
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.balanceAssetAmount {
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  line-height: var(--bc-leading-tight);
+  word-break: break-all;
+}
+
+.balanceAssetSkeleton {
+  margin: 0 auto;
+}
+
+.balanceAssetWarning {
+  margin: var(--bc-spacing-xs) 0 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-warning);
+}
+
+.balanceAssetHint {
+  margin: var(--bc-spacing-sm) 0 0;
+  font-size: var(--bc-text-xs);
+  line-height: var(--bc-leading-normal);
+  color: var(--bc-text-muted);
+}
+
 .actionsRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

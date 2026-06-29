@@ -965,6 +965,10 @@
     "tonBalanceUnavailable": "不可用",
     "tonForGas": "{{symbol}} 费用",
     "tonForGasAria": "用于网络费用的原生 {{symbol}} 余额",
+    "gramBalanceLabel": "GRAM 余额",
+    "gramBalanceAria": "GRAM 余额：{{amount}}",
+    "gramTopUpHint": "通过 Tonkeeper 或 @wallet 充值",
+    "gramLowBalance": "{{symbol}} 余额不足，无法支付网络费用",
     "usernameNotResolved": "应用内解析 Telegram @username 尚不可用 — 请使用 TON 地址。",
     "waitingConfirmation": "等待确认…",
     "walletAddressAria": "钱包地址"

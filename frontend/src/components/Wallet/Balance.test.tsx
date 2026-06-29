@@ -1,0 +1,111 @@
+// @vitest-environment happy-dom
+import { render, screen, fireEvent } from '@testing-library/react';
+import { I18nextProvider } from 'react-i18next';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import i18n from '@/i18n';
+
+import { Balance } from './Balance';
+import { useWallet } from './WalletProvider';
+
+vi.mock('./WalletProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./WalletProvider')>();
+  return {
+    ...actual,
+    useWallet: vi.fn(),
+  };
+});
+
+const mockUseWallet = vi.mocked(useWallet);
+
+const defaultBurn = {
+  balance: 1_000_000_000n,
+  isLoading: false,
+  error: null,
+  refetch: vi.fn(),
+};
+
+const defaultTon = {
+  walletAddress: 'EQTestWalletAddress1234567890',
+  isConnected: true,
+};
+
+function renderBalance(
+  walletOverrides: Partial<Pick<ReturnType<typeof useWallet>, 'tonBalance' | 'isRefreshing' | 'refreshWallet'>> = {},
+) {
+  const refreshWallet = walletOverrides.refreshWallet ?? vi.fn().mockResolvedValue(undefined);
+
+  mockUseWallet.mockReturnValue({
+    tonBalance: { nano: 1_500_000_000n, isLoading: false, failed: false },
+    isRefreshing: false,
+    refreshWallet,
+    ...walletOverrides,
+  } as ReturnType<typeof useWallet>);
+
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <Balance
+        burn={defaultBurn}
+        ton={defaultTon}
+        onReceiveToggle={vi.fn()}
+        receiveExpanded={false}
+        onSend={vi.fn()}
+        onHistory={vi.fn()}
+      />
+    </I18nextProvider>,
+  );
+}
+
+describe('Balance GRAM card', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders GRAM card with neutral balance label (not for fees)', () => {
+    renderBalance();
+
+    expect(screen.getByRole('heading', { name: 'GRAM balance' })).toBeTruthy();
+    expect(screen.queryByText(/for fees/i)).toBeNull();
+    expect(screen.getByText('Top up via Tonkeeper or @wallet')).toBeTruthy();
+  });
+
+  it('shows skeleton during initial GRAM load', () => {
+    renderBalance({
+      tonBalance: { nano: null, isLoading: true, failed: false },
+    });
+
+    const gramCard = document.getElementById('wallet-gram-balance-heading')?.parentElement;
+    expect(gramCard?.getAttribute('aria-busy')).toBe('true');
+    expect(gramCard?.querySelector('[class*="Skeleton"]')).toBeTruthy();
+  });
+
+  it('shows formatted GRAM amount on success', () => {
+    renderBalance({
+      tonBalance: { nano: 1_500_000_000n, isLoading: false, failed: false },
+    });
+
+    expect(screen.getByText('1.5 GRAM')).toBeTruthy();
+  });
+
+  it('shows unavailable message and retry on RPC failure without snapshot', () => {
+    const refreshWallet = vi.fn().mockResolvedValue(undefined);
+
+    renderBalance({
+      tonBalance: { nano: null, isLoading: false, failed: true },
+      refreshWallet,
+    });
+
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+
+    const retryButtons = screen.getAllByRole('button', { name: 'Try again' });
+    expect(retryButtons.length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(retryButtons[retryButtons.length - 1]!);
+    expect(refreshWallet).toHaveBeenCalledTimes(1);
+  });
+});

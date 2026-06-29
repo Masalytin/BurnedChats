@@ -965,6 +965,10 @@
     "tonBalanceUnavailable": "No disponible",
     "tonForGas": "{{symbol}} para comisiones",
     "tonForGasAria": "Saldo {{symbol}} nativo para comisiones de red",
+    "gramBalanceLabel": "Saldo GRAM",
+    "gramBalanceAria": "Saldo GRAM: {{amount}}",
+    "gramTopUpHint": "Recarga con Tonkeeper o @wallet",
+    "gramLowBalance": "Poco {{symbol}} para comisiones de red",
     "usernameNotResolved": "Resolver @username de Telegram en la app aún no está disponible — usa una dirección TON.",
     "waitingConfirmation": "Esperando confirmación…",
     "walletAddressAria": "Dirección de wallet"

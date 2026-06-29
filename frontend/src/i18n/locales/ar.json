@@ -969,6 +969,10 @@
     "tonBalanceUnavailable": "غير متاح",
     "tonForGas": "{{symbol}} للرسوم",
     "tonForGasAria": "رصيد {{symbol}} الأصلي لرسوم الشبكة",
+    "gramBalanceLabel": "رصيد GRAM",
+    "gramBalanceAria": "رصيد GRAM: {{amount}}",
+    "gramTopUpHint": "اشحن عبر Tonkeeper أو @wallet",
+    "gramLowBalance": "رصيد {{symbol}} منخفض لرسوم الشبكة",
     "usernameNotResolved": "حل @username في تليجرام داخل التطبيق غير متاح بعد — استخدم عنوان TON.",
     "waitingConfirmation": "جارٍ انتظار التأكيد…",
     "walletAddressAria": "عنوان المحفظة"
