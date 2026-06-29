@@ -96,11 +96,7 @@ export function Balance({
       <h2 id="wallet-balance-heading" className={styles.srOnly}>
         {t('wallet.balanceSectionTitle')}
       </h2>
-      <div
-        className={styles.balanceHero}
-        aria-busy={isRefreshing || undefined}
-        data-refreshing={isRefreshing || undefined}
-      >
+      <div className={styles.balanceHero} aria-busy={isRefreshing || undefined}>
         {burnLoading ? (
           <Skeleton
             variant="rounded"
@@ -110,7 +106,12 @@ export function Balance({
             animation="pulse"
           />
         ) : (
-          <div className={styles.balancePrimary} role={burn.error ? 'alert' : undefined}>
+          <div
+            className={styles.balancePrimary}
+            role={burn.error ? 'alert' : undefined}
+            data-refreshing={isRefreshing && burn.balance != null ? true : undefined}
+            key={burn.balance?.toString() ?? (burn.error ? 'error' : 'empty')}
+          >
             {burnLine}
           </div>
         )}
@@ -147,7 +148,13 @@ export function Balance({
                 animation="pulse"
               />
             ) : (
-              gramAmountLine
+              <span
+                className={styles.balanceAmountValue}
+                data-refreshing={isRefreshing && tonBalance.nano != null ? true : undefined}
+                key={tonBalance.nano?.toString() ?? (gramFailedNoSnapshot ? 'unavailable' : 'empty')}
+              >
+                {gramAmountLine}
+              </span>
             )}
           </div>
           {showLowGram ? (

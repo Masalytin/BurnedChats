@@ -117,11 +117,8 @@
 .balanceHero {
   text-align: center;
   margin-bottom: var(--bc-spacing-lg);
-}
-
-.balanceHero[data-refreshing] {
-  opacity: 0.92;
-  transition: opacity var(--bc-transition-fast) var(--bc-ease-out);
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .balancePrimary {
@@ -129,7 +126,18 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: var(--bc-leading-tight);
-  word-break: break-all;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  opacity: 1;
+  transition: opacity 180ms var(--bc-ease-out);
+
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+.balancePrimary[data-refreshing] {
+  opacity: 0.72;
 }
 
 .balanceSkeleton {
@@ -155,7 +163,8 @@
   cursor: pointer;
   transition:
     background-color var(--bc-transition-fast) var(--bc-ease-out),
-    border-color var(--bc-transition-fast) var(--bc-ease-out);
+    border-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform 160ms var(--bc-ease-out);
 }
 
 .balanceRetryBtn:hover:not(:disabled) {
@@ -171,6 +180,11 @@
   outline-offset: 2px;
 }
 
+.balanceHero .mono {
+  margin-top: var(--bc-spacing-sm);
+  color: var(--bc-text-secondary);
+}
+
 .balanceSecondary {
   margin-top: var(--bc-spacing-sm);
   font-size: var(--bc-text-sm);
@@ -178,18 +192,28 @@
 }
 
 .balanceAssetCard {
-  margin-top: var(--bc-spacing-md);
-  padding: var(--bc-spacing-md);
+  margin-top: var(--bc-spacing-lg);
+  padding: var(--bc-spacing-md) var(--bc-spacing-2xs);
   border-radius: var(--bc-radius-md);
   background: var(--bc-bg-secondary);
   border: 1px solid var(--bc-border-color);
+  box-shadow: var(--bc-shadow-sm);
   text-align: center;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.balanceAssetCard .balanceRetryBtn {
+  margin-top: var(--bc-spacing-2xs);
 }
 
 .balanceAssetLabel {
   margin: 0 0 var(--bc-spacing-xs);
-  font-size: var(--bc-text-sm);
+  font-size: var(--bc-text-xs);
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--bc-text-secondary);
 }
 
@@ -197,7 +221,23 @@
   font-size: var(--bc-text-lg);
   font-weight: 700;
   line-height: var(--bc-leading-tight);
-  word-break: break-all;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  color: var(--bc-text-primary);
+}
+
+.balanceAmountValue {
+  display: inline-block;
+  opacity: 1;
+  transition: opacity 180ms var(--bc-ease-out);
+
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+.balanceAmountValue[data-refreshing] {
+  opacity: 0.72;
 }
 
 .balanceAssetSkeleton {
@@ -207,14 +247,17 @@
 .balanceAssetWarning {
   margin: var(--bc-spacing-xs) 0 0;
   font-size: var(--bc-text-xs);
-  color: var(--bc-warning);
+  line-height: var(--bc-leading-normal);
+  color: color-mix(in srgb, var(--bc-warning) 70%, var(--bc-text-secondary));
 }
 
 .balanceAssetHint {
   margin: var(--bc-spacing-sm) 0 0;
+  padding-top: var(--bc-spacing-xs);
+  border-top: 1px solid var(--bc-border-color);
   font-size: var(--bc-text-xs);
   line-height: var(--bc-leading-normal);
-  color: var(--bc-text-muted);
+  color: var(--bc-text-secondary);
 }
 
 .actionsRow {
@@ -782,5 +825,15 @@
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
+  }
+
+  .balancePrimary,
+  .balanceAmountValue {
+    transition: none;
+  }
+
+  .balancePrimary[data-refreshing],
+  .balanceAmountValue[data-refreshing] {
+    opacity: 1;
   }
 }
