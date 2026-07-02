@@ -36,7 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Full DM session lifecycle over real STOMP + Redis: create → accept → active-list → resume,
- * plus the create → reject path. Covers {@code SessionHandler} and {@link dev.burnedchats.service.SessionLifecycleService}
+ * plus the create → reject path. Covers {@code SessionHandler} and
+ * {@link dev.burnedchats.service.SessionLifecycleService}
  * end-to-end across two distinct participants (IMP-AUDIT-16).
  *
  * <p>Uses wallet identities (Telegram id {@code null}) so the two-user flow needs no Telegram
@@ -63,6 +64,7 @@ class SessionLifecycleFullStompIT extends StompIntegrationTestBase {
     }
 
     @Test
+    @SuppressWarnings("checkstyle:MethodLength")
     void createAcceptListResume_fullHappyPath() throws Exception {
         WebSocketStompClient initiatorClient = StompTestSupport.createStompClient();
         WebSocketStompClient responderClient = StompTestSupport.createStompClient();

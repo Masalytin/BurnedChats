@@ -257,17 +257,17 @@ class AdaptiveDifficultyServiceTest {
             }
 
             @Override
+            public AdaptiveDifficultyService.ReputationDifficultyResolver getObject() {
+                return null;
+            }
+
+            @Override
             public AdaptiveDifficultyService.ReputationDifficultyResolver getIfAvailable() {
                 return null;
             }
 
             @Override
             public AdaptiveDifficultyService.ReputationDifficultyResolver getIfUnique() {
-                return null;
-            }
-
-            @Override
-            public AdaptiveDifficultyService.ReputationDifficultyResolver getObject() {
                 return null;
             }
 

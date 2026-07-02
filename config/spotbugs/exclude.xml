@@ -10,13 +10,18 @@
         <Source name="~.*Generated.*\.java"/>
     </Match>
 
-    <!-- Exclude test classes from certain checks -->
+    <!-- Exclude test classes (incl. nested/anonymous and *IT) from certain checks -->
     <Match>
-        <Class name="~.*Test"/>
+        <Class name="~.*(Test|IT)(\$.*)?"/>
         <Or>
             <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
-            <!-- Direct controller unit tests pass null for optional @RequestParam -->
+            <Bug pattern="URF_UNREAD_FIELD"/>
+            <!-- Tests deliberately pass null / stub @Nonnull APIs with null returns -->
             <Bug pattern="NP_NONNULL_PARAM_VIOLATION"/>
+            <Bug pattern="NP_NONNULL_RETURN_VIOLATION"/>
+            <Bug pattern="NP_PARAMETER_MUST_BE_NONNULL_BUT_MARKED_AS_NULLABLE"/>
+            <!-- BlockingQueue.offer() result is irrelevant in unbounded test sinks -->
+            <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE"/>
         </Or>
     </Match>
 

@@ -32,7 +32,7 @@
     </module>
     <module name="SuppressionSingleFilter">
         <property name="files"
-            value=".*[/\\](MessageHandler|MessageRepository|RoomMessageHandler|RoomHandler|SessionHandler)\.java"/>
+            value=".*[/\\](MessageHandler|MessageRepository|RoomMessageHandler|RoomHandler|SessionHandler|SessionLifecycleService)\.java"/>
         <property name="checks" value="FileLength"/>
     </module>
     <module name="SuppressionSingleFilter">

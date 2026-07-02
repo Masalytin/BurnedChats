@@ -45,7 +45,7 @@ class PowHashTest {
         assertEquals(256, PowHash.leadingZeroBits(hash));
     }
 
-  @Test
+    @Test
     @DisplayName("first non-zero byte partial zeros")
     void partialByteZeros() {
         byte[] hash = new byte[32];

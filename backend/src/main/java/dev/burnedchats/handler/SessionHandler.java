@@ -1,7 +1,6 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.ActiveSessionsListEvent;
-import dev.burnedchats.dto.event.IncomingRequestEvent;
 import dev.burnedchats.dto.event.PeerDisconnectedEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
@@ -12,7 +11,6 @@ import dev.burnedchats.dto.request.PeerDisconnectRequest;
 import dev.burnedchats.dto.request.RejectSessionRequest;
 import dev.burnedchats.dto.request.ResumeSessionRequest;
 import dev.burnedchats.dto.request.SessionStatusRequest;
-import dev.burnedchats.handler.WebSocketExceptionHandler;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.dto.event.SessionResumedEvent;
 import dev.burnedchats.model.Session.SessionStatus;
@@ -212,7 +210,7 @@ public class SessionHandler {
                                 participant.internalId(), error.getMessage()),
                         () -> LOG.debug("Finished sending pending requests to user {}",
                                 participant.internalId())
-                );
+            );
     }
 
     @MessageMapping("/session.accept")
@@ -240,7 +238,7 @@ public class SessionHandler {
                             LOG.error("Error accepting session {}: {}", sessionId, error.getMessage());
                             sendAcceptError(responder.internalId(), sessionId, "INTERNAL_ERROR");
                         }
-                );
+            );
     }
 
     private void dispatchAcceptResult(AcceptSessionResult result) {
@@ -306,7 +304,7 @@ public class SessionHandler {
                             LOG.error("Error checking session status: {}", error.getMessage());
                             sendSessionStatus(participant, SessionStatusEvent.error(sessionId, "INTERNAL_ERROR"));
                         }
-                );
+            );
     }
 
     private void sendSessionStatus(ParticipantContext participant, SessionStatusEvent event) {
@@ -348,7 +346,7 @@ public class SessionHandler {
                                     peerInternalId, participant.internalId(), sessionId);
                         },
                         error -> LOG.error("Error handling peer disconnect: {}", error.getMessage())
-                );
+            );
     }
 
     @MessageMapping("/session.reject")
@@ -372,7 +370,7 @@ public class SessionHandler {
                         result -> sendStompToInternalId(
                                 result.initiatorInternalId(), SESSION_REJECTED_DESTINATION, result.event()),
                         error -> LOG.error("Error rejecting session {}: {}", sessionId, error.getMessage())
-                );
+            );
     }
 
     @MessageMapping("/session.active.list")
@@ -410,7 +408,7 @@ public class SessionHandler {
                                         "error=INTERNAL_ERROR");
                             }
                         }
-                );
+            );
     }
 
     @MessageMapping("/session.resume")
@@ -437,7 +435,7 @@ public class SessionHandler {
                             LOG.error("Error resuming session {}: {}", sessionId, error.getMessage());
                             sendResumeEvent(participant, SessionResumedEvent.error(sessionId, "INTERNAL_ERROR"));
                         }
-                );
+            );
     }
 
     private void sendResumeEvent(ParticipantContext participant, SessionResumedEvent event) {

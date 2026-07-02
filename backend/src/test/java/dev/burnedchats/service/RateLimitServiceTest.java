@@ -175,7 +175,6 @@ class RateLimitServiceTest {
             String expectedKey = "ratelimit:search:" + TEST_USER_ID;
             int limit = RateLimitType.SEARCH.getMaxRequests();
             int concurrency = limit * 5;
-
             AtomicLong redisCounter = new AtomicLong();
             AtomicInteger expireInvocations = new AtomicInteger();
 

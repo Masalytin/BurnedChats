@@ -1,6 +1,5 @@
 package dev.burnedchats.service;
 
-import dev.burnedchats.dto.event.RoomOwnershipTransferredEvent;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomRole;
 import dev.burnedchats.repository.RoomMembersRepository;

@@ -1,0 +1,50 @@
+name: Backend
+
+on:
+    pull_request:
+        paths:
+            - 'backend/**'
+            - 'build.gradle.kts'
+            - 'settings.gradle.kts'
+            - 'gradle.properties'
+            - 'gradle/**'
+            - 'config/**'
+            - '.github/workflows/backend.yml'
+    push:
+        branches: [master]
+        paths:
+            - 'backend/**'
+            - 'build.gradle.kts'
+            - 'settings.gradle.kts'
+            - 'gradle.properties'
+            - 'gradle/**'
+            - 'config/**'
+            - '.github/workflows/backend.yml'
+
+jobs:
+    build-test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up JDK 21
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: '21'
+
+            - name: Set up Gradle
+              uses: gradle/actions/setup-gradle@v4
+
+            # Unit tests only: @Tag("integration") is excluded from the `test`
+            # task; Docker-backed integration tests are opt-in via
+            # :backend:integrationTest and are not run in CI.
+            - name: Build (compile, checkstyle, spotbugs, unit tests)
+              run: ./gradlew :backend:build --no-daemon
+
+            - name: Upload test reports
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: backend-test-reports
+                  path: backend/build/reports/

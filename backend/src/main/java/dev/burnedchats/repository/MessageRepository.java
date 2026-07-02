@@ -334,7 +334,7 @@ public class MessageRepository {
      *
      * @return true if an entry was updated
      */
-    @SuppressWarnings("checkstyle:BooleanExpressionComplexity")
+    @SuppressWarnings({"checkstyle:BooleanExpressionComplexity", "checkstyle:ParameterNumber"})
     public Mono<Boolean> updateMessageInQueue(
             String recipientId,
             String sessionId,

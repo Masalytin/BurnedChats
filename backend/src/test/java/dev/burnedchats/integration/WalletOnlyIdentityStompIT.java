@@ -166,6 +166,7 @@ class WalletOnlyIdentityStompIT extends StompIntegrationTestBase {
         assertThat(incomingEvent.getSessionId()).isEqualTo(createdEvent.getSessionId());
     }
 
+    @SuppressWarnings("checkstyle:MethodLength")
     private void assertRoomKeyBundleAndRekeyFlow(StompSession owner, StompSession member) throws Exception {
         BlockingQueue<RoomCreatedEvent> roomCreated = new LinkedBlockingQueue<>();
         BlockingQueue<RoomJoinRequestEvent> joinRequests = new LinkedBlockingQueue<>();

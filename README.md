@@ -2,6 +2,8 @@
 
 > **End-to-end encrypted, self-destructing chat as a Telegram Mini App — with a trustless relay server, in-band ECDH key exchange, and an experimental deflationary token on TON.**
 
+[![Backend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml)
+[![Frontend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml)
 [![Contracts CI](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml)
 ![Backend](https://img.shields.io/badge/Backend-Java%2021%20%2B%20Spring%20Boot%203.3-orange)
 ![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite%207%20%2B%20TypeScript-blue)

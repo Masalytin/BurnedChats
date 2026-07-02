@@ -9,7 +9,7 @@ public class PowRequiredException extends BurnedChatsException {
 
     private static final long serialVersionUID = 1L;
 
-  /**
+    /**
      * Create exception with default message.
      */
     public PowRequiredException() {
