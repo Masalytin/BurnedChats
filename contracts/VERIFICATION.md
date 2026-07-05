@@ -85,8 +85,8 @@ deployed contract against its source:
 | jettonMaster | `kQD-ZhhzrzyI3k4WarDMPhxAJTdc6MStCZYyCyHHw7Jx-NjD` |
 | treasury | `kQCnUzQM-U0cMdChXCaRUy3WSEc5rvnOAEaAbVqHJ-mrNV7P` |
 | stakingPool | `kQD0Z08_0tB-rT249cyzdYDhQw03IE2XcFAsHhtHRGbuXD6Q` |
-| stakingMaster | `kQD5nx098WW2UaNt1AzcS9Pft-I4TWzSvtzHvThLqk7l06sz` |
-| governor | `kQB6zyU_wtS_WIn45R_IDmWnjkYNm2Y-NHhWl84FsV-Zb392` |
+| stakingMaster | `kQCotwKsH0ZAd09msYeJLsEeXzvks_Q6sp8gZj-jE5LgV7M5` |
+| governor | `kQB53bI7Y1NdovwTyjox45Lx2opXD6QfuluFTAs4nT0ybC-M` |
 | timelock | `kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT` |
 | vestingDeveloper | `kQD2BAcU3dMmDQziMyu3MYWYSbaPkw5l0bCPfnHUEg9arnQS` |
 | vestingEcosystem | `kQCT6xj5b5loCcCk48pwQpMtQJpwZyDhFRxDJmMoeT4krt2c` |

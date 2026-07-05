@@ -17,8 +17,8 @@ app:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
       jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQD-ZhhzrzyI3k4WarDMPhxAJTdc6MStCZYyCyHHw7Jx-NjD}
-      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQD5nx098WW2UaNt1AzcS9Pft-I4TWzSvtzHvThLqk7l06sz}
-      governor: ${BURN_GOVERNOR_ADDRESS:kQB6zyU_wtS_WIn45R_IDmWnjkYNm2Y-NHhWl84FsV-Zb392}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQCotwKsH0ZAd09msYeJLsEeXzvks_Q6sp8gZj-jE5LgV7M5}
+      governor: ${BURN_GOVERNOR_ADDRESS:kQB53bI7Y1NdovwTyjox45Lx2opXD6QfuluFTAs4nT0ybC-M}
       treasury: ${BURN_TREASURY_ADDRESS:kQCnUzQM-U0cMdChXCaRUy3WSEc5rvnOAEaAbVqHJ-mrNV7P}
 
 burnedchats:

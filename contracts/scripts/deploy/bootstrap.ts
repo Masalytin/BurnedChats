@@ -21,7 +21,9 @@ const DEPLOY_JETTON = toNano('0.2');
 const DEPLOY_TREASURY = toNano('0.15');
 const DEPLOY_POOL = toNano('0.25');
 const DEPLOY_LOCK = toNano('0.1');
-const DEPLOY_STAKING_MASTER = toNano('50');
+const DEPLOY_STAKING_MASTER = process.env.DEPLOY_STAKING_MASTER_NANO?.trim()
+    ? BigInt(process.env.DEPLOY_STAKING_MASTER_NANO.trim())
+    : toNano('50');
 const DEPLOY_GOVERNOR = toNano('0.55');
 const DEPLOY_TIMELOCK = toNano('0.12');
 const DEPLOY_VESTING = toNano('0.22');
@@ -309,7 +311,7 @@ export type DeployResult = {
  */
 export async function deployBurnStack(
     provider: NetworkProvider,
-    opts: { contractsRoot: string; force: boolean; dryRun: boolean },
+    opts: { contractsRoot: string; force: boolean; dryRun: boolean; governanceSliceOnly?: boolean },
 ): Promise<DeployResult> {
     const testnet = provider.network() === 'testnet';
     const deployer = await resolveDeployer(provider);
@@ -426,10 +428,15 @@ export async function deployBurnStack(
             console.log(`  ${k}: ${friendly(v, testnet)}`);
         }
     } else {
-        await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
-        await deployIfNeeded(provider, treasuryInit, DEPLOY_TREASURY, 'Treasury', opts.force);
-        await deployIfNeeded(provider, poolInit, DEPLOY_POOL, 'StakingPool', opts.force);
-        await deployIfNeeded(provider, stakingLockInit, DEPLOY_LOCK, 'StakingLock', opts.force);
+        const slice = opts.governanceSliceOnly === true;
+        if (!slice) {
+            await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
+            await deployIfNeeded(provider, treasuryInit, DEPLOY_TREASURY, 'Treasury', opts.force);
+            await deployIfNeeded(provider, poolInit, DEPLOY_POOL, 'StakingPool', opts.force);
+            await deployIfNeeded(provider, stakingLockInit, DEPLOY_LOCK, 'StakingLock', opts.force);
+        } else {
+            console.log('[deploy] governance slice — skip jetton/treasury/pool/lock redeploy');
+        }
         await deployIfNeeded(provider, stakingMasterInit, DEPLOY_STAKING_MASTER, 'StakingMaster', opts.force);
 
         if (opts.force || !(await isStakingMasterWired(provider, poolInit, stakingMasterInit.address))) {
@@ -475,6 +482,13 @@ export async function deployBurnStack(
             );
         }
 
+        if (slice) {
+            console.log('[deploy] governance slice — skip vesting/mint/fee bootstrap');
+            addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
+                jettonMaster.address,
+                treasuryInit.address,
+            );
+        } else {
         await deployIfNeeded(provider, vestingDeveloperInit, DEPLOY_VESTING, 'Vesting Developer', opts.force);
         await deployIfNeeded(provider, vestingEcosystemInit, DEPLOY_VESTING, 'Vesting Ecosystem', opts.force);
         await deployIfNeeded(provider, vestingReserveInit, DEPLOY_VESTING, 'Vesting Reserve', opts.force);
@@ -608,6 +622,7 @@ export async function deployBurnStack(
             jettonMaster.address,
             treasuryInit.address,
         );
+        }
     }
 
     const serialized: DeploymentAddresses = {
