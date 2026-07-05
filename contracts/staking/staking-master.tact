@@ -726,23 +726,14 @@ contract StakingMaster(
 
         message(MessageParameters {
             to: msg.proposal,
-            value: ton("0.07"),
-            mode: SendPayGasSeparately,
+            value: 0,
+            mode: SendRemainingValue,
             bounce: true,
             body: ProposalVoteRelay {
                 voter: msg.voter,
                 support: msg.support,
                 vp: vpEff,
             }.toCell(),
-        });
-        /// Return relay remainder to the voter, not Governor — terminal cashback to Governor
-        /// ping-ponged with Governor.receive() until out-of-gas (IMP-GOVOTE-02 / RC-2).
-        message(MessageParameters {
-            to: msg.voter,
-            value: 0,
-            mode: SendRemainingValue | SendIgnoreErrors,
-            bounce: false,
-            body: beginCell().endCell(),
         });
     }
 
@@ -751,7 +742,7 @@ contract StakingMaster(
     /// (Address after opcode) — value stays on StakingMaster; see decision log. No cashback to
     /// Governor (IMP-GOVOTE-02 / RC-2).
     bounced(msg: bounced<ProposalVoteRelay>) {
-        /// Absorb bounce value; voter already received relay remainder from `GovernorVoteRelay`.
+        /// Absorb bounce value; terminal voter refund happens only on successful ProposalVoteRelay.
     }
 
     /// IMP-AUDIT-03 — trusted push sync from StakingLock (Timelock-governed tier table).

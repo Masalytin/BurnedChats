@@ -17,10 +17,8 @@ import {
 } from '@ton/core';
 import { StakingMaster } from './StakingMaster';
 
-/** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
+/** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04 / IMP-GOVREFUND-01). */
 export const GOVERNOR_VOTE_ATTACH_NANO = toNano('0.18');
-/** Matches `GasVoteRelayForward` in governor.tact (IMP-GOVOTE-04). */
-export const GOVERNOR_VOTE_RELAY_FORWARD_NANO = toNano('0.14');
 
 export function emptyGovernorProposalMap() {
     return Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address());

@@ -23,10 +23,8 @@ const CANCEL_LAG: Int = 3600; // 1 hour
 
 /// Vote gas budget (IMP-GOVOTE-04 / AD-2). Source of truth — mirror in `Governor.ts` and
 /// `frontend/src/ton/transactionBuilder.ts`.
-/// Covers StakingMaster→Proposal `0.07` forward, relay compute, and voter refund (IMP-GOVOTE-02).
-const GasVoteRelayForward: Int = ton("0.14");
-/// Minimum voter attachment for `CastVote`: relay forward + Governor handler gas
-/// (`SendPayGasSeparately` + `cashback`). Same 0.04 TON margin as `ExecuteProposal` (0.11 vs 0.07).
+/// Minimum voter attachment for `CastVote`: full relay chain (Governor → StakingMaster →
+/// Proposal) via `SendRemainingValue`, plus compute on each hop and terminal voter refund.
 const GasVoteAttach: Int = ton("0.18");
 
 contract Governor(
@@ -179,8 +177,8 @@ contract Governor(
 
         message(MessageParameters {
             to: self.stakingMaster,
-            value: GasVoteRelayForward,
-            mode: SendPayGasSeparately,
+            value: 0,
+            mode: SendRemainingValue,
             bounce: true,
             body: GovernorVoteRelay {
                 queryId: msg.queryId,
@@ -190,16 +188,14 @@ contract Governor(
                 claimedVp: msg.claimedVp,
             }.toCell(),
         });
-
-        cashback(sender());
     }
 
     /// IMP-GOVOTE-03 / AD-1 — StakingMaster rejected `GovernorVoteRelay` (Only governor, Zero effective vp).
     /// Bounce prefix carries `queryId` and `proposal` only — `voter` is not available; value stays on
     /// Governor (see decision log). No `cashback(sender())` — that would ping StakingMaster (RC-2).
     bounced(msg: bounced<GovernorVoteRelay>) {
-        /// Absorb bounce value on Governor; voter was already cashback'd by `CastVote` for the input
-        /// remainder, and cannot be targeted from the truncated bounce body.
+        /// Absorb bounce value on Governor; voter cannot be targeted from the truncated bounce
+        /// body — value stays here until manually recovered off-chain.
     }
 
     receive(msg: ExecuteProposal) {
