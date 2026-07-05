@@ -1,8 +1,10 @@
 package dev.burnedchats.config;
 
+import dev.burnedchats.security.RestRateLimitInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -18,6 +20,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 @EnableWebMvc
 public class WebFluxConfig implements WebMvcConfigurer {
+
+    private final RestRateLimitInterceptor restRateLimitInterceptor;
+
+    public WebFluxConfig(RestRateLimitInterceptor restRateLimitInterceptor) {
+        this.restRateLimitInterceptor = restRateLimitInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(restRateLimitInterceptor)
+                .addPathPatterns("/api/auth/**", "/api/wallet/**", "/api/governance/**");
+    }
 
     /**
      * Configure CORS mappings for cross-origin requests.
