@@ -23,13 +23,15 @@ import java.util.regex.Pattern;
  * flow) for a synthetic identity {@code dev-{label}} without ton_proof
  * verification.
  *
- * <p>Production safety (two server-side layers):
+ * <p>Production safety (three server-side layers):
  * <ul>
  *   <li>{@code @Profile("dev")} — the bean does not exist under the
  *       {@code prod,testnet} profiles used in production.</li>
  *   <li>{@code DEV_AUTH_ENABLED} env flag, default {@code false} — even an
  *       accidental dev-profile deployment keeps the endpoint returning 404
  *       unless explicitly enabled.</li>
+ *   <li>{@link DevAuthProdGuard} — fail-fast on startup if {@code prod} profile
+ *       is active while dev-auth is enabled.</li>
  * </ul>
  */
 @Slf4j
