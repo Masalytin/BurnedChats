@@ -206,6 +206,45 @@ public class RateLimitService {
     }
 
     /**
+     * Check a configurable rate limit for REST (or other) surfaces keyed by group + client id.
+     *
+     * @param group       logical bucket (e.g. {@code auth}, {@code rpc})
+     * @param clientId    per-client key (IP, identity, etc.)
+     * @param maxRequests maximum requests allowed in the window
+     * @param window      sliding window duration
+     * @throws RateLimitException if rate limit exceeded
+     */
+    public void checkRateLimitBlocking(String group, String clientId, int maxRequests, Duration window) {
+        Boolean allowed = checkRestRateLimit(group, clientId, maxRequests, window).block();
+        if (!Boolean.TRUE.equals(allowed)) {
+            throw new RateLimitException(window);
+        }
+    }
+
+    /**
+     * Reactive configurable rate limit for REST surfaces.
+     */
+    public Mono<Boolean> checkRestRateLimit(String group, String clientId, int maxRequests, Duration window) {
+        String key = KEY_PREFIX + "rest:" + group + ":" + clientId;
+        String windowSeconds = String.valueOf(window.getSeconds());
+
+        return redisTemplate.execute(INCREMENT_AND_EXPIRE, List.of(key), List.of(windowSeconds))
+                .next()
+                .flatMap(count -> {
+                    if (count > maxRequests) {
+                        LOG.warn("REST rate limit exceeded: group={}, clientId={}, count={}",
+                                group, clientId, count);
+                        return redisTemplate.getExpire(key)
+                                .defaultIfEmpty(window)
+                                .flatMap(ttl -> Mono.error(new RateLimitException(ttl)));
+                    }
+                    LOG.trace("REST rate limit check passed: group={}, clientId={}, count={}/{}",
+                            group, clientId, count, maxRequests);
+                    return Mono.just(true);
+                });
+    }
+
+    /**
      * Get remaining requests for a user.
      *
      * @param userId Telegram user ID

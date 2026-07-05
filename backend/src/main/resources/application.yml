@@ -139,6 +139,13 @@ rate-limit:
   requests:
     per-minute: 60
     per-hour: 1000
+  # Public REST surfaces (IMP-SECHARD-02)
+  rest:
+    auth:
+      requests-per-minute: 20
+    rpc:
+      # Defaults to rate-limit.requests.per-minute when unset (0 = inherit)
+      requests-per-minute: 0
   # Message rate limits
   messages:
     per-minute: 30
