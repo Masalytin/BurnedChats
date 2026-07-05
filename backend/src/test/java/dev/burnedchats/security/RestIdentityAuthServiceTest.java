@@ -2,6 +2,7 @@ package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
 import dev.burnedchats.model.TelegramUser;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import reactor.test.StepVerifier;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +23,8 @@ import static org.mockito.Mockito.when;
 class RestIdentityAuthServiceTest {
 
     private static final long TELEGRAM_ID = 4242L;
-    private static final String INTERNAL_ID = InternalIds.forTelegramId(TELEGRAM_ID);
+    private static final String LEGACY_INTERNAL_ID = InternalIds.forTelegramId(TELEGRAM_ID);
+    private static final String LINKED_INTERNAL_ID = "aaaaaaaa-bbbb-cccc-dddd-linked-wallet";
     private static final String WALLET_INTERNAL_ID = "wallet-internal-id-1234";
     private static final String WALLET_TOKEN = "opaque-wallet-token";
 
@@ -30,6 +33,9 @@ class RestIdentityAuthServiceTest {
 
     @Mock
     private SessionTokenService sessionTokenService;
+
+    @Mock
+    private UserIdentityRepository userIdentityRepository;
 
     @InjectMocks
     private RestIdentityAuthService restIdentityAuthService;
@@ -48,11 +54,27 @@ class RestIdentityAuthServiceTest {
     }
 
     @Test
-    void resolveTelegramDefaultsAuthTypeAndMapsInternalId() {
+    void resolveTelegramDefaultsAuthTypeAndMapsLegacyInternalIdWhenUnlinked() {
         stubTelegramAuth();
+        when(userIdentityRepository.findByTelegramId(TELEGRAM_ID)).thenReturn(Mono.empty());
+
         StepVerifier.create(restIdentityAuthService.resolve(null, "init-data", null))
                 .assertNext(identity -> {
-                    assertThat(identity.internalId()).isEqualTo(INTERNAL_ID);
+                    assertThat(identity.internalId()).isEqualTo(LEGACY_INTERNAL_ID);
+                    assertThat(identity.uploaderTgId()).isEqualTo(String.valueOf(TELEGRAM_ID));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void resolveTelegramUsesMappedInternalIdForLinkedAccount() {
+        stubTelegramAuth();
+        when(userIdentityRepository.findByTelegramId(TELEGRAM_ID))
+                .thenReturn(Mono.just(LINKED_INTERNAL_ID));
+
+        StepVerifier.create(restIdentityAuthService.resolve("telegram", "init-data", null))
+                .assertNext(identity -> {
+                    assertThat(identity.internalId()).isEqualTo(LINKED_INTERNAL_ID);
                     assertThat(identity.uploaderTgId()).isEqualTo(String.valueOf(TELEGRAM_ID));
                 })
                 .verifyComplete();
@@ -61,8 +83,10 @@ class RestIdentityAuthServiceTest {
     @Test
     void resolveTelegramExplicitAuthTypeWorks() {
         stubTelegramAuth();
+        when(userIdentityRepository.findByTelegramId(anyLong())).thenReturn(Mono.empty());
+
         StepVerifier.create(restIdentityAuthService.resolve("telegram", "init-data", null))
-                .assertNext(identity -> assertThat(identity.internalId()).isEqualTo(INTERNAL_ID))
+                .assertNext(identity -> assertThat(identity.internalId()).isEqualTo(LEGACY_INTERNAL_ID))
                 .verifyComplete();
     }
 

@@ -34,6 +34,9 @@ import java.util.Map;
  *
  * <p>Accepts binary encrypted blobs via streaming and delegates
  * to {@link FileService} for authentication, authorization, and storage.
+ *
+ * <p>Identity headers: {@code X-Auth-Type} ({@code telegram} default, or {@code wallet}),
+ * plus {@code X-Telegram-Init-Data} or {@code X-Auth-Token} respectively.
  */
 @Slf4j
 @RestController

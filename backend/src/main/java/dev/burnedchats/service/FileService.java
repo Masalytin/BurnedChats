@@ -21,6 +21,10 @@ import java.util.UUID;
  * <p>Orchestrates authentication, authorization, validation,
  * file storage, and metadata persistence for encrypted file transfers.
  *
+ * <p>Caller {@code internalId} is resolved by {@link RestIdentityAuthService}, which
+ * maps Telegram users through {@code UserIdentityRepository} (linked wallet profiles)
+ * or wallet session tokens directly.
+ *
  * @see FileStorageService
  * @see FileMetadataRepository
  * @see FileValidationService

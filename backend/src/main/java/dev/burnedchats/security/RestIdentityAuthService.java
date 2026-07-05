@@ -1,6 +1,7 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.AuthenticationException;
+import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.util.InternalIds;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,8 @@ import java.util.Locale;
  *
  * <p>Parallels {@link StompIdentityAuthService} handshake rules: {@code telegram} is the
  * default when {@code X-Auth-Type} is absent; wallet uses opaque {@code X-Auth-Token}.
+ * Telegram identity is resolved via {@link UserIdentityRepository} so linked accounts
+ * (Telegram bound to an existing wallet profile) share one {@code internalId}.
  */
 @Service
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class RestIdentityAuthService {
 
     private final TelegramAuthService telegramAuthService;
     private final SessionTokenService sessionTokenService;
+    private final UserIdentityRepository userIdentityRepository;
 
     /**
      * Resolve {@code internalId} from REST auth headers.
@@ -58,8 +62,12 @@ public class RestIdentityAuthService {
             if (tgId == null) {
                 throw AuthenticationException.missingField("user.id");
             }
-            String internalId = InternalIds.forTelegramId(tgId);
-            return new ResolvedIdentity(internalId, String.valueOf(tgId));
+            return tgId;
+        }).flatMap(tgId -> {
+            String legacyInternalId = InternalIds.forTelegramId(tgId);
+            return userIdentityRepository.findByTelegramId(tgId)
+                    .defaultIfEmpty(legacyInternalId)
+                    .map(internalId -> new ResolvedIdentity(internalId, String.valueOf(tgId)));
         });
     }
 

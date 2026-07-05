@@ -58,6 +58,9 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
     private static final String WALLET_OWNER_INTERNAL_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     private static final String WALLET_MEMBER_INTERNAL_ID = "bbbbbbbb-bbbb-cccc-dddd-ffffffffffff";
     private static final String WALLET_OUTSIDER_INTERNAL_ID = "cccccccc-bbbb-cccc-dddd-111111111111";
+    private static final String LINKED_WALLET_INTERNAL_ID = "dddddddd-bbbb-cccc-dddd-222222222222";
+    private static final String LINKED_WALLET_ADDRESS = "eq" + "d".repeat(46);
+    private static final long LINKED_TELEGRAM_ID = 4004L;
     private static final String WALLET_OWNER_ADDRESS = "eq" + "a".repeat(46);
     private static final String WALLET_OUTSIDER_ADDRESS = "eq" + "c".repeat(46);
     private static final int MULTI_CHUNK_SIZE = 32 * 1024;
@@ -143,6 +146,19 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
                 .expectHeader().contentType(MediaType.APPLICATION_JSON)
                 .expectBody()
                 .jsonPath("$.error").isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test
+    void linkedTelegramToWalletUploadThenDownloadMatchesBytes() {
+        seedLinkedWalletUser(LINKED_WALLET_INTERNAL_ID, LINKED_WALLET_ADDRESS, LINKED_TELEGRAM_ID);
+        stubTelegramAuthForTgId(LINKED_TELEGRAM_ID);
+        String sessionId = createLinkedTelegramSession(LINKED_WALLET_INTERNAL_ID, LINKED_TELEGRAM_ID);
+        byte[] blob = deterministicBlob(512);
+
+        String fileId = uploadFile(sessionId, blob);
+        byte[] downloaded = downloadFile(fileId, blob.length, 1);
+
+        assertThat(downloaded).isEqualTo(blob);
     }
 
     @Test
@@ -301,6 +317,29 @@ class FileDownloadRestIT extends StompIntegrationTestBase {
                 .initiatorTelegramId(null)
                 .responderInternalId(WALLET_MEMBER_INTERNAL_ID)
                 .responderTelegramId(null)
+                .status(SessionStatus.ACTIVE)
+                .createdAt(Instant.now())
+                .lastActivityAt(Instant.now())
+                .build();
+        sessionRepository.save(session).block(Duration.ofSeconds(10));
+        return sessionId;
+    }
+
+    private void seedLinkedWalletUser(String internalId, String walletAddress, long telegramId) {
+        UnifiedUser user = new UnifiedUser(
+                internalId, AuthType.WALLET, "Linked User", telegramId, walletAddress, null);
+        Boolean saved = userIdentityRepository.save(user).block(Duration.ofSeconds(10));
+        assertThat(saved).isTrue();
+    }
+
+    private String createLinkedTelegramSession(String ownerInternalId, long ownerTelegramId) {
+        String sessionId = UUID.randomUUID().toString();
+        Session session = Session.builder()
+                .id(sessionId)
+                .initiatorInternalId(ownerInternalId)
+                .initiatorTelegramId(ownerTelegramId)
+                .responderInternalId(InternalIds.forTelegramId(RESPONDER_TELEGRAM_ID))
+                .responderTelegramId(RESPONDER_TELEGRAM_ID)
                 .status(SessionStatus.ACTIVE)
                 .createdAt(Instant.now())
                 .lastActivityAt(Instant.now())
