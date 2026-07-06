@@ -2,7 +2,7 @@ import { Address, Cell, beginCell, toNano } from '@ton/core';
 import { TonConnectUIError, type TonConnectUI } from '@tonconnect/ui';
 import { describe, expect, it, vi } from 'vitest';
 import { sendTonTransaction } from '@/ton/connector';
-import { STAKE_ATTACHED_TON } from '@/ton/estimateStakeTon';
+import { STAKE_FEE_PATH_ATTACHED_TON, STAKE_FORWARD_TON, estimateStakeTon } from '@/ton/estimateStakeTon';
 import type { TransactionMessage } from '@/ton/types';
 import {
   buildClaimMsg,
@@ -62,16 +62,20 @@ describe('transactionBuilder payload encoding', () => {
     expect(responseDest?.equals(recipientWallet)).toBe(false);
   });
 
-  it('buildStakeMsg attaches excluded-path TON, forwards 5 TON, routes excess to the user wallet', () => {
+  it('buildStakeMsg with feePath attaches fee-path TON (stakeTx default, IMP-STKGATE-02)', () => {
     const userWallet = Address.parse(`0:${'33'.repeat(32)}`);
+    const stakeEstimate = estimateStakeTon({ feePath: true });
     const msg = buildStakeMsg({
       stakingMaster: ADDR,
       userJettonWallet: ADDR,
       amount: 5n * 10n ** 9n,
       tier: 2,
       responseAddress: userWallet,
+      feePath: true,
     });
-    expect(msg.amount).toBe(String(STAKE_ATTACHED_TON));
+    expect(msg.amount).toBe(String(STAKE_FEE_PATH_ATTACHED_TON));
+    expect(BigInt(msg.amount)).toBe(stakeEstimate.recommendedNano);
+    expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(stakeEstimate.minimumNano);
     const s = firstBocCellBase64(msg.payload).beginParse();
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
     s.loadUintBig(64);
@@ -81,7 +85,7 @@ describe('transactionBuilder payload encoding', () => {
     expect(responseDest?.equals(userWallet)).toBe(true);
     expect(s.loadBit()).toBe(false);
     // forward_ton_amount must fund StakingMaster GasForwardStakeJetton (3.5) + pool legs.
-    expect(s.loadCoins()).toBe(5_000_000_000n);
+    expect(s.loadCoins()).toBe(STAKE_FORWARD_TON);
     expect(s.preloadUint(1)).toBe(1);
     expect(s.loadUint(1)).toBe(1);
     const fwdRef = s.loadRef();

@@ -156,6 +156,8 @@ export function StakeModal({
       estimateStakeTon({
         hasExistingStakeInTier: existingStakeInTierNano > 0n,
         hasPendingReward: pendingRewardInTierNano > 0n,
+        /** Match stakeTx fee-path attach (IMP-STKGATE-02). */
+        feePath: true,
       }),
     [existingStakeInTierNano, pendingRewardInTierNano],
   );

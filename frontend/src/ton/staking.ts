@@ -588,6 +588,8 @@ export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Pr
     amount: params.amount,
     tier: params.tier,
     responseAddress: Address.parse(params.walletAddress.trim()),
+    /** Fee-path attach passes on-chain gate before excluded snapshot sync (IMP-STKGATE-02). */
+    feePath: true,
   });
   const tx = await r.sendTransactionImpl([msg]);
   return { tx, netStakedNano: netEstimate.netNano };
