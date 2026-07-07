@@ -9,6 +9,7 @@
         "test:coverage": "c8 --check-coverage --lines 80 --include \"wrappers/**/*.ts\" --include \"tests/helpers.ts\" --include \"tests/staking-helpers.ts\" npm test",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
+        "misti": "misti -A tact.config.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "deploy:testnet": "npm run build && blueprint run deployTestnet",
@@ -28,6 +29,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.28.0",
+        "@nowarp/misti": "0.9.0",
         "@tact-lang/compiler": "1.6.13",
         "@ton-community/func-js": ">=0.10.0",
         "@ton/blueprint": ">=0.40.0 <0.45.0",
