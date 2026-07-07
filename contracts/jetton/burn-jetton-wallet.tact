@@ -594,12 +594,6 @@ contract BurnJettonWallet(
         let parts = computeFeeParts(amount, burnBps, cfg.stakeBps, cfg.treasBps);
         require(parts.burn + parts.staking + parts.treasury + parts.net == amount, "Fee split invariant");
 
-        self.balance -= amount;
-        require(self.balance >= 0, "Incorrect balance after send");
-
-        let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
-        let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
-
         let poolFwdTon = max(
             gasPoolForwardMin,
             gasPoolToMasterAccrual + fwd + minTonsForStorage + gasPoolForwardEpsilon,
@@ -608,6 +602,19 @@ contract BurnJettonWallet(
             perInternalDeployTon,
             poolFwdTon + fwd + minTonsForStorage + ton("0.02"),
         );
+        let treasFwdTon: Int = 1;
+        let treasDeliverTon = max(
+            perInternalDeployTon,
+            treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
+        );
+        let feeFanoutTonRequired = deliverTon + poolDeliverTon + treasDeliverTon + ton("0.06") + ton("0.05");
+        require(ctx.value >= feeFanoutTonRequired, "Insufficient TON for fee fanout");
+
+        self.balance -= amount;
+        require(self.balance >= 0, "Incorrect balance after send");
+
+        let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
+        let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
 
         deploy(DeployParameters {
             value: deliverTon,
@@ -640,12 +647,6 @@ contract BurnJettonWallet(
         });
 
         // Minimal forward so Treasury (jetton owner) receives `JettonNotification` for total_received stats (P5-3-2-1).
-        let treasFwdTon: Int = 1;
-        let treasDeliverTon = max(
-            perInternalDeployTon,
-            treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
-        );
-
         deploy(DeployParameters {
             value: treasDeliverTon,
             bounce: true,
@@ -704,7 +705,11 @@ contract BurnJettonWallet(
         let ctx = context();
         let fwd = ctx.readForwardFee();
         let recipientForwards = 1 + sign(msg.forwardTonAmount);
-        let minTonRequired = senderExcludedLocal || destExcludedLocal ? minTonExcludedPath : minTonFeePath;
+        let routesLiveResolve = !(senderExcludedLocal || destExcludedLocal)
+            && msg.forwardTonAmount >= minForwardForLiveExcludedCheck;
+        let minTonRequired = (senderExcludedLocal || destExcludedLocal || routesLiveResolve)
+            ? minTonExcludedPath
+            : minTonFeePath;
         require(
             ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
             "Insufficient amount of TON attached",

@@ -41,7 +41,7 @@ export async function wireMasterJettonWallet(
 }
 
 /** Deploy staking master's jetton wallet (if needed) and sync fee config so exclusions apply on JW routing. */
-async function primeStakingMasterJettonWallet(
+export async function primeStakingMasterJettonWallet(
     jettonMaster: SandboxContract<BurnJettonMaster>,
     deployer: SandboxContract<TreasuryContract>,
     stakingMaster: SandboxContract<StakingMaster>,
