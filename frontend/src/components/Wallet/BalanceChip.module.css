@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--bc-spacing-sm);
-  max-width: min(13.75rem, 40vw);
+  max-width: min(16rem, 48vw);
   min-height: var(--bc-touch-target);
   padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
   border-radius: var(--bc-radius-full);
@@ -38,6 +38,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .chipAvatar {
