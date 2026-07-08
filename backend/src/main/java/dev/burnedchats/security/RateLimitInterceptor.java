@@ -5,8 +5,8 @@ import dev.burnedchats.handler.WebSocketExceptionHandler;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.service.RateLimitService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -33,7 +33,6 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RateLimitInterceptor implements ChannelInterceptor {
 
     private static final Duration RATE_LIMIT_TIMEOUT = Duration.ofSeconds(30);
@@ -43,6 +42,21 @@ public class RateLimitInterceptor implements ChannelInterceptor {
     private final RateLimitService rateLimitService;
     private final StompUserMessenger stompUserMessenger;
     private final WebSocketExceptionHandler webSocketExceptionHandler;
+
+    /**
+     * {@code StompUserMessenger} is injected lazily to break the startup cycle:
+     * it needs {@code SimpMessagingTemplate} from the broker configuration, which in turn
+     * needs {@link dev.burnedchats.config.WebSocketConfig} → this interceptor. Same pattern
+     * as {@link RoomTopicSubscribeInterceptor}'s lazy {@code clientOutboundChannel}.
+     */
+    public RateLimitInterceptor(
+            RateLimitService rateLimitService,
+            @Lazy StompUserMessenger stompUserMessenger,
+            WebSocketExceptionHandler webSocketExceptionHandler) {
+        this.rateLimitService = rateLimitService;
+        this.stompUserMessenger = stompUserMessenger;
+        this.webSocketExceptionHandler = webSocketExceptionHandler;
+    }
 
     /**
      * Mapping of STOMP destinations to rate limit types.
