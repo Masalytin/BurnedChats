@@ -1023,5 +1023,14 @@
       "cancelled": "Vérification annulée.",
       "failed": "Échec de la vérification. Veuillez réessayer."
     }
+  },
+
+  "joinLanding": {
+    "title": "Vous êtes invité dans une salle",
+    "subtitle": "Choisissez comment rejoindre",
+    "openInTelegram": "Ouvrir dans Telegram",
+    "continueInBrowser": "Continuer dans le navigateur",
+    "invalidTitle": "Lien d'invitation invalide",
+    "invalidHint": "Le lien est manquant ou incorrect. Demandez au propriétaire une nouvelle invitation."
   }
 }

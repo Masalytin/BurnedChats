@@ -1,0 +1,1 @@
+export { JoinLanding } from './JoinLanding';

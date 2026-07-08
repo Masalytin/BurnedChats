@@ -1023,5 +1023,14 @@
       "cancelled": "验证已取消。",
       "failed": "验证失败。请重试。"
     }
+  },
+
+  "joinLanding": {
+    "title": "您被邀请加入房间",
+    "subtitle": "选择加入方式",
+    "openInTelegram": "在 Telegram 中打开",
+    "continueInBrowser": "在浏览器中继续",
+    "invalidTitle": "邀请链接无效",
+    "invalidHint": "链接缺失或不正确。请向房间所有者索取新的邀请。"
   }
 }
