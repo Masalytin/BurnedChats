@@ -932,6 +932,39 @@ public class HmacUtils {
 
 ## Governance on-chain (Phase 5)
 
+### Модель веса голоса и анти-flash-stake (IMP-FAUDIT-F01 / F-2)
+
+**Инвариант (после фикса F-2):** знаменатель кворума и эффективный вес голоса
+согласованы по **локу капитала**, а не по live-стейку на момент релея.
+
+1. **Знаменатель кворума** фиксируется при создании proposal: Governor запрашивает
+   у StakingMaster `RequestTotalVpSnapshot` → `TotalVpSnapshotReply.totalVp`,
+   считает `quorumRequired = totalVp × quorumPercent / 100` и деплоит Proposal
+   с этим знаменателем (IMP-AUDIT-02).
+2. **Вес голоса** при `CastVote` → `GovernorVoteRelay` считается как
+   `min(claimedVp, Σ VP стейков с unlockTime > proposal.endTime)`.
+   StakingMaster использует `computeOwnerVotingPowerLockedBeyond(voter, voteEndTime)`;
+   `voteEndTime` передаёт Governor из карты `proposalEndTimeById` (тот же
+   `endTime`, что записан в init Proposal).
+3. **Следствие:** Flexible-тир (`durationSeconds = 0` → `unlockTime = startTime`)
+   **не даёт права голоса** — капитал можно вывести до конца голосования.
+   Ближайший голосующий тир по умолчанию — Silver (лок ~180 дней) при окнах
+   голосования 1–7 дней.
+
+**Что закрыто:** путь «post-snapshot стейк в Flexible → голос → анстейк» —
+капитало-эффективный захват кворума без lock-издержек (находка F-2,
+[REPORT-contracts.md](../improvements/full-audit-2026-07/REPORT-contracts.md)).
+
+**Остаточный риск (осознанный, не полный Compound-style prior-votes):** адрес
+может застейкать **после** снапшота в locked-тир (Silver+) и голосовать VP,
+которого не было в знаменателе. Атака перестаёт быть flash: капитал блокируется
+на 180+ дней. Полный снапшот VP каждого адреса на момент создания proposal
+отложен (см. decision-log).
+
+Decision log:
+[IMP-FAUDIT-F01 vote snapshot approach](../improvements/full-audit-2026-07/decisions/IMP-FAUDIT-F01-vote-snapshot-approach.md).
+Полная сверка остальных разделов SECURITY.md с кодом — [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
+
 ### Cashback-петля между auto-cashback контрактами (RC-2)
 
 **Класс уязвимости:** два (или более) служебных контракта с безусловным или рефлексивным
