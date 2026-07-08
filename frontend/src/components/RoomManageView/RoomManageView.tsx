@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
@@ -729,12 +729,19 @@ export const RoomManageView = memo(function RoomManageView({
     }
   }, [bansExpanded, onRefreshBans]);
 
-  // Auto-fetch members when section is expanded (always refresh, like bans)
+  // Auto-fetch members when section is expanded (always refresh, like bans).
+  // Read the callback through a ref: App.tsx passes an inline arrow whose
+  // identity changes on every parent render, and keeping it in the deps caused
+  // an infinite fetch loop (render -> effect -> publish -> response -> render)
+  // that tripped the server GENERAL rate limit and killed the WS connection.
+  const onFetchMembersRef = useRef(onFetchMembers);
+  useEffect(() => { onFetchMembersRef.current = onFetchMembers; }, [onFetchMembers]);
+
   useEffect(() => {
     if (membersExpanded) {
-      onFetchMembers();
+      onFetchMembersRef.current();
     }
-  }, [membersExpanded, onFetchMembers]);
+  }, [membersExpanded]);
 
   const handleCopyInviteUrl = useCallback(async (url: string) => {
     try {
