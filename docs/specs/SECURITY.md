@@ -614,9 +614,27 @@ Burned Chats использует **эшелонированную** антис�
 
 ### Слой 0 — Rate limiting (per `internalId`)
 
-- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis sliding-window (`rate:{type}:{internalId}`).
+- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis sliding-window (`ratelimit:{type}:{internalId}`).
 - Закрывает **флуд от одной идентичности** (search, message, session create и др.).
 - **Не** останавливает Sybil: новая Telegram/wallet-идентичность получает свой счётчик.
+- **STOMP SEND (IMP-WSRL-01):** при превышении лимита в `RateLimitInterceptor` inbound-фрейм **отбрасывается** (`null`), клиент получает `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` на `/user/queue/errors` через `StompUserMessenger` — WebSocket **не** закрывается (в отличие от STOMP ERROR).
+- **`/app/heartbeat`:** whitelist — не учитывается в `GENERAL`, чтобы presence-heartbeat не рвал соединение после выжженного общего бакета.
+- **Room read-only STOMP:** `/app/room.getMembers`, `/app/room.getPresence`, `/app/room.getBans` → `ROOM_READ` (30 req / min), отдельно от `GENERAL` (100 req / min).
+
+| `RateLimitType` | Лимит | Назначение |
+|-----------------|-------|------------|
+| `SEARCH` | 10 / min | `/app/search` |
+| `SESSION_CREATE` | 3 / min | после PoW на `/app/session.create` |
+| `MESSAGE` | 60 / min | send/sync |
+| `SESSION_ACTION` | 10 / min | accept/reject/verification |
+| `HANDSHAKE` | 10 / min | key exchange |
+| `FILE_UPLOAD` | 10 / min | REST upload |
+| `GENERAL` | 100 / min | прочие `/app/*` без явного маппинга |
+| `MESSAGE_EDIT` | 10 / min | edit |
+| `MESSAGE_DELETE` | 30 / min | delete |
+| `POW_CHALLENGE` | 10 / min | `/app/pow.challenge` |
+| `ROOM_READ` | 30 / min | room.getMembers / getPresence / getBans |
+| *(whitelist)* | — | `/app/heartbeat` |
 
 На gated-маршруте `session.create` rate-limit применяется **после** успешной PoW-верификации (DESIGN §6.2), чтобы атакующий не сжигал чужой cap до доказательства work.
 

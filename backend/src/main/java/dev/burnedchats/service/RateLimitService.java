@@ -108,7 +108,14 @@ public class RateLimitService {
          * <p>Separate from gated-action limits; prevents Redis/CPU flood on challenge creation
          * without requiring PoW on the issuance route itself (DESIGN.md §6.1).
          */
-        POW_CHALLENGE(10, Duration.ofMinutes(1));
+        POW_CHALLENGE(10, Duration.ofMinutes(1)),
+
+        /**
+         * Room read-only queries ({@code room.getMembers}, {@code room.getPresence},
+         * {@code room.getBans}) — separate from {@link #GENERAL} so presence heartbeat
+         * and room UI polls do not share one bucket.
+         */
+        ROOM_READ(30, Duration.ofMinutes(1));
 
         private final int maxRequests;
         private final Duration window;

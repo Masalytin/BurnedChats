@@ -1,6 +1,8 @@
 package dev.burnedchats.security;
 
 import dev.burnedchats.exception.RateLimitException;
+import dev.burnedchats.handler.WebSocketExceptionHandler;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.service.RateLimitService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import lombok.RequiredArgsConstructor;
@@ -22,16 +24,10 @@ import java.util.Map;
 /**
  * Channel interceptor for rate limiting STOMP messages (5.1.6).
  *
- * <p>Applies rate limits to different types of requests:
- * <ul>
- *   <li>Search requests: 10/min</li>
- *   <li>Session creation: 3/min</li>
- *   <li>Messages: 60/min</li>
- *   <li>Session actions: 10/min</li>
- * </ul>
- *
- * <p>Rate limit violations result in a RateLimitException being thrown,
- * which should be handled by the error handler.
+ * <p>Applies rate limits to different types of requests. When a limit is exceeded on
+ * {@link StompCommand#SEND}, the frame is dropped ({@code null}) and a structured
+ * {@code RATE_LIMIT_EXCEEDED} payload is sent to {@code /user/queue/errors} so the
+ * WebSocket stays open (STOMP ERROR would close the connection).
  *
  * @see RateLimitService
  */
@@ -41,8 +37,12 @@ import java.util.Map;
 public class RateLimitInterceptor implements ChannelInterceptor {
 
     private static final Duration RATE_LIMIT_TIMEOUT = Duration.ofSeconds(30);
+    private static final String ERRORS_DESTINATION = "/queue/errors";
+    private static final String HEARTBEAT_DESTINATION = "/app/heartbeat";
 
     private final RateLimitService rateLimitService;
+    private final StompUserMessenger stompUserMessenger;
+    private final WebSocketExceptionHandler webSocketExceptionHandler;
 
     /**
      * Mapping of STOMP destinations to rate limit types.
@@ -59,7 +59,10 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             Map.entry("/app/message.delete", RateLimitType.MESSAGE_DELETE),
             Map.entry("/app/room.message.delete", RateLimitType.MESSAGE_DELETE),
             Map.entry("/app/handshake.key", RateLimitType.HANDSHAKE),
-            Map.entry("/app/verification.confirm", RateLimitType.SESSION_ACTION)
+            Map.entry("/app/verification.confirm", RateLimitType.SESSION_ACTION),
+            Map.entry("/app/room.getMembers", RateLimitType.ROOM_READ),
+            Map.entry("/app/room.getPresence", RateLimitType.ROOM_READ),
+            Map.entry("/app/room.getBans", RateLimitType.ROOM_READ)
     );
 
     @Override
@@ -75,21 +78,25 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        // Get the rate limit type for this destination
-        RateLimitType rateLimitType = DESTINATION_RATE_LIMITS.get(destination);
-        if (rateLimitType == null) {
-            // Apply general rate limit for unknown destinations
-            rateLimitType = RateLimitType.GENERAL;
-        }
-
-        // Get user ID from principal
-        Principal principal = accessor.getUser();
-        if (principal == null) {
-            // No principal, skip rate limiting (auth interceptor should have rejected)
+        if (HEARTBEAT_DESTINATION.equals(destination)) {
             return message;
         }
 
-        String userId = extractUserId(principal);
+        RateLimitType rateLimitType = DESTINATION_RATE_LIMITS.get(destination);
+        if (rateLimitType == null) {
+            rateLimitType = RateLimitType.GENERAL;
+        }
+
+        Principal principal = accessor.getUser();
+        if (principal == null) {
+            return message;
+        }
+
+        if (!(principal instanceof AppPrincipal appPrincipal)) {
+            return message;
+        }
+
+        String userId = appPrincipal.getInternalId();
         if (userId == null) {
             return message;
         }
@@ -100,7 +107,18 @@ public class RateLimitInterceptor implements ChannelInterceptor {
         } catch (RateLimitException e) {
             LOG.warn("Rate limit exceeded for user {} on {}: retry after {}s",
                     userId, destination, e.getRetryAfterSeconds());
-            throw e;
+            publishRateLimitError(appPrincipal, e);
+            return null;
+        }
+    }
+
+    private void publishRateLimitError(AppPrincipal principal, RateLimitException exception) {
+        Map<String, Object> payload = webSocketExceptionHandler.handleRateLimitException(exception);
+        try {
+            stompUserMessenger.convertAndSendToUser(principal, ERRORS_DESTINATION, payload);
+        } catch (Exception sendError) {
+            LOG.warn("Failed to publish rate limit error for user {}: {}",
+                    principal.getInternalId(), sendError.getMessage());
         }
     }
 
@@ -122,15 +140,5 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             }
             throw e;
         }
-    }
-
-    /**
-     * Extract user ID from principal.
-     */
-    private String extractUserId(Principal principal) {
-        if (principal instanceof AppPrincipal appPrincipal) {
-            return appPrincipal.getInternalId();
-        }
-        return null;
     }
 }
