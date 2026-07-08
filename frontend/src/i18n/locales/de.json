@@ -1023,5 +1023,14 @@
       "cancelled": "Verifizierung abgebrochen.",
       "failed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
     }
+  },
+
+  "joinLanding": {
+    "title": "Sie wurden in einen Raum eingeladen",
+    "subtitle": "Wählen Sie, wie Sie beitreten möchten",
+    "openInTelegram": "In Telegram öffnen",
+    "continueInBrowser": "Im Browser fortfahren",
+    "invalidTitle": "Ungültiger Einladungslink",
+    "invalidHint": "Der Link fehlt oder ist fehlerhaft. Bitten Sie den Raumbesitzer um eine neue Einladung."
   }
 }

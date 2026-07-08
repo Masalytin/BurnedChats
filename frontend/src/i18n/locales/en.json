@@ -1206,5 +1206,14 @@
       "cancelled": "Verification cancelled.",
       "failed": "Verification failed. Please try again."
     }
+  },
+
+  "joinLanding": {
+    "title": "You're invited to a room",
+    "subtitle": "Choose how you'd like to join",
+    "openInTelegram": "Open in Telegram",
+    "continueInBrowser": "Continue in browser",
+    "invalidTitle": "Invalid invite link",
+    "invalidHint": "This link is missing or incorrect. Ask the room owner for a new invite."
   }
 }

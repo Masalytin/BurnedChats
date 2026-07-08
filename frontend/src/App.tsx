@@ -50,6 +50,7 @@ import { RoomChatRoom } from './components/Chat/RoomChatRoom';
 import { RoomKeyRecoveryModal } from './components/RoomKeyRecoveryModal';
 import { CreateRoomView } from './components/CreateRoomView';
 import { JoinRoomView } from './components/JoinRoomView';
+import { JoinLanding } from './components/JoinLanding';
 import { RoomJoinRequestsView } from './components/RoomJoinRequestsView';
 import { RoomManageView } from './components/RoomManageView';
 import { ToastProvider, useToast } from './components/Toast';
@@ -67,6 +68,13 @@ import { LazyWalletProvider } from './components/Wallet/LazyWalletProvider';
 import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
+import {
+  buildTelegramInviteDeepLink,
+  clearPendingInviteToken,
+  parseInviteFragment,
+  readPendingInviteToken,
+  stashPendingInviteToken,
+} from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
 import {
@@ -155,7 +163,7 @@ function AppContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isLoading: isAuthLoading, isAuthenticated, getCredentials } = useAuth();
+  const { user, isLoading: isAuthLoading, isAuthenticated, login, getCredentials } = useAuth();
   const { 
     isReady, 
     isInTelegram,
@@ -792,6 +800,12 @@ function AppContent() {
   // the deep-link effect from re-firing (and resetting state) on WS reconnect.
   const inviteSetupTokenRef = useRef<string | null>(null);
 
+  // Web invite route (/join#invite_{token}) — IMP-WEBINVITE-02
+  const isJoinRoute = location.pathname === '/join';
+  const [joinRouteToken, setJoinRouteToken] = useState<string | null>(null);
+  const [joinRouteInvalid, setJoinRouteInvalid] = useState(false);
+  const [joinLoginBusy, setJoinLoginBusy] = useState(false);
+
   // Active room ID for the requests view (P2-2.2.5)
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
@@ -1380,6 +1394,74 @@ function AppContent() {
       loadInviteInfo(token);
     }
   }, [isReady, startParam, isConnected, resetJoinRoom, loadInviteInfo]);
+
+  // Web invite route: parse fragment and stash token before wallet-login redirects
+  useEffect(() => {
+    if (!isJoinRoute) return;
+
+    let token = parseInviteFragment(window.location.hash);
+    if (!token && environment === 'browser') {
+      token = readPendingInviteToken();
+    }
+
+    if (!token) {
+      setJoinRouteInvalid(true);
+      setJoinRouteToken(null);
+      return;
+    }
+
+    setJoinRouteInvalid(false);
+    setJoinRouteToken(token);
+    if (environment === 'browser' && !isAuthenticated) {
+      stashPendingInviteToken(token);
+    }
+  }, [isJoinRoute, environment, isAuthenticated]);
+
+  // Web invite route: enter join flow when auth is ready (browser or Telegram MiniApp)
+  useEffect(() => {
+    if (!isJoinRoute || !isReady || joinRouteInvalid) return;
+
+    let token = joinRouteToken;
+    if (!token && environment === 'browser') {
+      token = readPendingInviteToken();
+    }
+    if (!token) return;
+
+    if (environment === 'browser' && !isAuthenticated) return;
+
+    if (inviteSetupTokenRef.current !== token) {
+      inviteSetupTokenRef.current = token;
+      resetJoinRoom();
+      setInviteToken(token);
+      setCurrentView('join-room');
+      clearPendingInviteToken();
+    }
+
+    if (isConnected) {
+      loadInviteInfo(token);
+    }
+  }, [
+    isJoinRoute,
+    isReady,
+    joinRouteInvalid,
+    joinRouteToken,
+    environment,
+    isAuthenticated,
+    isConnected,
+    resetJoinRoom,
+    loadInviteInfo,
+  ]);
+
+  const handleJoinBrowserLogin = useCallback(async () => {
+    setJoinLoginBusy(true);
+    try {
+      await login();
+    } catch {
+      toast.error(t('walletLogin.errorGeneric'), { title: t('walletLogin.title') });
+    } finally {
+      setJoinLoginBusy(false);
+    }
+  }, [login, toast, t]);
 
   // Telegram Mini App completes wallet ↔ Telegram linking (start_param lt_<challenge>)
   useEffect(() => {
@@ -2531,6 +2613,32 @@ function AppContent() {
         <LoadingOverlay message="Loading BurnedChats..." />
       </>
     );
+  }
+
+  if (isJoinRoute) {
+    if (joinRouteInvalid || !joinRouteToken) {
+      return wrapWalletProvider(
+        <>
+          <JoinLanding valid={false} />
+        </>
+      );
+    }
+
+    if (environment === 'browser' && !isAuthenticated) {
+      return wrapWalletProvider(
+        <>
+          <JoinLanding
+            valid
+            token={joinRouteToken}
+            onOpenTelegram={() => {
+              window.location.href = buildTelegramInviteDeepLink(joinRouteToken);
+            }}
+            onContinueInBrowser={() => void handleJoinBrowserLogin()}
+            isLoginBusy={joinLoginBusy}
+          />
+        </>
+      );
+    }
   }
 
   if (environment === 'browser' && !isAuthenticated) {
