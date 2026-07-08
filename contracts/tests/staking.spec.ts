@@ -593,7 +593,8 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
         });
         expect(unstakeTiny.transactions).toHaveTransaction({ success: true });
 
-        const expectedEmitted = 120n * EMISSION_NANO_PER_SEC;
+        // IMP-FAUDIT-F03: Flexible-only → only the 5% tier slice is credited/consumed.
+        const expectedEmitted = (120n * EMISSION_NANO_PER_SEC * 5n) / 100n;
         expect(await stakingMaster.getGetEmittedSoFar()).toBe(expectedEmitted);
         expect(await stakingMaster.getGetRewardPerShare(0n)).toBeGreaterThan(0n);
     });
@@ -937,7 +938,12 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
 
         it('near end of emission schedule emitted_so_far clamps to Phase 1 budget', async () => {
             const env = await setupStakingEnvironment('https://example.com/md-p5224-phase2.json');
-            const user = await env.blockchain.treasury('phase2');
+            // Stake all four tiers so every reward-share slice is occupied — otherwise
+            // IMP-FAUDIT-F03 forfeits empty-tier slices and the budget is not exhausted.
+            const flex = await env.blockchain.treasury('phase2-flex');
+            const silver = await env.blockchain.treasury('phase2-silver');
+            const gold = await env.blockchain.treasury('phase2-gold');
+            const diamond = await env.blockchain.treasury('phase2-diamond');
 
             await env.jettonMaster.sendMint(
                 env.deployer.getSender(),
@@ -948,14 +954,21 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
             );
             // IMP-PREMNT-04: fund the full emission budget so the schedule can emit to its cap.
             await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
-            await mintAndSyncUser(env, user, MIN_STAKE_NANO * 2n);
-            await stakeAs(env, user, 0, MIN_STAKE_NANO);
+            await mintAndSyncUser(env, flex, MIN_STAKE_NANO * 2n);
+            await mintAndSyncUser(env, silver, MIN_STAKE_NANO);
+            await mintAndSyncUser(env, gold, MIN_STAKE_NANO);
+            await mintAndSyncUser(env, diamond, MIN_STAKE_NANO);
+            await stakeAs(env, flex, 0, MIN_STAKE_NANO);
+            await stakeAs(env, silver, 1, MIN_STAKE_NANO);
+            await stakeAs(env, gold, 2, MIN_STAKE_NANO);
+            await stakeAs(env, diamond, 3, MIN_STAKE_NANO);
 
             advanceTime(env.blockchain, 94608000 + 5000);
-            expect((await tickEmissionViaMicroUnstake(env, user)).transactions).toHaveTransaction({ success: true });
+            expect((await tickEmissionViaMicroUnstake(env, flex)).transactions).toHaveTransaction({ success: true });
 
             const em = await env.stakingMaster.getGetEmittedSoFar();
             expect(em).toBeLessThanOrEqual(TOTAL_EMISSION_BUDGET_NANO);
+            // Integer truncation across four share slices may leave a few nano unallocated.
             expect(em).toBeGreaterThanOrEqual(TOTAL_EMISSION_BUDGET_NANO - 200_000_000n);
         });
     });

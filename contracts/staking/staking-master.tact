@@ -256,28 +256,36 @@ contract StakingMaster(
         self.totalStakeByTier.set(tier, prev - delta);
     }
 
-    fun accumulateTierRewardFromStakeFeeSlice(tier: Int, tierFeeSliceNano: Int) {
+    /// Accrues `tierFeeSliceNano` into the tier's rewardPerShare when the tier has stake.
+    /// Returns the amount actually applied (0 if the slice is zero or the tier is empty) —
+    /// empty-tier slices are forfeited so callers can credit/consume only distributed nano
+    /// (IMP-FAUDIT-F03 / F-1 variant a).
+    fun accumulateTierRewardFromStakeFeeSlice(tier: Int, tierFeeSliceNano: Int): Int {
         if (tierFeeSliceNano == 0) {
-            return;
+            return 0;
         }
         let tot = self.tierTotalStake(tier);
         if (tot == 0) {
-            return;
+            return 0;
         }
         let deltaRps = tierFeeSliceNano * self.RewardScale / tot;
         let prev = self.rewardPerShareForTier(tier);
         self.rewardPerShare.set(tier, prev + deltaRps);
+        return tierFeeSliceNano;
     }
 
-    /// Distributes staking-fee / emission `feeAmount` across tiers by TOKENOMICS default shares (5/10/25/60).
-    fun applyStakeFeeSlices(feeAmount: Int) {
+    /// Distributes staking-fee / emission `feeAmount` across tiers by TOKENOMICS shares.
+    /// Returns the sum of slices that landed in non-empty tiers (empty-tier slices forfeited).
+    fun applyStakeFeeSlices(feeAmount: Int): Int {
         require(feeAmount > 0, "Bad fee");
+        let distributed: Int = 0;
         let t: Int = 0;
         while (t <= self.MaxTier) {
             let slice = feeAmount * self.tierRewardSharePercent(t) / 100;
-            self.accumulateTierRewardFromStakeFeeSlice(t, slice);
+            distributed = distributed + self.accumulateTierRewardFromStakeFeeSlice(t, slice);
             t = t + 1;
         }
+        return distributed;
     }
 
     fun initUserRewardDebt(ownerAddr: Address, tier: Int, stakeAmount: Int) {
@@ -300,7 +308,9 @@ contract StakingMaster(
     /// Phase 1 linear emission. Emission only accrues into `rewardPerShare` (and credits the
     /// pool) up to the funded reserve (`emissionFunded`) AND only while there are stakers to
     /// receive it. With no stakers the window is forfeited but neither the budget nor the
-    /// funding is consumed — keeping `emittedSoFar` exactly equal to what was distributed.
+    /// funding is consumed. Empty-tier slices of a non-zero pending are likewise forfeited
+    /// (IMP-FAUDIT-F03): only the sum of slices that land in non-empty tiers is credited to
+    /// the pool and added to `emittedSoFar` — keeping `emittedSoFar == Σ distributed`.
     fun tickEmission() {
         let nowTs = now();
 
@@ -339,20 +349,23 @@ contract StakingMaster(
             return;
         }
 
-        self.applyStakeFeeSlices(pending);
-
-        message(MessageParameters {
-            to: self.pool,
-            value: self.GasToPool,
-            bounce: true,
-            mode: SendPayGasSeparately,
-            body: CreditPoolBalance {
-                queryId: 0,
-                delta: pending,
-            }.toCell(),
-        });
-
-        self.emittedSoFar = self.emittedSoFar + pending;
+        // Only credit / consume slices that actually accrued into non-empty tiers.
+        // Empty-tier slices are forfeited as an unused window (IMP-FAUDIT-F03): keeps
+        // emittedSoFar == Σ distributed and avoids orphaning budget into pool_balance.
+        let distributed = self.applyStakeFeeSlices(pending);
+        if (distributed > 0) {
+            message(MessageParameters {
+                to: self.pool,
+                value: self.GasToPool,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: CreditPoolBalance {
+                    queryId: 0,
+                    delta: distributed,
+                }.toCell(),
+            });
+            self.emittedSoFar = self.emittedSoFar + distributed;
+        }
         self.lastEmitTime = nowTs;
     }
 

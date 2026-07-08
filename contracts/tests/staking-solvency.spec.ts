@@ -35,10 +35,21 @@ describe('IMP-PREMNT-04 — staking pool solvency', () => {
 
         it('emission accrual is clamped to the funded reserve, never beyond', async () => {
             const env = await setupStakingEnvironment('https://example.com/imp-premnt-04-clamp.json');
-            const user = await env.blockchain.treasury('clamp-staker');
+            // Occupy all tiers so IMP-FAUDIT-F03 does not forfeit empty-tier slices —
+            // this test isolates the funding gate, not orphan-slice policy.
+            const flex = await env.blockchain.treasury('clamp-flex');
+            const silver = await env.blockchain.treasury('clamp-silver');
+            const gold = await env.blockchain.treasury('clamp-gold');
+            const diamond = await env.blockchain.treasury('clamp-diamond');
 
-            await mintAndSyncUser(env, user, MIN_STAKE_NANO * 4n);
-            await stakeAs(env, user, 0, MIN_STAKE_NANO * 2n);
+            await mintAndSyncUser(env, flex, MIN_STAKE_NANO * 4n);
+            await mintAndSyncUser(env, silver, MIN_STAKE_NANO);
+            await mintAndSyncUser(env, gold, MIN_STAKE_NANO);
+            await mintAndSyncUser(env, diamond, MIN_STAKE_NANO);
+            await stakeAs(env, flex, 0, MIN_STAKE_NANO * 2n);
+            await stakeAs(env, silver, 1, MIN_STAKE_NANO);
+            await stakeAs(env, gold, 2, MIN_STAKE_NANO);
+            await stakeAs(env, diamond, 3, MIN_STAKE_NANO);
 
             // Fund a tiny reserve far below what the elapsed time alone would emit.
             const reserve = 500_000n;
@@ -47,13 +58,16 @@ describe('IMP-PREMNT-04 — staking pool solvency', () => {
 
             // 1000s * 3170 nano/s = 3_170_000 nano of time-based emission >> reserve.
             advanceTime(env.blockchain, 1000);
-            await tickEmissionViaMicroUnstake(env, user);
-            expect(await env.stakingMaster.getGetEmittedSoFar()).toBe(reserve);
+            await tickEmissionViaMicroUnstake(env, flex);
+            // Four share slices may truncate a few nano vs exact reserve.
+            const emitted = await env.stakingMaster.getGetEmittedSoFar();
+            expect(emitted).toBeLessThanOrEqual(reserve);
+            expect(emitted).toBeGreaterThan(reserve - 10n);
 
             // Reserve exhausted: a further tick must not emit a single nano more.
             advanceTime(env.blockchain, 1000);
-            await tickEmissionViaMicroUnstake(env, user);
-            expect(await env.stakingMaster.getGetEmittedSoFar()).toBe(reserve);
+            await tickEmissionViaMicroUnstake(env, flex);
+            expect(await env.stakingMaster.getGetEmittedSoFar()).toBe(emitted);
         });
 
         it('rejects FundEmissionReserve from a non-bootstrap caller and above the budget', async () => {
