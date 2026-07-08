@@ -853,6 +853,13 @@ public class SecurityConfig {
 
 **Security-заголовки (edge + frontend-контейнер):** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` — задаются в `nginx/prod.conf` и дублируются в `frontend/nginx.prod.conf`. Дополнительно на edge: `X-Frame-Options: DENY` (для Mini App достаточно `frame-ancestors` в CSP).
 
+**Invite URL fragment (IMP-WEBINVITE-01):** сервер генерирует канонический invite-URL
+`{app-domain}/join#invite_{token}`. Токен размещается в **URL-фрагменте** (`#`), а не в path
+или query: фрагмент не отправляется браузером на сервер, не попадает в nginx access-логи и не
+утекает через `Referer` при переходах на внешние origin. Клиент извлекает токен из
+`location.hash` (web) или `start_param` (legacy t.me deep link). Zero-knowledge инвариант
+не нарушается — сервер и ранее знал токен (Redis); меняется только транспортная гигиена.
+
 **`connect-src` (сеть из Mini App):** помимо `'self'`, API и WebSocket домена (`burnedchats.net`), `https://telegram.org`, мостов TON Connect (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` и соответствующие `wss://`) политика явно разрешает клиентский wallet RPC к Ton Center: `https://toncenter.com` (mainnet, без поддомена — wildcard `*.toncenter.com` его не покрывает), `https://testnet.toncenter.com` (testnet), а также `https://tonkeeper.com` и `https://*.tonkeeper.com` (согласованность с diagnostics CLI). Полный список origins — в строке CSP в `nginx/prod.conf` / `frontend/nginx.prod.conf`; при смене `VITE_TON_RPC_URL` или сети обновлять оба файла синхронно.
 
 ### 5. HMAC Validation для Telegram (Java)

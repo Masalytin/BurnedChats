@@ -142,11 +142,23 @@ public class InviteTokenService {
     }
 
     /**
-     * Build the Telegram Mini App deep link for the given token.
+     * Build the canonical invite URL for the given token.
      *
-     * <p>Format: {@code https://t.me/{botUsername}/app?startapp=invite_{token}}
+     * <p>Primary format (when {@code telegram.mini-app.url} is configured):
+     * {@code {mini-app.url}/join#invite_{token}} — token in the URL fragment so it
+     * is not sent to the server or logged in access logs.
+     *
+     * <p>Fallback (mini-app URL not configured):
+     * {@code https://t.me/{botUsername}/app?startapp=invite_{token}}
      */
     public String buildInviteUrl(String tokenValue) {
+        String miniAppUrl = telegramProperties.getMiniApp().getUrl();
+        if (miniAppUrl != null && !miniAppUrl.isBlank()) {
+            String base = miniAppUrl.endsWith("/")
+                    ? miniAppUrl.substring(0, miniAppUrl.length() - 1)
+                    : miniAppUrl;
+            return base + "/join#invite_" + tokenValue;
+        }
         String botUsername = telegramProperties.getBot().getUsername();
         return "https://t.me/" + botUsername + "/app?startapp=invite_" + tokenValue;
     }

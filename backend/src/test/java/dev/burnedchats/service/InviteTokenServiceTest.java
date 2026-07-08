@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,8 +41,63 @@ class InviteTokenServiceTest {
     @Mock
     private TelegramProperties telegramProperties;
 
+    @Mock
+    private TelegramProperties.MiniApp miniApp;
+
+    @Mock
+    private TelegramProperties.Bot bot;
+
     @InjectMocks
     private InviteTokenService inviteTokenService;
+
+    @Nested
+    @DisplayName("buildInviteUrl")
+    class BuildInviteUrl {
+
+        @Test
+        @DisplayName("should return web join URL with fragment when mini-app URL is configured")
+        void shouldReturnWebFormatWhenMiniAppUrlConfigured() {
+            when(telegramProperties.getMiniApp()).thenReturn(miniApp);
+            when(miniApp.getUrl()).thenReturn("https://burnedchats.net");
+
+            assertThat(inviteTokenService.buildInviteUrl(TOKEN))
+                    .isEqualTo("https://burnedchats.net/join#invite_" + TOKEN);
+        }
+
+        @Test
+        @DisplayName("should normalize trailing slash on mini-app base URL")
+        void shouldNormalizeTrailingSlash() {
+            when(telegramProperties.getMiniApp()).thenReturn(miniApp);
+            when(miniApp.getUrl()).thenReturn("https://burnedchats.net/");
+
+            assertThat(inviteTokenService.buildInviteUrl(TOKEN))
+                    .isEqualTo("https://burnedchats.net/join#invite_" + TOKEN);
+        }
+
+        @Test
+        @DisplayName("should fall back to Telegram deep link when mini-app URL is empty")
+        void shouldFallbackToTelegramDeepLinkWhenMiniAppUrlEmpty() {
+            when(telegramProperties.getMiniApp()).thenReturn(miniApp);
+            when(miniApp.getUrl()).thenReturn("");
+            when(telegramProperties.getBot()).thenReturn(bot);
+            when(bot.getUsername()).thenReturn("BurnedChatsBot");
+
+            assertThat(inviteTokenService.buildInviteUrl(TOKEN))
+                    .isEqualTo("https://t.me/BurnedChatsBot/app?startapp=invite_" + TOKEN);
+        }
+
+        @Test
+        @DisplayName("should fall back to Telegram deep link when mini-app URL is null")
+        void shouldFallbackToTelegramDeepLinkWhenMiniAppUrlNull() {
+            when(telegramProperties.getMiniApp()).thenReturn(miniApp);
+            when(miniApp.getUrl()).thenReturn(null);
+            when(telegramProperties.getBot()).thenReturn(bot);
+            when(bot.getUsername()).thenReturn("BurnedChatsBot");
+
+            assertThat(inviteTokenService.buildInviteUrl(TOKEN))
+                    .isEqualTo("https://t.me/BurnedChatsBot/app?startapp=invite_" + TOKEN);
+        }
+    }
 
     @Nested
     @DisplayName("revokeInvite")

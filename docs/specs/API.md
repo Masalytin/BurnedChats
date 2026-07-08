@@ -1459,6 +1459,11 @@ client `roomId` (AES-GCM AAD = `roomId`, см.
 
 **Ответ:** `/user/queue/room-created` — `RoomCreatedEvent` с `roomId` и опциональным `inviteUrl` (default token, 7d TTL, unlimited uses).
 
+**Формат `inviteUrl` / `invites[].url` (IMP-WEBINVITE-01):** канонический web-URL
+`{telegram.mini-app.url}/join#invite_{token}` — токен во **фрагменте** (`#`), не в path/query.
+Fallback при пустом `telegram.mini-app.url`: `https://t.me/{bot}/app?startapp=invite_{token}`.
+Старые t.me-ссылки остаются валидными на клиенте через `start_param`.
+
 ---
 
 ### GET_INVITE_LINK (`/app/room.getInviteLink`)
@@ -1508,7 +1513,7 @@ client `roomId` (AES-GCM AAD = `roomId`, см.
 | `roomId` | string | UUID комнаты |
 | `invites[]` | array | Активные токены из `room_invites:{roomId}` |
 | `invites[].token` | string | Token string |
-| `invites[].url` | string | Telegram deep link |
+| `invites[].url` | string | Web invite URL (`/join#invite_{token}`) или fallback t.me deep link |
 | `invites[].createdAt` | number | Unix ms |
 | `invites[].expiresAt` | number | Unix ms |
 | `invites[].maxUses` | number? | `null`/0 = безлимит |
@@ -1536,7 +1541,7 @@ client `roomId` (AES-GCM AAD = `roomId`, см.
 
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
-| `inviteToken` | string | Да | Токен из deep link |
+| `inviteToken` | string | Да | Токен из invite-ссылки (фрагмент `#invite_{token}` или `start_param`) |
 | `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
 | `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
 
