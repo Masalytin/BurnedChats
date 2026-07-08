@@ -1,0 +1,114 @@
+# Audit Gates — regression layer of the machine audit (IMP-FAUDIT-08).
+#
+# Locks in the machine slice of the full-audit-2026-07 process so that defect
+# classes covered by detectors do not come back. This does NOT replace the
+# wave audit (skill `project-audit`): detectors see neither tokenomics nor
+# zero-knowledge logic.
+#
+# Baseline / triaged-false-positive policy (see
+# docs/improvements/full-audit-2026-07/TOOLING.md and REPORT-contracts.md):
+#
+# - Misti baseline (2026-07-08): 233 findings, all INFO/LOW/MEDIUM, all 233
+#   triaged in Wave 1 as non-security (gas/style/import hygiene). The gate
+#   therefore fails only on HIGH/CRITICAL (`--min-severity high`) — the entire
+#   triaged baseline sits below the threshold by construction, and any new
+#   HIGH/CRITICAL finding is a regression.
+# - Soufflé is NOT installed here: version 2.4.1 required by Misti 0.9.0 has
+#   no package for ubuntu-latest (24.04, libffi7 gap), so 3 detectors are
+#   auto-disabled (DivideBeforeMultiply, ReadOnlyVariables, UnboundLoop).
+#   All three had 0 findings in the Docker-verified full baseline
+#   (TOOLING.md, "Полный прогон с Soufflé") — the gate runs on 38/41
+#   detectors; the full run remains reproducible via the documented Docker
+#   command.
+# - npm audit (contracts): the production tree only (`--omit=dev`). The dev
+#   toolchain findings (protobufjs critical without fix via
+#   @tact-lang/compiler, axios/ws/etc. via blueprint) are triaged in
+#   TOOLING.md as build-time-only and excluded by omitting dev; nothing from
+#   that chain ships in contract runtime.
+# - npm audit (frontend): full tree at `--audit-level=high`. The 6 low
+#   findings (`elliptic` chain via vite-plugin-node-polyfills) are triaged in
+#   REPORT-frontend.md as not reaching the bundle and sit below the threshold.
+#
+# Note: jobs are not per-path-conditional — a PR touching only frontend/**
+# also runs the contracts jobs (kept simple; total cost is a few minutes).
+
+name: Audit Gates
+
+on:
+    pull_request:
+        paths:
+            - 'contracts/**'
+            - 'frontend/**'
+            - '.github/workflows/audit-gates.yml'
+    push:
+        branches: [master]
+        paths:
+            - 'contracts/**'
+            - 'frontend/**'
+            - '.github/workflows/audit-gates.yml'
+
+jobs:
+    misti:
+        name: Misti static analysis (contracts)
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: contracts
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Use Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: npm
+                  cache-dependency-path: contracts/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            # Exit code 1 from Misti means "findings at or above the
+            # threshold", which is exactly the gate condition.
+            - name: Misti gate (fail on HIGH/CRITICAL)
+              run: npx misti --all-detectors --min-severity high tact.config.json
+
+    npm-audit-contracts:
+        name: npm audit (contracts, prod tree)
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: contracts
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Use Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+
+            - name: npm audit gate (prod dependencies, fail on high+)
+              run: npm audit --omit=dev --audit-level=high
+
+            # Informational only: full tree including the triaged dev
+            # toolchain (protobufjs et al., TOOLING.md §2). Never fails the
+            # gate; kept visible so new toolchain CVEs surface in logs.
+            - name: npm audit report (full tree, informational)
+              if: always()
+              run: npm audit || true
+
+    npm-audit-frontend:
+        name: npm audit (frontend)
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Use Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+
+            - name: npm audit gate (fail on high+)
+              run: npm audit --audit-level=high

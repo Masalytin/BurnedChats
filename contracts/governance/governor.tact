@@ -31,6 +31,11 @@ contract Governor(
     proposalCount: Int as uint64,
     proposals: map<Int as uint64, Address>,
     proposalStateById: map<Int as uint64, Int as uint8>,
+    /// Voting-window end time per proposal id — same value written into Proposal.init
+    /// (`now() + CANCEL_LAG + period`). Carried into `GovernorVoteRelay.voteEndTime` so
+    /// StakingMaster can gate vote weight by lock without reading Proposal storage
+    /// (IMP-FAUDIT-F01 / F-2).
+    proposalEndTimeById: map<Int as uint64, Int as uint64>,
     proposalConfigs: map<Int as uint32, ProposalConfig>,
     minProposalVp: Int,
     stakingMaster: Address,
@@ -132,6 +137,12 @@ contract Governor(
         /// Fresh empty vote map — `initOf` requires explicit empty containers.
         let emptyVotes: map<Address, Int as uint8> = emptyMap();
 
+        /// Single `now()` so Proposal.init endTime and the Governor-side lock-gate
+        /// map stay bit-identical (IMP-FAUDIT-F01).
+        let createdAt = now();
+        let startTime = createdAt + CANCEL_LAG;
+        let endTime = startTime + msg.period;
+
         let ini =
             initOf Proposal(
                 id,
@@ -140,8 +151,8 @@ contract Governor(
                 msg.proposer,
                 msg.proposalType,
                 msg.payload,
-                now() + CANCEL_LAG,
-                now() + CANCEL_LAG + msg.period,
+                startTime,
+                endTime,
                 0,
                 0,
                 msg.totalVp,
@@ -157,6 +168,7 @@ contract Governor(
         let propAddr = contractAddress(ini);
         self.proposals.set(id, propAddr);
         self.proposalStateById.set(id, GV_ACTIVE);
+        self.proposalEndTimeById.set(id, endTime);
 
         deploy(DeployParameters {
             value: ton("0.18"),
@@ -175,6 +187,10 @@ contract Governor(
         require(addrOpt != null, "Unknown proposal");
         let propAddr = addrOpt!!;
 
+        let endOpt = self.proposalEndTimeById.get(msg.proposalId);
+        require(endOpt != null, "Unknown proposal end");
+        let voteEndTime = endOpt!!;
+
         message(MessageParameters {
             to: self.stakingMaster,
             value: 0,
@@ -186,6 +202,7 @@ contract Governor(
                 voter: sender(),
                 support: msg.support,
                 claimedVp: msg.claimedVp,
+                voteEndTime: voteEndTime,
             }.toCell(),
         });
     }

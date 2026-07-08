@@ -28,6 +28,11 @@ export function emptyGovernorProposalStateMap() {
     return Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Uint(8));
 }
 
+/** Voting-window end time per proposal id (IMP-FAUDIT-F01 lock-gate). */
+export function emptyGovernorProposalEndTimeMap() {
+    return Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.BigUint(64));
+}
+
 function proposalCfg(
     quorumPercent: bigint,
     thresholdPercent: bigint,
@@ -67,6 +72,7 @@ export class Governor extends GovernorBase {
             0n,
             emptyGovernorProposalMap(),
             emptyGovernorProposalStateMap(),
+            emptyGovernorProposalEndTimeMap(),
             params.proposalConfigs ?? defaultGovernorProposalConfigs(),
             params.minProposalVp,
             params.stakingMaster,

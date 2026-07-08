@@ -61,12 +61,16 @@ message(0x5a040102) CastVote {
 }
 
 /// Trusted Governor triggers StakingMaster to relay a capped vote weight to Proposal.
+/// `voteEndTime` is the proposal's voting-window end (same value stored on Proposal at
+/// deploy). StakingMaster only counts stakes whose `unlockTime` is strictly after this
+/// timestamp — closing the Flexible-tier flash-stake path (IMP-FAUDIT-F01 / F-2).
 message(0x5a040019) GovernorVoteRelay {
     queryId: Int as uint64;
     proposal: Address;
     voter: Address;
     support: Bool;
     claimedVp: Int;
+    voteEndTime: Int as uint64;
 }
 
 message(0x5a040103) ExecuteProposal {

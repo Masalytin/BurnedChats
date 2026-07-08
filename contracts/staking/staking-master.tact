@@ -700,6 +700,28 @@ contract StakingMaster(
         return sum;
     }
 
+    /// Vote-weight for governance: only stakes locked past `voteEndTime` count
+    /// (IMP-FAUDIT-F01 / F-2). Flexible-tier (`unlockTime == startTime`) never
+    /// satisfies `unlockTime > voteEndTime` once voting has opened, so the
+    /// post-snapshot flash-stake path cannot inflate `forVotes`.
+    fun computeOwnerVotingPowerLockedBeyond(ownerAddr: Address, voteEndTime: Int): Int {
+        let sum: Int = 0;
+        let t = self.MinTier;
+        while (t <= self.MaxTier) {
+            let stOpt = self.stakesMapGet(t, ownerAddr);
+            if (stOpt != null) {
+                let stake = stOpt!!;
+                if (stake.amount > 0 && stake.unlockTime > voteEndTime) {
+                    sum =
+                        sum +
+                        tierVotingPowerFromAmount(stake.amount, self.tierVpMultiplier(stake.tier));
+                }
+            }
+            t = t + 1;
+        }
+        return sum;
+    }
+
     fun computeTotalVotingPower(): Int {
         let sum: Int = 0;
         let t = self.MinTier;
@@ -717,7 +739,9 @@ contract StakingMaster(
         require(sender() == self.governorAddr, "Only governor");
         require(msg.claimedVp > 0, "Zero claimed vp");
 
-        let onChainVp = self.computeOwnerVotingPower(msg.voter);
+        /// Lock-gated VP (IMP-FAUDIT-F01): live stake alone is not enough — the
+        /// capital must remain locked past the proposal's voting window.
+        let onChainVp = self.computeOwnerVotingPowerLockedBeyond(msg.voter, msg.voteEndTime);
         let vpEff = onChainVp;
         if (msg.claimedVp < vpEff) {
             vpEff = msg.claimedVp;
@@ -812,6 +836,12 @@ contract StakingMaster(
 
     get fun get_voting_power(ownerAddr: Address): Int {
         return self.computeOwnerVotingPower(ownerAddr);
+    }
+
+    /// Lock-gated VP used by `GovernorVoteRelay` (IMP-FAUDIT-F01). Tooling / frontend
+    /// can preview whether a stake will count for a given proposal end time.
+    get fun get_voting_power_locked_beyond(ownerAddr: Address, voteEndTime: Int): Int {
+        return self.computeOwnerVotingPowerLockedBeyond(ownerAddr, voteEndTime);
     }
 
     /// Sum of VP over all tiers (Σ tierTotalStake × runtime multiplier / 100).
