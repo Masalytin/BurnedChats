@@ -36,8 +36,8 @@
 | `messages:count:{recipientId}` | string | ⚠️ expire при `count==1` | Счётчик pending DM |
 | `dm-editable:{sessionId}:{messageId}` | string | **20min** | Meta окна правки DM |
 | `message-senders:{sessionId}` | hash | 24h | Индекс отправителя для delete-for-everyone |
-| `message-edits:{sessionId}` | list | 1h | Tombstone-очередь правок (offline sync) |
-| `message-deletions:{sessionId}` | list | 1h | Tombstone-очередь удалений (offline sync) |
+| `message-edits:{recipientId}:{sessionId}` | list | 1h | Tombstone-очередь правок (offline sync, per-recipient) |
+| `message-deletions:{recipientId}:{sessionId}` | list | 1h | Tombstone-очередь удалений (offline sync, per-recipient) |
 | `messages:{roomId}` | list | 24h | Очередь сообщений комнаты |
 | `ratelimit:{type}:{userId}` | string | окно типа | STOMP rate-limit (`RateLimitService`) |
 | `ratelimit:rest:{group}:{clientId}` | string | окно группы | REST rate-limit |
@@ -105,7 +105,7 @@ EXPIRE session:abc123 86400
 | `initiatorTelegramId` | string? | Telegram ID создателя; пусто для wallet-only |
 | `responderInternalId` | string | internalId получателя |
 | `responderTelegramId` | string? | Telegram ID получателя; пусто для wallet-only |
-| `status` | enum | `pending` \| `handshake` \| `active` \| `burned` |
+| `status` | enum | `pending` \| `handshake` \| `active` \| `burned` \| `expired` |
 | `secretAnswerHash` | string? | Base64(SHA-256) нормализованного ожидаемого ответа (`trim` → `toLowerCase`) |
 
 Проверка участника: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
@@ -274,7 +274,13 @@ EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 | `message_delete` | 60s | 30 | |
 | `pow_challenge` | 60s | 10 | issuance flood guard |
 | `room_read` | 60s | 30 | getMembers/getPresence/getBans |
-| `room_password_fail` | 600s | 5 | override: `rate-limit.room-password-fail.*` |
+| `room_password_fail` | 600s | 5 | override: `rate-limit.room-password-fail.*`; см. сноску ниже |
+
+> **`room_password_fail` (составной ключ):** Redis-ключ —
+> `ratelimit:room_password_fail:{roomId}:{internalId}`
+> (`RoomJoinService.passwordFailKey` → `RateLimitService`). INCR выполняется
+> **только при неудачном** password proof; успешный proof сбрасывает счётчик
+> (`resetRateLimit`). Локаут снимается по TTL окна (600 с / override yaml).
 
 Отдельный REST-префикс: `ratelimit:rest:{group}:{clientId}` (IP / identity).
 
@@ -593,8 +599,10 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 - **Frontend** — `frontend/src/crypto/aes.ts`: `arrayBufferToBase64` использует `btoa`,
   `base64ToArrayBuffer` — `atob` (стандартный Base64). Эти же helpers применяются для
   `encryptRoomName` (`crypto/groupKey.ts`) → `{ nameEncrypted, nameIv }`.
-- **Backend** — валидация `@Base64` (`validation/Base64Validator.java`) декодирует через
-  `java.util.Base64.getDecoder()` (стандартный, **не** `getUrlDecoder()`).
+- **Backend** — Base64 на wire проверяется через `@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`
+  на DTO-полях и/или ручной `java.util.Base64.getDecoder()` (стандартный, **не**
+  `getUrlDecoder()`) в сервисах/хендлерах (например `HandshakeHandler.isValidBase64Key`,
+  `PasswordProofService`). Отдельного `@Base64` / `Base64Validator` в коде нет.
 
 **Zero-knowledge инвариант.** Сервер хранит и ретранслирует эти поля как **opaque-строки**
 и **никогда** не декодирует/расшифровывает содержимое — только метаданные (длина для
@@ -618,7 +626,7 @@ public class Session {
     private Long initiatorTelegramId;    // null for wallet-only
     private String responderInternalId;
     private Long responderTelegramId;    // null for wallet-only
-    private SessionStatus status;        // PENDING, HANDSHAKE, ACTIVE, BURNED
+    private SessionStatus status;        // PENDING, HANDSHAKE, ACTIVE, BURNED, EXPIRED
     private Instant createdAt;
     private Instant lastActivityAt;
     private String secretQuestion;
@@ -736,7 +744,7 @@ public class TelegramUser implements Serializable {
 @Data
 public class SearchRequest {
     @NotBlank
-    @Size(min = 1, max = 100)
+    @Size(min = 1, max = 64)
     private String query;
 }
 
@@ -755,6 +763,8 @@ public class CreateSessionRequest {
 
     @Size(max = 256)
     private String secretExpectedAnswer;
+
+    private PowSolution pow;            // required when pow.enabled=true
 }
 
 // dto/response/UserResponse.java
@@ -775,7 +785,7 @@ public class AcceptSessionRequest {
     @NotBlank
     private String sessionId;
     
-    @Size(max = 500)
+    @Size(max = 256)
     private String secretAnswer;
 }
 
@@ -786,7 +796,7 @@ public class PublicKeyRequest {
     private String sessionId;
     
     @NotBlank
-    @Size(min = 80, max = 100)
+    @Size(min = 44, max = 256)
     @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
     private String publicKey;
 }
@@ -806,6 +816,7 @@ public class SendMessageRequest {
     @Size(max = 128) private String thumbnailFileId;
     @Size(max = 4096) private String encryptedMeta;
     @Positive private Long fileSize;
+    @Size(max = 64) private String replyToMessageId;
 }
 
 // dto/request/BurnSessionRequest.java
@@ -815,13 +826,14 @@ public class BurnSessionRequest {
     private String sessionId;
 }
 
-// dto/request/ConfirmVerificationDto.java
+// dto/request/VerificationRequest.java — STOMP /app/verification.confirm
 @Data
-public class ConfirmVerificationDto {
+public class VerificationRequest {
     @NotBlank
     private String sessionId;
     
-    private boolean confirmed;
+    @NotNull
+    private Boolean confirmed;
 }
 ```
 
@@ -896,8 +908,12 @@ public class IncomingRequestEvent {
 @Data
 @AllArgsConstructor
 public class PeerPublicKeyEvent {
+    private boolean success;
     private String sessionId;
+    private Long peerId;
     private String publicKey;
+    private Instant timestamp;
+    private String error;
 }
 
 // dto/event/NewMessageEvent.java — flat DTO, no EncryptedMessage wrapper (DM-9)
@@ -960,15 +976,18 @@ public class VerificationEvent {
 }
 ```
 
-**WebSocket errors:** `WebSocketExceptionHandler` шлёт `Map<String,Object>` на
-`/user/queue/errors` (`code`, `message`, optional `retryAfter`) — не отдельный
-`ErrorEvent` DTO.
+**WebSocket errors:** `WebSocketExceptionHandler.baseError` шлёт `Map<String,Object>`
+на `/user/queue/errors` с полями `success=false`, **`error`** (код ошибки),
+`message`, `timestamp` (ISO-8601); опционально `retryAfter` (RATE_LIMIT_EXCEEDED)
+и `field` (VALIDATION_ERROR). Отдельного `ErrorEvent` DTO нет. Фронт читает
+`data.error` (`useSession.ts`).
 
 ---
 
 ## TypeScript Interfaces
 
-Источник истины: `frontend/src/types/index.ts` (DM-11, DM-12).
+Источник истины для доменных типов (`UserInfo`, `Session`, `Message`, …):
+`frontend/src/types/index.ts` (DM-11, DM-12).
 
 ### Frontend Types
 
@@ -1028,6 +1047,7 @@ export interface Session {
   status: SessionStatus;
   createdAt: number;
   expiresAt?: number;
+  hasUnread?: boolean;
 }
 
 export interface ChatRequest {
@@ -1041,7 +1061,8 @@ export interface ChatRequest {
   expiresAt: number;
 }
 
-// === STOMP events (subset; full list — API.md) ===
+// === STOMP events (illustrative wire-shapes; full list — API.md) ===
+// Not exported from index.ts — shapes mirror backend event DTOs / handlers.
 
 interface SearchResultEvent {
   found: boolean;
@@ -1126,9 +1147,12 @@ interface VerificationEvent {
 }
 
 interface StompErrorPayload {
-  code: string;
+  success: false;
+  error: string;           // error code (POW_INVALID, RATE_LIMIT_EXCEEDED, …)
   message: string;
-  retryAfter?: number;
+  timestamp: string;       // ISO-8601
+  retryAfter?: number;     // RATE_LIMIT_EXCEEDED
+  field?: string;          // VALIDATION_ERROR
 }
 ```
 
@@ -1138,8 +1162,10 @@ interface StompErrorPayload {
 
 ### Java Bean Validation
 
+Фактический класс: `util/ValidationConstants.java` (не `validation/`).
+
 ```java
-// validation/ValidationConstants.java (фрагмент)
+// util/ValidationConstants.java
 public final class ValidationConstants {
 
     /** Максимальный размер принимаемого зашифрованного blob'а (байты).
@@ -1149,80 +1175,48 @@ public final class ValidationConstants {
     /** Лимит POST /api/files/upload на пользователя (см. RateLimitService.RateLimitType.FILE_UPLOAD). */
     public static final int FILE_UPLOAD_RATE_LIMIT = 10;
 
-    // Message limits
-    public static final int MAX_TEXT_LENGTH = 4096;
-    public static final int MAX_FILE_NAME_LENGTH = 255;
-    public static final int MAX_CHUNKS = 500; // legacy / client UX
+    /** Valid context types for file uploads. */
+    public static final String CONTEXT_TYPE_SESSION = "session";
+    public static final String CONTEXT_TYPE_ROOM = "room";
 
-    // Crypto sizes
-    public static final int IV_LENGTH = 12;
-    public static final int TAG_LENGTH = 16;
-    public static final int PUBLIC_KEY_LENGTH = 65; // P-256 uncompressed
-    
-    // Base64 encoded sizes
-    public static final int IV_BASE64_MIN = 16;
-    public static final int IV_BASE64_MAX = 24;
-    public static final int TAG_BASE64_MIN = 22;
-    public static final int TAG_BASE64_MAX = 24;
-    public static final int PUBLIC_KEY_BASE64_MIN = 80;
-    public static final int PUBLIC_KEY_BASE64_MAX = 100;
-    
     private ValidationConstants() {}
 }
 ```
 
-### Custom Validators
+### Base64 validation (no custom `@Base64`)
 
-```java
-// validation/Base64Validator.java
-@Constraint(validatedBy = Base64Validator.Impl.class)
-@Target({ElementType.FIELD})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface Base64 {
-    String message() default "Invalid Base64";
-    int minBytes() default 0;
-    int maxBytes() default Integer.MAX_VALUE;
-    Class<?>[] groups() default {};
-    Class<? extends Payload>[] payload() default {};
-    
-    class Impl implements ConstraintValidator<Base64, String> {
-        private int minBytes;
-        private int maxBytes;
-        
-        @Override
-        public void initialize(Base64 annotation) {
-            this.minBytes = annotation.minBytes();
-            this.maxBytes = annotation.maxBytes();
-        }
-        
-        @Override
-        public boolean isValid(String value, ConstraintValidatorContext ctx) {
-            if (value == null || value.isEmpty()) {
-                return false;
-            }
-            
-            try {
-                byte[] decoded = java.util.Base64.getDecoder().decode(value);
-                return decoded.length >= minBytes && decoded.length <= maxBytes;
-            } catch (IllegalArgumentException e) {
-                return false;
-            }
-        }
-    }
-}
-```
+Отдельного `Base64Validator` / аннотации `@Base64` в репозитории нет. На DTO
+используется `@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`; дополнительная проверка
+длины/декодирования — ручной `Base64.getDecoder()` в хендлерах и сервисах
+(например `HandshakeHandler.isValidBase64Key`, `PasswordProofService`).
+
+### Crypto / message size reference (descriptive)
+
+Эти величины **не** объявлены в `ValidationConstants`; они задаются
+`@Size` / `@Pattern` на DTO и клиентским crypto-кодом.
+
+| Величина | Значение | Где задано |
+|----------|----------|------------|
+| AES-GCM IV | 12 bytes (Base64 wire ≈ 16–24 chars) | `SendMessageRequest.iv` `@Size(min=16,max=24)` |
+| GCM auth tag | 16 bytes (входит в ciphertext Web Crypto) | клиент / SECURITY.md |
+| P-256 SPKI public key (Base64) | `@Size(min=44, max=256)` | `PublicKeyRequest.publicKey` |
+| Текст сообщения (продуктовый ориентир) | ≤ 4096 chars plaintext | клиент UX; на wire — encrypted blob ≤ 64 KB |
+| `fileName` (в encryptedMeta) | ≤ 255 chars | клиент + `encryptFileMetadata` |
 
 ### Limits Summary
 
 | Поле / правило | Лимит | Причина |
 |----------------|-------|---------|
-| `text` | 4096 chars | Оптимально для чата |
+| `text` (plaintext UX) | 4096 chars | Оптимально для чата |
 | Зашифрованный blob upload | ≤ `MAX_ENCRYPTED_FILE_SIZE` (26 MB) | Потолок на сервере; plaintext и MIME — ориентиры продукта (см. SECURITY.md) |
 | `POST /api/files/upload` | `FILE_UPLOAD_RATE_LIMIT` (10) / 1 min | Redis rate limit per user |
 | `fileName` | 255 chars | Клиент + `encryptFileMetadata` |
 | `sessionId` | UUID v4 | Collision resistance |
 | `IV` | 12 bytes | AES-GCM standard |
 | GCM `tag` | 16 bytes | Входит в ciphertext Web Crypto output |
+| `SearchRequest.query` | 1–64 chars | `SearchRequest` `@Size` |
+| `AcceptSessionRequest.secretAnswer` | ≤ 256 chars | `AcceptSessionRequest` `@Size` |
+| `PublicKeyRequest.publicKey` | 44–256 chars Base64 | `PublicKeyRequest` `@Size` |
 
 ---
 
