@@ -16,9 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -27,7 +31,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * SEC-8: failed room-password proofs are rate-limited; successes do not increment the fail counter.
+ * SEC-8 / IMP-FAUDIT2-F01: room-password fail budget is gated by atomic INCR+EXPIRE
+ * before verifyProof; successes reset the counter.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RoomJoinService password-proof rate limit")
@@ -106,11 +111,9 @@ class RoomJoinPasswordRateLimitTest {
     @DisplayName("failed proof increments ROOM_PASSWORD_FAIL and returns WRONG_PASSWORD")
     void failedProofIncrementsCounterAndReturnsWrongPassword() {
         stubInviteAndRoom();
-        when(rateLimitService.getRemainingRequests(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
-                .thenReturn(Mono.just(MAX_FAILURES));
-        when(passwordProofService.verifyProof(WRONG_PROOF, STORED_HASH)).thenReturn(false);
         when(rateLimitService.checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
                 .thenReturn(Mono.just(true));
+        when(passwordProofService.verifyProof(WRONG_PROOF, STORED_HASH)).thenReturn(false);
 
         StepVerifier.create(requestJoin(WRONG_PROOF))
                 .expectErrorMatches(error -> error instanceof SecurityException
@@ -118,6 +121,8 @@ class RoomJoinPasswordRateLimitTest {
                 .verify();
 
         verify(rateLimitService).checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
+        verify(rateLimitService, never()).getRemainingRequests(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
+        verify(rateLimitService, never()).resetRateLimit(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
         verify(roomMembersRepository, never()).add(anyString(), anyString());
     }
 
@@ -125,25 +130,28 @@ class RoomJoinPasswordRateLimitTest {
     @DisplayName("after N failed proofs the next attempt is rejected with RateLimitException")
     void afterMaxFailuresNextAttemptIsRateLimited() {
         stubInviteAndRoom();
-        when(rateLimitService.getRemainingRequests(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
-                .thenReturn(Mono.just(0));
+        when(rateLimitService.checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
+                .thenReturn(Mono.error(new RateLimitException(RateLimitType.ROOM_PASSWORD_FAIL.getWindow())));
 
         StepVerifier.create(requestJoin(WRONG_PROOF))
                 .expectError(RateLimitException.class)
                 .verify();
 
         verify(passwordProofService, never()).verifyProof(anyString(), anyString());
-        verify(rateLimitService, never()).checkRateLimit(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
+        verify(rateLimitService).checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
+        verify(rateLimitService, never()).getRemainingRequests(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
         verify(roomMembersRepository, never()).add(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("successful proof within limit joins and does not increment fail counter")
-    void successfulProofWithinLimitDoesNotIncrementFailCounter() {
+    @DisplayName("successful proof within limit joins and resets fail counter")
+    void successfulProofWithinLimitResetsFailCounter() {
         stubInviteAndRoom();
-        when(rateLimitService.getRemainingRequests(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
-                .thenReturn(Mono.just(MAX_FAILURES));
+        when(rateLimitService.checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
+                .thenReturn(Mono.just(true));
         when(passwordProofService.verifyProof(CORRECT_PROOF, STORED_HASH)).thenReturn(true);
+        when(rateLimitService.resetRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
+                .thenReturn(Mono.just(true));
         when(roomMembersRepository.isMember(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
         when(roomBansRepository.isBanned(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
         when(roomMembersRepository.add(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(1L));
@@ -156,9 +164,9 @@ class RoomJoinPasswordRateLimitTest {
                 .expectNextMatches(result -> result instanceof RoomJoinService.JoinResult.Approved)
                 .verifyComplete();
 
-        verify(rateLimitService, never()).checkRateLimit(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
-        verify(rateLimitService, times(1))
-                .getRemainingRequests(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
+        verify(rateLimitService).checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
+        verify(rateLimitService).resetRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
+        verify(rateLimitService, never()).getRemainingRequests(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
         verify(roomMembersRepository).add(ROOM_ID, SENDER_INTERNAL);
     }
 
@@ -166,15 +174,63 @@ class RoomJoinPasswordRateLimitTest {
     @DisplayName("lockout blocks even a correct proof when fail budget is exhausted")
     void lockoutBlocksCorrectProof() {
         stubInviteAndRoom();
-        when(rateLimitService.getRemainingRequests(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
-                .thenReturn(Mono.just(0));
+        when(rateLimitService.checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
+                .thenReturn(Mono.error(new RateLimitException(RateLimitType.ROOM_PASSWORD_FAIL.getWindow())));
 
         StepVerifier.create(requestJoin(CORRECT_PROOF))
                 .expectError(RateLimitException.class)
                 .verify();
 
         verify(passwordProofService, never()).verifyProof(anyString(), anyString());
+        verify(rateLimitService, never()).resetRateLimit(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
         verify(roomMembersRepository, never()).add(anyString(), anyString());
+    }
+
+    /**
+     * W2-1 / IMP-FAUDIT2-F01: concurrent wrong proofs must not exceed the fail budget of
+     * verifyProof calls. Atomic checkRateLimit (INCR+EXPIRE) is the sole gate — no GET
+     * pre-check — so a parallel burst of N attempts yields at most MAX_FAILURES verifies.
+     */
+    @Test
+    @DisplayName("concurrent wrong proofs reach verifyProof at most MAX_FAILURES times")
+    void concurrentWrongProofsDoNotExceedVerifyProofBudget() {
+        stubInviteAndRoom();
+
+        AtomicInteger failCount = new AtomicInteger();
+        AtomicInteger verifyProofCalls = new AtomicInteger();
+        int concurrency = MAX_FAILURES * 4;
+
+        // Atomic increment-first gate: only checkRateLimit participates; GET pre-check is gone.
+        when(rateLimitService.checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL))
+                .thenAnswer(invocation -> {
+                    int count = failCount.incrementAndGet();
+                    if (count > MAX_FAILURES) {
+                        return Mono.error(new RateLimitException(
+                                RateLimitType.ROOM_PASSWORD_FAIL.getWindow()));
+                    }
+                    return Mono.just(true);
+                });
+        when(passwordProofService.verifyProof(WRONG_PROOF, STORED_HASH)).thenAnswer(invocation -> {
+            verifyProofCalls.incrementAndGet();
+            return false;
+        });
+
+        StepVerifier.create(
+                        Flux.range(0, concurrency)
+                                .flatMap(i -> requestJoin(WRONG_PROOF)
+                                        .map(result -> "ok")
+                                        .onErrorResume(error -> Mono.just("err")), concurrency)
+                                .then())
+                .verifyComplete();
+
+        assertTrue(
+                verifyProofCalls.get() <= MAX_FAILURES,
+                "verifyProof must be called at most " + MAX_FAILURES
+                        + " times under concurrent wrong proofs, but was "
+                        + verifyProofCalls.get());
+        verify(rateLimitService, never()).getRemainingRequests(anyString(), eq(RateLimitType.ROOM_PASSWORD_FAIL));
+        verify(rateLimitService, times(concurrency))
+                .checkRateLimit(RATE_KEY, RateLimitType.ROOM_PASSWORD_FAIL);
     }
 
     private void stubInviteAndRoom() {
