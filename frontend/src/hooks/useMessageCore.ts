@@ -404,7 +404,7 @@ export async function sendEncryptedFileMessage<TError extends string>(
       fileId: uploadResult.fileId,
       thumbnailFileId: uploadResult.thumbnailFileId,
       thumbnailUrl: uploadResult.thumbnailDataUrl,
-      fileSize: uploadResult.size,
+      fileSize: file.size,
       uploadProgress: undefined,
       uploadStage: undefined,
     });
@@ -418,7 +418,7 @@ export async function sendEncryptedFileMessage<TError extends string>(
       fileId: uploadResult.fileId,
       thumbnailFileId: uploadResult.thumbnailFileId,
       encryptedMeta,
-      fileSize: uploadResult.size,
+      fileSize: file.size,
       ...(replyToMessageId ? { replyToMessageId } : {}),
     }));
 

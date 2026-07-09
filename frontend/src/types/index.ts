@@ -147,7 +147,7 @@ export interface Message {
   fileId?: string;
   thumbnailFileId?: string;
   encryptedMeta?: string;      // Base64: encrypted {fileName, mimeType}
-  fileSize?: number;           // Original file size in bytes
+  fileSize?: number;           // Original plaintext file size in bytes (STOMP / UI)
 }
 
 export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv' | 'encryptedMeta'> {
@@ -176,7 +176,7 @@ export interface FileMetadata {
 export interface DecryptedFileMessage extends DecryptedMessage {
   type: 'image' | 'video' | 'file';
   fileId: string;
-  fileSize: number;
+  fileSize: number;            // Original plaintext file size in bytes (not ciphertext)
   fileMeta: FileMetadata;
   thumbnailFileId?: string;
   thumbnailUrl?: string;

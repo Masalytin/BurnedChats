@@ -384,7 +384,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         fileId: uploadResult.fileId,
         thumbnailFileId: uploadResult.thumbnailFileId,
         thumbnailUrl: uploadResult.thumbnailDataUrl,
-        fileSize: uploadResult.size,
+        fileSize: f.size,
         fileMeta: { fileName: f.name, mimeType: resolvedMime },
         replyToMessageId,
       } as DecryptedFileMessage),

@@ -26,6 +26,7 @@ export interface UploadResult {
   thumbnailFileId?: string;
   /** Local data URL for immediate preview (sender); no extra download. */
   thumbnailDataUrl?: string;
+  /** Stored ciphertext size in bytes (from REST upload response / Redis file_meta). */
   size: number;
 }
 
@@ -39,6 +40,7 @@ export interface UploadOptions {
 
 interface UploadResponse {
   fileId: string;
+  /** Ciphertext blob size stored on the server (bytes). */
   size: number;
 }
 
@@ -76,7 +78,9 @@ const UPLOAD_PATH = '/api/files/upload';
  * @param context - Upload context (session or room with its ID)
  * @param options - Optional upload progress, encrypt progress (large files), and AbortSignal
  * @returns Upload result containing fileId, optional thumbnailFileId,
- *   optional thumbnailDataUrl for local preview, and size
+ *   optional thumbnailDataUrl for local preview, and `size` (ciphertext bytes
+ *   stored on the server — not the original plaintext file size; use `file.size`
+ *   for STOMP `fileSize` / message UI).
  */
 export async function uploadFile(
   file: File,

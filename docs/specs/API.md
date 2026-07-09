@@ -406,6 +406,8 @@ GET /api/info
 }
 ```
 
+`size` — размер **зашифрованного** blob'а, сохранённого на сервере (байты ciphertext), не исходного plaintext-файла. Для STOMP `fileSize` клиент передаёт plaintext size отдельно (см. ниже).
+
 **Errors (JSON body, кроме 429 где указано):**
 
 | HTTP | Поле `error` | Когда |
