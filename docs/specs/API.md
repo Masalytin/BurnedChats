@@ -77,7 +77,14 @@ Handshake без кредов допускается (соединение по�
 | `SEARCH_USER` (`/app/search`) | 10 req | 1 min | `SEARCH` |
 | `SEND_MESSAGE` (`/app/message.send`, `/app/message.sync`) | 60 msg | 1 min | `MESSAGE` (`RateLimitService`; yaml `rate-limit.messages.per-minute`) |
 | `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (после PoW) |
-| Прочие `/app/*` (по умолчанию) | 100 req | 1 min | `GENERAL` в `RateLimitInterceptor` |
+| `session.accept` / `session.reject` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject — в `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` в `RoomHandler`) |
+| `handshake.key` (`/app/handshake.key`) | 10 req | 1 min | `HANDSHAKE` |
+| `message.edit` / `room.message.edit` | 10 req | 1 min | `MESSAGE_EDIT` |
+| `message.delete` / `room.message.delete` | 30 req | 1 min | `MESSAGE_DELETE` |
+| `room.getMembers` / `room.getPresence` / `room.getBans` | 30 req | 1 min | `ROOM_READ` |
+| `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, не interceptor) |
+| Неудачный proof пароля комнаты (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — ключ `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; атомарный INCR на попытку, reset при успехе (IMP-FAUDIT2-F01) |
+| Прочие незамапленные `/app/*` | 100 req | 1 min | `GENERAL` fallback в `RateLimitInterceptor` |
 | `/app/heartbeat` | exempt | — | presence heartbeat |
 
 При превышении STOMP-лимита SEND-фрейм дропается; клиент получает
@@ -497,16 +504,17 @@ Content-Type: application/json
 - Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается). См. [REPORT IMP-GOVOTE](../archive/improvements/governance-vote-tx-fail/REPORT.md) RC-1.
 - Клиент обязан блокировать `CastVote`, пока `now < startTime` (IMP-GOVOTE-01), даже если backend возвращает `ACTIVE`.
 
-**On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04)**
+**On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04 / IMP-GOVREFUND-01)**
 
 | Шаг | От → К | Сообщение | Value (TON) | Примечание |
 |-----|--------|-----------|-------------|------------|
 | 1 | Wallet → **Governor** | `CastVote` (`0x5a040102`) | attach **≥ `GasVoteAttach` = 0.18** | `require(context().value >= GasVoteAttach, "Need TON for vote")` |
-| 2 | Governor → **StakingMaster** | `GovernorVoteRelay` (`0x5a040019`) | **`GasVoteRelayForward` = 0.14** | `SendPayGasSeparately`; VP relay |
-| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **0.07** | VP cap по on-chain staking |
+| 2 | Governor → **StakingMaster** | `GovernorVoteRelay` (`0x5a040019`) | **`value: 0`** | `SendRemainingValue`; VP relay |
+| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **`value: 0`** | `SendRemainingValue`; VP cap по on-chain staking |
 
-- Остаток relay возвращается **voter'у** (IMP-GOVOTE-02); избыточный attach сверх `0.18` — через `cashback` на Governor и refund на StakingMaster.
-- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decision: [IMP-GOVOTE-04](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md).
+- Успешный голос: остаток relay возвращается **voter'у** из Proposal (`SendRemainingValue | SendIgnoreErrors`).
+- Bounce (отклонение на Governor/StakingMaster): value **поглощается** на hop'е без `cashback` — voter не получает refund из truncated bounce body (RC-2 / AD-1).
+- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decisions: [IMP-GOVOTE-04](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md), [IMP-GOVREFUND-01](../archive/governance-vote-refund-leak/cards/IMP-GOVREFUND-01.md).
 
 Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
 
@@ -925,7 +933,8 @@ client.publish({
     encryptedContent: 'base64...', // AES-GCM ciphertext (текст)
     iv: 'base64...',
     timestamp: Date.now(),
-    type: 'text'
+    type: 'text',
+    replyToMessageId: 'optional-parent-message-id' // опционально
   })
 });
 ```
@@ -946,7 +955,8 @@ client.publish({
     fileId: 'uuid-of-main-upload',
     thumbnailFileId: 'uuid-of-thumb-upload', // опционально
     encryptedMeta: 'base64...', // см. encryptFileMetadata: { fileName, mimeType }
-    fileSize: 1048576
+    fileSize: 1048576,
+    replyToMessageId: 'optional-parent-message-id' // опционально
   })
 });
 ```
@@ -955,14 +965,15 @@ client.publish({
 
 **События:**
 
-- Получатель: `/user/queue/new-message` — тело в формате `NewMessageEvent` (включая `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` для медиа).
+- Получатель: `/user/queue/new-message` — тело в формате `NewMessageEvent` (включая `senderInternalId`, `replyToMessageId?`, `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` для медиа).
 - Отправитель: `/user/queue/message-sent` — подтверждение доставки.
 
 ```typescript
 client.subscribe('/user/queue/new-message', (message) => {
   const data = JSON.parse(message.body);
-  // success, sessionId, messageId, senderId, encryptedContent, iv,
-  // clientTimestamp, serverTimestamp, type, fileId?, thumbnailFileId?, encryptedMeta?, fileSize?
+  // success, sessionId, messageId, senderId, senderInternalId, encryptedContent, iv,
+  // clientTimestamp, serverTimestamp, type, replyToMessageId?,
+  // fileId?, thumbnailFileId?, encryptedMeta?, fileSize?
 });
 ```
 
@@ -1171,6 +1182,8 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 | `type` | `text` \| `image` \| `video` \| `file` |
 | `encryptedContent`, `iv` | Зашифрованный текст или подпись к медиа (opaque Base64) |
 | `messageId`, `timestamp` / `clientTimestamp` | Идемпотентность и порядок |
+| `replyToMessageId` | Опционально — ID сообщения, на которое это reply (plaintext metadata; в `SendMessageRequest` и `NewMessageEvent`) |
+| `senderInternalId` | Только в `NewMessageEvent` — primary identity отправителя (wallet-safe); `senderId` (TG) может быть `null` |
 
 Для `image` / `video` / `file` дополнительно:
 
@@ -1563,7 +1576,9 @@ Fallback при пустом `telegram.mini-app.url`: `https://t.me/{bot}/app?st
 | `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
 | `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
 
-**Ошибки join:** `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
+**Ошибки join** (на `/user/queue/room-join-result`): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
+
+**Lockout пароля (`ROOM_PASSWORD_FAIL`):** после 5 неудачных proof за 10 мин (ключ per `roomId`+`internalId`, yaml `rate-limit.room-password-fail.*`) дальнейшие попытки отклоняются. Wire-код на `/user/queue/room-join-result` сейчас **`INTERNAL_ERROR`** — `RoomHandler.mapJoinError` не мапит `RateLimitException` (surfacing отдельной ошибкой — вне этой спеки; см. IMP-FAUDIT2-F01 заметки / W5-4).
 
 **Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
 
@@ -1900,7 +1915,7 @@ Guard дополняет, но не заменяет обязательный re
 
 Владелец **обязан** выполнить rekey после `ROOM_MEMBER_REMOVED` (см. [SECURITY.md](./SECURITY.md) — forward secrecy при kick).
 
-Rate-limit: `SESSION_ACTION` (10/min), как у accept/reject join.
+Rate-limit: `SESSION_ACTION` (10/min), как у ban/mute (`RoomHandler.enforceRateLimit`). У `room.acceptJoin` / `room.rejectJoin` отдельного `SESSION_ACTION` нет — они попадают в `GENERAL` через interceptor.
 
 ---
 
@@ -2198,13 +2213,15 @@ Owner и admin могут отправлять в read-only.
 }
 ```
 
-**Error:**
+**Error** (на `/user/queue/room-created` код эмитит только `INTERNAL_ERROR`):
 ```json
 {
   "success": false,
-  "error": "VALIDATION_ERROR | RATE_LIMITED | INTERNAL_ERROR"
+  "error": "INTERNAL_ERROR"
 }
 ```
+
+Валидация запроса → `VALIDATION_ERROR` на `/user/queue/errors`; превышение STOMP rate-limit → `RATE_LIMIT_EXCEEDED` там же (см. Rate Limits выше). На `room-created` эти коды **не** приходят.
 
 ---
 
