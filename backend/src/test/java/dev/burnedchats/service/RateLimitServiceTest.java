@@ -1,5 +1,6 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.config.RateLimitProperties;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +60,9 @@ class RateLimitServiceTest {
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        rateLimitService = new RateLimitService(redisTemplate);
+        RateLimitProperties properties = new RateLimitProperties();
+        rateLimitService = new RateLimitService(redisTemplate, properties);
+        rateLimitService.applyPropertyOverrides();
     }
 
     /**

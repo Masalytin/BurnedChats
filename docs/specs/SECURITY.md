@@ -1197,10 +1197,19 @@ class TelegramAuthServiceTest {
 
 #### Защита от перебора (Rate Limiting)
 
-Rate limiting на `REQUEST_JOIN_ROOM` / `JOIN_BY_PASSWORD` по roomId и/или tgId:
-- Рекомендуемый лимит: 5 неудачных попыток за 10 минут.
-- После N неудач — временная блокировка (15–60 минут) по tgId.
-- Реализация через `RateLimitService` (аналогично существующему).
+Неудачные проверки password-proof на `REQUEST_JOIN` / join-by-password
+лимитируются через `RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL`
+(ключ Redis: `ratelimit:room_password_fail:{roomId}:{internalId}`):
+
+- Лимит: **5 неудачных попыток за 10 минут**
+  (`rate-limit.room-password-fail.per-window` /
+  `rate-limit.room-password-fail.window-seconds` в `application.yml`).
+- Инкремент счётчика — **только** при неуспешной проверке proof
+  (пустой/неверный proof); успешный proof счётчик не трогает.
+- При исчерпании бюджета (`remaining == 0`) следующая попытка отклоняется
+  `RATE_LIMIT_EXCEEDED` до истечения окна (TTL ключа) — отдельный
+  «длинный» lockout 15–60 мин не используется; окно 10 мин и есть lockout.
+- Реализация: [IMP-FAUDIT-F05](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F05-room-password-bruteforce-limit.md).
 
 ### Групповой ключ комнаты
 

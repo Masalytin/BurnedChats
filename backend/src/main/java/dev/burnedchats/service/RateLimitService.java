@@ -1,6 +1,8 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.config.RateLimitProperties;
 import dev.burnedchats.exception.RateLimitException;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -8,22 +10,19 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Rate limiting service using Redis for distributed rate limiting (5.1.6).
  *
- * <p>Implements sliding window rate limiting per user.
+ * <p>Implements fixed-window rate limiting per user (Lua INCR+EXPIRE).
  * Uses Redis for distributed rate limiting across multiple server instances.
  *
- * <p>Rate limits:
- * <ul>
- *   <li>Search: 10 requests per minute</li>
- *   <li>Session create: 3 requests per minute</li>
- *   <li>PoW challenge issuance: 10 requests per minute</li>
- *   <li>Message send: 60 messages per minute</li>
- *   <li>General: 100 requests per minute</li>
- * </ul>
+ * <p>Enum defaults are fallbacks; {@link RateLimitType#MESSAGE} and
+ * {@link RateLimitType#ROOM_PASSWORD_FAIL} are overridden from
+ * {@link RateLimitProperties} at startup (API-12 / SEC-8).
  *
  * @see RateLimitException
  */
@@ -68,7 +67,7 @@ public class RateLimitService {
         SESSION_CREATE(3, Duration.ofMinutes(1)),
 
         /**
-         * Message send requests.
+         * Message send requests — overridden by {@code rate-limit.messages.per-minute}.
          */
         MESSAGE(60, Duration.ofMinutes(1)),
 
@@ -115,29 +114,68 @@ public class RateLimitService {
          * {@code room.getBans}) — separate from {@link #GENERAL} so presence heartbeat
          * and room UI polls do not share one bucket.
          */
-        ROOM_READ(30, Duration.ofMinutes(1));
+        ROOM_READ(30, Duration.ofMinutes(1)),
 
-        private final int maxRequests;
-        private final Duration window;
+        /**
+         * Failed room-password proof attempts — overridden by
+         * {@code rate-limit.room-password-fail.*} (SECURITY.md: 5 / 10 min).
+         */
+        ROOM_PASSWORD_FAIL(5, Duration.ofMinutes(10));
+
+        private final int defaultMaxRequests;
+        private final Duration defaultWindow;
 
         RateLimitType(int maxRequests, Duration window) {
-            this.maxRequests = maxRequests;
-            this.window = window;
+            this.defaultMaxRequests = maxRequests;
+            this.defaultWindow = window;
         }
 
         public int getMaxRequests() {
-            return maxRequests;
+            return defaultMaxRequests;
         }
 
         public Duration getWindow() {
-            return window;
+            return defaultWindow;
         }
     }
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
+    private final RateLimitProperties rateLimitProperties;
+    private final Map<RateLimitType, LimitConfig> overrides = new EnumMap<>(RateLimitType.class);
 
-    public RateLimitService(ReactiveRedisTemplate<String, String> redisTemplate) {
+    public RateLimitService(
+            ReactiveRedisTemplate<String, String> redisTemplate,
+            RateLimitProperties rateLimitProperties) {
         this.redisTemplate = redisTemplate;
+        this.rateLimitProperties = rateLimitProperties;
+    }
+
+    /**
+     * Apply yaml-backed overrides for MESSAGE and ROOM_PASSWORD_FAIL.
+     */
+    @PostConstruct
+    void applyPropertyOverrides() {
+        int messagePerMinute = rateLimitProperties.getMessages().getPerMinute();
+        overrides.put(RateLimitType.MESSAGE, new LimitConfig(messagePerMinute, Duration.ofMinutes(1)));
+
+        RateLimitProperties.RoomPasswordFail pwFail = rateLimitProperties.getRoomPasswordFail();
+        overrides.put(
+                RateLimitType.ROOM_PASSWORD_FAIL,
+                new LimitConfig(pwFail.getPerWindow(), Duration.ofSeconds(pwFail.getWindowSeconds())));
+
+        LOG.info("Rate limit overrides: MESSAGE={}/min, ROOM_PASSWORD_FAIL={}/{}s",
+                messagePerMinute, pwFail.getPerWindow(), pwFail.getWindowSeconds());
+    }
+
+    private LimitConfig resolve(RateLimitType type) {
+        LimitConfig override = overrides.get(type);
+        if (override != null) {
+            return override;
+        }
+        return new LimitConfig(type.getMaxRequests(), type.getWindow());
+    }
+
+    private record LimitConfig(int maxRequests, Duration window) {
     }
 
     /**
@@ -151,24 +189,25 @@ public class RateLimitService {
      * @throws RateLimitException if rate limit exceeded
      */
     public Mono<Boolean> checkRateLimit(String userId, RateLimitType type) {
+        LimitConfig config = resolve(type);
         String key = keyFor(userId, type);
-        String windowSeconds = String.valueOf(type.getWindow().getSeconds());
+        String windowSeconds = String.valueOf(config.window().getSeconds());
 
         return redisTemplate.execute(INCREMENT_AND_EXPIRE, List.of(key), List.of(windowSeconds))
                 .next()
                 .flatMap(count -> {
-                    if (count > type.getMaxRequests()) {
+                    if (count > config.maxRequests()) {
                         LOG.warn("Rate limit exceeded: userId={}, type={}, count={}",
                                 userId, type, count);
 
                         // Calculate retry after
                         return redisTemplate.getExpire(key)
-                                .defaultIfEmpty(type.getWindow())
+                                .defaultIfEmpty(config.window())
                                 .flatMap(ttl -> Mono.error(new RateLimitException(ttl)));
                     }
 
                     LOG.trace("Rate limit check passed: userId={}, type={}, count={}/{}",
-                            userId, type, count, type.getMaxRequests());
+                            userId, type, count, config.maxRequests());
                     return Mono.just(true);
                 });
     }
@@ -204,7 +243,7 @@ public class RateLimitService {
     public void checkRateLimitBlocking(String userId, RateLimitType type) {
         Boolean allowed = checkRateLimit(userId, type).block();
         if (!Boolean.TRUE.equals(allowed)) {
-            throw new RateLimitException(type.getWindow());
+            throw new RateLimitException(resolve(type).window());
         }
     }
 
@@ -259,13 +298,14 @@ public class RateLimitService {
      * @return remaining requests
      */
     public Mono<Integer> getRemainingRequests(String userId, RateLimitType type) {
+        LimitConfig config = resolve(type);
         String key = keyFor(userId, type);
 
         return redisTemplate.opsForValue()
                 .get(key)
                 .map(Integer::parseInt)
                 .defaultIfEmpty(0)
-                .map(count -> Math.max(0, type.getMaxRequests() - count));
+                .map(count -> Math.max(0, config.maxRequests() - count));
     }
 
     public Mono<Integer> getRemainingRequests(Long userId, RateLimitType type) {

@@ -1,5 +1,6 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.model.InviteToken;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.RoomJoinRequest;
@@ -34,6 +35,7 @@ public class RoomJoinService {
     private final PasswordProofService passwordProofService;
     private final RoomMemberPublicKeyRepository memberPublicKeyRepository;
     private final RoomBansRepository roomBansRepository;
+    private final RateLimitService rateLimitService;
 
     public sealed interface JoinResult permits JoinResult.Approved, JoinResult.Pending {
 
@@ -102,15 +104,40 @@ public class RoomJoinService {
     private Mono<JoinResult> validatePasswordAndJoin(JoinAttempt attempt) {
         boolean roomHasPassword = attempt.room().getPasswordProofHash() != null
                 && !attempt.room().getPasswordProofHash().isBlank();
-        if (roomHasPassword) {
-            if (attempt.passwordProof() == null || attempt.passwordProof().isBlank()) {
-                return Mono.error(new SecurityException("WRONG_PASSWORD"));
-            }
-            if (!passwordProofService.verifyProof(attempt.passwordProof(),
-                    attempt.room().getPasswordProofHash())) {
-                return Mono.error(new SecurityException("WRONG_PASSWORD"));
-            }
+        if (!roomHasPassword) {
+            return continueJoinAfterPassword(attempt);
         }
+        String rateKey = passwordFailKey(attempt.room().getId(), attempt.senderInternalId());
+        return rateLimitService.getRemainingRequests(rateKey, RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL)
+                .flatMap(remaining -> {
+                    if (remaining <= 0) {
+                        return Mono.error(new RateLimitException(
+                                RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL.getWindow()));
+                    }
+                    if (attempt.passwordProof() == null || attempt.passwordProof().isBlank()) {
+                        return recordPasswordFailure(rateKey)
+                                .then(Mono.error(new SecurityException("WRONG_PASSWORD")));
+                    }
+                    if (!passwordProofService.verifyProof(attempt.passwordProof(),
+                            attempt.room().getPasswordProofHash())) {
+                        return recordPasswordFailure(rateKey)
+                                .then(Mono.error(new SecurityException("WRONG_PASSWORD")));
+                    }
+                    return continueJoinAfterPassword(attempt);
+                });
+    }
+
+    private Mono<Void> recordPasswordFailure(String rateKey) {
+        return rateLimitService.checkRateLimit(rateKey, RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL)
+                .onErrorResume(RateLimitException.class, e -> Mono.just(false))
+                .then();
+    }
+
+    private static String passwordFailKey(String roomId, String senderInternalId) {
+        return roomId + ":" + senderInternalId;
+    }
+
+    private Mono<JoinResult> continueJoinAfterPassword(JoinAttempt attempt) {
         return roomMembersRepository.isMember(attempt.room().getId(), attempt.senderInternalId())
                 .flatMap(alreadyMember -> {
                     if (alreadyMember) {

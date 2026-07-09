@@ -56,6 +56,9 @@ class RoomJoinServiceBannedTest {
     @Mock
     private RoomBansRepository roomBansRepository;
 
+    @Mock
+    private RateLimitService rateLimitService;
+
     @InjectMocks
     private RoomJoinService roomJoinService;
 

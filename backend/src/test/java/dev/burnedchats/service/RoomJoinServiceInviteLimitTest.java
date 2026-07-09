@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +55,9 @@ class RoomJoinServiceInviteLimitTest {
 
     @Mock
     private RoomBansRepository roomBansRepository;
+
+    @Mock
+    private RateLimitService rateLimitService;
 
     @InjectMocks
     private RoomJoinService roomJoinService;
@@ -116,6 +120,9 @@ class RoomJoinServiceInviteLimitTest {
 
         when(inviteTokenRepository.findByToken(TOKEN)).thenReturn(Mono.just(limitedToken));
         when(roomRepository.findById(ROOM_ID)).thenReturn(Mono.just(passwordRoom));
+        when(rateLimitService.getRemainingRequests(eq(ROOM_ID + ":" + SENDER_INTERNAL),
+                eq(RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL)))
+                .thenReturn(Mono.just(5));
         when(passwordProofService.verifyProof("proof", "hash")).thenReturn(true);
         when(roomMembersRepository.isMember(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
         when(roomBansRepository.isBanned(ROOM_ID, SENDER_INTERNAL)).thenReturn(Mono.just(false));
