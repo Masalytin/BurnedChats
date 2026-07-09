@@ -23,22 +23,36 @@ Development: http://localhost:8080
 
 ### Аутентификация
 
-Все WebSocket соединения требуют один из двух режимов аутентификации в STOMP CONNECT:
+**Auth выполняется на HTTP WebSocket handshake** (`StompHandshakeAuthInterceptor` +
+`StompIdentityAuthService`), не в STOMP `CONNECT`. Клиент передаёт креды в
+handshake headers (и дублирует в query-параметрах для SockJS). STOMP `CONNECT`
+только подтверждает, что principal уже установлен (`StompAuthInterceptor`);
+повторной Redis-аутентификации на `CONNECT` нет.
 
-- `telegram` (legacy/current): `X-Auth-Type: telegram` + `X-Telegram-Init-Data`
+Режимы:
+
+- `telegram` (по умолчанию, если `X-Auth-Type` отсутствует): `X-Telegram-Init-Data`
 - `wallet`: `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token из `POST /api/auth/wallet`)
 
 ```typescript
-// Frontend (telegram)
+// Frontend — auth на HTTP handshake (SockJS / raw WS), не в CONNECT-only
 const client = new Client({
+  webSocketFactory: () => new SockJS(
+    // query-параметры нужны для SockJS (кастомные headers на handshake недоступны)
+    `https://api.burnedchats.com/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
+  ),
+  // connectHeaders опциональны для raw WebSocket; для SockJS креды уже в URL
   connectHeaders: {
     'X-Auth-Type': 'telegram',
     'X-Telegram-Init-Data': window.Telegram.WebApp.initData
   }
 });
 
-// Frontend (wallet)
+// Wallet
 const walletClient = new Client({
+  webSocketFactory: () => new SockJS(
+    `https://api.burnedchats.com/ws?X-Auth-Type=wallet&X-Auth-Token=${encodeURIComponent(token)}`
+  ),
   connectHeaders: {
     'X-Auth-Type': 'wallet',
     'X-Auth-Token': '<session-token>'
@@ -46,27 +60,32 @@ const walletClient = new Client({
 });
 ```
 
-```java
-// Backend - StompAuthInterceptor.java
-String authType = accessor.getFirstNativeHeader("X-Auth-Type");
-String token = accessor.getFirstNativeHeader("X-Auth-Token");
-```
+Handshake без кредов допускается (соединение поднимается неаутентифицированным);
+невалидные креды → handshake **отклоняется**. `Principal#getName()` =
+`UnifiedUser.internalId()` (UUID), не Telegram numeric ID.
 
-Совместимость: backend также принимает legacy-имена заголовков `auth-type` / `auth-token`.
+Совместимость: backend также принимает legacy-имена заголовков/query `auth-type` / `auth-token`.
 
 ### Rate Limits
 
-| Эндпоинт/событие | Лимит | Окно |
-|------------------|-------|------|
-| REST endpoints | 100 req | 1 min |
-| `POST /api/files/upload` | 10 req | 1 min |
-| `SEARCH_USER` | 10 req | 1 min |
-| `SEND_MESSAGE` | 30 msg | 1 min |
-| `CREATE_SESSION` | 3 req | 5 min |
+| Эндпоинт/событие | Лимит | Окно | Примечание |
+|------------------|-------|------|------------|
+| REST `/api/auth/**` | 20 req | 1 min | `RestRateLimitInterceptor` (по IP / token) |
+| REST `/api/wallet/**`, `/api/governance/**` | 60 req | 1 min | тот же интерцептор |
+| REST `/api/files/**` | — | — | **вне** REST-интерцептора; upload — отдельный bucket |
+| `POST /api/files/upload` | 10 req | 1 min | `FILE_UPLOAD` (`FileValidationService`) |
+| `SEARCH_USER` (`/app/search`) | 10 req | 1 min | `SEARCH` |
+| `SEND_MESSAGE` (`/app/message.send`, `/app/message.sync`) | 60 msg | 1 min | `MESSAGE` (`RateLimitService`; yaml `rate-limit.messages.per-minute`) |
+| `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (после PoW) |
+| Прочие `/app/*` (по умолчанию) | 100 req | 1 min | `GENERAL` в `RateLimitInterceptor` |
+| `/app/heartbeat` | exempt | — | presence heartbeat |
+
+При превышении STOMP-лимита SEND-фрейм дропается; клиент получает
+`RATE_LIMIT_EXCEEDED` на `/user/queue/errors` (соединение остаётся открытым).
 
 ### REST (файлы): аутентификация
 
-Эндпоинты файлов поддерживают два режима (как STOMP CONNECT):
+Эндпоинты файлов поддерживают те же два режима, что и WebSocket handshake:
 
 | Режим | Заголовки |
 |-------|-----------|
@@ -91,40 +110,53 @@ X-Auth-Token: <session-token>
 
 ### Health Check
 
+Кастомные эндпоинты (`HealthController`, префикс `/api`):
+
 ```http
-GET /actuator/health
+GET /api/health
 ```
 
 **Response:**
 ```json
 {
   "status": "UP",
-  "components": {
-    "redis": {
-      "status": "UP"
-    },
-    "diskSpace": {
-      "status": "UP"
-    }
-  }
+  "service": "burned-chats-backend",
+  "timestamp": "2026-07-09T10:00:00Z"
 }
 ```
+
+```http
+GET /api/health/detailed
+```
+
+**Response:** `status` = `UP` | `DEGRADED`; `components.redis` / `components.websocket`
+(Redis через `RedisHealthService`).
+
+Также доступны Spring Actuator: `GET /actuator/health`, `GET /actuator/info`
+(см. `application.yml` management endpoints).
 
 ### Application Info
 
 ```http
-GET /actuator/info
+GET /api/info
 ```
 
-**Response:**
+**Response** (`HealthController` — версия **захардкожена**):
 ```json
 {
-  "app": {
-    "name": "burned-chats",
-    "version": "1.0.0"
+  "name": "BurnedChats Backend",
+  "version": "0.1.0-SNAPSHOT",
+  "description": "Secure ephemeral chat backend for Telegram Mini App",
+  "features": {
+    "websocket": "STOMP over WebSocket with SockJS fallback",
+    "redis": "Lettuce reactive client with connection pooling"
   }
 }
 ```
+
+> Actuator `/actuator/info` может отдавать `info.app.version` из Maven
+> (`@project.version@`) — это **отдельный** эндпоинт; канон для агентов —
+> `/api/info` → `0.1.0-SNAPSHOT`.
 
 ### Wallet auth (Phase 3): nonce для Ton Connect
 
@@ -377,13 +409,13 @@ GET /actuator/info
 | 403 | `ACCESS_DENIED` | Пользователь не участник сессии / не член комнаты |
 | 404 | `CONTEXT_NOT_FOUND` | Сессия не найдена (для `session`) |
 | 413 | `FILE_TOO_LARGE` | Размер вне допустимого диапазона (см. `ValidationConstants.MAX_ENCRYPTED_FILE_SIZE`) |
-| 429 | `RATE_LIMITED` | Превышен лимит загрузок; возможны заголовки `Retry-After` и поле `retryAfter` в JSON |
+| 429 | `RATE_LIMIT_EXCEEDED` | Превышен лимит загрузок; возможны заголовки `Retry-After` и поле `retryAfter` в JSON |
 
 Пример тела при 429:
 
 ```json
 {
-  "error": "RATE_LIMITED",
+  "error": "RATE_LIMIT_EXCEEDED",
   "message": "...",
   "retryAfter": 45
 }
@@ -424,10 +456,12 @@ GET /actuator/info
 ### Telegram Webhook
 
 ```http
-POST /telegram/webhook
+POST /api/telegram/webhook
 ```
 
 Обрабатывает входящие update от Telegram Bot API.
+Контроллер: `TelegramWebhookController` (`@RequestMapping("/api/telegram")` +
+`@PostMapping("/webhook")`). Включается при `telegram.bot.webhook.enabled=true`.
 
 **Headers:**
 ```http
@@ -437,22 +471,8 @@ Content-Type: application/json
 
 **Body:** Telegram Update object
 
-**Java Controller:**
-
-```java
-@PostMapping("/webhook")
-public ResponseEntity<?> onWebhook(
-        @RequestHeader("X-Telegram-Bot-Api-Secret-Token") String secretToken,
-        @RequestBody Update update) {
-    
-    if (!config.getWebhookSecret().equals(secretToken)) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
-    
-    BotApiMethod<?> response = bot.onWebhookUpdateReceived(update);
-    return ResponseEntity.ok(response);
-}
-```
+Невалидный secret → **401**. Nginx prod проксирует тот же путь
+(`/api/telegram/webhook`).
 
 ---
 
@@ -474,7 +494,7 @@ public ResponseEntity<?> onWebhook(
 
 - `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. IMP-PREMNT-08).
 - `startTime = creationTime + CANCEL_LAG` (`governor.tact`); голосование доступно только при **`now >= startTime`** и `now <= endTime`.
-- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается). См. [REPORT IMP-GOVOTE](../improvements/governance-vote-tx-fail/REPORT.md) RC-1.
+- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается). См. [REPORT IMP-GOVOTE](../archive/improvements/governance-vote-tx-fail/REPORT.md) RC-1.
 - Клиент обязан блокировать `CastVote`, пока `now < startTime` (IMP-GOVOTE-01), даже если backend возвращает `ACTIVE`.
 
 **On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04)**
@@ -486,7 +506,7 @@ public ResponseEntity<?> onWebhook(
 | 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **0.07** | VP cap по on-chain staking |
 
 - Остаток relay возвращается **voter'у** (IMP-GOVOTE-02); избыточный attach сверх `0.18` — через `cashback` на Governor и refund на StakingMaster.
-- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decision: [IMP-GOVOTE-04](../improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md).
+- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decision: [IMP-GOVOTE-04](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md).
 
 Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
 
@@ -563,25 +583,32 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 ### Подключение
 
 ```typescript
-// Frontend - STOMP Client
+// Frontend - STOMP Client (auth на HTTP handshake; см. «Аутентификация»)
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
 const client = new Client({
-  webSocketFactory: () => new SockJS('https://api.burnedchats.com/ws'),
-  connectHeaders: {
-    'X-Auth-Type': 'telegram',
-    'X-Telegram-Init-Data': window.Telegram.WebApp.initData
-  },
+  webSocketFactory: () => new SockJS(
+    `https://api.burnedchats.com/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
+  ),
+  // Broker heartbeat: 10s (WebSocketConfig / application.yml)
+  heartbeatIncoming: 10000,
+  heartbeatOutgoing: 10000,
   onConnect: () => {
     console.log('Connected');
-    // Подписываемся на персональные сообщения
-    client.subscribe('/user/queue/messages', handleMessage);
-    client.subscribe('/user/queue/events', handleEvent);
+    // Персональные очереди — актуальные имена из кода
+    client.subscribe('/user/queue/new-message', handleMessage);
+    client.subscribe('/user/queue/errors', handleError);
+    client.subscribe('/user/queue/sync-messages', handleSync);
   }
 });
 
 client.activate();
+
+// Presence heartbeat (отдельно от STOMP broker heartbeat): каждые ~20s
+setInterval(() => {
+  client.publish({ destination: '/app/heartbeat', body: '{}' });
+}, 20000);
 ```
 
 ### Жизненный цикл соединения
@@ -593,16 +620,18 @@ client.activate();
 │                                                              │
 │  Client                              Server                  │
 │    │                                    │                    │
-│    │ ─────── STOMP CONNECT ─────────────►│                   │
-│    │  (X-Auth-Type + auth header)       │                    │
-│    │                                    │ validate initData  │
+│    │ ── HTTP WS handshake ─────────────►│                   │
+│    │  (auth headers / SockJS query)     │ validate creds     │
 │    │                                    │                    │
+│    │ ─────── STOMP CONNECT ─────────────►│                   │
+│    │  (подтверждает principal)          │                    │
 │    │ ◄─────── CONNECTED ────────────────│                    │
 │    │                                    │                    │
 │    │ ─────── SUBSCRIBE ─────────────────►│                   │
 │    │         (/user/queue/*)            │                    │
 │    │                                    │                    │
-│    │ ══════ HEARTBEAT (20s) ═══════════│                    │
+│    │ ══════ STOMP heartbeat 10s ═══════│                    │
+│    │ ══════ /app/heartbeat ~20s ═══════│ (presence TTL 30s) │
 │    │                                    │                    │
 │    │ ─────── DISCONNECT ────────────────►│                   │
 │    │                                    │                    │
@@ -662,7 +691,17 @@ client.activate();
 | `online` | boolean | Статус heartbeat |
 | `premium` | boolean | Telegram Premium |
 
-**Ошибки:** `NOT_FOUND`, `INVALID_QUERY`, `SELF_SEARCH`, `RATE_LIMITED`.
+**Ответы на `/user/queue/search-result`:**
+
+| Условие | Payload |
+|---------|---------|
+| Найден | `{ found: true, user: UserResponse }` |
+| Не найден / ошибка репозитория | `{ found: false }` (`error` = `null`) — **не** отдельный код `NOT_FOUND` |
+| Невалидный формат | `{ found: false, error: "INVALID_QUERY" }` |
+| Self-search | `{ found: false, error: "SELF_SEARCH" }` |
+
+**Rate-limit** (`SEARCH` 10/min): SEND дропается; клиент получает
+`RATE_LIMIT_EXCEEDED` на `/user/queue/errors` (не на `search-result`).
 
 **Backend:** `SearchHandler` — `@MessageMapping("/search")`, доставка через `StompUserMessenger` по `internalId` инициатора поиска.
 
@@ -670,7 +709,7 @@ client.activate();
 
 ### `POW_CHALLENGE` (`/app/pow.challenge`)
 
-Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../improvements/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
+Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../archive/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
 
 **Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел IMP-ASPOW-04).
 
@@ -762,7 +801,14 @@ client.publish({
 
 Очередь pending: Redis `request:{recipientInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
 
-**Коды ошибок** (`success: false` на `/user/queue/session-created`): `USER_NOT_FOUND`, `SELF_CHAT`, `USER_BLOCKED`, `EXPECTED_ANSWER_REQUIRED`, `EXPECTED_ANSWER_TOO_LONG`, `RATE_LIMITED`.
+**Коды ошибок** (`success: false` на `/user/queue/session-created`):
+`SELF_REQUEST`, `INVALID_RECIPIENT`, `EXPECTED_ANSWER_REQUIRED`,
+`EXPECTED_ANSWER_TOO_LONG`, `ALREADY_HAS_SESSION`, `RECIPIENT_HAS_SESSION`,
+`PENDING_REQUEST_EXISTS`, `INTERNAL_ERROR`.
+
+> Коды `USER_NOT_FOUND` / `SELF_CHAT` / `USER_BLOCKED` / `RATE_LIMITED` на
+> `session-created` **не используются**. Rate-limit и PoW идут на
+> `/user/queue/errors` (см. ниже).
 
 **PoW / rate-limit ошибки** (на `/user/queue/errors`, `WebSocketExceptionHandler`):
 
@@ -813,48 +859,39 @@ client.subscribe('/user/queue/session-accepted', (message) => {
 
 ---
 
-### `REJECT_REQUEST`
+### `REJECT_REQUEST` (`/app/session.reject`)
 
 Отклонение запроса на чат.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/session/reject',
+  destination: '/app/session.reject',
   body: JSON.stringify({
     sessionId: 'abc123'
   })
 });
+
+client.subscribe('/user/queue/session-rejected', (message) => {
+  const data = JSON.parse(message.body);
+  // SessionRejectedEvent: sessionId, …
+});
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/session/reject")
-public void rejectRequest(@Payload RejectRequestDto request,
-                          Principal principal) {
-    String rejectorTgId = principal.getName();
-    
-    sessionService.rejectRequest(request.getSessionId(), rejectorTgId)
-        .subscribe(senderId -> {
-            messagingTemplate.convertAndSendToUser(
-                senderId,
-                "/queue/session-rejected",
-                new SessionRejectedEvent(request.getSessionId())
-            );
-        });
-}
-```
+**Backend:** `SessionHandler` — `@MessageMapping("/session.reject")`.
+Доставка инициатору через `StompUserMessenger` по **`internalId`**
+(не Telegram ID). Principal name = `UnifiedUser.internalId()`.
 
 ---
 
-### `SEND_PUBLIC_KEY`
+### `SEND_PUBLIC_KEY` (`/app/handshake.key`)
 
 Отправка публичного ключа ECDH для handshake.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/handshake/key',
+  destination: '/app/handshake.key',
   body: JSON.stringify({
     sessionId: 'abc123',
     publicKey: 'Base64EncodedRawKey...'
@@ -862,32 +899,15 @@ client.publish({
 });
 
 // Peer получает
-client.subscribe('/user/queue/peer-public-key', (message) => {
+client.subscribe('/user/queue/peer-key', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, publicKey: string }
+  // PeerPublicKeyEvent: sessionId, publicKey, …
 });
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/handshake/key")
-public void sendPublicKey(@Payload PublicKeyDto request,
-                          Principal principal) {
-    String senderTgId = principal.getName();
-    
-    sessionService.getSession(request.getSessionId())
-        .filter(session -> session.hasParticipant(senderTgId))
-        .subscribe(session -> {
-            String peerId = session.getOtherParticipant(senderTgId);
-            
-            messagingTemplate.convertAndSendToUser(
-                peerId,
-                "/queue/peer-public-key",
-                new PeerPublicKeyEvent(request.getSessionId(), request.getPublicKey())
-            );
-        });
-}
-```
+**Backend:** `HandshakeHandler` — `@MessageMapping("/handshake.key")`.
+Peer-доставка: `StompUserMessenger` → `/user/queue/peer-key` по `internalId`.
+Также существует `/user/queue/handshake-refresh` при refresh handshake.
 
 ---
 
@@ -952,14 +972,14 @@ client.subscribe('/user/queue/new-message', (message) => {
 
 ---
 
-### `CONFIRM_VERIFICATION`
+### `CONFIRM_VERIFICATION` (`/app/verification.confirm`)
 
 Подтверждение Visual Fingerprint.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/verify/confirm',
+  destination: '/app/verification.confirm',
   body: JSON.stringify({
     sessionId: 'abc123',
     confirmed: true
@@ -967,85 +987,40 @@ client.publish({
 });
 
 // Оба получают статус
-client.subscribe('/user/queue/verification-status', (message) => {
+client.subscribe('/user/queue/verification', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, bothConfirmed: boolean, peerConfirmed: boolean }
+  // VerificationEvent: success, sessionId, verified, peerVerified, bothVerified, verifiedAt?, error?
 });
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/verify/confirm")
-public void confirmVerification(@Payload ConfirmVerificationDto request,
-                                Principal principal) {
-    String tgId = principal.getName();
-    
-    sessionService.confirmVerification(request.getSessionId(), tgId, request.isConfirmed())
-        .subscribe(session -> {
-            session.getParticipants().forEach(participantId -> {
-                String peerId = session.getOtherParticipant(participantId);
-                boolean peerConfirmed = session.isVerified(peerId);
-                boolean bothConfirmed = session.isBothVerified();
-                
-                messagingTemplate.convertAndSendToUser(
-                    participantId,
-                    "/queue/verification-status",
-                    new VerificationStatusEvent(
-                        request.getSessionId(), 
-                        bothConfirmed, 
-                        peerConfirmed
-                    )
-                );
-            });
-        });
-}
-```
+**Backend:** `VerificationHandler` — `@MessageMapping("/verification.confirm")`.
+Доставка через `StompUserMessenger` → `/user/queue/verification` по `internalId`.
 
 ---
 
-### `BURN_SESSION`
+### `BURN_SESSION` (`/app/session.burn`)
 
 Уничтожение сессии.
 
 **Frontend:**
 ```typescript
 client.publish({
-  destination: '/app/session/burn',
+  destination: '/app/session.burn',
   body: JSON.stringify({
     sessionId: 'abc123'
   })
 });
 
 // Оба получают
-client.subscribe('/user/queue/session-burned', (message) => {
+client.subscribe('/user/queue/burn-signal', (message) => {
   const data = JSON.parse(message.body);
-  // { sessionId: string, burnedBy: string }
+  // BurnSignalEvent: sessionId, burnedBy?, burnedAt, success
 });
 ```
 
-**Backend Controller:**
-```java
-@MessageMapping("/session/burn")
-public void burnSession(@Payload BurnSessionDto request,
-                        Principal principal) {
-    String initiatorTgId = principal.getName();
-    
-    sessionService.burnSession(request.getSessionId(), initiatorTgId)
-        .subscribe(session -> {
-            session.getParticipants().forEach(participantId -> {
-                messagingTemplate.convertAndSendToUser(
-                    participantId,
-                    "/queue/session-burned",
-                    new SessionBurnedEvent(request.getSessionId(), initiatorTgId)
-                );
-            });
-            
-            // Очищаем Redis
-            sessionRepository.delete(request.getSessionId()).subscribe();
-            messageRepository.deleteAll(request.getSessionId()).subscribe();
-        });
-}
-```
+**Backend:** `BurnHandler` — `@MessageMapping("/session.burn")`.
+Доставка через `StompUserMessenger` → `/user/queue/burn-signal` по `internalId`
+обоих участников. После burn клиент обязан уничтожить ключи и очистить историю.
 
 ---
 
@@ -1073,79 +1048,113 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 
 ---
 
-### `TYPING_START` / `TYPING_STOP`
+### `TYPING_START` / `TYPING_STOP` — **planned (не реализовано)**
 
-Индикатор набора текста.
+> **Статус:** destinations `/app/typing/start`, `/app/typing/stop` и очередь
+> `/user/queue/peer-typing` **отсутствуют в коде** (нет `@MessageMapping`, нет
+> публикаций). Не подписываться и не публиковать — клиент получит тишину.
+> Зарезервировано на будущее; до реализации индикатор набора не поддерживается.
 
-**Frontend:**
-```typescript
-// Начало набора
-client.publish({
-  destination: '/app/typing/start',
-  body: JSON.stringify({ sessionId: 'abc123' })
-});
+---
 
-// Окончание набора
-client.publish({
-  destination: '/app/typing/stop',
-  body: JSON.stringify({ sessionId: 'abc123' })
-});
+### Дополнительные DM / session destinations (код)
 
-// Peer получает
-client.subscribe('/user/queue/peer-typing', (message) => {
-  const data = JSON.parse(message.body);
-  // { sessionId: string, isTyping: boolean }
-});
-```
+Следующие маршруты реализованы в `SessionHandler` / `MessageHandler` /
+`HeartbeatHandler` / `UserPreferenceHandler` и ранее не были сведены в одну таблицу:
 
-**Backend Controller:**
-```java
-@MessageMapping("/typing/start")
-public void typingStart(@Payload TypingDto request, Principal principal) {
-    relayTypingStatus(request.getSessionId(), principal.getName(), true);
-}
-
-@MessageMapping("/typing/stop")
-public void typingStop(@Payload TypingDto request, Principal principal) {
-    relayTypingStatus(request.getSessionId(), principal.getName(), false);
-}
-
-private void relayTypingStatus(String sessionId, String senderTgId, boolean isTyping) {
-    sessionService.getSession(sessionId)
-        .subscribe(session -> {
-            String peerId = session.getOtherParticipant(senderTgId);
-            messagingTemplate.convertAndSendToUser(
-                peerId,
-                "/queue/peer-typing",
-                new PeerTypingEvent(sessionId, isTyping)
-            );
-        });
-}
-```
+| Destination | Handler | Ответ / очередь | Описание |
+|-------------|---------|-----------------|----------|
+| `/app/session.pending` | `SessionHandler` | (см. handler) | Список / получение pending-запросов |
+| `/app/session.status` | `SessionHandler` | `/user/queue/session-status` | Статус сессии (`SessionStatusEvent`) |
+| `/app/peer.disconnect` | `SessionHandler` | `/user/queue/peer-disconnected` | Уведомление peer об disconnect |
+| `/app/session.active.list` | `SessionHandler` | `/user/queue/active-sessions` | Список активных сессий |
+| `/app/session.resume` | `SessionHandler` | `/user/queue/session-resumed` | Resume после reconnect |
+| `/app/message.edit` | `MessageHandler` | `/user/queue/message-edited` | Редактирование DM |
+| `/app/message.delete` | `MessageHandler` | `/user/queue/message-deleted` | Удаление DM |
+| `/app/heartbeat` | `HeartbeatHandler` | — (обновляет `online:*`) | Presence; rate-limit **exempt**; клиент ~20s |
+| `/app/user.setLanguage` | `UserPreferenceHandler` | — (fire-and-forget) | Сохранение языковой pref |
 
 ---
 
 ## Серверные события (Server → Client)
 
-Все серверные события отправляются на персональные очереди пользователя (`/user/queue/*`).
+Все серверные события отправляются на персональные очереди пользователя
+(`/user/queue/*`) через `StompUserMessenger` по **`internalId`**.
 
-| Очередь | Событие | Описание |
-|---------|---------|----------|
-| `/user/queue/search-result` | SearchResult | Результат поиска |
-| `/user/queue/session-created` | SessionCreated | Сессия создана |
-| `/user/queue/session-started` | SessionStarted | Сессия активна |
-| `/user/queue/session-rejected` | SessionRejected | Запрос отклонён |
-| `/user/queue/session-burned` | SessionBurned | Сессия уничтожена |
-| `/user/queue/incoming-request` | IncomingRequest | Входящий запрос |
-| `/user/queue/peer-joined` | PeerJoined | Peer подключился |
-| `/user/queue/peer-left` | PeerLeft | Peer отключился |
-| `/user/queue/peer-public-key` | PeerPublicKey | Публичный ключ peer |
-| `/user/queue/messages` | NewMessage | Новое сообщение |
-| `/user/queue/message-sent` | MessageSent | Подтверждение отправки |
-| `/user/queue/verification-status` | VerificationStatus | Статус верификации |
-| `/user/queue/peer-typing` | PeerTyping | Peer печатает |
-| `/user/queue/sync-result` | SyncResult | Пропущенные сообщения |
-| `/user/queue/error` | Error | Ошибка |
+### DM / session / system
+
+| Очередь | Событие / DTO | Описание |
+|---------|---------------|----------|
+| `/user/queue/search-result` | `SearchResultEvent` | Результат поиска |
+| `/user/queue/pow-challenge` | `PowChallengeEvent` | Выданный PoW challenge |
+| `/user/queue/session-created` | `SessionCreatedEvent` | Ответ на `session.create` |
+| `/user/queue/session-accepted` | `SessionAcceptedEvent` | Запрос принят |
+| `/user/queue/session-rejected` | `SessionRejectedEvent` | Запрос отклонён |
+| `/user/queue/session-status` | `SessionStatusEvent` | Статус сессии |
+| `/user/queue/incoming-request` | `IncomingRequestEvent` | Входящий запрос на чат |
+| `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer отключился |
+| `/user/queue/active-sessions` | `ActiveSessionsListEvent` | Список активных сессий |
+| `/user/queue/session-resumed` | `SessionResumedEvent` | Resume после reconnect |
+| `/user/queue/peer-key` | `PeerPublicKeyEvent` | Публичный ключ peer |
+| `/user/queue/handshake-refresh` | handshake refresh | Обновление handshake |
+| `/user/queue/new-message` | `NewMessageEvent` | Новое DM-сообщение |
+| `/user/queue/message-sent` | `MessageSentEvent` | Ack / ошибки отправки DM |
+| `/user/queue/sync-messages` | `SyncMessagesEvent` | Offline sync DM |
+| `/user/queue/message-edited` | `MessageEditedEvent` | DM отредактировано |
+| `/user/queue/message-deleted` | `MessageDeletedEvent` | DM удалено |
+| `/user/queue/verification` | `VerificationEvent` | Статус fingerprint |
+| `/user/queue/burn-signal` | `BurnSignalEvent` | Сессия сожжена |
+| `/user/queue/errors` | error map | Глобальные STOMP-ошибки (rate-limit, PoW, validation) |
+
+> **Не реализовано (не эмитятся):** `/user/queue/session-started`,
+> `peer-joined`, `peer-left`, `peer-typing`. Не подписываться.
+> Устаревшие имена из старых спек (`messages`, `sync-result`, `error`,
+> `peer-public-key`, `session-burned`, `verification-status`) **заменены**
+> строками таблицы выше.
+
+### Room user queues
+
+| Очередь | Описание |
+|---------|----------|
+| `/user/queue/room-created` | Комната создана |
+| `/user/queue/invite-link` | Инвайт-ссылка |
+| `/user/queue/room-invites` | Список инвайтов |
+| `/user/queue/room-invite-info` | Инфо по токену |
+| `/user/queue/room-join-requests` | Заявки на вступление |
+| `/user/queue/room-join-result` | Результат join (approve/reject) |
+| `/user/queue/key-bundle` | Key bundle |
+| `/user/queue/room-rekey` | Rekey |
+| `/user/queue/member-pubkeys` | Pubkeys членов |
+| `/user/queue/room-list` | Список комнат пользователя |
+| `/user/queue/room-members` | Список членов |
+| `/user/queue/room-presence` | Snapshot presence |
+| `/user/queue/room-burned` | Комната сожжена |
+| `/user/queue/room-left` | Вы вышли |
+| `/user/queue/room-member-left` | Участник вышел |
+| `/user/queue/room-kicked` | Вас кикнули |
+| `/user/queue/room-kick-result` | Результат kick |
+| `/user/queue/room-member-removed` | Участник удалён |
+| `/user/queue/room-bans` | Список банов |
+| `/user/queue/room-message-sent` | Ack / ошибки room send |
+| `/user/queue/room-sync-messages` | Offline sync room |
+| `/user/queue/room-message-edited` | Room edit ack/error |
+| `/user/queue/room-message-deleted` | Room delete ack/error |
+
+> Константа `/queue/room-message-error` в коде **определена, но не используется** —
+> ошибки room-send идут в `/user/queue/room-message-sent`.
+
+Топик: `/topic/room/{roomId}` (мультиплекс по типу события; подписка только для членов).
+
+### Дополнительные room destinations (client → server)
+
+| Destination | Описание |
+|-------------|----------|
+| `/app/room.leave` | Выход из комнаты → `/user/queue/room-left` (+ peer `room-member-left`) |
+| `/app/room.requestKeyBundle` | Запрос key bundle |
+| `/app/room.getMemberPubkeys` | Pubkeys членов → `/user/queue/member-pubkeys` |
+| `/app/room.message.edit` | Редактирование room-сообщения |
+| `/app/room.message.delete` | Удаление room-сообщения |
+| `/app/room.burn` | Сожжение комнаты → `/user/queue/room-burned` |
 
 ---
 
@@ -1217,15 +1226,20 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 
 ### Общие ошибки
 
-| Код | HTTP | Описание |
-|-----|------|----------|
-| `UNAUTHORIZED` | 401 | Невалидный initData |
+| Код | HTTP / канал | Описание |
+|-----|--------------|----------|
+| `UNAUTHORIZED` | 401 | Невалидный initData / session token |
 | `FORBIDDEN` | 403 | Нет доступа к ресурсу |
 | `NOT_FOUND` | 404 | Ресурс не найден |
-| `RATE_LIMITED` | 429 | Превышен лимит запросов |
-| `POW_REQUIRED` | — | STOMP `/user/queue/errors`: нет/истёк PoW challenge на gated-действии |
-| `POW_INVALID` | — | STOMP `/user/queue/errors`: неверное PoW-решение, action mismatch или replay |
-| `INTERNAL_ERROR` | 500 | Внутренняя ошибка сервера |
+| `RATE_LIMIT_EXCEEDED` | 429 / STOMP `/user/queue/errors` | Превышен лимит запросов (REST и STOMP) |
+| `POW_REQUIRED` | STOMP `/user/queue/errors` | Нет/истёк PoW challenge на gated-действии |
+| `POW_INVALID` | STOMP `/user/queue/errors` | Неверное PoW-решение, action mismatch или replay |
+| `INTERNAL_ERROR` | 500 / STOMP | Внутренняя ошибка сервера |
+
+> Устаревший код `RATE_LIMITED` в REST/STOMP global errors **не используется**
+> (`RateLimitException` → `RATE_LIMIT_EXCEEDED`). Некоторые room-event DTO
+> всё ещё могут писать строку `RATE_LIMITED` в поле `error` локального ack —
+> это отдельный wire-контракт room-handlers, не глобальный `/user/queue/errors`.
 
 ### Ошибки сессий
 
@@ -1236,14 +1250,21 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 | `SESSION_EXPIRED` | Время ожидания истекло |
 | `SESSION_BURNED` | Сессия была уничтожена |
 | `NOT_PARTICIPANT` | Вы не участник этой сессии |
+| `SELF_REQUEST` | Нельзя создать чат с собой (`session.create`) |
+| `INVALID_RECIPIENT` | Получатель не резолвится |
+| `ALREADY_HAS_SESSION` | У инициатора уже есть активная сессия |
+| `RECIPIENT_HAS_SESSION` | У получателя уже есть активная сессия |
+| `PENDING_REQUEST_EXISTS` | Дублирующий pending-запрос |
 
 ### Ошибки пользователей
 
 | Код | Описание |
 |-----|----------|
-| `USER_NOT_FOUND` | Пользователь не найден |
-| `USER_BLOCKED` | Пользователь заблокировал вас |
-| `SELF_CHAT` | Нельзя создать чат с собой |
+| `INVALID_QUERY` | Невалидный формат search query |
+| `SELF_SEARCH` | Поиск самого себя |
+
+> Коды `USER_NOT_FOUND`, `USER_BLOCKED`, `SELF_CHAT` **не эмитятся** кодом
+> (блокировки пользователей не реализованы; not-found поиска = `{found:false}`).
 
 ### Ошибки сообщений и файлов
 
@@ -1260,39 +1281,14 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 | `FILE_SIZE_INVALID` | Размер после загрузки не совпал с `Content-Length` |
 | `INVALID_CONTEXT_TYPE` | Неверный `X-Context-Type` |
 
-### Java Exception Handler
+### STOMP Exception Handler
 
-```java
-@ControllerAdvice
-@Slf4j
-public class WebSocketExceptionHandler {
-    
-    @MessageExceptionHandler
-    public void handleException(Exception ex, Principal principal) {
-        log.error("WebSocket error for user {}: {}", 
-            principal.getName(), ex.getMessage());
-        
-        ErrorCode code = mapToErrorCode(ex);
-        
-        messagingTemplate.convertAndSendToUser(
-            principal.getName(),
-            "/queue/error",
-            new ErrorEvent(code, ex.getMessage())
-        );
-    }
-    
-    private ErrorCode mapToErrorCode(Exception ex) {
-        if (ex instanceof SessionNotFoundException) {
-            return ErrorCode.SESSION_NOT_FOUND;
-        }
-        if (ex instanceof UnauthorizedException) {
-            return ErrorCode.UNAUTHORIZED;
-        }
-        // ... другие маппинги
-        return ErrorCode.INTERNAL_ERROR;
-    }
-}
-```
+`WebSocketExceptionHandler` ловит исключения на STOMP-маршрутах и шлёт
+payload на `/user/queue/errors` через `StompUserMessenger` по **`internalId`**
+принципала (не Telegram ID). Типичные коды: `RATE_LIMIT_EXCEEDED`,
+`POW_REQUIRED`, `POW_INVALID`, `VALIDATION_ERROR`, `INTERNAL_ERROR`.
+Тело — `Map` с полями `success`, `error`, `message`, `timestamp`
+(+ `retryAfter` для rate-limit).
 
 ---
 
@@ -1302,25 +1298,27 @@ public class WebSocketExceptionHandler {
 
 ```typescript
 const client = new Client({
-  webSocketFactory: () => new SockJS('/ws'),
-  connectHeaders: {
-    'X-Telegram-Init-Data': WebApp.initData
-  },
-  reconnectDelay: 5000,        // 5 секунд между попытками
-  heartbeatIncoming: 20000,    // Heartbeat входящий
-  heartbeatOutgoing: 20000,    // Heartbeat исходящий
-  
+  webSocketFactory: () => new SockJS(
+    `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(WebApp.initData)}`
+  ),
+  reconnectDelay: 5000,
+  // STOMP broker heartbeat — 10s (совпадает с WebSocketConfig)
+  heartbeatIncoming: 10000,
+  heartbeatOutgoing: 10000,
+
   onConnect: () => {
-    // При переподключении восстанавливаем сессию
     if (currentSessionId) {
-      syncMessages(currentSessionId, lastMessageId);
+      client.publish({
+        destination: '/app/message.sync',
+        body: JSON.stringify({ sessionId: currentSessionId })
+      });
     }
   },
-  
+
   onDisconnect: () => {
     setConnectionStatus('reconnecting');
   },
-  
+
   onStompError: (frame) => {
     console.error('STOMP error:', frame.headers.message);
   }
@@ -1332,21 +1330,32 @@ const client = new Client({
 ## Пример полного flow
 
 ```typescript
-// 1. Подключение
+// 1. Подключение (auth на HTTP handshake / SockJS query)
 const client = new Client({
-  webSocketFactory: () => new SockJS('/ws'),
-  connectHeaders: { 'X-Telegram-Init-Data': initData }
+  webSocketFactory: () => new SockJS(
+    `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
+  ),
+  heartbeatIncoming: 10000,
+  heartbeatOutgoing: 10000
 });
 
 client.onConnect = () => {
-  // 2. Подписки на события
+  // 2. Подписки на актуальные очереди
   client.subscribe('/user/queue/search-result', handleSearchResult);
-  client.subscribe('/user/queue/session-started', handleSessionStarted);
-  client.subscribe('/user/queue/peer-public-key', handlePeerPublicKey);
-  client.subscribe('/user/queue/messages', handleNewMessage);
-  client.subscribe('/user/queue/session-burned', handleSessionBurned);
-  client.subscribe('/user/queue/error', handleError);
-  
+  client.subscribe('/user/queue/session-created', handleSessionCreated);
+  client.subscribe('/user/queue/session-accepted', handleSessionAccepted);
+  client.subscribe('/user/queue/incoming-request', handleIncomingRequest);
+  client.subscribe('/user/queue/peer-key', handlePeerPublicKey);
+  client.subscribe('/user/queue/new-message', handleNewMessage);
+  client.subscribe('/user/queue/burn-signal', handleBurnSignal);
+  client.subscribe('/user/queue/errors', handleError);
+  client.subscribe('/user/queue/sync-messages', handleSync);
+
+  // Presence heartbeat ~20s
+  setInterval(() => {
+    client.publish({ destination: '/app/heartbeat', body: '{}' });
+  }, 20000);
+
   // 3. Поиск пользователя
   client.publish({
     destination: '/app/search',
@@ -1358,59 +1367,68 @@ client.onConnect = () => {
 function handleSearchResult(message) {
   const { found, user } = JSON.parse(message.body);
   if (found) {
-    // 5. Создание сессии
+    // 5. Создание сессии (primary: recipientInternalId)
     client.publish({
-      destination: '/app/session/create',
-      body: JSON.stringify({ recipientTgId: user.tgId })
+      destination: '/app/session.create',
+      body: JSON.stringify({
+        recipientInternalId: user.internalId,
+        pow: { challengeId: '...', nonce: '...' } // если pow.enabled
+      })
     });
   }
 }
 
-// 6. Обработка старта сессии
-async function handleSessionStarted(message) {
-  const { sessionId, peer } = JSON.parse(message.body);
-  
-  // 7. Генерация и отправка ключа
+// 6. После session-accepted / handshake — обмен ключами
+async function startHandshake(sessionId: string) {
   const keyPair = await generateKeyPair();
   const publicKey = await exportPublicKey(keyPair.publicKey);
-  
+
   client.publish({
-    destination: '/app/handshake/key',
+    destination: '/app/handshake.key',
     body: JSON.stringify({ sessionId, publicKey })
   });
 }
 
-// 8. Получение ключа peer
+// 7. Получение ключа peer
 async function handlePeerPublicKey(message) {
-  const { publicKey } = JSON.parse(message.body);
+  const { publicKey, sessionId } = JSON.parse(message.body);
   const peerKey = await importPublicKey(publicKey);
   const sharedKey = await deriveKey(keyPair.privateKey, peerKey);
-  
-  // 9. Генерация Visual Fingerprint
+
   const fingerprint = await generateFingerprint(sharedKey);
   showVerificationUI(fingerprint);
 }
 
-// 10. Отправка сообщений
+// 8. Отправка сообщений
 async function sendMessage(text: string) {
   const encrypted = await encrypt(text, sharedKey);
   client.publish({
-    destination: '/app/message/send',
-    body: JSON.stringify({ sessionId, message: encrypted })
+    destination: '/app/message.send',
+    body: JSON.stringify({
+      sessionId,
+      messageId: crypto.randomUUID(),
+      encryptedContent: encrypted.ciphertext,
+      iv: encrypted.iv,
+      timestamp: Date.now(),
+      type: 'text'
+    })
   });
 }
 
-// 11. Получение сообщений
+// 9. Получение сообщений (плоский NewMessageEvent)
 async function handleNewMessage(message) {
-  const { message: encrypted } = JSON.parse(message.body);
-  const decrypted = await decrypt(encrypted, sharedKey);
+  const data = JSON.parse(message.body);
+  const decrypted = await decrypt(
+    { ciphertext: data.encryptedContent, iv: data.iv },
+    sharedKey
+  );
   displayMessage(decrypted);
 }
 
-// 12. Уничтожение
+// 10. Уничтожение
 function burnSession() {
   client.publish({
-    destination: '/app/session/burn',
+    destination: '/app/session.burn',
     body: JSON.stringify({ sessionId })
   });
   clearKeys();
@@ -1453,7 +1471,7 @@ client.activate();
 
 \* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии **обязателен**
 client `roomId` (AES-GCM AAD = `roomId`, см.
-[IMP-RCDF-05](../improvements/room-create-decryption-fix/decisions/IMP-RCDF-05-group-key-and-room-id-order.md)).
+[IMP-RCDF-05](../archive/improvements/room-create-decryption-fix/decisions/IMP-RCDF-05-group-key-and-room-id-order.md)).
 При создании с именем отдельный `SET_ROOM_NAME` **не** требуется — имя сохраняется в Redis
 атомарно с create; `ROOM_NAME_UPDATED` при create **не** публикуется.
 
@@ -1700,18 +1718,18 @@ STOMP-подписку, поэтому клиент обязан маршрут�
   `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) и
   **любой неизвестный `eventType`** — безопасный дефолт: ранний `return`, payload
   **никогда** не попадает в путь дешифровки текста (фикс
-  [IMP-RCDF-01](../improvements/room-create-decryption-fix/cards/IMP-RCDF-01.md));
+  [IMP-RCDF-01](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-01.md));
 - payload **без** `eventType` и **без** `messageId` (например `RoomPresenceEvent`) не
   порождает ни сообщения, ни тоста: служебный listener обрабатывает его сам, а в
   `handleNewMessage` отсутствие `encryptedContent` приводит к типизированной ошибке
-  (`INVALID_CIPHERTEXT_ENCODING`, [IMP-RCDF-02](../improvements/room-create-decryption-fix/cards/IMP-RCDF-02.md))
+  (`INVALID_CIPHERTEXT_ENCODING`, [IMP-RCDF-02](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-02.md))
   и graceful-degrade без плейсхолдера (нет `messageId`,
-  [IMP-RCDF-03](../improvements/room-create-decryption-fix/cards/IMP-RCDF-03.md)).
+  [IMP-RCDF-03](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-03.md)).
 
 > **Зачем это зафиксировано.** Неявный контракт мультиплексора был корневой причиной
 > бага дешифровки при создании комнаты (служебное `ROOM_NAME_UPDATED` проваливалось в
 > путь дешифровки текста → `atob(undefined)`). Разбор:
-> [room-create-decryption-fix/ANALYSIS.md](../improvements/room-create-decryption-fix/ANALYSIS.md) §2, §4.
+> [room-create-decryption-fix/ANALYSIS.md](../archive/improvements/room-create-decryption-fix/ANALYSIS.md) §2, §4.
 
 Ниже — детальные payload'ы каждого служебного события (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
 `ROOM_ROLE_UPDATED`, и т.д.).
@@ -1751,7 +1769,7 @@ Guard дополняет, но не заменяет обязательный re
 | `messageId`, `roomId`, `encryptedContent`, `iv` | — | Как у DM |
 | `type`, `fileId`, … | — | Медиа-поля при `type != text` |
 
-**Sync:** `/app/room.message.sync` → `/user/queue/sync-room-messages` (`SyncRoomMessagesEvent` с `senderInternalId`).
+**Sync:** `/app/room.message.sync` → `/user/queue/room-sync-messages` (`SyncRoomMessagesEvent` с `senderInternalId`).
 
 **Edit/delete:** события `RoomMessageEditedEvent`, `RoomMessageDeletedEvent` с `deletedByInternalId` (+ optional `deletedByTgId`).
 
