@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useToast } from '@/components/Toast';
 import { useTonConnect } from '@/hooks/useTonConnect';
-import { getProposal, getUserVote } from '@/ton/governance';
+import { getProposal, getUserVote, getUserVotingPowerLockedBeyond } from '@/ton/governance';
 import { formatBurn } from '@/utils/format';
 
-import { formatStartsInRemaining } from './governanceUi';
+import { describeLockGatedVoteUx, formatStartsInRemaining } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
@@ -53,7 +54,7 @@ async function pollVoteRecorded(
 type VotePhase = 'idle' | 'sending' | 'confirming';
 
 /**
- * Confirms governance vote side with VP summary and irreversibility warning.
+ * Confirms governance vote side with lock-gated VP summary and irreversibility warning.
  * After TonConnect accepts the tx, polls on-chain vote state instead of
  * treating wallet acceptance as final confirmation.
  */
@@ -70,11 +71,14 @@ export function VoteModal({
   const { vote, votingPower, proposals } = useGovernanceState();
   const [phase, setPhase] = useState<VotePhase>('idle');
   const [startTime, setStartTime] = useState(0);
+  const [endTime, setEndTime] = useState(0);
+  const [lockGatedVp, setLockGatedVp] = useState<bigint | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
     if (!open) {
       setPhase('idle');
+      setLockGatedVp(null);
       return;
     }
     setNowSec(Math.floor(Date.now() / 1000));
@@ -86,9 +90,10 @@ export function VoteModal({
     if (!open) {
       return;
     }
-    const fromList = proposals.find((p) => p.id === proposalId)?.startTime;
-    if (fromList !== undefined && fromList > 0) {
-      setStartTime(fromList);
+    const fromList = proposals.find((p) => p.id === proposalId);
+    if (fromList !== undefined && fromList.startTime > 0) {
+      setStartTime(fromList.startTime);
+      setEndTime(fromList.endTime);
       return;
     }
     let cancelled = false;
@@ -96,6 +101,7 @@ export function VoteModal({
       .then((detail) => {
         if (!cancelled) {
           setStartTime(detail.summary.startTime);
+          setEndTime(detail.summary.endTime);
         }
       })
       .catch(() => {});
@@ -104,10 +110,50 @@ export function VoteModal({
     };
   }, [open, proposalId, proposals]);
 
+  useEffect(() => {
+    if (!open || endTime <= 0) {
+      return;
+    }
+    const addr = walletAddress?.trim();
+    if (!addr) {
+      setLockGatedVp(0n);
+      return;
+    }
+    let cancelled = false;
+    setLockGatedVp(null);
+    void getUserVotingPowerLockedBeyond(addr, endTime)
+      .then((vp) => {
+        if (!cancelled) {
+          setLockGatedVp(vp);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLockGatedVp(0n);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, endTime, walletAddress]);
+
   const isPreVoteWindow = useMemo(
     () => startTime > 0 && nowSec < startTime,
     [startTime, nowSec],
   );
+
+  const voteUx = useMemo(
+    () =>
+      describeLockGatedVoteUx({
+        liveVp: votingPower,
+        lockGatedVp: lockGatedVp ?? 0n,
+      }),
+    [votingPower, lockGatedVp],
+  );
+
+  const vpReady = lockGatedVp !== null;
+  const cannotCast =
+    isPreVoteWindow || !vpReady || voteUx.kind === 'flexible-only' || voteUx.displayVp <= 0n;
 
   const busy = phase !== 'idle';
 
@@ -118,7 +164,7 @@ export function VoteModal({
   const sideLabel = support ? t('governance.voteSideFor') : t('governance.voteSideAgainst');
 
   const handleConfirm = async (): Promise<void> => {
-    if (isPreVoteWindow) {
+    if (cannotCast) {
       return;
     }
     const addr = walletAddress?.trim();
@@ -160,6 +206,8 @@ export function VoteModal({
         ? t('governance.voteConfirming')
         : t('governance.voteModalConfirm');
 
+  const displayVpLabel = vpReady ? formatBurn(voteUx.displayVp) : '…';
+
   return (
     <div
       className={styles.modalBackdrop}
@@ -183,8 +231,17 @@ export function VoteModal({
           {t('governance.voteModalSide', { side: sideLabel })}
         </p>
         <p className={styles.modalMeta}>
-          {t('governance.voteModalVp')}: <strong>{formatBurn(votingPower)}</strong>
+          {t('governance.voteModalVp')}: <strong>{displayVpLabel}</strong>
         </p>
+        {voteUx.showFlexibleHint ? (
+          <div className={styles.warnBanner} role="status">
+            <p className={styles.modalBody}>{t('governance.voteFlexibleNoVp')}</p>
+            <p className={styles.muted}>{t('governance.voteFlexibleHint')}</p>
+            <Link className={styles.backLink} to="/app/staking" onClick={onClose}>
+              {t('governance.voteFlexibleOpenStaking')}
+            </Link>
+          </div>
+        ) : null}
         {isPreVoteWindow ? (
           <>
             <p className={styles.modalWarn}>{t('governance.voteNotOpenYet')}</p>
@@ -205,7 +262,7 @@ export function VoteModal({
           <button
             type="button"
             className={support ? styles.voteForBtn : styles.voteAgainstBtn}
-            disabled={busy || isPreVoteWindow}
+            disabled={busy || cannotCast}
             onClick={() => void handleConfirm()}
           >
             {confirmLabel}

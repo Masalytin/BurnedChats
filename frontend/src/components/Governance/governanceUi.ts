@@ -13,6 +13,32 @@ export function minimumProposalVp(totalVp: bigint): bigint {
   return (totalVp + 99n) / 100n;
 }
 
+/**
+ * Compare live `get_voting_power` vs lock-gated `get_voting_power_locked_beyond`
+ * for vote UX (IMP-FAUDIT-F09). Flexible-only stakes have live VP but 0 lock-gated VP.
+ */
+export type LockGatedVoteUx = {
+  kind: 'flexible-only' | 'eligible' | 'no-stake';
+  /** VP that will actually count for CastVote under the lock-gate. */
+  displayVp: bigint;
+  showFlexibleHint: boolean;
+};
+
+export function describeLockGatedVoteUx(params: {
+  liveVp: bigint;
+  lockGatedVp: bigint;
+}): LockGatedVoteUx {
+  const live = params.liveVp < 0n ? 0n : params.liveVp;
+  const gated = params.lockGatedVp < 0n ? 0n : params.lockGatedVp;
+  if (live <= 0n) {
+    return { kind: 'no-stake', displayVp: 0n, showFlexibleHint: false };
+  }
+  if (gated <= 0n) {
+    return { kind: 'flexible-only', displayVp: 0n, showFlexibleHint: true };
+  }
+  return { kind: 'eligible', displayVp: gated, showFlexibleHint: false };
+}
+
 export function truncateMiddle(addr: string, head = 6, tail = 4): string {
   const s = addr.trim();
   if (s.length <= head + tail + 1) {

@@ -1,5 +1,6 @@
 import { Address, Cell } from '@ton/core';
 
+import { addressToSliceStackBoc } from '@/ton/burnToken';
 import { sendTonTransaction } from '@/ton/connector';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
@@ -355,6 +356,39 @@ export async function getUserVotingPower(address: string, deps?: GovernanceDeps)
     `/api/governance/voting-power?address=${encodeURIComponent(address.trim())}`,
   );
   return bigIntFromJsonField(body.votingPower ?? body.vp ?? 0);
+}
+
+/**
+ * Lock-gated voting power for a proposal end time (`get_voting_power_locked_beyond`).
+ * Matches the CastVote relay gate from IMP-FAUDIT-F01 — Flexible (unlockTime ≤ end) counts as 0.
+ */
+export async function getUserVotingPowerLockedBeyond(
+  address: string,
+  voteEndTimeSec: number,
+  deps?: GovernanceDeps,
+): Promise<bigint> {
+  const r = resolveDeps(deps);
+  const end = Math.trunc(voteEndTimeSec);
+  if (!Number.isFinite(end) || end < 0) {
+    throw new GovernanceError('UNKNOWN', 'voteEndTimeSec must be a non-negative unix timestamp');
+  }
+  const sliceB64 = addressToSliceStackBoc(address);
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    r.stakingMaster,
+    'get_voting_power_locked_beyond',
+    [
+      ['tvm.Slice', sliceB64],
+      numStackArg(BigInt(end)),
+    ],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new GovernanceError('NETWORK', 'get_voting_power_locked_beyond returned non-zero exit code');
+  }
+  const nums = numsFromStack(stackUnknown);
+  return nums[0] ?? 0n;
 }
 
 type StackSlot = [string, string];

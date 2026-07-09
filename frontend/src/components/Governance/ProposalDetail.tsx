@@ -4,7 +4,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { getProposal, getProposalLifecycleMeta, type ProposalLifecycleMeta } from '@/ton/governance';
+import { getProposal, getProposalLifecycleMeta, getUserVotingPowerLockedBeyond, type ProposalLifecycleMeta } from '@/ton/governance';
 import { ProposalState, ProposalType, type ProposalDetail as ProposalDetailDto } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 import { useTonConnect } from '@/hooks/useTonConnect';
@@ -13,7 +13,12 @@ import { useToast } from '@/components/Toast';
 import { ProposalTimeline } from './ProposalTimeline';
 import { VoteModal } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
-import { formatEndsInRemaining, formatStartsInRemaining, truncateMiddle } from './governanceUi';
+import {
+  describeLockGatedVoteUx,
+  formatEndsInRemaining,
+  formatStartsInRemaining,
+  truncateMiddle,
+} from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
@@ -120,9 +125,9 @@ export function ProposalDetail() {
   const { t } = useTranslation();
   const { proposalId: rawId } = useParams();
   const id = Number(rawId ?? 'NaN');
-  const { isConnected } = useTonConnect();
+  const { isConnected, walletAddress } = useTonConnect();
   const toast = useToast();
-  const { userVotes, refetch, queue, execute } = useGovernanceState();
+  const { userVotes, votingPower, refetch, queue, execute } = useGovernanceState();
   const [detail, setDetail] = useState<ProposalDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -131,6 +136,7 @@ export function ProposalDetail() {
   const [lifecycle, setLifecycle] = useState<ProposalLifecycleMeta | null>(null);
   const [queueBusy, setQueueBusy] = useState(false);
   const [executeBusy, setExecuteBusy] = useState(false);
+  const [lockGatedVp, setLockGatedVp] = useState<bigint | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(id) || id < 0) {
@@ -189,21 +195,54 @@ export function ProposalDetail() {
     };
   }, [id, detail?.summary.state]);
 
+  useEffect(() => {
+    const end = detail?.summary.endTime;
+    const addr = walletAddress?.trim();
+    if (!isConnected || !addr || end === undefined || end <= 0) {
+      setLockGatedVp(null);
+      return;
+    }
+    let cancelled = false;
+    setLockGatedVp(null);
+    void getUserVotingPowerLockedBeyond(addr, end)
+      .then((vp) => {
+        if (!cancelled) setLockGatedVp(vp);
+      })
+      .catch(() => {
+        if (!cancelled) setLockGatedVp(0n);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.summary.endTime, isConnected, walletAddress]);
+
   const summary = detail?.summary;
   const userVote = summary ? userVotes.get(summary.id) : undefined;
 
   const nowSec = Math.floor(Date.now() / 1000);
 
+  const voteUx = useMemo(
+    () =>
+      describeLockGatedVoteUx({
+        liveVp: votingPower,
+        lockGatedVp: lockGatedVp ?? 0n,
+      }),
+    [votingPower, lockGatedVp],
+  );
+
   const canVote = useMemo(() => {
     if (!summary) return false;
+    const lockReady = lockGatedVp !== null;
     return (
       isConnected &&
+      lockReady &&
+      voteUx.displayVp > 0n &&
       summary.state === ProposalState.Active &&
       nowSec >= summary.startTime &&
       nowSec < summary.endTime &&
       (userVote === undefined || userVote.support === null)
     );
-  }, [summary, userVote, isConnected, nowSec]);
+  }, [summary, userVote, isConnected, nowSec, lockGatedVp, voteUx.displayVp]);
 
   const isPreVoteWindow = useMemo(() => {
     if (!summary) return false;
@@ -416,6 +455,20 @@ export function ProposalDetail() {
               vp: formatBurn(userVote.vp),
             })}
           </p>
+        ) : null}
+        {isConnected && lockGatedVp !== null ? (
+          <p className={styles.muted}>
+            {t('governance.voteModalVp')}: <strong>{formatBurn(voteUx.displayVp)}</strong>
+          </p>
+        ) : null}
+        {voteUx.showFlexibleHint ? (
+          <div className={styles.warnBanner} role="status">
+            <p className={styles.modalBody}>{t('governance.voteFlexibleNoVp')}</p>
+            <p className={styles.muted}>{t('governance.voteFlexibleHint')}</p>
+            <Link className={styles.backLink} to="/app/staking">
+              {t('governance.voteFlexibleOpenStaking')}
+            </Link>
+          </div>
         ) : null}
         <div className={styles.voteActions} aria-label={isPreVoteWindow ? t('governance.voteNotOpenYet') : undefined}>
           <button type="button" className={styles.voteForBtn} disabled={!canVote} onClick={() => openVote(true)}>

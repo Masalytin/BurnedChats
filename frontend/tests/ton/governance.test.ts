@@ -8,6 +8,7 @@ import {
   calculateProposalProgress,
   getActiveProposals,
   getUserVote,
+  getUserVotingPowerLockedBeyond,
 } from '@/ton/governance';
 import { ProposalType, ProposalState, type ProposalSummary } from '@/types/ton';
 import { encodePayload } from '@/utils/governance-encode';
@@ -284,6 +285,83 @@ describe('useGovernance polling', () => {
       await vi.advanceTimersByTimeAsync(GOVERNANCE_POLL_MS * 3);
     });
     expect(countActive()).toBe(activeCalls);
+  });
+});
+
+describe('getUserVotingPowerLockedBeyond', () => {
+  const owner = Address.parse(`0:${'a'.repeat(64)}`).toString({
+    bounceable: true,
+    testOnly: true,
+    urlSafe: true,
+  });
+  const stakingMaster = Address.parse(`0:${'b'.repeat(64)}`).toString({
+    bounceable: true,
+    testOnly: true,
+    urlSafe: true,
+  });
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://api.test');
+    vi.stubEnv('VITE_GOVERNOR_ADDRESS', 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+    vi.stubEnv('VITE_STAKING_MASTER', stakingMaster);
+    vi.stubEnv('VITE_TON_RPC_URL', 'https://rpc.test/api/v2');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('calls get_voting_power_locked_beyond with owner slice and voteEndTime', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: {
+          exit_code: 0,
+          stack: [
+            ['num', '0x3b9aca00'], // 1_000_000_000
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const vp = await getUserVotingPowerLockedBeyond(owner, 1_700_000_000, {
+      fetchImpl: fetchMock as typeof fetch,
+      stakingMasterAddress: stakingMaster,
+      rpcBaseUrl: 'https://rpc.test/api/v2',
+    });
+
+    expect(vp).toBe(1_000_000_000n);
+    expect(fetchMock).toHaveBeenCalled();
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(String((init as RequestInit).body)) as {
+      address: string;
+      method: string;
+      stack: [string, string][];
+    };
+    expect(body.method).toBe('get_voting_power_locked_beyond');
+    expect(body.address).toBe(stakingMaster);
+    expect(body.stack).toHaveLength(2);
+    expect(body.stack[0]![0]).toBe('tvm.Slice');
+    expect(typeof body.stack[0]![1]).toBe('string');
+    expect(body.stack[0]![1]!.length).toBeGreaterThan(0);
+    expect(body.stack[1]).toEqual(['num', `0x${(1_700_000_000).toString(16)}`]);
+  });
+
+  it('returns 0 when lock-gated VP stack is empty / zero', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: { exit_code: 0, stack: [['num', '0x0']] },
+      }),
+    );
+    const vp = await getUserVotingPowerLockedBeyond(owner, 99, {
+      fetchImpl: fetchMock as typeof fetch,
+      stakingMasterAddress: stakingMaster,
+      rpcBaseUrl: 'https://rpc.test/api/v2',
+    });
+    expect(vp).toBe(0n);
   });
 });
 
