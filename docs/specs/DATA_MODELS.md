@@ -16,26 +16,64 @@
 
 ### Обзор ключей
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       REDIS KEY PATTERNS                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  session:{sessionId}          → Hash    │ TTL: 24h (конфиг)     │
-│  request:{recipientInternalId}→ List    │ TTL: 5 minutes        │
-│  messages:{internalId}:{sessionId} → List │ TTL: 24h (конфиг)   │
-│  messages:count:{internalId}  → String  │ счётчик pending (DM)  │
-│  online:{internalId}          → String  │ TTL: 30 seconds       │
-│  user:{internalId}            → Hash    │ TTL: 90 days          │
-│  auth_tg:{telegramId}         → String  │ TTL: 90 days          │
-│  auth_wallet:{walletAddress}  → String  │ TTL: 90 days          │
-│  rate:{type}:{internalId}     → String  │ TTL: varies           │
-│  blocked:{tgId}               → Set     │ No TTL                │
-│  file_meta:{fileId}           → Hash    │ TTL: 24h (Phase 4)    │
-│  file_context:{contextId}     → Set     │ fileIds, TTL: 24h     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+Полная инвентаризация **48 семейств** Redis-ключей (источник истины — код;
+сверка: [REPORT-backend.md](../improvements/full-audit-2026-07/REPORT-backend.md) §2).
+Детальные разделы ниже — для наиболее часто используемых паттернов; остальные
+сводятся в таблицу.
+
+| Ключ / паттерн | Тип | TTL (default) | Назначение |
+|----------------|-----|---------------|------------|
+| `auth_tg:{telegramId}` | string | 90d | tgId → `internalId` |
+| `auth_wallet:{walletAddress}` | string | 90d | wallet → `internalId` |
+| `user:{internalId}` | hash | 90d | Канонический профиль (`UserIdentityRepository`) |
+| `user:{tgId}` | hash | **7d** | Legacy TG-кэш (`UserRepository`); см. §ниже |
+| `lang:pref:{userId}` | string | 90d | Языковые предпочтения |
+| `session:{sessionId}` | hash | 24h | Метаданные DM-сессии |
+| `session_token:{token}` | string | 1h | Одноразовый resume-token → `internalId` |
+| `request:{recipientInternalId}` | list | 5min | Входящие заявки на чат |
+| `online:{internalId}` | string | 30s | Heartbeat presence |
+| `messages:{recipientId}:{sessionId}` | list | 24h | Offline-очередь DM (E2EE blobs) |
+| `messages:count:{recipientId}` | string | ⚠️ expire при `count==1` | Счётчик pending DM |
+| `dm-editable:{sessionId}:{messageId}` | string | **20min** | Meta окна правки DM |
+| `message-senders:{sessionId}` | hash | 24h | Индекс отправителя для delete-for-everyone |
+| `message-edits:{sessionId}` | list | 1h | Tombstone-очередь правок (offline sync) |
+| `message-deletions:{sessionId}` | list | 1h | Tombstone-очередь удалений (offline sync) |
+| `messages:{roomId}` | list | 24h | Очередь сообщений комнаты |
+| `ratelimit:{type}:{userId}` | string | окно типа | STOMP rate-limit (`RateLimitService`) |
+| `ratelimit:rest:{group}:{clientId}` | string | окно группы | REST rate-limit |
+| `filedownload:active:{internalId}` | string | 30min | Слот-счётчик активных скачиваний |
+| `file_meta:{fileId}` | hash | 24h | Метаданные зашифрованного blob |
+| `file_context:{contextId}` | set | 24h | Индекс `fileId` по session/room |
+| `pow:challenge:{challengeId}` | hash | 60s | PoW challenge (action + difficulty) |
+| `pow:spent:{challengeId}` | string | 120s | One-time spent marker (SET NX) |
+| `pow:abuse:global` | hash | 60s | Глобальные счётчики adaptive difficulty |
+| `auth_nonce:{nonce}` | string | 5min | TON proof nonce |
+| `wallet_tg_link:{challengeId}` | string | 15min | Wallet↔Telegram link challenge |
+| `room:{roomId}` | hash | 30d | Метаданные комнаты |
+| `room:autoburn:{roomId}` | string | до `autoBurnAt` | Trigger auto-burn (не refresh) |
+| `room_members:{roomId}` | set | 30d | Участники (internalId) |
+| `member_rooms:{internalId}` | set | 30d | Reverse-index комнат пользователя |
+| `room_keys:{roomId}:{epoch}` | hash | **7d** | Wrapped group keys |
+| `room_key_epoch:{roomId}` | string | 30d | Текущий epoch rekey |
+| `room_member_pubkey:{roomId}` | hash | 30d | internalId → SPKI pubkey |
+| `room_bans:{roomId}` | set | 30d | Банлист комнаты |
+| `room_muted:{roomId}` | set | 30d | Mute-лист комнаты |
+| `room_roles:{roomId}` | hash | 30d | internalId → `admin` \| `member` |
+| `room_presence:{roomId}` | hash | 10min | lastSeenMs (не refresh с room TTL) |
+| `room_join_request:{roomId}:{sender}` | hash | 24h | Заявка BY_REQUEST |
+| `room_join_requests:{roomId}` | set | 24h | Индекс senderInternalId |
+| `invite:{token}` | hash | до `expiresAt` | Инвайт-токен |
+| `room_invites:{roomId}` | set | ❌ **нет TTL** (баг F-1) | Reverse-index токенов |
+| `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | Кэш TON RPC |
+| `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
+| `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
+| `ton:jetton:fees:v1:{wc}:{hex}` | string | 5min | Effective fee params |
+| `ton:staking:profile\|lock\|tiercfg:v1:{wc}:{hex}` | string | 30s / 1h | Staking-кэш |
+| `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal-кэш |
+| `health:test:{timestamp}` | string | 10s | Redis health probe |
+
+> **Planned (не реализовано):** `blocked:{tgId}` — user-block list; в backend 0
+> вхождений (DM-3). Не создавать ключ до появления карточки фичи.
 
 ---
 
@@ -85,11 +123,14 @@ EXPIRE session:abc123 86400
 | `messages:{recipientInternalId}:{sessionId}` | List | JSON сериализованных `Message` (E2EE blob), порядок FIFO |
 | `messages:count:{recipientInternalId}` | String | Суммарный счётчик не доставленных сообщений по всем сессиям пользователя |
 
+**TTL `messages:count:*`:** EXPIRE выставляется только при переходе счётчика в `1`
+(инициализация); при последующих INCR ключ может остаться без refresh (DM-15).
+
 **TTL и cap:** задаются в `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Значения не должны превышать TTL метаданных сессии (`session.active.ttl`). При переполнении список обрезается с головы (старые сообщения отбрасываются); сервер ведёт метрики Micrometer `burnedchats.offline_queue.*` (без идентификаторов пользователей в тегах).
 
 #### `dm-editable:{sessionId}:{messageId}`
 
-Краткоживущая meta для проверки владения DM-сообщением и 15-минутного окна правки после
+Краткоживущая meta для проверки владения DM-сообщением и окна правки после
 выхода сообщения из offline-очереди (доставлено онлайн).
 
 | Поле JSON | Тип | Описание |
@@ -99,7 +140,8 @@ EXPIRE session:abc123 86400
 | `serverTimestamp` | Instant | Якорь окна правки |
 | `fileId` / `thumbnailFileId` | String | Опционально для file-сообщений (delete/burn) |
 
-**TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` (по умолчанию 15 мин).
+**TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` — **20 мин**
+(`MessagesProperties`, default; код — источник истины, DM-2).
 
 #### `message-senders:{sessionId}`
 
@@ -189,9 +231,12 @@ HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
   walletAddress "EQBx7..."
 ```
 
-**Legacy Telegram cache** (`UserRepository`): отдельный hash `user:{tgId}` для быстрого поиска по `@username` / TG ID. Содержит optional поле `internalId` для обогащения `UserResponse`. Wallet-only записи **не** дублируются в `user:{tgId}`.
+**Legacy Telegram cache** (`UserRepository`): отдельный hash `user:{tgId}` для быстрого
+поиска по `@username` / TG ID. Содержит optional поле `internalId` для обогащения
+`UserResponse`. Wallet-only записи **не** дублируются в `user:{tgId}`.
 
-**TTL:** 90 дней (обновляется при каждом входе)
+**TTL:** канонический `user:{internalId}` — **90 дней** (обновляется при каждом входе);
+legacy `user:{tgId}` — **7 дней** (`UserRepository.DEFAULT_TTL`, DM-6).
 
 ### `auth_tg:{telegramId}` / `auth_wallet:{walletAddress}`
 
@@ -206,32 +251,32 @@ EXPIRE auth_wallet:EQ... 7776000
 
 ---
 
-### `rate:{type}:{internalId}`
+### `ratelimit:{type}:{userId}`
 
-Rate limiting counters.
-
-```redis
-INCR rate:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
-EXPIRE rate:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
-```
-
-| Type | TTL | Max |
-|------|-----|-----|
-| `search` | 60s | 10 |
-| `message` | 60s | 30 |
-| `session` | 300s | 3 |
-
----
-
-### `blocked:{tgId}`
-
-Список заблокированных пользователей.
+Rate limiting counters (STOMP и shared identity). Префикс **`ratelimit:`**
+(`RateLimitService.KEY_PREFIX`, DM-1).
 
 ```redis
-SADD blocked:111222333 "444555666" "777888999"
+INCR ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
+EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 ```
 
-**TTL:** Нет (пользователь управляет вручную)
+| Type (`RateLimitType`) | Окно | Max (default) | Примечание |
+|------------------------|------|---------------|------------|
+| `search` | 60s | 10 | |
+| `session_create` | **60s** | **3** | DM-1: было 300s в старой спеке |
+| `message` | 60s | **60** | override: `rate-limit.messages.per-minute` |
+| `session_action` | 60s | 10 | accept/reject |
+| `handshake` | 60s | 10 | key exchange |
+| `file_upload` | 60s | 10 | |
+| `general` | 60s | 100 | |
+| `message_edit` | 60s | 10 | |
+| `message_delete` | 60s | 30 | |
+| `pow_challenge` | 60s | 10 | issuance flood guard |
+| `room_read` | 60s | 30 | getMembers/getPresence/getBans |
+| `room_password_fail` | 600s | 5 | override: `rate-limit.room-password-fail.*` |
+
+Отдельный REST-префикс: `ratelimit:rest:{group}:{clientId}` (IP / identity).
 
 ---
 
@@ -418,6 +463,10 @@ SADD room_invites:uuid-room-1 "abc123token"
 EXPIRE invite:abc123token 604800
 ```
 
+> **Известный баг (F-1 / DM-5):** `room_invites:{roomId}` пишется **без EXPIRE**
+> (`InviteTokenRepository`). Индекс может пережить комнату; фикс — отдельная
+> backend-карточка, не scope этой спеки.
+
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `token` | string | 64-char hex (32 random bytes) |
@@ -461,6 +510,8 @@ Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не м�
 ### `room_keys:{roomId}:{epoch}`
 
 Зашифрованные копии группового ключа для участников (opaque blobs). Индекс получателя — `recipientInternalId` в `EncryptedKeyBundle`. Сервер не расшифровывает.
+
+**TTL:** hash `room_keys:{roomId}:{epoch}` — **7 дней**; счётчик `room_key_epoch:{roomId}` — **30 дней** (DM-16).
 
 ### `messages:{roomId}`
 
@@ -533,7 +584,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 | `iv` | 12-byte GCM IV для `encryptedContent` | те же |
 | `encryptedMeta` | ciphertext метаданных файла (`{ fileName, mimeType }`) | медиа-сообщения |
 | `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `CREATE_ROOM` (optional), `ROOM_NAME_UPDATED`, room-list |
-| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же ([IMP-ROOM-05](../improvements/room-management/decisions/IMP-ROOM-05-name-iv-separate-fields.md)) |
+| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же ([IMP-ROOM-05](../archive/improvements/room-management/decisions/IMP-ROOM-05-name-iv-separate-fields.md)) |
 | key-bundle: `ephemeralPublicKey`, `encryptedKey`, `iv` | wrapped group key (ECDH + AES-GCM) | `KEY_BUNDLE`, `room_keys:{roomId}:{epoch}` |
 | `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW-proof / ECDH pubkeys | CREATE_ROOM, JOIN |
 
@@ -551,7 +602,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 
 > **Зачем зафиксировано.** Аудит кода ↔ спека выявил, что формат кодировки был описан
 > разрозненно. Несоответствий base64 vs base64url **не обнаружено** — контракт един; см.
-> [room-create-decryption-fix/ANALYSIS.md](../improvements/room-create-decryption-fix/ANALYSIS.md) §4.
+> [room-create-decryption-fix/ANALYSIS.md](../archive/improvements/room-create-decryption-fix/ANALYSIS.md) §4.
 
 ---
 
@@ -634,7 +685,9 @@ public class Message implements Serializable {
     private String messageId;
     private String sessionId;
     private Long senderId;
+    private String senderInternalId;   // primary for wallet routing
     private Long recipientId;
+    private String recipientInternalId;
     private String encryptedContent;
     private String iv;
     private Long clientTimestamp;
@@ -643,68 +696,34 @@ public class Message implements Serializable {
     private String type = "text";
     private String fileId;
     private String thumbnailFileId;
-    private String encryptedMeta;  // Base64 opaque: encryptFileMetadata на клиенте
-    private Long fileSize;         // исходный размер файла (plaintext), байты
+    private String encryptedMeta;
+    private Long fileSize;
+    private String replyToMessageId;   // plaintext relay metadata
+    private Instant editedAt;          // set after successful edit
 }
 ```
 
 **Тип сообщения:** `text` \| `image` \| `video` \| `file`. Для не-text поле `fileId` обязательно (валидация `FileMessageValidator`).
 
-### Telegram User
+### Telegram User (Redis cache)
 
 ```java
-// model/TelegramUser.java
+// model/TelegramUser.java — кэш в user:{tgId}, не wire-DTO Bot API
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class TelegramUser {
-    
-    private Long id;
-    
-    @JsonProperty("first_name")
-    private String firstName;
-    
-    @JsonProperty("last_name")
-    private String lastName;
-    
-    private String username;
-    
-    @JsonProperty("language_code")
-    private String languageCode;
-    
-    @JsonProperty("is_premium")
-    private Boolean isPremium;
-    
-    @JsonProperty("photo_url")
-    private String photoUrl;
-}
-```
-
-### Peer Info
-
-```java
-// model/PeerInfo.java
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
-public class PeerInfo {
-    private String tgId;
+@NoArgsConstructor
+@AllArgsConstructor
+public class TelegramUser implements Serializable {
+    private Long id;
     private String username;
     private String firstName;
     private String lastName;
+    private String languageCode;
     private String photoUrl;
-    
-    public static PeerInfo from(TelegramUser user) {
-        return PeerInfo.builder()
-            .tgId(user.getId().toString())
-            .username(user.getUsername())
-            .firstName(user.getFirstName())
-            .lastName(user.getLastName())
-            .photoUrl(user.getPhotoUrl())
-            .build();
-    }
+    @Builder.Default
+    private boolean isPremium = false;
+    @Builder.Default
+    private Instant cachedAt = Instant.now();  // DM-17: не Jackson @JsonProperty
 }
 ```
 
@@ -750,9 +769,9 @@ public class UserResponse {
     private boolean premium;
 }
 
-// dto/request/AcceptRequestDto.java
+// dto/request/AcceptSessionRequest.java
 @Data
-public class AcceptRequestDto {
+public class AcceptSessionRequest {
     @NotBlank
     private String sessionId;
     
@@ -760,14 +779,14 @@ public class AcceptRequestDto {
     private String secretAnswer;
 }
 
-// dto/request/PublicKeyDto.java
+// dto/request/PublicKeyRequest.java
 @Data
-public class PublicKeyDto {
+public class PublicKeyRequest {
     @NotBlank
     private String sessionId;
     
     @NotBlank
-    @Size(min = 80, max = 100) // Base64 of 65 bytes
+    @Size(min = 80, max = 100)
     @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
     private String publicKey;
 }
@@ -789,9 +808,9 @@ public class SendMessageRequest {
     @Positive private Long fileSize;
 }
 
-// dto/request/BurnSessionDto.java
+// dto/request/BurnSessionRequest.java
 @Data
-public class BurnSessionDto {
+public class BurnSessionRequest {
     @NotBlank
     private String sessionId;
 }
@@ -810,56 +829,70 @@ public class ConfirmVerificationDto {
 
 ### Response/Event DTOs
 
+События STOMP несут **`UserResponse`** (не фантомный `PeerInfo`, DM-7). Ошибки —
+**string-коды** в поле `error` (отдельного enum `ErrorCode` нет, DM-8).
+
 ```java
-// dto/response/SearchResultEvent.java
+// dto/response/UserResponse.java — peer/sender/recipient во всех событиях
+@Data
+public class UserResponse {
+    private String internalId;
+    private Long id;             // Telegram ID; null for wallet-only
+    private String username;
+    private String displayName;
+    private String photoUrl;
+    private boolean online;
+    private boolean premium;
+}
+
+// dto/event/SearchResultEvent.java
 @Data
 @AllArgsConstructor
 public class SearchResultEvent {
     private boolean found;
-    private PeerInfo user;
-    private String error;
-    
-    public static SearchResultEvent found(PeerInfo user) {
-        return new SearchResultEvent(true, user, null);
-    }
-    
-    public static SearchResultEvent notFound() {
-        return new SearchResultEvent(false, null, null);
-    }
-    
-    public static SearchResultEvent error(String message) {
-        return new SearchResultEvent(false, null, message);
-    }
+    private UserResponse user;   // not PeerInfo
+    private String error;        // e.g. SELF_SEARCH, RATE_LIMITED
 }
 
-// dto/response/SessionCreatedEvent.java
+// dto/event/SessionCreatedEvent.java
 @Data
 @AllArgsConstructor
 public class SessionCreatedEvent {
+    private boolean success;
     private String sessionId;
-    private String status;
+    private UserResponse recipient;
+    private boolean hasSecretQuestion;
+    private Instant createdAt;
+    private Instant expiresAt;
+    private String error;
 }
 
-// dto/response/SessionStartedEvent.java
+// dto/event/SessionAcceptedEvent.java — replaces legacy SessionStartedEvent
 @Data
 @AllArgsConstructor
-public class SessionStartedEvent {
+public class SessionAcceptedEvent {
+    private boolean success;
     private String sessionId;
-    private PeerInfo peer;
+    private UserResponse peer;
+    private Instant acceptedAt;
+    private Instant expiresAt;
+    private String error;
 }
 
-// dto/response/IncomingRequestEvent.java
+// dto/event/IncomingRequestEvent.java
 @Data
 @AllArgsConstructor
 public class IncomingRequestEvent {
     private String sessionId;
-    private PeerInfo sender;
+    private UserResponse sender;
+    private String fromInternalId;
     private boolean hasSecretQuestion;
     private String secretQuestion;
-    private Long expiresAt;
+    private Instant createdAt;
+    private Instant expiresAt;
 }
 
-// dto/response/PeerPublicKeyEvent.java
+// dto/event/PeerPublicKeyEvent.java
 @Data
 @AllArgsConstructor
 public class PeerPublicKeyEvent {
@@ -867,325 +900,235 @@ public class PeerPublicKeyEvent {
     private String publicKey;
 }
 
-// dto/response/NewMessageEvent.java
+// dto/event/NewMessageEvent.java — flat DTO, no EncryptedMessage wrapper (DM-9)
 @Data
 @AllArgsConstructor
 public class NewMessageEvent {
+    private boolean success;
     private String sessionId;
-    private EncryptedMessage message;
+    private String messageId;
+    private Long senderId;
+    private String senderInternalId;
+    private String encryptedContent;
+    private String iv;
+    private Long clientTimestamp;
+    private Instant serverTimestamp;
+    private String type;
+    private String fileId;
+    private String thumbnailFileId;
+    private String encryptedMeta;
+    private Long fileSize;
+    private String replyToMessageId;
+    private String error;
 }
 
-// dto/response/MessageSentEvent.java
+// dto/event/MessageSentEvent.java
 @Data
 @AllArgsConstructor
 public class MessageSentEvent {
+    private boolean success;
+    private String sessionId;
     private String messageId;
+    private Instant serverTimestamp;
     private boolean delivered;
+    private boolean queued;
+    private String error;
 }
 
-// dto/response/SessionBurnedEvent.java
+// dto/event/BurnSignalEvent.java — /user/queue/burn-signal
 @Data
 @AllArgsConstructor
-public class SessionBurnedEvent {
+public class BurnSignalEvent {
     private String sessionId;
-    private String burnedBy;
+    private Long burnedBy;
+    private Instant burnedAt;
+    private boolean success;
+    private String error;
 }
 
-// dto/response/VerificationStatusEvent.java
+// dto/event/VerificationEvent.java — replaces VerificationStatusEvent (DM-8)
 @Data
 @AllArgsConstructor
-public class VerificationStatusEvent {
+public class VerificationEvent {
+    private boolean success;
     private String sessionId;
-    private boolean bothConfirmed;
-    private boolean peerConfirmed;
-}
-
-// dto/response/ErrorEvent.java
-@Data
-@AllArgsConstructor
-public class ErrorEvent {
-    private String code;
-    private String message;
-    private Object details;
-    
-    public ErrorEvent(ErrorCode code, String message) {
-        this.code = code.name();
-        this.message = message;
-        this.details = null;
-    }
+    private Boolean verified;
+    private Boolean peerVerified;
+    private Boolean bothVerified;
+    private Instant verifiedAt;
+    private String error;
 }
 ```
 
----
-
-### Error Codes
-
-```java
-// model/enums/ErrorCode.java
-public enum ErrorCode {
-    // General
-    UNAUTHORIZED,
-    FORBIDDEN,
-    NOT_FOUND,
-    RATE_LIMITED,
-    INTERNAL_ERROR,
-    
-    // Session
-    SESSION_NOT_FOUND,
-    SESSION_FULL,
-    SESSION_EXPIRED,
-    SESSION_BURNED,
-    NOT_PARTICIPANT,
-    
-    // User
-    USER_NOT_FOUND,
-    USER_BLOCKED,
-    SELF_CHAT,
-    
-    // Message / files
-    MESSAGE_TOO_LARGE,
-    INVALID_FORMAT,
-    FILE_TOO_LARGE,
-    FILE_NOT_FOUND,
-    ACCESS_DENIED
-}
-```
+**WebSocket errors:** `WebSocketExceptionHandler` шлёт `Map<String,Object>` на
+`/user/queue/errors` (`code`, `message`, optional `retryAfter`) — не отдельный
+`ErrorEvent` DTO.
 
 ---
 
 ## TypeScript Interfaces
 
+Источник истины: `frontend/src/types/index.ts` (DM-11, DM-12).
+
 ### Frontend Types
 
 ```typescript
-// === CRYPTO ===
+// === USER (maps UserResponse on wire) ===
 
-interface KeyPair {
-  publicKey: CryptoKey;
-  privateKey: CryptoKey;
-}
-
-interface ExportedKeyPair {
-  publicKey: string;   // Base64 raw
-  privateKey: string;  // Base64 pkcs8
+export interface UserInfo {
+  internalId: string;       // primary routing key
+  id?: number;              // Telegram ID when available
+  username?: string;
+  displayName: string;
+  walletAddress?: string;
+  photoUrl?: string;
+  online: boolean;
+  premium: boolean;
 }
 
 // === MESSAGES ===
-// См. frontend/src/types/index.ts и crypto/fileEncryption.ts
 
-type MessageType = 'text' | 'image' | 'video' | 'file';
+export type MessageType = 'text' | 'image' | 'video' | 'file';
 
-type MessageStatus =
+export type MessageStatus =
   | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
-/** Сообщение в UI / STOMP (фрагмент; полный тип — Message в index.ts) */
-interface Message {
+export interface Message {
   id: string;
   sessionId: string;
-  fromUserInternalId: string;  // primary (IMP-WALLETID-07+)
-  fromUserId?: number;         // deprecated Telegram ID
+  fromUserId?: number;           // wire may omit for wallet senders (DM-11)
   encryptedContent: string;
   iv: string;
   timestamp: number;
   status: MessageStatus;
   type: MessageType;
+  replyToMessageId?: string;
   fileId?: string;
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
 }
 
-interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv' | 'encryptedMeta'> {
-  content: string;
-  isOwn: boolean;
-  senderName?: string;
-}
-
-/** Plaintext метаданные до encryptFileMetadata (fileEncryption.ts) */
-interface FileMetaPlain {
-  fileName: string;
-  mimeType: string;
-}
-
-/** Расшифрованное медиасообщение */
-interface DecryptedFileMessage extends DecryptedMessage {
-  type: 'image' | 'video' | 'file';
-  fileId: string;
-  fileSize: number;
-  fileMeta: { fileName: string; mimeType: string };
-  thumbnailFileId?: string;
-  thumbnailUrl?: string;
-}
-
 // === SESSION ===
 
-interface Session {
+export type SessionStatus =
+  | 'pending'       // request sent, awaiting response
+  | 'handshaking'   // key exchange in progress
+  | 'active'
+  | 'expired'
+  | 'burned';       // DM-12: not waiting/connecting
+
+export interface Session {
   id: string;
-  peer: PeerInfo;
+  peerInternalId: string;
+  /** @deprecated Prefer peerInternalId */
+  peerId?: number;
+  peerUsername?: string;
+  peerName: string;
   status: SessionStatus;
-  verified: VerificationStatus;
   createdAt: number;
+  expiresAt?: number;
 }
 
-type SessionStatus = 
-  | 'waiting'      // Ждём ответа на запрос
-  | 'connecting'   // Peer присоединился, идёт handshake
-  | 'active'       // Ключи установлены, можно общаться
-  | 'burned';      // Сессия уничтожена
-
-interface VerificationStatus {
-  self: boolean;
-  peer: boolean;
-}
-
-interface PeerInfo {
-  internalId: string;          // primary
-  tgId?: string;             // deprecated
-  username?: string;
-  firstName: string;
-  lastName?: string;
-  photoUrl?: string;
-}
-
-// === VISUAL FINGERPRINT ===
-
-type Shape = '◆' | '○' | '□' | '△' | '⬡' | '⬢';
-type Color = 'red' | 'blue' | 'green' | 'purple' | 'orange' | 'cyan';
-
-interface FingerprintElement {
-  shape: Shape;
-  color: Color;
-}
-
-type VisualFingerprint = [
-  FingerprintElement,
-  FingerprintElement,
-  FingerprintElement,
-  FingerprintElement
-];
-
-// === CHAT REQUEST ===
-
-interface IncomingRequest {
-  sessionId: string;
-  sender: PeerInfo;            // includes internalId
+export interface ChatRequest {
+  id: string;
   fromInternalId: string;
-  hasQuestion: boolean;
-  question?: string;
+  fromUserId?: number;
+  fromUsername?: string;
+  fromName: string;
+  secretQuestion?: string;
+  createdAt: number;
   expiresAt: number;
 }
 
-// === UI STATE ===
-
-interface ChatState {
-  session: Session | null;
-  messages: DecryptedMessage[];
-  isTyping: boolean;
-  connectionStatus: ConnectionStatus;
-}
-
-type ConnectionStatus = 
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting'
-  | 'disconnected';
-
-// === TELEGRAM ===
-
-interface TelegramUser {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  language_code?: string;
-  is_premium?: boolean;
-  photo_url?: string;
-}
-
-// === STOMP MESSAGES ===
-
-interface StompMessage<T> {
-  destination: string;
-  body: T;
-}
-
-// Server → Client events
-interface ServerEvents {
-  '/user/queue/search-result': SearchResultEvent;
-  '/user/queue/session-created': SessionCreatedEvent;
-  '/user/queue/session-started': SessionStartedEvent;
-  '/user/queue/incoming-request': IncomingRequestEvent;
-  '/user/queue/peer-public-key': PeerPublicKeyEvent;
-  '/user/queue/messages': NewMessageEvent;
-  '/user/queue/message-sent': MessageSentEvent;
-  '/user/queue/session-burned': SessionBurnedEvent;
-  '/user/queue/verification-status': VerificationStatusEvent;
-  '/user/queue/error': ErrorEvent;
-}
+// === STOMP events (subset; full list — API.md) ===
 
 interface SearchResultEvent {
   found: boolean;
-  user?: PeerInfo;
+  user?: UserInfo;
   error?: string;
 }
 
 interface SessionCreatedEvent {
-  sessionId: string;
-  status: 'waiting';
+  success: boolean;
+  sessionId?: string;
+  recipient?: UserInfo;
+  hasSecretQuestion: boolean;
+  createdAt?: string;
+  expiresAt?: string;
+  error?: string;
 }
 
-interface SessionStartedEvent {
-  sessionId: string;
-  peer: PeerInfo;
+interface SessionAcceptedEvent {
+  success: boolean;
+  sessionId?: string;
+  peer?: UserInfo;
+  acceptedAt?: string;
+  expiresAt?: string;
+  error?: string;
 }
 
 interface IncomingRequestEvent {
   sessionId: string;
-  sender: PeerInfo;
+  sender: UserInfo;
+  fromInternalId: string;
   hasSecretQuestion: boolean;
   secretQuestion?: string;
-  expiresAt: number;
-}
-
-interface PeerPublicKeyEvent {
-  sessionId: string;
-  publicKey: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 interface NewMessageEvent {
+  success: boolean;
   sessionId: string;
   messageId: string;
-  senderId: number;
+  senderId?: number;
+  senderInternalId?: string;
   encryptedContent: string;
   iv: string;
   clientTimestamp: number;
+  serverTimestamp?: string;
   type?: MessageType;
   fileId?: string;
   thumbnailFileId?: string;
   encryptedMeta?: string;
   fileSize?: number;
+  replyToMessageId?: string;
+  error?: string;
 }
 
 interface MessageSentEvent {
+  success: boolean;
+  sessionId: string;
   messageId: string;
+  serverTimestamp?: string;
   delivered: boolean;
+  queued: boolean;
+  error?: string;
 }
 
-interface SessionBurnedEvent {
+interface BurnSignalEvent {
   sessionId: string;
-  burnedBy: string;
+  burnedBy?: number;
+  burnedAt?: string;
+  success: boolean;
+  error?: string;
 }
 
-interface VerificationStatusEvent {
+interface VerificationEvent {
+  success: boolean;
   sessionId: string;
-  bothConfirmed: boolean;
-  peerConfirmed: boolean;
+  verified?: boolean;
+  peerVerified?: boolean;
+  bothVerified?: boolean;
+  verifiedAt?: string;
+  error?: string;
 }
 
-interface ErrorEvent {
+interface StompErrorPayload {
   code: string;
   message: string;
-  details?: unknown;
+  retryAfter?: number;
 }
 ```
 
@@ -1285,126 +1228,70 @@ public @interface Base64 {
 
 ## Redis Repository Examples
 
+Упрощённые фрагменты **фактических** репозиториев (DM-10). Не использовать
+legacy-поля `participant1/2` или ключ `messages:{sessionId}`.
+
 ### Session Repository
 
 ```java
 @Repository
-@RequiredArgsConstructor
 public class SessionRepository {
-    
+
+    private static final String KEY_PREFIX = "session:";
     private final ReactiveRedisTemplate<String, String> redisTemplate;
-    private final ObjectMapper objectMapper;
-    
-    private static final Duration SESSION_TTL = Duration.ofHours(1);
-    
+    private final Duration sessionTtl;  // session.active.ttl, default 24h
+
     public Mono<Session> findById(String sessionId) {
         return redisTemplate.opsForHash()
             .entries(keyFor(sessionId))
-            .collectMap(
-                entry -> entry.getKey().toString(),
-                entry -> entry.getValue().toString()
-            )
+            .collectMap(e -> e.getKey().toString(), e -> e.getValue().toString())
             .filter(map -> !map.isEmpty())
             .map(this::mapToSession);
     }
-    
+
     public Mono<Boolean> save(Session session) {
-        Map<String, String> hash = sessionToMap(session);
-        String key = keyFor(session.getId());
-        
         return redisTemplate.opsForHash()
-            .putAll(key, hash)
-            .then(redisTemplate.expire(key, SESSION_TTL));
+            .putAll(keyFor(session.getId()), sessionToMap(session))
+            .then(redisTemplate.expire(keyFor(session.getId()), sessionTtl));
     }
-    
-    public Mono<Boolean> updateVerification(String sessionId, String tgId, boolean verified) {
-        String key = keyFor(sessionId);
-        String field = "verified:" + tgId;
-        
-        return redisTemplate.opsForHash()
-            .put(key, field, String.valueOf(verified));
+
+    public Mono<Boolean> updateVerification(String sessionId, String role, boolean verified) {
+        String field = "initiator".equals(role) ? "initiatorVerified" : "responderVerified";
+        return redisTemplate.opsForHash().put(keyFor(sessionId), field, String.valueOf(verified));
     }
-    
-    public Mono<Long> delete(String sessionId) {
-        return redisTemplate.delete(keyFor(sessionId));
-    }
-    
+
     private String keyFor(String sessionId) {
-        return "session:" + sessionId;
+        return KEY_PREFIX + sessionId;
     }
-    
-    private Session mapToSession(Map<String, String> hash) {
-        return Session.builder()
-            .id(hash.get("id"))
-            .participants(List.of(
-                hash.get("participant1"),
-                hash.get("participant2")
-            ))
-            .status(SessionStatus.valueOf(hash.get("status")))
-            .createdAt(Long.parseLong(hash.get("createdAt")))
-            .hasSecretQuestion(Boolean.parseBoolean(hash.get("hasQuestion")))
-            .verified(Map.of(
-                hash.get("participant1"), Boolean.parseBoolean(hash.getOrDefault("verified:" + hash.get("participant1"), "false")),
-                hash.get("participant2"), Boolean.parseBoolean(hash.getOrDefault("verified:" + hash.get("participant2"), "false"))
-            ))
-            .build();
-    }
-    
-    private Map<String, String> sessionToMap(Session session) {
-        Map<String, String> map = new HashMap<>();
-        map.put("id", session.getId());
-        map.put("participant1", session.getParticipants().get(0));
-        map.put("participant2", session.getParticipants().get(1));
-        map.put("status", session.getStatus().name());
-        map.put("createdAt", String.valueOf(session.getCreatedAt()));
-        map.put("hasQuestion", String.valueOf(session.isHasSecretQuestion()));
-        return map;
-    }
+
+    // mapToSession reads initiatorInternalId, responderInternalId, status, ...
 }
 ```
 
-### Message Repository
+### Message Repository (offline queue)
 
 ```java
 @Repository
-@RequiredArgsConstructor
 public class MessageRepository {
-    
-    private final ReactiveRedisTemplate<String, String> redisTemplate;
-    private final ObjectMapper objectMapper;
-    
-    private static final Duration MESSAGES_TTL = Duration.ofHours(24);
-    
-    public Mono<Long> save(String sessionId, EncryptedMessage message) {
-        String key = keyFor(sessionId);
-        
+
+    private static final String KEY_PREFIX = "messages:";
+    private static final String COUNT_PREFIX = "messages:count:";
+
+    public Mono<Long> enqueue(String recipientInternalId, String sessionId, Message message) {
+        String key = KEY_PREFIX + recipientInternalId + ":" + sessionId;
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(message))
             .flatMap(json -> redisTemplate.opsForList().rightPush(key, json))
-            .flatMap(size -> redisTemplate.expire(key, MESSAGES_TTL).thenReturn(size));
+            .flatMap(size -> redisTemplate.expire(key, offlineQueueTtl).thenReturn(size));
     }
-    
-    public Flux<EncryptedMessage> getMessages(String sessionId, String afterMessageId) {
-        String key = keyFor(sessionId);
-        
-        return redisTemplate.opsForList()
-            .range(key, 0, -1)
-            .map(json -> {
-                try {
-                    return objectMapper.readValue(json, EncryptedMessage.class);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                }
-            })
-            .filter(msg -> afterMessageId == null || 
-                           msg.getTimestamp() > findTimestamp(afterMessageId));
+
+    public Flux<Message> drainQueue(String recipientInternalId, String sessionId) {
+        String key = KEY_PREFIX + recipientInternalId + ":" + sessionId;
+        return redisTemplate.opsForList().range(key, 0, -1)
+            .map(json -> objectMapper.readValue(json, Message.class));
     }
-    
-    public Mono<Long> deleteAll(String sessionId) {
-        return redisTemplate.delete(keyFor(sessionId));
-    }
-    
-    private String keyFor(String sessionId) {
-        return "messages:" + sessionId;
+
+    public Mono<Long> deleteQueue(String recipientInternalId, String sessionId) {
+        return redisTemplate.delete(KEY_PREFIX + recipientInternalId + ":" + sessionId);
     }
 }
 ```
