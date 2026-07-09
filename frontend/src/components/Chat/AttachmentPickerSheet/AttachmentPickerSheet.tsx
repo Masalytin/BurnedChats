@@ -57,10 +57,17 @@ export function AttachmentPickerSheet({ open, onClose, onFileChange }: Attachmen
     haptics.selectionChanged();
   }, [haptics]);
 
-  const resetInputAndClose = useCallback((inputRef: RefObject<HTMLInputElement | null>) => {
+  const resetInputValue = useCallback((inputRef: RefObject<HTMLInputElement | null>) => {
     if (inputRef.current) inputRef.current.value = '';
-    onClose();
-  }, [onClose]);
+  }, []);
+
+  const handleInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      onFileChange(e);
+      onClose();
+    },
+    [onFileChange, onClose],
+  );
 
   if (!open) {
     return null;
@@ -90,7 +97,7 @@ export function AttachmentPickerSheet({ open, onClose, onFileChange }: Attachmen
                 type="file"
                 className="attachment-picker-sheet-input-hidden"
                 accept={accept}
-                onChange={onFileChange}
+                onChange={handleInputChange}
                 tabIndex={-1}
                 aria-hidden="true"
               />
@@ -98,7 +105,7 @@ export function AttachmentPickerSheet({ open, onClose, onFileChange }: Attachmen
                 htmlFor={inputId}
                 className="attachment-picker-sheet-option"
                 onPointerDown={handleOptionPointerDown}
-                onClick={() => resetInputAndClose(inputRefs[kind])}
+                onClick={() => resetInputValue(inputRefs[kind])}
               >
                 {t(labelKey)}
               </label>
