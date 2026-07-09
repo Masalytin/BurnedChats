@@ -10,6 +10,7 @@
 - [Шифрование сообщений](#шифрование-сообщений)
 - [Файлы: шифрование и хранение (Phase 4)](#файлы-шифрование-и-хранение-phase-4)
 - [Visual Fingerprint](#visual-fingerprint)
+- [Граница доверия: verification ceremony](#граница-доверия-verification-ceremony)
 - [Модель угроз](#модель-угроз)
 - [Антиспам / Sybil-защита (PoW)](#антиспам--sybil-защита-pow)
 - [Защитные механизмы](#защитные-механизмы)
@@ -26,7 +27,7 @@
 |----------|----------|-----------------|
 | **Confidentiality** | Сервер не видит содержимое | E2EE с ключами только на клиентах |
 | **Integrity** | Сообщения не изменены | AES-GCM authentication tag |
-| **Forward Secrecy** | Прошлые сообщения защищены | Ephemeral ключи в sessionStorage |
+| **Forward Secrecy** | Прошлые сообщения защищены | Ephemeral ключи только in-memory (`keyStore.ts`); burn на unload / длительный background |
 | **Deniability** | Нет доказательства авторства | Нет цифровых подписей |
 | **Anti-MITM** | Защита от подмены ключей | Visual Fingerprint verification |
 
@@ -97,7 +98,7 @@ const keyPair = await crypto.subtle.generateKey(
     name: 'ECDH',
     namedCurve: 'P-256'
   },
-  true,  // extractable (для экспорта публичного ключа)
+  false,  // non-extractable — private key never leaves Web Crypto subsystem
   ['deriveKey', 'deriveBits']
 );
 
@@ -153,20 +154,25 @@ const hkdfKey = await crypto.subtle.importKey(
   ['deriveKey']
 );
 
-// Derive AES-GCM key
+// Derive AES-GCM key (session-bound HKDF — see ecdh.ts deriveAESKey)
 const aesKey = await crypto.subtle.deriveKey(
   {
     name: 'HKDF',
     hash: 'SHA-256',
-    salt: new TextEncoder().encode('BurnedChats-v1'),
-    info: new TextEncoder().encode('encryption-key')
+    salt: new TextEncoder().encode(sessionId),  // per-session domain separation
+    info: new TextEncoder().encode('BurnedChats-AES-GCM-Key')
   },
   hkdfKey,
   { name: 'AES-GCM', length: 256 },
-  false,  // non-extractable!
+  false,  // non-extractable
   ['encrypt', 'decrypt']
 );
 ```
+
+> **HKDF-параметры (фактический код):** salt = `sessionId` (UUID сессии), info =
+> `'BurnedChats-AES-GCM-Key'` (`frontend/src/crypto/ecdh.ts`). Session-bound salt
+> **строже**, чем статическая строка вроде `BurnedChats-v1`: компрометация одной
+> сессии не переносится на другие даже при одинаковом ECDH shared secret.
 
 ### Диаграмма полного процесса
 
@@ -206,27 +212,43 @@ const aesKey = await crypto.subtle.deriveKey(
 
 ## Шифрование сообщений
 
-### Формат зашифрованного сообщения
+### Формат зашифрованного сообщения (wire / STOMP)
+
+На проводе (`SendMessageRequest`, `NewMessageEvent`) сервер видит **не** отдельные
+поля `ciphertext` + `tag`, а единое поле `encryptedContent`: Base64-кодированный
+**ciphertext ‖ GCM authentication tag** (128 bit tag appended). IV передаётся
+отдельно. Реализация клиента: `frontend/src/crypto/aes.ts` (`EncryptedData.ciphertext`
+включает tag); DTO: `SendMessageRequest.encryptedContent`.
 
 ```typescript
-interface EncryptedMessage {
-  id: string;           // UUID v4
-  iv: string;           // Base64, 12 bytes
-  ciphertext: string;   // Base64
-  tag: string;          // Base64, 16 bytes (часть GCM output)
-  timestamp: number;    // Unix timestamp (не зашифрован)
-  type: 'text' | 'image' | 'video' | 'file'; // медиа: см. Phase 4 и API.md (fileId, encryptedMeta)
+/** Client-side encryption result (aes.ts) */
+interface EncryptedData {
+  ciphertext: string;  // Base64: AES-GCM output including auth tag
+  iv: string;          // Base64, 12 bytes
+}
+
+/** STOMP wire payload (SendMessageRequest) */
+interface WireEncryptedMessage {
+  messageId: string;
+  encryptedContent: string;  // same as EncryptedData.ciphertext
+  iv: string;
+  timestamp: number;
+  type: 'text' | 'image' | 'video' | 'file';
+  // file messages: fileId, thumbnailFileId, encryptedMeta, fileSize — см. API.md
 }
 ```
 
 ```java
-// Java DTO
+// SendMessageRequest.java (excerpt)
 @Data
-public class EncryptedMessage {
-    private String id;
+public class SendMessageRequest {
+    private String sessionId;
+    private String messageId;
+    /** Base64 ciphertext including GCM tag — server does not decrypt. */
+    @Size(max = 65536)
+    private String encryptedContent;
+    @Size(min = 16, max = 24)
     private String iv;
-    private String ciphertext;
-    private String tag;
     private Long timestamp;
     private String type;
 }
@@ -236,34 +258,23 @@ public class EncryptedMessage {
 
 ```typescript
 async function encryptMessage(
+  key: CryptoKey,
   plaintext: string,
-  aesKey: CryptoKey
-): Promise<EncryptedMessage> {
-  // 1. Генерируем уникальный IV для каждого сообщения
+  sessionId: string
+): Promise<EncryptedData> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  
-  // 2. Шифруем
-  const encoder = new TextEncoder();
-  const plaintextBuffer = encoder.encode(plaintext);
-  
+  const plaintextBuffer = new TextEncoder().encode(plaintext);
+
   const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    aesKey,
+    { name: 'AES-GCM', iv, tagLength: 128 },
+    key,
     plaintextBuffer
   );
-  
-  // 3. GCM возвращает ciphertext + tag вместе
-  // Tag — последние 16 байт
-  const ciphertext = new Uint8Array(ciphertextBuffer.slice(0, -16));
-  const tag = new Uint8Array(ciphertextBuffer.slice(-16));
-  
+
+  // Web Crypto returns ciphertext || tag as one buffer — stored as encryptedContent
   return {
-    id: crypto.randomUUID(),
     iv: toBase64(iv),
-    ciphertext: toBase64(ciphertext),
-    tag: toBase64(tag),
-    timestamp: Date.now(),
-    type: 'text'
+    ciphertext: toBase64(new Uint8Array(ciphertextBuffer)),
   };
 }
 ```
@@ -272,24 +283,19 @@ async function encryptMessage(
 
 ```typescript
 async function decryptMessage(
-  encrypted: EncryptedMessage,
-  aesKey: CryptoKey
+  key: CryptoKey,
+  encryptedContent: string,
+  iv: string,
+  sessionId: string
 ): Promise<string> {
-  const iv = fromBase64(encrypted.iv);
-  const ciphertext = fromBase64(encrypted.ciphertext);
-  const tag = fromBase64(encrypted.tag);
-  
-  // Собираем ciphertext + tag обратно
-  const combined = new Uint8Array(ciphertext.length + tag.length);
-  combined.set(ciphertext);
-  combined.set(tag, ciphertext.length);
-  
+  const combined = fromBase64(encryptedContent); // ciphertext + tag together
+
   const plaintextBuffer = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    aesKey,
+    { name: 'AES-GCM', iv: fromBase64(iv), tagLength: 128 },
+    key,
     combined
   );
-  
+
   return new TextDecoder().decode(plaintextBuffer);
 }
 ```
@@ -469,40 +475,64 @@ safety-number и набор эмодзи — порядок ключей нор�
 
 ## Секретный вопрос (опционально)
 
-### Механизм
+### Модель (server-side admission control)
+
+Секретный вопрос — **не** криптографическая KDF-сепарация и **не** изменение
+HKDF-salt на клиенте. Это **контроль допуска на сервере** перед активацией сессии:
+
+1. Инициатор задаёт вопрос и **ожидаемый ответ** при создании чата (`CreateSessionRequest`).
+2. На сервер сохраняются **plaintext** `secretQuestion` и **SHA-256 hash**
+   нормализованного ответа (`SecretAnswerHasher` → `secretAnswerHash` в Redis).
+3. Получатель при accept передаёт `secretAnswer` в plaintext; сервер хеширует и
+   сравнивает constant-time (`SessionLifecycleService`).
+4. При неверном ответе сессия **не активируется** — E2EE-ключи на клиентах могут
+   быть вычислены (ECDH), но обмен сообщениями блокируется политикой сервера.
 
 ```typescript
-// При создании чата Alice задаёт вопрос
-const secretQuestion = "Как звали моего кота?";
-const expectedAnswer = "Барсик";
+// Frontend: create session (useSession.ts) — Q/A уходят на сервер
+payload.secretQuestion = question.trim();
+payload.secretExpectedAnswer = expectedAnswer.trim();
 
-// Ответ хешируется и используется как salt для HKDF
-const answerHash = await crypto.subtle.digest(
-  'SHA-256',
-  new TextEncoder().encode(expectedAnswer.toLowerCase().trim())
-);
-
-// Модифицированный HKDF
-const aesKey = await crypto.subtle.deriveKey(
-  {
-    name: 'HKDF',
-    hash: 'SHA-256',
-    salt: new Uint8Array(answerHash), // ← Ответ как salt
-    info: new TextEncoder().encode('encryption-key')
-  },
-  hkdfKey,
-  { name: 'AES-GCM', length: 256 },
-  false,
-  ['encrypt', 'decrypt']
-);
+// Backend: accept — server-side hash gate (не HKDF)
+const providedHash = SecretAnswerHasher.hash(providedAnswer);
+if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
+  // reject accept — session stays pending / inactive
+}
 ```
 
-### Результат
+### Что это даёт и чего не даёт
 
-Если Bob ответит неправильно:
-- Его `sharedSecret` будет правильным (ECDH работает)
-- Но `aesKey` будет другим (неправильный salt)
-- Сообщения не расшифруются
+| Аспект | Поведение |
+|--------|-----------|
+| Защита от «случайного» accept | Получатель должен знать shared secret out-of-band |
+| Zero-knowledge содержимого | Сервер **видит** plaintext Q/A при create/accept — это **метаданные допуска**, не ciphertext сообщений |
+| Криpto-изоляция ключей | **Нет** — HKDF по-прежнему использует `sessionId` / `BurnedChats-AES-GCM-Key` (`ecdh.ts`), ответ на вопрос salt **не** подменяет |
+| MITM | Не заменяет Visual Fingerprint / safety-number |
+
+> Дедуп аудита: REPORT-frontend **FE-1**; сверка SEC-1 в [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
+
+---
+
+## Граница доверия: verification ceremony
+
+> Наблюдение аудита **FE-11** (REPORT-frontend): server-mediated флаг, не криптография.
+
+После ECDH клиенты показывают **safety-number** и visual fingerprint, вычисленные
+**локально** из sorted SPKI публичных ключей (`ecdh.ts`). Сервер ретранслирует
+только публичные ключи и события церемонии (`VerificationHandler`).
+
+| Элемент | Кто вычисляет | Может ли злонамеренный сервер подделать? |
+|---------|-------------|-------------------------------------------|
+| Safety-number / emoji fingerprint | **Клиент** из импортированных `CryptoKey` пира | **Нет** — подмена ключа на relay меняет и отпечаток; пользователь увидит расхождение |
+| `selfVerified` / peer verified flags | Сервер (Redis session state) | **Да** — сервер может выставить флаги без реальной сверки |
+| `bothVerified` | Сервер (`initiatorVerified && recipientVerified` после `/app/verification.confirm`) | **Да** — это **флаг церемонии**, не криптографическое доказательство |
+| Блокировка отправки DM до verify | Клиент (`useVerification` + gating в hooks) | UX-gate; не заменяет out-of-band сверку safety-number |
+
+**Практический вывод:** пользователь должен сверять safety-number / fingerprint
+out-of-band (голос, лично). `bothVerified=true` означает «оба нажали подтвердить в
+UI», а не «MITM невозможен». Fingerprint при этом остаётся независимым каналом
+проверки, который сервер не может согласовать с подменённым ключом незаметно для
+обоих клиентов.
 
 ---
 
@@ -515,7 +545,7 @@ const aesKey = await crypto.subtle.deriveKey(
 | **Перехват трафика** | Сетевой уровень | TLS + E2EE |
 | **Компрометация сервера** | Хакер/инсайдер | Zero-knowledge, нет ключей |
 | **MITM** | Активная атака | Safety-number (128 бит) + Visual Fingerprint из публичных ключей |
-| **Identity Spoofing** | Угон аккаунта | Секретный вопрос |
+| **Identity Spoofing** | Угон аккаунта / неверный peer | Секретный вопрос (server-side admission) + Visual Fingerprint |
 | **Replay Attack** | Повтор сообщений | Уникальный IV + timestamp |
 | **Modification** | Изменение сообщений | GCM auth tag |
 | **Утечка filesystem / бэкапа файлов** | Физический доступ к диску сервера | Только файлы `.enc` без ключей; отдельно нужен доступ к целевому устройству пользователя |
@@ -546,8 +576,8 @@ Mitigations в текущей версии: member-only access, coarse last-seen
 │ Наш сервер               │ internalIds + TG IDs (if linked) + encrypted blobs │
 │ Сетевой перехват         │ TLS encrypted WebSocket             │
 │ Redis breach             │ Encrypted messages + metadata       │
-│ Физический доступ (off)  │ sessionStorage пуст после закрытия  │
-│ Физический доступ (on)   │ Ключи в RAM — требует root/dump     │
+│ Физический доступ (off)  │ In-memory keys wiped (`burnAll` on unload) |
+│ Физический доступ (on)   │ Ключи в RAM — требует root/dump            |
 └──────────────────────────┴──────────────────────────────────────┘
 ```
 
@@ -588,7 +618,7 @@ Telegram-пользователи по-прежнему находятся по 
 
 - Частичный UUID, префикс wallet address, «похожие» строки → `INVALID_QUERY` или `NOT_FOUND`, **не** список кандидатов.
 - Валидация формата на уровне `SearchHandler` / `SearchRequest` — до обращения к Redis.
-- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `rate:search:{internalId}`), в т.ч. для wallet-сессий (IMP-WALLETID-01).
+- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `ratelimit:search:{internalId}`), в т.ч. для wallet-сессий (IMP-WALLETID-01).
 
 ### Zero-knowledge инвариант
 
@@ -671,189 +701,62 @@ E2EE payload (сообщения, group keys, file blobs) по-прежнему 
 
 ---
 
-### 1. Rate Limiting (Java)
+---
 
-```java
-// RateLimitService.java
-@Service
-@RequiredArgsConstructor
-public class RateLimitService {
-    
-    private final ReactiveRedisTemplate<String, String> redisTemplate;
-    
-    // Upload: отдельно RateLimitType.FILE_UPLOAD — 10 запросов / 1 мин (см. ValidationConstants.FILE_UPLOAD_RATE_LIMIT)
-    private static final Map<String, RateLimit> LIMITS = Map.of(
-        "search", new RateLimit(Duration.ofMinutes(1), 10),
-        "message", new RateLimit(Duration.ofMinutes(1), 30),
-        "session", new RateLimit(Duration.ofMinutes(5), 3)
-    );
-    
-    public Mono<Boolean> checkLimit(String type, String userId) {
-        RateLimit limit = LIMITS.get(type);
-        String key = "rate:" + type + ":" + userId;
-        
-        return redisTemplate.opsForValue().increment(key)
-            .flatMap(count -> {
-                if (count == 1) {
-                    return redisTemplate.expire(key, limit.window())
-                        .thenReturn(true);
-                }
-                return Mono.just(count <= limit.max());
-            });
-    }
-    
-    public Mono<Void> requireLimit(String type, String userId) {
-        return checkLimit(type, userId)
-            .flatMap(allowed -> {
-                if (!allowed) {
-                    return Mono.error(new RateLimitExceededException(type));
-                }
-                return Mono.empty();
-            });
-    }
-}
+## Защитные механизмы
 
-record RateLimit(Duration window, int max) {}
-```
+> Сверка specs↔код: [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
+> Актуальная таблица rate-limit enum — в § «Слой 0» [выше](#слой-0--rate-limiting-per-internalid).
+> Устаревшие illustrative snippet'ы (старые лимиты, `rate:` prefix, Spring CSP, sessionStorage keyStore)
+> **удалены** — ниже только указатели на реальный код.
 
-### 2. Input Validation (Java)
+### Rate limiting (реализация)
 
-```java
-// validation/ValidationConstants.java
-public final class ValidationConstants {
-    public static final int MAX_TEXT_LENGTH = 4096;
-    public static final long MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
-    public static final int MAX_FILE_NAME_LENGTH = 255;
-    public static final int IV_LENGTH = 12;
-    public static final int TAG_LENGTH = 16;
-    public static final int PUBLIC_KEY_LENGTH = 65; // P-256 uncompressed
-    
-    /** Ориентир для клиентской валидации (Phase 4); сервер не инспектирует MIME upload. */
-    public static final Set<String> ALLOWED_MIME_TYPES = Set.of(
-        "image/jpeg", "image/png", "image/gif", "image/webp",
-        "video/mp4", "video/webm",
-        "application/pdf", "text/plain", "application/zip"
-    );
-    
-    private ValidationConstants() {}
-}
-```
+- **Код:** [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java), enum `RateLimitType`.
+- **Redis keys:** `ratelimit:{type}:{internalId}` (не `rate:`).
+- **Лимиты:** см. таблицу «Слой 0» (MESSAGE 60/min, SESSION_CREATE 3/min, …).
+- **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — реализован в
+  [IMP-FAUDIT-F05](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F05-room-password-bruteforce-limit.md)
+  (синхронизация SEC-8 **не** входила в F08 — только F05).
 
-```java
-// dto/request/SendMessageRequest.java
-@Data
-public class SendMessageRequest {
-    
-    @NotBlank
-    @Size(max = 36)
-    private String sessionId;
-    
-    @NotNull
-    @Valid
-    private EncryptedMessageDto message;
-}
+### Input validation (реализация)
 
-@Data
-public class EncryptedMessageDto {
-    
-    @NotBlank
-    @Pattern(regexp = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-    private String id;
-    
-    @NotBlank
-    @Size(min = 16, max = 24) // Base64 of 12 bytes
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String iv;
-    
-    @NotBlank
-    @Size(max = 8000) // ~4096 chars encrypted + overhead
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String ciphertext;
-    
-    @NotBlank
-    @Size(min = 22, max = 24) // Base64 of 16 bytes
-    @Pattern(regexp = "^[A-Za-z0-9+/]+=*$")
-    private String tag;
-    
-    @NotNull
-    @Positive
-    private Long timestamp;
-    
-    @NotBlank
-    @Pattern(regexp = "^text$")
-    private String type;
-}
-```
+- **Константы:** [`ValidationConstants`](../../backend/src/main/java/dev/burnedchats/util/ValidationConstants.java) —
+  encrypted file size ceiling (26 MiB), `FILE_UPLOAD_RATE_LIMIT`, context type strings.
+- **Wire limits:** Jakarta Bean Validation на DTO — например `SendMessageRequest`
+  (`@Size(max = 65536)` на `encryptedContent`, regex на `type`, UUID patterns).
+- MIME whitelist на REST upload **не** проверяется (opaque blob); клиентская whitelist — product policy (Phase 4).
 
-### 3. Безопасное хранение ключей (Frontend)
+### Безопасное хранение ключей (Frontend)
 
-```typescript
-// Обёртка над sessionStorage с защитой
-class SecureKeyStore {
-  private readonly STORAGE_KEY = 'bc_keys';
-  
-  // Запись
-  async store(keyPair: CryptoKeyPair): Promise<void> {
-    const exported = await this.exportKeyPair(keyPair);
-    sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(exported));
-  }
-  
-  // Уничтожение
-  burn(): void {
-    sessionStorage.removeItem(this.STORAGE_KEY);
-    
-    // Перезаписываем память (best effort)
-    for (let i = 0; i < 10; i++) {
-      sessionStorage.setItem(this.STORAGE_KEY, crypto.randomUUID());
-    }
-    sessionStorage.removeItem(this.STORAGE_KEY);
-  }
-}
+Реализация: [`keyStore.ts`](../../frontend/src/crypto/keyStore.ts), lifecycle
+[`useAppLifecycle.ts`](../../frontend/src/hooks/useAppLifecycle.ts).
 
-// При закрытии страницы
-window.addEventListener('beforeunload', () => {
-  keyStore.burn();
-});
+| Аспект | Поведение |
+|--------|-----------|
+| Хранилище | In-memory `Map` (DM keys + room group keys by epoch). **Не** sessionStorage / localStorage / IndexedDB для ключей |
+| Burn | `burn()` / `burnAll()`; `beforeunload`/`unload` → `burnAll('page_unload')` |
+| Background | Mini App hidden > **45s** → `burnAll('background_timeout')` (`BACKGROUND_BURN_THRESHOLD_MS`) |
+| Private ECDH keys | `generateKeyPair()`: `extractable: false` (`ecdh.ts`) |
 
-// При visibility change (сворачивание)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    // Опционально: burn при сворачивании
-    // keyStore.burn();
-  }
-});
-```
+**Известное отклонение (SEC-14 / FE-2):** dev-only **DebugPanel** replay сохраняет
+STOMP-тела (в т.ч. ciphertext) в `localStorage` (`debug-replay-sessions` via
+`useReplay.ts`). Production не должен включать панель; fix — список синтеза §7.
 
-### 4. Security Headers (Spring Boot)
+### Security headers / CSP
 
-```java
-// config/SecurityConfig.java
-@Configuration
-@EnableWebFluxSecurity
-public class SecurityConfig {
-    
-    @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
-        return http
-            .csrf(csrf -> csrf.disable()) // CSRF не нужен для API
-            .headers(headers -> headers
-                .contentSecurityPolicy(csp -> csp
-                    .policyDirectives(
-                        "default-src 'self'; " +
-                        "script-src 'self'; " +
-                        "connect-src 'self' wss://api.burnedchats.com; " +
-                        "style-src 'self' 'unsafe-inline'; " +
-                        "img-src 'self' data: blob:;"
-                    )
-                )
-                .frameOptions(frame -> frame.deny())
-                .xssProtection(xss -> xss.disable()) // Не нужен с CSP
-                .contentTypeOptions(Customizer.withDefaults())
-            )
-            .build();
-    }
-}
-```
+- **Spring `SecurityConfig` с CSP не развёрнут** — в backend нет активного
+  `@EnableWebFluxSecurity` filter chain с CSP directives (historical snippet удалён).
+- **Фактическая CSP:** только nginx — см. [§4.1](#41-content-security-policy-для-telegram-mini-app-spa) и `nginx/prod.conf`.
+
+### Эфемерность Redis (TTL)
+
+Инвариант: **почти все** ключи Redis с TTL. Аудит backend (2026-07): **50 из 51**
+паттернов с expire.
+
+**Известное исключение (SEC-13 / F-1):** `room_invites:{roomId}` — `SADD` без
+`EXPIRE` (`InviteTokenRepository`). Fix в коде — отдельная карточка; не ciphertext,
+но нарушает формулировку «100% TTL».
 
 ### 4.1. Content-Security-Policy для Telegram Mini App (SPA)
 
@@ -963,7 +866,7 @@ public class HmacUtils {
 
 Decision log:
 [IMP-FAUDIT-F01 vote snapshot approach](../improvements/full-audit-2026-07/decisions/IMP-FAUDIT-F01-vote-snapshot-approach.md).
-Полная сверка остальных разделов SECURITY.md с кодом — [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
+Сверка SECURITY.md с кодом (SEC-1…14, FE-9/11): [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md) ✅.
 
 ### Cashback-петля между auto-cashback контрактами (RC-2)
 
@@ -1024,26 +927,31 @@ Decision log: [IMP-STKFEE-02 live excluded resolution](../improvements/staking-d
 
 ## Аудит безопасности (чеклист)
 
+> Сверка с кодом: IMP-FAUDIT-F08 (2026-07). Пункты отражают **фактическую** реализацию;
+> известные отклонения помечены явно.
+
 ### Frontend
-- [ ] Web Crypto API вместо JS библиотек
-- [ ] Уникальный IV для каждого сообщения
-- [ ] Non-extractable ключи где возможно
-- [ ] sessionStorage вместо localStorage
-- [ ] Burn при закрытии / beforeunload
+- [x] Web Crypto API вместо JS библиотек
+- [x] Уникальный IV для каждого сообщения
+- [x] Non-extractable ECDH private keys (`generateKeyPair`: `extractable: false`)
+- [x] Ключи E2EE только in-memory (`keyStore.ts`), не sessionStorage/localStorage
+- [x] Burn при закрытии / beforeunload; background burn после 45s hidden
+- [ ] DebugPanel replay → localStorage (dev-only отклонение, SEC-14)
 
 ### Backend (Java)
-- [ ] HMAC-SHA256 валидация initData
-- [ ] Constant-time сравнение хешей
-- [ ] Rate limiting на критических эндпоинтах
-- [ ] Input validation на всех DTO
-- [ ] CSP headers
-- [ ] TLS только (no HTTP)
+- [x] HMAC-SHA256 валидация initData
+- [x] Constant-time сравнение хешей
+- [x] Rate limiting на критических эндпоинтах (`ratelimit:*` keys)
+- [x] Input validation на DTO (Bean Validation)
+- [x] CSP / security headers на nginx (не Spring SecurityConfig)
+- [x] TLS только (no HTTP)
 
 ### Общее
-- [ ] Telegram initData expiry check (1 час)
-- [ ] Session TTL в Redis
-- [ ] Нет логирования содержимого сообщений
-- [ ] Нет хранения ключей на сервере
+- [x] Telegram initData expiry check — prod default **24h** (`telegram.mini-app.auth.max-age: 86400`, override `TELEGRAM_AUTH_MAX_AGE`); осознанное решение REPORT-backend D1
+- [x] Session TTL в Redis
+- [x] Нет логирования содержимого сообщений
+- [x] Нет хранения ключей на сервере
+- [ ] Redis TTL на **всех** ключах — 50/51; исключение `room_invites:{roomId}` (SEC-13 / F-1, fix отдельно)
 
 ---
 
@@ -1121,7 +1029,7 @@ class TelegramAuthServiceTest {
     
     @Test
     void shouldRejectExpiredInitData() {
-        // initData старше 1 часа
+        // initData старше configured max-age (prod default 24h — telegram.mini-app.auth.max-age)
         String initData = generateExpiredInitData(botToken, 123456789L);
         
         assertThatThrownBy(() -> authService.validateInitData(initData))
