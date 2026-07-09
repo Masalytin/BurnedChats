@@ -25,9 +25,14 @@ public class RateLimitProperties {
     private Requests requests = new Requests();
 
     /**
-     * Message-specific rate limits.
+     * Message-specific rate limits (drives {@code RateLimitType.MESSAGE}).
      */
     private Messages messages = new Messages();
+
+    /**
+     * Failed room-password proof attempts (drives {@code RateLimitType.ROOM_PASSWORD_FAIL}).
+     */
+    private RoomPasswordFail roomPasswordFail = new RoomPasswordFail();
 
     /**
      * Request rate limit configuration.
@@ -46,21 +51,34 @@ public class RateLimitProperties {
     }
 
     /**
-     * Message rate limit configuration.
+     * Message rate limit configuration — source of truth for {@code MESSAGE} bucket.
      */
     @Data
     public static class Messages {
         /**
-         * Maximum messages per minute per user.
+         * Maximum messages per minute per user (aligned with historical enum default of 60).
          */
-        private int perMinute = 30;
+        private int perMinute = 60;
 
         /**
-         * Maximum messages per session total.
+         * Maximum messages per session total (reserved; not yet wired to a counter).
          */
         private int perSession = 100;
     }
+
+    /**
+     * Brute-force protection for room password proofs (SECURITY.md §room password).
+     */
+    @Data
+    public static class RoomPasswordFail {
+        /**
+         * Maximum failed proof attempts in the window.
+         */
+        private int perWindow = 5;
+
+        /**
+         * Window length in seconds (default 600 = 10 minutes).
+         */
+        private int windowSeconds = 600;
+    }
 }
-
-
-

@@ -146,10 +146,14 @@ rate-limit:
     rpc:
       # Defaults to rate-limit.requests.per-minute when unset (0 = inherit)
       requests-per-minute: 0
-  # Message rate limits
+  # Message rate limits (drives RateLimitType.MESSAGE)
   messages:
-    per-minute: 30
+    per-minute: 60
     per-session: 100
+  # Failed room-password proofs (SEC-8 / SECURITY.md: 5 per 10 min)
+  room-password-fail:
+    per-window: 5
+    window-seconds: 600
 
 # Proof-of-Work anti-spam (DESIGN.md — antispam-pow group)
 pow:
