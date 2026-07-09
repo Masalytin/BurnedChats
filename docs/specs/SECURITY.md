@@ -469,7 +469,7 @@ safety-number и набор эмодзи — порядок ключей нор�
 
 > Версионирование алфавита (`v1`) позволяет пересматривать набор/энтропию без
 > потери детерминизма; решение зафиксировано в
-> [decision log](../improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
+> [decision log](../archive/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
 
 ---
 
@@ -637,8 +637,8 @@ Telegram-пользователи по-прежнему находятся по 
 
 ## Антиспам / Sybil-защита (PoW)
 
-> Дизайн и threat model: [DESIGN.md](../improvements/antispam-pow/DESIGN.md).  
-> Security-review отчёт: [SECURITY_REVIEW.md](../improvements/antispam-pow/SECURITY_REVIEW.md).
+> Дизайн и threat model: [DESIGN.md](../archive/antispam-pow/DESIGN.md).  
+> Security-review отчёт: [SECURITY_REVIEW.md](../archive/antispam-pow/SECURITY_REVIEW.md).
 
 Burned Chats использует **эшелонированную** антиспам-защиту. PoW (Слой 1) **дополняет**, а не заменяет rate-limit (Слой 0) и **не затрагивает** E2EE / zero-knowledge модель содержимого сообщений.
 
@@ -878,7 +878,7 @@ Decision log:
 контрактов. Не атака извне: срабатывает на **каждом** штатном relayed-голосе.
 
 **Подтверждённый инцидент (testnet):** Governor ⇄ StakingMaster при `GovernorVoteRelay` —
-см. [REPORT IMP-GOVOTE](../improvements/governance-vote-tx-fail/REPORT.md) §3 RC-2
+см. [REPORT IMP-GOVOTE](../archive/improvements/governance-vote-tx-fail/REPORT.md) §3 RC-2
 (~349 пустых hop'ов в одном trace).
 
 **Принятый паттерн предотвращения (IMP-GOVOTE-02):**
@@ -896,7 +896,7 @@ Decision log:
 relay-цепочек между auto-cashback контрактами — **не** завершать relay терминальным cashback
 в служебный контракт-партнёр; возвращать остаток инициатору или явному beneficiary.
 
-Decision log: [IMP-GOVOTE-02 break cashback loop](../improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-02-break-cashback-loop.md).
+Decision log: [IMP-GOVOTE-02 break cashback loop](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-02-break-cashback-loop.md).
 
 ### Fee-exempt transfers и stale excluded snapshot (IMP-STKFEE-02)
 
@@ -921,7 +921,7 @@ timelock-управляемом excluded-листе мастера (`AddExcluded
 
 Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
 
-Decision log: [IMP-STKFEE-02 live excluded resolution](../improvements/staking-deposit-fee/decisions/IMP-STKFEE-02-live-excluded-resolution.md).
+Decision log: [IMP-STKFEE-02 live excluded resolution](../archive/improvements/staking-deposit-fee/decisions/IMP-STKFEE-02-live-excluded-resolution.md).
 
 ---
 
@@ -1127,7 +1127,7 @@ class TelegramAuthServiceTest {
 - При **принудительном** удалении (`/app/room.kick`, `/app/room.ban`) сервер удаляет жертву из membership, pubkey, join-request и **всех эпох** `room_keys:{roomId}:{epoch}`. Оставшиеся получают `ROOM_MEMBER_REMOVED`; владелец **обязан** немедленно выполнить rekey (`/app/room.rekey`). **Subscribe-guard (IMP-ROOM-22):** inbound STOMP interceptor отклоняет `SUBSCRIBE /topic/room/{roomId}` для не-членов (`NOT_MEMBER` STOMP ERROR) — удалённый участник не может получать новые ciphertext через topic даже до rekey. **Force-unsubscribe (IMP-ROOM-25):** сервер снимает уже открытые подписки жертвы на room topic сразу после kick/ban (все сессии/вкладки); подписки `/user/queue/*` не затрагиваются. Rekey client-driven — сервер relay + cleanup Redis + membership guard + subscription cut-off.
 - **Ban (IMP-ROOM-09):** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Забаненный `internalId` получает `USER_BANNED` при любой попытке join (любой invite token). Бан привязан к **identity** (`internalId`), не к «человеку»: wallet-only identity стабильна; Telegram→internalId детерминирован; **новый кошелёк = новый internalId** и обходит бан прежней identity. Это осознанное ограничение модели угроз (см. wallet-only identity в [ARCHITECTURE.md](./ARCHITECTURE.md)).
 - **Mute (IMP-ROOM-11):** `/app/room.mute` добавляет `internalId` в `room_muted:{roomId}` **без** удаления из membership и **без** rekey. Заглушённый участник сохраняет групповой ключ на клиенте и может **читать** ciphertext; сервер отклоняет только `/app/room.message.send` с кодом `MUTED`. Zero-knowledge не нарушается — это policy relay, не доступ сервера к ключам.
-- **Read-only (IMP-ROOM-11):** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic. Матрица: [IMP-ROOM-14 decision](../improvements/room-management/decisions/IMP-ROOM-14-permission-matrix.md).
+- **Read-only (IMP-ROOM-11):** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic. Матрица: [IMP-ROOM-14 decision](../archive/improvements/room-management/decisions/IMP-ROOM-14-permission-matrix.md).
 - **Роли (IMP-ROOM-13 + IMP-ROOM-14):** источник истины владельца — `room.ownerInternalId`. Overlay `room_roles:{roomId}` хранит только `admin` \| `member` (отсутствие записи = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
   - **Owner-only:** burn, transfer ownership, setRole, setTtl (IMP-ROOM-16), ban/unban/getBans.
   - **Admin or owner:** kick, getInviteLink/revokeInvite/getInvites, mute/unmute/setReadOnly.
@@ -1158,6 +1158,6 @@ class TelegramAuthServiceTest {
 - [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band обмен ключами
 - [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
 - [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
-- [DESIGN.md](../improvements/antispam-pow/DESIGN.md) — PoW-протокол антиспама
-- [SECURITY_REVIEW.md](../improvements/antispam-pow/SECURITY_REVIEW.md) — security-review Слоя 1
+- [DESIGN.md](../archive/antispam-pow/DESIGN.md) — PoW-протокол антиспама
+- [SECURITY_REVIEW.md](../archive/antispam-pow/SECURITY_REVIEW.md) — security-review Слоя 1
 
