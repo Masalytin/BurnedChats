@@ -68,6 +68,8 @@ interface StompErrorEvent {
   success?: boolean;
   error?: string;
   message?: string;
+  /** Seconds until the client may retry (rate-limit responses). */
+  retryAfter?: number;
 }
 
 interface PendingCreateContext {
@@ -288,6 +290,18 @@ export function useSession({
       if (code === 'POW_INVALID') {
         cleanupErrorsSubscription();
         failCreation('POW_INVALID', tRef.current('pow.errors.invalid'));
+        return;
+      }
+
+      if (code === 'RATE_LIMIT_EXCEEDED') {
+        cleanupErrorsSubscription();
+        const baseMessage = tRef.current('chatRequest.errors.RATE_LIMITED');
+        const retryAfter = data.retryAfter;
+        const errorMessage =
+          typeof retryAfter === 'number' && Number.isFinite(retryAfter) && retryAfter > 0
+            ? `${baseMessage} (${retryAfter}s)`
+            : baseMessage;
+        failCreation('RATE_LIMITED', errorMessage);
       }
     } catch (error) {
       console.error('[useSession] Failed to parse STOMP error event:', error);
