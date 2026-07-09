@@ -1,80 +1,54 @@
-.attachment-picker-sheet-backdrop {
+.attachment-picker-fab-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1100;
-  background: var(--bc-bg-overlay);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  z-index: 1090;
+  background: transparent;
 }
 
-.attachment-picker-sheet {
-  width: 100%;
-  max-width: var(--bc-sheet-max);
-  border-radius: var(--bc-radius-lg) var(--bc-radius-lg) 0 0;
+.attachment-picker-fab-menu {
+  position: absolute;
+  bottom: calc(100% + var(--bc-spacing-xs));
+  left: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: var(--bc-spacing-xs);
+  pointer-events: auto;
+}
+
+.attachment-picker-fab-item {
+  display: flex;
+}
+
+.attachment-picker-fab-option {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-full);
   background: var(--bc-bg-primary);
   color: var(--bc-text-primary);
-  box-shadow: var(--bc-shadow-lg);
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-.attachment-picker-sheet-option {
-  display: block;
-  width: 100%;
-  min-height: var(--bc-touch-target);
-  padding: var(--bc-spacing-md) var(--bc-spacing-lg);
-  border: none;
-  border-bottom: 1px solid var(--bc-border-color);
-  background: transparent;
-  color: var(--bc-text-primary);
   font-family: var(--bc-font-family);
-  font-size: var(--bc-text-base);
-  font-weight: 500;
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--bc-transition-fast);
-}
-
-.attachment-picker-sheet-option:last-of-type {
-  border-bottom: none;
-}
-
-.attachment-picker-sheet-option:active {
-  background: var(--bc-bg-hover);
-}
-
-.attachment-picker-sheet-option:focus-visible {
-  outline: 2px solid var(--bc-brand-primary);
-  outline-offset: -2px;
-}
-
-.attachment-picker-sheet-cancel {
-  display: block;
-  width: 100%;
-  min-height: var(--bc-touch-target);
-  margin-top: var(--bc-spacing-xs);
-  padding: var(--bc-spacing-md) var(--bc-spacing-lg);
-  border: none;
-  border-radius: var(--bc-radius-lg) var(--bc-radius-lg) 0 0;
-  background: var(--bc-bg-secondary);
-  color: var(--bc-text-muted);
-  font-family: var(--bc-font-family);
-  font-size: var(--bc-text-base);
+  font-size: var(--bc-text-sm);
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+  box-shadow: var(--bc-shadow-md);
   transition: background-color var(--bc-transition-fast);
 }
 
-.attachment-picker-sheet-cancel:active {
+.attachment-picker-fab-option:active {
   background: var(--bc-bg-hover);
 }
 
-.attachment-picker-sheet-cancel:focus-visible {
+.attachment-picker-fab-option:focus-visible {
   outline: 2px solid var(--bc-brand-primary);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-.attachment-picker-sheet-input-hidden {
+.attachment-picker-fab-input-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -85,4 +59,10 @@
   white-space: nowrap;
   border: 0;
   opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachment-picker-fab-option {
+    transition: none;
+  }
 }

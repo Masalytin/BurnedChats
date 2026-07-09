@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, type ChangeEvent, type RefObject } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@/hooks/useHaptics';
 import './AttachmentPickerSheet.css';
@@ -26,13 +27,16 @@ const PICKER_OPTIONS: ReadonlyArray<{
   { kind: 'document', accept: ATTACH_PICKER_ACCEPT_DOCUMENT, labelKey: 'files.picker.document' },
 ];
 
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+
 /**
- * Bottom action sheet with split file inputs for Telegram WebView gallery intent routing.
+ * Motion-style FAB menu with split file inputs for Telegram WebView gallery intent routing.
  * Each option activates its input via native `<label>` (no programmatic `.click()`).
  */
 export function AttachmentPickerSheet({ open, onClose, onFileChange }: AttachmentPickerSheetProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
+  const prefersReducedMotion = useReducedMotion();
   const baseId = useId();
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -69,33 +73,62 @@ export function AttachmentPickerSheet({ open, onClose, onFileChange }: Attachmen
     [onFileChange, onClose],
   );
 
+  const menuVariants = {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: prefersReducedMotion ? 0 : 0.06,
+        delayChildren: prefersReducedMotion ? 0 : 0.02,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: {
+      opacity: 0,
+      y: prefersReducedMotion ? 0 : 12,
+      scale: prefersReducedMotion ? 1 : 0.92,
+    },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        duration: prefersReducedMotion ? 0 : 0.22,
+        ease: EASE_OUT,
+      },
+    },
+  };
+
   if (!open) {
     return null;
   }
 
   return (
-    <div
-      className="attachment-picker-sheet-backdrop"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <>
       <div
-        className="attachment-picker-sheet"
-        role="dialog"
-        aria-modal="true"
+        className="attachment-picker-fab-backdrop"
+        role="presentation"
+        onClick={onClose}
+      />
+      <motion.div
+        className="attachment-picker-fab-menu"
+        role="menu"
         aria-label={t('files.preview.attach')}
+        data-reduced-motion={prefersReducedMotion ? 'true' : 'false'}
+        initial="hidden"
+        animate="visible"
+        variants={menuVariants}
       >
         {PICKER_OPTIONS.map(({ kind, accept, labelKey }) => {
           const inputId = `${baseId}-${kind}`;
           return (
-            <div key={kind}>
+            <motion.div key={kind} className="attachment-picker-fab-item" variants={itemVariants}>
               <input
                 ref={inputRefs[kind]}
                 id={inputId}
                 type="file"
-                className="attachment-picker-sheet-input-hidden"
+                className="attachment-picker-fab-input-hidden"
                 accept={accept}
                 onChange={handleInputChange}
                 tabIndex={-1}
@@ -103,23 +136,17 @@ export function AttachmentPickerSheet({ open, onClose, onFileChange }: Attachmen
               />
               <label
                 htmlFor={inputId}
-                className="attachment-picker-sheet-option"
+                className="attachment-picker-fab-option"
+                role="menuitem"
                 onPointerDown={handleOptionPointerDown}
                 onClick={() => resetInputValue(inputRefs[kind])}
               >
                 {t(labelKey)}
               </label>
-            </div>
+            </motion.div>
           );
         })}
-        <button
-          type="button"
-          className="attachment-picker-sheet-cancel"
-          onClick={onClose}
-        >
-          {t('common.cancel')}
-        </button>
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 }

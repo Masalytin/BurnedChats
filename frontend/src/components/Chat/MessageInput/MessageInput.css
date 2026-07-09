@@ -89,6 +89,20 @@
   height: var(--bc-spacing-lg);
 }
 
+.message-input-attach-fab {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.message-input-attach-fab--open {
+  z-index: 10;
+}
+
+.message-input-attach--fab-open {
+  color: var(--bc-brand-primary);
+  background: var(--bc-bg-hover);
+}
+
 .message-input-field {
   flex: 1;
   min-height: var(--bc-touch-target);

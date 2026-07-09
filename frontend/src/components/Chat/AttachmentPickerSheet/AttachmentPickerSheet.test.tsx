@@ -9,13 +9,23 @@ import {
   AttachmentPickerSheet,
 } from './AttachmentPickerSheet';
 
+const useReducedMotionMock = vi.fn(() => false);
+
+vi.mock('motion/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('motion/react')>();
+  return {
+    ...actual,
+    useReducedMotion: () => useReducedMotionMock(),
+  };
+});
+
 vi.mock('@/hooks/useHaptics', () => ({
   useHaptics: () => ({
     selectionChanged: vi.fn(),
   }),
 }));
 
-function renderSheet(
+function renderPicker(
   props: Partial<{
     open: boolean;
     onClose: () => void;
@@ -36,17 +46,28 @@ function renderSheet(
   return { ...result, onClose, onFileChange };
 }
 
-describe('AttachmentPickerSheet lifecycle', () => {
+describe('AttachmentPickerSheet FAB', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    useReducedMotionMock.mockReturnValue(false);
+  });
+
+  it('renders staggered FAB menu instead of bottom sheet dialog', () => {
+    renderPicker();
+
+    expect(document.querySelector('.attachment-picker-fab-menu')).toBeTruthy();
+    expect(document.querySelector('.attachment-picker-sheet')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(i18n.t('files.picker.photo'))).toBeTruthy();
+    expect(screen.getByText(i18n.t('files.picker.video'))).toBeTruthy();
+    expect(screen.getByText(i18n.t('files.picker.document'))).toBeTruthy();
   });
 
   it('keeps file input in DOM after option click without synchronous onClose', () => {
     const onClose = vi.fn();
-    renderSheet({ onClose });
+    renderPicker({ onClose });
 
-    const photoLabel = screen.getByText(i18n.t('files.picker.photo'));
-    fireEvent.click(photoLabel);
+    fireEvent.click(screen.getByText(i18n.t('files.picker.photo')));
 
     expect(onClose).not.toHaveBeenCalled();
     const photoInput = document.querySelector(
@@ -55,15 +76,14 @@ describe('AttachmentPickerSheet lifecycle', () => {
     expect(photoInput).toBeTruthy();
   });
 
-  it('closes sheet after file selection via onChange', () => {
+  it('closes menu after file selection via onChange', () => {
     const onClose = vi.fn();
     const onFileChange = vi.fn();
-    renderSheet({ onClose, onFileChange });
+    renderPicker({ onClose, onFileChange });
 
     const photoInput = document.querySelector(
       `input[type="file"][accept="${ATTACH_PICKER_ACCEPT_PHOTO}"]`,
     ) as HTMLInputElement;
-    expect(photoInput).toBeTruthy();
 
     const file = new File(['pixels'], 'photo.png', { type: 'image/png' });
     fireEvent.change(photoInput, { target: { files: [file] } });
@@ -72,21 +92,29 @@ describe('AttachmentPickerSheet lifecycle', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('closes on cancel button click', () => {
+  it('closes on outside backdrop click', () => {
     const onClose = vi.fn();
-    renderSheet({ onClose });
+    renderPicker({ onClose });
 
-    fireEvent.click(screen.getByText(i18n.t('common.cancel')));
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes on backdrop click', () => {
-    const onClose = vi.fn();
-    renderSheet({ onClose });
-
-    const backdrop = document.querySelector('.attachment-picker-sheet-backdrop');
+    const backdrop = document.querySelector('.attachment-picker-fab-backdrop');
     expect(backdrop).toBeTruthy();
     fireEvent.click(backdrop!);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes on Escape key', () => {
+    const onClose = vi.fn();
+    renderPicker({ onClose });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks menu as reduced-motion when prefers-reduced-motion is active', () => {
+    useReducedMotionMock.mockReturnValue(true);
+    renderPicker();
+
+    const menu = document.querySelector('.attachment-picker-fab-menu');
+    expect(menu?.getAttribute('data-reduced-motion')).toBe('true');
   });
 });

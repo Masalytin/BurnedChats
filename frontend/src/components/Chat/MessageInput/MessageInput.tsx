@@ -180,7 +180,7 @@ export const MessageInput = memo(function MessageInput({
 
   const handleAttachButtonClick = useCallback(() => {
     if (!canAttach) return;
-    setPickerSheetOpen(true);
+    setPickerSheetOpen((open) => !open);
   }, [canAttach]);
 
   const handlePickerSheetClose = useCallback(() => {
@@ -297,11 +297,15 @@ export const MessageInput = memo(function MessageInput({
               </>
             )}
             {useAttachmentPickerSheet && (
-              <>
+              <div
+                className={`message-input-attach-fab${pickerSheetOpen ? ' message-input-attach-fab--open' : ''}`}
+              >
                 <button
                   type="button"
-                  className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}`}
+                  className={`message-input-attach${canAttach ? '' : ' message-input-attach--disabled'}${pickerSheetOpen ? ' message-input-attach--fab-open' : ''}`}
                   aria-label={t('files.preview.attach')}
+                  aria-expanded={pickerSheetOpen}
+                  aria-haspopup="menu"
                   disabled={!canAttach}
                   onPointerDown={handleAttachPointerDown}
                   onClick={handleAttachButtonClick}
@@ -313,7 +317,7 @@ export const MessageInput = memo(function MessageInput({
                   onClose={handlePickerSheetClose}
                   onFileChange={handleFileChange}
                 />
-              </>
+              </div>
             )}
           </>
         )}
