@@ -91,6 +91,12 @@ Output: 256 bit
 
 ### Шаг 1: Генерация ключевой пары (Frontend - Web Crypto API)
 
+> **Wire-формат публичного ключа — SPKI/ASN.1**, не uncompressed point (`'raw'`).
+> Источник истины: `PUBLIC_KEY_FORMAT = 'spki'` в
+> [`frontend/src/crypto/ecdh.ts`](../../frontend/src/crypto/ecdh.ts)
+> (`exportPublicKey` / `importPublicKey`). Тот же SPKI-блоб — вход
+> fingerprint-хеша (см. [Visual Fingerprint](#visual-fingerprint)).
+
 ```typescript
 // На стороне каждого клиента
 const keyPair = await crypto.subtle.generateKey(
@@ -102,9 +108,9 @@ const keyPair = await crypto.subtle.generateKey(
   ['deriveKey', 'deriveBits']
 );
 
-// Экспорт публичного ключа для передачи
-const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
-const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)));
+// Экспорт публичного ключа для передачи (SPKI/ASN.1 — PUBLIC_KEY_FORMAT в ecdh.ts)
+const publicKeySpki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeySpki)));
 ```
 
 ### Шаг 2: Обмен публичными ключами
@@ -125,12 +131,12 @@ Alice                         Server                         Bob
 ### Шаг 3: Вычисление Shared Secret
 
 ```typescript
-// Импорт публичного ключа собеседника
+// Импорт публичного ключа собеседника (SPKI/ASN.1 — тот же PUBLIC_KEY_FORMAT)
 const peerPublicKey = await crypto.subtle.importKey(
-  'raw',
+  'spki',
   peerPublicKeyBuffer,
   { name: 'ECDH', namedCurve: 'P-256' },
-  false,
+  true, // extractable — public key already shared; matches ecdh.ts importPublicKey
   []
 );
 
@@ -644,7 +650,7 @@ Burned Chats использует **эшелонированную** антис�
 
 ### Слой 0 — Rate limiting (per `internalId`)
 
-- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis sliding-window (`ratelimit:{type}:{internalId}`).
+- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis **fixed-window** (Lua `INCR` + одноразовый `EXPIRE` при `count == 1`; ключ `ratelimit:{type}:{internalId}`).
 - Закрывает **флуд от одной идентичности** (search, message, session create и др.).
 - **Не** останавливает Sybil: новая Telegram/wallet-идентичность получает свой счётчик.
 - **STOMP SEND (IMP-WSRL-01):** при превышении лимита в `RateLimitInterceptor` inbound-фрейм **отбрасывается** (`null`), клиент получает `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` на `/user/queue/errors` через `StompUserMessenger` — WebSocket **не** закрывается (в отличие от STOMP ERROR).
@@ -713,11 +719,26 @@ E2EE payload (сообщения, group keys, file blobs) по-прежнему 
 ### Rate limiting (реализация)
 
 - **Код:** [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java), enum `RateLimitType`.
+- **Алгоритм:** fixed-window (Lua `INCR` + одноразовый `EXPIRE`), не sliding-window.
 - **Redis keys:** `ratelimit:{type}:{internalId}` (не `rate:`).
 - **Лимиты:** см. таблицу «Слой 0» (MESSAGE 60/min, SESSION_CREATE 3/min, …).
 - **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — реализован в
   [IMP-FAUDIT-F05](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F05-room-password-bruteforce-limit.md)
   (синхронизация SEC-8 **не** входила в F08 — только F05).
+
+### Edge rate-limit (nginx)
+
+Периметр перед приложением — `limit_req` в [`nginx/prod.conf`](../../nginx/prod.conf)
+([IMP-FAUDIT-F04](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F04-ws-ratelimit-prod-nginx.md);
+закрывает INF-2). Не путать с app-level `RateLimitService` (Слой 0): edge —
+per-IP на HTTP/SockJS handshake, app — per-`internalId` на STOMP/REST.
+
+| Zone | Rate | Burst | Locations |
+|------|------|-------|-----------|
+| `ws_limit` | 5 r/s | 10 (`nodelay`) | `/ws` (SockJS info + transport + upgrade) |
+| `api_limit` | 10 r/s | 20 (`nodelay`) | `/api/**` (в т.ч. webhook, `/api/auth/`, общий `/api/`) |
+
+Агент, переписывающий nginx «по спеке» без этих зон, вернёт регрессию INF-2.
 
 ### Input validation (реализация)
 
@@ -785,49 +806,21 @@ STOMP-тела (в т.ч. ciphertext) в `localStorage` (`debug-replay-sessions`
 
 ### 5. HMAC Validation для Telegram (Java)
 
+> **Нет отдельного `util/HmacUtils.java`.** HMAC-SHA256, hex-кодирование и
+> constant-time сравнение реализованы **инлайн** в
+> [`TelegramAuthService`](../../backend/src/main/java/dev/burnedchats/security/TelegramAuthService.java)
+> (`computeHash`, `bytesToHex`, `constantTimeEquals`). Ниже — иллюстративная
+> схема семантики (крипто-инвариант верный); при правках смотреть сервис, не
+> выдумывать utility-класс.
+
 ```java
-// util/HmacUtils.java
-@UtilityClass
-public class HmacUtils {
-    
-    /**
-     * Вычисляет HMAC-SHA256
-     */
-    public byte[] hmacSha256(byte[] key, byte[] data) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(key, "HmacSHA256");
-            mac.init(secretKeySpec);
-            return mac.doFinal(data);
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new RuntimeException("HMAC-SHA256 error", e);
-        }
-    }
-    
-    /**
-     * Конвертирует байты в hex строку
-     */
-    public String bytesToHex(byte[] bytes) {
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : bytes) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) {
-                hexString.append('0');
-            }
-            hexString.append(hex);
-        }
-        return hexString.toString();
-    }
-    
-    /**
-     * Constant-time сравнение строк
-     */
-    public boolean constantTimeEquals(String a, String b) {
-        return MessageDigest.isEqual(
-            a.getBytes(StandardCharsets.UTF_8),
-            b.getBytes(StandardCharsets.UTF_8)
-        );
-    }
+// Illustrative — actual code is private methods in TelegramAuthService
+Mac mac = Mac.getInstance("HmacSHA256");
+mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
+byte[] hashBytes = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
+String computedHash = bytesToHex(hashBytes); // lowercase hex
+if (!constantTimeEquals(computedHash, providedHash)) {
+    throw AuthenticationException.invalidSignature();
 }
 ```
 
