@@ -743,6 +743,20 @@
       "completeDescription": "Alle ausgewählten Daten wurden zerstört.",
       "completeButton": "Weiter"
     },
+    "deadman": {
+      "title": "Dead man's Switch",
+      "description": "Alle Daten automatisch verbrennen, wenn du die App im gewählten Zeitraum nicht öffnest.",
+      "toggle": "Auto-Verbrennung bei Inaktivität",
+      "periodLabel": "Inaktivitätszeitraum",
+      "period7": "7 Tage",
+      "period30": "30 Tage",
+      "period90": "90 Tage",
+      "wipeIdentity": "Konto mit verbrennen",
+      "wipeIdentityHint": "Löscht bei Auslösung Profil und verknüpfte Konten — nicht nur Chats und Räume.",
+      "status": "Alles wird am {{date}} verbrannt, wenn du vorher nicht vorbeischaust",
+      "enableConfirm": "Dead man's Switch aktivieren? Wenn du die App im gewählten Zeitraum nicht öffnest, werden alle Daten automatisch verbrannt.",
+      "offlineError": "Keine Verbindung — Dead man's Switch erfordert eine Serververbindung"
+    },
     "exit": {
       "button": "Beenden",
       "title": "App verlassen?",

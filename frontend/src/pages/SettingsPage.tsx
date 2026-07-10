@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth/types';
 import { AuthType } from '../auth/types';
@@ -9,6 +9,14 @@ import { AccountLinking } from '../components/Settings/AccountLinking';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
 import { burnAll } from '../crypto/keyStore';
 import { useTelegram } from '../hooks/useTelegram';
+import {
+  DEADMAN_PERIOD_DAYS,
+  DEFAULT_DEADMAN_PERIOD_DAYS,
+  formatDeadmanExpiryDate,
+  type DeadmanPeriodDays,
+  type DeadmanState,
+  type SetDeadmanRequest,
+} from '../hooks/useDeadmanSwitch';
 import { usePreferences } from '../preferences';
 import type { UserPreferences } from '../preferences';
 import { shortenTonDisplayAddress } from '../ton/connector';
@@ -28,6 +36,12 @@ export interface SettingsExitApi {
   onRetryBurnAndExit: () => void;
 }
 
+export interface SettingsDeadmanApi {
+  deadman: DeadmanState | null;
+  isConnected: boolean;
+  onSetDeadman: (request: SetDeadmanRequest) => void;
+}
+
 export interface SettingsPageProps {
   user: AuthUser | null;
   linkedAccountsCredentials: LinkedAccountsCredentials | null;
@@ -35,6 +49,7 @@ export interface SettingsPageProps {
   onBurnAllData?: () => void;
   onBurnAllAccount?: () => void;
   exit?: SettingsExitApi;
+  deadman?: SettingsDeadmanApi;
 }
 
 interface SettingsToggleProps {
@@ -92,6 +107,38 @@ function ThemeOption({ id, name, label, checked, onChange }: ThemeOptionProps) {
   );
 }
 
+interface DeadmanPeriodOptionProps {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+}
+
+function DeadmanPeriodOption({ id, label, checked, onChange }: DeadmanPeriodOptionProps) {
+  return (
+    <label
+      className={`settings-deadman__period${checked ? ' settings-deadman__period--active' : ''}`}
+      htmlFor={id}
+    >
+      <input
+        id={id}
+        type="radio"
+        name="settings-deadman-period"
+        className="settings-deadman__period-input"
+        checked={checked}
+        onChange={onChange}
+      />
+      <span className="settings-deadman__period-label">{label}</span>
+    </label>
+  );
+}
+
+function deadmanPeriodLabelKey(days: DeadmanPeriodDays): string {
+  if (days === 7) return 'settings.deadman.period7';
+  if (days === 90) return 'settings.deadman.period90';
+  return 'settings.deadman.period30';
+}
+
 export function SettingsPage({
   user,
   linkedAccountsCredentials,
@@ -99,15 +146,114 @@ export function SettingsPage({
   onBurnAllData,
   onBurnAllAccount,
   exit,
+  deadman,
 }: SettingsPageProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const toast = useToast();
   const { showConfirm } = useTelegram();
   const { prefs, setPref } = usePreferences();
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [isClearingKeys, setIsClearingKeys] = useState(false);
+  const [selectedPeriodDays, setSelectedPeriodDays] = useState<DeadmanPeriodDays>(
+    DEFAULT_DEADMAN_PERIOD_DAYS,
+  );
+  const [wipeIdentity, setWipeIdentity] = useState(false);
   const displayName = user?.displayName ?? t('common.unknown');
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—';
+
+  const deadmanEnabled = deadman?.deadman?.enabled ?? false;
+  const activePeriodDays = deadmanEnabled
+    ? deadman?.deadman?.periodDays ?? selectedPeriodDays
+    : selectedPeriodDays;
+  const activeWipeIdentity = deadmanEnabled
+    ? deadman?.deadman?.wipeIdentity ?? wipeIdentity
+    : wipeIdentity;
+
+  useEffect(() => {
+    if (deadman?.deadman?.periodDays != null) {
+      setSelectedPeriodDays(deadman.deadman.periodDays);
+    }
+    if (deadman?.deadman != null) {
+      setWipeIdentity(deadman.deadman.wipeIdentity);
+    }
+  }, [deadman?.deadman?.periodDays, deadman?.deadman?.wipeIdentity, deadman?.deadman]);
+
+  const buildDeadmanRequest = useCallback(
+    (overrides: Partial<SetDeadmanRequest> & Pick<SetDeadmanRequest, 'enabled'>): SetDeadmanRequest => ({
+      enabled: overrides.enabled,
+      periodDays: overrides.periodDays ?? activePeriodDays,
+      wipeIdentity: overrides.wipeIdentity ?? activeWipeIdentity,
+    }),
+    [activePeriodDays, activeWipeIdentity],
+  );
+
+  const applyDeadmanRequest = useCallback(
+    (request: SetDeadmanRequest) => {
+      if (!deadman?.isConnected) {
+        toast.error(t('settings.deadman.offlineError'));
+        return;
+      }
+      deadman.onSetDeadman(request);
+    },
+    [deadman, t, toast],
+  );
+
+  const handleDeadmanToggle = useCallback(
+    async (checked: boolean) => {
+      if (!deadman) {
+        return;
+      }
+
+      if (!checked) {
+        applyDeadmanRequest(buildDeadmanRequest({ enabled: false }));
+        return;
+      }
+
+      const confirmed = await showConfirm(t('settings.deadman.enableConfirm'));
+      if (!confirmed) {
+        return;
+      }
+
+      applyDeadmanRequest(
+        buildDeadmanRequest({
+          enabled: true,
+          periodDays: selectedPeriodDays,
+          wipeIdentity,
+        }),
+      );
+    },
+    [
+      applyDeadmanRequest,
+      buildDeadmanRequest,
+      deadman,
+      selectedPeriodDays,
+      showConfirm,
+      t,
+      wipeIdentity,
+    ],
+  );
+
+  const handleDeadmanPeriodChange = useCallback(
+    (periodDays: DeadmanPeriodDays) => {
+      setSelectedPeriodDays(periodDays);
+      if (!deadmanEnabled) {
+        return;
+      }
+      applyDeadmanRequest(buildDeadmanRequest({ enabled: true, periodDays }));
+    },
+    [applyDeadmanRequest, buildDeadmanRequest, deadmanEnabled],
+  );
+
+  const handleDeadmanWipeIdentityChange = useCallback(
+    (checked: boolean) => {
+      setWipeIdentity(checked);
+      if (!deadmanEnabled) {
+        return;
+      }
+      applyDeadmanRequest(buildDeadmanRequest({ enabled: true, wipeIdentity: checked }));
+    },
+    [applyDeadmanRequest, buildDeadmanRequest, deadmanEnabled],
+  );
 
   const handleClearLocalKeys = useCallback(async () => {
     const confirmed = await showConfirm(t('settings.security.clearKeysConfirm'));
@@ -228,6 +374,50 @@ export function SettingsPage({
         <h2 className="settings-section__header">{t('settings.section.security')}</h2>
         <div className="settings-section__card settings-security">
           <p className="settings-security__hint">{t('settings.security.keysHint')}</p>
+          {deadman ? (
+            <div className="settings-deadman">
+              <p className="settings-deadman__title">{t('settings.deadman.title')}</p>
+              <p className="settings-deadman__description">{t('settings.deadman.description')}</p>
+              <SettingsToggle
+                id="settings-deadman-enabled"
+                label={t('settings.deadman.toggle')}
+                checked={deadmanEnabled}
+                onChange={(checked) => void handleDeadmanToggle(checked)}
+              />
+              <div className="settings-deadman__options">
+                <p className="settings-row__label">{t('settings.deadman.periodLabel')}</p>
+                <div
+                  className="settings-deadman__periods"
+                  role="radiogroup"
+                  aria-label={t('settings.deadman.periodLabel')}
+                >
+                  {DEADMAN_PERIOD_DAYS.map((days) => (
+                    <DeadmanPeriodOption
+                      key={days}
+                      id={`settings-deadman-period-${days}`}
+                      label={t(deadmanPeriodLabelKey(days))}
+                      checked={activePeriodDays === days}
+                      onChange={() => handleDeadmanPeriodChange(days)}
+                    />
+                  ))}
+                </div>
+                <SettingsToggle
+                  id="settings-deadman-wipe-identity"
+                  label={t('settings.deadman.wipeIdentity')}
+                  description={t('settings.deadman.wipeIdentityHint')}
+                  checked={activeWipeIdentity}
+                  onChange={handleDeadmanWipeIdentityChange}
+                />
+              </div>
+              {deadmanEnabled && deadman.deadman?.expiresAt != null ? (
+                <p className="settings-deadman__status">
+                  {t('settings.deadman.status', {
+                    date: formatDeadmanExpiryDate(deadman.deadman.expiresAt, i18n.language),
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <button
             type="button"
             className={`settings-security__button${isClearingKeys ? ' settings-security__button--loading' : ''}`}

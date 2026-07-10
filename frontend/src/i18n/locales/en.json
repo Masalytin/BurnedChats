@@ -72,6 +72,20 @@
       "completeDescription": "All selected data has been destroyed.",
       "completeButton": "Continue"
     },
+    "deadman": {
+      "title": "Dead man's switch",
+      "description": "Automatically burn all data if you don't open the app within the selected period.",
+      "toggle": "Enable auto-burn on inactivity",
+      "periodLabel": "Inactivity period",
+      "period7": "7 days",
+      "period30": "30 days",
+      "period90": "90 days",
+      "wipeIdentity": "Burn account too",
+      "wipeIdentityHint": "When triggered, deletes your profile and linked accounts — not just chats and rooms.",
+      "status": "Everything will burn on {{date}} unless you visit before then",
+      "enableConfirm": "Enable dead man's switch? If you don't open the app within the selected period, all your data will be burned automatically.",
+      "offlineError": "No connection — dead man's switch requires a server link"
+    },
     "exit": {
       "button": "Exit",
       "title": "Leave the app?",

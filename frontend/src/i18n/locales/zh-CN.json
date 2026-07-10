@@ -746,6 +746,20 @@
       "completeDescription": "所选数据已销毁。",
       "completeButton": "继续"
     },
+    "deadman": {
+      "title": "Dead man's switch",
+      "description": "若在选定周期内未打开应用，将自动销毁全部数据。",
+      "toggle": "不活跃时自动销毁",
+      "periodLabel": "不活跃周期",
+      "period7": "7 天",
+      "period30": "30 天",
+      "period90": "90 天",
+      "wipeIdentity": "同时销毁账户",
+      "wipeIdentityHint": "触发时删除个人资料与关联账户——不仅是聊天和房间。",
+      "status": "若在此之前未访问，一切将于 {{date}} 销毁",
+      "enableConfirm": "启用 dead man's switch？若在选定周期内未打开应用，所有数据将自动销毁。",
+      "offlineError": "无连接——dead man's switch 需要服务器连接"
+    },
     "exit": {
       "button": "退出",
       "title": "离开应用？",

@@ -746,6 +746,20 @@
       "completeDescription": "Los datos seleccionados han sido destruidos.",
       "completeButton": "Continuar"
     },
+    "deadman": {
+      "title": "Dead man's switch",
+      "description": "Quema automáticamente todos los datos si no abres la app en el periodo seleccionado.",
+      "toggle": "Quemar por inactividad",
+      "periodLabel": "Periodo de inactividad",
+      "period7": "7 días",
+      "period30": "30 días",
+      "period90": "90 días",
+      "wipeIdentity": "Quemar también la cuenta",
+      "wipeIdentityHint": "Al activarse, elimina tu perfil y cuentas vinculadas — no solo chats y salas.",
+      "status": "Todo se quemará el {{date}} si no entras antes",
+      "enableConfirm": "¿Activar dead man's switch? Si no abres la app en el periodo seleccionado, todos los datos se quemarán automáticamente.",
+      "offlineError": "Sin conexión — dead man's switch requiere enlace con el servidor"
+    },
     "exit": {
       "button": "Salir",
       "title": "¿Salir de la app?",

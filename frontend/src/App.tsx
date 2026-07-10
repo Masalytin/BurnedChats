@@ -79,6 +79,7 @@ import {
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
 import { useBurnAll } from './hooks/useBurnAll';
+import { useDeadmanSwitch } from './hooks/useDeadmanSwitch';
 import { useExitBurnFlow } from './hooks/useExitBurnFlow';
 import {
   burn as burnKeys,
@@ -2537,6 +2538,13 @@ function AppContent() {
     },
   });
 
+  const { deadman, setDeadman } = useDeadmanSwitch({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
   const {
     isBurning: exitIsBurning,
     error: exitBurnError,
@@ -2906,6 +2914,11 @@ function AppContent() {
             onTonWalletChromeNeeded={requestTelegramWalletChrome}
             onBurnAllData={() => setBurnAllDialogMode('data')}
             onBurnAllAccount={() => setBurnAllDialogMode('account')}
+            deadman={{
+              deadman,
+              isConnected,
+              onSetDeadman: setDeadman,
+            }}
             exit={{
               dialogOpen: exitDialogOpen,
               isBurning: exitIsBurning,
