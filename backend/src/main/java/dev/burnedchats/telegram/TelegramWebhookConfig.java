@@ -68,9 +68,16 @@ public class TelegramWebhookConfig {
      * Registers webhook with Telegram API after application is ready.
      *
      * <p>This ensures all beans are initialized before making API calls.
+     *
+     * <p>Must remain zero-arg (or take only {@link ApplicationReadyEvent}): a
+     * non-event parameter under {@code @EventListener(ApplicationReadyEvent.class)}
+     * receives the event itself and fails with
+     * {@code IllegalStateException: argument type mismatch} (regression from
+     * IMP-BURNALL-06). The bot singleton is obtained via the {@code @Bean} method
+     * (CGLIB-intercepted on {@code @Configuration}).
      */
     @EventListener(ApplicationReadyEvent.class)
-    public void registerWebhook(BurnedChatsWebhookBot bot) {
+    public void registerWebhook() {
         String token = telegramProperties.getBot().getToken();
         if (token == null || token.isBlank()) {
             LOG.warn("Cannot register webhook: bot token is not configured");
@@ -111,6 +118,7 @@ public class TelegramWebhookConfig {
 
             SetWebhook setWebhook = webhookBuilder.build();
 
+            BurnedChatsWebhookBot bot = burnedChatsWebhookBot();
             bot.setWebhook(setWebhook);
 
             LOG.info("Telegram webhook registered successfully");
