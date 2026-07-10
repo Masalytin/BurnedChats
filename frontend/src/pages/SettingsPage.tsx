@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth/types';
 import { AuthType } from '../auth/types';
 import { Avatar, LanguageSwitcher } from '../components';
+import { ExitDialog } from '../components/ExitDialog/ExitDialog';
 import { useToast } from '../components/Toast';
 import { AccountLinking } from '../components/Settings/AccountLinking';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
@@ -12,7 +13,20 @@ import { usePreferences } from '../preferences';
 import type { UserPreferences } from '../preferences';
 import { shortenTonDisplayAddress } from '../ton/connector';
 import '../components/Settings/LinkedAccounts.css';
+import type { ExitBurnError } from '../hooks/useExitBurnFlow';
+import '../components/ExitDialog/ExitDialog.css';
 import './SettingsPage.css';
+
+export interface SettingsExitApi {
+  dialogOpen: boolean;
+  isBurning: boolean;
+  error: ExitBurnError | null;
+  onOpenDialog: () => void;
+  onCloseDialog: () => void;
+  onJustExit: () => void;
+  onBurnAndExit: () => void;
+  onRetryBurnAndExit: () => void;
+}
 
 export interface SettingsPageProps {
   user: AuthUser | null;
@@ -20,6 +34,7 @@ export interface SettingsPageProps {
   onTonWalletChromeNeeded?: () => void;
   onBurnAllData?: () => void;
   onBurnAllAccount?: () => void;
+  exit?: SettingsExitApi;
 }
 
 interface SettingsToggleProps {
@@ -83,6 +98,7 @@ export function SettingsPage({
   onTonWalletChromeNeeded,
   onBurnAllData,
   onBurnAllAccount,
+  exit,
 }: SettingsPageProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -261,6 +277,23 @@ export function SettingsPage({
           />
         </div>
       </section>
+
+      {exit ? (
+        <section className="settings-section settings-exit">
+          <button type="button" className="settings-exit__button" onClick={exit.onOpenDialog}>
+            {t('settings.exit.button')}
+          </button>
+          <ExitDialog
+            open={exit.dialogOpen}
+            isBurning={exit.isBurning}
+            error={exit.error}
+            onClose={exit.onCloseDialog}
+            onJustExit={exit.onJustExit}
+            onBurnAndExit={exit.onBurnAndExit}
+            onRetryBurnAndExit={exit.onRetryBurnAndExit}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

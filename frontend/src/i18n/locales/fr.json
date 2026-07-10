@@ -746,6 +746,17 @@
       "completeDescription": "Les données sélectionnées ont été détruites.",
       "completeButton": "Continuer"
     },
+    "exit": {
+      "button": "Quitter",
+      "title": "Quitter l'application ?",
+      "description": "Vous pouvez partir maintenant et garder vos chats sur le serveur, ou tout brûler d'abord.",
+      "justLeave": "Partir simplement",
+      "burnAndLeave": "Tout brûler et partir",
+      "timeoutError": "Délai dépassé — des données serveur peuvent subsister. Réessayez ou partez sans brûler.",
+      "offlineError": "Pas de connexion — la destruction nécessite un lien serveur",
+      "internalError": "Une erreur s'est produite — des données serveur peuvent subsister",
+      "retry": "Réessayer"
+    },
     "title": "Paramètres"
   },
   "staking": {

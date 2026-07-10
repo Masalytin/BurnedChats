@@ -746,6 +746,17 @@
       "completeDescription": "Los datos seleccionados han sido destruidos.",
       "completeButton": "Continuar"
     },
+    "exit": {
+      "button": "Salir",
+      "title": "¿Salir de la app?",
+      "description": "Puedes salir ahora y mantener tus chats en el servidor, o quemar todo primero.",
+      "justLeave": "Solo salir",
+      "burnAndLeave": "Quemar todo y salir",
+      "timeoutError": "Tiempo agotado — los datos del servidor pueden seguir existiendo. Reintenta o sal sin quemar.",
+      "offlineError": "Sin conexión — quemar requiere enlace con el servidor",
+      "internalError": "Algo salió mal — los datos del servidor pueden seguir existiendo",
+      "retry": "Reintentar"
+    },
     "title": "Ajustes"
   },
   "staking": {

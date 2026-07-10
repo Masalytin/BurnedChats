@@ -743,6 +743,17 @@
       "completeDescription": "Alle ausgewählten Daten wurden zerstört.",
       "completeButton": "Weiter"
     },
+    "exit": {
+      "button": "Beenden",
+      "title": "App verlassen?",
+      "description": "Du kannst jetzt gehen und deine Chats auf dem Server behalten, oder zuerst alles verbrennen.",
+      "justLeave": "Einfach verlassen",
+      "burnAndLeave": "Alles verbrennen und verlassen",
+      "timeoutError": "Zeitüberschreitung — Serverdaten könnten noch existieren. Erneut versuchen oder ohne Verbrennen verlassen.",
+      "offlineError": "Keine Verbindung — Verbrennen erfordert eine Serververbindung",
+      "internalError": "Etwas ist schiefgelaufen — Serverdaten könnten noch existieren",
+      "retry": "Erneut versuchen"
+    },
     "developer": {
       "version": "App-Version",
       "debugPanel": "Debug-Panel"

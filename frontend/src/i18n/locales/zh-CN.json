@@ -746,6 +746,17 @@
       "completeDescription": "所选数据已销毁。",
       "completeButton": "继续"
     },
+    "exit": {
+      "button": "退出",
+      "title": "离开应用？",
+      "description": "可以直接离开，聊天记录保留在服务器；也可以先焚毁一切。",
+      "justLeave": "直接离开",
+      "burnAndLeave": "焚毁一切并离开",
+      "timeoutError": "等待超时 — 服务器数据可能仍在。请重试或不焚毁直接离开。",
+      "offlineError": "无连接 — 焚毁需要与服务器的连接",
+      "internalError": "出错了 — 服务器数据可能仍在",
+      "retry": "重试"
+    },
     "title": "设置"
   },
   "staking": {

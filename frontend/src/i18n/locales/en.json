@@ -72,6 +72,17 @@
       "completeDescription": "All selected data has been destroyed.",
       "completeButton": "Continue"
     },
+    "exit": {
+      "button": "Exit",
+      "title": "Leave the app?",
+      "description": "You can leave now and keep your chats on the server, or burn everything first.",
+      "justLeave": "Just leave",
+      "burnAndLeave": "Burn everything and leave",
+      "timeoutError": "Burn timed out — server data may still exist. Try again or leave without burning.",
+      "offlineError": "No connection — burning requires a server link",
+      "internalError": "Something went wrong — server data may still exist",
+      "retry": "Try again"
+    },
     "developer": {
       "version": "App version",
       "debugPanel": "Debug panel"

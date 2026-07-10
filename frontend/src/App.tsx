@@ -79,8 +79,10 @@ import {
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
 import { useBurnAll } from './hooks/useBurnAll';
+import { useExitBurnFlow } from './hooks/useExitBurnFlow';
 import {
   burn as burnKeys,
+  burnAll,
   burnGroupKey,
   getFingerprint,
   getSharedSecret,
@@ -178,6 +180,7 @@ function AppContent() {
     setBottomBarColor,
     notificationOccurred,
     startParam,
+    close,
   } = useTelegram();
 
   useTelegramViewport();
@@ -838,6 +841,8 @@ function AppContent() {
   const [burningSessionId, setBurningSessionId] = useState<string | null>(null);
   const [burnAllDialogMode, setBurnAllDialogMode] = useState<BurnAllDialogMode | null>(null);
   const [showBurnAllComplete, setShowBurnAllComplete] = useState(false);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const exitBurnPendingRef = useRef(false);
 
   // App state
   const [initError] = useState<string | null>(null);
@@ -2489,7 +2494,7 @@ function AppContent() {
     navigate,
   ]);
 
-  const { burnAllState, requestBurnAll, resetBurnAll } = useBurnAll({
+  const { burnAllState, error: burnAllError, requestBurnAll, resetBurnAll } = useBurnAll({
     isConnected,
     subscribe,
     unsubscribe,
@@ -2502,6 +2507,14 @@ function AppContent() {
             resetTonConnectUI();
           },
         });
+
+        if (exitBurnPendingRef.current) {
+          exitBurnPendingRef.current = false;
+          setExitDialogOpen(false);
+          resetBurnAll();
+          close();
+          return;
+        }
 
         resetAppStateAfterBurnAll();
         fetchSessions();
@@ -2523,6 +2536,36 @@ function AppContent() {
       }
     },
   });
+
+  const {
+    isBurning: exitIsBurning,
+    error: exitBurnError,
+    startBurnAndExit,
+    retryBurnAndExit,
+    resetExitBurn,
+  } = useExitBurnFlow({
+    burnAllState,
+    burnAllError,
+    requestBurnAll,
+    resetBurnAll,
+    exitBurnPendingRef,
+  });
+
+  const handleJustExit = useCallback(() => {
+    cancelAll();
+    burnAll('manual');
+    setExitDialogOpen(false);
+    resetExitBurn();
+    close();
+  }, [close, resetExitBurn]);
+
+  const handleCloseExitDialog = useCallback(() => {
+    if (exitIsBurning) {
+      return;
+    }
+    setExitDialogOpen(false);
+    resetExitBurn();
+  }, [exitIsBurning, resetExitBurn]);
 
   const handleBurnAllConfirm = useCallback(() => {
     if (!burnAllDialogMode) {
@@ -2863,6 +2906,16 @@ function AppContent() {
             onTonWalletChromeNeeded={requestTelegramWalletChrome}
             onBurnAllData={() => setBurnAllDialogMode('data')}
             onBurnAllAccount={() => setBurnAllDialogMode('account')}
+            exit={{
+              dialogOpen: exitDialogOpen,
+              isBurning: exitIsBurning,
+              error: exitBurnError,
+              onOpenDialog: () => setExitDialogOpen(true),
+              onCloseDialog: handleCloseExitDialog,
+              onJustExit: handleJustExit,
+              onBurnAndExit: startBurnAndExit,
+              onRetryBurnAndExit: retryBurnAndExit,
+            }}
           />
         </Layout>
         {debugPanelElement}
