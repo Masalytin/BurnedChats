@@ -732,6 +732,20 @@
       "clearKeysSuccess": "Claves de cifrado locales borradas",
       "keysHint": "Las claves de cifrado permanecen solo en tu dispositivo. Borrarlas elimina las claves locales de sesión y sala — los chats activos necesitarán un nuevo handshake seguro."
     },
+    "burnAll": {
+      "dataTitle": "Quemar todos los datos",
+      "dataDescription": "Destruye todos los chats, salas, archivos y cachés locales en el servidor y el dispositivo. Tu cuenta permanece — puedes volver más tarde.",
+      "dataAction": "Quemar todos los datos",
+      "accountTitle": "Quemar cuenta",
+      "accountDescription": "Destruye todo, incluido el perfil y las cuentas vinculadas. El próximo inicio de sesión será una cuenta nueva.",
+      "accountAction": "Quemar cuenta",
+      "accountAck": "Entiendo que mi cuenta se eliminará permanentemente",
+      "holdButton": "Mantén pulsado para quemar",
+      "offlineError": "Sin conexión — quemar requiere enlace con el servidor",
+      "completeTitle": "Todo quemado",
+      "completeDescription": "Los datos seleccionados han sido destruidos.",
+      "completeButton": "Continuar"
+    },
     "title": "Ajustes"
   },
   "staking": {

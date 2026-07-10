@@ -18,6 +18,8 @@ export interface SettingsPageProps {
   user: AuthUser | null;
   linkedAccountsCredentials: LinkedAccountsCredentials | null;
   onTonWalletChromeNeeded?: () => void;
+  onBurnAllData?: () => void;
+  onBurnAllAccount?: () => void;
 }
 
 interface SettingsToggleProps {
@@ -79,6 +81,8 @@ export function SettingsPage({
   user,
   linkedAccountsCredentials,
   onTonWalletChromeNeeded,
+  onBurnAllData,
+  onBurnAllAccount,
 }: SettingsPageProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -217,6 +221,26 @@ export function SettingsPage({
           >
             {isClearingKeys ? t('common.loading') : t('settings.security.clearKeys')}
           </button>
+          <div className="settings-security__burn-all">
+            <p className="settings-security__burn-all-label">{t('settings.burnAll.dataAction')}</p>
+            <button
+              type="button"
+              className="settings-security__button settings-security__button--burn-all"
+              onClick={onBurnAllData}
+            >
+              {t('settings.burnAll.dataAction')}
+            </button>
+            <p className="settings-security__burn-all-label settings-security__burn-all-label--account">
+              {t('settings.burnAll.accountAction')}
+            </p>
+            <button
+              type="button"
+              className="settings-security__button settings-security__button--burn-all settings-security__button--account"
+              onClick={onBurnAllAccount}
+            >
+              {t('settings.burnAll.accountAction')}
+            </button>
+          </div>
         </div>
       </section>
 

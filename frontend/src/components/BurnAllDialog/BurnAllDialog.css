@@ -1,0 +1,177 @@
+/* Burn-all confirmation dialog (hold-to-burn) */
+
+.burn-all-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-overlay);
+  z-index: var(--bc-z-modal);
+  animation: fadeIn var(--bc-transition-fast) ease-out;
+}
+
+.burn-all-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  padding: var(--bc-spacing-xl) var(--bc-spacing-lg) var(--bc-spacing-lg);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-xl);
+  box-shadow: var(--bc-shadow-lg);
+  text-align: center;
+}
+
+.burn-all-dialog__close {
+  position: absolute;
+  top: var(--bc-spacing-md);
+  right: var(--bc-spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  border: none;
+  background: var(--bc-bg-elevated);
+  color: var(--bc-text-muted);
+  border-radius: var(--bc-radius-full);
+  cursor: pointer;
+}
+
+.burn-all-dialog__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--bc-spacing-md);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-error-muted);
+  color: var(--bc-destructive);
+}
+
+.burn-all-dialog__title {
+  margin: 0 0 var(--bc-spacing-sm);
+  font-size: var(--bc-text-xl);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+}
+
+.burn-all-dialog__description {
+  margin: 0 0 var(--bc-spacing-md);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  line-height: var(--bc-leading-relaxed);
+}
+
+.burn-all-dialog__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
+  margin-bottom: var(--bc-spacing-md);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-error-muted);
+  color: var(--bc-destructive);
+  font-size: var(--bc-text-sm);
+  text-align: left;
+}
+
+.burn-all-dialog__ack {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bc-spacing-sm);
+  margin-bottom: var(--bc-spacing-md);
+  text-align: left;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-primary);
+  cursor: pointer;
+}
+
+.burn-all-dialog__ack input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.burn-all-dialog__hold {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--bc-touch-target);
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-error-muted);
+  color: var(--bc-destructive);
+  font-size: var(--bc-text-base);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.burn-all-dialog__hold:disabled {
+  opacity: var(--bc-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.burn-all-dialog__hold-progress {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: color-mix(in srgb, var(--bc-destructive) 28%, transparent);
+  transition: width 50ms linear;
+  pointer-events: none;
+}
+
+.burn-all-dialog__hold-label {
+  position: relative;
+  z-index: 1;
+}
+
+.burn-all-complete-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-overlay);
+  z-index: calc(var(--bc-z-modal) + 1);
+}
+
+.burn-all-complete {
+  width: 100%;
+  max-width: 360px;
+  padding: var(--bc-spacing-xl) var(--bc-spacing-lg);
+  border-radius: var(--bc-radius-xl);
+  background: var(--bc-bg-secondary);
+  box-shadow: var(--bc-shadow-lg);
+  text-align: center;
+}
+
+.burn-all-complete__title {
+  margin: 0 0 var(--bc-spacing-sm);
+  font-size: var(--bc-text-xl);
+  font-weight: 700;
+  color: var(--bc-destructive);
+}
+
+.burn-all-complete__description {
+  margin: 0 0 var(--bc-spacing-lg);
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-sm);
+}
+
+.burn-all-complete__button {
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-lg);
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+  font-weight: 600;
+  cursor: pointer;
+}

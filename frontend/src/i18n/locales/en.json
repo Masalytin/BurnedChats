@@ -58,6 +58,20 @@
       "clearKeysConfirm": "Clear all encryption keys stored on this device? Active chats will require re-handshake.",
       "clearKeysSuccess": "Local encryption keys cleared"
     },
+    "burnAll": {
+      "dataTitle": "Burn all data",
+      "dataDescription": "Destroy all chats, rooms, files, and local caches on the server and this device. Your account stays — you can return later.",
+      "dataAction": "Burn all data",
+      "accountTitle": "Burn account",
+      "accountDescription": "Destroy everything including your profile and linked accounts. The next sign-in will be a fresh account.",
+      "accountAction": "Burn account",
+      "accountAck": "I understand my account will be permanently deleted",
+      "holdButton": "Hold to burn",
+      "offlineError": "No connection — burning requires a server link",
+      "completeTitle": "Everything burned",
+      "completeDescription": "All selected data has been destroyed.",
+      "completeButton": "Continue"
+    },
     "developer": {
       "version": "App version",
       "debugPanel": "Debug panel"

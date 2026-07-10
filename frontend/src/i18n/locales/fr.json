@@ -732,6 +732,20 @@
       "clearKeysSuccess": "Clés de chiffrement locales effacées",
       "keysHint": "Les clés de chiffrement restent uniquement sur cet appareil. Les effacer supprime les clés locales de session et de salon — les discussions actives nécessiteront un nouveau handshake sécurisé."
     },
+    "burnAll": {
+      "dataTitle": "Brûler toutes les données",
+      "dataDescription": "Détruit tous les chats, salons, fichiers et caches locaux sur le serveur et l'appareil. Votre compte reste — vous pouvez revenir plus tard.",
+      "dataAction": "Brûler toutes les données",
+      "accountTitle": "Brûler le compte",
+      "accountDescription": "Détruit tout, y compris le profil et les comptes liés. La prochaine connexion sera un nouveau compte.",
+      "accountAction": "Brûler le compte",
+      "accountAck": "Je comprends que mon compte sera définitivement supprimé",
+      "holdButton": "Maintenir pour brûler",
+      "offlineError": "Pas de connexion — la destruction nécessite un lien serveur",
+      "completeTitle": "Tout est brûlé",
+      "completeDescription": "Les données sélectionnées ont été détruites.",
+      "completeButton": "Continuer"
+    },
     "title": "Paramètres"
   },
   "staking": {

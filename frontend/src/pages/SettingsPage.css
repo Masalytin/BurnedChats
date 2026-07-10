@@ -360,6 +360,35 @@
   pointer-events: none;
 }
 
+.settings-security__burn-all {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-md);
+  border-top: 1px solid var(--bc-border-color);
+}
+
+.settings-security__burn-all-label {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-destructive);
+}
+
+.settings-security__burn-all-label--account {
+  margin-top: var(--bc-spacing-sm);
+}
+
+.settings-security__button--burn-all {
+  width: 100%;
+  align-self: stretch;
+  border-color: color-mix(in srgb, var(--bc-destructive) 35%, transparent);
+}
+
+.settings-security__button--account {
+  background: color-mix(in srgb, var(--bc-destructive) 18%, var(--bc-error-muted));
+}
+
 @media (min-width: 768px) {
   .settings-page__title {
     font-size: var(--bc-text-2xl);

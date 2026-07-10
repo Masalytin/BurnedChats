@@ -729,6 +729,20 @@
       "clearKeysConfirm": "Alle auf diesem Gerät gespeicherten Verschlüsselungsschlüssel löschen? Aktive Chats erfordern einen erneuten Handshake.",
       "clearKeysSuccess": "Lokale Verschlüsselungsschlüssel gelöscht"
     },
+    "burnAll": {
+      "dataTitle": "Alle Daten verbrennen",
+      "dataDescription": "Zerstört alle Chats, Räume, Dateien und lokalen Caches auf Server und Gerät. Dein Konto bleibt — du kannst später zurückkehren.",
+      "dataAction": "Alle Daten verbrennen",
+      "accountTitle": "Konto verbrennen",
+      "accountDescription": "Zerstört alles einschließlich Profil und verknüpfter Konten. Die nächste Anmeldung ist ein neues Konto.",
+      "accountAction": "Konto verbrennen",
+      "accountAck": "Ich verstehe, dass mein Konto unwiderruflich gelöscht wird",
+      "holdButton": "Gedrückt halten zum Verbrennen",
+      "offlineError": "Keine Verbindung — Verbrennen erfordert eine Serververbindung",
+      "completeTitle": "Alles verbrannt",
+      "completeDescription": "Alle ausgewählten Daten wurden zerstört.",
+      "completeButton": "Weiter"
+    },
     "developer": {
       "version": "App-Version",
       "debugPanel": "Debug-Panel"

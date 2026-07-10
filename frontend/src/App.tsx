@@ -41,6 +41,7 @@ import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
 import { ChatRequestDialog, type ChatRequestSecretPayload } from './components/ChatRequestDialog';
 import { WalletLoginScreen } from './components/Auth/WalletLoginScreen';
 import { BurnConfirmDialog } from './components/BurnConfirmDialog';
+import { BurnAllDialog, type BurnAllDialogMode } from './components/BurnAllDialog/BurnAllDialog';
 import { PendingRequestView } from './components/PendingRequestView';
 import { IncomingRequestView } from './components/IncomingRequestView';
 import { HandshakeView, getHandshakeErrorMessage } from './components/HandshakeView';
@@ -77,6 +78,7 @@ import {
 } from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
 import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
+import { useBurnAll } from './hooks/useBurnAll';
 import {
   burn as burnKeys,
   burnGroupKey,
@@ -88,6 +90,9 @@ import {
 import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
+import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
+import { resetTonConnectUI } from './ton/connector';
+import './components/BurnAllDialog/BurnAllDialog.css';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
 import type { UserInfo, ChatRequest, RoomRole } from './types';
 import type { UseRoomMessagesWebSocket } from './hooks/useRoomMessages';
@@ -163,7 +168,7 @@ function AppContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isLoading: isAuthLoading, isAuthenticated, login, getCredentials } = useAuth();
+  const { user, isLoading: isAuthLoading, isAuthenticated, login, logout, getCredentials } = useAuth();
   const { 
     isReady, 
     isInTelegram,
@@ -831,6 +836,8 @@ function AppContent() {
   const [showBurnDialog, setShowBurnDialog] = useState(false);
   const [burnTargetSession, setBurnTargetSession] = useState<{ sessionId: string; peerName: string } | null>(null);
   const [burningSessionId, setBurningSessionId] = useState<string | null>(null);
+  const [burnAllDialogMode, setBurnAllDialogMode] = useState<BurnAllDialogMode | null>(null);
+  const [showBurnAllComplete, setShowBurnAllComplete] = useState(false);
 
   // App state
   const [initError] = useState<string | null>(null);
@@ -2450,6 +2457,88 @@ function AppContent() {
     clearSearch,
   ]);
 
+  const resetAppStateAfterBurnAll = useCallback(() => {
+    setActiveChat(null);
+    setActiveRoomChat(null);
+    setPendingSession(null);
+    setActiveIncomingRequest(null);
+    setShowChatRequestDialog(false);
+    setSelectedUser(null);
+    setShowBurnDialog(false);
+    setBurnTargetSession(null);
+    setBurningSessionId(null);
+    setInviteToken(null);
+    handshakePeerRef.current = null;
+    cancelHandshake();
+    resetHandshake();
+    resetSession();
+    resetIncomingAction();
+    resetCreateRoom();
+    resetJoinRoom();
+    clearSearch();
+    setCurrentView('home');
+    navigate('/app');
+  }, [
+    cancelHandshake,
+    resetHandshake,
+    resetSession,
+    resetIncomingAction,
+    resetCreateRoom,
+    resetJoinRoom,
+    clearSearch,
+    navigate,
+  ]);
+
+  const { burnAllState, requestBurnAll, resetBurnAll } = useBurnAll({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+    onComplete: (event) => {
+      void (async () => {
+        await performBurnAllLocalCleanup({
+          wipeIdentity: event.wipeIdentity,
+          disconnectTon: async () => {
+            resetTonConnectUI();
+          },
+        });
+
+        resetAppStateAfterBurnAll();
+        fetchSessions();
+        fetchRooms();
+        setBurnAllDialogMode(null);
+        setShowBurnAllComplete(true);
+        notificationOccurred('success');
+        toast.success(t('settings.burnAll.completeTitle'));
+
+        if (event.wipeIdentity) {
+          disconnect(true);
+          logout();
+        }
+      })();
+    },
+    onError: (code) => {
+      if (code === 'NOT_CONNECTED') {
+        toast.error(t('settings.burnAll.offlineError'));
+      }
+    },
+  });
+
+  const handleBurnAllConfirm = useCallback(() => {
+    if (!burnAllDialogMode) {
+      return;
+    }
+    requestBurnAll({ wipeIdentity: burnAllDialogMode === 'account' });
+  }, [burnAllDialogMode, requestBurnAll]);
+
+  const handleCloseBurnAllDialog = useCallback(() => {
+    if (burnAllState === 'burning') {
+      return;
+    }
+    setBurnAllDialogMode(null);
+    resetBurnAll();
+  }, [burnAllState, resetBurnAll]);
+
   const handleVisibilityRestored = useCallback(() => {
     if (backgroundBurnPendingToastRef.current) {
       backgroundBurnPendingToastRef.current = false;
@@ -2694,6 +2783,37 @@ function AppContent() {
     />
   ) : null;
 
+  const burnAllChrome = (
+    <>
+      <BurnAllDialog
+        mode={burnAllDialogMode ?? 'data'}
+        open={burnAllDialogMode != null}
+        isLoading={burnAllState === 'burning'}
+        isOffline={!isConnected}
+        onConfirm={handleBurnAllConfirm}
+        onClose={handleCloseBurnAllDialog}
+      />
+      {showBurnAllComplete ? (
+        <div className="burn-all-complete-overlay" onClick={() => setShowBurnAllComplete(false)}>
+          <div className="burn-all-complete" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <h2 className="burn-all-complete__title">{t('settings.burnAll.completeTitle')}</h2>
+            <p className="burn-all-complete__description">{t('settings.burnAll.completeDescription')}</p>
+            <button
+              type="button"
+              className="burn-all-complete__button"
+              onClick={() => {
+                setShowBurnAllComplete(false);
+                resetBurnAll();
+              }}
+            >
+              {t('settings.burnAll.completeButton')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+
   if (location.pathname.startsWith('/app/governance')) {
     return wrapWalletProvider(
       <>
@@ -2741,9 +2861,12 @@ function AppContent() {
             user={user}
             linkedAccountsCredentials={linkedAccountsCredentials}
             onTonWalletChromeNeeded={requestTelegramWalletChrome}
+            onBurnAllData={() => setBurnAllDialogMode('data')}
+            onBurnAllAccount={() => setBurnAllDialogMode('account')}
           />
         </Layout>
         {debugPanelElement}
+        {burnAllChrome}
       </>
     );
   }
@@ -3125,6 +3248,7 @@ function AppContent() {
         )}
       </Layout>
       {debugPanelElement}
+      {burnAllChrome}
     </>
   );
 }

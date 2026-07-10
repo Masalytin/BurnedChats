@@ -732,6 +732,20 @@
       "clearKeysSuccess": "本地加密密钥已清除",
       "keysHint": "加密密钥仅保留在此设备上。清除后将删除本地会话和房间密钥 — 活跃聊天需要新的安全 handshake。"
     },
+    "burnAll": {
+      "dataTitle": "焚毁所有数据",
+      "dataDescription": "销毁服务器和设备上的所有聊天、房间、文件和本地缓存。账户保留 — 可稍后返回。",
+      "dataAction": "焚毁所有数据",
+      "accountTitle": "焚毁账户",
+      "accountDescription": "销毁一切，包括个人资料和关联账户。下次登录将是全新账户。",
+      "accountAction": "焚毁账户",
+      "accountAck": "我理解账户将被永久删除",
+      "holdButton": "按住以焚毁",
+      "offlineError": "无连接 — 焚毁需要与服务器的连接",
+      "completeTitle": "已全部焚毁",
+      "completeDescription": "所选数据已销毁。",
+      "completeButton": "继续"
+    },
     "title": "设置"
   },
   "staking": {
