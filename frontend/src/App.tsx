@@ -81,6 +81,8 @@ import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLi
 import { useBurnAll } from './hooks/useBurnAll';
 import { useDeadmanSwitch } from './hooks/useDeadmanSwitch';
 import { useExitBurnFlow } from './hooks/useExitBurnFlow';
+import { usePanicGesture } from './hooks/usePanicGesture';
+import { PanicUndoToast } from './components/PanicUndoToast/PanicUndoToast';
 import {
   burn as burnKeys,
   burnAll,
@@ -96,6 +98,7 @@ import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
 import { resetTonConnectUI } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
+import './components/PanicUndoToast/PanicUndoToast.css';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
 import type { UserInfo, ChatRequest, RoomRole } from './types';
 import type { UseRoomMessagesWebSocket } from './hooks/useRoomMessages';
@@ -844,6 +847,8 @@ function AppContent() {
   const [showBurnAllComplete, setShowBurnAllComplete] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
   const exitBurnPendingRef = useRef(false);
+  const panicBrandRef = useRef<HTMLDivElement | null>(null);
+  const [panicToastOpen, setPanicToastOpen] = useState(false);
 
   // App state
   const [initError] = useState<string | null>(null);
@@ -2590,6 +2595,28 @@ function AppContent() {
     resetBurnAll();
   }, [burnAllState, resetBurnAll]);
 
+  const handlePanicCancel = useCallback(() => {
+    setPanicToastOpen(false);
+  }, []);
+
+  const handlePanicExpire = useCallback(() => {
+    setPanicToastOpen(false);
+    requestBurnAll({ wipeIdentity: false });
+  }, [requestBurnAll]);
+
+  const panicGestureEnabled =
+    prefs.panicGestureEnabled &&
+    location.pathname === '/app' &&
+    currentView === 'home' &&
+    !panicToastOpen &&
+    burnAllState !== 'burning';
+
+  usePanicGesture({
+    targetRef: panicBrandRef,
+    enabled: panicGestureEnabled,
+    onTrigger: () => setPanicToastOpen(true),
+  });
+
   const handleVisibilityRestored = useCallback(() => {
     if (backgroundBurnPendingToastRef.current) {
       backgroundBurnPendingToastRef.current = false;
@@ -2843,6 +2870,12 @@ function AppContent() {
         isOffline={!isConnected}
         onConfirm={handleBurnAllConfirm}
         onClose={handleCloseBurnAllDialog}
+      />
+      <PanicUndoToast
+        open={panicToastOpen}
+        countdownSeconds={3}
+        onCancel={handlePanicCancel}
+        onExpire={handlePanicExpire}
       />
       {showBurnAllComplete ? (
         <div className="burn-all-complete-overlay" onClick={() => setShowBurnAllComplete(false)}>
@@ -3287,6 +3320,7 @@ function AppContent() {
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
           onTonWalletChromeNeeded={requestTelegramWalletChrome}
+          panicBrandRef={panicBrandRef}
         />
 
         {/* Chat request dialog */}

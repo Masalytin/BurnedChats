@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth';
@@ -58,6 +58,8 @@ interface HomePageProps {
   onRefreshAll?: () => void;
   /** Telegram MA: request mounting wallet chrome (staking/governance navigation). */
   onTonWalletChromeNeeded?: () => void;
+  /** Ref for panic long-press target (home screen logo). */
+  panicBrandRef?: RefObject<HTMLDivElement | null>;
 }
 
 /** Default search result state */
@@ -96,6 +98,7 @@ export function HomePage({
   onRefreshRooms,
   onRefreshAll,
   onTonWalletChromeNeeded,
+  panicBrandRef,
 }: HomePageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -187,7 +190,7 @@ export function HomePage({
       {/* Header */}
       <header className="home-header">
         <div className="home-header-content">
-          <div className="home-brand">
+          <div className="home-brand" ref={panicBrandRef}>
             <FlameIcon className="home-brand-icon" />
             <h1 className="home-title">BurnedChats</h1>
           </div>

@@ -311,6 +311,13 @@
     "backgroundBurnMessage": "加密密钥已清除，因为应用在后台停留时间过长。从列表打开房间——作为所有者请手动恢复加密；作为成员请等待所有者恢复密钥。"
   },
 
+  "panic": {
+    "countdown": "将在 {{seconds}} 秒后销毁全部数据",
+    "cancel": "取消",
+    "toggle": "紧急手势",
+    "toggleHint": "在主屏幕长按 BurnedChats 标志可销毁全部数据。你有 3 秒时间撤销。"
+  },
+
   "room": {
     "sectionMyRooms": "我的房间",
     "emptyRooms": "暂无房间",

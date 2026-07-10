@@ -571,6 +571,13 @@
     "backgroundBurnMessage": "Verschlüsselungsschlüssel wurden gelöscht, weil die App zu lange im Hintergrund blieb. Öffnen Sie den Raum aus der Liste — als Besitzer stellen Sie die Verschlüsselung manuell wieder her; als Mitglied warten Sie, bis der Besitzer den Schlüssel wiederherstellt."
   },
 
+  "panic": {
+    "countdown": "Alles wird in {{seconds}} verbrannt",
+    "cancel": "Abbrechen",
+    "toggle": "Panic-Geste",
+    "toggleHint": "Langes Drücken auf das BurnedChats-Logo auf dem Startbildschirm verbrennt alle Daten. Sie haben 3 Sekunden zum Abbrechen."
+  },
+
   "room": {
     "sectionMyRooms": "Meine Räume",
     "emptyRooms": "Noch keine Räume",

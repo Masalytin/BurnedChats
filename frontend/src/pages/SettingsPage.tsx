@@ -373,6 +373,13 @@ export function SettingsPage({
       <section className="settings-section">
         <h2 className="settings-section__header">{t('settings.section.security')}</h2>
         <div className="settings-section__card settings-security">
+          <SettingsToggle
+            id="settings-panic-gesture"
+            label={t('panic.toggle')}
+            description={t('panic.toggleHint')}
+            checked={prefs.panicGestureEnabled}
+            onChange={(checked) => setPref('panicGestureEnabled', checked)}
+          />
           <p className="settings-security__hint">{t('settings.security.keysHint')}</p>
           {deadman ? (
             <div className="settings-deadman">

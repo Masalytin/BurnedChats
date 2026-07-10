@@ -958,6 +958,13 @@
     "backgroundBurnMessage": "Encryption keys were cleared because the app stayed in the background too long. Open the room from the list — as owner, restore encryption manually; as a member, wait for the owner to restore the key."
   },
 
+  "panic": {
+    "countdown": "Burning everything in {{seconds}}",
+    "cancel": "Cancel",
+    "toggle": "Panic gesture",
+    "toggleHint": "Long-press the BurnedChats logo on the home screen to burn all data. You have 3 seconds to undo."
+  },
+
   "room": {
     "sectionMyRooms": "My Rooms",
     "emptyRooms": "No rooms yet",

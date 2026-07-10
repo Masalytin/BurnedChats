@@ -311,6 +311,13 @@
     "backgroundBurnMessage": "Las claves de cifrado se borraron porque la app permaneció en segundo plano demasiado tiempo. Abre la sala desde la lista: como propietario, restaura el cifrado manualmente; como miembro, espera a que el propietario restaure la clave."
   },
 
+  "panic": {
+    "countdown": "Quemando todo en {{seconds}}",
+    "cancel": "Cancelar",
+    "toggle": "Gesto de pánico",
+    "toggleHint": "Mantén pulsado el logo de BurnedChats en la pantalla principal para quemar todos los datos. Tienes 3 segundos para deshacer."
+  },
+
   "room": {
     "sectionMyRooms": "Mis Salas",
     "emptyRooms": "Aún no hay salas",

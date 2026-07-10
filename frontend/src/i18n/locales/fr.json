@@ -311,6 +311,13 @@
     "backgroundBurnMessage": "Les clés de chiffrement ont été effacées car l'application est restée trop longtemps en arrière-plan. Ouvrez le salon depuis la liste — en tant que propriétaire, restaurez le chiffrement manuellement ; en tant que membre, attendez que le propriétaire restaure la clé."
   },
 
+  "panic": {
+    "countdown": "Tout sera brûlé dans {{seconds}}",
+    "cancel": "Annuler",
+    "toggle": "Geste panique",
+    "toggleHint": "Appui long sur le logo BurnedChats sur l'écran d'accueil pour brûler toutes les données. Vous avez 3 secondes pour annuler."
+  },
+
   "room": {
     "sectionMyRooms": "Mes Salons",
     "emptyRooms": "Aucun salon pour l'instant",

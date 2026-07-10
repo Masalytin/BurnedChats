@@ -8,6 +8,7 @@ export interface UserPreferences {
   toastsEnabled: boolean;
   debugPanelEnabled: boolean;
   themeMode: 'telegram' | 'dark';
+  panicGestureEnabled: boolean;
 }
 
 export const PREFERENCES_STORAGE_KEY = 'bc:prefs:v1';
@@ -17,6 +18,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   toastsEnabled: true,
   debugPanelEnabled: false,
   themeMode: 'telegram',
+  panicGestureEnabled: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,6 +44,10 @@ function validatePreferences(value: unknown): UserPreferences {
         ? value.debugPanelEnabled
         : DEFAULT_PREFERENCES.debugPanelEnabled,
     themeMode: value.themeMode === 'dark' ? 'dark' : 'telegram',
+    panicGestureEnabled:
+      typeof value.panicGestureEnabled === 'boolean'
+        ? value.panicGestureEnabled
+        : DEFAULT_PREFERENCES.panicGestureEnabled,
   };
 }
 
