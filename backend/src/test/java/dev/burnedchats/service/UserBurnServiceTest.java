@@ -104,7 +104,8 @@ class UserBurnServiceTest {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         lenient().when(userIdentityRepository.findById(USER_ID)).thenReturn(Mono.just(walletUser()));
         lenient().when(fileBurnService.deleteFilesForContext(anyString())).thenReturn(Mono.empty());
-        lenient().when(sessionRepository.updateStatus(anyString(), eq(SessionStatus.BURNED))).thenReturn(Mono.just(true));
+        lenient().when(sessionRepository.updateStatus(anyString(), eq(SessionStatus.BURNED)))
+                .thenReturn(Mono.just(true));
         lenient().when(messageRepository.deleteAllForSession(anyString(), any())).thenReturn(Mono.just(0L));
         lenient().when(requestRepository.delete(anyString(), anyString())).thenReturn(Mono.just(false));
         lenient().when(sessionRepository.delete(anyString())).thenReturn(Mono.just(1L));

@@ -55,7 +55,8 @@ public class UserBurnHandler {
                         participant.internalId(),
                         BURN_ALL_MAX_REQUESTS,
                         BURN_ALL_WINDOW)
-                .then(Mono.defer(() -> userBurnService.burnAllForUser(participant.internalId(), wipeIdentity)))
+                .then(Mono.defer(() ->
+                        userBurnService.burnAllForUser(participant.internalId(), wipeIdentity)))
                 .subscribe(
                         summary -> {
                             BurnAllCompleteEvent event = BurnAllCompleteEvent.from(summary);
@@ -66,7 +67,9 @@ public class UserBurnHandler {
                                 stompUserMessenger.convertAndSendToInternalId(
                                         participant.internalId(), BURN_ALL_COMPLETE_DESTINATION, event);
                             }
-                            LOG.info("Burn-all completed: internalId={}, sessions={}, rooms={}, left={}, wipeIdentity={}",
+                            LOG.info(
+                                    "Burn-all completed: internalId={}, sessions={}, rooms={}, left={}, "
+                                            + "wipeIdentity={}",
                                     participant.internalId(),
                                     summary.burnedSessions(),
                                     summary.burnedRooms(),
@@ -80,7 +83,6 @@ public class UserBurnHandler {
                             }
                             LOG.error("Burn-all failed: internalId={}, error={}",
                                     participant.internalId(), error.getMessage());
-                        }
-                );
+                        });
     }
 }
