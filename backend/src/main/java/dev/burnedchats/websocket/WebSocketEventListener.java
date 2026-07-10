@@ -134,12 +134,8 @@ public class WebSocketEventListener {
                 .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
                 .subscribe();
 
-        deadmanService.refreshOnConnect(internalId)
-                .doOnSuccess(refreshed -> {
-                    if (Boolean.TRUE.equals(refreshed)) {
-                        LOG.debug("Deadman TTL refreshed for user {}", internalId);
-                    }
-                })
+        deadmanService.syncStateOnConnect(internalId)
+                .doOnNext(state -> deadmanService.notifyDeadmanUpdated(internalId, state))
                 .subscribe();
 
         if (principal instanceof TelegramPrincipal telegramPrincipal) {

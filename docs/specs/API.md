@@ -1114,7 +1114,9 @@ client.subscribe('/user/queue/deadman-updated', (message) => {
 с TTL = `periodDays`. Ack → `/user/queue/deadman-updated`.
 
 **Activity refresh:** при каждом STOMP CONNECT (`WebSocketEventListener`) trigger TTL
-сбрасывается на полный `periodDays`, если switch включён.
+сбрасывается на полный `periodDays`, если switch включён. Если switch включён,
+сервер дополнительно пушит `DeadmanUpdatedEvent` на `/user/queue/deadman-updated`
+с актуальным `expiresAt` (cold start / reconnect sync для frontend).
 
 **Expiry:** keyspace listener на `user:deadman:*` → `UserBurnService.burnAllForUser`
 с `wipeIdentity` из cfg → удаление cfg-ключа.

@@ -1,6 +1,8 @@
 package dev.burnedchats.service;
 
+import dev.burnedchats.dto.event.DeadmanUpdatedEvent;
 import dev.burnedchats.dto.request.SetDeadmanRequest;
+import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.repository.DeadmanRepository;
 import dev.burnedchats.repository.DeadmanRepository.DeadmanConfig;
 import dev.burnedchats.repository.DeadmanRepository.DeadmanState;
@@ -17,8 +19,11 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class DeadmanService {
 
+    private static final String DEADMAN_UPDATED_DESTINATION = "/queue/deadman-updated";
+
     private final DeadmanRepository deadmanRepository;
     private final UserBurnService userBurnService;
+    private final StompUserMessenger stompUserMessenger;
 
     public Mono<DeadmanState> applySettings(String internalId, SetDeadmanRequest request) {
         if (!Boolean.TRUE.equals(request.getEnabled())) {
@@ -34,6 +39,28 @@ public class DeadmanService {
 
     public Mono<Boolean> refreshOnConnect(String internalId) {
         return deadmanRepository.refreshOnActivity(internalId);
+    }
+
+    public Mono<DeadmanState> getState(String internalId) {
+        return deadmanRepository.getState(internalId);
+    }
+
+    /**
+     * Refreshes deadman TTL on STOMP connect and returns current state when the switch is enabled.
+     * Empty when disabled or not configured.
+     */
+    public Mono<DeadmanState> syncStateOnConnect(String internalId) {
+        return refreshOnConnect(internalId)
+                .filter(Boolean::booleanValue)
+                .flatMap(refreshed -> getState(internalId));
+    }
+
+    public void notifyDeadmanUpdated(String internalId, DeadmanState state) {
+        DeadmanUpdatedEvent event = DeadmanUpdatedEvent.from(state);
+        stompUserMessenger.convertAndSendToInternalId(
+                internalId, DEADMAN_UPDATED_DESTINATION, event);
+        LOG.debug("Deadman connect sync pushed: internalId={}, enabled={}, expiresAt={}",
+                internalId, state.enabled(), state.expiresAt());
     }
 
     /**
