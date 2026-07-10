@@ -17,23 +17,6 @@
   background: var(--bc-bg-primary);
   color: var(--bc-text-primary);
   box-shadow: var(--bc-shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.help-sheet-panel[data-reduced-motion='false'] {
-  animation: help-sheet-slide-up 0.28s var(--bc-ease-out);
-}
-
-@keyframes help-sheet-slide-up {
-  from {
-    transform: translateY(100%);
-  }
-
-  to {
-    transform: translateY(0);
-  }
 }
 
 .help-sheet-header {

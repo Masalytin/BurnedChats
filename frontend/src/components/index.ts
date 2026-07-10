@@ -43,6 +43,10 @@ export { LanguageSwitcher } from './LanguageSwitcher';
 export { HelpSheet, HelpTrigger } from './HelpSheet';
 export type { HelpSheetProps, HelpTriggerProps } from './HelpSheet';
 
+// Bottom sheet primitive (IMP-HELP-05)
+export { BottomSheet } from './BottomSheet';
+export type { BottomSheetProps } from './BottomSheet';
+
 // Room Components (Phase 2)
 export { JoinRoomView } from './JoinRoomView';
 
