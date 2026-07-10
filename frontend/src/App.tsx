@@ -96,6 +96,7 @@ import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
+import { completeUserExit } from './utils/completeUserExit';
 import { resetTonConnectUI } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -2518,7 +2519,7 @@ function AppContent() {
           exitBurnPendingRef.current = false;
           setExitDialogOpen(false);
           resetBurnAll();
-          close();
+          completeUserExit({ isInTelegram, closeMiniApp: close, logout });
           return;
         }
 
@@ -2569,8 +2570,8 @@ function AppContent() {
     burnAll('manual');
     setExitDialogOpen(false);
     resetExitBurn();
-    close();
-  }, [close, resetExitBurn]);
+    completeUserExit({ isInTelegram, closeMiniApp: close, logout });
+  }, [close, isInTelegram, logout, resetExitBurn]);
 
   const handleCloseExitDialog = useCallback(() => {
     if (exitIsBurning) {
