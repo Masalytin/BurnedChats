@@ -25,6 +25,7 @@ import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
+import dev.burnedchats.service.DeadmanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -79,6 +80,7 @@ public class WebSocketEventListener {
     private static final String ROOM_TOPIC_PREFIX = RoomTopicSubscribeInterceptor.ROOM_TOPIC_PREFIX;
 
     private final OnlineStatusRepository onlineStatusRepository;
+    private final DeadmanService deadmanService;
     private final RoomMembersRepository roomMembersRepository;
     private final RoomPresenceRepository roomPresenceRepository;
     private final RequestRepository requestRepository;
@@ -130,6 +132,14 @@ public class WebSocketEventListener {
 
         onlineStatusRepository.setOnline(internalId)
                 .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
+                .subscribe();
+
+        deadmanService.refreshOnConnect(internalId)
+                .doOnSuccess(refreshed -> {
+                    if (Boolean.TRUE.equals(refreshed)) {
+                        LOG.debug("Deadman TTL refreshed for user {}", internalId);
+                    }
+                })
                 .subscribe();
 
         if (principal instanceof TelegramPrincipal telegramPrincipal) {

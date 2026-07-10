@@ -51,6 +51,8 @@
 | `wallet_tg_link:{challengeId}` | string | 15min | Wallet↔Telegram link challenge |
 | `room:{roomId}` | hash | 30d | Метаданные комнаты |
 | `room:autoburn:{roomId}` | string | до `autoBurnAt` | Trigger auto-burn (не refresh) |
+| `user:deadman:{internalId}` | string | `periodDays` | Dead man's switch trigger (refresh на connect) |
+| `user:deadman:cfg:{internalId}` | string | **нет TTL** | `{ periodDays, wipeIdentity }` — удаляется при disable/expiry |
 | `room_members:{roomId}` | set | 30d | Участники (internalId) |
 | `member_rooms:{internalId}` | set | 30d | Reverse-index комнат пользователя |
 | `room_keys:{roomId}:{epoch}` | hash | **7d** | Wrapped group keys |
@@ -264,6 +266,7 @@ EXPIRE auth_wallet:EQ... 7776000
 | `auth_tg:*` / `auth_wallet:*` | сохраняются | `DEL` привязок пользователя | |
 | `lang:pref:{internalId}` | сохраняется | `DEL` | |
 | `session_token:*` (значение = internalId) | сохраняются | `DEL` matching tokens | SCAN |
+| `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}` | не трогаются каскадом | не трогаются | listener идемпотентен; disable — через `/app/user.setDeadman` |
 | `ratelimit:rest:burn_all:{internalId}` | INCR / TTL 60s | то же | 3 req/min |
 
 Порядок: сначала сущности общения (1–4), identity — последним (5), ack клиенту после каскада.
@@ -388,6 +391,33 @@ SET room:autoburn:uuid-room-1 uuid-room-1 EX 3600
 | setTtl | `SET` + `EX`/`PX` до `autoBurnAt` |
 | Manual burn / auto-burn cascade | `DEL` trigger key вместе с остальными ключами комнаты |
 | Activity | trigger key **не** обновляется |
+
+### `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}`
+
+Dead man's switch (IMP-BURNALL-04): если пользователь не подключался `periodDays` дней,
+срабатывает полный каскад `burnAllForUser` с сохранённым `wipeIdentity`.
+
+Паттерн — две связанные ключи (как `room:autoburn` + данные комнаты):
+
+```redis
+SET user:deadman:cfg:tg:111222333 '{"periodDays":30,"wipeIdentity":false}'
+SET user:deadman:tg:111222333 tg:111222333 EX 2592000
+```
+
+| Ключ | TTL | Описание |
+|------|-----|----------|
+| `user:deadman:{internalId}` | `periodDays` × 86400s | Trigger; value = `internalId`. **Refresh** на каждый успешный STOMP CONNECT |
+| `user:deadman:cfg:{internalId}` | **нет** (единственное «вечное» исключение в фиче) | JSON `{ periodDays: 7\|30\|90, wipeIdentity: boolean }`. `DEL` при disable или после срабатывания |
+
+**Срабатывание:** Redis keyspace `expired` на trigger key → `DeadmanRedisKeyspaceConfig` →
+`UserBurnService.burnAllForUser(internalId, wipeIdentity из cfg)` → `DEL cfg`.
+Точность — «примерно в момент expiry» (зависит от `notify-keyspace-events` и нагрузки Redis);
+для периодов в днях это приемлемо.
+
+**Идемпотентность:** если пользователь уже сжёг данные вручную (`/app/user.burnAll`),
+listener не падает — cfg может отсутствовать или каскад завершится с пустым результатом.
+
+**Disable:** `/app/user.setDeadman { enabled: false }` → `DEL` обоих ключей.
 
 ### `room_members:{roomId}`
 

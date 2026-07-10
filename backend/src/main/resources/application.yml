@@ -115,6 +115,9 @@ burnedchats:
       max-size-per-session: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_SESSION:100}
       max-size-per-room: ${BURNEDCHATS_OFFLINE_MSG_QUEUE_MAX_PER_ROOM:500}
       keyspace-listener-enabled: ${BURNEDCHATS_OFFLINE_MSG_KEYSPACE_LISTENER:true}
+  users:
+    deadman:
+      keyspace-listener-enabled: ${BURNEDCHATS_DEADMAN_KEYSPACE_LISTENER:true}
   # Periodic SCAN+LLEN sum for Micrometer size gauges
   metrics:
     offline-queue:

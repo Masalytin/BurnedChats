@@ -1080,6 +1080,39 @@ client.subscribe('/user/queue/burn-all-complete', (message) => {
 
 ---
 
+### `SET_DEADMAN` (`/app/user.setDeadman`)
+
+Dead man's switch: авто-burn при неактивности N дней (IMP-BURNALL-04).
+
+**Frontend:**
+```typescript
+client.publish({
+  destination: '/app/user.setDeadman',
+  body: JSON.stringify({
+    enabled: true,
+    periodDays: 30,      // 7 | 30 | 90 when enabled
+    wipeIdentity: false  // true = burn-all с удалением identity
+  })
+});
+
+client.subscribe('/user/queue/deadman-updated', (message) => {
+  const data = JSON.parse(message.body);
+  // DeadmanUpdatedEvent: enabled, periodDays, wipeIdentity, expiresAt
+});
+```
+
+**Backend:** `UserBurnHandler` — `@MessageMapping("/user.setDeadman")`.
+`enabled=false` удаляет trigger + cfg ключи. `enabled=true` пишет cfg (без TTL) и trigger
+с TTL = `periodDays`. Ack → `/user/queue/deadman-updated`.
+
+**Activity refresh:** при каждом STOMP CONNECT (`WebSocketEventListener`) trigger TTL
+сбрасывается на полный `periodDays`, если switch включён.
+
+**Expiry:** keyspace listener на `user:deadman:*` → `UserBurnService.burnAllForUser`
+с `wipeIdentity` из cfg → удаление cfg-ключа.
+
+---
+
 ### `SYNC_MESSAGES` (`/app/message.sync`)
 
 Запрос пропущенных DM-сообщений из Redis-очереди (reconnect, cold start, серверный push; см. offline sync). Тело: `SyncMessagesRequest` с полем `sessionId`.
@@ -1213,6 +1246,7 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 | `/app/room.message.delete` | Удаление room-сообщения |
 | `/app/room.burn` | Сожжение комнаты → `/user/queue/room-burned` |
 | `/app/user.burnAll` | Глобальный burn-all каскад → `/user/queue/burn-all-complete` (+ peer-события) |
+| `/app/user.setDeadman` | Dead man's switch on/off → `/user/queue/deadman-updated` |
 
 ---
 
