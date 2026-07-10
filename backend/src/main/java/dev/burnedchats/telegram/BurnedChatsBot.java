@@ -4,9 +4,13 @@ import dev.burnedchats.config.TelegramProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
@@ -28,25 +32,25 @@ import java.util.List;
  * <ul>
  *   <li>/start - Welcome message with Mini App button</li>
  *   <li>/help - Help information</li>
+ *   <li>/burn - Remote burn-all with inline confirmation</li>
  * </ul>
  */
 @Slf4j
 @Component
 public class BurnedChatsBot extends TelegramLongPollingBot {
 
-    private static final String FIRE_EMOJI = "🔥";
-    private static final String LOCK_EMOJI = "🔐";
-    private static final String SHIELD_EMOJI = "🛡️";
-    private static final String ROCKET_EMOJI = "🚀";
-    private static final String QUESTION_EMOJI = "❓";
-    private static final String CHECK_EMOJI = "✅";
-    private static final String KEY_EMOJI = "🔑";
-
     private final TelegramProperties telegramProperties;
+    private final BotMessageService botMessages;
+    private final BotBurnCommandService burnCommandService;
 
-    public BurnedChatsBot(TelegramProperties telegramProperties) {
+    public BurnedChatsBot(
+            TelegramProperties telegramProperties,
+            BotMessageService botMessages,
+            BotBurnCommandService burnCommandService) {
         super(telegramProperties.getBot().getToken());
         this.telegramProperties = telegramProperties;
+        this.botMessages = botMessages;
+        this.burnCommandService = burnCommandService;
     }
 
     /**
@@ -66,16 +70,20 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
      * Registers bot commands visible in the Telegram menu.
      */
     private void registerBotCommands() throws TelegramApiException {
-        List<BotCommand> commands = new ArrayList<>();
-        commands.add(new BotCommand("/start", "Запустить приватный чат"));
-        commands.add(new BotCommand("/help", "Помощь и информация"));
+        for (String lang : List.of("en", "ru")) {
+            List<BotCommand> commands = new ArrayList<>();
+            commands.add(new BotCommand("/start", botMessages.get("bot.cmd.start", lang)));
+            commands.add(new BotCommand("/help", botMessages.get("bot.cmd.help", lang)));
+            commands.add(new BotCommand("/burn", botMessages.get("bot.cmd.burn", lang)));
 
-        SetMyCommands setMyCommands = new SetMyCommands();
-        setMyCommands.setCommands(commands);
-        setMyCommands.setScope(new BotCommandScopeDefault());
+            SetMyCommands setMyCommands = new SetMyCommands();
+            setMyCommands.setCommands(commands);
+            setMyCommands.setScope(new BotCommandScopeDefault());
+            setMyCommands.setLanguageCode(lang);
 
-        execute(setMyCommands);
-        LOG.debug("Bot commands registered: {}", commands);
+            execute(setMyCommands);
+        }
+        LOG.debug("Bot commands registered for supported languages");
     }
 
     @Override
@@ -85,102 +93,135 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String messageText = update.getMessage().getText();
-            long chatId = update.getMessage().getChatId();
-            String username = update.getMessage().getFrom().getUserName();
-
-            LOG.debug("Received message from @{}: {}", username, messageText);
-
-            try {
-                if (messageText.startsWith("/start")) {
-                    handleStartCommand(chatId, update);
-                } else if ("/help".equals(messageText)) {
-                    handleHelpCommand(chatId);
-                } else {
-                    handleUnknownCommand(chatId);
-                }
-            } catch (TelegramApiException e) {
-                LOG.error("Failed to process message from chatId {}", chatId, e);
+        try {
+            if (update.hasCallbackQuery()) {
+                handleCallbackQuery(update.getCallbackQuery());
+                return;
             }
+
+            if (update.hasMessage() && update.getMessage().hasText()) {
+                String messageText = update.getMessage().getText();
+                long chatId = update.getMessage().getChatId();
+                String username = update.getMessage().getFrom().getUserName();
+                String langCode = update.getMessage().getFrom().getLanguageCode();
+                long telegramId = update.getMessage().getFrom().getId();
+
+                LOG.debug("Received message from @{}: {}", username, messageText);
+
+                if (messageText.startsWith("/start")) {
+                    handleStartCommand(chatId, update, langCode);
+                } else if ("/help".equals(messageText)) {
+                    handleHelpCommand(chatId, langCode);
+                } else if ("/burn".equals(messageText)) {
+                    handleBurnCommand(chatId, telegramId, langCode);
+                } else {
+                    handleUnknownCommand(chatId, langCode);
+                }
+            }
+        } catch (TelegramApiException e) {
+            LOG.error("Failed to process update", e);
+        }
+    }
+
+    private void handleBurnCommand(long chatId, long telegramId, String langCode) throws TelegramApiException {
+        SendMessage message = burnCommandService.handleBurnCommand(chatId, telegramId, langCode).block();
+        if (message != null) {
+            execute(message);
+            LOG.info("Sent /burn response to chatId: {}", chatId);
+        }
+    }
+
+    private void handleCallbackQuery(CallbackQuery callbackQuery) throws TelegramApiException {
+        String callbackData = callbackQuery.getData();
+        String langCode = callbackQuery.getFrom().getLanguageCode();
+        long telegramId = callbackQuery.getFrom().getId();
+        long chatId = callbackQuery.getMessage().getChatId();
+        int messageId = callbackQuery.getMessage().getMessageId();
+
+        if (burnCommandService.requiresAsyncBurn(callbackData)) {
+            execute(AnswerCallbackQuery.builder()
+                    .callbackQueryId(callbackQuery.getId())
+                    .text(burnCommandService.processingAckText(langCode))
+                    .build());
+
+            burnCommandService.handleCallback(callbackData, chatId, telegramId, langCode)
+                    .subscribe(
+                            result -> deliverCallbackFollowUp(chatId, result),
+                            error -> LOG.error("Burn callback failed for chatId={}: {}",
+                                    chatId, error.getMessage()));
+            return;
+        }
+
+        BotBurnCommandService.BurnCallbackResult result = burnCommandService
+                .handleCallback(callbackData, chatId, telegramId, langCode)
+                .block();
+
+        if (result != null && callbackData != null && callbackData.endsWith(":cancel")) {
+            removeInlineKeyboard(chatId, messageId);
+        }
+
+        execute(AnswerCallbackQuery.builder()
+                .callbackQueryId(callbackQuery.getId())
+                .text(result != null ? result.ackText() : "")
+                .showAlert(result != null && !result.burnRequested())
+                .build());
+    }
+
+    private void deliverCallbackFollowUp(long chatId, BotBurnCommandService.BurnCallbackResult result) {
+        if (StringUtils.hasText(result.summaryMessage())) {
+            sendNotification(chatId, result.summaryMessage());
+            return;
+        }
+        if (!result.burnRequested() && StringUtils.hasText(result.ackText())) {
+            sendNotification(chatId, result.ackText());
+        }
+    }
+
+    private void removeInlineKeyboard(long chatId, int messageId) {
+        try {
+            execute(EditMessageReplyMarkup.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .replyMarkup(new InlineKeyboardMarkup(new ArrayList<>()))
+                    .build());
+        } catch (TelegramApiException e) {
+            LOG.debug("Failed to remove inline keyboard for chatId={}: {}", chatId, e.getMessage());
         }
     }
 
     /**
      * Handles /start command.
      * Sends welcome message with Mini App launch button.
-     *
-     * @param chatId Chat ID to send response
-     * @param update Original update (may contain deep link parameters)
      */
-    private void handleStartCommand(long chatId, Update update) throws TelegramApiException {
+    private void handleStartCommand(long chatId, Update update, String langCode) throws TelegramApiException {
         String messageText = update.getMessage().getText();
         String deepLinkParam = null;
 
-        // Check for deep link parameter (e.g., /start sessionId123)
         if (messageText.length() > 7) {
             deepLinkParam = messageText.substring(7).trim();
             LOG.debug("Deep link parameter received: {}", deepLinkParam);
         }
 
-        String welcomeText = buildWelcomeMessage();
-        
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text(welcomeText)
+                .text(botMessages.get("bot.start.text", langCode))
                 .parseMode("HTML")
-                .replyMarkup(buildMiniAppKeyboard(deepLinkParam))
+                .replyMarkup(buildMiniAppKeyboard(deepLinkParam, langCode))
                 .build();
 
         execute(message);
         LOG.info("Sent /start response to chatId: {}", chatId);
     }
 
-    /**
-     * Builds the welcome message text.
-     */
-    private String buildWelcomeMessage() {
-        return String.format("""
-                %s <b>BurnedChats</b>
-                
-                Добро пожаловать в защищённый мессенджер!
-                
-                %s <b>Что это?</b>
-                Приложение для секретных переписок с end-to-end шифрованием. Сообщения не хранятся
-                на сервере — только у вас.
-                
-                %s <b>Как работает:</b>
-                • Найдите собеседника по @username
-                • Дождитесь подтверждения связи
-                • Обменивайтесь сообщениями
-                • Нажмите "Сжечь" для уничтожения чата
-                
-                %s <b>Безопасность:</b>
-                • AES-256-GCM + ECDH шифрование
-                • Ключи генерируются на устройстве
-                • Сервер не видит ваши сообщения
-                • Данные уничтожаются без возможности восстановления
-                
-                Нажмите кнопку ниже, чтобы начать %s
-                """,
-                FIRE_EMOJI, QUESTION_EMOJI, CHECK_EMOJI, SHIELD_EMOJI, ROCKET_EMOJI);
-    }
-
-    /**
-     * Builds inline keyboard with Mini App button.
-     *
-     * @param deepLinkParam Optional deep link parameter to append to Mini App URL
-     */
-    private InlineKeyboardMarkup buildMiniAppKeyboard(String deepLinkParam) {
+    private InlineKeyboardMarkup buildMiniAppKeyboard(String deepLinkParam, String langCode) {
         String miniAppUrl = telegramProperties.getMiniApp().getUrl();
-        
-        // Append deep link parameter if present
+
         if (deepLinkParam != null && !deepLinkParam.isEmpty()) {
             miniAppUrl = miniAppUrl + "?startParam=" + deepLinkParam;
         }
 
         InlineKeyboardButton miniAppButton = InlineKeyboardButton.builder()
-                .text(ROCKET_EMOJI + " Открыть BurnedChats")
+                .text(botMessages.get("bot.start.button", langCode))
                 .webApp(new WebAppInfo(miniAppUrl))
                 .build();
 
@@ -195,53 +236,10 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                 .build();
     }
 
-    /**
-     * Handles /help command.
-     * Sends help information with feature list and FAQ.
-     *
-     * @param chatId Chat ID to send response
-     */
-    private void handleHelpCommand(long chatId) throws TelegramApiException {
-        String helpText = String.format("""
-                %s <b>Помощь — BurnedChats</b>
-                
-                %s <b>Основные функции:</b>
-                
-                %s <b>Начать чат</b>
-                1. Откройте приложение
-                2. Введите @username собеседника
-                3. Отправьте запрос на связь
-                4. Дождитесь подтверждения
-                
-                %s <b>Безопасная связь</b>
-                После подтверждения проверьте "отпечаток безопасности" — он должен совпадать у обоих участников.
-                
-                %s <b>Сжечь чат</b>
-                Нажмите кнопку "Сжечь" для полного уничтожения переписки. Данные удаляются у всех участников.
-                
-                ─────────────────────
-                
-                %s <b>FAQ:</b>
-                
-                <b>Q: Могут ли прочитать мои сообщения?</b>
-                A: Нет. Используется end-to-end шифрование. Ключи хранятся только на устройствах.
-                
-                <b>Q: Сохраняются ли сообщения на сервере?</b>
-                A: Нет. Сервер только пересылает зашифрованные данные. После доставки они удаляются.
-                
-                <b>Q: Что происходит при "сжигании"?</b>
-                A: Все данные чата уничтожаются на всех устройствах, включая ключи шифрования.
-                
-                ─────────────────────
-                
-                %s Есть вопросы? Свяжитесь с поддержкой.
-                """,
-                QUESTION_EMOJI, ROCKET_EMOJI, CHECK_EMOJI, KEY_EMOJI, 
-                FIRE_EMOJI, LOCK_EMOJI, SHIELD_EMOJI);
-
+    private void handleHelpCommand(long chatId, String langCode) throws TelegramApiException {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text(helpText)
+                .text(botMessages.get("bot.help.text", langCode))
                 .parseMode("HTML")
                 .build();
 
@@ -249,22 +247,11 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
         LOG.info("Sent /help response to chatId: {}", chatId);
     }
 
-    /**
-     * Handles unknown commands.
-     *
-     * @param chatId Chat ID to send response
-     */
-    private void handleUnknownCommand(long chatId) throws TelegramApiException {
-        String text = String.format("""
-                %s Неизвестная команда.
-                
-                Используйте /help для получения справки или нажмите кнопку ниже:
-                """, QUESTION_EMOJI);
-
+    private void handleUnknownCommand(long chatId, String langCode) throws TelegramApiException {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text(text)
-                .replyMarkup(buildMiniAppKeyboard(null))
+                .text(botMessages.get("bot.unknown.text", langCode))
+                .replyMarkup(buildMiniAppKeyboard(null, langCode))
                 .build();
 
         execute(message);
@@ -272,11 +259,6 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
 
     /**
      * Sends a notification message to a specific chat.
-     * Used for incoming chat requests, session events, etc.
-     *
-     * @param chatId Target chat ID
-     * @param text Message text (HTML supported)
-     * @return true if message was sent successfully
      */
     public boolean sendNotification(long chatId, String text) {
         try {
@@ -297,12 +279,6 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
 
     /**
      * Sends a notification with Mini App button.
-     * Used for chat request notifications with "Open" action.
-     *
-     * @param chatId Target chat ID
-     * @param text Message text (HTML supported)
-     * @param deepLinkParam Parameter to pass to Mini App
-     * @return true if message was sent successfully
      */
     public boolean sendNotificationWithButton(long chatId, String text, String deepLinkParam) {
         try {
@@ -310,7 +286,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
                     .chatId(chatId)
                     .text(text)
                     .parseMode("HTML")
-                    .replyMarkup(buildMiniAppKeyboard(deepLinkParam))
+                    .replyMarkup(buildMiniAppKeyboard(deepLinkParam, null))
                     .build();
 
             execute(message);

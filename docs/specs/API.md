@@ -480,6 +480,14 @@ Content-Type: application/json
 
 **Body:** Telegram Update object
 
+**Bot commands (when processed by `BurnedChatsWebhookBot` / `BurnedChatsBot`):**
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message + Mini App launch button |
+| `/help` | Help text |
+| `/burn` | Remote burn-all: inline keyboard with **Burn all data** (`wipeIdentity=false`), **Burn account** (`wipeIdentity=true`), and **Cancel**. Callback `callback_data`: `burnall:{nonce}:{data\|account\|cancel}`. Nonce stored at Redis `bot:burn:nonce:{nonce}` → `internalId`, TTL **60s**, one-time (`GETDEL`). Resolves `tgId` via `UserIdentityRepository.findByTelegramId`. Unknown `tgId` → polite «no data» reply (no error, no leak). On confirm: `UserBurnService.burnAllForUser` + STOMP `/user/queue/burn-all-complete` to active sessions; bot sends HTML summary message. |
+
 Невалидный secret → **401**. Nginx prod проксирует тот же путь
 (`/api/telegram/webhook`).
 

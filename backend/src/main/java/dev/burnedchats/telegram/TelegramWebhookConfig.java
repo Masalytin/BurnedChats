@@ -45,6 +45,7 @@ public class TelegramWebhookConfig {
 
     private final TelegramProperties telegramProperties;
     private final BotMessageService botMessages;
+    private final BotBurnCommandService burnCommandService;
 
     /**
      * Creates the webhook bot bean.
@@ -60,7 +61,7 @@ public class TelegramWebhookConfig {
             LOG.warn("Set TELEGRAM_BOT_TOKEN environment variable.");
         }
 
-        return new BurnedChatsWebhookBot(telegramProperties, botMessages);
+        return new BurnedChatsWebhookBot(telegramProperties, botMessages, burnCommandService);
     }
 
     /**
@@ -69,7 +70,7 @@ public class TelegramWebhookConfig {
      * <p>This ensures all beans are initialized before making API calls.
      */
     @EventListener(ApplicationReadyEvent.class)
-    public void registerWebhook() {
+    public void registerWebhook(BurnedChatsWebhookBot bot) {
         String token = telegramProperties.getBot().getToken();
         if (token == null || token.isBlank()) {
             LOG.warn("Cannot register webhook: bot token is not configured");
@@ -110,8 +111,6 @@ public class TelegramWebhookConfig {
 
             SetWebhook setWebhook = webhookBuilder.build();
 
-            // Get the bot instance and register webhook
-            BurnedChatsWebhookBot bot = burnedChatsWebhookBot();
             bot.setWebhook(setWebhook);
 
             LOG.info("Telegram webhook registered successfully");
