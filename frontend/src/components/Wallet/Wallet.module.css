@@ -804,6 +804,12 @@
   margin-bottom: var(--bc-spacing-2xs);
 }
 
+.panelHelpRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--bc-spacing-2xs);
+}
+
 .panelConnectWrap {
   display: flex;
   justify-content: center;

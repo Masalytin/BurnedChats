@@ -632,6 +632,44 @@
           "Only tap \"continue anyway\" if you understand the risk — mismatched fingerprints mean encryption may not protect you."
         ]
       }
+    },
+    "burn": {
+      "about": {
+        "title": "What burning destroys",
+        "body": [
+          "Burning this chat permanently removes the session on the server and clears encryption keys on your device.",
+          "Your message history and the link between you and this contact for this chat are erased. Your contact's app is notified so their side is cleared too.",
+          "This cannot be undone. It affects only this one-to-one chat — not your other chats, rooms, or wallet."
+        ]
+      }
+    },
+    "rooms": {
+      "create": {
+        "title": "Creating a room",
+        "body": [
+          "A room is a shared encrypted space with its own invite link. You become the owner and control who can join.",
+          "Set a password or require owner approval so strangers cannot enter with only the link.",
+          "Room data on the server has a time limit and disappears when the room is burned or expires."
+        ]
+      },
+      "join": {
+        "title": "Joining a room",
+        "body": [
+          "You opened an invite link. The owner decides how joining works: enter the password, or send a request and wait for approval.",
+          "The password is never sent in plain text — it protects access to the room's encrypted keys.",
+          "If the link expired or was revoked, ask the owner for a new invite."
+        ]
+      }
+    },
+    "wallet": {
+      "about": {
+        "title": "Why a wallet here?",
+        "body": [
+          "BURN is a token on the TON network. The wallet shows your on-chain BURN balance and lets you send BURN to others in chat.",
+          "You also need a small amount of native {{symbol}} on the same wallet to pay network fees for transfers.",
+          "Your keys stay in your TON wallet app — Burned Chats reads balances and builds transactions; it cannot spend without your approval."
+        ]
+      }
     }
   },
 

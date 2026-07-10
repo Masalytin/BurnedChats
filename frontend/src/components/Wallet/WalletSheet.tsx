@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useBackButton } from '@/hooks/useBackButton';
@@ -19,32 +19,42 @@ export function WalletSheet() {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState('');
   const [sendOpen, setSendOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  const blockChildOverlay = sendOpen || helpOpen;
+
+  const handleBack = useCallback(() => {
+    if (!blockChildOverlay) {
+      closeSheet();
+    }
+  }, [blockChildOverlay, closeSheet]);
 
   useBackButton({
-    visible: sheetOpen,
-    onBack: closeSheet,
+    visible: sheetOpen && !helpOpen,
+    onBack: handleBack,
   });
 
   useEffect(() => {
     if (!sheetOpen) {
       setSendOpen(false);
+      setHelpOpen(false);
     }
   }, [sheetOpen]);
 
   useEffect(() => {
     if (!sheetOpen) return;
     const onKey = (e: globalThis.KeyboardEvent): void => {
-      if (e.key === 'Escape' && !sendOpen) closeSheet();
+      if (e.key === 'Escape' && !blockChildOverlay) closeSheet();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sheetOpen, closeSheet, sendOpen]);
+  }, [sheetOpen, closeSheet, blockChildOverlay]);
 
   useEffect(() => {
-    if (sheetOpen) {
+    if (sheetOpen && !helpOpen) {
       closeBtnRef.current?.focus();
     }
-  }, [sheetOpen]);
+  }, [sheetOpen, helpOpen]);
 
   useEffect(() => {
     if (!sheetOpen) return;
@@ -53,7 +63,7 @@ export function WalletSheet() {
 
     const focusable = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || sendOpen) return;
+      if (e.key !== 'Tab' || blockChildOverlay) return;
       const nodes = root.querySelectorAll<HTMLElement>(focusable);
       const list = Array.from(nodes).filter((el) => !el.hasAttribute('disabled'));
       if (list.length === 0) return;
@@ -72,7 +82,7 @@ export function WalletSheet() {
     };
     root.addEventListener('keydown', handleKey);
     return () => root.removeEventListener('keydown', handleKey);
-  }, [sheetOpen, sendOpen]);
+  }, [sheetOpen, blockChildOverlay]);
 
   if (!sheetOpen) {
     return null;
@@ -83,7 +93,7 @@ export function WalletSheet() {
       className={styles.backdrop}
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !sendOpen) closeSheet();
+        if (e.target === e.currentTarget && !blockChildOverlay) closeSheet();
       }}
     >
       <div
@@ -108,7 +118,11 @@ export function WalletSheet() {
           </button>
         </header>
         <div className={styles.sheetBody}>
-          <WalletPanel onTitleChange={setTitle} onSendOpenChange={setSendOpen} />
+          <WalletPanel
+            onTitleChange={setTitle}
+            onSendOpenChange={setSendOpen}
+            onHelpOpenChange={setHelpOpen}
+          />
         </div>
       </div>
     </div>

@@ -89,6 +89,44 @@
           "N'appuyez sur « continuer quand même » que si vous comprenez le risque — des empreintes différentes signifient que le chiffrement peut ne pas vous protéger."
         ]
       }
+    },
+    "burn": {
+      "about": {
+        "title": "Ce que détruit la combustion",
+        "body": [
+          "Brûler ce chat supprime définitivement la session sur le serveur et efface les clés de chiffrement sur votre appareil.",
+          "L'historique des messages et le lien avec ce contact pour ce chat sont effacés. L'app de votre contact est notifiée pour nettoyer son côté aussi.",
+          "C'est irréversible. Cela n'affecte que ce chat en tête-à-tête — pas vos autres chats, salles ou portefeuille."
+        ]
+      }
+    },
+    "rooms": {
+      "create": {
+        "title": "Créer une salle",
+        "body": [
+          "Une salle est un espace chiffré partagé avec son propre lien d'invitation. Vous devenez propriétaire et contrôlez qui peut entrer.",
+          "Définissez un mot de passe ou exigez l'approbation du propriétaire pour que des inconnus n'entrent pas avec le seul lien.",
+          "Les données de la salle sur le serveur ont une durée limitée et disparaissent quand la salle est brûlée ou expire."
+        ]
+      },
+      "join": {
+        "title": "Rejoindre une salle",
+        "body": [
+          "Vous avez ouvert un lien d'invitation. Le propriétaire décide comment rejoindre : entrer le mot de passe ou envoyer une demande et attendre l'approbation.",
+          "Le mot de passe n'est jamais envoyé en clair — il protège l'accès aux clés chiffrées de la salle.",
+          "Si le lien a expiré ou été révoqué, demandez une nouvelle invitation au propriétaire."
+        ]
+      }
+    },
+    "wallet": {
+      "about": {
+        "title": "Pourquoi un portefeuille ici ?",
+        "body": [
+          "BURN est un jeton sur le réseau TON. Le portefeuille affiche votre solde BURN on-chain et permet d'envoyer du BURN à d'autres dans le chat.",
+          "Il vous faut aussi une petite quantité de {{symbol}} native sur le même portefeuille pour payer les frais réseau des transferts.",
+          "Vos clés restent dans votre app TON — Burned Chats lit les soldes et prépare les transactions ; il ne peut pas dépenser sans votre approbation."
+        ]
+      }
     }
   },
 

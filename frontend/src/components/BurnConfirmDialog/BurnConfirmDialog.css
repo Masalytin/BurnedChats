@@ -98,11 +98,19 @@
 }
 
 /* Title */
+.burn-dialog__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-xs);
+  margin-bottom: var(--bc-spacing-sm);
+}
+
 .burn-dialog__title {
   font-size: var(--bc-text-xl);
   font-weight: 700;
   color: var(--bc-text-primary);
-  margin: 0 0 var(--bc-spacing-sm);
+  margin: 0;
 }
 
 /* Description */

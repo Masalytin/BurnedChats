@@ -89,6 +89,44 @@
           "Solo pulsa «continuar de todos modos» si entiendes el riesgo — huellas distintas significan que el cifrado puede no protegerte."
         ]
       }
+    },
+    "burn": {
+      "about": {
+        "title": "Qué destruye quemar",
+        "body": [
+          "Quemar este chat elimina permanentemente la sesión en el servidor y borra las claves de cifrado en tu dispositivo.",
+          "Tu historial de mensajes y el vínculo con este contacto para este chat se borran. La app de tu contacto recibe aviso para limpiar su lado también.",
+          "No se puede deshacer. Solo afecta a este chat individual — no a otros chats, salas ni la wallet."
+        ]
+      }
+    },
+    "rooms": {
+      "create": {
+        "title": "Crear sala",
+        "body": [
+          "Una sala es un espacio cifrado compartido con su propio enlace de invitación. Te conviertes en propietario y controlas quién puede entrar.",
+          "Establece una contraseña o exige aprobación del propietario para que extraños no entren solo con el enlace.",
+          "Los datos de la sala en el servidor tienen un límite de tiempo y desaparecen al quemar la sala o al expirar."
+        ]
+      },
+      "join": {
+        "title": "Unirse a una sala",
+        "body": [
+          "Abriste un enlace de invitación. El propietario decide cómo unirse: introducir la contraseña o enviar una solicitud y esperar aprobación.",
+          "La contraseña nunca se envía en texto plano — protege el acceso a las claves cifradas de la sala.",
+          "Si el enlace expiró o fue revocado, pide una nueva invitación al propietario."
+        ]
+      }
+    },
+    "wallet": {
+      "about": {
+        "title": "¿Por qué una wallet aquí?",
+        "body": [
+          "BURN es un token en la red TON. La wallet muestra tu saldo BURN on-chain y te permite enviar BURN a otros en el chat.",
+          "También necesitas una pequeña cantidad de {{symbol}} nativo en la misma wallet para pagar las comisiones de red en transferencias.",
+          "Tus claves permanecen en tu app TON — Burned Chats lee saldos y prepara transacciones; no puede gastar sin tu aprobación."
+        ]
+      }
     }
   },
 

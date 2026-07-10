@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
 import { useToast } from '@/components/Toast';
 
@@ -17,6 +18,8 @@ export interface WalletPanelProps {
   onTitleChange?: (title: string) => void;
   /** Sheet shell blocks close while send modal is open. */
   onSendOpenChange?: (open: boolean) => void;
+  /** Sheet shell blocks close while nested HelpSheet is open. */
+  onHelpOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -25,6 +28,7 @@ export interface WalletPanelProps {
 export function WalletPanel({
   onTitleChange,
   onSendOpenChange,
+  onHelpOpenChange,
 }: WalletPanelProps) {
   const { burn, ton, refreshWallet, isRefreshing } = useWallet();
 
@@ -32,6 +36,7 @@ export function WalletPanel({
   const toast = useToast();
   const [panel, setPanel] = useState<Panel>('main');
   const [sendOpen, setSendOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [receiveExpanded, setReceiveExpanded] = useState(false);
 
   const drawerTitle = t('wallet.drawerTitle');
@@ -44,6 +49,10 @@ export function WalletPanel({
   useEffect(() => {
     onSendOpenChange?.(sendOpen);
   }, [sendOpen, onSendOpenChange]);
+
+  useEffect(() => {
+    onHelpOpenChange?.(helpOpen);
+  }, [helpOpen, onHelpOpenChange]);
 
   const handleSent = useCallback(() => {
     toast.success(t('wallet.sendSuccess'));
@@ -85,6 +94,9 @@ export function WalletPanel({
         </>
       ) : (
         <PullToRefresh onRefresh={refreshWallet} isRefreshing={isRefreshing}>
+          <div className={styles.panelHelpRow}>
+            <HelpTrigger onOpen={() => setHelpOpen(true)} />
+          </div>
           <Balance
             burn={burn}
             ton={ton}
@@ -100,6 +112,11 @@ export function WalletPanel({
         onClose={() => setSendOpen(false)}
         burn={burn}
         onSent={handleSent}
+      />
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey="wallet.about"
       />
     </>
   );

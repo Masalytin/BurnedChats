@@ -2,6 +2,7 @@ import { useState, useCallback, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { HelpSheet, HelpTrigger } from '../HelpSheet';
 import { useToast } from '../Toast/ToastContext';
 import { validatePassword } from '../../crypto/kdf';
 import { Lock } from 'lucide-react';
@@ -78,6 +79,7 @@ export function CreateRoomView({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const handleGeneratePassword = useCallback(async () => {
     const generated = generateSecurePassword();
@@ -133,7 +135,10 @@ export function CreateRoomView({
         <div className="create-room-view__icon" aria-hidden="true">
           <Lock size={36} strokeWidth={1.75} />
         </div>
-        <h2 className="create-room-view__title">{t('room.create.title')}</h2>
+        <div className="create-room-view__title-row">
+          <h2 className="create-room-view__title">{t('room.create.title')}</h2>
+          <HelpTrigger onOpen={() => setHelpOpen(true)} />
+        </div>
       </div>
 
       <form className="create-room-view__form" onSubmit={handleSubmit} noValidate>
@@ -291,6 +296,12 @@ export function CreateRoomView({
           </Button>
         </div>
       </form>
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey="rooms.create"
+      />
     </div>
   );
 }

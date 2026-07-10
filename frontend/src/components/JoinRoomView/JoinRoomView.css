@@ -33,6 +33,13 @@
   color: var(--bc-text-link);
 }
 
+.join-room-view__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-xs);
+}
+
 .join-room-view__title {
   margin: 0;
   font-size: var(--bc-text-xl);

@@ -1,7 +1,8 @@
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Key, Link2, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
+import { HelpSheet, HelpTrigger } from '../HelpSheet';
 import { CloseIcon, FlameIcon, AlertIcon } from '../../icons';
 import { useHaptics } from '@/hooks/useHaptics';
 import './BurnConfirmDialog.css';
@@ -51,6 +52,7 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
 }: BurnConfirmDialogProps) {
   const { t } = useTranslation();
   const haptics = useHaptics();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     haptics.impact('medium');
@@ -61,14 +63,14 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
    */
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) {
+      if (e.key === 'Escape' && !isLoading && !helpOpen) {
         onCancel();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isLoading, onCancel]);
+  }, [isLoading, onCancel, helpOpen]);
 
   /**
    * Handle overlay click.
@@ -116,9 +118,12 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
         </div>
 
         {/* Header */}
-        <h2 id="burn-dialog-title" className="burn-dialog__title">
-          {t('burnDialog.title')}
-        </h2>
+        <div className="burn-dialog__title-row">
+          <h2 id="burn-dialog-title" className="burn-dialog__title">
+            {t('burnDialog.title')}
+          </h2>
+          <HelpTrigger onOpen={() => setHelpOpen(true)} />
+        </div>
 
         {/* Description */}
         <p id="burn-dialog-description" className="burn-dialog__description">
@@ -178,6 +183,12 @@ export const BurnConfirmDialog = memo(function BurnConfirmDialog({
           </Button>
         </div>
       </div>
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey="burn.about"
+      />
     </div>
   );
 });

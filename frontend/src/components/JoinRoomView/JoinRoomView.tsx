@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, type FormEvent } from 'react';
+import { useEffect, useState, useCallback, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
+import { HelpSheet, HelpTrigger } from '../HelpSheet';
 import { Hourglass, Key, ShieldBan, XCircle } from 'lucide-react';
 import { EyeIcon, EyeOffIcon } from '../../icons';
 import type { JoinRoomStatus, JoinRoomErrorCode } from '../../hooks/useJoinRoom';
@@ -51,6 +52,29 @@ export function JoinRoomView({
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  function JoinRoomShell({ children }: { children: ReactNode }) {
+    return (
+      <div className="join-room-view">
+        {children}
+        <HelpSheet
+          open={helpOpen}
+          onClose={() => setHelpOpen(false)}
+          topicKey="rooms.join"
+        />
+      </div>
+    );
+  }
+
+  function JoinRoomTitleRow() {
+    return (
+      <div className="join-room-view__title-row">
+        <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+        <HelpTrigger onOpen={() => setHelpOpen(true)} />
+      </div>
+    );
+  }
 
   // Reset password when token changes (new invite link)
   useEffect(() => {
@@ -81,12 +105,12 @@ export function JoinRoomView({
   // ----------------------------------------
   if (status === 'pending') {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon join-room-view__icon--pending" aria-hidden="true">
             <Hourglass size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__subtitle join-room-view__subtitle--pending">
             {t('room.join.requestSent')}
           </p>
@@ -96,7 +120,7 @@ export function JoinRoomView({
             {t('common.back')}
           </Button>
         )}
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -105,12 +129,12 @@ export function JoinRoomView({
   // ----------------------------------------
   if (status === 'rejected') {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
             <XCircle size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorRejected')}
           </p>
@@ -120,7 +144,7 @@ export function JoinRoomView({
             {t('common.back')}
           </Button>
         )}
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -129,12 +153,12 @@ export function JoinRoomView({
   // ----------------------------------------
   if (isBannedUser) {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
             <ShieldBan size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorBanned')}
           </p>
@@ -145,7 +169,7 @@ export function JoinRoomView({
             {t('common.back')}
           </Button>
         )}
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -154,12 +178,12 @@ export function JoinRoomView({
   // ----------------------------------------
   if (isExhaustedToken) {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon join-room-view__icon--error" aria-hidden="true">
             <XCircle size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorInviteExhausted')}
           </p>
@@ -170,7 +194,7 @@ export function JoinRoomView({
             {t('common.back')}
           </Button>
         )}
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -179,12 +203,12 @@ export function JoinRoomView({
   // ----------------------------------------
   if (isExpiredToken) {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon" aria-hidden="true">
             <Key size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {error === 'INVITE_EXPIRED'
               ? t('room.join.errorInviteExpired')
@@ -197,7 +221,7 @@ export function JoinRoomView({
             {t('common.back')}
           </Button>
         )}
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -206,18 +230,18 @@ export function JoinRoomView({
   // ----------------------------------------
   if (status === 'loading-info') {
     return (
-      <div className="join-room-view">
+      <JoinRoomShell>
         <div className="join-room-view__header">
           <div className="join-room-view__icon" aria-hidden="true">
             <Key size={36} strokeWidth={1.75} />
           </div>
-          <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+          <JoinRoomTitleRow />
           <p className="join-room-view__subtitle">{t('common.loading')}</p>
         </div>
         <div className="join-room-view__token" title={token}>
           invite_{token.slice(0, 12)}…
         </div>
-      </div>
+      </JoinRoomShell>
     );
   }
 
@@ -229,12 +253,12 @@ export function JoinRoomView({
   const submitDisabled = hasPassword && !password;
 
   return (
-    <div className="join-room-view">
+    <JoinRoomShell>
       <div className="join-room-view__header">
         <div className="join-room-view__icon" aria-hidden="true">
           <Key size={36} strokeWidth={1.75} />
         </div>
-        <h2 className="join-room-view__title">{t('room.join.title')}</h2>
+        <JoinRoomTitleRow />
         <p className="join-room-view__subtitle">
           {hasPassword ? t('room.join.subtitle') : t('room.join.subtitleNoPassword')}
         </p>
@@ -297,7 +321,7 @@ export function JoinRoomView({
           )}
         </div>
       </form>
-    </div>
+    </JoinRoomShell>
   );
 }
 

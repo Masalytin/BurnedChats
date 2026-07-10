@@ -98,6 +98,44 @@
           "Tippe nur auf „trotzdem fortfahren“, wenn du das Risiko verstehst — nicht übereinstimmende Fingerabdrücke bedeuten, dass die Verschlüsselung dich möglicherweise nicht schützt."
         ]
       }
+    },
+    "burn": {
+      "about": {
+        "title": "Was verbrennen zerstört",
+        "body": [
+          "Das Verbrennen dieses Chats entfernt die Sitzung dauerhaft auf dem Server und löscht die Verschlüsselungsschlüssel auf deinem Gerät.",
+          "Dein Nachrichtenverlauf und die Verbindung zu diesem Kontakt für diesen Chat werden gelöscht. Die App deines Kontakts wird benachrichtigt, damit auch dort aufgeräumt wird.",
+          "Das kann nicht rückgängig gemacht werden. Es betrifft nur diesen Einzelchat — nicht andere Chats, Räume oder die Wallet."
+        ]
+      }
+    },
+    "rooms": {
+      "create": {
+        "title": "Raum erstellen",
+        "body": [
+          "Ein Raum ist ein gemeinsamer verschlüsselter Bereich mit eigenem Einladungslink. Du wirst Eigentümer und entscheidest, wer beitreten darf.",
+          "Setze ein Passwort oder verlange die Zustimmung des Eigentümers, damit Fremde nicht nur mit dem Link eintreten.",
+          "Raumdaten auf dem Server haben ein Zeitlimit und verschwinden beim Verbrennen oder nach Ablauf."
+        ]
+      },
+      "join": {
+        "title": "Raum beitreten",
+        "body": [
+          "Du hast einen Einladungslink geöffnet. Der Eigentümer legt fest, wie man beitritt: Passwort eingeben oder Anfrage senden und auf Zustimmung warten.",
+          "Das Passwort wird nie im Klartext gesendet — es schützt den Zugang zu den Verschlüsselungsschlüsseln des Raums.",
+          "Wenn der Link abgelaufen oder widerrufen wurde, bitte den Eigentümer um eine neue Einladung."
+        ]
+      }
+    },
+    "wallet": {
+      "about": {
+        "title": "Warum hier eine Wallet?",
+        "body": [
+          "BURN ist ein Token im TON-Netzwerk. Die Wallet zeigt dein On-Chain-BURN-Guthaben und ermöglicht das Senden von BURN an andere im Chat.",
+          "Du brauchst auch eine kleine Menge native {{symbol}} in derselben Wallet für Netzwerkgebühren bei Überweisungen.",
+          "Deine Schlüssel bleiben in deiner TON-Wallet-App — Burned Chats liest Guthaben und erstellt Transaktionen; ohne deine Bestätigung kann nichts ausgegeben werden."
+        ]
+      }
     }
   },
 

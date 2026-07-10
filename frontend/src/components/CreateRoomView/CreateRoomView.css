@@ -25,6 +25,13 @@
   color: var(--bc-button-primary-bg);
 }
 
+.create-room-view__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-xs);
+}
+
 .create-room-view__title {
   margin: 0;
   font-size: var(--bc-text-xl);
