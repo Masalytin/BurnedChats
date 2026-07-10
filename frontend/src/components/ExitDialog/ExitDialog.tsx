@@ -1,4 +1,5 @@
 import { memo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertIcon, ArrowLeftIcon, CloseIcon } from '@/icons';
 import type { ExitBurnError } from '@/hooks/useExitBurnFlow';
@@ -52,7 +53,7 @@ export const ExitDialog = memo(function ExitDialog({
           ? t('settings.exit.internalError')
           : null;
 
-  return (
+  return createPortal(
     <div className="burn-all-dialog-overlay" onClick={isBurning ? undefined : onClose}>
       <div
         className="burn-all-dialog exit-dialog animate-slide-up"
@@ -122,6 +123,7 @@ export const ExitDialog = memo(function ExitDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 });

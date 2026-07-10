@@ -87,6 +87,24 @@ describe('ExitDialog', () => {
     expect(onRetryBurnAndExit).toHaveBeenCalledTimes(1);
   });
 
+  it('portals overlay to document.body so fixed positioning is not clipped by animated ancestors', () => {
+    render(
+      <div style={{ transform: 'translateY(0)', height: 50, overflow: 'hidden' }}>
+        <ExitDialog
+          open
+          onClose={vi.fn()}
+          onJustExit={vi.fn()}
+          onBurnAndExit={vi.fn()}
+          onRetryBurnAndExit={vi.fn()}
+        />
+      </div>,
+      { wrapper },
+    );
+
+    const overlay = document.querySelector('.burn-all-dialog-overlay');
+    expect(overlay?.parentElement).toBe(document.body);
+  });
+
   it('disables actions while burning', () => {
     render(
       <ExitDialog
