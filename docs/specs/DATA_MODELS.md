@@ -249,6 +249,25 @@ EXPIRE auth_tg:111222333 7776000
 EXPIRE auth_wallet:EQ... 7776000
 ```
 
+#### Жизненный цикл при `burnAllForUser` (IMP-BURNALL-01)
+
+| Ключ / паттерн | `wipeIdentity=false` | `wipeIdentity=true` | Примечание |
+|----------------|----------------------|---------------------|------------|
+| `session:{sessionId}` | `DEL` (все активные сессии пользователя) | то же | + `BurnSignalEvent` пирам |
+| `messages:{internalId}:*`, `message-edits:*`, `message-deletions:*` | `DEL` очереди пользователя | то же | tombstone + offline |
+| `request:{internalId}` | `DEL` | то же | pending chat requests |
+| `file_context:{sessionId\|roomId}` | `DEL` (затронутые контексты) | то же | через `FileBurnService` |
+| `room:{roomId}` + room-* (owned) | полный BURN_ROOM каскад | то же | `RoomBurnedEvent` участникам |
+| `room_members:*` / pubkey / keys (member leave) | remove user из чужих комнат | то же | `room-member-left` → owner rekey |
+| `member_rooms:{internalId}` | сохраняется | `DEL` | reverse index |
+| `user:{internalId}` | сохраняется | `DEL` | профиль |
+| `auth_tg:*` / `auth_wallet:*` | сохраняются | `DEL` привязок пользователя | |
+| `lang:pref:{internalId}` | сохраняется | `DEL` | |
+| `session_token:*` (значение = internalId) | сохраняются | `DEL` matching tokens | SCAN |
+| `ratelimit:rest:burn_all:{internalId}` | INCR / TTL 60s | то же | 3 req/min |
+
+Порядок: сначала сущности общения (1–4), identity — последним (5), ack клиенту после каскада.
+
 ---
 
 ### `ratelimit:{type}:{userId}`
@@ -283,6 +302,7 @@ EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 > (`resetRateLimit`). Локаут снимается по TTL окна (600 с / override yaml).
 
 Отдельный REST-префикс: `ratelimit:rest:{group}:{clientId}` (IP / identity).
+Группа `burn_all` — `/app/user.burnAll`, 3 req/min per `internalId`.
 
 ---
 

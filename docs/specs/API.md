@@ -1037,6 +1037,49 @@ client.subscribe('/user/queue/burn-signal', (message) => {
 
 ---
 
+### `BURN_ALL` (`/app/user.burnAll`)
+
+Глобальное серверное уничтожение всех данных пользователя одним каскадом
+(IMP-BURNALL-01). Требует живого STOMP-соединения.
+
+**Frontend:**
+```typescript
+client.publish({
+  destination: '/app/user.burnAll',
+  body: JSON.stringify({
+    wipeIdentity: false  // true = также удалить user:{internalId}, auth_*, lang:pref, member_rooms, session_token:*
+  })
+});
+
+client.subscribe('/user/queue/burn-all-complete', (message) => {
+  const data = JSON.parse(message.body);
+  // BurnAllCompleteEvent: wipeIdentity, burnedSessions, burnedRooms, leftRooms, timestamp
+});
+```
+
+**Backend:** `UserBurnHandler` — `@MessageMapping("/user.burnAll")`.
+Каскад `UserBurnService.burnAllForUser(internalId, wipeIdentity)`:
+
+1. Все активные DM-сессии → burn как `/app/session.burn` + `BurnSignalEvent` пирам.
+2. Комнаты во владении → `RoomService.burnRoomAsOwner` + `RoomBurnedEvent` участникам.
+3. Чужие комнаты → leave-каскад + `room-member-left` оставшимся (rekey у owner).
+4. Хвосты: `request:*`, offline/tombstone-очереди пользователя, `file_context` через `FileBurnService`.
+5. При `wipeIdentity=true` — `user:{internalId}`, `auth_tg`, `auth_wallet`, `lang:pref`, `member_rooms`, `session_token:*`.
+6. Ack инициатору → `/user/queue/burn-all-complete` **до** разрыва соединения (disconnect на клиенте).
+
+**Rate-limit:** `RateLimitService.checkRestRateLimit("burn_all", internalId, 3, 1 min)` —
+без PoW. Повторный вызов идемпотентен (добивает остатки).
+
+**События пирам (не инициатору):**
+
+| Очередь | Событие | Когда |
+|---------|---------|-------|
+| `/user/queue/burn-signal` | `BurnSignalEvent` | Каждая сожжённая DM-сессия |
+| `/user/queue/room-burned` | `RoomBurnedEvent` | Каждая сожжённая owned-комната |
+| `/user/queue/room-member-left` | `RoomMemberLeftEvent` | Каждый leave из чужой комнаты |
+
+---
+
 ### `SYNC_MESSAGES` (`/app/message.sync`)
 
 Запрос пропущенных DM-сообщений из Redis-очереди (reconnect, cold start, серверный push; см. offline sync). Тело: `SyncMessagesRequest` с полем `sessionId`.
@@ -1117,6 +1160,7 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 | `/user/queue/message-deleted` | `MessageDeletedEvent` | DM удалено |
 | `/user/queue/verification` | `VerificationEvent` | Статус fingerprint |
 | `/user/queue/burn-signal` | `BurnSignalEvent` | Сессия сожжена |
+| `/user/queue/burn-all-complete` | `BurnAllCompleteEvent` | Ack глобального burn-all |
 | `/user/queue/errors` | error map | Глобальные STOMP-ошибки (rate-limit, PoW, validation) |
 
 > **Не реализовано (не эмитятся):** `/user/queue/session-started`,
@@ -1168,6 +1212,7 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 | `/app/room.message.edit` | Редактирование room-сообщения |
 | `/app/room.message.delete` | Удаление room-сообщения |
 | `/app/room.burn` | Сожжение комнаты → `/user/queue/room-burned` |
+| `/app/user.burnAll` | Глобальный burn-all каскад → `/user/queue/burn-all-complete` (+ peer-события) |
 
 ---
 
