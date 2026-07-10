@@ -614,6 +614,35 @@ function printSummary(report, outPath, extra = "") {
   console.log("");
 }
 
+/**
+ * When --prefix is set, --strict should only fail on gaps within that prefix
+ * (full-report mode; task mode already filters batches).
+ */
+function hasScopedIssues(report, prefix) {
+  if (!prefix) {
+    return (
+      report.summary.total_missing_keys > 0 ||
+      report.summary.total_empty_values > 0 ||
+      report.parse_errors.frontend.length > 0 ||
+      report.parse_errors.backend.length > 0
+    );
+  }
+
+  for (const platformName of ["frontend", "backend"]) {
+    const platform = report[platformName];
+    for (const lang of platform.languages) {
+      const missing = platform.missing_keys[lang] ?? [];
+      const empty = platform.empty_values[lang] ?? [];
+      if (missing.some((k) => matchesPrefix(k, prefix))) return true;
+      if (empty.some((k) => matchesPrefix(k, prefix))) return true;
+    }
+  }
+
+  return (
+    report.parse_errors.frontend.length > 0 || report.parse_errors.backend.length > 0
+  );
+}
+
 function printTaskSummary(task, outPath) {
   console.log("\ni18n agent task");
   console.log("─".repeat(48));
@@ -722,13 +751,7 @@ function main() {
     printSummary(output, OUT_PATH, modeNote);
   }
 
-  const hasIssues =
-    report.summary.total_missing_keys > 0 ||
-    report.summary.total_empty_values > 0 ||
-    report.parse_errors.frontend.length > 0 ||
-    report.parse_errors.backend.length > 0;
-
-  if (STRICT && hasIssues) process.exit(1);
+  if (STRICT && hasScopedIssues(report, KEY_PREFIX)) process.exit(1);
 }
 
 main();
