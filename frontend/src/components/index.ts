@@ -39,6 +39,10 @@ export { PullToRefresh } from './PullToRefresh';
 // Language Switcher
 export { LanguageSwitcher } from './LanguageSwitcher';
 
+// Help layer (IMP-HELP-01)
+export { HelpSheet, HelpTrigger } from './HelpSheet';
+export type { HelpSheetProps, HelpTriggerProps } from './HelpSheet';
+
 // Room Components (Phase 2)
 export { JoinRoomView } from './JoinRoomView';
 

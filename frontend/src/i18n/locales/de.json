@@ -58,6 +58,13 @@
     "scrollToTopRefresh": "Nach oben scrollen und aktualisieren",
     "closeDialog": "Dialog schließen"
   },
+
+  "help": {
+    "common": {
+      "trigger": "Was ist das?"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "Verschlüsselt & Verifiziert",
     "premiumTitle": "Premium-Nutzer",

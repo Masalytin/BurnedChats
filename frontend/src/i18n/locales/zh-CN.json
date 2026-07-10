@@ -49,6 +49,13 @@
     "scrollToTopRefresh": "滚动到顶部并刷新",
     "closeDialog": "关闭对话框"
   },
+
+  "help": {
+    "common": {
+      "trigger": "这是什么？"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "已加密并验证",
     "burnButtonLabel": "销毁聊天",

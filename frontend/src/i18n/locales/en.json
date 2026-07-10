@@ -593,6 +593,12 @@
     "closeDialog": "Close dialog"
   },
 
+  "help": {
+    "common": {
+      "trigger": "What is this?"
+    }
+  },
+
   "chatRequest": {
     "title": "Start Secure Chat",
     "subtitle": "Send an encrypted chat request",

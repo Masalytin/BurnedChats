@@ -49,6 +49,13 @@
     "scrollToTopRefresh": "Desplazarse arriba y actualizar",
     "closeDialog": "Cerrar diálogo"
   },
+
+  "help": {
+    "common": {
+      "trigger": "¿Qué es esto?"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "Cifrado y Verificado",
     "burnButtonLabel": "Destruir chat",

@@ -49,6 +49,13 @@
     "scrollToTopRefresh": "Faire défiler vers le haut et actualiser",
     "closeDialog": "Fermer la boîte de dialogue"
   },
+
+  "help": {
+    "common": {
+      "trigger": "Qu'est-ce que c'est ?"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "Chiffré et Vérifié",
     "burnButtonLabel": "Détruire la discussion",

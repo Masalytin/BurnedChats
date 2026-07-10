@@ -49,6 +49,13 @@
     "scrollToTopRefresh": "التمرير إلى الأعلى والتحديث",
     "closeDialog": "إغلاق الحوار"
   },
+
+  "help": {
+    "common": {
+      "trigger": "ما هذا؟"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "مشفر وموثق",
     "burnButtonLabel": "حذف الدردشة",

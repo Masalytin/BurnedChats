@@ -49,6 +49,13 @@
     "scrollToTopRefresh": "Прокрутити вгору та оновити",
     "closeDialog": "Закрити діалог"
   },
+
+  "help": {
+    "common": {
+      "trigger": "Що це?"
+    }
+  },
+
   "chat": {
     "verifiedTitle": "Зашифровано та підтверджено",
     "burnButtonLabel": "Спалити чат",
