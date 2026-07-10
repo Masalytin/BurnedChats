@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement, UserInfo } from '../../types';
 import type { VerificationStatus } from '../../hooks/useVerification';
@@ -7,6 +7,7 @@ import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
+import { HelpSheet, HelpTrigger } from '../HelpSheet';
 import { Star } from 'lucide-react';
 import { CheckIcon, AlertIcon, ShieldIcon } from '../../icons';
 import './VerificationView.css';
@@ -58,6 +59,8 @@ export function VerificationView({
 }: VerificationViewProps) {
   const { t } = useTranslation();
   const [isTakingLonger, setIsTakingLonger] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopic, setHelpTopic] = useState('verification.about');
   const safetyNumber = useMemo(
     () => getFingerprint(sessionId) ?? null,
     [sessionId, fingerprint],
@@ -89,17 +92,25 @@ export function VerificationView({
     return () => clearTimeout(timer);
   }, [viewState]);
 
+  const openHelp = useCallback(() => {
+    setHelpTopic(viewState === 'mismatch' ? 'verification.mismatch' : 'verification.about');
+    setHelpOpen(true);
+  }, [viewState]);
+
   return (
     <div className={`verification-view ${className}`}>
       <div className="verification-view__content animate-slide-up">
         {/* Header */}
         <div className="verification-view__header">
           <ShieldIcon size={32} className="verification-view__header-icon" />
-          <h2 className="verification-view__title">
-            {viewState === 'mismatch' ? t('verification.titleMismatch') :
-             viewState === 'both_verified' ? t('verification.titleVerified') :
-             t('verification.titlePending')}
-          </h2>
+          <div className="verification-view__title-row">
+            <h2 className="verification-view__title">
+              {viewState === 'mismatch' ? t('verification.titleMismatch') :
+               viewState === 'both_verified' ? t('verification.titleVerified') :
+               t('verification.titlePending')}
+            </h2>
+            <HelpTrigger onOpen={openHelp} />
+          </div>
           <p className="verification-view__subtitle">
             {viewState === 'mismatch' 
               ? t('verification.subtitleMismatch')
@@ -277,6 +288,12 @@ export function VerificationView({
           </p>
         )}
       </div>
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey={helpTopic}
+      />
     </div>
   );
 }

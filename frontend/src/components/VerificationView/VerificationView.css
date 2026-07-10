@@ -33,6 +33,14 @@
   margin-bottom: var(--bc-spacing-sm);
 }
 
+.verification-view__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-sm);
+  flex-wrap: wrap;
+}
+
 .verification-view__title {
   margin: 0;
   font-size: var(--bc-text-xl);

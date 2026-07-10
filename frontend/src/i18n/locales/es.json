@@ -53,6 +53,42 @@
   "help": {
     "common": {
       "trigger": "¿Qué es esto?"
+    },
+    "handshake": {
+      "about": {
+        "title": "Intercambio seguro de claves",
+        "body": [
+          "Tu teléfono y el de tu contacto crean claves de cifrado coincidentes directamente entre sí — nada secreto se envía en texto plano.",
+          "El servidor solo reenvía datos cifrados entre ustedes. Nunca ve tus claves privadas ni puede leer tus mensajes.",
+          "Este paso configura el cifrado de extremo a extremo antes de verificar la conexión."
+        ]
+      },
+      "waiting": {
+        "title": "Esperando a tu contacto",
+        "body": [
+          "Tu contacto debe abrir el chat y completar la misma configuración en su teléfono.",
+          "Hasta entonces, la app espera aquí — es normal, y tus claves permanecen solo en tu dispositivo.",
+          "Si tarda, pídele que abra la app y mantenga esta pantalla abierta."
+        ]
+      }
+    },
+    "verification": {
+      "about": {
+        "title": "Comprobación de seguridad",
+        "body": [
+          "Ves un número de seguridad y un patrón de emoji derivados de ambas claves de cifrado. Tu contacto ve el mismo patrón en su teléfono.",
+          "Compáralos en voz alta o lado a lado. Si coinciden, habláis directamente — no a través de alguien en medio.",
+          "Esto protege contra alguien que sustituya claves en el servidor (ataque de intermediario)."
+        ]
+      },
+      "mismatch": {
+        "title": "Los patrones no coinciden",
+        "body": [
+          "Si los números o emoji no coinciden, no confíes en este chat. Alguien puede estar interceptando la conexión.",
+          "Detente aquí. Inicia un nuevo chat con tu contacto por un canal de confianza y compara de nuevo.",
+          "Solo pulsa «continuar de todos modos» si entiendes el riesgo — huellas distintas significan que el cifrado puede no protegerte."
+        ]
+      }
     }
   },
 

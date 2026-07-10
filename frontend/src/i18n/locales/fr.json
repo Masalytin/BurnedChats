@@ -53,6 +53,42 @@
   "help": {
     "common": {
       "trigger": "Qu'est-ce que c'est ?"
+    },
+    "handshake": {
+      "about": {
+        "title": "Échange de clés sécurisé",
+        "body": [
+          "Votre téléphone et celui de votre contact créent des clés de chiffrement identiques directement entre eux — rien de secret n'est envoyé en clair.",
+          "Le serveur ne fait que relayer des données chiffrées entre vous. Il ne voit jamais vos clés privées et ne peut pas lire vos messages.",
+          "Cette étape configure le chiffrement de bout en bout avant de vérifier la connexion."
+        ]
+      },
+      "waiting": {
+        "title": "En attente de votre contact",
+        "body": [
+          "Votre contact doit ouvrir le chat et terminer la même configuration sur son téléphone.",
+          "En attendant, l'application reste ici — c'est normal, et vos clés restent uniquement sur votre appareil.",
+          "Si cela prend du temps, demandez-lui d'ouvrir l'application et de garder cet écran ouvert."
+        ]
+      }
+    },
+    "verification": {
+      "about": {
+        "title": "Contrôle de sécurité",
+        "body": [
+          "Vous voyez un numéro de sécurité et un motif d'emoji dérivés des deux clés de chiffrement. Votre contact voit le même motif sur son téléphone.",
+          "Comparez-les à voix haute ou côte à côte. S'ils correspondent, vous parlez directement — pas via un intermédiaire.",
+          "Cela protège contre quelqu'un qui remplacerait les clés sur le serveur (attaque de l'homme du milieu)."
+        ]
+      },
+      "mismatch": {
+        "title": "Les motifs ne correspondent pas",
+        "body": [
+          "Si les chiffres ou les emoji ne correspondent pas, ne faites pas confiance à ce chat. Quelqu'un peut intercepter la connexion.",
+          "Arrêtez-vous ici. Démarrez un nouveau chat avec votre contact via un canal de confiance et comparez à nouveau.",
+          "N'appuyez sur « continuer quand même » que si vous comprenez le risque — des empreintes différentes signifient que le chiffrement peut ne pas vous protéger."
+        ]
+      }
     }
   },
 

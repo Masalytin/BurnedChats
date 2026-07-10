@@ -62,6 +62,42 @@
   "help": {
     "common": {
       "trigger": "Was ist das?"
+    },
+    "handshake": {
+      "about": {
+        "title": "Sicherer Schlüsselaustausch",
+        "body": [
+          "Dein Telefon und das deines Kontakts erstellen passende Verschlüsselungsschlüssel direkt miteinander — nichts Geheimes wird im Klartext gesendet.",
+          "Der Server leitet nur verschlüsselte Daten zwischen euch weiter. Er sieht weder deine privaten Schlüssel noch kann er Nachrichten lesen.",
+          "Dieser Schritt richtet Ende-zu-Ende-Verschlüsselung ein, bevor du die Verbindung prüfst."
+        ]
+      },
+      "waiting": {
+        "title": "Warten auf deinen Kontakt",
+        "body": [
+          "Dein Kontakt muss den Chat öffnen und dieselbe Einrichtung auf seinem Telefon abschließen.",
+          "Bis dahin wartet die App hier — das ist normal, und deine Schlüssel bleiben nur auf deinem Gerät.",
+          "Dauert es lange, bitte ihn, die App zu öffnen und diesen Bildschirm offen zu lassen."
+        ]
+      }
+    },
+    "verification": {
+      "about": {
+        "title": "Sicherheitsprüfung",
+        "body": [
+          "Du siehst eine Sicherheitsnummer und ein Emoji-Muster aus beiden Verschlüsselungsschlüsseln. Dein Kontakt sieht dasselbe Muster auf seinem Telefon.",
+          "Vergleicht sie laut oder nebeneinander. Stimmen sie überein, sprecht ihr direkt miteinander — nicht über jemanden dazwischen.",
+          "Das schützt davor, dass jemand Schlüssel auf dem Server austauscht (Man-in-the-Middle-Angriff)."
+        ]
+      },
+      "mismatch": {
+        "title": "Muster stimmen nicht überein",
+        "body": [
+          "Wenn Zahlen oder Emoji nicht übereinstimmen, vertraue diesem Chat nicht. Jemand könnte die Verbindung abfangen.",
+          "Stoppe hier. Starte einen neuen Chat mit deinem Kontakt über einen vertrauenswürdigen Kanal und vergleiche erneut.",
+          "Tippe nur auf „trotzdem fortfahren“, wenn du das Risiko verstehst — nicht übereinstimmende Fingerabdrücke bedeuten, dass die Verschlüsselung dich möglicherweise nicht schützt."
+        ]
+      }
     }
   },
 

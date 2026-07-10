@@ -596,6 +596,42 @@
   "help": {
     "common": {
       "trigger": "What is this?"
+    },
+    "handshake": {
+      "about": {
+        "title": "Secure key exchange",
+        "body": [
+          "Your phone and your contact's phone create matching encryption keys directly with each other — nothing secret is sent in plain text.",
+          "The server only relays encrypted data between you. It never sees your private keys or can read your messages.",
+          "This step sets up end-to-end encryption before you verify the connection."
+        ]
+      },
+      "waiting": {
+        "title": "Waiting for your contact",
+        "body": [
+          "Your contact needs to open the chat and finish the same setup on their phone.",
+          "Until they do, your app waits here — that's normal and your keys stay only on your device.",
+          "If it takes a while, ask them to open the app and keep this screen open."
+        ]
+      }
+    },
+    "verification": {
+      "about": {
+        "title": "Safety check",
+        "body": [
+          "You see a safety number and emoji pattern derived from both encryption keys. Your contact sees the same pattern on their phone.",
+          "Compare them out loud or side by side. If they match, you're talking directly to each other — not through someone in the middle.",
+          "This protects against someone swapping keys on the server (a man-in-the-middle attack)."
+        ]
+      },
+      "mismatch": {
+        "title": "Patterns don't match",
+        "body": [
+          "If the numbers or emoji don't match, do not trust this chat. Someone may be intercepting the connection.",
+          "Stop here. Start a new chat with your contact over a channel you both trust, and compare again.",
+          "Only tap \"continue anyway\" if you understand the risk — mismatched fingerprints mean encryption may not protect you."
+        ]
+      }
     }
   },
 

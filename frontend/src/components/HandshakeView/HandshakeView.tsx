@@ -16,6 +16,7 @@ import { VisualFingerprint } from '../VisualFingerprint';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
+import { HelpSheet, HelpTrigger } from '../HelpSheet';
 import { CheckIcon, CloseIcon, LockIcon } from '../../icons';
 import './HandshakeView.css';
 
@@ -64,8 +65,11 @@ const HANDSHAKE_ERROR_CODES: HandshakeErrorCode[] = [
   'CONNECTION_ERROR',
 ];
 
+/** Stages where the waiting help topic is the default at open time */
+const WAITING_HELP_STAGES: HandshakeStage[] = ['waiting_peer', 'computing_secret'];
+
 /** Stages that show rotating waiting copy instead of static stage description */
-const ROTATING_MESSAGE_STAGES: HandshakeStage[] = ['waiting_peer', 'computing_secret'];
+const ROTATING_MESSAGE_STAGES = WAITING_HELP_STAGES;
 
 /** Interval between rotating waiting messages (~2.5–3 s) */
 const WAITING_MESSAGE_ROTATION_MS = 2800;
@@ -115,6 +119,8 @@ export function HandshakeView({
   const { stage, peer, fingerprint, error, progress, elapsedMs, isTakingLonger } = result;
   const [animatedProgress, setAnimatedProgress] = useState(0);
   const [waitingMessageIndex, setWaitingMessageIndex] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopic, setHelpTopic] = useState('handshake.about');
 
   const waitingMessages = useMemo(() => {
     const messages = t('handshake.waitingMessages', { returnObjects: true });
@@ -162,6 +168,14 @@ export function HandshakeView({
   const isError = stage === 'error';
   const isComplete = stage === 'complete';
   const isInProgress = !isError && !isComplete && stage !== 'idle';
+  const showHelp = stage !== 'idle';
+
+  const openHelp = useCallback(() => {
+    setHelpTopic(
+      WAITING_HELP_STAGES.includes(stage) ? 'handshake.waiting' : 'handshake.about',
+    );
+    setHelpOpen(true);
+  }, [stage]);
 
   const formatElapsed = useCallback((ms: number) => {
     const seconds = Math.max(1, Math.floor(ms / 1000));
@@ -242,7 +256,10 @@ export function HandshakeView({
 
         {/* Status text */}
         <div className="handshake-view__status">
-          <h2 className="handshake-view__title">{stageTitle}</h2>
+          <div className="handshake-view__title-row">
+            <h2 className="handshake-view__title">{stageTitle}</h2>
+            {showHelp && <HelpTrigger onOpen={openHelp} />}
+          </div>
           {isError ? (
             <>
               <p className="handshake-view__subtitle handshake-view__subtitle--error">
@@ -397,6 +414,12 @@ export function HandshakeView({
           </p>
         )}
       </div>
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey={helpTopic}
+      />
     </div>
   );
 }
