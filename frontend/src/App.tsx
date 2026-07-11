@@ -97,6 +97,7 @@ import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
 import { completeUserExit } from './utils/completeUserExit';
+import { shouldRefreshHomeData } from './utils/shouldRefreshHomeData';
 import { resetTonConnectUI } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -801,6 +802,9 @@ function AppContent() {
       }
     },
     onError: (errorCode) => {
+      if (!isAuthenticated) {
+        return;
+      }
       notificationOccurred('error');
       toast.error(`Failed to resume session: ${errorCode}`, { title: 'Error' });
     },
@@ -1887,14 +1891,25 @@ function AppContent() {
   // useRef(true) skips the initial mount so we don't fire an extra fetch on startup
   const isFirstHomeRender = useRef(true);
   useEffect(() => {
-    if (currentView !== 'home') return;
-    if (isFirstHomeRender.current) {
+    const skipInitialHomeRender = isFirstHomeRender.current;
+    if (skipInitialHomeRender) {
       isFirstHomeRender.current = false;
+    }
+
+    if (
+      !shouldRefreshHomeData({
+        currentView,
+        isAuthenticated,
+        isConnected,
+        skipInitialHomeRender,
+      })
+    ) {
       return;
     }
+
     fetchRooms();
     fetchSessions();
-  }, [currentView, fetchRooms, fetchSessions]);
+  }, [currentView, isAuthenticated, isConnected, fetchRooms, fetchSessions]);
 
   // Refs for burn-signal handler dependencies — avoids re-subscription on every state change
   const burnSignalDepsRef = useRef({
