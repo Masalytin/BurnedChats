@@ -1,11 +1,11 @@
 # BURN Token — Tokenomics
 
-> Deflationary token on the TON blockchain for the Burned Chats ecosystem
+> Deflationary jetton design for the Burned Chats ecosystem. **Testnet only** — not a launched product or investment offer. See [README.md](../../README.md#project-status).
 
 > **Terminology (as of June 2026):** **TON** — blockchain and ecosystem (The Open Network, TON Connect, TON RPC).
 > **GRAM** — native network coin for gas and fees (formerly Toncoin, ticker `TON`; no token migration).
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Token Overview](#token-overview)
 - [Key Parameters](#key-parameters)
@@ -616,105 +616,6 @@ contracts/
 **Backend:** `TonService` (TON RPC), `JettonService` (BURN balance), `StakingVerifier` (staking tier).
 
 **Frontend:** `useTonConnect` (wallet connection), `useBurnToken` (balance), `useStaking` (staking operations), `useGovernance` (voting).
-
----
-
-## Launch Plan
-
-### Phase 1: Development (Weeks 1–4)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PHASE 1: SMART CONTRACT DEVELOPMENT                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Week 1-2: Jetton contract                                       │
-│  ├── [ ] Write BURN Jetton Master                                │
-│  ├── [ ] Write BURN Jetton Wallet                                │
-│  ├── [ ] Implement burn mechanics                                │
-│  ├── [ ] Implement fee distribution (burn/staking/treasury)      │
-│  └── [ ] Unit tests (Sandbox)                                    │
-│                                                                  │
-│  Week 3-4: Staking contract                                      │
-│  ├── [ ] Write Staking Pool                                      │
-│  ├── [ ] Implement time-lock                                     │
-│  ├── [ ] Implement rewards distribution                          │
-│  ├── [ ] Unit tests                                              │
-│  └── [ ] Integration tests                                       │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 2: Testing (Weeks 5–6)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PHASE 2: TESTNET DEPLOYMENT & TESTING                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Week 5: Testnet                                                 │
-│  ├── [ ] Deploy to TON Testnet                                   │
-│  ├── [ ] Test burn on transfer                                   │
-│  ├── [ ] Test staking flows                                      │
-│  ├── [ ] Test governance flows                                   │
-│  └── [ ] Load testing                                            │
-│                                                                  │
-│  Week 6: Audit                                                   │
-│  ├── [ ] Internal security review                                │
-│  ├── [ ] Formal verification (optional)                          │
-│  ├── [ ] Bug bounty (private)                                    │
-│  └── [ ] Fix identified issues                                   │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 3: Integration (Weeks 7–8)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PHASE 3: BURNEDCHATS INTEGRATION                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Week 7: Frontend                                                │
-│  ├── [ ] TON Connect integration                                 │
-│  ├── [ ] Wallet UI components                                    │
-│  ├── [ ] Staking Dashboard                                       │
-│  ├── [ ] Governance UI                                           │
-│  └── [ ] Mini App testing                                        │
-│                                                                  │
-│  Week 8: Backend                                                 │
-│  ├── [ ] TON RPC integration                                     │
-│  ├── [ ] Balance verification                                    │
-│  ├── [ ] Staking verification                                    │
-│  ├── [ ] Governance integration                                  │
-│  └── [ ] E2E testing                                             │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 4: Launch (Weeks 9–10)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PHASE 4: MAINNET LAUNCH                                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Week 9: Mainnet Deploy                                          │
-│  ├── [ ] Deploy contracts to Mainnet                               │
-│  ├── [ ] Mint initial supply                                     │
-│  ├── [ ] Set up Liquidity Pool (DeDust/STON.fi)                  │
-│  ├── [ ] Contract verification                                   │
-│  └── [ ] Final testing                                           │
-│                                                                  │
-│  Week 10: Community Launch                                       │
-│  ├── [ ] Airdrop to early users                                  │
-│  ├── [ ] Announcement in Telegram channels                       │
-│  ├── [ ] DEX listing                                             │
-│  ├── [ ] Staking launch                                          │
-│  └── [ ] Monitoring and support                                  │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
 
 ---
 

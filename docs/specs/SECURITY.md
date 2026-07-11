@@ -2,20 +2,20 @@
 
 > Detailed description of cryptographic protocols and the threat model
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Security Overview](#security-overview)
 - [Cryptographic Primitives](#cryptographic-primitives)
 - [Key Exchange Protocol](#key-exchange-protocol)
 - [Message Encryption](#message-encryption)
-- [Files: Encryption and Storage (Phase 4)](#files-encryption-and-storage-phase-4)
+- [Files: Encryption and Storage](#files-encryption-and-storage-phase-4)
 - [Visual Fingerprint](#visual-fingerprint)
 - [Trust Boundary: Verification Ceremony](#trust-boundary-verification-ceremony)
 - [Threat Model](#threat-model)
 - [Anti-spam / Sybil Protection (PoW)](#anti-spam--sybil-protection-pow)
 - [Protective Mechanisms](#protective-mechanisms)
-- [Governance On-chain (Phase 5)](#governance-on-chain-phase-5)
-- [Rooms (Phase 2)](#rooms-phase-2)
+- [Governance On-chain](#governance-on-chain-phase-5)
+- [Rooms](#rooms-phase-2)
 
 ---
 
@@ -38,11 +38,11 @@
 - ❌ **Screenshot** — user can take a screenshot
 - ❌ **Compromised device** — if the device is compromised, keys are accessible
 
-### Rooms (Phase 2)
+### Rooms
 
 In **phase 2** (password-protected rooms), additional confidentiality principles apply:
 
-- **Room password:** only a password derivative (salt + proof via KDF) is sent to the server. Plaintext password is not transmitted, stored, or logged. Join verification compares proof against the stored value (constant-time). Details — in the [Rooms (Phase 2)](#rooms-phase-2) section below.
+- **Room password:** only a password derivative (salt + proof via KDF) is sent to the server. Plaintext password is not transmitted, stored, or logged. Join verification compares proof against the stored value (constant-time). Details — in the [Rooms](#rooms-phase-2) section below.
 - **Group key:** stored only on clients; server relays only encrypted key bundles (opaque blobs).
 - **Invite tokens:** cryptographically strong, with TTL and optional usage limit; do not reveal roomId without verification.
 
@@ -314,11 +314,11 @@ async function decryptMessage(
 
 ---
 
-## Files: Encryption and Storage (Phase 4)
+## Files: Encryption and Storage
 
 Client implementation: `frontend/src/crypto/fileEncryption.ts` (same AES-256-GCM symmetric key as text messages after ECDH / room group key).
 
-### File Encryption (Phase 4) — Data Flow
+### File Encryption — Data Flow
 
 1. Client encrypts the file (and optionally a separate thumbnail) **before** upload.
 2. `POST /api/files/upload` sends **one** contiguous encrypted blob (`application/octet-stream`); server stores it as `{fileId}.enc` and writes metadata to Redis (`file_meta:{fileId}`).
@@ -356,7 +356,7 @@ Thus on disk and over the network only an opaque binary is stored; the server do
 
 | Level | Rule |
 |---------|---------|
-| Client | MIME whitelist by product category (see Phase 4 plan): images (`image/jpeg`, `image/png`, `image/gif`, `image/webp`), video (`video/mp4`, `video/webm`), documents (`application/pdf`, `text/plain`, `application/zip`). Recommended **original** sizes: up to 10 MB (images), up to 25 MB (video/documents) — before AES-GCM packaging. |
+| Client | MIME whitelist: images (`image/jpeg`, `image/png`, `image/gif`, `image/webp`), video (`video/mp4`, `video/webm`), documents (`application/pdf`, `text/plain`, `application/zip`). Recommended original sizes: up to 10 MB (images), up to 25 MB (video/documents) before encryption. |
 | Server | Upper bound on accepted **encrypted** body: `MAX_ENCRYPTED_FILE_SIZE` (26 MiB); check `Content-Length > 0`; rate limit `POST /api/files/upload`: 10 requests / minute per user (`FILE_UPLOAD_RATE_LIMIT`). MIME type is not checked on REST (file is unreadable). |
 
 ---
@@ -522,7 +522,7 @@ if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
 
 ## Trust Boundary: Verification Ceremony
 
-> Audit observation **FE-11** (REPORT-frontend): server-mediated flag, not cryptography.
+> Audit observation **** ( server-mediated flag, not cryptography.
 
 After ECDH clients show **safety-number** and visual fingerprint computed
 **locally** from sorted SPKI public keys (`ecdh.ts`). Server relays
@@ -706,17 +706,13 @@ E2EE payload (messages, group keys, file blobs) remains opaque; PoW protects **s
 
 ## Protective Mechanisms
 
-> Current rate-limit enum table — in § "Layer 0" [above](#layer-0--rate-limiting-per-internalid).
-> Outdated illustrative snippets (old limits, `rate:` prefix, Spring CSP, sessionStorage keyStore)
-> **removed** — below only pointers to actual code.
-
-### Rate limiting (implementation)
+### Rate limiting
 
 - **Code:** [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java), enum `RateLimitType`.
 - **Algorithm:** fixed-window (Lua `INCR` + one-time `EXPIRE`), not sliding-window.
 - **Redis keys:** `ratelimit:{type}:{internalId}` (not `rate:`).
 - **Limits:** see "Layer 0" table (MESSAGE 60/min, SESSION_CREATE 3/min, …).
-- **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — implemented in
+- **Room password brute-force ():** bucket `ROOM_PASSWORD_FAIL` — implemented in
   `RateLimitService` (`ROOM_PASSWORD_FAIL`, fixed-window per room).
 
 ### Edge rate-limit (nginx)
@@ -730,7 +726,7 @@ per-IP on HTTP/SockJS handshake, app — per-`internalId` on STOMP/REST.
 | `ws_limit` | 5 r/s | 10 (`nodelay`) | `/ws` (SockJS info + transport + upgrade) |
 | `api_limit` | 10 r/s | 20 (`nodelay`) | `/api/**` (including webhook, `/api/auth/`, general `/api/`) |
 
-Agent rewriting nginx "per spec" without these zones reintroduces INF-2 regression.
+Agent rewriting nginx "per spec" without these zones reintroduces  regression.
 
 ### Input validation (implementation)
 
@@ -738,7 +734,7 @@ Agent rewriting nginx "per spec" without these zones reintroduces INF-2 regressi
   encrypted file size ceiling (26 MiB), `FILE_UPLOAD_RATE_LIMIT`, context type strings.
 - **Wire limits:** Jakarta Bean Validation on DTO — e.g. `SendMessageRequest`
   (`@Size(max = 65536)` on `encryptedContent`, regex on `type`, UUID patterns).
-- MIME whitelist on REST upload **not** checked (opaque blob); client whitelist — product policy (Phase 4).
+- MIME whitelist on REST upload **not** checked (opaque blob); client whitelist — product policy.
 
 ### Secure Key Storage (Frontend)
 
@@ -752,7 +748,7 @@ Implementation: [`keyStore.ts`](../../frontend/src/crypto/keyStore.ts), lifecycl
 | Background | Mini App hidden > **45s** → `burnAll('background_timeout')` (`BACKGROUND_BURN_THRESHOLD_MS`) |
 | Private ECDH keys | `generateKeyPair()`: `extractable: false` (`ecdh.ts`) |
 
-**Known deviation (SEC-14 / FE-2):** dev-only **DebugPanel** replay stores
+**Known deviation ( / ):** dev-only **DebugPanel** replay stores
 STOMP bodies (including ciphertext) in `localStorage` (`debug-replay-sessions` via
 `useReplay.ts`). Production must not enable panel; fix — synthesis list §7.
 
@@ -767,7 +763,7 @@ STOMP bodies (including ciphertext) in `localStorage` (`debug-replay-sessions` v
 Invariant: **almost all** Redis keys have TTL. Backend audit (2026-07): **50 of 51**
 patterns with expire.
 
-**Known exception (SEC-13 / F-1):** `room_invites:{roomId}` — `SADD` without
+**Known exception ( / ):** `room_invites:{roomId}` — `SADD` without
 `EXPIRE` (`InviteTokenRepository`). Fix in code — separate task; not ciphertext,
 but violates "100% TTL" wording.
 
@@ -818,7 +814,7 @@ if (!constantTimeEquals(computedHash, providedHash)) {
 
 ---
 
-## Governance On-chain (Phase 5)
+## Governance On-chain
 
 ### Vote Weight Model and Anti-flash-stake
 
@@ -902,132 +898,7 @@ Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c2
 
 ---
 
-## Security Audit (checklist)
-
-> Code verification (2026-07). Items reflect **actual** implementation;
-> known deviations marked explicitly.
-
-### Frontend
-- [x] Web Crypto API instead of JS libraries
-- [x] Unique IV for each message
-- [x] Non-extractable ECDH private keys (`generateKeyPair`: `extractable: false`)
-- [x] E2EE keys in-memory only (`keyStore.ts`), not sessionStorage/localStorage
-- [x] Burn on close / beforeunload; background burn after 45s hidden
-- [ ] DebugPanel replay → localStorage (dev-only deviation, SEC-14)
-
-### Backend (Java)
-- [x] HMAC-SHA256 initData validation
-- [x] Constant-time hash comparison
-- [x] Rate limiting on critical endpoints (`ratelimit:*` keys)
-- [x] Input validation on DTO (Bean Validation)
-- [x] CSP / security headers on nginx (not Spring SecurityConfig)
-- [x] TLS only (no HTTP)
-
-### General
-- [x] Telegram initData expiry check — prod default **24h** (`telegram.mini-app.auth.max-age: 86400`, override `TELEGRAM_AUTH_MAX_AGE`); conscious decision REPORT-backend D1
-- [x] Session TTL in Redis
-- [x] No logging of message content
-- [x] No key storage on server
-- [ ] Redis TTL on **all** keys — 50/51; exception `room_invites:{roomId}` (SEC-13 / F-1, fix separately)
-
----
-
-## Security Testing
-
-### Cryptography Unit Tests (Frontend)
-
-```typescript
-describe('Crypto Module', () => {
-  test('ECDH key exchange produces same shared secret', async () => {
-    const keyPairA = await generateKeyPair();
-    const keyPairB = await generateKeyPair();
-    
-    const publicKeyA = await exportPublicKey(keyPairA.publicKey);
-    const publicKeyB = await exportPublicKey(keyPairB.publicKey);
-    
-    const sharedA = await computeSharedSecret(
-      keyPairA.privateKey,
-      await importPublicKey(publicKeyB)
-    );
-    
-    const sharedB = await computeSharedSecret(
-      keyPairB.privateKey,
-      await importPublicKey(publicKeyA)
-    );
-    
-    expect(toBase64(sharedA)).toBe(toBase64(sharedB));
-  });
-  
-  test('AES-GCM encrypt/decrypt roundtrip', async () => {
-    const key = await generateAESKey();
-    const plaintext = 'Hello, World!';
-    
-    const encrypted = await encrypt(plaintext, key);
-    const decrypted = await decrypt(encrypted, key);
-    
-    expect(decrypted).toBe(plaintext);
-  });
-  
-  test('Different IV produces different ciphertext', async () => {
-    const key = await generateAESKey();
-    const plaintext = 'Same message';
-    
-    const encrypted1 = await encrypt(plaintext, key);
-    const encrypted2 = await encrypt(plaintext, key);
-    
-    expect(encrypted1.iv).not.toBe(encrypted2.iv);
-    expect(encrypted1.ciphertext).not.toBe(encrypted2.ciphertext);
-  });
-});
-```
-
-### Integration Tests (Java)
-
-```java
-@SpringBootTest
-@AutoConfigureWebTestClient
-class TelegramAuthServiceTest {
-    
-    @Autowired
-    private TelegramAuthService authService;
-    
-    @Value("${telegram.bot.token}")
-    private String botToken;
-    
-    @Test
-    void shouldValidateCorrectInitData() {
-        // Generate valid initData
-        String initData = generateValidInitData(botToken, 123456789L);
-        
-        TelegramUser user = authService.validateInitData(initData);
-        
-        assertThat(user.getId()).isEqualTo(123456789L);
-    }
-    
-    @Test
-    void shouldRejectExpiredInitData() {
-        // initData older than configured max-age (prod default 24h — telegram.mini-app.auth.max-age)
-        String initData = generateExpiredInitData(botToken, 123456789L);
-        
-        assertThatThrownBy(() -> authService.validateInitData(initData))
-            .isInstanceOf(UnauthorizedException.class)
-            .hasMessageContaining("expired");
-    }
-    
-    @Test
-    void shouldRejectInvalidHash() {
-        String initData = generateInitDataWithInvalidHash();
-        
-        assertThatThrownBy(() -> authService.validateInitData(initData))
-            .isInstanceOf(UnauthorizedException.class)
-            .hasMessageContaining("Invalid");
-    }
-}
-```
-
----
-
-## Rooms (Phase 2)
+## Rooms
 
 ### Room Password
 

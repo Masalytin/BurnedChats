@@ -2,16 +2,6 @@
 
 > Redis data models, Java DTOs, and TypeScript interfaces
 
-## 📋 Table of Contents
-
-- [Redis Schema](#redis-schema)
-- [Ciphertext Encoding Format (encoding contract)](#ciphertext-encoding-format-encoding-contract)
-- [Java DTOs](#java-dtos)
-- [TypeScript Interfaces](#typescript-interfaces)
-- [Data Validation](#data-validation)
-
----
-
 ## Redis Schema
 
 ### Key Overview
@@ -64,7 +54,6 @@ summarized in the table.
 | `room_join_request:{roomId}:{sender}` | hash | 24h | BY_REQUEST join request |
 | `room_join_requests:{roomId}` | set | 24h | senderInternalId index |
 | `invite:{token}` | hash | until `expiresAt` | Invite token |
-| `room_invites:{roomId}` | set | ❌ **no TTL** (bug F-1) | Token reverse index |
 | `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | TON RPC cache |
 | `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
 | `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
@@ -73,8 +62,6 @@ summarized in the table.
 | `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal cache |
 | `health:test:{timestamp}` | string | 10s | Redis health probe |
 
-> **Planned (not implemented):** `blocked:{tgId}` — user block list; 0
-> occurrences in backend (DM-3). Do not create the key until a dedicated feature ships.
 
 ---
 
@@ -125,7 +112,6 @@ Queue of encrypted messages for the recipient when they are offline at delivery 
 | `messages:count:{recipientInternalId}` | String | Aggregate count of undelivered messages across all user sessions |
 
 **TTL `messages:count:*`:** EXPIRE is set only when the counter transitions to `1`
-(initialization); on subsequent INCR the key may remain without refresh (DM-15).
 
 **TTL and cap:** configured in `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Values must not exceed session metadata TTL (`session.active.ttl`). On overflow the list is trimmed from the head (oldest messages dropped); the server records Micrometer metrics `burnedchats.offline_queue.*` (no user identifiers in tags).
 
@@ -142,7 +128,6 @@ the message leaves the offline queue (delivered online).
 | `fileId` / `thumbnailFileId` | String | Optional for file messages (delete/burn) |
 
 **TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` — **20 min**
-(`MessagesProperties`, default; code is source of truth, DM-2).
 
 #### `message-senders:{sessionId}`
 
@@ -237,7 +222,6 @@ lookup by `@username` / TG ID. Contains optional `internalId` field for enrichin
 `UserResponse`. Wallet-only records are **not** duplicated in `user:{tgId}`.
 
 **TTL:** canonical `user:{internalId}` — **90 days** (refreshed on each login);
-legacy `user:{tgId}` — **7 days** (`UserRepository.DEFAULT_TTL`, DM-6).
 
 ### `auth_tg:{telegramId}` / `auth_wallet:{walletAddress}`
 
@@ -275,7 +259,6 @@ Order: communication entities first (1–4), identity last (5), client ack after
 ### `ratelimit:{type}:{userId}`
 
 Rate limiting counters (STOMP and shared identity). Prefix **`ratelimit:`**
-(`RateLimitService.KEY_PREFIX`, DM-1).
 
 ```redis
 INCR ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
@@ -285,7 +268,6 @@ EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 | Type (`RateLimitType`) | Window | Max (default) | Note |
 |------------------------|------|---------------|------------|
 | `search` | 60s | 10 | |
-| `session_create` | **60s** | **3** | DM-1: was 300s in old spec |
 | `message` | 60s | **60** | override: `rate-limit.messages.per-minute` |
 | `session_action` | 60s | 10 | accept/reject |
 | `handshake` | 60s | 10 | key exchange |
@@ -308,7 +290,7 @@ Group `burn_all` — `/app/user.burnAll`, 3 req/min per `internalId`.
 
 ---
 
-### Phase 5: TON RPC cache (`TonService`)
+### TON RPC cache (`TonService`)
 
 Stable `runGetMethod` / `getAddressInformation` responses are cached in Redis with keys:
 
@@ -316,7 +298,7 @@ Stable `runGetMethod` / `getAddressInformation` responses are cached in Redis wi
 |--------------|-----|------------|
 | `ton:rpc:{address}:{method}:{argsHash}` | `app.ton.cache.ttl-seconds` | Normalized address, get-method name, SHA-256 of stack args JSON |
 
-### Phase 5: Jetton (`JettonService`)
+### Jetton (`JettonService`)
 
 | Key pattern | TTL | Value |
 |--------------|-----|----------|
@@ -326,7 +308,7 @@ Stable `runGetMethod` / `getAddressInformation` responses are cached in Redis wi
 
 Address in the key suffix is normalized as `workchain:hex` (see `TonAddressBoc.normalizeKey`).
 
-### Phase 5: Staking (`StakingVerifier`)
+### Staking (`StakingVerifier`)
 
 | Key pattern | TTL | Value |
 |--------------|-----|----------|
@@ -336,7 +318,7 @@ Address in the key suffix is normalized as `workchain:hex` (see `TonAddressBoc.n
 
 ---
 
-## Phase 2: Rooms (Redis)
+## Rooms (Redis)
 
 > Below — target key structures.
 
@@ -518,7 +500,6 @@ SADD room_invites:uuid-room-1 "abc123token"
 EXPIRE invite:abc123token 604800
 ```
 
-> **Known bug (F-1 / DM-5):** `room_invites:{roomId}` is written **without EXPIRE**
 > (`InviteTokenRepository`). Index may outlive the room; fix is a separate
 > backend task, not in scope of this spec.
 
@@ -566,7 +547,6 @@ Legacy keys `room_join_request:{roomId}` (list by `senderTgId`) are not migrated
 
 Encrypted copies of the group key for members (opaque blobs). Recipient index is `recipientInternalId` in `EncryptedKeyBundle`. Server does not decrypt.
 
-**TTL:** hash `room_keys:{roomId}:{epoch}` — **7 days**; counter `room_key_epoch:{roomId}` — **30 days** (DM-16).
 
 ### `messages:{roomId}`
 
@@ -588,7 +568,7 @@ only the list key TTL applies.
 
 ---
 
-## Phase 4: Files (Redis)
+## Files (Redis)
 
 > Implementation: `FileMetadataRepository`, `FileMetadata`.
 
@@ -657,7 +637,6 @@ All cryptographic blobs at the **frontend ↔ backend ↔ Redis** boundary are e
 and **never** decodes/decrypts content — only metadata (length for
 validation, timestamps for prune). Server does not see encryption keys.
 
-> **Why documented.** Code ↔ spec audit found encoding format was described
 > inconsistently. No base64 vs base64url mismatches **were found** — contract is unified.
 
 ---
@@ -779,7 +758,6 @@ public class TelegramUser implements Serializable {
     @Builder.Default
     private boolean isPremium = false;
     @Builder.Default
-    private Instant cachedAt = Instant.now();  // DM-17: not Jackson @JsonProperty
 }
 ```
 
@@ -889,8 +867,6 @@ public class VerificationRequest {
 
 ### Response/Event DTOs
 
-STOMP events carry **`UserResponse`** (not phantom `PeerInfo`, DM-7). Errors are
-**string codes** in the `error` field (no separate `ErrorCode` enum, DM-8).
 
 ```java
 // dto/response/UserResponse.java — peer/sender/recipient in all events
@@ -964,7 +940,6 @@ public class PeerPublicKeyEvent {
     private String error;
 }
 
-// dto/event/NewMessageEvent.java — flat DTO, no EncryptedMessage wrapper (DM-9)
 @Data
 @AllArgsConstructor
 public class NewMessageEvent {
@@ -1010,7 +985,6 @@ public class BurnSignalEvent {
     private String error;
 }
 
-// dto/event/VerificationEvent.java — replaces VerificationStatusEvent (DM-8)
 @Data
 @AllArgsConstructor
 public class VerificationEvent {
@@ -1032,179 +1006,9 @@ and `field` (VALIDATION_ERROR). No separate `ErrorEvent` DTO. Frontend reads
 
 ---
 
-## TypeScript Interfaces
+## TypeScript types
 
-Source of truth for domain types (`UserInfo`, `Session`, `Message`, …):
-`frontend/src/types/index.ts` (DM-11, DM-12).
-
-### Frontend Types
-
-```typescript
-// === USER (maps UserResponse on wire) ===
-
-export interface UserInfo {
-  internalId: string;       // primary routing key
-  id?: number;              // Telegram ID when available
-  username?: string;
-  displayName: string;
-  walletAddress?: string;
-  photoUrl?: string;
-  online: boolean;
-  premium: boolean;
-}
-
-// === MESSAGES ===
-
-export type MessageType = 'text' | 'image' | 'video' | 'file';
-
-export type MessageStatus =
-  | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
-
-export interface Message {
-  id: string;
-  sessionId: string;
-  fromUserId?: number;           // wire may omit for wallet senders (DM-11)
-  encryptedContent: string;
-  iv: string;
-  timestamp: number;
-  status: MessageStatus;
-  type: MessageType;
-  replyToMessageId?: string;
-  fileId?: string;
-  thumbnailFileId?: string;
-  encryptedMeta?: string;
-  fileSize?: number;
-}
-
-// === SESSION ===
-
-export type SessionStatus =
-  | 'pending'       // request sent, awaiting response
-  | 'handshaking'   // key exchange in progress
-  | 'active'
-  | 'expired'
-  | 'burned';       // DM-12: not waiting/connecting
-
-export interface Session {
-  id: string;
-  peerInternalId: string;
-  /** @deprecated Prefer peerInternalId */
-  peerId?: number;
-  peerUsername?: string;
-  peerName: string;
-  status: SessionStatus;
-  createdAt: number;
-  expiresAt?: number;
-  hasUnread?: boolean;
-}
-
-export interface ChatRequest {
-  id: string;
-  fromInternalId: string;
-  fromUserId?: number;
-  fromUsername?: string;
-  fromName: string;
-  secretQuestion?: string;
-  createdAt: number;
-  expiresAt: number;
-}
-
-// === STOMP events (illustrative wire-shapes; full list — API.md) ===
-// Not exported from index.ts — shapes mirror backend event DTOs / handlers.
-
-interface SearchResultEvent {
-  found: boolean;
-  user?: UserInfo;
-  error?: string;
-}
-
-interface SessionCreatedEvent {
-  success: boolean;
-  sessionId?: string;
-  recipient?: UserInfo;
-  hasSecretQuestion: boolean;
-  createdAt?: string;
-  expiresAt?: string;
-  error?: string;
-}
-
-interface SessionAcceptedEvent {
-  success: boolean;
-  sessionId?: string;
-  peer?: UserInfo;
-  acceptedAt?: string;
-  expiresAt?: string;
-  error?: string;
-}
-
-interface IncomingRequestEvent {
-  sessionId: string;
-  sender: UserInfo;
-  fromInternalId: string;
-  hasSecretQuestion: boolean;
-  secretQuestion?: string;
-  createdAt: string;
-  expiresAt: string;
-}
-
-interface NewMessageEvent {
-  success: boolean;
-  sessionId: string;
-  messageId: string;
-  senderId?: number;
-  senderInternalId?: string;
-  encryptedContent: string;
-  iv: string;
-  clientTimestamp: number;
-  serverTimestamp?: string;
-  type?: MessageType;
-  fileId?: string;
-  thumbnailFileId?: string;
-  encryptedMeta?: string;
-  fileSize?: number;
-  replyToMessageId?: string;
-  error?: string;
-}
-
-interface MessageSentEvent {
-  success: boolean;
-  sessionId: string;
-  messageId: string;
-  serverTimestamp?: string;
-  delivered: boolean;
-  queued: boolean;
-  error?: string;
-}
-
-interface BurnSignalEvent {
-  sessionId: string;
-  burnedBy?: number;
-  burnedAt?: string;
-  success: boolean;
-  error?: string;
-}
-
-interface VerificationEvent {
-  success: boolean;
-  sessionId: string;
-  verified?: boolean;
-  peerVerified?: boolean;
-  bothVerified?: boolean;
-  verifiedAt?: string;
-  error?: string;
-}
-
-interface StompErrorPayload {
-  success: false;
-  error: string;           // error code (POW_INVALID, RATE_LIMIT_EXCEEDED, …)
-  message: string;
-  timestamp: string;       // ISO-8601
-  retryAfter?: number;     // RATE_LIMIT_EXCEEDED
-  field?: string;          // VALIDATION_ERROR
-}
-```
-
----
+Source of truth: `frontend/src/types/index.ts`.
 
 ## Data Validation
 
@@ -1265,78 +1069,6 @@ These values are **not** declared in `ValidationConstants`; they are set by
 | `SearchRequest.query` | 1–64 chars | `SearchRequest` `@Size` |
 | `AcceptSessionRequest.secretAnswer` | ≤ 256 chars | `AcceptSessionRequest` `@Size` |
 | `PublicKeyRequest.publicKey` | 44–256 chars Base64 | `PublicKeyRequest` `@Size` |
-
----
-
-## Redis Repository Examples
-
-Simplified fragments of **actual** repositories (DM-10). Do not use
-legacy `participant1/2` fields or key `messages:{sessionId}`.
-
-### Session Repository
-
-```java
-@Repository
-public class SessionRepository {
-
-    private static final String KEY_PREFIX = "session:";
-    private final ReactiveRedisTemplate<String, String> redisTemplate;
-    private final Duration sessionTtl;  // session.active.ttl, default 24h
-
-    public Mono<Session> findById(String sessionId) {
-        return redisTemplate.opsForHash()
-            .entries(keyFor(sessionId))
-            .collectMap(e -> e.getKey().toString(), e -> e.getValue().toString())
-            .filter(map -> !map.isEmpty())
-            .map(this::mapToSession);
-    }
-
-    public Mono<Boolean> save(Session session) {
-        return redisTemplate.opsForHash()
-            .putAll(keyFor(session.getId()), sessionToMap(session))
-            .then(redisTemplate.expire(keyFor(session.getId()), sessionTtl));
-    }
-
-    public Mono<Boolean> updateVerification(String sessionId, String role, boolean verified) {
-        String field = "initiator".equals(role) ? "initiatorVerified" : "responderVerified";
-        return redisTemplate.opsForHash().put(keyFor(sessionId), field, String.valueOf(verified));
-    }
-
-    private String keyFor(String sessionId) {
-        return KEY_PREFIX + sessionId;
-    }
-
-    // mapToSession reads initiatorInternalId, responderInternalId, status, ...
-}
-```
-
-### Message Repository (offline queue)
-
-```java
-@Repository
-public class MessageRepository {
-
-    private static final String KEY_PREFIX = "messages:";
-    private static final String COUNT_PREFIX = "messages:count:";
-
-    public Mono<Long> enqueue(String recipientInternalId, String sessionId, Message message) {
-        String key = KEY_PREFIX + recipientInternalId + ":" + sessionId;
-        return Mono.fromCallable(() -> objectMapper.writeValueAsString(message))
-            .flatMap(json -> redisTemplate.opsForList().rightPush(key, json))
-            .flatMap(size -> redisTemplate.expire(key, offlineQueueTtl).thenReturn(size));
-    }
-
-    public Flux<Message> drainQueue(String recipientInternalId, String sessionId) {
-        String key = KEY_PREFIX + recipientInternalId + ":" + sessionId;
-        return redisTemplate.opsForList().range(key, 0, -1)
-            .map(json -> objectMapper.readValue(json, Message.class));
-    }
-
-    public Mono<Long> deleteQueue(String recipientInternalId, String sessionId) {
-        return redisTemplate.delete(KEY_PREFIX + recipientInternalId + ":" + sessionId);
-    }
-}
-```
 
 ---
 

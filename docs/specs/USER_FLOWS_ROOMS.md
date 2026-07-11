@@ -1,6 +1,6 @@
 # User Flows: Rooms
 
-> User flows and UX decisions for Phase 2 — password-protected rooms, invitations, join requests, group E2EE.
+> User flows for password-protected rooms, invitations, join requests, and group E2EE.
 
 ## 📋 Table of Contents
 

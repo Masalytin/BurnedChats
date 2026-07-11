@@ -76,10 +76,10 @@
 │     │  Verify security        │                                  │
 │     │  code                   │                                  │
 │     │                         │                                  │
-│     │  ┌───┐ ┌───┐ ┌───┐ ┌───┐│                                  │
-│     │  │◆  │ │○  │ │□  │ │△  ││                                  │
-│     │  │RED│ │BLU│ │GRN│ │PUR││                                  │
-│     │  └───┘ └───┘ └───┘ └───┘│                                  │
+│     │  Safety number + emoji fingerprint          │
+│     │  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐              │
+│     │  │🦊│ │🍎│ │🚀│ │🐼│ │⭐│ │🐧│              │
+│     │  └──┘ └──┘ └──┘ └──┘ └──┘ └──┘              │
 │     │                         │                                  │
 │     │  Ask your peer whether  │                                  │
 │     │  they see the same      │                                  │
@@ -599,7 +599,7 @@ Behavior:
 
 ## Related Documents
 
-- [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) — room flows (Phase 2)
+- [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) — room flows
 - [TELEGRAM.md](./TELEGRAM.md) — SDK and integration
 - [API.md](./API.md) — WebSocket events
 - [SECURITY.md](./SECURITY.md) — Visual Fingerprint

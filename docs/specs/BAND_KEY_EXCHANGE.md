@@ -63,7 +63,7 @@ The server acts as a **rendezvous point** where users find each other by Telegra
 │    │                         │ 4. ACCEPT_REQUEST       │         │
 │    │                         │◄────────────────────────│         │
 │    │                         │                         │         │
-│    │ 5. SESSION_STARTED      │ 5. SESSION_STARTED      │         │
+│    │ 5. SESSION_ACCEPTED     │ 5. SESSION_ACCEPTED     │         │
 │    │◄────────────────────────│────────────────────────►│         │
 │    │                         │                         │         │
 │    │ 6. PUBLIC_KEY_A ────────┼───────────────────────► │         │

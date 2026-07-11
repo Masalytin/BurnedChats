@@ -2,16 +2,6 @@
 
 > WebSocket (STOMP) events and REST endpoints (Java Backend)
 
-## 📋 Table of Contents
-
-- [General Information](#general-information)
-- [REST API](#rest-api)
-- [WebSocket API (STOMP)](#websocket-api-stomp)
-- [Data Types](#data-types)
-- [Error Codes](#error-codes)
-
----
-
 ## General Information
 
 ### Base URL
@@ -165,7 +155,7 @@ GET /api/info
 > (`@project.version@`) — that is a **separate** endpoint; the canonical version for clients is
 > `/api/info` → `0.1.0-SNAPSHOT`.
 
-### Wallet auth (Phase 3): nonce for Ton Connect
+### Wallet auth — nonce for Ton Connect
 
 #### `GET /api/auth/nonce`
 
@@ -274,7 +264,7 @@ without verifying `ton_proof`. Response contract is identical to `POST /api/auth
 
 ---
 
-### Account linking (Phase 3): Telegram ↔ TON wallet
+### Account linking — Telegram ↔ TON wallet
 
 All endpoints below **do not** require a Spring Security cookie: trust is built on valid `initData` (Telegram) and/or verified `walletProof` / opaque `sessionToken`.
 
@@ -372,7 +362,7 @@ Body: `{ "sessionToken": "..." }`. Unlinks Telegram if a wallet remains.
 
 ---
 
-### REST API: Files (Phase 4)
+### REST API: Files
 
 Upload and download of **client-encrypted** blobs. Request/response body is a raw binary stream (`application/octet-stream`), not JSON.
 
@@ -492,7 +482,7 @@ Invalid secret → **401**. Nginx prod proxies the same path
 
 ---
 
-### Phase 5: BURN jetton / staking / governance (backend read services)
+### BURN jetton / staking / governance (read-only REST)
 
 Public **read-only** GET for governance Mini App (cache + TON RPC via `GovernanceVerifier`):
 
@@ -513,17 +503,7 @@ Bodies match `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `
 - Voting before `startTime` is rejected on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; vote not counted).
 - The client must block `CastVote` while `now < startTime`, even if the backend returns `ACTIVE`.
 
-**On-chain vote relay flow and gas budget**
-
-| Step | From → To | Message | Value (TON) | Notes |
-|-----|--------|-----------|-------------|------------|
-| 1 | Wallet → **Governor** | `CastVote` (`0x5a040102`) | attach **≥ `GasVoteAttach` = 0.18** | `require(context().value >= GasVoteAttach, "Need TON for vote")` |
-| 2 | Governor → **StakingMaster** | `GovernorVoteRelay` (`0x5a040019`) | **`value: 0`** | `SendRemainingValue`; VP relay |
-| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **`value: 0`** | `SendRemainingValue`; VP cap from on-chain staking |
-
-- Successful vote: relay remainder is returned to the **voter** from Proposal (`SendRemainingValue | SendIgnoreErrors`).
-- Bounce (rejection at Governor/StakingMaster): value is **consumed** at the hop without `cashback` — voter does not get a refund from truncated bounce body (RC-2 / AD-1).
-- Source of constants: `contracts/governance/governor.tact`; mirror — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`).
+**On-chain voting:** attach >= 0.18 TON with CastVote; voting opens after CANCEL_LAG (3600s) from proposal creation. See contracts/governance/governor.tact and rontend/src/ton/transactionBuilder.ts.
 
 Public **read-only** GET for on-chain wallet data (cache + TON RPC via **`JettonService`**):
 
@@ -597,61 +577,7 @@ Handlers use `AppPrincipal` / `internalId`; casting to `(TelegramPrincipal)` in 
 
 ### Connection
 
-```typescript
-// Frontend - STOMP Client (auth on HTTP handshake; see Authentication)
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
-
-const client = new Client({
-  webSocketFactory: () => new SockJS(
-    `https://api.burnedchats.com/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
-  ),
-  // Broker heartbeat: 10s (WebSocketConfig / application.yml)
-  heartbeatIncoming: 10000,
-  heartbeatOutgoing: 10000,
-  onConnect: () => {
-    console.log('Connected');
-    // Personal queues — current names from code
-    client.subscribe('/user/queue/new-message', handleMessage);
-    client.subscribe('/user/queue/errors', handleError);
-    client.subscribe('/user/queue/sync-messages', handleSync);
-  }
-});
-
-client.activate();
-
-// Presence heartbeat (separate from STOMP broker heartbeat): every ~20s
-setInterval(() => {
-  client.publish({ destination: '/app/heartbeat', body: '{}' });
-}, 20000);
-```
-
-### Connection Lifecycle
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    CONNECTION LIFECYCLE                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Client                              Server                  │
-│    │                                    │                    │
-│    │ ── HTTP WS handshake ─────────────►│                   │
-│    │  (auth headers / SockJS query)     │ validate creds     │
-│    │                                    │                    │
-│    │ ─────── STOMP CONNECT ─────────────►│                   │
-│    │  (confirms principal)               │                    │
-│    │ ◄─────── CONNECTED ────────────────│                    │
-│    │                                    │                    │
-│    │ ─────── SUBSCRIBE ─────────────────►│                   │
-│    │         (/user/queue/*)            │                    │
-│    │                                    │                    │
-│    │ ══════ STOMP heartbeat 10s ═══════│                    │
-│    │ ══════ /app/heartbeat ~20s ═══════│ (presence TTL 30s) │
-│    │                                    │                    │
-│    │ ─────── DISCONNECT ────────────────►│                   │
-│    │                                    │                    │
-└─────────────────────────────────────────────────────────────┘
-```
+SockJS endpoint `/ws`. Auth on HTTP handshake (see Authentication). Broker heartbeat 10s; client sends `/app/heartbeat` ~every 20s (Redis `online:*` TTL 30s).
 
 ---
 
@@ -726,7 +652,7 @@ Non-matching string → `INVALID_QUERY`. Partial UUID / wallet prefix → **not*
 
 Request a PoW challenge before a gated action. The route **does not** require PoW (otherwise chicken-and-egg). **Issuance rate-limit:** `RateLimitService.POW_CHALLENGE` — **10 requests / min / `internalId`**; on exceed → `/user/queue/errors` with `RATE_LIMIT_EXCEEDED` and `retryAfter` (seconds).
 
-**Implemented scope (2026-06-16):** backend **verifies** PoW only on `/app/session.create`; frontend solves PoW only for `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` also accepts `search`, `room_create`, `invite` for challenge issuance — enforcement on those routes is **not yet wired** (future extension).
+PoW is enforced on `/app/session.create` only. Challenge issuance also accepts `search`, `room_create`, `invite` actions; those routes do not verify PoW yet.
 
 **Request** (`PowHandler.PowChallengeRequest`):
 
@@ -849,53 +775,19 @@ Body format (`Map`):
 
 ### `ACCEPT_REQUEST` (`/app/session.accept`)
 
-Accept an incoming chat request.
+**Request** (`AcceptSessionRequest`): `sessionId`, optional `secretAnswer` (same normalization as create).
 
-**Frontend:**
-```typescript
-client.publish({
-  destination: '/app/session.accept',
-  body: JSON.stringify({
-    sessionId: 'abc123',
-    secretAnswer: 'Barsik' // if there was a secret question; same normalization as on create
-  })
-});
+**Response:** `/user/queue/session-accepted` to both participants. Errors (e.g. `WRONG_ANSWER`) on same queue.
 
-// Both participants receive success on `/user/queue/session-accepted`
-client.subscribe('/user/queue/session-accepted', (message) => {
-  const data = JSON.parse(message.body);
-  // success, sessionId, peer, acceptedAt, expiresAt | error
-});
-
-// Accept errors (recipient only), incl. WRONG_ANSWER — answer did not match expected hash
-```
-
-**Backend:** `SessionHandler` — `@MessageMapping("/session.accept")`, event `SessionAcceptedEvent`.
+**Backend:** `SessionHandler` — `@MessageMapping("/session.accept")`.
 
 ---
 
 ### `REJECT_REQUEST` (`/app/session.reject`)
 
-Reject a chat request.
+**Request:** `{ "sessionId": "uuid" }`. Initiator receives `/user/queue/session-rejected`.
 
-**Frontend:**
-```typescript
-client.publish({
-  destination: '/app/session.reject',
-  body: JSON.stringify({
-    sessionId: 'abc123'
-  })
-});
-
-client.subscribe('/user/queue/session-rejected', (message) => {
-  const data = JSON.parse(message.body);
-  // SessionRejectedEvent: sessionId, …
-});
-```
-
-**Backend:** `SessionHandler` — `@MessageMapping("/session.reject")`.
-Delivery to initiator via `StompUserMessenger` by **`internalId`**
-(not Telegram ID). Principal name = `UnifiedUser.internalId()`.
+**Backend:** `SessionHandler` — `@MessageMapping("/session.reject")`. Delivery by `internalId`.
 
 ---
 
@@ -1154,16 +1046,7 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 
 ---
 
-### `TYPING_START` / `TYPING_STOP` — **planned (not implemented)**
-
-> **Status:** destinations `/app/typing/start`, `/app/typing/stop` and queue
-> `/user/queue/peer-typing` **are absent from code** (no `@MessageMapping`, no
-> publications). Do not subscribe or publish — client gets silence.
-> Reserved for future; typing indicator is not supported until implemented.
-
----
-
-### Additional DM / session destinations (code)
+### Additional DM / session destinations
 
 The following routes are implemented in `SessionHandler` / `MessageHandler` /
 `HeartbeatHandler` / `UserPreferenceHandler` and were not previously summarized in one table:
@@ -1213,11 +1096,7 @@ All server events are sent to user personal queues
 | `/user/queue/burn-all-complete` | `BurnAllCompleteEvent` | Global burn-all ack |
 | `/user/queue/errors` | error map | Global STOMP errors (rate-limit, PoW, validation) |
 
-> **Not implemented (not emitted):** `/user/queue/session-started`,
-> `peer-joined`, `peer-left`, `peer-typing`. Do not subscribe.
-> Legacy names from old specs (`messages`, `sync-result`, `error`,
-> `peer-public-key`, `session-burned`, `verification-status`) are **replaced**
-> by table rows above.
+Legacy queue names (`messages`, `peer-public-key`, `session-burned`, `verification-status`) are replaced by the table above.
 
 ### Room user queues
 
@@ -1247,8 +1126,7 @@ All server events are sent to user personal queues
 | `/user/queue/room-message-edited` | Room edit ack/error |
 | `/user/queue/room-message-deleted` | Room delete ack/error |
 
-> Constant `/queue/room-message-error` is **defined but unused** in code —
-> room-send errors go to `/user/queue/room-message-sent`.
+Room send errors are delivered on `/user/queue/room-message-sent`, not a separate error queue.
 
 Topic: `/topic/room/{roomId}` (multiplexed by event type; subscribe only for members).
 
@@ -1306,32 +1184,9 @@ public class UserResponse {
 }
 ```
 
-### Session (Redis + handler logic)
+### Peer display
 
-Participants are addressed by **`initiatorInternalId` / `responderInternalId`**. Optional `initiatorTelegramId` / `responderTelegramId` — for display and Telegram-only branches.
-
-```java
-public class Session {
-    private String id;
-    private String initiatorInternalId;
-    private Long initiatorTelegramId;   // null for wallet-only
-    private String responderInternalId;
-    private Long responderTelegramId;   // null for wallet-only
-    private SessionStatus status;       // PENDING, HANDSHAKE, ACTIVE, BURNED
-    // secretQuestion, secretAnswerHash, initiatorVerified, responderVerified, ...
-    
-    public boolean isParticipant(String internalId) { ... }
-    public String getPeerInternalId(String myInternalId) { ... }
-}
-```
-
-DM peer event delivery (handshake, message, verify, burn): `StompUserMessenger.convertAndSendToInternalId(peerInternalId, ...)`. Numeric `senderId` / `peerId` in events — best-effort when `telegramId` is present.
-
-### PeerInfo / frontend peer display
-
-Current clients use `internalId` as primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated on frontend.
-
----
+Clients use internalId as the primary peer key.
 
 ## Error Codes
 
@@ -1403,155 +1258,7 @@ Body — `Map` with fields `success`, `error`, `message`, `timestamp`
 
 ---
 
-## WebSocket Reconnection
-
-### Reconnection Strategy (Frontend)
-
-```typescript
-const client = new Client({
-  webSocketFactory: () => new SockJS(
-    `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(WebApp.initData)}`
-  ),
-  reconnectDelay: 5000,
-  // STOMP broker heartbeat — 10s (matches WebSocketConfig)
-  heartbeatIncoming: 10000,
-  heartbeatOutgoing: 10000,
-
-  onConnect: () => {
-    if (currentSessionId) {
-      client.publish({
-        destination: '/app/message.sync',
-        body: JSON.stringify({ sessionId: currentSessionId })
-      });
-    }
-  },
-
-  onDisconnect: () => {
-    setConnectionStatus('reconnecting');
-  },
-
-  onStompError: (frame) => {
-    console.error('STOMP error:', frame.headers.message);
-  }
-});
-```
-
----
-
-## Full Flow Example
-
-```typescript
-// 1. Connect (auth on HTTP handshake / SockJS query)
-const client = new Client({
-  webSocketFactory: () => new SockJS(
-    `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
-  ),
-  heartbeatIncoming: 10000,
-  heartbeatOutgoing: 10000
-});
-
-client.onConnect = () => {
-  // 2. Subscribe to current queues
-  client.subscribe('/user/queue/search-result', handleSearchResult);
-  client.subscribe('/user/queue/session-created', handleSessionCreated);
-  client.subscribe('/user/queue/session-accepted', handleSessionAccepted);
-  client.subscribe('/user/queue/incoming-request', handleIncomingRequest);
-  client.subscribe('/user/queue/peer-key', handlePeerPublicKey);
-  client.subscribe('/user/queue/new-message', handleNewMessage);
-  client.subscribe('/user/queue/burn-signal', handleBurnSignal);
-  client.subscribe('/user/queue/errors', handleError);
-  client.subscribe('/user/queue/sync-messages', handleSync);
-
-  // Presence heartbeat ~20s
-  setInterval(() => {
-    client.publish({ destination: '/app/heartbeat', body: '{}' });
-  }, 20000);
-
-  // 3. Search user
-  client.publish({
-    destination: '/app/search',
-    body: JSON.stringify({ query: '@alice' })
-  });
-};
-
-// 4. Handle search result
-function handleSearchResult(message) {
-  const { found, user } = JSON.parse(message.body);
-  if (found) {
-    // 5. Create session (primary: recipientInternalId)
-    client.publish({
-      destination: '/app/session.create',
-      body: JSON.stringify({
-        recipientInternalId: user.internalId,
-        pow: { challengeId: '...', nonce: '...' } // if pow.enabled
-      })
-    });
-  }
-}
-
-// 6. After session-accepted / handshake — key exchange
-async function startHandshake(sessionId: string) {
-  const keyPair = await generateKeyPair();
-  const publicKey = await exportPublicKey(keyPair.publicKey);
-
-  client.publish({
-    destination: '/app/handshake.key',
-    body: JSON.stringify({ sessionId, publicKey })
-  });
-}
-
-// 7. Receive peer key
-async function handlePeerPublicKey(message) {
-  const { publicKey, sessionId } = JSON.parse(message.body);
-  const peerKey = await importPublicKey(publicKey);
-  const sharedKey = await deriveKey(keyPair.privateKey, peerKey);
-
-  const fingerprint = await generateFingerprint(sharedKey);
-  showVerificationUI(fingerprint);
-}
-
-// 8. Send messages
-async function sendMessage(text: string) {
-  const encrypted = await encrypt(text, sharedKey);
-  client.publish({
-    destination: '/app/message.send',
-    body: JSON.stringify({
-      sessionId,
-      messageId: crypto.randomUUID(),
-      encryptedContent: encrypted.ciphertext,
-      iv: encrypted.iv,
-      timestamp: Date.now(),
-      type: 'text'
-    })
-  });
-}
-
-// 9. Receive messages (flat NewMessageEvent)
-async function handleNewMessage(message) {
-  const data = JSON.parse(message.body);
-  const decrypted = await decrypt(
-    { ciphertext: data.encryptedContent, iv: data.iv },
-    sharedKey
-  );
-  displayMessage(decrypted);
-}
-
-// 10. Burn
-function burnSession() {
-  client.publish({
-    destination: '/app/session.burn',
-    body: JSON.stringify({ sessionId })
-  });
-  clearKeys();
-  WebApp.close();
-}
-
-client.activate();
-```
-
----
-
-## Rooms (Phase 2 — P2-1)
+## Rooms
 
 ### CREATE_ROOM
 
@@ -1819,29 +1526,7 @@ and metadata — ciphertext/IV encoding format is uniform (standard Base64), see
 | `ROOM_OWNERSHIP_TRANSFERRED` | `RoomHandler` → `RoomOwnershipTransferredEvent` | room-roles listener | `newOwnerInternalId`, `previousOwnerInternalId` |
 | _(absent)_ — presence | `WebSocketEventListener` → `RoomPresenceEvent` | room-presence listener | `internalId`, `online`, `lastSeen` (no `messageId`/`encryptedContent`) |
 
-**Message handler contract (`handleNewMessage`, `frontend/src/hooks/useRoomMessages.ts`):**
-
-- payload **without** `eventType`, with `messageId` and `encryptedContent`/`iv` (or file
-  fields) — the only case treated as a message and **decrypted**
-  with the room group key;
-- `ROOM_MESSAGE_DELETED` / `ROOM_MESSAGE_EDITED` / `ROOM_MODERATION` handled
-  by dedicated branches (delete / edit / moderation);
-- **any other `eventType`** (`ROOM_NAME_UPDATED`, `ROOM_TTL_UPDATED`,
-  `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) and
-  **any unknown `eventType`** — safe default: early `return`, payload
-  **never** enters text decryption path;
-- payload **without** `eventType` and **without** `messageId` (e.g. `RoomPresenceEvent`) does
-  not create a message or toast: service listener handles it; in
-  `handleNewMessage` missing `encryptedContent` yields typed error
-  (`INVALID_CIPHERTEXT_ENCODING`)
-  and graceful degrade without placeholder (no `messageId`).
-
-> **Why this is documented.** Implicit multiplexer contract was the root cause of
-> decrypt bug on room create (service `ROOM_NAME_UPDATED` fell into
-> text decryption path → `atob(undefined)`).
-
-Below — detailed payloads for each service event (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
-`ROOM_ROLE_UPDATED`, etc.).
+Client routes by `eventType`; chat messages have no `eventType` and include `messageId` + ciphertext fields. Service events must not enter the text decrypt path.
 
 ---
 
