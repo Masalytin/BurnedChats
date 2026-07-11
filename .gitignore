@@ -28,6 +28,7 @@ out/
 # IDE and Editor
 # ========================
 .idea/
+.cursor/
 *.iml
 *.ipr
 *.iws
