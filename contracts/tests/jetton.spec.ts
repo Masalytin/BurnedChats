@@ -24,6 +24,7 @@ import {
 import { setupStakingEnvironment, stakeAs } from './staking-helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 import { ACTIVITY_THRESHOLD_DEFAULT, LARGE_TX_THRESHOLD_10_BURN } from './fixtures/jetton-presets';
+import { Treasury } from '../wrappers/Treasury';
 import '@ton/test-utils';
 
 describe('BurnJetton', () => {
@@ -202,6 +203,45 @@ describe('BurnJetton', () => {
             });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(n);
+        });
+
+        it('fee-path JettonNotification credits Treasury.total_received on cold treasury JW', async () => {
+            const treasuryContract = ctx.blockchain.openContract(
+                await Treasury.prepareInit(ctx.deployer.address, ctx.master.address),
+            );
+            await treasuryContract.send(ctx.deployer.getSender(), { value: toNano('0.2') }, null);
+
+            const feeDest = await ctx.master.sendSetFeeDestinations(
+                ctx.deployer.getSender(),
+                ctx.staking.address,
+                treasuryContract.address,
+            );
+            expect(feeDest.transactions).toHaveTransaction({ success: true });
+
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            expect(await treasuryContract.getGetTotalReceived()).toBe(0n);
+
+            const amount = 100n * NANO_PER_BURN;
+            const expectedTreasury = (amount * 20n) / 10000n;
+            const treasuryJw = await ctx.master.getGetWalletAddress(treasuryContract.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const tx = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+            expect(tx.transactions).toHaveTransaction({ from: wx.address, success: true });
+            expect(tx.transactions).toHaveTransaction({
+                from: treasuryJw,
+                to: treasuryContract.address,
+                success: true,
+            });
+            expect(await treasuryContract.getGetTotalReceived()).toBe(expectedTreasury);
         });
     });
 

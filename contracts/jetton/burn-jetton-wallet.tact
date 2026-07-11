@@ -15,6 +15,9 @@ const minForwardForLiveExcludedCheck: Int = ton("1");
 const gasPoolToMasterAccrual: Int = ton("0.06");
 /// Floor for staking-leg JettonNotification forward (notify handler + accrual msg).
 const gasPoolForwardMin: Int = ton("0.07");
+/// Floor for treasury-leg JettonNotification forward (Treasury.total_received accounting).
+/// 1 nano fails on testnet (`cskip_no_gas`: fwd_fee alone exceeds attach).
+const gasTreasuryForwardMin: Int = ton("0.01");
 /// Headroom on computed pool forward for forward-fee variance.
 const gasPoolForwardEpsilon: Int = ton("0.005");
 const Basechain: Int = 0;
@@ -602,7 +605,7 @@ contract BurnJettonWallet(
             perInternalDeployTon,
             poolFwdTon + fwd + minTonsForStorage + ton("0.02"),
         );
-        let treasFwdTon: Int = 1;
+        let treasFwdTon: Int = gasTreasuryForwardMin;
         let treasDeliverTon = max(
             perInternalDeployTon,
             treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
@@ -646,7 +649,7 @@ contract BurnJettonWallet(
             init: poolWalletInit,
         });
 
-        // Minimal forward so Treasury (jetton owner) receives `JettonNotification` for total_received stats (P5-3-2-1).
+        // Forward enough TON so Treasury receives `JettonNotification` for total_received stats (P5-3-2-1).
         deploy(DeployParameters {
             value: treasDeliverTon,
             bounce: true,
