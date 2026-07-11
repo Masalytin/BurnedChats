@@ -109,7 +109,7 @@ export interface UseRekeyRoomReturn {
  * Also subscribes to `ROOM_REKEY` events for non-owner members — they receive
  * `ROOM_REKEY` as a signal to wait for their new KEY_BUNDLE.
  *
- * Reference: docs/phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md
+ * Reference: docs/specs/GROUP_KEY_PROTOCOL.md
  */
 export function useRekeyRoom({
   isConnected,

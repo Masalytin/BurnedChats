@@ -1,34 +1,22 @@
 # Contributing to Burned Chats
 
-Thank you for your interest in contributing. This repository is the **public OSS
-face** of Burned Chats: product code plus stable specifications under
-`docs/specs/`. Internal backlog, task cards, and agent workflow live in a
-**private maintainer repo** and are not part of this clone.
-
-### Maintainers & AI agents (dual-root)
-
-Task cards, Cursor rules, and backlog validation live in the private sibling repo
-**`BurnedChats-dev`**, not here. To work on cards or run agents:
-
-1. Clone `BurnedChats-dev` next to this repo (same parent folder).
-2. Open **`BurnedChats-dev/BurnedChats.code-workspace`** in Cursor.
-3. Run `node scripts/workspace/check-workspace.mjs` from the private root.
-
-Implement code and update `docs/specs/` in **this** public repo; update cards and
-plans in **private**. See private `docs/AGENT_WORKSPACE.md`.
+Thank you for your interest in contributing. This repository contains the
+**public source** of Burned Chats: application code and stable specifications
+under `docs/specs/`. Product behaviour is defined by those specs — keep them in
+sync when you change APIs, data models, or security-relevant behaviour.
 
 ## Prerequisites
 
 | Module | Requirements |
 |--------|----------------|
-| **Backend** | Java 21, Docker (for integration tests via Testcontainers) |
+| **Backend** | Java 21, Docker (Testcontainers integration tests) |
 | **Frontend** | Node.js 20+ or 22+ |
 | **Contracts** | Node.js 20+ or 22+ |
 | **Local stack** | Docker + Docker Compose (optional; see README Quick start) |
 
 ## Build & test matrix
 
-Run these from the repository root before opening a PR. All commands must exit 0.
+Run from the repository root before opening a PR. All commands must exit 0.
 
 ### Backend
 
@@ -37,8 +25,7 @@ cd backend
 ./gradlew clean build
 ```
 
-Unit/component tests run in `build`. Integration tests (`integrationTest`) require
-a running Docker Engine.
+Integration tests (`integrationTest`) require a running Docker Engine.
 
 ### Frontend
 
@@ -60,13 +47,13 @@ npm run build
 npm test
 ```
 
-Coverage gate for contracts: `npm run test:coverage` (80% minimum) when touching
-Tact code.
+When touching Tact code, also run `npm run test:coverage` (80% minimum on wrappers
+and helpers).
 
 ## Specifications are the contract
 
-When you change behaviour that affects contributors or integrators, update the
-matching spec in the **same change**:
+Update the matching spec in the **same change** when behaviour affects
+contributors or integrators:
 
 | Change type | Update |
 |-------------|--------|
@@ -78,9 +65,6 @@ matching spec in the **same change**:
 | User flows | `docs/specs/USER_FLOWS.md`, `USER_FLOWS_ROOMS.md` |
 | Telegram integration | `docs/specs/TELEGRAM.md` |
 
-Do not link to internal backlog paths (phase plans, improvement reports, task cards,
-decision logs) from public specs — they are not shipped in this repository.
-
 ## Internationalization
 
 All user-visible strings go through i18n. See [`docs/specs/I18N.md`](docs/specs/I18N.md)
@@ -89,25 +73,12 @@ for frontend (`react-i18next`) and backend/bot (`MessageSource`) conventions.
 ## Pull requests
 
 1. Fork and branch from `master`.
-2. Keep commits focused; use conventional scope in messages (`feat(backend): …`,
+2. Keep commits focused; use conventional scopes (`feat(backend): …`,
    `fix(frontend): …`, `docs(specs): …`).
 3. Ensure the build matrix above is green.
 4. Do not force-push to `master`.
-5. AGPL-3.0 applies — network deployments of modified versions must offer
+5. **AGPL-3.0** applies — network deployments of modified versions must offer
    corresponding source to users (see [LICENSE](LICENSE)).
-
-## What is not in this repo
-
-The following are **maintainer-only** and intentionally absent from the public
-clone:
-
-- Phase plans, task cards, decision logs (maintainer-only backlog)
-- Backlog validator and parallel worktree scripts
-- Cursor agent rules and skills
-
-Specs in `docs/specs/` are the authoritative reference for external
-contributors. Questions about roadmap priority or internal cards should go to
-the maintainer via GitHub issues — not by expecting those paths in this tree.
 
 ## Documentation index
 
@@ -125,3 +96,5 @@ the maintainer via GitHub issues — not by expecting those paths in this tree.
 | [TOKENOMICS.md](docs/specs/TOKENOMICS.md) | BURN token |
 | [USER_FLOWS.md](docs/specs/USER_FLOWS.md) | 1:1 chat UX |
 | [USER_FLOWS_ROOMS.md](docs/specs/USER_FLOWS_ROOMS.md) | Rooms UX |
+
+Questions about roadmap or priorities — open a GitHub issue.

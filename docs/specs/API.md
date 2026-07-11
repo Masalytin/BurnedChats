@@ -83,7 +83,7 @@ Handshake без кредов допускается (соединение по�
 | `message.delete` / `room.message.delete` | 30 req | 1 min | `MESSAGE_DELETE` |
 | `room.getMembers` / `room.getPresence` / `room.getBans` | 30 req | 1 min | `ROOM_READ` |
 | `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, не interceptor) |
-| Неудачный proof пароля комнаты (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — ключ `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; атомарный INCR на попытку, reset при успехе (IMP-FAUDIT2-F01) |
+| Неудачный proof пароля комнаты (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — ключ `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; атомарный INCR на попытку, reset при успехе |
 | Прочие незамапленные `/app/*` | 100 req | 1 min | `GENERAL` fallback в `RateLimitInterceptor` |
 | `/app/heartbeat` | exempt | — | presence heartbeat |
 
@@ -508,12 +508,12 @@ Content-Type: application/json
 
 **Окно голосования и состояние `ACTIVE`**
 
-- `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. IMP-PREMNT-08).
+- `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. соответствующий раздел спеки).
 - `startTime = creationTime + CANCEL_LAG` (`governor.tact`); голосование доступно только при **`now >= startTime`** и `now <= endTime`.
 - Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается).
-- Клиент обязан блокировать `CastVote`, пока `now < startTime` (IMP-GOVOTE-01), даже если backend возвращает `ACTIVE`.
+- Клиент обязан блокировать `CastVote`, пока `now < startTime`, даже если backend возвращает `ACTIVE`.
 
-**On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04 / IMP-GOVREFUND-01)**
+**On-chain relay-флоу голоса и газовый бюджет**
 
 | Шаг | От → К | Сообщение | Value (TON) | Примечание |
 |-----|--------|-----------|-------------|------------|
@@ -549,7 +549,7 @@ Frontend (`burnToken.ts`) принимает поля `balanceNano`, `nano` ил
 - **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
 - **502:** `{ "message": "…" }` — сбой Ton Center / transport (`TonRpcException`).
 
-Frontend (`burnToken.ts`) сначала вызывает этот endpoint; при `404`/`501`, `502` (после одного retry) или `jettonWalletAddress: null` переходит на Ton Center RPC из браузера (`jettonWalletResolve.ts`), сохраняя таксономию ошибок из `IMP-BURN-SEND-01`.
+Frontend (`burnToken.ts`) сначала вызывает этот endpoint; при `404`/`501`, `502` (после одного retry) или `jettonWalletAddress: null` переходит на Ton Center RPC из браузера (`jettonWalletResolve.ts`).
 
 **`GET /api/wallet/staking-profile`**
 
@@ -591,7 +591,7 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 **Telegram-only деградация (best-effort, без ошибки для клиента):**
 
 - Бот-уведомления offline DM / chat request — только при `telegramId != null`.
-- File upload в комнатах — валидация ownership по `uploaderInternalId` (канонический `internalId`); legacy-fallback по `uploaderTgId` для метаданных до IMP-WFT-05.
+- File upload в комнатах — валидация ownership по `uploaderInternalId` (канонический `internalId`); legacy-fallback по `uploaderTgId` для старых метаданных.
 
 Хендлеры используют `AppPrincipal` / `internalId`; каст `(TelegramPrincipal)` в бизнес-логике **запрещён**.
 
@@ -726,7 +726,7 @@ setInterval(() => {
 
 Запрос PoW-challenge перед gated-действием. Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
 
-**Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел IMP-ASPOW-04).
+**Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел на будущее расширение).
 
 **Запрос** (`PowHandler.PowChallengeRequest`):
 
@@ -1055,7 +1055,7 @@ client.subscribe('/user/queue/burn-signal', (message) => {
 ### `BURN_ALL` (`/app/user.burnAll`)
 
 Глобальное серверное уничтожение всех данных пользователя одним каскадом
-(IMP-BURNALL-01). Требует живого STOMP-соединения.
+Требует живого STOMP-соединения.
 
 **Frontend:**
 ```typescript
@@ -1097,7 +1097,7 @@ client.subscribe('/user/queue/burn-all-complete', (message) => {
 
 ### `SET_DEADMAN` (`/app/user.setDeadman`)
 
-Dead man's switch: авто-burn при неактивности N дней (IMP-BURNALL-04).
+Dead man's switch: авто-burn при неактивности N дней.
 
 **Frontend:**
 ```typescript
@@ -1329,7 +1329,7 @@ DM-доставка peer-событий (handshake, message, verify, burn): `Sto
 
 ### PeerInfo / frontend peer display
 
-Клиенты IMP-WALLETID-07+ используют `internalId` как primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated на frontend.
+Клиенты current clients  используют `internalId` как primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated на frontend.
 
 ---
 
@@ -1587,7 +1587,7 @@ client `roomId` (AES-GCM AAD = `roomId`).
 
 **Ответ:** `/user/queue/room-created` — `RoomCreatedEvent` с `roomId` и опциональным `inviteUrl` (default token, 7d TTL, unlimited uses).
 
-**Формат `inviteUrl` / `invites[].url` (IMP-WEBINVITE-01):** канонический web-URL
+**Формат `inviteUrl` / `invites[].url`:** канонический web-URL
 `{telegram.mini-app.url}/join#invite_{token}` — токен во **фрагменте** (`#`), не в path/query.
 Fallback при пустом `telegram.mini-app.url`: `https://t.me/{bot}/app?startapp=invite_{token}`.
 Старые t.me-ссылки остаются валидными на клиенте через `start_param`.
@@ -1675,7 +1675,7 @@ Fallback при пустом `telegram.mini-app.url`: `https://t.me/{bot}/app?st
 
 **Ошибки join** (на `/user/queue/room-join-result`): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
 
-**Lockout пароля (`ROOM_PASSWORD_FAIL`):** после 5 неудачных proof за 10 мин (ключ per `roomId`+`internalId`, yaml `rate-limit.room-password-fail.*`) дальнейшие попытки отклоняются. Wire-код на `/user/queue/room-join-result` сейчас **`INTERNAL_ERROR`** — `RoomHandler.mapJoinError` не мапит `RateLimitException` (surfacing отдельной ошибкой — вне этой спеки; см. IMP-FAUDIT2-F01 заметки / W5-4).
+**Lockout пароля (`ROOM_PASSWORD_FAIL`):** после 5 неудачных proof за 10 мин (ключ per `roomId`+`internalId`, yaml `rate-limit.room-password-fail.*`) дальнейшие попытки отклоняются. Wire-код на `/user/queue/room-join-result` сейчас **`INTERNAL_ERROR`** — `RoomHandler.mapJoinError` не мапит `RateLimitException` (surfacing отдельной ошибкой — вне этой спеки; см. соответствующий раздел спеки заметки / W5-4).
 
 **Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
 
@@ -1855,16 +1855,16 @@ STOMP-подписку, поэтому клиент обязан маршрут�
 
 **Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
 
-**Subscribe guard (IMP-ROOM-22):** клиент **обязан** быть аутентифицирован (`AppPrincipal` на STOMP-сессии)
+**Subscribe guard:** клиент **обязан** быть аутентифицирован (`AppPrincipal` на STOMP-сессии)
 и членом комнаты (`room_members:{roomId}`) для `SUBSCRIBE /topic/room/{roomId}`. Иначе сервер
 отклоняет подписку STOMP ERROR (не регистрирует subscription; WebSocket остаётся открытым):
 
-- без principal — код `AUTH_ERROR` в теле/заголовке сообщения (IMP-ROOM-30);
-- без membership — код `NOT_MEMBER` в теле/заголовке сообщения (IMP-ROOM-29).
+- без principal — код `AUTH_ERROR` в теле/заголовке сообщения;
+- без membership — код `NOT_MEMBER` в теле/заголовке сообщения.
 
 Guard дополняет, но не заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
 
-**Force-unsubscribe (IMP-ROOM-25):** после успешного `/app/room.kick`, `/app/room.ban` или `/app/room.leave` сервер
+**Force-unsubscribe:** после успешного `/app/room.kick`, `/app/room.ban` или `/app/room.leave` сервер
 снимает **все** активные подписки удалённого участника на `/topic/room/{roomId}` через
 `SubscriptionRegistry` (все STOMP-сессии пользователя). Это закрывает окно, когда подписка была
 открыта до kick/leave и продолжала получать ciphertext до client disconnect. Re-subscribe по-прежнему
@@ -1975,7 +1975,7 @@ Guard дополняет, но не заменяет обязательный re
 | `roomId` | string | Да | UUID комнаты |
 | `targetInternalId` | string | Да | Internal ID участника для удаления |
 
-**Ответ инициатору (IMP-ROOM-23):** `/user/queue/room-kick-result` (`RoomKickResultEvent`) — ровно одно
+**Ответ инициатору:** `/user/queue/room-kick-result` (`RoomKickResultEvent`) — ровно одно
 событие на каждый запрос kick (success или failure).
 
 **Success:**
@@ -1997,7 +1997,7 @@ Guard дополняет, но не заменяет обязательный re
 }
 ```
 
-**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`; **force-unsubscribe** с `/topic/room/{roomId}` для всех STOMP-сессий жертвы (IMP-ROOM-25).
+**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`; **force-unsubscribe** с `/topic/room/{roomId}` для всех STOMP-сессий жертвы.
 
 **События после успешного кика:**
 
@@ -2024,7 +2024,7 @@ Rate-limit: `SESSION_ACTION` (10/min), как у ban/mute (`RoomHandler.enforceR
 | `roomId` | string | Да | UUID комнаты |
 | `targetInternalId` | string | Да | Internal ID участника для бана |
 
-Логически = kick (IMP-ROOM-03) **+** запись в `room_bans:{roomId}`. Жертва удаляется из membership
+Логически = kick **+** запись в `room_bans:{roomId}`. Жертва удаляется из membership
 и получает те же события, что при kick (`ROOM_KICKED`, `ROOM_MEMBER_REMOVED` остальным); инициатору —
 `ROOM_KICK_RESULT` на `/user/queue/room-kick-result`.
 
@@ -2032,7 +2032,7 @@ Rate-limit: `SESSION_ACTION` (10/min), как у ban/mute (`RoomHandler.enforceR
 `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`).
 
 **Серверный cleanup:** как у kick + `SADD room_bans:{roomId} {targetInternalId}`; force-unsubscribe
-с `/topic/room/{roomId}` (IMP-ROOM-25).
+с `/topic/room/{roomId}`.
 
 Забаненный `internalId` не может повторно вступить (`requestJoin` / `acceptJoin`) → `USER_BANNED`.
 

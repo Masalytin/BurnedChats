@@ -1,33 +1,15 @@
-# Audit Gates — regression layer of the machine audit (IMP-FAUDIT-08).
+# Audit Gates — automated regression checks for contracts and dependencies.
 #
-# Locks in the machine slice of the full-audit-2026-07 process so that defect
-# classes covered by detectors do not come back. This does NOT replace the
-# wave audit (skill `project-audit`): detectors see neither tokenomics nor
-# zero-knowledge logic.
+# Complements manual security review: detectors cover known defect classes
+# (Misti static analysis, npm audit) but not tokenomics or zero-knowledge logic.
 #
-# Baseline / triaged-false-positive policy (see
-# docs/improvements/full-audit-2026-07/TOOLING.md and REPORT-contracts.md):
-#
-# - Misti baseline (2026-07-08): 233 findings, all INFO/LOW/MEDIUM, all 233
-#   triaged in Wave 1 as non-security (gas/style/import hygiene). The gate
-#   therefore fails only on HIGH/CRITICAL (`--min-severity high`) — the entire
-#   triaged baseline sits below the threshold by construction, and any new
-#   HIGH/CRITICAL finding is a regression.
-# - Soufflé is NOT installed here: version 2.4.1 required by Misti 0.9.0 has
-#   no package for ubuntu-latest (24.04, libffi7 gap), so 3 detectors are
-#   auto-disabled (DivideBeforeMultiply, ReadOnlyVariables, UnboundLoop).
-#   All three had 0 findings in the Docker-verified full baseline
-#   (TOOLING.md, "Полный прогон с Soufflé") — the gate runs on 38/41
-#   detectors; the full run remains reproducible via the documented Docker
-#   command.
-# - npm audit (contracts): the production tree only (`--omit=dev`). The dev
-#   toolchain findings (protobufjs critical without fix via
-#   @tact-lang/compiler, axios/ws/etc. via blueprint) are triaged in
-#   TOOLING.md as build-time-only and excluded by omitting dev; nothing from
-#   that chain ships in contract runtime.
-# - npm audit (frontend): full tree at `--audit-level=high`. The 6 low
-#   findings (`elliptic` chain via vite-plugin-node-polyfills) are triaged in
-#   REPORT-frontend.md as not reaching the bundle and sit below the threshold.
+# Baseline policy:
+# - Misti: fail only on HIGH/CRITICAL (`--min-severity high`); INFO/LOW/MEDIUM
+#   baseline triaged as non-security (gas/style/import hygiene).
+# - Soufflé not installed on ubuntu-latest CI (Misti 2.4.1 libffi gap) — 3 detectors
+#   auto-disabled; full 41-detector run is reproducible via Docker locally.
+# - npm audit (contracts): production tree only (`--omit=dev`).
+# - npm audit (frontend): `--audit-level=high`.
 #
 # Note: jobs are not per-path-conditional — a PR touching only frontend/**
 # also runs the contracts jobs (kept simple; total cost is a few minutes).

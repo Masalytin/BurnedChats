@@ -1,6 +1,6 @@
 # contracts — BURN smart contracts (TON)
 
-Smart contracts for Phase 5 (Jetton, Staking, Governance, Treasury, Vesting) live here, isolated from backend and frontend. Stack: [Blueprint](https://github.com/ton-org/blueprint), Sandbox tests, [Tact](https://tact-lang.org/) (FunC/toolchain via Blueprint where needed).
+Smart contracts for the BURN token stack (Jetton, Staking, Governance, Treasury, Vesting) live here, isolated from backend and frontend. Stack: [Blueprint](https://github.com/ton-org/blueprint), Sandbox tests, [Tact](https://tact-lang.org/) (FunC/toolchain via Blueprint where needed).
 
 ## Prerequisites
 

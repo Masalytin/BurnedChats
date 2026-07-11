@@ -366,7 +366,7 @@ async function decryptMessage(
 ### Концепция
 
 Основной канал сверки — **safety-number** (128 бит). Поверх него идёт быстрый
-визуальный якорь: набор **эмодзи** (alphabet v1, см. IMP-FPEMOJI-01) как
+визуальный якорь: набор **эмодзи** (alphabet v1, см. соответствующий раздел спеки) как
 мнемоника, которую проще сравнить «на глаз», чем абстрактные фигуры:
 
 ```
@@ -385,11 +385,11 @@ async function decryptMessage(
 └────────────────────────────────────────┘
 ```
 
-> **История:** до IMP-FPEMOJI-01 визуальный якорь был парой `{ фигура, цвет }`
+> **История:** до emoji alphabet v1 визуальный якорь был парой `{ фигура, цвет }`
 > (6×6, 4 слота). Цвет убран (многоцветные эмодзи делают CSS-`color`
 > ненаблюдаемым), энтропия компенсирована числом слотов и размером алфавита.
 
-### Устранённая уязвимость (IMP-AUDIT-01)
+### Устранённая уязвимость
 
 | Было (устранено) | Стало |
 |------------------|-------|
@@ -423,7 +423,7 @@ function formatSafetyNumber(hashBytes: Uint8Array): string {
   return groups.join(' ');
 }
 
-// Visual fingerprint — emoji alphabet v1 (IMP-FPEMOJI-01)
+// Visual fingerprint — emoji alphabet v1
 const FINGERPRINT_EMOJI = [
   '🐶', '🐱', '🦊', '🐼', '🦁', '🐸', '🐵', '🐧', '🐙', '🦉',
   '🍎', '🍌', '🍉', '🍕', '🌸', '🌙', '⭐', '⚽', '🚗', '🚀',
@@ -464,8 +464,8 @@ safety-number и набор эмодзи — порядок ключей нор�
 в реальном времени **непрактичен** (≈2¹²⁸). Визуальная энтропия после перехода на
 эмодзи **не понижена** (~25.9 бит против прежних ~20.7).
 
-**Намеренная несовместимость:** (1) клиенты до IMP-AUDIT-01 показывают другой
-отпечаток из-за смены источника энтропии; (2) клиенты до IMP-FPEMOJI-01 для той же
+**Намеренная несовместимость:** (1) клиенты до entropy fix показывают другой
+отпечаток из-за смены источника энтропии; (2) клиенты до emoji alphabet v1 для той же
 пары ключей показывают геометрические фигуры, а не эмодзи. Для ephemeral-сессий
 приемлемо.
 
@@ -558,11 +558,11 @@ UI», а не «MITM невозможен». Fingerprint при этом ост�
 | **Modification** | Изменение сообщений | GCM auth tag |
 | **Утечка filesystem / бэкапа файлов** | Физический доступ к диску сервера | Только файлы `.enc` без ключей; отдельно нужен доступ к целевому устройству пользователя |
 | **Утечка «метаданных» файла** | Анализ трафика или Redis | Имя и MIME передаются только в `encryptedMeta`; сервер не может их прочитать |
-| **Room presence (IMP-ROOM-20)** | Член комнаты запрашивает snapshot или подписан на topic | Видит `online` + грубый `lastSeen` других членов — **не** содержимое сообщений |
+| **Room presence** | Член комнаты запрашивает snapshot или подписан на topic | Видит `online` + грубый `lastSeen` других членов — **не** содержимое сообщений |
 
 ### Room presence (metadata)
 
-> Реализация: IMP-ROOM-20. Redis key `room_presence:{roomId}`.
+> Реализация: room presence. Redis key `room_presence:{roomId}`.
 
 Presence — **метаданные WebSocket-соединения**, которые сервер и так наблюдает при relay STOMP.
 Это **снижает приватность** относительно «никто не знает, кто онлайн»:
@@ -570,7 +570,7 @@ Presence — **метаданные WebSocket-соединения**, котор
 - Члены комнаты получают `online` (глобальный heartbeat, ~30s TTL) и `lastSeen` (округление **до минуты**).
 - Данные эфемерны: hash TTL **10 минут**, удаление при manual `BURN_ROOM`.
 - Не затрагивает zero-knowledge invariant для **сообщений и ключей** — только connection metadata.
-- Опциональное room-level отключение presence — отдельная карточка (не реализовано).
+- Опциональное room-level отключение presence — не реализовано.
 
 Mitigations в текущей версии: member-only access, coarse last-seen, короткий TTL.
 
@@ -624,7 +624,7 @@ Telegram-пользователи по-прежнему находятся по 
 
 - Частичный UUID, префикс wallet address, «похожие» строки → `INVALID_QUERY` или `NOT_FOUND`, **не** список кандидатов.
 - Валидация формата на уровне `SearchHandler` / `SearchRequest` — до обращения к Redis.
-- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `ratelimit:search:{internalId}`), в т.ч. для wallet-сессий (IMP-WALLETID-01).
+- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `ratelimit:search:{internalId}`), в т.ч. для wallet-сессий.
 
 ### Zero-knowledge инвариант
 
@@ -650,7 +650,7 @@ Burned Chats использует **эшелонированную** антис�
 - Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis **fixed-window** (Lua `INCR` + одноразовый `EXPIRE` при `count == 1`; ключ `ratelimit:{type}:{internalId}`).
 - Закрывает **флуд от одной идентичности** (search, message, session create и др.).
 - **Не** останавливает Sybil: новая Telegram/wallet-идентичность получает свой счётчик.
-- **STOMP SEND (IMP-WSRL-01):** при превышении лимита в `RateLimitInterceptor` inbound-фрейм **отбрасывается** (`null`), клиент получает `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` на `/user/queue/errors` через `StompUserMessenger` — WebSocket **не** закрывается (в отличие от STOMP ERROR).
+- **STOMP SEND:** при превышении лимита в `RateLimitInterceptor` inbound-фрейм **отбрасывается** (`null`), клиент получает `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` на `/user/queue/errors` через `StompUserMessenger` — WebSocket **не** закрывается (в отличие от STOMP ERROR).
 - **`/app/heartbeat`:** whitelist — не учитывается в `GENERAL`, чтобы presence-heartbeat не рвал соединение после выжженного общего бакета.
 - **Room read-only STOMP:** `/app/room.getMembers`, `/app/room.getPresence`, `/app/room.getBans` → `ROOM_READ` (30 req / min), отдельно от `GENERAL` (100 req / min).
 
@@ -770,7 +770,7 @@ STOMP-тела (в т.ч. ciphertext) в `localStorage` (`debug-replay-sessions`
 паттернов с expire.
 
 **Известное исключение (SEC-13 / F-1):** `room_invites:{roomId}` — `SADD` без
-`EXPIRE` (`InviteTokenRepository`). Fix в коде — отдельная карточка; не ciphertext,
+`EXPIRE` (`InviteTokenRepository`). Fix в коде — отдельная задача; не ciphertext,
 но нарушает формулировку «100% TTL».
 
 ### 4.1. Content-Security-Policy для Telegram Mini App (SPA)
@@ -785,11 +785,11 @@ STOMP-тела (в т.ч. ciphertext) в `localStorage` (`debug-replay-sessions`
 
 Эталонная строка политики для продакшена совпадает с `add_header Content-Security-Policy` в `nginx/prod.conf` (включая `img-src ... blob:` для превью/постеров, использующих object URL для изображений).
 
-**`script-src` (исполнение JS):** `'unsafe-inline'` **не используется** (IMP-AUDIT-04). Production `index.html` после Vite-сборки содержит только внешние скрипты: `'self'` (бандл `/assets/*.js`) и `https://telegram.org` (Telegram WebApp SDK). Inline `<script>` в исходном `frontend/index.html` нет; nonce/hash не требуются до появления inline-скриптов. Динамически вставляемые inline-скрипты (XSS) блокируются. **`style-src 'unsafe-inline'`** оставлен — React/тема используют inline-стили; риск ниже, чем у script XSS для E2EE-клиента.
+**`script-src` (исполнение JS):** `'unsafe-inline'` **не используется**. Production `index.html` после Vite-сборки содержит только внешние скрипты: `'self'` (бандл `/assets/*.js`) и `https://telegram.org` (Telegram WebApp SDK). Inline `<script>` в исходном `frontend/index.html` нет; nonce/hash не требуются до появления inline-скриптов. Динамически вставляемые inline-скрипты (XSS) блокируются. **`style-src 'unsafe-inline'`** оставлен — React/тема используют inline-стили; риск ниже, чем у script XSS для E2EE-клиента.
 
 **Security-заголовки (edge + frontend-контейнер):** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` — задаются в `nginx/prod.conf` и дублируются в `frontend/nginx.prod.conf`. Дополнительно на edge: `X-Frame-Options: DENY` (для Mini App достаточно `frame-ancestors` в CSP).
 
-**Invite URL fragment (IMP-WEBINVITE-01):** сервер генерирует канонический invite-URL
+**Invite URL fragment:** сервер генерирует канонический invite-URL
 `{app-domain}/join#invite_{token}`. Токен размещается в **URL-фрагменте** (`#`), а не в path
 или query: фрагмент не отправляется браузером на сервер, не попадает в nginx access-логи и не
 утекает через `Referer` при переходах на внешние origin. Клиент извлекает токен из
@@ -822,7 +822,7 @@ if (!constantTimeEquals(computedHash, providedHash)) {
 
 ## Governance on-chain (Phase 5)
 
-### Модель веса голоса и анти-flash-stake (IMP-FAUDIT-F01 / F-2)
+### Модель веса голоса и анти-flash-stake
 
 **Инвариант (после фикса F-2):** знаменатель кворума и эффективный вес голоса
 согласованы по **локу капитала**, а не по live-стейку на момент релея.
@@ -830,7 +830,7 @@ if (!constantTimeEquals(computedHash, providedHash)) {
 1. **Знаменатель кворума** фиксируется при создании proposal: Governor запрашивает
    у StakingMaster `RequestTotalVpSnapshot` → `TotalVpSnapshotReply.totalVp`,
    считает `quorumRequired = totalVp × quorumPercent / 100` и деплоит Proposal
-   с этим знаменателем (IMP-AUDIT-02).
+   с этим знаменателем.
 2. **Вес голоса** при `CastVote` → `GovernorVoteRelay` считается как
    `min(claimedVp, Σ VP стейков с unlockTime > proposal.endTime)`.
    StakingMaster использует `computeOwnerVotingPowerLockedBeyond(voter, voteEndTime)`;
@@ -864,7 +864,7 @@ if (!constantTimeEquals(computedHash, providedHash)) {
 **Подтверждённый инцидент (testnet):** Governor ⇄ StakingMaster при `GovernorVoteRelay` —
 self-DoS через cashback-петлю (~349 пустых hop'ов в одном trace).
 
-**Принятый паттерн предотвращения (IMP-GOVOTE-02):**
+**Принятый паттерн предотвращения:**
 
 1. **Refund voter, не partner:** в `StakingMaster.GovernorVoteRelay` после форварда
    `ProposalVoteRelay` остаток relay отправляется на **`msg.voter`** терминальным режимом
@@ -873,13 +873,13 @@ self-DoS через cashback-петлю (~349 пустых hop'ов в одно�
    - `governor.tact` — `receive()`: cashback только если `sender() != stakingMaster`;
    - `staking-master.tact` — `receive()`: cashback только если `sender() != governorAddr`.
 3. **Bounce-хендлеры без re-ping:** `bounced<GovernorVoteRelay>` / `bounced<ProposalVoteRelay>`
-   не вызывают `cashback(sender())` в адрес партнёра (IMP-GOVOTE-03).
+   не вызывают `cashback(sender())` в адрес партнёра.
 
 Паттерн (2) уже используется в staking stack (Pool ↔ Master). При добавлении новых
 relay-цепочек между auto-cashback контрактами — **не** завершать relay терминальным cashback
 в служебный контракт-партнёр; возвращать остаток инициатору или явному beneficiary.
 
-### Fee-exempt transfers и stale excluded snapshot (IMP-STKFEE-02)
+### Fee-exempt transfers и stale excluded snapshot
 
 **Проблема:** `BurnJettonWallet.JettonTransfer` проверяет excluded-статус по **локальному снимку**
 `feeConfig` отправителя. Если `StakingMaster` (или другой protocol sink) добавлен в excluded на
@@ -890,7 +890,7 @@ relay-цепочек между auto-cashback контрактами — **не*
 
 1. Локальный fast-path: отправитель или получатель в локальном excluded-снимке → excluded transfer.
 2. Обычный P2P (`forwardTonAmount < 1 TON`, не excluded локально) → fee path без hop на master
-   (газовый профиль IMP-JETTON-GAS-06 сохранён).
+   (газовый профиль warm-wallet path сохранён).
 3. Protocol notify path (`forwardTonAmount ≥ 1 TON`, типичный стейкинг) при отсутствии локального
    excluded → `ResolveJettonTransfer` (wallet → master). Мастер сверяет **живой** `excludedHead`,
    пушит актуальный `JettonUpdateFeeConfig` на отправителя и выполняет `CommitJettonTransfer`.
@@ -906,7 +906,7 @@ Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c2
 
 ## Аудит безопасности (чеклист)
 
-> Сверка с кодом: IMP-FAUDIT-F08 (2026-07). Пункты отражают **фактическую** реализацию;
+> Сверка с кодом (2026-07). Пункты отражают **фактическую** реализацию;
 > известные отклонения помечены явно.
 
 ### Frontend
@@ -1100,18 +1100,18 @@ class TelegramAuthServiceTest {
 
 - Генерируется на клиенте (владелец) при создании комнаты. Хранится в keyStore на устройствах участников.
 - При добавлении нового участника групповой ключ шифруется его публичным ключом и доставляется через сервер (relay). Сервер не расшифровывает и не хранит ключ в открытом виде.
-- При **добровольном** выходе участника (`/app/room.leave`) владелец получает `ROOM_MEMBER_LEFT` и **должен** выполнить rekey: новый групповой ключ рассылается оставшимся; у вышедшего нет доступа к новому ключу. **Force-unsubscribe (IMP-ROOM-25):** сервер снимает активные подписки вышедшего на `/topic/room/{roomId}` — он не получает новые ciphertext на открытой сессии до disconnect.
-- При **принудительном** удалении (`/app/room.kick`, `/app/room.ban`) сервер удаляет жертву из membership, pubkey, join-request и **всех эпох** `room_keys:{roomId}:{epoch}`. Оставшиеся получают `ROOM_MEMBER_REMOVED`; владелец **обязан** немедленно выполнить rekey (`/app/room.rekey`). **Subscribe-guard (IMP-ROOM-22):** inbound STOMP interceptor отклоняет `SUBSCRIBE /topic/room/{roomId}` для не-членов (`NOT_MEMBER` STOMP ERROR) — удалённый участник не может получать новые ciphertext через topic даже до rekey. **Force-unsubscribe (IMP-ROOM-25):** сервер снимает уже открытые подписки жертвы на room topic сразу после kick/ban (все сессии/вкладки); подписки `/user/queue/*` не затрагиваются. Rekey client-driven — сервер relay + cleanup Redis + membership guard + subscription cut-off.
-- **Ban (IMP-ROOM-09):** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Забаненный `internalId` получает `USER_BANNED` при любой попытке join (любой invite token). Бан привязан к **identity** (`internalId`), не к «человеку»: wallet-only identity стабильна; Telegram→internalId детерминирован; **новый кошелёк = новый internalId** и обходит бан прежней identity. Это осознанное ограничение модели угроз (см. wallet-only identity в [ARCHITECTURE.md](./ARCHITECTURE.md)).
-- **Mute (IMP-ROOM-11):** `/app/room.mute` добавляет `internalId` в `room_muted:{roomId}` **без** удаления из membership и **без** rekey. Заглушённый участник сохраняет групповой ключ на клиенте и может **читать** ciphertext; сервер отклоняет только `/app/room.message.send` с кодом `MUTED`. Zero-knowledge не нарушается — это policy relay, не доступ сервера к ключам.
-- **Read-only (IMP-ROOM-11):** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic.
-- **Роли (IMP-ROOM-13 + IMP-ROOM-14):** источник истины владельца — `room.ownerInternalId`. Overlay `room_roles:{roomId}` хранит только `admin` \| `member` (отсутствие записи = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
-  - **Owner-only:** burn, transfer ownership, setRole, setTtl (IMP-ROOM-16), ban/unban/getBans.
+- При **добровольном** выходе участника (`/app/room.leave`) владелец получает `ROOM_MEMBER_LEFT` и **должен** выполнить rekey: новый групповой ключ рассылается оставшимся; у вышедшего нет доступа к новому ключу. **Force-unsubscribe:** сервер снимает активные подписки вышедшего на `/topic/room/{roomId}` — он не получает новые ciphertext на открытой сессии до disconnect.
+- При **принудительном** удалении (`/app/room.kick`, `/app/room.ban`) сервер удаляет жертву из membership, pubkey, join-request и **всех эпох** `room_keys:{roomId}:{epoch}`. Оставшиеся получают `ROOM_MEMBER_REMOVED`; владелец **обязан** немедленно выполнить rekey (`/app/room.rekey`). **Subscribe-guard:** inbound STOMP interceptor отклоняет `SUBSCRIBE /topic/room/{roomId}` для не-членов (`NOT_MEMBER` STOMP ERROR) — удалённый участник не может получать новые ciphertext через topic даже до rekey. **Force-unsubscribe:** сервер снимает уже открытые подписки жертвы на room topic сразу после kick/ban (все сессии/вкладки); подписки `/user/queue/*` не затрагиваются. Rekey client-driven — сервер relay + cleanup Redis + membership guard + subscription cut-off.
+- **Ban:** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Забаненный `internalId` получает `USER_BANNED` при любой попытке join (любой invite token). Бан привязан к **identity** (`internalId`), не к «человеку»: wallet-only identity стабильна; Telegram→internalId детерминирован; **новый кошелёк = новый internalId** и обходит бан прежней identity. Это осознанное ограничение модели угроз (см. wallet-only identity в [ARCHITECTURE.md](./ARCHITECTURE.md)).
+- **Mute:** `/app/room.mute` добавляет `internalId` в `room_muted:{roomId}` **без** удаления из membership и **без** rekey. Заглушённый участник сохраняет групповой ключ на клиенте и может **читать** ciphertext; сервер отклоняет только `/app/room.message.send` с кодом `MUTED`. Zero-knowledge не нарушается — это policy relay, не доступ сервера к ключам.
+- **Read-only:** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic.
+- **Роли:** источник истины владельца — `room.ownerInternalId`. Overlay `room_roles:{roomId}` хранит только `admin` \| `member` (отсутствие записи = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
+  - **Owner-only:** burn, transfer ownership, setRole, setTtl, ban/unban/getBans.
   - **Admin or owner:** kick, getInviteLink/revokeInvite/getInvites, mute/unmute/setReadOnly.
   - **Admin restrictions:** не может kick/mute owner или другого admin (`CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`).
   - **setRole** (`/app/room.setRole`, owner-only): `role ∈ {admin, member}`; target ∈ members; нельзя назначить owner через overlay; broadcast `ROOM_ROLE_UPDATED`.
-  - **Transfer ownership** (`/app/room.transferOwnership`, owner-only): как в IMP-ROOM-13.
-  - **Managed TTL / auto-burn (IMP-ROOM-16):** owner задаёт `autoBurnAt` через `/app/room.setTtl`
+  - **Transfer ownership** (`/app/room.transferOwnership`, owner-only).
+  - **Managed TTL / auto-burn:** owner задаёт `autoBurnAt` через `/app/room.setTtl`
     (`ttlSeconds` или абсолютный epoch). Сервер хранит поле в `room:{roomId}`, капит activity-TTL
     hash-ключа по этому instant и ставит dedicated trigger `room:autoburn:{roomId}` (не продлевается
     активностью). По истечении trigger key — полный каскад BURN_ROOM + `ROOM_BURNED` всем членам

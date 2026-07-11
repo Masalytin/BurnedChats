@@ -74,7 +74,7 @@
 | `health:test:{timestamp}` | string | 10s | Redis health probe |
 
 > **Planned (не реализовано):** `blocked:{tgId}` — user-block list; в backend 0
-> вхождений (DM-3). Не создавать ключ до появления карточки фичи.
+> вхождений (DM-3). не создавать ключ до появления отдельной фичи.
 
 ---
 
@@ -250,7 +250,7 @@ EXPIRE auth_tg:111222333 7776000
 EXPIRE auth_wallet:EQ... 7776000
 ```
 
-#### Жизненный цикл при `burnAllForUser` (IMP-BURNALL-01)
+#### Жизненный цикл при `burnAllForUser`
 
 | Ключ / паттерн | `wipeIdentity=false` | `wipeIdentity=true` | Примечание |
 |----------------|----------------------|---------------------|------------|
@@ -355,8 +355,8 @@ HSET room:uuid-room-1
   nameEncrypted   "base64..."     # опционально; opaque ciphertext
   nameIv          "base64..."     # опционально; 12-byte GCM IV
   readOnly        "false"         # опционально; true = только owner постит
-  autoBurnAt      "1706745600000" # опционально; epoch ms дедлайна auto-burn (IMP-ROOM-16)
-  messageTtl      "3600"          # опционально; секунды автоуничтожения сообщений; 0 = выкл (IMP-ROOM-18)
+  autoBurnAt      "1706745600000" # опционально; epoch ms дедлайна auto-burn
+  messageTtl      "3600"          # опционально; секунды автоуничтожения сообщений; 0 = выкл
 
 EXPIRE room:uuid-room-1 2592000
 ```
@@ -373,13 +373,13 @@ EXPIRE room:uuid-room-1 2592000
 | `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
 | `readOnly` | boolean | Режим «только чтение»: при `true` отправлять сообщения может только владелец. По умолчанию `false` (отсутствие поля) |
 | `autoBurnAt` | number | Опционально: абсолютный момент auto-burn (Unix ms). Задаётся owner через `/app/room.setTtl`. При наличии activity-продление TTL hash-ключа **капится** этим instant; детерминированный burn — по trigger key ниже |
-| `messageTtl` | number | Опционально: таймер самоуничтожения сообщений комнаты в **секундах**; `0` или отсутствие поля = выкл (только глобальный TTL list `messages:{roomId}`). Задаётся owner через `/app/room.setMessageTtl` (IMP-ROOM-18) |
+| `messageTtl` | number | Опционально: таймер самоуничтожения сообщений комнаты в **секундах**; `0` или отсутствие поля = выкл (только глобальный TTL list `messages:{roomId}`). Задаётся owner через `/app/room.setMessageTtl` |
 
 **TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`), но **не выше** `autoBurnAt`, если поле задано.
 
 ### `room:autoburn:{roomId}`
 
-Dedicated trigger key (string value = `roomId`), TTL = `autoBurnAt - now`. **Не** продлевается активностью. При истечении Redis keyspace listener выполняет полный каскад BURN_ROOM и рассылает `ROOM_BURNED` (IMP-ROOM-16).
+Dedicated trigger key (string value = `roomId`), TTL = `autoBurnAt - now`. **Не** продлевается активностью. При истечении Redis keyspace listener выполняет полный каскад BURN_ROOM и рассылает `ROOM_BURNED`.
 
 ```redis
 SET room:autoburn:uuid-room-1 uuid-room-1 EX 3600
@@ -393,7 +393,7 @@ SET room:autoburn:uuid-room-1 uuid-room-1 EX 3600
 
 ### `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}`
 
-Dead man's switch (IMP-BURNALL-04): если пользователь не подключался `periodDays` дней,
+Dead man's switch: если пользователь не подключался `periodDays` дней,
 срабатывает полный каскад `burnAllForUser` с сохранённым `wipeIdentity`.
 
 Паттерн — две связанные ключи (как `room:autoburn` + данные комнаты):
@@ -430,7 +430,7 @@ SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 
 ### `room_bans:{roomId}`
 
-Банлист комнаты (Set internalId). Запрет повторного join для перечисленных identity (IMP-ROOM-09).
+Банлист комнаты (Set internalId). Запрет повторного join для перечисленных identity.
 
 ```redis
 SADD room_bans:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
@@ -447,7 +447,7 @@ EXPIRE room_bans:uuid-room-1 2592000
 
 ### `room_muted:{roomId}`
 
-Список заглушённых участников (Set internalId). Mute **не** удаляет из membership и **не** требует rekey (IMP-ROOM-11).
+Список заглушённых участников (Set internalId). Mute **не** удаляет из membership и **не** требует rekey.
 
 ```redis
 SADD room_muted:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
@@ -464,7 +464,7 @@ EXPIRE room_muted:uuid-room-1 2592000
 
 ### `room_presence:{roomId}`
 
-Эфемерный presence участников комнаты (Hash internalId → lastSeenMs). **Только метаданные соединения** — не затрагивает ciphertext сообщений или ключи (IMP-ROOM-20).
+Эфемерный presence участников комнаты (Hash internalId → lastSeenMs). **Только метаданные соединения** — не затрагивает ciphertext сообщений или ключи.
 
 ```redis
 HSET room_presence:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "1710000000000"
@@ -483,7 +483,7 @@ EXPIRE room_presence:uuid-room-1 600
 
 ### `room_roles:{roomId}`
 
-Overlay ролей участников (Hash internalId → `admin` | `member`). Роль **owner** не хранится в этом ключе — источник истины `room.ownerInternalId` (IMP-ROOM-13).
+Overlay ролей участников (Hash internalId → `admin` | `member`). Роль **owner** не хранится в этом ключе — источник истины `room.ownerInternalId`.
 
 ```redis
 HSET room_roles:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "admin"
@@ -493,7 +493,7 @@ EXPIRE room_roles:uuid-room-1 2592000
 | Операция | Описание |
 |----------|----------|
 | Transfer ownership | `HSET` предыдущему владельцу → `admin`; `HDEL` у нового владельца (owner из `room` hash) |
-| Set role (IMP-ROOM-14) | `HSET` / `HDEL` для `admin` \| `member` |
+| Set role | `HSET` / `HDEL` для `admin` \| `member` |
 | Role resolve | `roleOf`: owner ← `room.ownerInternalId`; admin ← hash; иначе member |
 | TTL | 30 дней; продлевается при мутациях |
 | BURN_ROOM | `DEL room_roles:{roomId}` |
@@ -520,7 +520,7 @@ EXPIRE invite:abc123token 604800
 
 > **Известный баг (F-1 / DM-5):** `room_invites:{roomId}` пишется **без EXPIRE**
 > (`InviteTokenRepository`). Индекс может пережить комнату; фикс — отдельная
-> backend-карточка, не scope этой спеки.
+> отдельная backend-задача, не scope этой спеки.
 
 | Поле | Тип | Описание |
 |------|-----|----------|
@@ -532,7 +532,7 @@ EXPIRE invite:abc123token 604800
 | `maxUses` | string | Лимит успешных join; пусто = безлимит |
 | `usedCount` | string | Счётчик использований (HINCRBY при join) |
 
-**Enforcement (IMP-ROOM-07):**
+**Enforcement:**
 - При join: `usedCount++` (атомарно); если `usedCount >= maxUses` (и `maxUses > 0`) → токен удаляется (`DEL invite:{token}` + `SREM room_invites:{roomId}`), клиенту `INVITE_EXHAUSTED`.
 - При `usedCount >= maxUses` до join → `INVITE_EXHAUSTED`, токен удаляется.
 - При `expiresAt < now` → `INVITE_EXPIRED`, токен удаляется.
@@ -580,7 +580,7 @@ Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не м�
 
 `RoomMessage.getSenderKey()` резолвит identity для edit/delete и legacy JSON (только `senderTgId`). Переполнение: `max-size-per-room` (по умолчанию 500). **TTL ключа:** `burnedchats.messages.offline-queue.ttl` (24 ч).
 
-**Per-room message TTL (IMP-ROOM-18):** когда в `room:{roomId}` задано `messageTtl > 0`, сервер при
+**Per-room message TTL:** когда в `room:{roomId}` задано `messageTtl > 0`, сервер при
 `/app/room.message.send`, `/app/room.message.sync` и `/app/room.setMessageTtl` выполняет **lazy prune**:
 удаляет из list элементы с `serverTimestamp` (fallback `clientTimestamp`) старше `now - messageTtl`.
 Сервер не расшифровывает ciphertext — только метаданные времени. `messageTtl = 0` — prune отключён,

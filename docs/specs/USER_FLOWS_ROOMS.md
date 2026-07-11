@@ -496,7 +496,7 @@
 
 ### Сценарий 9: Бан участника (Владелец)
 
-> Реализация: IMP-ROOM-09 (backend), IMP-ROOM-10 (frontend). API: `BAN_MEMBER`, `GET_ROOM_BANS`
+> Реализация: см. API.md и SECURITY.md. API: `BAN_MEMBER`, `GET_ROOM_BANS`
 > в [API.md](./API.md); rekey-on-ban — [SECURITY.md](./SECURITY.md).
 
 ```
@@ -524,7 +524,7 @@
 │     │  комнаты.               │                                  │
 │     │                         │                                  │
 │     │  ☑ Заблокировать        │                                  │
-│     │    навсегда             │ ← toggle «бан» (IMP-ROOM-10)     │
+│     │    навсегда             │ ← toggle «бан»     │
 │     │                         │                                  │
 │     │  [Отмена] [Удалить]     │                                  │
 │     └─────────────────────────┘                                  │
@@ -585,7 +585,7 @@
 │                                                                  │
 │  МОДЕЛЬ УГРОЗ: бан привязан к internalId, не к «человеку».       │
 │  Новый кошелёк = новый internalId → обход бана прежней identity. │
-│  Подробнее: [SECURITY.md](./SECURITY.md) § Ban (IMP-ROOM-09).   │
+│  Подробнее: [SECURITY.md](./SECURITY.md) § Ban.   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -757,7 +757,7 @@
 └── Токен удаляется из Redis (invite:{token} + room_invites:{roomId})
 ```
 
-**Реализация (IMP-ROOM-07):** при успешном join `usedCount` инкрементируется атомарно (HINCRBY); при достижении лимита токен удаляется. Владелец может отозвать ссылку досрочно (`/app/room.revokeInvite`) или посмотреть активные (`/app/room.getInvites`).
+**Реализация:** при успешном join `usedCount` инкрементируется атомарно (HINCRBY); при достижении лимита токен удаляется. Владелец может отозвать ссылку досрочно (`/app/room.revokeInvite`) или посмотреть активные (`/app/room.getInvites`).
 
 ### Case R4: Максимум участников в комнате
 
@@ -842,7 +842,7 @@
     (новый кошелёк → новый internalId; см. SECURITY.md — ограничение модели угроз)
 ```
 
-**Реализация (IMP-ROOM-09/10):** бан = kick + `SADD room_bans:{roomId}`; список через
+**Реализация:** бан = kick + `SADD room_bans:{roomId}`; список через
 `/app/room.getBans` → `/user/queue/room-bans`; разбан fire-and-forget через `/app/room.unban`.
 
 ### Case R10: Ошибка бана на стороне владельца

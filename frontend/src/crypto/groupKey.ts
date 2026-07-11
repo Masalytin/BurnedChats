@@ -6,7 +6,7 @@
  * - ECIES-like wrap/unwrap: ECDH ephemeral + HKDF-SHA256 + AES-GCM
  * - extractable=true so the owner can re-wrap the key for new members
  *
- * Reference: docs/phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md
+ * Reference: docs/specs/GROUP_KEY_PROTOCOL.md
  */
 
 import type { KeyBundle } from '@/types';

@@ -268,11 +268,3 @@ npm run lint      # tsc --noEmit
 npm test          # vitest
 npm start         # interactive menu
 ```
-
-## Related improvement cards
-
-- `IMP-SCRIPTS-CLI-01` — this scaffold
-- `IMP-SCRIPTS-CLI-02` — Stack
-- `IMP-SCRIPTS-CLI-03` — Deploy & TON + Diagnostics
-- `IMP-SCRIPTS-CLI-04` — Contracts, SSL, Webhook
-- `IMP-SCRIPTS-CLI-05` — Redis, Backup, Remote

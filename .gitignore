@@ -29,6 +29,7 @@ out/
 # ========================
 .idea/
 .cursor/
+.cursorignore
 *.iml
 *.ipr
 *.iws
@@ -201,9 +202,9 @@ certs/*.p12
 # SSH keys
 .ssh/*
 
-# Python cache (skill scripts)
+# Python cache (utility scripts)
 __pycache__/
 
-# Claude Council (local API keys + query cache)
+# Local agent tool caches (never commit)
 .claude/council-cache/
 .claude/claude-council.local.md

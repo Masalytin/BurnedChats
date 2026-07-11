@@ -282,7 +282,7 @@ export interface SharedSecret {
  * deterministically from SHA-256(sort(pubA, pubB)). The `color` field was
  * removed in IMP-FPEMOJI-01 — multicolor emoji glyphs make a CSS `color`
  * channel invisible/unverifiable, so entropy is carried by the emoji choice
- * alone (see docs/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
+ * alone (see docs/specs/SECURITY.md — visual fingerprint).
  */
 export interface VisualFingerprintElement {
   emoji: string;
@@ -314,7 +314,7 @@ export interface Room {
  * Encrypted group key bundle sent from owner to a new room member.
  * The server relays this opaque blob — it cannot decrypt the group key.
  *
- * Reference: docs/phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md
+ * Reference: docs/specs/GROUP_KEY_PROTOCOL.md
  */
 export interface KeyBundle {
   roomId: string;

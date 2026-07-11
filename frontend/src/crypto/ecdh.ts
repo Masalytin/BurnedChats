@@ -274,7 +274,7 @@ export const VISUAL_FINGERPRINT_SLOTS = 6;
  *
  * Entropy: VISUAL_FINGERPRINT_SLOTS × log2(length) = 6 × log2(20) ≈ 25.9 bits
  * (above the previous shapes×colors ~20.7 bits). See decision log
- * docs/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md.
+ * docs/specs/SECURITY.md (visual fingerprint / emoji alphabet).
  */
 export const FINGERPRINT_EMOJI = [
   '🐶', '🐱', '🦊', '🐼', '🦁', '🐸', '🐵', '🐧', '🐙', '🦉',

@@ -34,7 +34,7 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-BurnedChatsBot}
       - TELEGRAM_MINI_APP_URL=${TELEGRAM_MINI_APP_URL:-https://localhost:3000}
-      # Dev-only agent login (absent in docker-compose.prod.yml; see docs/improvements/dev-auth-provider/)
+      # Dev-only login bypass (absent in docker-compose.prod.yml; see SECURITY.md).
       # Set DEV_AUTH_ENABLED=true explicitly for local agent/UI testing (default: off).
       - DEV_AUTH_ENABLED=${DEV_AUTH_ENABLED:-false}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0

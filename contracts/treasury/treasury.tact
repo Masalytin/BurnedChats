@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Treasury — BURN fee sink; spend only via Timelock (governance) — P5-3-2-1.
+// Treasury — BURN fee sink; spend only via Timelock (governance).
 
 import "../jetton/burn-jetton-wallet";
 
@@ -69,7 +69,7 @@ contract Treasury(
         /// payout would be silently lost. Aborting here leaves `total_spent`/
         /// `spending_log` untouched, so the proposal "Executed" / treasury "no spend"
         /// mismatch is auditable rather than a corrupted record. See
-        /// docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-07-*.
+        /// See docs/specs/TOKENOMICS.md (treasury spend relay gas budget).
         require(context().value >= MIN_SPEND_FORWARD, "Insufficient gas for spend");
 
         let idx = self.spending_count;

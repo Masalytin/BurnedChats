@@ -1,22 +1,17 @@
 # BURN Token — External Audit Package
 
-> Prepared for P5-6-2-2 external smart contract audit.
+> Prepared for external smart contract audit.  
 > Date: 2026-06-28.
 
 ---
 
-## ⛔ Mainnet stop condition
+## Mainnet stop condition
 
 **Mainnet deployment of BURN contracts is forbidden until this external audit completes**
 and all P0/P1 findings are resolved or explicitly accepted by the project owner.
 
-Prerequisite work closed on master:
-
-- Functional blockers: IMP-PREMNT-01, 03, 04, 05, 07–09
-- Relay/cashback pass: IMP-RELAY-01…05
-- Audit package preparation: IMP-PREMNT-06
-
-Next gate: **P5-6-2-2** → then P5-6-3-1 mainnet deploy.
+Prerequisite engineering work on `master` is complete: functional blockers closed,
+relay/cashback paths verified, and this audit package assembled.
 
 ---
 
@@ -87,8 +82,8 @@ Synced with [SECURITY.md](../docs/specs/SECURITY.md) (Governance on-chain sectio
 | Class | Description | Status |
 |-------|-------------|:------:|
 | **RC-A** | Cashback-loop between `receive()` handlers | Fixed/verified — see Appendix A |
-| **RC-B** | Insufficient gas propagation multi-hop | Fixed — TreasurySpend relay (IMP-PREMNT-07) |
-| **RC-C** | Frontend `attachedTon` / `responseAddress` mismatch | Verified — IMP-RELAY-05 |
+| **RC-B** | Insufficient gas propagation multi-hop | Fixed — TreasurySpend relay gas budget |
+| **RC-C** | Frontend `attachedTon` / `responseAddress` mismatch | Verified — frontend attach parity tests |
 
 Reference: relay audit matrix in repository history (cashback-loop class RC-A).
 
@@ -96,7 +91,7 @@ Reference: relay audit matrix in repository history (cashback-loop class RC-A).
 
 ## 3. Authority map (post-bootstrap, mainnet-target)
 
-After `contracts/scripts/deploy/bootstrap.ts` (IMP-PREMNT-03):
+After `contracts/scripts/deploy/bootstrap.ts` (timelock-gated bootstrap):
 
 | Contract | Field | Points to | Gated operations |
 |----------|-------|-----------|------------------|
@@ -201,13 +196,13 @@ Source: [`deployments/testnet.json`](deployments/testnet.json) (deployed 2026-06
 
 ## 6. Closed pre-mainnet blockers (for auditor context)
 
-| ID | Issue | Resolution |
-|----|-------|------------|
-| IMP-PREMNT-01 | TreasurySpend opcode/schema mismatch | Fixed in contracts + wrappers |
-| IMP-PREMNT-03 | Bootstrap authority wiring | Timelock-gated admin map (§3) |
-| IMP-PREMNT-04 | Staking pool solvency | Reward funding model in staking contracts |
-| IMP-PREMNT-05 | Close mint | CloseMint gated via Timelock |
-| IMP-PREMNT-07 | TreasurySpend gas budget | Relay gas budget in treasury spend path |
+| Issue | Resolution |
+|-------|------------|
+| TreasurySpend opcode/schema mismatch | Fixed in contracts + wrappers |
+| Bootstrap authority wiring | Timelock-gated admin map (§3) |
+| Staking pool solvency | Reward funding model in staking contracts |
+| Close mint | CloseMint gated via Timelock |
+| TreasurySpend gas budget | Relay gas budget in treasury spend path |
 
 ---
 
@@ -217,13 +212,13 @@ Source: [`deployments/testnet.json`](deployments/testnet.json) (deployed 2026-06
 
 Pre-RELAY incidents (already patched):
 
-| Incident | Class | Card |
-|----------|-------|------|
-| Governor ⇄ StakingMaster cashback loop (~349 hops) | RC-A | IMP-GOVOTE-02 |
-| Proposal ⇄ StakingMaster cashback loop (~164 hops) | RC-A | IMP-GOVOTE-08 |
-| StakingPool ⇄ StakingMaster fee accrual | RC-A | IMP-JETTON-GAS-01 |
-| Excess GRAM to wrong wallet on BURN transfer | RC-C | IMP-WTX-02 |
-| TreasurySpend gas not reaching JW | RC-B | IMP-PREMNT-07 |
+| Incident | Class | Status |
+|----------|-------|--------|
+| Governor ⇄ StakingMaster cashback loop (~349 hops) | RC-A | Fixed |
+| Proposal ⇄ StakingMaster cashback loop (~164 hops) | RC-A | Fixed |
+| StakingPool ⇄ StakingMaster fee accrual | RC-A | Fixed |
+| Excess GRAM to wrong wallet on BURN transfer | RC-C | Fixed |
+| TreasurySpend gas not reaching JW | RC-B | Fixed |
 
 ---
 

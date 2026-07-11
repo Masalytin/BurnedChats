@@ -1,7 +1,7 @@
 /**
  * PoW orchestration: STOMP challenge request → Web Worker solve → PowSolution.
  *
- * Contract: docs/improvements/antispam-pow/DESIGN.md §3.1
+ * Contract: docs/specs/SECURITY.md (anti-spam / PoW section).
  */
 
 import type { IMessage } from '@stomp/stompjs';

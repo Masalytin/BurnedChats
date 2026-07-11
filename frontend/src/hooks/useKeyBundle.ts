@@ -39,7 +39,7 @@ export interface UseKeyBundleReturn {
  *
  * Used for both initial key delivery (P2-3.2.1) and rekey after member leave (P2-3.2.2).
  *
- * Reference: docs/phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md
+ * Reference: docs/specs/GROUP_KEY_PROTOCOL.md
  */
 export function useKeyBundle({
   isConnected,

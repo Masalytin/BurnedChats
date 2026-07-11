@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Payload layouts per ProposalType — must mirror docs/phases phase-5 P5-3-1-2.
+// Payload layouts per ProposalType — must mirror docs/specs/TOKENOMICS.md.
 
 inline fun govAssertTrailingEmpty(s: Slice) {
     require(s.bits() == 0 && s.refs() == 0, "Payload trailing data");

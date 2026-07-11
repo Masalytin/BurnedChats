@@ -72,7 +72,7 @@ function assertNoOutOfGas(transactions: RelayTransactions): void {
 
 /**
  * Relay-audit regression gate: bounded tx count, no out-of-gas, zero empty-body partner hops.
- * See docs/improvements/contracts-relay-audit/ANALYSIS.md — «flow clean» criterion.
+ * See docs/specs/SECURITY.md (governance on-chain / relay flows).
  */
 export function assertRelayFlowClean(
     transactions: RelayTransactions,

@@ -178,7 +178,7 @@ async function ensureWalletFeeConfigSynced(
  * "is this post-deploy step already applied?" by reading contract state, so
  * a re-run after a transient `LITE_SERVER_NOTREADY` (or any other crash)
  * skips already-applied steps instead of blindly re-sending them. See
- * `docs/archive/improvements/contracts-deploy-resilience/REPORT.md`.
+ * See contracts/deployments/README.md for bootstrap resilience notes.
  */
 async function isStakingMasterWired(
     provider: NetworkProvider,

@@ -3,7 +3,7 @@
  *
  * This module is the client-side reference implementation of the cross-platform
  * Hashcash primitive defined in the group source of truth
- * `docs/improvements/antispam-pow/DESIGN.md` (§2). It MUST stay byte-for-byte
+ * `docs/specs/SECURITY.md` (anti-spam / PoW). Wire format MUST stay byte-for-byte
  * compatible with the independent Java backend implementation (IMP-ASPOW-03);
  * any divergence in challenge format, hashing, or the definition of a "solution"
  * is a bug relative to DESIGN.md.

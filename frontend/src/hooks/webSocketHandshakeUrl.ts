@@ -7,9 +7,9 @@ const AUTH_TOKEN_HEADER = 'X-Auth-Token';
 
 /**
  * Builds the SockJS WebSocket URL with auth credentials as query parameters.
- * Backend resolves identity on HTTP/WebSocket upgrade (IMP-AUDIT-23), not on STOMP CONNECT.
+ * Backend resolves identity on HTTP/WebSocket upgrade, not on STOMP CONNECT.
  *
- * @see docs/improvements/tech-audit-2026-06/decisions/IMP-AUDIT-23-handshake-auth-api.md
+ * @see docs/specs/API.md (WebSocket authentication)
  */
 export function buildWebSocketHandshakeUrl(
   baseUrl: string,
