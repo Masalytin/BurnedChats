@@ -76,6 +76,14 @@
   font-weight: 700;
 }
 
+.sheetTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  flex: 1;
+  min-width: 0;
+}
+
 .iconBtn {
   display: inline-flex;
   align-items: center;

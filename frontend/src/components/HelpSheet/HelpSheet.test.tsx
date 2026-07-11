@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +9,12 @@ import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
 import { HelpSheet } from './HelpSheet';
 import { HelpTrigger } from './HelpTrigger';
+
+const helpSheetCssPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'HelpSheet.css',
+);
+const helpSheetCss = readFileSync(helpSheetCssPath, 'utf-8');
 
 const useReducedMotionMock = vi.fn(() => false);
 const backButtonClickHandlers: Array<() => void> = [];
@@ -276,5 +285,48 @@ describe('HelpTrigger + HelpSheet integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /what is this/i }));
     expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+});
+
+describe('HelpSheet UI polish (IMP-HELP-06)', () => {
+  beforeEach(() => {
+    addTestHelpResources();
+  });
+
+  it('styles help-trigger-btn with touch-gated hover and active press feedback', () => {
+    expect(helpSheetCss).toMatch(
+      /\.help-trigger-btn[\s\S]*transition:[\s\S]*transform 160ms/,
+    );
+    expect(helpSheetCss).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.help-trigger-btn:hover/,
+    );
+    expect(helpSheetCss).toMatch(
+      /\.help-trigger-btn:active[\s\S]*transform:\s*scale\(0\.97\)/,
+    );
+  });
+
+  it('styles help-sheet-close-btn with iconBtn-like surface and press feedback', () => {
+    expect(helpSheetCss).toMatch(
+      /\.help-sheet-close-btn[\s\S]*background:\s*var\(--bc-bg-secondary\)/,
+    );
+    expect(helpSheetCss).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.help-sheet-close-btn:hover/,
+    );
+    expect(helpSheetCss).toMatch(
+      /\.help-sheet-close-btn:active[\s\S]*transform:\s*scale\(0\.97\)/,
+    );
+  });
+
+  it('keeps help-sheet-close-btn touch target dimensions', () => {
+    renderHelpSheet();
+
+    const closeBtn = screen.getByLabelText(i18n.t('aria.closeDialog'));
+    expect(closeBtn.className).toBe('help-sheet-close-btn');
+    expect(helpSheetCss).toMatch(
+      /\.help-sheet-close-btn[\s\S]*min-width:\s*var\(--bc-touch-target\)/,
+    );
+    expect(helpSheetCss).toMatch(
+      /\.help-sheet-close-btn[\s\S]*min-height:\s*var\(--bc-touch-target\)/,
+    );
   });
 });

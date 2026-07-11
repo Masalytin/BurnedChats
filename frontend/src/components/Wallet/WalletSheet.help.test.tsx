@@ -10,6 +10,7 @@ import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { WalletSheet } from './WalletSheet';
 import { useWallet } from './WalletProvider';
 
+const useReducedMotionMock = vi.fn(() => false);
 const backButtonClickHandlers: Array<() => void> = [];
 const closeSheet = vi.fn();
 
@@ -17,7 +18,7 @@ vi.mock('motion/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('motion/react')>();
   return {
     ...actual,
-    useReducedMotion: () => false,
+    useReducedMotion: () => useReducedMotionMock(),
   };
 });
 
@@ -122,7 +123,26 @@ describe('WalletSheet nested HelpSheet', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    useReducedMotionMock.mockReturnValue(false);
     backButtonClickHandlers.length = 0;
+  });
+
+  it('marks wallet sheet as reduced-motion when prefers-reduced-motion is active', () => {
+    useReducedMotionMock.mockReturnValue(true);
+    renderOpenWalletSheet();
+
+    const walletDialog = screen.getByRole('dialog');
+    expect(walletDialog.getAttribute('data-reduced-motion')).toBe('true');
+  });
+
+  it('renders HelpTrigger in sheet header on main panel, not in panelHelpRow', () => {
+    renderOpenWalletSheet();
+
+    const helpBtn = screen.getByRole('button', { name: /what is this/i });
+    const header = helpBtn.closest('header');
+    expect(header).toBeTruthy();
+    expect(header?.className).toMatch(/sheetHeader/);
+    expect(document.querySelector('[class*="panelHelpRow"]')).toBeNull();
   });
 
   it('closes only HelpSheet on Escape while wallet sheet stays open', async () => {

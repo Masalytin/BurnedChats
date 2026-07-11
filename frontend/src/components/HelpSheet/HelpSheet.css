@@ -39,19 +39,29 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
   min-width: var(--bc-touch-target);
   min-height: var(--bc-touch-target);
   padding: 0;
   border: none;
-  border-radius: var(--bc-radius-full);
-  background: transparent;
-  color: var(--bc-text-secondary);
-  cursor: pointer;
-}
-
-.help-sheet-close-btn:hover {
+  border-radius: var(--bc-radius-md);
   background: var(--bc-bg-secondary);
   color: var(--bc-text-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform 160ms var(--bc-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .help-sheet-close-btn:hover:not(:disabled) {
+    background: var(--bc-bg-hover);
+  }
+}
+
+.help-sheet-close-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .help-sheet-close-btn:focus-visible {
@@ -91,11 +101,21 @@
   font-size: var(--bc-text-sm);
   font-weight: 600;
   cursor: pointer;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    background-color var(--bc-transition-fast) var(--bc-ease-out),
+    transform 160ms var(--bc-ease-out);
 }
 
-.help-trigger-btn:hover {
-  color: var(--bc-brand-primary);
-  background: var(--bc-bg-secondary);
+@media (hover: hover) and (pointer: fine) {
+  .help-trigger-btn:hover:not(:disabled) {
+    color: var(--bc-brand-primary);
+    background: var(--bc-bg-secondary);
+  }
+}
+
+.help-trigger-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .help-trigger-btn:focus-visible {
