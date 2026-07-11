@@ -58,6 +58,7 @@ import java.util.Map;
  *   <li>Keys are buffered temporarily (transient) and cleared after relay</li>
  *   <li>Only session participants can exchange keys</li>
  *   <li>Session must be in HANDSHAKE status</li>
+ *   <li>Pending key replacement is allowed while waiting for the peer's key (client retry/reconnect)</li>
  * </ul>
  *
  * @see PublicKeyRequest
@@ -157,12 +158,20 @@ public class HandshakeHandler {
             return Mono.empty();
         }
 
-        if (session.getPublicKeyForUser(senderInternalId) != null) {
-            LOG.debug("User {} already submitted key for session {}", senderInternalId, sessionId);
-            return Mono.empty();
+        String existingKey = session.getPublicKeyForUser(senderInternalId);
+        if (existingKey != null) {
+            if (session.areBothKeysReady()) {
+                // Both keys buffered — relay is in progress or imminent; do not corrupt the pair.
+                LOG.debug("User {} already submitted key and both keys ready for session {}",
+                        senderInternalId, sessionId);
+                return Mono.empty();
+            }
+            // Peer has not submitted yet — allow replacement (client retry / reconnect with new ECDH pair).
+            LOG.info("Replacing pending public key: sessionId={}, fromInternalId={}",
+                    sessionId, senderInternalId);
+        } else {
+            LOG.info("Public key received: sessionId={}, fromInternalId={}", sessionId, senderInternalId);
         }
-
-        LOG.info("Public key received: sessionId={}, fromInternalId={}", sessionId, senderInternalId);
 
         return sessionRepository.setPublicKeyAtomic(sessionId, senderInternalId, publicKey)
                 .flatMap(updatedSession -> afterPublicKeyAtomic(

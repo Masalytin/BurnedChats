@@ -141,6 +141,58 @@ class HandshakeVerificationStompIT extends StompIntegrationTestBase {
         }
     }
 
+    /**
+     * Regression: client retry after timeout/reconnect generates a new ECDH pair and re-sends
+     * its public key while the peer has not submitted yet. The server must overwrite the pending
+     * key so both sides receive the same pair at relay (fixes fingerprint mismatch).
+     */
+    @Test
+    void handshakeReplacesPendingKeyBeforePeerSubmits() throws Exception {
+        WebSocketStompClient initiatorClient = StompTestSupport.createStompClient();
+        WebSocketStompClient responderClient = StompTestSupport.createStompClient();
+        try {
+            StompSession initiator = connect(initiatorClient, INITIATOR_INTERNAL_ID);
+            StompSession responder = connect(responderClient, RESPONDER_INTERNAL_ID);
+
+            String sessionId = createAndAccept(initiator, responder);
+
+            BlockingQueue<PeerPublicKeyEvent> initiatorPeerKeys = new LinkedBlockingQueue<>();
+            BlockingQueue<PeerPublicKeyEvent> responderPeerKeys = new LinkedBlockingQueue<>();
+            initiator.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, initiatorPeerKeys));
+            responder.subscribe("/user/queue/peer-key", typedHandler(PeerPublicKeyEvent.class, responderPeerKeys));
+            StompTestSupport.awaitSubscriptionProcessed();
+
+            String supersededInitiatorKey = generateP256PublicKeyBase64();
+            String replacementInitiatorKey = generateP256PublicKeyBase64();
+            String responderKey = generateP256PublicKeyBase64();
+
+            initiator.send("/app/handshake.key",
+                    PublicKeyRequest.builder().sessionId(sessionId).publicKey(supersededInitiatorKey).build());
+            initiator.send("/app/handshake.key",
+                    PublicKeyRequest.builder().sessionId(sessionId).publicKey(replacementInitiatorKey).build());
+
+            assertThat(responderPeerKeys.poll(1, TimeUnit.SECONDS)).isNull();
+
+            responder.send("/app/handshake.key",
+                    PublicKeyRequest.builder().sessionId(sessionId).publicKey(responderKey).build());
+
+            PeerPublicKeyEvent initiatorReceived = initiatorPeerKeys.poll(5, TimeUnit.SECONDS);
+            PeerPublicKeyEvent responderReceived = responderPeerKeys.poll(5, TimeUnit.SECONDS);
+            assertThat(initiatorReceived).isNotNull();
+            assertThat(initiatorReceived.isSuccess()).isTrue();
+            assertThat(initiatorReceived.getPublicKey()).isEqualTo(responderKey);
+            assertThat(responderReceived).isNotNull();
+            assertThat(responderReceived.isSuccess()).isTrue();
+            assertThat(responderReceived.getPublicKey())
+                    .as("relay must use the latest initiator key, not the superseded one")
+                    .isEqualTo(replacementInitiatorKey);
+            assertThat(responderReceived.getPublicKey()).isNotEqualTo(supersededInitiatorKey);
+        } finally {
+            initiatorClient.stop();
+            responderClient.stop();
+        }
+    }
+
     @Test
     void verificationMismatchNotifiesBothParticipants() throws Exception {
         WebSocketStompClient initiatorClient = StompTestSupport.createStompClient();

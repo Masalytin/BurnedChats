@@ -906,13 +906,22 @@ client.subscribe('/user/queue/session-rejected', (message) => {
 
 Отправка публичного ключа ECDH для handshake.
 
+**Формат ключа:** SPKI/ASN.1, Base64 (`exportKey('spki', …)` на клиенте — см. `ecdh.ts`).
+
+**Семантика повторной отправки:** пока пир **не** прислал свой ключ (`!areBothKeysReady()`),
+повторный запрос от того же участника **перезаписывает** его pending-ключ в
+`session:{sessionId}` (сценарий client retry / reconnect с новой ECDH-парой после
+`burn()`). Когда оба ключа уже в буфере — повтор молча игнорируется (relay в процессе).
+После успешного relay ключи очищаются, сессия → `ACTIVE`; для key refresh на `ACTIVE`
+действует тот же принцип перезаписи до ответа пира + `KEY_REFRESH_NEEDED` пиру.
+
 **Frontend:**
 ```typescript
 client.publish({
   destination: '/app/handshake.key',
   body: JSON.stringify({
     sessionId: 'abc123',
-    publicKey: 'Base64EncodedRawKey...'
+    publicKey: 'Base64EncodedSpkiKey...'
   })
 });
 
@@ -926,6 +935,7 @@ client.subscribe('/user/queue/peer-key', (message) => {
 **Backend:** `HandshakeHandler` — `@MessageMapping("/handshake.key")`.
 Peer-доставка: `StompUserMessenger` → `/user/queue/peer-key` по `internalId`.
 Также существует `/user/queue/handshake-refresh` при refresh handshake.
+Rate-limit: `HANDSHAKE` — 10 req/min (см. таблицу выше).
 
 ---
 
