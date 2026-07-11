@@ -106,4 +106,4 @@ Pull requests run `.github/workflows/contracts.yml`: `npm ci`, `npm run build`, 
 | `tests/`               | Sandbox specs                                  |
 | `wrappers/`            | Extra wrappers if not generated under `build/` |
 
-See also `docs/specs/TOKENOMICS.md` and `docs/phases/phase-5-burn-token/DEVELOPMENT_PLAN_BURN_TOKEN.md`.
+See also `docs/specs/TOKENOMICS.md`.

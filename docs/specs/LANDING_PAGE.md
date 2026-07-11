@@ -629,7 +629,7 @@ OG-изображение (`og-image.png`): логотип + слоган на �
 
 ## Связанные документы
 
-- [CONTEXT.md](../CONTEXT.md) — обзор проекта
+- [README.md](../../README.md) — обзор проекта
 - [SECURITY.md](./SECURITY.md) — криптография (источник для технических деталей лендинга)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — архитектура
 - [TELEGRAM.md](./TELEGRAM.md) — интеграция с Telegram (детекция `isInTelegram`)

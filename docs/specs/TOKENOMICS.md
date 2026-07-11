@@ -4,7 +4,6 @@
 
 > **Терминология (с июня 2026):** **TON** — блокчейн и экосистема (The Open Network, TON Connect, TON RPC).
 > **GRAM** — нативная монета сети для gas и комиссий (ранее Toncoin, ticker `TON`; без миграции токена).
-> Подробнее: [TON → GRAM — аудит и политика отображения](../improvements/ton-rebrand-gram/AUDIT.md#1-taxonomy--три-слоя-ton).
 
 ## 📋 Содержание
 
@@ -90,7 +89,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-¹ **GRAM** — официальный post-rebrand ticker нативной монеты TON (ранее Toncoin, ticker `TON`). Блокчейн и продукты экосистемы по-прежнему называются TON. См. [AUDIT.md](../improvements/ton-rebrand-gram/AUDIT.md).
+¹ **GRAM** — официальный post-rebrand ticker нативной монеты TON (ранее Toncoin, ticker `TON`). Блокчейн и продукты экосистемы по-прежнему называются TON.
 
 ---
 
@@ -380,7 +379,7 @@ Staking Pool — отдельный смарт-контракт, выступа�
 
 ### Механика (Variant A — adopted)
 
-1. **BCID-контракт включён в excluded addresses** Jetton Master (см. [P5-1-2-2](../phases/phase-5-burn-token/cards/P5-1-2-2.md); конкретный адрес добавляется после деплоя BCID в [P3-3.1.3](../phases/phase-3-wallet-auth/cards/P3-3-1-3.md)).
+1. **BCID-контракт включён в excluded addresses** Jetton Master; конкретный адрес BCID добавляется после on-chain деплоя.
 2. Пользовательский Jetton **transfer** на адрес BCID-контракта **не** облагается стандартным 1% fee уровня Jetton Wallet (отправитель/получатель excluded по правилам master).
 3. BCID-контракт получает **полную** заявленную сумму (например 0.001 BURN для mint).
 4. Контракт исполняет **исходящие** переводы согласно сплиту 50/30/20 (к excluded burn path / staking pool / treasury — без повторного Jetton fee).
@@ -394,7 +393,7 @@ Staking Pool — отдельный смарт-контракт, выступа�
 
 ### Обоснование
 
-Источник решения: [P3-3-1-1-bcid-fee-semantics.md](../phases/phase-3-wallet-auth/decisions/P3-3-1-1-bcid-fee-semantics.md).
+Variant A — adopted: BCID operations use the 50/30/20 split without stacking the standard 1% Jetton transfer fee.
 
 ---
 
@@ -786,8 +785,6 @@ contracts/
 
 ## Связанные документы
 
-- [TON → GRAM — аудит и политика отображения](../improvements/ton-rebrand-gram/AUDIT.md) — blockchain TON vs native coin GRAM
-- [ROADMAP.md](../ROADMAP.md) — общий roadmap с токеном
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — техническая архитектура
 - [SECURITY.md](./SECURITY.md) — безопасность системы
 - [API.md](./API.md) — API спецификация

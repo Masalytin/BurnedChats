@@ -261,8 +261,7 @@ GET /api/info
 > **В проде отсутствует.** Контроллер существует только под Spring-профилем
 > `dev` И при `DEV_AUTH_ENABLED=true` (по умолчанию `false`). Прод работает на
 > `prod,testnet` — эндпоинт возвращает 404. Назначение: автономная авторизация
-> ИИ-агентов для UI-тестирования, см.
-> [dev-auth-provider](../archive/improvements/dev-auth-provider/README.md).
+> ИИ-агентов для UI-тестирования (dev profile only).
 
 Выдаёт обычный opaque session token для синтетической identity `dev-{label}`
 без проверки `ton_proof`. Контракт ответа идентичен `POST /api/auth/wallet`.
@@ -511,7 +510,7 @@ Content-Type: application/json
 
 - `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. IMP-PREMNT-08).
 - `startTime = creationTime + CANCEL_LAG` (`governor.tact`); голосование доступно только при **`now >= startTime`** и `now <= endTime`.
-- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается). См. [REPORT IMP-GOVOTE](../archive/improvements/governance-vote-tx-fail/REPORT.md) RC-1.
+- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается).
 - Клиент обязан блокировать `CastVote`, пока `now < startTime` (IMP-GOVOTE-01), даже если backend возвращает `ACTIVE`.
 
 **On-chain relay-флоу голоса и газовый бюджет (IMP-GOVOTE-04 / IMP-GOVREFUND-01)**
@@ -524,7 +523,7 @@ Content-Type: application/json
 
 - Успешный голос: остаток relay возвращается **voter'у** из Proposal (`SendRemainingValue | SendIgnoreErrors`).
 - Bounce (отклонение на Governor/StakingMaster): value **поглощается** на hop'е без `cashback` — voter не получает refund из truncated bounce body (RC-2 / AD-1).
-- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`). Decisions: [IMP-GOVOTE-04](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-04-vote-gas-attach.md), [IMP-GOVREFUND-01](../archive/governance-vote-refund-leak/cards/IMP-GOVREFUND-01.md).
+- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`).
 
 Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
 
@@ -574,9 +573,7 @@ Frontend (`burnToken.ts`) сначала вызывает этот endpoint; п�
 
 ### Единая идентичность (`internalId`)
 
-> Реализация: improvement [wallet-only-identity](../archive/improvements/wallet-only-identity/README.md) (карточки IMP-WALLETID-02–06). Decision-логи: `docs/archive/improvements/wallet-only-identity/decisions/`.
-
-**Канонический адресный идентификатор на проводе — `internalId` (UUID-строка).** Числовой Telegram ID (`Long`) остаётся опциональным полем для Telegram-linked пользователей и **не используется** для маршрутизации STOMP.
+> **Канонический адресный идентификатор на проводе — `internalId` (UUID-строка).** Числовой Telegram ID (`Long`) остаётся опциональным полем для Telegram-linked пользователей и **не используется** для маршрутизации STOMP.
 
 | Принципал | STOMP auth | `Principal#getName()` | `telegramId` |
 |-----------|------------|----------------------|--------------|
@@ -727,7 +724,7 @@ setInterval(() => {
 
 ### `POW_CHALLENGE` (`/app/pow.challenge`)
 
-Запрос PoW-challenge перед gated-действием (см. [DESIGN.md](../archive/antispam-pow/DESIGN.md)). Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
+Запрос PoW-challenge перед gated-действием. Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
 
 **Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел IMP-ASPOW-04).
 
@@ -1584,8 +1581,7 @@ client.activate();
 | `nameIv` | string (Base64) | Нет* | 12-byte GCM IV для `nameEncrypted` (max 32 chars Base64) |
 
 \* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии **обязателен**
-client `roomId` (AES-GCM AAD = `roomId`, см.
-[IMP-RCDF-05](../archive/improvements/room-create-decryption-fix/decisions/IMP-RCDF-05-group-key-and-room-id-order.md)).
+client `roomId` (AES-GCM AAD = `roomId`).
 При создании с именем отдельный `SET_ROOM_NAME` **не** требуется — имя сохраняется в Redis
 атомарно с create; `ROOM_NAME_UPDATED` при create **не** публикуется.
 
@@ -1833,19 +1829,16 @@ STOMP-подписку, поэтому клиент обязан маршрут�
 - **любой иной `eventType`** (`ROOM_NAME_UPDATED`, `ROOM_TTL_UPDATED`,
   `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) и
   **любой неизвестный `eventType`** — безопасный дефолт: ранний `return`, payload
-  **никогда** не попадает в путь дешифровки текста (фикс
-  [IMP-RCDF-01](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-01.md));
+  **никогда** не попадает в путь дешифровки текста;
 - payload **без** `eventType` и **без** `messageId` (например `RoomPresenceEvent`) не
   порождает ни сообщения, ни тоста: служебный listener обрабатывает его сам, а в
   `handleNewMessage` отсутствие `encryptedContent` приводит к типизированной ошибке
-  (`INVALID_CIPHERTEXT_ENCODING`, [IMP-RCDF-02](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-02.md))
-  и graceful-degrade без плейсхолдера (нет `messageId`,
-  [IMP-RCDF-03](../archive/improvements/room-create-decryption-fix/cards/IMP-RCDF-03.md)).
+  (`INVALID_CIPHERTEXT_ENCODING`)
+  и graceful-degrade без плейсхолдера (нет `messageId`).
 
 > **Зачем это зафиксировано.** Неявный контракт мультиплексора был корневой причиной
 > бага дешифровки при создании комнаты (служебное `ROOM_NAME_UPDATED` проваливалось в
-> путь дешифровки текста → `atob(undefined)`). Разбор:
-> [room-create-decryption-fix/ANALYSIS.md](../archive/improvements/room-create-decryption-fix/ANALYSIS.md) §2, §4.
+> путь дешифровки текста → `atob(undefined)`).
 
 Ниже — детальные payload'ы каждого служебного события (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
 `ROOM_ROLE_UPDATED`, и т.д.).

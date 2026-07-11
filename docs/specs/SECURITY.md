@@ -42,7 +42,7 @@
 
 В **фазе 2** (комнаты с паролем) действуют дополнительные принципы конфиденциальности:
 
-- **Пароль комнаты:** на сервер передаётся только производная от пароля (salt + proof через KDF). Plaintext пароль не передаётся, не хранится и не логируется. Проверка входа выполняется сравнением proof с сохранённым значением (constant-time). Подробнее — в разделе [Комнаты (Phase 2)](#комнаты-phase-2) ниже и в [phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md).
+- **Пароль комнаты:** на сервер передаётся только производная от пароля (salt + proof через KDF). Plaintext пароль не передаётся, не хранится и не логируется. Проверка входа выполняется сравнением proof с сохранённым значением (constant-time). Подробнее — в разделе [Комнаты (Phase 2)](#комнаты-phase-2) ниже.
 - **Групповой ключ:** хранится только на клиентах; сервер ретранслирует только зашифрованные ключевые бандлы (opaque blobs).
 - **Инвайт-токены:** криптостойкие, с TTL и опциональным лимитом использований; не раскрывают roomId без проверки.
 
@@ -480,8 +480,7 @@ safety-number и набор эмодзи — порядок ключей нор�
    shared secret.
 
 > Версионирование алфавита (`v1`) позволяет пересматривать набор/энтропию без
-> потери детерминизма; решение зафиксировано в
-> [decision log](../archive/improvements/fingerprint-emoji/decisions/IMP-FPEMOJI-01-emoji-alphabet.md).
+> потери детерминизма.
 
 ---
 
@@ -520,9 +519,6 @@ if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
 | Zero-knowledge содержимого | Сервер **видит** plaintext Q/A при create/accept — это **метаданные допуска**, не ciphertext сообщений |
 | Криpto-изоляция ключей | **Нет** — HKDF по-прежнему использует `sessionId` / `BurnedChats-AES-GCM-Key` (`ecdh.ts`), ответ на вопрос salt **не** подменяет |
 | MITM | Не заменяет Visual Fingerprint / safety-number |
-
-> Дедуп аудита: REPORT-frontend **FE-1**; сверка SEC-1 в [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
-
 ---
 
 ## Граница доверия: verification ceremony
@@ -607,14 +603,12 @@ Backend **не доверяет** присланному `walletPublicKey` бе�
 Если клиент не прислал пару полей — fallback на toncenter RPC (`PUBLIC_KEY_UNAVAILABLE` → HTTP 502 при сбое).
 Сервер по-прежнему не хранит приватные ключи; проверка выполняется только на публичных данных кошелька.
 
-См. [API.md](./API.md) (`/api/auth/wallet`), decision logs
-`docs/archive/improvements/wallet-auth-401/decisions/WALLET-401-02-stateinit-verification.md`.
+См. [API.md](./API.md) (`/api/auth/wallet`).
 
 ---
 
 ## Дискаверабилити пользователей (wallet-only identity)
 
-> Реализация: [IMP-WALLETID-02](../archive/improvements/wallet-only-identity/decisions/IMP-WALLETID-02-discoverability.md).
 > STOMP-контракт: [API.md](./API.md#search_user-appsearch).
 
 Wallet-only пользователи не имеют Telegram username / numeric ID. Их можно найти для начала DM по:
@@ -648,9 +642,6 @@ Telegram-пользователи по-прежнему находятся по 
 ---
 
 ## Антиспам / Sybil-защита (PoW)
-
-> Дизайн и threat model: [DESIGN.md](../archive/antispam-pow/DESIGN.md).  
-> Security-review отчёт: [SECURITY_REVIEW.md](../archive/antispam-pow/SECURITY_REVIEW.md).
 
 Burned Chats использует **эшелонированную** антиспам-защиту. PoW (Слой 1) **дополняет**, а не заменяет rate-limit (Слой 0) и **не затрагивает** E2EE / zero-knowledge модель содержимого сообщений.
 
@@ -717,7 +708,6 @@ E2EE payload (сообщения, group keys, file blobs) по-прежнему 
 
 ## Защитные механизмы
 
-> Сверка specs↔код: [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md).
 > Актуальная таблица rate-limit enum — в § «Слой 0» [выше](#слой-0--rate-limiting-per-internalid).
 > Устаревшие illustrative snippet'ы (старые лимиты, `rate:` prefix, Spring CSP, sessionStorage keyStore)
 > **удалены** — ниже только указатели на реальный код.
@@ -729,14 +719,12 @@ E2EE payload (сообщения, group keys, file blobs) по-прежнему 
 - **Redis keys:** `ratelimit:{type}:{internalId}` (не `rate:`).
 - **Лимиты:** см. таблицу «Слой 0» (MESSAGE 60/min, SESSION_CREATE 3/min, …).
 - **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — реализован в
-  [IMP-FAUDIT-F05](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F05-room-password-bruteforce-limit.md)
-  (синхронизация SEC-8 **не** входила в F08 — только F05).
+  `RateLimitService` (`ROOM_PASSWORD_FAIL`, fixed-window per room).
 
 ### Edge rate-limit (nginx)
 
 Периметр перед приложением — `limit_req` в [`nginx/prod.conf`](../../nginx/prod.conf)
-([IMP-FAUDIT-F04](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F04-ws-ratelimit-prod-nginx.md);
-закрывает INF-2). Не путать с app-level `RateLimitService` (Слой 0): edge —
+(закрывает edge WS flood). Не путать с app-level `RateLimitService` (Слой 0): edge —
 per-IP на HTTP/SockJS handshake, app — per-`internalId` на STOMP/REST.
 
 | Zone | Rate | Burst | Locations |
@@ -854,18 +842,15 @@ if (!constantTimeEquals(computedHash, providedHash)) {
    голосования 1–7 дней.
 
 **Что закрыто:** путь «post-snapshot стейк в Flexible → голос → анстейк» —
-капитало-эффективный захват кворума без lock-издержек (находка F-2,
-[REPORT-contracts.md](../improvements/full-audit-2026-07/REPORT-contracts.md)).
+капитало-эффективный захват кворума без lock-издержек.
 
 **Остаточный риск (осознанный, не полный Compound-style prior-votes):** адрес
 может застейкать **после** снапшота в locked-тир (Silver+) и голосовать VP,
 которого не было в знаменателе. Атака перестаёт быть flash: капитал блокируется
 на 180+ дней. Полный снапшот VP каждого адреса на момент создания proposal
-отложен (см. decision-log).
+отложен.
 
-Decision log:
-[IMP-FAUDIT-F01 vote snapshot approach](../improvements/full-audit-2026-07/decisions/IMP-FAUDIT-F01-vote-snapshot-approach.md).
-Сверка SECURITY.md с кодом (SEC-1…14, FE-9/11): [IMP-FAUDIT-F08](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F08-security-spec-reconcile.md) ✅.
+**Подход:** snapshot eligibility по tier lock, не полный prior-votes Compound-style.
 
 ### Cashback-петля между auto-cashback контрактами (RC-2)
 
@@ -877,8 +862,7 @@ Decision log:
 контрактов. Не атака извне: срабатывает на **каждом** штатном relayed-голосе.
 
 **Подтверждённый инцидент (testnet):** Governor ⇄ StakingMaster при `GovernorVoteRelay` —
-см. [REPORT IMP-GOVOTE](../archive/improvements/governance-vote-tx-fail/REPORT.md) §3 RC-2
-(~349 пустых hop'ов в одном trace).
+self-DoS через cashback-петлю (~349 пустых hop'ов в одном trace).
 
 **Принятый паттерн предотвращения (IMP-GOVOTE-02):**
 
@@ -894,8 +878,6 @@ Decision log:
 Паттерн (2) уже используется в staking stack (Pool ↔ Master). При добавлении новых
 relay-цепочек между auto-cashback контрактами — **не** завершать relay терминальным cashback
 в служебный контракт-партнёр; возвращать остаток инициатору или явному beneficiary.
-
-Decision log: [IMP-GOVOTE-02 break cashback loop](../archive/improvements/governance-vote-tx-fail/decisions/IMP-GOVOTE-02-break-cashback-loop.md).
 
 ### Fee-exempt transfers и stale excluded snapshot (IMP-STKFEE-02)
 
@@ -919,8 +901,6 @@ timelock-управляемом excluded-листе мастера (`AddExcluded
 `CommitJettonTransfer` принимается только от master.
 
 Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
-
-Decision log: [IMP-STKFEE-02 live excluded resolution](../archive/improvements/staking-deposit-fee/decisions/IMP-STKFEE-02-live-excluded-resolution.md).
 
 ---
 
@@ -1051,8 +1031,6 @@ class TelegramAuthServiceTest {
 
 ## Комнаты (Phase 2)
 
-План разработки комнат: [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md).
-
 ### Пароль комнаты
 
 #### Алгоритм KDF (реализовано в P2-1)
@@ -1116,7 +1094,7 @@ class TelegramAuthServiceTest {
 - При исчерпании бюджета (`remaining == 0`) следующая попытка отклоняется
   `RATE_LIMIT_EXCEEDED` до истечения окна (TTL ключа) — отдельный
   «длинный» lockout 15–60 мин не используется; окно 10 мин и есть lockout.
-- Реализация: [IMP-FAUDIT-F05](../improvements/full-audit-2026-07/cards/IMP-FAUDIT-F05-room-password-bruteforce-limit.md).
+- Реализация: `RateLimitService.ROOM_PASSWORD_FAIL` (см. § «Пароль комнаты» выше).
 
 ### Групповой ключ комнаты
 
@@ -1126,7 +1104,7 @@ class TelegramAuthServiceTest {
 - При **принудительном** удалении (`/app/room.kick`, `/app/room.ban`) сервер удаляет жертву из membership, pubkey, join-request и **всех эпох** `room_keys:{roomId}:{epoch}`. Оставшиеся получают `ROOM_MEMBER_REMOVED`; владелец **обязан** немедленно выполнить rekey (`/app/room.rekey`). **Subscribe-guard (IMP-ROOM-22):** inbound STOMP interceptor отклоняет `SUBSCRIBE /topic/room/{roomId}` для не-членов (`NOT_MEMBER` STOMP ERROR) — удалённый участник не может получать новые ciphertext через topic даже до rekey. **Force-unsubscribe (IMP-ROOM-25):** сервер снимает уже открытые подписки жертвы на room topic сразу после kick/ban (все сессии/вкладки); подписки `/user/queue/*` не затрагиваются. Rekey client-driven — сервер relay + cleanup Redis + membership guard + subscription cut-off.
 - **Ban (IMP-ROOM-09):** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Забаненный `internalId` получает `USER_BANNED` при любой попытке join (любой invite token). Бан привязан к **identity** (`internalId`), не к «человеку»: wallet-only identity стабильна; Telegram→internalId детерминирован; **новый кошелёк = новый internalId** и обходит бан прежней identity. Это осознанное ограничение модели угроз (см. wallet-only identity в [ARCHITECTURE.md](./ARCHITECTURE.md)).
 - **Mute (IMP-ROOM-11):** `/app/room.mute` добавляет `internalId` в `room_muted:{roomId}` **без** удаления из membership и **без** rekey. Заглушённый участник сохраняет групповой ключ на клиенте и может **читать** ciphertext; сервер отклоняет только `/app/room.message.send` с кодом `MUTED`. Zero-knowledge не нарушается — это policy relay, не доступ сервера к ключам.
-- **Read-only (IMP-ROOM-11):** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic. Матрица: [IMP-ROOM-14 decision](../archive/improvements/room-management/decisions/IMP-ROOM-14-permission-matrix.md).
+- **Read-only (IMP-ROOM-11):** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic.
 - **Роли (IMP-ROOM-13 + IMP-ROOM-14):** источник истины владельца — `room.ownerInternalId`. Overlay `room_roles:{roomId}` хранит только `admin` \| `member` (отсутствие записи = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
   - **Owner-only:** burn, transfer ownership, setRole, setTtl (IMP-ROOM-16), ban/unban/getBans.
   - **Admin or owner:** kick, getInviteLink/revokeInvite/getInvites, mute/unmute/setReadOnly.
@@ -1142,7 +1120,7 @@ class TelegramAuthServiceTest {
   - **Read-only send:** owner и admin могут постить; member получает `ROOM_READ_ONLY`.
 - После rekey старая эпоха (`newEpoch - 1`) удаляется сервером (`deleteEpoch` в обработчике `room.rekey`).
 
-> Детальный протокол (выбор схемы, сравнение Sender Keys vs Tree-DH, wrap/unwrap алгоритмы, rekey): [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md)
+> Детальный протокол (выбор схемы, сравнение Sender Keys vs Tree-DH, wrap/unwrap алгоритмы, rekey): [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md)
 
 ### Инвайт-токены
 
@@ -1155,8 +1133,5 @@ class TelegramAuthServiceTest {
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — общая архитектура (в т.ч. комнаты)
 - [API.md](./API.md) — формат сообщений
 - [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band обмен ключами
-- [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2: комнаты
-- [GROUP_KEY_PROTOCOL.md](../phases/phase-2-rooms/GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
-- [DESIGN.md](../archive/antispam-pow/DESIGN.md) — PoW-протокол антиспама
-- [SECURITY_REVIEW.md](../archive/antispam-pow/SECURITY_REVIEW.md) — security-review Слоя 1
+- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
 

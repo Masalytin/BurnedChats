@@ -17,7 +17,7 @@ API); messages "burn" when a chat is closed. It runs as a Telegram Mini App on t
 of a Java/Spring backend, a React frontend, and a set of TON smart contracts.
 
 > **This is an open-source portfolio project.** It is engineered like a real
-> product (task cards, decision logs, tests, CI, Docker deploy), but it is **not**
+> product (tests, CI, specs, Docker deploy), but it is **not**
 > a funded, audited, or officially launched service. Read
 > [What this is / is NOT](#-what-this-is--what-this-is-not) before drawing
 > conclusions — especially about the token.
@@ -40,8 +40,8 @@ of a Java/Spring backend, a React frontend, and a set of TON smart contracts.
   **Tact** with a Sandbox test suite and an 80% coverage gate.
 - **Production-shaped ops** — Docker Compose (dev / prod / SSL), Nginx TLS
   termination, Redis with TTL-only storage, Actuator + Prometheus metrics.
-- **Engineering discipline** — phased development plans, per-task cards, decision
-  logs, and specs under [`docs/`](docs/CONTEXT.md).
+- **Documented specs** — API, security, data models, and tokenomics under
+  [`docs/specs/`](docs/specs/); see [CONTRIBUTING.md](CONTRIBUTING.md) to build and PR.
 
 ---
 
@@ -141,14 +141,14 @@ BurnedChats/
 ├── backend/        # Java 21 / Spring Boot relay, STOMP handlers, Redis repos, TON RPC client
 ├── frontend/       # React 19 Mini App — crypto, chat/rooms UI, TON Connect, i18n
 ├── contracts/      # TON smart contracts (Tact): jetton, staking, governance, treasury, vesting
-├── docs/           # entry point: docs/CONTEXT.md — specs, phase plans, task cards, decisions
-├── scripts/        # backlog validator, worktree helpers, CLI tooling
+├── docs/specs/     # product specifications (API, security, models, flows, tokenomics)
+├── CONTRIBUTING.md # build matrix, specs sync, PR expectations
 ├── docker-compose*.yml
 └── .github/workflows/
 ```
 
-Start reading at [`docs/CONTEXT.md`](docs/CONTEXT.md). Specifications live in
-[`docs/specs/`](docs/specs/) (API, data models, security, tokenomics).
+Specifications live in [`docs/specs/`](docs/specs/). Start with
+[ARCHITECTURE.md](docs/specs/ARCHITECTURE.md) and [SECURITY.md](docs/specs/SECURITY.md).
 
 ---
 
@@ -194,11 +194,22 @@ real liquidity**.
 
 ---
 
-## 🗺️ Roadmap & docs
+## 📚 Documentation
 
-- Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
-- Phase plans: [`docs/phases/`](docs/phases/)
-- API / data models / security / tokenomics: [`docs/specs/`](docs/specs/)
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/specs/ARCHITECTURE.md) | System design and components |
+| [SECURITY.md](docs/specs/SECURITY.md) | Cryptography and threat model |
+| [API.md](docs/specs/API.md) | REST and WebSocket/STOMP API |
+| [DATA_MODELS.md](docs/specs/DATA_MODELS.md) | Redis keys and DTOs |
+| [BAND_KEY_EXCHANGE.md](docs/specs/BAND_KEY_EXCHANGE.md) | In-band ECDH key exchange |
+| [GROUP_KEY_PROTOCOL.md](docs/specs/GROUP_KEY_PROTOCOL.md) | Group E2EE for rooms |
+| [USER_FLOWS.md](docs/specs/USER_FLOWS.md) | 1:1 chat UX flows |
+| [USER_FLOWS_ROOMS.md](docs/specs/USER_FLOWS_ROOMS.md) | Password rooms and groups |
+| [TELEGRAM.md](docs/specs/TELEGRAM.md) | Mini App and bot integration |
+| [TOKENOMICS.md](docs/specs/TOKENOMICS.md) | BURN token design |
+| [I18N.md](docs/specs/I18N.md) | Localization for contributors |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to build, test, and submit changes |
 
 ---
 

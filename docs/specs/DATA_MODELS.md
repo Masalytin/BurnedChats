@@ -16,8 +16,7 @@
 
 ### Обзор ключей
 
-Полная инвентаризация **48 семейств** Redis-ключей (источник истины — код;
-сверка: [REPORT-backend.md](../improvements/full-audit-2026-07/REPORT-backend.md) §2).
+Полная инвентаризация **48 семейств** Redis-ключей (источник истины — код).
 Детальные разделы ниже — для наиболее часто используемых паттернов; остальные
 сводятся в таблицу.
 
@@ -339,7 +338,7 @@ EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 
 ## Phase 2: Комнаты (Redis)
 
-> Полный план: [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md). Ниже — целевые структуры ключей.
+> Ниже — целевые структуры ключей.
 
 ### `room:{roomId}`
 
@@ -591,7 +590,7 @@ Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не м�
 
 ## Phase 4: Files (Redis)
 
-> План: [DEVELOPMENT_PLAN_MEDIA.md](../phases/phase-4-media/DEVELOPMENT_PLAN_MEDIA.md). Реализация: `FileMetadataRepository`, `FileMetadata`.
+> Реализация: `FileMetadataRepository`, `FileMetadata`.
 
 ### `file_meta:{fileId}`
 
@@ -640,7 +639,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 | `iv` | 12-byte GCM IV для `encryptedContent` | те же |
 | `encryptedMeta` | ciphertext метаданных файла (`{ fileName, mimeType }`) | медиа-сообщения |
 | `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `CREATE_ROOM` (optional), `ROOM_NAME_UPDATED`, room-list |
-| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же ([IMP-ROOM-05](../archive/improvements/room-management/decisions/IMP-ROOM-05-name-iv-separate-fields.md)) |
+| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же |
 | key-bundle: `ephemeralPublicKey`, `encryptedKey`, `iv` | wrapped group key (ECDH + AES-GCM) | `KEY_BUNDLE`, `room_keys:{roomId}:{epoch}` |
 | `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW-proof / ECDH pubkeys | CREATE_ROOM, JOIN |
 
@@ -659,8 +658,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 валидации, временные метки для prune). Ключей шифрования сервер не видит.
 
 > **Зачем зафиксировано.** Аудит кода ↔ спека выявил, что формат кодировки был описан
-> разрозненно. Несоответствий base64 vs base64url **не обнаружено** — контракт един; см.
-> [room-create-decryption-fix/ANALYSIS.md](../archive/improvements/room-create-decryption-fix/ANALYSIS.md) §4.
+> разрозненно. Несоответствий base64 vs base64url **не обнаружено** — контракт един.
 
 ---
 

@@ -82,7 +82,7 @@ Without `LIQUIDITY_MULTISIG`, deployer becomes liquidity holder → `addExcluded
 wallet shows 100% to recipient (misleading «fee not working»). Use `BURN_SMOKE_TEST_OWNER` or a separate
 airdrop/non-excluded wallet for fee verification.
 
-See also [jetton-transfer-fee-not-applied/REPORT.md §6](../docs/archive/improvements/jetton-transfer-fee-not-applied/REPORT.md).
+See also `docs/specs/TOKENOMICS.md` § fee verification notes.
 
 Post-deploy fee-split regression:
 
@@ -113,8 +113,7 @@ cd contracts
 SYNC_FEE_OWNER=0QYourUserWallet... npm run sync:fee:testnet
 ```
 
-After redeploying wallet code with fee-config propagation (see
-[`docs/archive/improvements/jetton-transfer-fee-not-applied/REPORT.md`](../docs/archive/improvements/jetton-transfer-fee-not-applied/REPORT.md)),
+After redeploying wallet code with fee-config propagation (see `docs/specs/TOKENOMICS.md`),
 new P2P recipients inherit config automatically; sync is only needed for wallets that
 already exist with an empty `feeConfig`.
 

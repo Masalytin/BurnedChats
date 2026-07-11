@@ -1178,4 +1178,4 @@
 - [API.md](./API.md) — STOMP события (включая комнаты)
 - [DATA_MODELS.md](./DATA_MODELS.md) — Redis-структуры комнат
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — архитектура системы
-- [DEVELOPMENT_PLAN_ROOMS.md](../phases/phase-2-rooms/DEVELOPMENT_PLAN_ROOMS.md) — план разработки Phase 2
+- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — протокол группового ключа

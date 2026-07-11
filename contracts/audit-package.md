@@ -1,8 +1,6 @@
 # BURN Token — External Audit Package
 
 > Prepared for P5-6-2-2 external smart contract audit.
-> Internal review: [security-review-internal.md](../docs/phases/phase-5-burn-token/security-review-internal.md).
-> Card: [IMP-PREMNT-06](../docs/improvements/contracts-pre-mainnet/cards/IMP-PREMNT-06-internal-review-audit-package.md).
 > Date: 2026-06-28.
 
 ---
@@ -92,7 +90,7 @@ Synced with [SECURITY.md](../docs/specs/SECURITY.md) (Governance on-chain sectio
 | **RC-B** | Insufficient gas propagation multi-hop | Fixed — TreasurySpend relay (IMP-PREMNT-07) |
 | **RC-C** | Frontend `attachedTon` / `responseAddress` mismatch | Verified — IMP-RELAY-05 |
 
-Reference: [contracts-relay-audit/ANALYSIS.md](../docs/improvements/contracts-relay-audit/ANALYSIS.md).
+Reference: relay audit matrix in repository history (cashback-loop class RC-A).
 
 ---
 
@@ -111,7 +109,7 @@ After `contracts/scripts/deploy/bootstrap.ts` (IMP-PREMNT-03):
 | Timelock | `governor` | **Deployer EOA** | Queue replay only |
 | StakingMaster | `governorAddr` | Governor | Vote relay, param proposals |
 
-Decision log: [IMP-PREMNT-03-jetton-timelock-setter](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-03-jetton-timelock-setter.md).
+Bootstrap wiring: Timelock gates admin operations on master, staking, treasury, vesting, and governor.
 
 **Known limitation:** no EOA controls fee/tier/exclusion/spend/revoke after bootstrap. Remaining centralization: deployer as Timelock governor.
 
@@ -205,17 +203,15 @@ Source: [`deployments/testnet.json`](deployments/testnet.json) (deployed 2026-06
 
 | ID | Issue | Resolution |
 |----|-------|------------|
-| IMP-PREMNT-01 | TreasurySpend opcode/schema mismatch | [decision log](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-01-treasury-spend-schema.md) |
-| IMP-PREMNT-03 | Bootstrap authority wiring | [decision log](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-03-jetton-timelock-setter.md) |
-| IMP-PREMNT-04 | Staking pool solvency | [decision log](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-04-reward-funding-model.md) |
-| IMP-PREMNT-05 | Close mint | [decision log](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-05-close-mint-authority.md) |
-| IMP-PREMNT-07 | TreasurySpend gas budget | [decision log](../docs/improvements/contracts-pre-mainnet/decisions/IMP-PREMNT-07-treasury-spend-gas-budget.md) |
+| IMP-PREMNT-01 | TreasurySpend opcode/schema mismatch | Fixed in contracts + wrappers |
+| IMP-PREMNT-03 | Bootstrap authority wiring | Timelock-gated admin map (§3) |
+| IMP-PREMNT-04 | Staking pool solvency | Reward funding model in staking contracts |
+| IMP-PREMNT-05 | Close mint | CloseMint gated via Timelock |
+| IMP-PREMNT-07 | TreasurySpend gas budget | Relay gas budget in treasury spend path |
 
 ---
 
 ## Appendix A — Relay audit matrix
-
-Full matrix: [RELAY-AUDIT-MATRIX.md](../docs/improvements/contracts-relay-audit/RELAY-AUDIT-MATRIX.md).
 
 **Summary:** all audited pairs are `fixed` or `verified`; **no open P0 pairs**.
 
@@ -275,9 +271,7 @@ expect(countEmptyBodyHopsBetween(transactions, addrA, addrB)).toBe(0);
 |----------|------|
 | Tokenomics | [docs/specs/TOKENOMICS.md](../docs/specs/TOKENOMICS.md) |
 | Security (incl. governance RC-A pattern) | [docs/specs/SECURITY.md](../docs/specs/SECURITY.md) |
-| Internal review (this audit input) | [docs/phases/phase-5-burn-token/security-review-internal.md](../docs/phases/phase-5-burn-token/security-review-internal.md) |
-| Phase 5 plan | [docs/phases/phase-5-burn-token/DEVELOPMENT_PLAN_BURN_TOKEN.md](../docs/phases/phase-5-burn-token/DEVELOPMENT_PLAN_BURN_TOKEN.md) |
-| Governance vote fixes | [docs/improvements/governance-vote-tx-fail/REPORT.md](../docs/improvements/governance-vote-tx-fail/REPORT.md) |
+| API (governance vote relay) | [docs/specs/API.md](../docs/specs/API.md) |
 
 ---
 
