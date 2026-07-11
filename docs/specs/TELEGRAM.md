@@ -1,41 +1,41 @@
-# Telegram интеграция
+# Telegram Integration
 
-> Mini App SDK и Bot API (Java Backend)
+> Mini App SDK and Bot API (Java Backend)
 
-## 📋 Содержание
+## 📋 Table of Contents
 
 - [Telegram Mini App](#telegram-mini-app)
 - [Bot API (Java)](#bot-api-java)
-- [Уведомления](#уведомления)
-- [Безопасность](#безопасность)
+- [Notifications](#notifications)
+- [Security](#security)
 
 ---
 
 ## Telegram Mini App
 
-### Инициализация (Frontend)
+### Initialization (Frontend)
 
 ```typescript
 // src/telegram/init.ts
 import WebApp from '@twa-dev/sdk';
 
 export function initTelegramApp() {
-  // Проверяем, что запущены внутри Telegram
+  // Verify we are running inside Telegram
   if (!WebApp.initData) {
     throw new Error('App must be opened inside Telegram');
   }
 
-  // Разворачиваем на весь экран
+  // Expand to full screen
   WebApp.expand();
 
-  // Включаем кнопку закрытия
+  // Enable close confirmation
   WebApp.enableClosingConfirmation();
 
-  // Настраиваем header
+  // Configure header
   WebApp.setHeaderColor('secondary_bg_color');
   WebApp.setBackgroundColor('secondary_bg_color');
 
-  // Готовы к работе
+  // Ready to use
   WebApp.ready();
 
   return {
@@ -48,10 +48,10 @@ export function initTelegramApp() {
 }
 ```
 
-### Получение данных пользователя
+### Getting User Data
 
 ```typescript
-// Данные из initDataUnsafe
+// Data from initDataUnsafe
 interface TelegramUser {
   id: number;              // Telegram ID
   first_name: string;
@@ -59,15 +59,15 @@ interface TelegramUser {
   username?: string;
   language_code?: string;
   is_premium?: boolean;
-  photo_url?: string;      // Только в Mini Apps
+  photo_url?: string;      // Mini Apps only
 }
 
-// Использование
+// Usage
 const user = WebApp.initDataUnsafe.user;
 console.log(`Hello, ${user.first_name}!`);
 ```
 
-### Адаптивная тема
+### Adaptive Theme
 
 ```typescript
 // src/telegram/theme.ts
@@ -90,7 +90,7 @@ export function getThemeCSS(): string {
   `;
 }
 
-// Подписка на изменение темы
+// Subscribe to theme changes
 WebApp.onEvent('themeChanged', () => {
   document.documentElement.style.cssText = getThemeCSS();
 });
@@ -103,32 +103,32 @@ WebApp.onEvent('themeChanged', () => {
 import WebApp from '@twa-dev/sdk';
 
 export const haptics = {
-  // Лёгкая вибрация
+  // Light vibration
   light: () => WebApp.HapticFeedback.impactOccurred('light'),
   
-  // Средняя вибрация
+  // Medium vibration
   medium: () => WebApp.HapticFeedback.impactOccurred('medium'),
   
-  // Сильная вибрация
+  // Heavy vibration
   heavy: () => WebApp.HapticFeedback.impactOccurred('heavy'),
   
-  // Успех
+  // Success
   success: () => WebApp.HapticFeedback.notificationOccurred('success'),
   
-  // Ошибка
+  // Error
   error: () => WebApp.HapticFeedback.notificationOccurred('error'),
   
-  // Предупреждение
+  // Warning
   warning: () => WebApp.HapticFeedback.notificationOccurred('warning'),
   
-  // Выбор элемента
+  // Item selection
   selection: () => WebApp.HapticFeedback.selectionChanged()
 };
 
-// Использование
-haptics.success(); // При успешном подключении
-haptics.error();   // При ошибке
-haptics.light();   // При получении сообщения
+// Usage
+haptics.success(); // On successful connection
+haptics.error();   // On error
+haptics.light();   // On message received
 ```
 
 ### Back Button
@@ -147,10 +147,10 @@ export function setupBackButton(onBack: () => void) {
   };
 }
 
-// В компоненте чата
+// In chat component
 useEffect(() => {
   const cleanup = setupBackButton(() => {
-    // Показываем диалог подтверждения
+    // Show confirmation dialog
     if (hasActiveSession) {
       showBurnConfirmation();
     } else {
@@ -165,7 +165,7 @@ useEffect(() => {
 ### Main Button
 
 ```typescript
-// Кнопка действия внизу экрана
+// Action button at the bottom of the screen
 import WebApp from '@twa-dev/sdk';
 
 export function showMainButton(text: string, onClick: () => void) {
@@ -178,24 +178,24 @@ export function hideMainButton() {
   WebApp.MainButton.hide();
 }
 
-// Использование для верификации
-showMainButton('✓ Подтвердить совпадение', () => {
+// Usage for verification
+showMainButton('✓ Confirm match', () => {
   confirmVerification();
   haptics.success();
   hideMainButton();
 });
 ```
 
-### Popup и Confirm
+### Popup and Confirm
 
 ```typescript
-// Нативные диалоги Telegram
+// Native Telegram dialogs
 import WebApp from '@twa-dev/sdk';
 
 export function showBurnConfirmation(): Promise<boolean> {
   return new Promise((resolve) => {
     WebApp.showConfirm(
-      '🔥 Уничтожить чат?\n\nВсе сообщения будут удалены без возможности восстановления.',
+      '🔥 Destroy chat?\n\nAll messages will be deleted and cannot be recovered.',
       (confirmed) => resolve(confirmed)
     );
   });
@@ -205,14 +205,14 @@ export function showError(message: string) {
   WebApp.showAlert(message);
 }
 
-// Popup с кнопками
+// Popup with buttons
 export function showOptionsPopup() {
   WebApp.showPopup({
-    title: 'Действия',
-    message: 'Выберите действие',
+    title: 'Actions',
+    message: 'Choose an action',
     buttons: [
-      { id: 'burn', type: 'destructive', text: '🔥 Сжечь чат' },
-      { id: 'block', type: 'default', text: '🚫 Заблокировать' },
+      { id: 'burn', type: 'destructive', text: '🔥 Burn chat' },
+      { id: 'block', type: 'default', text: '🚫 Block' },
       { id: 'cancel', type: 'cancel' }
     ]
   }, (buttonId) => {
@@ -224,16 +224,16 @@ export function showOptionsPopup() {
 }
 ```
 
-### QR Scanner (для будущего)
+### QR Scanner (for future use)
 
 ```typescript
-// Сканирование QR для обмена ключами
+// QR scanning for key exchange
 import WebApp from '@twa-dev/sdk';
 
 export function scanQRCode(): Promise<string | null> {
   return new Promise((resolve) => {
     WebApp.showScanQrPopup({
-      text: 'Наведите камеру на QR-код собеседника'
+      text: 'Point the camera at your contact\'s QR code'
     }, (data) => {
       WebApp.closeScanQrPopup();
       resolve(data || null);
@@ -246,7 +246,7 @@ export function scanQRCode(): Promise<string | null> {
 
 ## Bot API (Java)
 
-### Зависимости
+### Dependencies
 
 ```kotlin
 // build.gradle.kts
@@ -256,7 +256,7 @@ dependencies {
 }
 ```
 
-### Конфигурация
+### Configuration
 
 ```java
 // config/TelegramBotConfig.java
@@ -283,7 +283,7 @@ telegram:
     webhook-secret: ${TELEGRAM_WEBHOOK_SECRET}
 ```
 
-### Реализация бота
+### Bot Implementation
 
 ```java
 // telegram/BurnedChatsBot.java
@@ -318,7 +318,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
         switch (text) {
             case "/start" -> sendStartMessage(chatId);
             case "/help" -> sendHelpMessage(chatId);
-            default -> {} // Игнорируем другие сообщения
+            default -> {} // Ignore other messages
         }
     }
     
@@ -326,8 +326,8 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
         SendMessage message = SendMessage.builder()
             .chatId(chatId)
             .text("🔥 *Burned Chats*\n\n" +
-                  "Приватный чат с самоуничтожением.\n\n" +
-                  "Нажмите кнопку ниже, чтобы начать.")
+                  "Private self-destructing chat.\n\n" +
+                  "Tap the button below to get started.")
             .parseMode("Markdown")
             .replyMarkup(createMainKeyboard())
             .build();
@@ -338,13 +338,13 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     private void sendHelpMessage(long chatId) throws TelegramApiException {
         SendMessage message = SendMessage.builder()
             .chatId(chatId)
-            .text("*Как это работает:*\n\n" +
-                  "1. Откройте приложение\n" +
-                  "2. Найдите собеседника по username\n" +
-                  "3. Дождитесь подтверждения\n" +
-                  "4. Проверьте Visual Fingerprint\n" +
-                  "5. Общайтесь приватно!\n\n" +
-                  "🔥 При закрытии чата все данные уничтожаются.")
+            .text("*How it works:*\n\n" +
+                  "1. Open the app\n" +
+                  "2. Find your contact by username\n" +
+                  "3. Wait for confirmation\n" +
+                  "4. Verify the Visual Fingerprint\n" +
+                  "5. Chat privately!\n\n" +
+                  "🔥 When you close the chat, all data is destroyed.")
             .parseMode("Markdown")
             .build();
         
@@ -353,7 +353,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     
     private InlineKeyboardMarkup createMainKeyboard() {
         InlineKeyboardButton webAppButton = InlineKeyboardButton.builder()
-            .text("🚀 Открыть чат")
+            .text("🚀 Open chat")
             .webApp(new WebAppInfo(config.getMiniAppUrl()))
             .build();
         
@@ -363,7 +363,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     }
     
     private void handleCallbackQuery(CallbackQuery callbackQuery) {
-        // Обработка callback кнопок (если потребуется)
+        // Handle callback buttons (if needed)
     }
     
     @Override
@@ -373,7 +373,7 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
 }
 ```
 
-### Регистрация бота
+### Bot Registration
 
 ```java
 // config/TelegramBotInitializer.java
@@ -398,7 +398,7 @@ public class TelegramBotInitializer {
 }
 ```
 
-### Webhook режим (альтернатива Long Polling)
+### Webhook Mode (alternative to Long Polling)
 
 ```java
 // telegram/BurnedChatsWebhookBot.java
@@ -449,7 +449,7 @@ public class TelegramWebhookController {
             @RequestHeader("X-Telegram-Bot-Api-Secret-Token") String secretToken,
             @RequestBody Update update) {
         
-        // Проверяем секретный токен
+        // Verify secret token
         if (!config.getWebhookSecret().equals(secretToken)) {
             log.warn("Invalid webhook secret token");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -461,7 +461,7 @@ public class TelegramWebhookController {
 }
 ```
 
-### Настройка Webhook
+### Webhook Setup
 
 ```java
 // telegram/WebhookSetup.java
@@ -491,7 +491,7 @@ public class WebhookSetup implements ApplicationRunner {
 
 ---
 
-## Уведомления
+## Notifications
 
 ### NotificationService
 
@@ -506,14 +506,14 @@ public class NotificationService {
     private final TelegramBotConfig config;
     
     /**
-     * Уведомление о запросе на чат
+     * Chat request notification
      */
     public Mono<Void> notifyChatRequest(String recipientTgId, String sessionId) {
         return Mono.fromCallable(() -> {
             SendMessage message = SendMessage.builder()
                 .chatId(recipientTgId)
-                .text("🔔 *Новый запрос на приватный чат*\n\n" +
-                      "Кто-то хочет начать защищённый разговор с вами.")
+                .text("🔔 *New private chat request*\n\n" +
+                      "Someone wants to start a secure conversation with you.")
                 .parseMode("Markdown")
                 .replyMarkup(createOpenChatKeyboard(sessionId))
                 .build();
@@ -524,13 +524,13 @@ public class NotificationService {
     }
     
     /**
-     * Уведомление о новом сообщении (когда получатель offline)
+     * New message notification (when recipient is offline)
      */
     public Mono<Void> notifyNewMessage(String recipientTgId) {
         return Mono.fromCallable(() -> {
             SendMessage message = SendMessage.builder()
                 .chatId(recipientTgId)
-                .text("💬 *У вас новое зашифрованное сообщение*")
+                .text("💬 *You have a new encrypted message*")
                 .parseMode("Markdown")
                 .replyMarkup(createOpenAppKeyboard())
                 .build();
@@ -541,14 +541,14 @@ public class NotificationService {
     }
     
     /**
-     * Уведомление об уничтожении чата
+     * Chat destroyed notification
      */
     public Mono<Void> notifySessionBurned(String recipientTgId) {
         return Mono.fromCallable(() -> {
             SendMessage message = SendMessage.builder()
                 .chatId(recipientTgId)
-                .text("🔥 *Чат был уничтожен*\n\n" +
-                      "Собеседник завершил сессию. Все данные удалены.")
+                .text("🔥 *Chat was destroyed*\n\n" +
+                      "Your contact ended the session. All data has been deleted.")
                 .parseMode("Markdown")
                 .build();
             
@@ -561,7 +561,7 @@ public class NotificationService {
         String url = config.getMiniAppUrl() + "?session=" + sessionId;
         
         InlineKeyboardButton button = InlineKeyboardButton.builder()
-            .text("✅ Открыть")
+            .text("✅ Open")
             .webApp(new WebAppInfo(url))
             .build();
         
@@ -572,7 +572,7 @@ public class NotificationService {
     
     private InlineKeyboardMarkup createOpenAppKeyboard() {
         InlineKeyboardButton button = InlineKeyboardButton.builder()
-            .text("📖 Прочитать")
+            .text("📖 Read")
             .webApp(new WebAppInfo(config.getMiniAppUrl()))
             .build();
         
@@ -583,21 +583,21 @@ public class NotificationService {
 }
 ```
 
-### Что НЕ отправляется в уведомлениях
+### What Is NOT Sent in Notifications
 
-| Данные | Отправляется? | Причина |
-|--------|---------------|---------|
-| Имя отправителя | ❌ | Приватность |
-| Текст сообщения | ❌ | E2EE |
-| Количество сообщений | ❌ | Метаданные |
-| Время отправки | ❌ | Timing attack |
-| Session ID в тексте | ❌ | Только в URL Mini App |
+| Data | Sent? | Reason |
+|------|-------|--------|
+| Sender name | ❌ | Privacy |
+| Message text | ❌ | E2EE |
+| Message count | ❌ | Metadata |
+| Send time | ❌ | Timing attack |
+| Session ID in text | ❌ | Mini App URL only |
 
 ---
 
-## Безопасность
+## Security
 
-### Валидация initData (Java)
+### initData Validation (Java)
 
 ```java
 // telegram/TelegramAuthService.java
@@ -610,9 +610,9 @@ public class TelegramAuthService {
     private final ObjectMapper objectMapper;
     
     /**
-     * Валидирует initData от Telegram Mini App
-     * @return TelegramUser если валидация успешна
-     * @throws UnauthorizedException если валидация провалена
+     * Validates initData from Telegram Mini App
+     * @return TelegramUser if validation succeeds
+     * @throws UnauthorizedException if validation fails
      */
     public TelegramUser validateInitData(String initData) {
         try {
@@ -623,33 +623,33 @@ public class TelegramAuthService {
                 throw new UnauthorizedException("Missing hash in initData");
             }
             
-            // Сортируем параметры по ключу
+            // Sort parameters by key
             String dataCheckString = params.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("\n"));
             
-            // Вычисляем секретный ключ: HMAC-SHA256("WebAppData", botToken)
+            // Compute secret key: HMAC-SHA256("WebAppData", botToken)
             byte[] secretKey = hmacSha256(
                 "WebAppData".getBytes(StandardCharsets.UTF_8),
                 config.getToken().getBytes(StandardCharsets.UTF_8)
             );
             
-            // Вычисляем хеш данных
+            // Compute data hash
             byte[] calculatedHash = hmacSha256(
                 secretKey,
                 dataCheckString.getBytes(StandardCharsets.UTF_8)
             );
             String calculatedHashHex = bytesToHex(calculatedHash);
             
-            // Constant-time сравнение хешей
+            // Constant-time hash comparison
             if (!MessageDigest.isEqual(
                     hash.getBytes(StandardCharsets.UTF_8),
                     calculatedHashHex.getBytes(StandardCharsets.UTF_8))) {
                 throw new UnauthorizedException("Invalid initData hash");
             }
             
-            // Проверяем auth_date (не старше 1 часа)
+            // Check auth_date (not older than 1 hour)
             String authDateStr = params.get("auth_date");
             if (authDateStr == null) {
                 throw new UnauthorizedException("Missing auth_date");
@@ -662,13 +662,13 @@ public class TelegramAuthService {
                 throw new UnauthorizedException("initData expired");
             }
             
-            // Парсим пользователя
+            // Parse user
             String userJson = params.get("user");
             if (userJson == null) {
                 throw new UnauthorizedException("Missing user in initData");
             }
             
-            // URL decode если нужно
+            // URL decode if needed
             String decodedUserJson = URLDecoder.decode(userJson, StandardCharsets.UTF_8);
             
             return objectMapper.readValue(decodedUserJson, TelegramUser.class);
@@ -769,7 +769,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             .getAccessor(message, StompHeaderAccessor.class);
         
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // Получаем initData из заголовков
+            // Get initData from headers
             String initData = accessor.getFirstNativeHeader("X-Telegram-Init-Data");
             
             if (initData == null || initData.isEmpty()) {
@@ -779,7 +779,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             try {
                 TelegramUser user = authService.validateInitData(initData);
                 
-                // Создаём Principal для идентификации пользователя
+                // Create Principal for user identification
                 accessor.setUser(new TelegramPrincipal(user));
                 
                 log.info("User {} connected via WebSocket", user.getId());
@@ -820,7 +820,7 @@ public class TelegramPrincipal implements Principal {
 }
 ```
 
-### WebSocket Config с Auth
+### WebSocket Config with Auth
 
 ```java
 // config/WebSocketConfig.java
@@ -871,7 +871,7 @@ public class TelegramWebhookController {
             String secretToken,
             @RequestBody Update update) {
         
-        // Верифицируем секретный токен
+        // Verify secret token
         if (!config.getWebhookSecret().equals(secretToken)) {
             log.warn("Invalid webhook secret token from IP: {}", 
                      getClientIpAddress());
@@ -884,12 +884,12 @@ public class TelegramWebhookController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error processing webhook", e);
-            return ResponseEntity.ok().build(); // Telegram ожидает 200
+            return ResponseEntity.ok().build(); // Telegram expects 200
         }
     }
     
     private String getClientIpAddress() {
-        // Получаем реальный IP клиента
+        // Get the real client IP
         ServletRequestAttributes attrs = 
             (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null) {
@@ -907,16 +907,16 @@ public class TelegramWebhookController {
 
 ---
 
-## Mini App URL Параметры
+## Mini App URL Parameters
 
-### Поддерживаемые параметры
+### Supported Parameters
 
-| Параметр | Описание | Пример |
-|----------|----------|--------|
-| `partner` | Username для автопоиска | `?partner=alice` |
-| `session` | ID сессии для присоединения | `?session=abc123` |
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `partner` | Username for auto-search | `?partner=alice` |
+| `session` | Session ID to join | `?session=abc123` |
 
-### Обработка параметров (Frontend)
+### Parameter Handling (Frontend)
 
 ```typescript
 // src/telegram/params.ts
@@ -930,16 +930,16 @@ interface StartParams {
 export function parseStartParams(): StartParams {
   const params: StartParams = {};
   
-  // Из start_param (при открытии через deep link)
+  // From start_param (when opened via deep link)
   const startParam = WebApp.initDataUnsafe.start_param;
   if (startParam) {
-    // Формат: partner_alice или session_abc123
+    // Format: partner_alice or session_abc123
     const [type, value] = startParam.split('_');
     if (type === 'partner') params.partner = value;
     if (type === 'session') params.sessionId = value;
   }
   
-  // Из URL (при открытии через web_app button)
+  // From URL (when opened via web_app button)
   const url = new URL(window.location.href);
   const partner = url.searchParams.get('partner');
   const session = url.searchParams.get('session');
@@ -955,7 +955,7 @@ export function parseStartParams(): StartParams {
 
 ## STOMP Client (Frontend)
 
-### Подключение с авторизацией
+### Connecting with Authorization
 
 ```typescript
 // src/socket/client.ts
@@ -999,9 +999,8 @@ export function createStompClient(
 
 ---
 
-## Связанные документы
+## Related Documents
 
 - [API.md](./API.md) — WebSocket API
-- [SECURITY.md](./SECURITY.md) — валидация и безопасность
-- [USER_FLOWS.md](./USER_FLOWS.md) — пользовательские сценарии
-
+- [SECURITY.md](./SECURITY.md) — validation and security
+- [USER_FLOWS.md](./USER_FLOWS.md) — user flows

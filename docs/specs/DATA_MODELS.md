@@ -1,86 +1,86 @@
-# Структуры данных
+# Data Models
 
-> Модели данных Redis, Java DTO и TypeScript интерфейсы
+> Redis data models, Java DTOs, and TypeScript interfaces
 
-## 📋 Содержание
+## 📋 Table of Contents
 
 - [Redis Schema](#redis-schema)
-- [Формат кодировки шифртекста (encoding contract)](#формат-кодировки-шифртекста-encoding-contract)
+- [Ciphertext Encoding Format (encoding contract)](#ciphertext-encoding-format-encoding-contract)
 - [Java DTOs](#java-dtos)
 - [TypeScript Interfaces](#typescript-interfaces)
-- [Валидация данных](#валидация-данных)
+- [Data Validation](#data-validation)
 
 ---
 
 ## Redis Schema
 
-### Обзор ключей
+### Key Overview
 
-Полная инвентаризация **48 семейств** Redis-ключей (источник истины — код).
-Детальные разделы ниже — для наиболее часто используемых паттернов; остальные
-сводятся в таблицу.
+Complete inventory of **48** Redis key families (source of truth — code).
+Detailed sections below cover the most frequently used patterns; the rest are
+summarized in the table.
 
-| Ключ / паттерн | Тип | TTL (default) | Назначение |
-|----------------|-----|---------------|------------|
+| Key / pattern | Type | TTL (default) | Purpose |
+|----------------|-----|---------------|---------|
 | `auth_tg:{telegramId}` | string | 90d | tgId → `internalId` |
 | `auth_wallet:{walletAddress}` | string | 90d | wallet → `internalId` |
-| `user:{internalId}` | hash | 90d | Канонический профиль (`UserIdentityRepository`) |
-| `user:{tgId}` | hash | **7d** | Legacy TG-кэш (`UserRepository`); см. §ниже |
-| `lang:pref:{userId}` | string | 90d | Языковые предпочтения |
-| `session:{sessionId}` | hash | 24h | Метаданные DM-сессии |
-| `session_token:{token}` | string | 1h | Одноразовый resume-token → `internalId` |
-| `request:{recipientInternalId}` | list | 5min | Входящие заявки на чат |
+| `user:{internalId}` | hash | 90d | Canonical profile (`UserIdentityRepository`) |
+| `user:{tgId}` | hash | **7d** | Legacy TG cache (`UserRepository`); see §below |
+| `lang:pref:{userId}` | string | 90d | Language preferences |
+| `session:{sessionId}` | hash | 24h | DM session metadata |
+| `session_token:{token}` | string | 1h | One-time resume token → `internalId` |
+| `request:{recipientInternalId}` | list | 5min | Incoming chat requests |
 | `online:{internalId}` | string | 30s | Heartbeat presence |
-| `messages:{recipientId}:{sessionId}` | list | 24h | Offline-очередь DM (E2EE blobs) |
-| `messages:count:{recipientId}` | string | ⚠️ expire при `count==1` | Счётчик pending DM |
-| `dm-editable:{sessionId}:{messageId}` | string | **20min** | Meta окна правки DM |
-| `message-senders:{sessionId}` | hash | 24h | Индекс отправителя для delete-for-everyone |
-| `message-edits:{recipientId}:{sessionId}` | list | 1h | Tombstone-очередь правок (offline sync, per-recipient) |
-| `message-deletions:{recipientId}:{sessionId}` | list | 1h | Tombstone-очередь удалений (offline sync, per-recipient) |
-| `messages:{roomId}` | list | 24h | Очередь сообщений комнаты |
-| `ratelimit:{type}:{userId}` | string | окно типа | STOMP rate-limit (`RateLimitService`) |
-| `ratelimit:rest:{group}:{clientId}` | string | окно группы | REST rate-limit |
-| `filedownload:active:{internalId}` | string | 30min | Слот-счётчик активных скачиваний |
-| `file_meta:{fileId}` | hash | 24h | Метаданные зашифрованного blob |
-| `file_context:{contextId}` | set | 24h | Индекс `fileId` по session/room |
+| `messages:{recipientId}:{sessionId}` | list | 24h | DM offline queue (E2EE blobs) |
+| `messages:count:{recipientId}` | string | ⚠️ expire when `count==1` | Pending DM counter |
+| `dm-editable:{sessionId}:{messageId}` | string | **20min** | DM edit window meta |
+| `message-senders:{sessionId}` | hash | 24h | Sender index for delete-for-everyone |
+| `message-edits:{recipientId}:{sessionId}` | list | 1h | Edit tombstone queue (offline sync, per-recipient) |
+| `message-deletions:{recipientId}:{sessionId}` | list | 1h | Deletion tombstone queue (offline sync, per-recipient) |
+| `messages:{roomId}` | list | 24h | Room message queue |
+| `ratelimit:{type}:{userId}` | string | type window | STOMP rate limit (`RateLimitService`) |
+| `ratelimit:rest:{group}:{clientId}` | string | group window | REST rate limit |
+| `filedownload:active:{internalId}` | string | 30min | Active download slot counter |
+| `file_meta:{fileId}` | hash | 24h | Encrypted blob metadata |
+| `file_context:{contextId}` | set | 24h | `fileId` index by session/room |
 | `pow:challenge:{challengeId}` | hash | 60s | PoW challenge (action + difficulty) |
 | `pow:spent:{challengeId}` | string | 120s | One-time spent marker (SET NX) |
-| `pow:abuse:global` | hash | 60s | Глобальные счётчики adaptive difficulty |
+| `pow:abuse:global` | hash | 60s | Global adaptive difficulty counters |
 | `auth_nonce:{nonce}` | string | 5min | TON proof nonce |
 | `wallet_tg_link:{challengeId}` | string | 15min | Wallet↔Telegram link challenge |
-| `room:{roomId}` | hash | 30d | Метаданные комнаты |
-| `room:autoburn:{roomId}` | string | до `autoBurnAt` | Trigger auto-burn (не refresh) |
-| `user:deadman:{internalId}` | string | `periodDays` | Dead man's switch trigger (refresh на connect) |
-| `user:deadman:cfg:{internalId}` | string | **нет TTL** | `{ periodDays, wipeIdentity }` — удаляется при disable/expiry |
-| `room_members:{roomId}` | set | 30d | Участники (internalId) |
-| `member_rooms:{internalId}` | set | 30d | Reverse-index комнат пользователя |
+| `room:{roomId}` | hash | 30d | Room metadata |
+| `room:autoburn:{roomId}` | string | until `autoBurnAt` | Auto-burn trigger (no refresh) |
+| `user:deadman:{internalId}` | string | `periodDays` | Dead man's switch trigger (refresh on connect) |
+| `user:deadman:cfg:{internalId}` | string | **no TTL** | `{ periodDays, wipeIdentity }` — deleted on disable/expiry |
+| `room_members:{roomId}` | set | 30d | Members (internalId) |
+| `member_rooms:{internalId}` | set | 30d | User room reverse index |
 | `room_keys:{roomId}:{epoch}` | hash | **7d** | Wrapped group keys |
-| `room_key_epoch:{roomId}` | string | 30d | Текущий epoch rekey |
+| `room_key_epoch:{roomId}` | string | 30d | Current rekey epoch |
 | `room_member_pubkey:{roomId}` | hash | 30d | internalId → SPKI pubkey |
-| `room_bans:{roomId}` | set | 30d | Банлист комнаты |
-| `room_muted:{roomId}` | set | 30d | Mute-лист комнаты |
+| `room_bans:{roomId}` | set | 30d | Room ban list |
+| `room_muted:{roomId}` | set | 30d | Room mute list |
 | `room_roles:{roomId}` | hash | 30d | internalId → `admin` \| `member` |
-| `room_presence:{roomId}` | hash | 10min | lastSeenMs (не refresh с room TTL) |
-| `room_join_request:{roomId}:{sender}` | hash | 24h | Заявка BY_REQUEST |
-| `room_join_requests:{roomId}` | set | 24h | Индекс senderInternalId |
-| `invite:{token}` | hash | до `expiresAt` | Инвайт-токен |
-| `room_invites:{roomId}` | set | ❌ **нет TTL** (баг F-1) | Reverse-index токенов |
-| `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | Кэш TON RPC |
+| `room_presence:{roomId}` | hash | 10min | lastSeenMs (not refreshed with room TTL) |
+| `room_join_request:{roomId}:{sender}` | hash | 24h | BY_REQUEST join request |
+| `room_join_requests:{roomId}` | set | 24h | senderInternalId index |
+| `invite:{token}` | hash | until `expiresAt` | Invite token |
+| `room_invites:{roomId}` | set | ❌ **no TTL** (bug F-1) | Token reverse index |
+| `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | TON RPC cache |
 | `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
 | `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
 | `ton:jetton:fees:v1:{wc}:{hex}` | string | 5min | Effective fee params |
-| `ton:staking:profile\|lock\|tiercfg:v1:{wc}:{hex}` | string | 30s / 1h | Staking-кэш |
-| `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal-кэш |
+| `ton:staking:profile\|lock\|tiercfg:v1:{wc}:{hex}` | string | 30s / 1h | Staking cache |
+| `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal cache |
 | `health:test:{timestamp}` | string | 10s | Redis health probe |
 
-> **Planned (не реализовано):** `blocked:{tgId}` — user-block list; в backend 0
-> вхождений (DM-3). не создавать ключ до появления отдельной фичи.
+> **Planned (not implemented):** `blocked:{tgId}` — user block list; 0
+> occurrences in backend (DM-3). Do not create the key until a dedicated feature ships.
 
 ---
 
 ### `session:{sessionId}`
 
-Метаданные активной DM-сессии. Участники адресуются по **`internalId`** (UUID-строка).
+Metadata for an active DM session. Participants are addressed by **`internalId`** (UUID string).
 
 ```redis
 HSET session:abc123
@@ -100,74 +100,74 @@ HSET session:abc123
 EXPIRE session:abc123 86400
 ```
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `initiatorInternalId` | string | internalId создателя заявки |
-| `initiatorTelegramId` | string? | Telegram ID создателя; пусто для wallet-only |
-| `responderInternalId` | string | internalId получателя |
-| `responderTelegramId` | string? | Telegram ID получателя; пусто для wallet-only |
+| `initiatorInternalId` | string | internalId of the request creator |
+| `initiatorTelegramId` | string? | Creator's Telegram ID; empty for wallet-only |
+| `responderInternalId` | string | Recipient's internalId |
+| `responderTelegramId` | string? | Recipient's Telegram ID; empty for wallet-only |
 | `status` | enum | `pending` \| `handshake` \| `active` \| `burned` \| `expired` |
-| `secretAnswerHash` | string? | Base64(SHA-256) нормализованного ожидаемого ответа (`trim` → `toLowerCase`) |
+| `secretAnswerHash` | string? | Base64(SHA-256) of the normalized expected answer (`trim` → `toLowerCase`) |
 
-Проверка участника: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
+Participant check: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
 
-**TTL:** по умолчанию 24 часа (`session.active.ttl` в `application.yml`).
+**TTL:** 24 hours by default (`session.active.ttl` in `application.yml`).
 
 ---
 
 ### Offline message queue (DM)
 
-Очередь зашифрованных сообщений для получателя, если он офлайн в момент доставки.
+Queue of encrypted messages for the recipient when they are offline at delivery time.
 
-| Ключ | Тип | Описание |
+| Key | Type | Description |
 |------|-----|----------|
-| `messages:{recipientInternalId}:{sessionId}` | List | JSON сериализованных `Message` (E2EE blob), порядок FIFO |
-| `messages:count:{recipientInternalId}` | String | Суммарный счётчик не доставленных сообщений по всем сессиям пользователя |
+| `messages:{recipientInternalId}:{sessionId}` | List | JSON-serialized `Message` (E2EE blob), FIFO order |
+| `messages:count:{recipientInternalId}` | String | Aggregate count of undelivered messages across all user sessions |
 
-**TTL `messages:count:*`:** EXPIRE выставляется только при переходе счётчика в `1`
-(инициализация); при последующих INCR ключ может остаться без refresh (DM-15).
+**TTL `messages:count:*`:** EXPIRE is set only when the counter transitions to `1`
+(initialization); on subsequent INCR the key may remain without refresh (DM-15).
 
-**TTL и cap:** задаются в `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Значения не должны превышать TTL метаданных сессии (`session.active.ttl`). При переполнении список обрезается с головы (старые сообщения отбрасываются); сервер ведёт метрики Micrometer `burnedchats.offline_queue.*` (без идентификаторов пользователей в тегах).
+**TTL and cap:** configured in `burnedchats.messages.offline-queue` (`ttl`, `max-size-per-session`). Values must not exceed session metadata TTL (`session.active.ttl`). On overflow the list is trimmed from the head (oldest messages dropped); the server records Micrometer metrics `burnedchats.offline_queue.*` (no user identifiers in tags).
 
 #### `dm-editable:{sessionId}:{messageId}`
 
-Краткоживущая meta для проверки владения DM-сообщением и окна правки после
-выхода сообщения из offline-очереди (доставлено онлайн).
+Short-lived meta for DM message ownership verification and the edit window after
+the message leaves the offline queue (delivered online).
 
-| Поле JSON | Тип | Описание |
+| JSON field | Type | Description |
 |-----------|-----|----------|
-| `senderInternalId` | String | Стабильный UUID отправителя (primary для wallet) |
-| `senderId` | Long | Legacy Telegram id; фолбэк для старых записей |
-| `serverTimestamp` | Instant | Якорь окна правки |
-| `fileId` / `thumbnailFileId` | String | Опционально для file-сообщений (delete/burn) |
+| `senderInternalId` | String | Stable sender UUID (primary for wallet) |
+| `senderId` | Long | Legacy Telegram id; fallback for old records |
+| `serverTimestamp` | Instant | Edit window anchor |
+| `fileId` / `thumbnailFileId` | String | Optional for file messages (delete/burn) |
 
-**TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` — **20 мин**
-(`MessagesProperties`, default; код — источник истины, DM-2).
+**TTL:** `burnedchats.messages.message-edits.editable-meta-ttl` — **20 min**
+(`MessagesProperties`, default; code is source of truth, DM-2).
 
 #### `message-senders:{sessionId}`
 
-Hash индекс отправителя для DM delete-for-everyone (доставленные/ранее queued сообщения).
+Hash sender index for DM delete-for-everyone (delivered / previously queued messages).
 
-| Поле hash | Значение JSON | Описание |
+| Hash field | JSON value | Description |
 |-----------|---------------|----------|
-| `{messageId}` | `MessageSenderIndexEntry` | Сериализованный JSON |
+| `{messageId}` | `MessageSenderIndexEntry` | Serialized JSON |
 
-| Поле JSON | Тип | Описание |
+| JSON field | Type | Description |
 |-----------|-----|----------|
-| `senderInternalId` | String | Стабильный UUID отправителя (primary для wallet) |
-| `senderId` | Long | Legacy Telegram id; только если `!= null && != 0` |
+| `senderInternalId` | String | Stable sender UUID (primary for wallet) |
+| `senderId` | Long | Legacy Telegram id; only if `!= null && != 0` |
 
-**Legacy read-path:** plain numeric string в hash value трактуется как `senderId` only;
-строка `"null"` или невалидное значение → index считается пустым (fallback на
+**Legacy read-path:** plain numeric string in hash value is treated as `senderId` only;
+string `"null"` or invalid value → index is considered empty (fallback to
 `dm-editable` meta).
 
-**TTL:** `burnedchats.messages.sender-index-ttl` (по умолчанию 24 ч).
+**TTL:** `burnedchats.messages.sender-index-ttl` (default 24 h).
 
 ---
 
 ### `request:{recipientInternalId}`
 
-Очередь входящих запросов на чат. Ключ — **`recipientInternalId`** (UUID получателя), не Telegram ID.
+Queue of incoming chat requests. Key is **`recipientInternalId`** (recipient UUID), not Telegram ID.
 
 ```redis
 LPUSH request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 '{
@@ -185,28 +185,28 @@ LPUSH request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 '{
 EXPIRE request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 300
 ```
 
-`ChatRequest.getRecipientKey()` всегда возвращает `recipientInternalId`. Legacy записи с ключом `request:{tgId}` не мигрируются (TTL 5 мин).
+`ChatRequest.getRecipientKey()` always returns `recipientInternalId`. Legacy entries with key `request:{tgId}` are not migrated (TTL 5 min).
 
-**TTL:** 5 минут (запрос истекает)
+**TTL:** 5 minutes (request expires)
 
 ---
 
 ### `online:{internalId}`
 
-Статус онлайн (heartbeat).
+Online status (heartbeat).
 
 ```redis
 SET online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 "1704067200000"
 EXPIRE online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 30
 ```
 
-Клиент отправляет heartbeat каждые 20 секунд, TTL 30 секунд.
+Client sends heartbeat every 20 seconds; TTL 30 seconds.
 
 ---
 
-### `user:{internalId}` — канонический каталог (`UserIdentityRepository`)
+### `user:{internalId}` — canonical catalog (`UserIdentityRepository`)
 
-Единый профиль пользователя под stable `internalId`. Заполняется при REST wallet-auth и STOMP CONNECT **любого** типа принципала.
+Unified user profile under stable `internalId`. Populated on REST wallet-auth and STOMP CONNECT for **any** principal type.
 
 ```redis
 HSET user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
@@ -221,7 +221,7 @@ HSET user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
 EXPIRE user:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 7776000
 ```
 
-Wallet-only пример (`authType: WALLET`, `telegramId` пуст):
+Wallet-only example (`authType: WALLET`, `telegramId` empty):
 
 ```redis
 HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -232,16 +232,16 @@ HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
   walletAddress "EQBx7..."
 ```
 
-**Legacy Telegram cache** (`UserRepository`): отдельный hash `user:{tgId}` для быстрого
-поиска по `@username` / TG ID. Содержит optional поле `internalId` для обогащения
-`UserResponse`. Wallet-only записи **не** дублируются в `user:{tgId}`.
+**Legacy Telegram cache** (`UserRepository`): separate hash `user:{tgId}` for fast
+lookup by `@username` / TG ID. Contains optional `internalId` field for enriching
+`UserResponse`. Wallet-only records are **not** duplicated in `user:{tgId}`.
 
-**TTL:** канонический `user:{internalId}` — **90 дней** (обновляется при каждом входе);
-legacy `user:{tgId}` — **7 дней** (`UserRepository.DEFAULT_TTL`, DM-6).
+**TTL:** canonical `user:{internalId}` — **90 days** (refreshed on each login);
+legacy `user:{tgId}` — **7 days** (`UserRepository.DEFAULT_TTL`, DM-6).
 
 ### `auth_tg:{telegramId}` / `auth_wallet:{walletAddress}`
 
-Маппинги внешней аутентификации на единый `internalId`:
+External authentication mappings to unified `internalId`:
 
 ```redis
 SET auth_tg:111222333 "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
@@ -250,31 +250,31 @@ EXPIRE auth_tg:111222333 7776000
 EXPIRE auth_wallet:EQ... 7776000
 ```
 
-#### Жизненный цикл при `burnAllForUser`
+#### Lifecycle on `burnAllForUser`
 
-| Ключ / паттерн | `wipeIdentity=false` | `wipeIdentity=true` | Примечание |
+| Key / pattern | `wipeIdentity=false` | `wipeIdentity=true` | Note |
 |----------------|----------------------|---------------------|------------|
-| `session:{sessionId}` | `DEL` (все активные сессии пользователя) | то же | + `BurnSignalEvent` пирам |
-| `messages:{internalId}:*`, `message-edits:*`, `message-deletions:*` | `DEL` очереди пользователя | то же | tombstone + offline |
-| `request:{internalId}` | `DEL` | то же | pending chat requests |
-| `file_context:{sessionId\|roomId}` | `DEL` (затронутые контексты) | то же | через `FileBurnService` |
-| `room:{roomId}` + room-* (owned) | полный BURN_ROOM каскад | то же | `RoomBurnedEvent` участникам |
-| `room_members:*` / pubkey / keys (member leave) | remove user из чужих комнат | то же | `room-member-left` → owner rekey |
-| `member_rooms:{internalId}` | сохраняется | `DEL` | reverse index |
-| `user:{internalId}` | сохраняется | `DEL` | профиль |
-| `auth_tg:*` / `auth_wallet:*` | сохраняются | `DEL` привязок пользователя | |
-| `lang:pref:{internalId}` | сохраняется | `DEL` | |
-| `session_token:*` (значение = internalId) | сохраняются | `DEL` matching tokens | SCAN |
-| `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}` | не трогаются каскадом | не трогаются | listener идемпотентен; disable — через `/app/user.setDeadman` |
-| `ratelimit:rest:burn_all:{internalId}` | INCR / TTL 60s | то же | 3 req/min |
+| `session:{sessionId}` | `DEL` (all active user sessions) | same | + `BurnSignalEvent` to peers |
+| `messages:{internalId}:*`, `message-edits:*`, `message-deletions:*` | `DEL` user queues | same | tombstone + offline |
+| `request:{internalId}` | `DEL` | same | pending chat requests |
+| `file_context:{sessionId\|roomId}` | `DEL` (affected contexts) | same | via `FileBurnService` |
+| `room:{roomId}` + room-* (owned) | full BURN_ROOM cascade | same | `RoomBurnedEvent` to members |
+| `room_members:*` / pubkey / keys (member leave) | remove user from others' rooms | same | `room-member-left` → owner rekey |
+| `member_rooms:{internalId}` | preserved | `DEL` | reverse index |
+| `user:{internalId}` | preserved | `DEL` | profile |
+| `auth_tg:*` / `auth_wallet:*` | preserved | `DEL` user bindings | |
+| `lang:pref:{internalId}` | preserved | `DEL` | |
+| `session_token:*` (value = internalId) | preserved | `DEL` matching tokens | SCAN |
+| `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}` | not touched by cascade | not touched | listener is idempotent; disable via `/app/user.setDeadman` |
+| `ratelimit:rest:burn_all:{internalId}` | INCR / TTL 60s | same | 3 req/min |
 
-Порядок: сначала сущности общения (1–4), identity — последним (5), ack клиенту после каскада.
+Order: communication entities first (1–4), identity last (5), client ack after cascade.
 
 ---
 
 ### `ratelimit:{type}:{userId}`
 
-Rate limiting counters (STOMP и shared identity). Префикс **`ratelimit:`**
+Rate limiting counters (STOMP and shared identity). Prefix **`ratelimit:`**
 (`RateLimitService.KEY_PREFIX`, DM-1).
 
 ```redis
@@ -282,10 +282,10 @@ INCR ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
 EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 ```
 
-| Type (`RateLimitType`) | Окно | Max (default) | Примечание |
+| Type (`RateLimitType`) | Window | Max (default) | Note |
 |------------------------|------|---------------|------------|
 | `search` | 60s | 10 | |
-| `session_create` | **60s** | **3** | DM-1: было 300s в старой спеке |
+| `session_create` | **60s** | **3** | DM-1: was 300s in old spec |
 | `message` | 60s | **60** | override: `rate-limit.messages.per-minute` |
 | `session_action` | 60s | 10 | accept/reject |
 | `handshake` | 60s | 10 | key exchange |
@@ -295,214 +295,214 @@ EXPIRE ratelimit:message:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 60
 | `message_delete` | 60s | 30 | |
 | `pow_challenge` | 60s | 10 | issuance flood guard |
 | `room_read` | 60s | 30 | getMembers/getPresence/getBans |
-| `room_password_fail` | 600s | 5 | override: `rate-limit.room-password-fail.*`; см. сноску ниже |
+| `room_password_fail` | 600s | 5 | override: `rate-limit.room-password-fail.*`; see footnote below |
 
-> **`room_password_fail` (составной ключ):** Redis-ключ —
+> **`room_password_fail` (composite key):** Redis key —
 > `ratelimit:room_password_fail:{roomId}:{internalId}`
-> (`RoomJoinService.passwordFailKey` → `RateLimitService`). INCR выполняется
-> **только при неудачном** password proof; успешный proof сбрасывает счётчик
-> (`resetRateLimit`). Локаут снимается по TTL окна (600 с / override yaml).
+> (`RoomJoinService.passwordFailKey` → `RateLimitService`). INCR runs
+> **only on failed** password proof; successful proof resets the counter
+> (`resetRateLimit`). Lockout clears when the window TTL expires (600 s / yaml override).
 
-Отдельный REST-префикс: `ratelimit:rest:{group}:{clientId}` (IP / identity).
-Группа `burn_all` — `/app/user.burnAll`, 3 req/min per `internalId`.
+Separate REST prefix: `ratelimit:rest:{group}:{clientId}` (IP / identity).
+Group `burn_all` — `/app/user.burnAll`, 3 req/min per `internalId`.
 
 ---
 
 ### Phase 5: TON RPC cache (`TonService`)
 
-Стабильные ответы `runGetMethod` / `getAddressInformation` кэшируются в Redis с ключами:
+Stable `runGetMethod` / `getAddressInformation` responses are cached in Redis with keys:
 
-| Шаблон ключа | TTL | Назначение |
+| Key pattern | TTL | Purpose |
 |--------------|-----|------------|
-| `ton:rpc:{address}:{method}:{argsHash}` | `app.ton.cache.ttl-seconds` | Нормализованный адрес, имя get-метода, SHA-256 от JSON аргументов стека |
+| `ton:rpc:{address}:{method}:{argsHash}` | `app.ton.cache.ttl-seconds` | Normalized address, get-method name, SHA-256 of stack args JSON |
 
 ### Phase 5: Jetton (`JettonService`)
 
-| Шаблон ключа | TTL | Значение |
+| Key pattern | TTL | Value |
 |--------------|-----|----------|
-| `ton:jetton:balance:v1:{workchain}:{hex}` | 30 с | `BigInteger` nano баланса BURN |
-| `ton:jetton:info:v1:{workchain}:{hex}` | 1 ч | JSON `JettonInfo` мастера (`app.ton.addresses.jetton-master`) |
-| `ton:jetton:fees:v1:{workchain}:{hex}` | 5 мин | JSON `EffectiveFeeParams` (`get_effective_fee_params`) |
+| `ton:jetton:balance:v1:{workchain}:{hex}` | 30 s | `BigInteger` BURN nano balance |
+| `ton:jetton:info:v1:{workchain}:{hex}` | 1 h | JSON `JettonInfo` master (`app.ton.addresses.jetton-master`) |
+| `ton:jetton:fees:v1:{workchain}:{hex}` | 5 min | JSON `EffectiveFeeParams` (`get_effective_fee_params`) |
 
-Адрес в суффиксе ключа нормализуется в вид `workchain:hex` (см. `TonAddressBoc.normalizeKey`).
+Address in the key suffix is normalized as `workchain:hex` (see `TonAddressBoc.normalizeKey`).
 
 ### Phase 5: Staking (`StakingVerifier`)
 
-| Шаблон ключа | TTL | Значение |
+| Key pattern | TTL | Value |
 |--------------|-----|----------|
-| `ton:staking:profile:v1:{workchain}:{hex}` | 30 с | JSON `UserStakingProfile` |
-| `ton:staking:lock:v1:{workchain}:{hex}` | 1 ч | Адрес `StakingLock` для данного staking-master |
-| `ton:staking:tiercfg:v1:{workchain}:{hex}` | 1 ч | Кэш tier config, прочитанного с lock-контракта |
+| `ton:staking:profile:v1:{workchain}:{hex}` | 30 s | JSON `UserStakingProfile` |
+| `ton:staking:lock:v1:{workchain}:{hex}` | 1 h | `StakingLock` address for the given staking-master |
+| `ton:staking:tiercfg:v1:{workchain}:{hex}` | 1 h | Tier config cache read from lock contract |
 
 ---
 
-## Phase 2: Комнаты (Redis)
+## Phase 2: Rooms (Redis)
 
-> Ниже — целевые структуры ключей.
+> Below — target key structures.
 
 ### `room:{roomId}`
 
-Метаданные комнаты (владелец, производная пароля, режим входа).
+Room metadata (owner, derived password, join mode).
 
 ```redis
 HSET room:uuid-room-1
   ownerInternalId "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
   ownerTgId       "111222333"
-  salt            "base64..."     # пустая строка, если комната без пароля (BY_REQUEST)
-  passwordProofHash "base64..."   # пустая строка, если комната без пароля
-  joinMode        "by_password"   # или "by_request"
+  salt            "base64..."     # empty string if room has no password (BY_REQUEST)
+  passwordProofHash "base64..."   # empty string if room has no password
+  joinMode        "by_password"   # or "by_request"
   createdAt       "1704067200000"
-  nameEncrypted   "base64..."     # опционально; opaque ciphertext
-  nameIv          "base64..."     # опционально; 12-byte GCM IV
-  readOnly        "false"         # опционально; true = только owner постит
-  autoBurnAt      "1706745600000" # опционально; epoch ms дедлайна auto-burn
-  messageTtl      "3600"          # опционально; секунды автоуничтожения сообщений; 0 = выкл
+  nameEncrypted   "base64..."     # optional; opaque ciphertext
+  nameIv          "base64..."     # optional; 12-byte GCM IV
+  readOnly        "false"         # optional; true = only owner can post
+  autoBurnAt      "1706745600000" # optional; epoch ms auto-burn deadline
+  messageTtl      "3600"          # optional; message self-destruct seconds; 0 = off
 
 EXPIRE room:uuid-room-1 2592000
 ```
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `ownerInternalId` | string | internalId владельца (UUID). При чтении из Redis: если поле пустое или содержит только цифры (legacy), нормализуется через `InternalIds.forTelegramId` там, где это безопасно согласовать с `ownerTgId` |
-| `ownerTgId` | string | Telegram ID владельца (compat для текущих DTO) |
-| `salt` | string | Salt для KDF (Base64). Пустая строка, если комната без пароля (BY_REQUEST) |
-| `passwordProofHash` | string | Хеш proof. Пустая строка, если комната без пароля |
+| `ownerInternalId` | string | Owner internalId (UUID). On Redis read: if field is empty or digits-only (legacy), normalized via `InternalIds.forTelegramId` where safely reconcilable with `ownerTgId` |
+| `ownerTgId` | string | Owner Telegram ID (compat for current DTOs) |
+| `salt` | string | KDF salt (Base64). Empty string if room has no password (BY_REQUEST) |
+| `passwordProofHash` | string | Proof hash. Empty string if room has no password |
 | `joinMode` | enum | `by_password` \| `by_request` |
-| `createdAt` | number | Unix timestamp в мс |
-| `nameEncrypted` | string | Зашифрованное имя комнаты (AES-GCM ciphertext, Base64). Пустая строка = не задано. Сервер не расшифровывает |
-| `nameIv` | string | Base64 IV для `nameEncrypted` (12 bytes). Пустая строка = не задано |
-| `readOnly` | boolean | Режим «только чтение»: при `true` отправлять сообщения может только владелец. По умолчанию `false` (отсутствие поля) |
-| `autoBurnAt` | number | Опционально: абсолютный момент auto-burn (Unix ms). Задаётся owner через `/app/room.setTtl`. При наличии activity-продление TTL hash-ключа **капится** этим instant; детерминированный burn — по trigger key ниже |
-| `messageTtl` | number | Опционально: таймер самоуничтожения сообщений комнаты в **секундах**; `0` или отсутствие поля = выкл (только глобальный TTL list `messages:{roomId}`). Задаётся owner через `/app/room.setMessageTtl` |
+| `createdAt` | number | Unix timestamp in ms |
+| `nameEncrypted` | string | Encrypted room name (AES-GCM ciphertext, Base64). Empty string = not set. Server does not decrypt |
+| `nameIv` | string | Base64 IV for `nameEncrypted` (12 bytes). Empty string = not set |
+| `readOnly` | boolean | Read-only mode: when `true` only the owner can send messages. Default `false` (missing field) |
+| `autoBurnAt` | number | Optional: absolute auto-burn instant (Unix ms). Set by owner via `/app/room.setTtl`. When present, activity TTL extension of the hash key is **capped** by this instant; deterministic burn via trigger key below |
+| `messageTtl` | number | Optional: room message self-destruct timer in **seconds**; `0` or missing field = off (only global list TTL `messages:{roomId}`). Set by owner via `/app/room.setMessageTtl` |
 
-**TTL:** 30 дней (продлевается при активности, в т.ч. при `/app/room.setName`), но **не выше** `autoBurnAt`, если поле задано.
+**TTL:** 30 days (extended on activity, including `/app/room.setName`), but **not above** `autoBurnAt` when the field is set.
 
 ### `room:autoburn:{roomId}`
 
-Dedicated trigger key (string value = `roomId`), TTL = `autoBurnAt - now`. **Не** продлевается активностью. При истечении Redis keyspace listener выполняет полный каскад BURN_ROOM и рассылает `ROOM_BURNED`.
+Dedicated trigger key (string value = `roomId`), TTL = `autoBurnAt - now`. **Not** extended by activity. On expiry the Redis keyspace listener runs full BURN_ROOM cascade and broadcasts `ROOM_BURNED`.
 
 ```redis
 SET room:autoburn:uuid-room-1 uuid-room-1 EX 3600
 ```
 
-| Операция | Описание |
+| Operation | Description |
 |----------|----------|
-| setTtl | `SET` + `EX`/`PX` до `autoBurnAt` |
-| Manual burn / auto-burn cascade | `DEL` trigger key вместе с остальными ключами комнаты |
-| Activity | trigger key **не** обновляется |
+| setTtl | `SET` + `EX`/`PX` until `autoBurnAt` |
+| Manual burn / auto-burn cascade | `DEL` trigger key along with other room keys |
+| Activity | trigger key **not** updated |
 
 ### `user:deadman:{internalId}` / `user:deadman:cfg:{internalId}`
 
-Dead man's switch: если пользователь не подключался `periodDays` дней,
-срабатывает полный каскад `burnAllForUser` с сохранённым `wipeIdentity`.
+Dead man's switch: if the user has not connected for `periodDays` days,
+full `burnAllForUser` cascade fires with stored `wipeIdentity`.
 
-Паттерн — две связанные ключи (как `room:autoburn` + данные комнаты):
+Pattern — two linked keys (like `room:autoburn` + room data):
 
 ```redis
 SET user:deadman:cfg:tg:111222333 '{"periodDays":30,"wipeIdentity":false}'
 SET user:deadman:tg:111222333 tg:111222333 EX 2592000
 ```
 
-| Ключ | TTL | Описание |
+| Key | TTL | Description |
 |------|-----|----------|
-| `user:deadman:{internalId}` | `periodDays` × 86400s | Trigger; value = `internalId`. **Refresh** на каждый успешный STOMP CONNECT |
-| `user:deadman:cfg:{internalId}` | **нет** (единственное «вечное» исключение в фиче) | JSON `{ periodDays: 7\|30\|90, wipeIdentity: boolean }`. `DEL` при disable или после срабатывания |
+| `user:deadman:{internalId}` | `periodDays` × 86400s | Trigger; value = `internalId`. **Refresh** on every successful STOMP CONNECT |
+| `user:deadman:cfg:{internalId}` | **none** (only "eternal" exception in the feature) | JSON `{ periodDays: 7\|30\|90, wipeIdentity: boolean }`. `DEL` on disable or after trigger |
 
-**Срабатывание:** Redis keyspace `expired` на trigger key → `DeadmanRedisKeyspaceConfig` →
-`UserBurnService.burnAllForUser(internalId, wipeIdentity из cfg)` → `DEL cfg`.
-Точность — «примерно в момент expiry» (зависит от `notify-keyspace-events` и нагрузки Redis);
-для периодов в днях это приемлемо.
+**Trigger:** Redis keyspace `expired` on trigger key → `DeadmanRedisKeyspaceConfig` →
+`UserBurnService.burnAllForUser(internalId, wipeIdentity from cfg)` → `DEL cfg`.
+Precision — "approximately at expiry" (depends on `notify-keyspace-events` and Redis load);
+acceptable for day-scale periods.
 
-**Идемпотентность:** если пользователь уже сжёг данные вручную (`/app/user.burnAll`),
-listener не падает — cfg может отсутствовать или каскад завершится с пустым результатом.
+**Idempotency:** if the user already burned data manually (`/app/user.burnAll`),
+listener does not fail — cfg may be missing or cascade completes with empty result.
 
-**Disable:** `/app/user.setDeadman { enabled: false }` → `DEL` обоих ключей.
+**Disable:** `/app/user.setDeadman { enabled: false }` → `DEL` both keys.
 
 ### `room_members:{roomId}`
 
-Участники комнаты (Set internalId).
+Room members (Set of internalId).
 
 ```redis
 SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 ```
 
-Удаляется при BURN_ROOM.
+Deleted on BURN_ROOM.
 
 ### `room_bans:{roomId}`
 
-Банлист комнаты (Set internalId). Запрет повторного join для перечисленных identity.
+Room ban list (Set of internalId). Blocks re-join for listed identities.
 
 ```redis
 SADD room_bans:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
 EXPIRE room_bans:uuid-room-1 2592000
 ```
 
-| Операция | Описание |
+| Operation | Description |
 |----------|----------|
-| Ban | `SADD` после kick-cleanup (`/app/room.ban`) |
+| Ban | `SADD` after kick cleanup (`/app/room.ban`) |
 | Unban | `SREM` (`/app/room.unban`) |
-| Join enforce | `SISMEMBER` в `requestJoin` / `acceptJoin` → `USER_BANNED` |
-| TTL | 30 дней; продлевается при активности комнаты (вместе с `room:{roomId}`) |
+| Join enforce | `SISMEMBER` in `requestJoin` / `acceptJoin` → `USER_BANNED` |
+| TTL | 30 days; extended on room activity (together with `room:{roomId}`) |
 | BURN_ROOM | `DEL room_bans:{roomId}` |
 
 ### `room_muted:{roomId}`
 
-Список заглушённых участников (Set internalId). Mute **не** удаляет из membership и **не** требует rekey.
+Muted members list (Set of internalId). Mute **does not** remove membership and **does not** require rekey.
 
 ```redis
 SADD room_muted:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456"
 EXPIRE room_muted:uuid-room-1 2592000
 ```
 
-| Операция | Описание |
+| Operation | Description |
 |----------|----------|
-| Mute | `SADD` (`/app/room.mute`); участник остаётся членом |
+| Mute | `SADD` (`/app/room.mute`); member stays in room |
 | Unmute | `SREM` (`/app/room.unmute`) |
-| Send enforce | `SISMEMBER` в `/app/room.message.send` → `MUTED` (без записи в очередь) |
-| TTL | 30 дней; продлевается при мутациях |
+| Send enforce | `SISMEMBER` in `/app/room.message.send` → `MUTED` (no queue write) |
+| TTL | 30 days; extended on mutations |
 | BURN_ROOM | `DEL room_muted:{roomId}` |
 
 ### `room_presence:{roomId}`
 
-Эфемерный presence участников комнаты (Hash internalId → lastSeenMs). **Только метаданные соединения** — не затрагивает ciphertext сообщений или ключи.
+Ephemeral room member presence (Hash internalId → lastSeenMs). **Connection metadata only** — does not affect message ciphertext or keys.
 
 ```redis
 HSET room_presence:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "1710000000000"
 EXPIRE room_presence:uuid-room-1 600
 ```
 
-| Поле / операция | Описание |
+| Field / operation | Description |
 |-----------------|----------|
-| Значение hash | `lastSeenMs` — epoch millis, **округление вниз до минуты** (privacy) |
-| TTL | **10 минут**; ключ не продлевается вместе с lifetime комнаты |
-| Connect / subscribe | `HSET` + broadcast `RoomPresenceEvent{ online: true }` на `/topic/room/{roomId}` |
-| Disconnect | `HSET` (финальный lastSeen) + broadcast `{ online: false }` |
-| Snapshot | `/app/room.getPresence` → `/user/queue/room-presence` (только членам) |
-| `online` в snapshot | Глобальный heartbeat (`online:{internalId}`, 30s TTL) ∧ членство |
-| BURN_ROOM | `DEL room_presence:{roomId}` (manual burn в `RoomHandler`; auto-burn — TTL fallback) |
+| Hash value | `lastSeenMs` — epoch millis, **rounded down to minute** (privacy) |
+| TTL | **10 minutes**; key not extended with room lifetime |
+| Connect / subscribe | `HSET` + broadcast `RoomPresenceEvent{ online: true }` on `/topic/room/{roomId}` |
+| Disconnect | `HSET` (final lastSeen) + broadcast `{ online: false }` |
+| Snapshot | `/app/room.getPresence` → `/user/queue/room-presence` (members only) |
+| `online` in snapshot | Global heartbeat (`online:{internalId}`, 30s TTL) ∧ membership |
+| BURN_ROOM | `DEL room_presence:{roomId}` (manual burn in `RoomHandler`; auto-burn — TTL fallback) |
 
 ### `room_roles:{roomId}`
 
-Overlay ролей участников (Hash internalId → `admin` | `member`). Роль **owner** не хранится в этом ключе — источник истины `room.ownerInternalId`.
+Member role overlay (Hash internalId → `admin` | `member`). **Owner** role is not stored in this key — source of truth is `room.ownerInternalId`.
 
 ```redis
 HSET room_roles:uuid-room-1 "f74f67a1-2b3c-4d5e-8f90-abcdef123456" "admin"
 EXPIRE room_roles:uuid-room-1 2592000
 ```
 
-| Операция | Описание |
+| Operation | Description |
 |----------|----------|
-| Transfer ownership | `HSET` предыдущему владельцу → `admin`; `HDEL` у нового владельца (owner из `room` hash) |
-| Set role | `HSET` / `HDEL` для `admin` \| `member` |
-| Role resolve | `roleOf`: owner ← `room.ownerInternalId`; admin ← hash; иначе member |
-| TTL | 30 дней; продлевается при мутациях |
+| Transfer ownership | `HSET` previous owner → `admin`; `HDEL` for new owner (owner from `room` hash) |
+| Set role | `HSET` / `HDEL` for `admin` \| `member` |
+| Role resolve | `roleOf`: owner ← `room.ownerInternalId`; admin ← hash; else member |
+| TTL | 30 days; extended on mutations |
 | BURN_ROOM | `DEL room_roles:{roomId}` |
 
-Передача владения (`/app/room.transferOwnership`) **не** требует rekey — новый владелец уже член с групповым ключом.
+Ownership transfer (`/app/room.transferOwnership`) **does not** require rekey — new owner is already a member with the group key.
 
 ### `invite:{token}`
 
-Инвайт-токен для ссылки приглашения. Обратный индекс: `room_invites:{roomId}` (Set token strings).
+Invite token for invitation links. Reverse index: `room_invites:{roomId}` (Set of token strings).
 
 ```redis
 HSET invite:abc123token
@@ -518,32 +518,32 @@ SADD room_invites:uuid-room-1 "abc123token"
 EXPIRE invite:abc123token 604800
 ```
 
-> **Известный баг (F-1 / DM-5):** `room_invites:{roomId}` пишется **без EXPIRE**
-> (`InviteTokenRepository`). Индекс может пережить комнату; фикс — отдельная
-> отдельная backend-задача, не scope этой спеки.
+> **Known bug (F-1 / DM-5):** `room_invites:{roomId}` is written **without EXPIRE**
+> (`InviteTokenRepository`). Index may outlive the room; fix is a separate
+> backend task, not in scope of this spec.
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
 | `token` | string | 64-char hex (32 random bytes) |
-| `roomId` | string | UUID комнаты |
-| `createdBy` | string | Telegram ID создателя; `""` для wallet-only владельца |
-| `createdAt` | string (ms) | Unix ms создания токена |
-| `expiresAt` | string (ms) | Unix ms истечения |
-| `maxUses` | string | Лимит успешных join; пусто = безлимит |
-| `usedCount` | string | Счётчик использований (HINCRBY при join) |
+| `roomId` | string | Room UUID |
+| `createdBy` | string | Creator Telegram ID; `""` for wallet-only owner |
+| `createdAt` | string (ms) | Unix ms token creation |
+| `expiresAt` | string (ms) | Unix ms expiry |
+| `maxUses` | string | Successful join limit; empty = unlimited |
+| `usedCount` | string | Usage counter (HINCRBY on join) |
 
 **Enforcement:**
-- При join: `usedCount++` (атомарно); если `usedCount >= maxUses` (и `maxUses > 0`) → токен удаляется (`DEL invite:{token}` + `SREM room_invites:{roomId}`), клиенту `INVITE_EXHAUSTED`.
-- При `usedCount >= maxUses` до join → `INVITE_EXHAUSTED`, токен удаляется.
-- При `expiresAt < now` → `INVITE_EXPIRED`, токен удаляется.
+- On join: `usedCount++` (atomic); if `usedCount >= maxUses` (and `maxUses > 0`) → token deleted (`DEL invite:{token}` + `SREM room_invites:{roomId}`), client gets `INVITE_EXHAUSTED`.
+- If `usedCount >= maxUses` before join → `INVITE_EXHAUSTED`, token deleted.
+- If `expiresAt < now` → `INVITE_EXPIRED`, token deleted.
 - Owner-only: `/app/room.revokeInvite`, `/app/room.getInvites`.
-- `GET_INVITE_LINK` принимает опциональные `expiresInSeconds`, `maxUses` (0/отсутствует = безлимит).
+- `GET_INVITE_LINK` accepts optional `expiresInSeconds`, `maxUses` (0/missing = unlimited).
 
-**TTL:** `EXPIRE` = `expiresAt - now` (default 7 дней при создании без `expiresInSeconds`).
+**TTL:** `EXPIRE` = `expiresAt - now` (default 7 days when created without `expiresInSeconds`).
 
 ### `room_join_request:{roomId}:{senderInternalId}`
 
-Заявка на вход в комнату (режим `by_request`). Hash на одного заявителя; индекс `room_join_requests:{roomId}` (Set of `senderInternalId`).
+Room join request (`by_request` mode). Hash per applicant; index `room_join_requests:{roomId}` (Set of `senderInternalId`).
 
 ```redis
 HSET room_join_request:uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456
@@ -558,43 +558,43 @@ HSET room_join_request:uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456
 EXPIRE room_join_request:uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456 86400
 ```
 
-Legacy ключи `room_join_request:{roomId}` (list по `senderTgId`) не мигрируются — TTL 24 ч.
+Legacy keys `room_join_request:{roomId}` (list by `senderTgId`) are not migrated — TTL 24 h.
 
-**TTL:** 24 часа
+**TTL:** 24 hours
 
 ### `room_keys:{roomId}:{epoch}`
 
-Зашифрованные копии группового ключа для участников (opaque blobs). Индекс получателя — `recipientInternalId` в `EncryptedKeyBundle`. Сервер не расшифровывает.
+Encrypted copies of the group key for members (opaque blobs). Recipient index is `recipientInternalId` in `EncryptedKeyBundle`. Server does not decrypt.
 
-**TTL:** hash `room_keys:{roomId}:{epoch}` — **7 дней**; счётчик `room_key_epoch:{roomId}` — **30 дней** (DM-16).
+**TTL:** hash `room_keys:{roomId}:{epoch}` — **7 days**; counter `room_key_epoch:{roomId}` — **30 days** (DM-16).
 
 ### `messages:{roomId}`
 
-Очередь зашифрованных сообщений комнаты. Формат — `RoomMessage` (E2EE):
+Room encrypted message queue. Format — `RoomMessage` (E2EE):
 
-| Поле | Описание |
+| Field | Description |
 |------|----------|
-| `senderInternalId` | **Primary** — canonical sender (обязателен для новых записей) |
-| `senderTgId` | Deprecated; best-effort для Telegram-отправителя |
+| `senderInternalId` | **Primary** — canonical sender (required for new records) |
+| `senderTgId` | Deprecated; best-effort for Telegram sender |
 | `encryptedContent`, `iv`, `messageId`, … | Opaque ciphertext |
 
-`RoomMessage.getSenderKey()` резолвит identity для edit/delete и legacy JSON (только `senderTgId`). Переполнение: `max-size-per-room` (по умолчанию 500). **TTL ключа:** `burnedchats.messages.offline-queue.ttl` (24 ч).
+`RoomMessage.getSenderKey()` resolves identity for edit/delete and legacy JSON (`senderTgId` only). Overflow: `max-size-per-room` (default 500). **Key TTL:** `burnedchats.messages.offline-queue.ttl` (24 h).
 
-**Per-room message TTL:** когда в `room:{roomId}` задано `messageTtl > 0`, сервер при
-`/app/room.message.send`, `/app/room.message.sync` и `/app/room.setMessageTtl` выполняет **lazy prune**:
-удаляет из list элементы с `serverTimestamp` (fallback `clientTimestamp`) старше `now - messageTtl`.
-Сервер не расшифровывает ciphertext — только метаданные времени. `messageTtl = 0` — prune отключён,
-действует только TTL всего list-ключа.
+**Per-room message TTL:** when `room:{roomId}` has `messageTtl > 0`, server on
+`/app/room.message.send`, `/app/room.message.sync`, and `/app/room.setMessageTtl` performs **lazy prune**:
+removes list elements with `serverTimestamp` (fallback `clientTimestamp`) older than `now - messageTtl`.
+Server does not decrypt ciphertext — only time metadata. `messageTtl = 0` — prune disabled,
+only the list key TTL applies.
 
 ---
 
 ## Phase 4: Files (Redis)
 
-> Реализация: `FileMetadataRepository`, `FileMetadata`.
+> Implementation: `FileMetadataRepository`, `FileMetadata`.
 
 ### `file_meta:{fileId}`
 
-Hash с метаданными **одного** загруженного зашифрованного blob'а (основной файл или thumbnail). `fileId` — UUID, совпадает с именем файла на диске без расширения (`{fileId}.enc`).
+Hash with metadata for **one** uploaded encrypted blob (main file or thumbnail). `fileId` — UUID, matches on-disk filename without extension (`{fileId}.enc`).
 
 ```redis
 HSET file_meta:550e8400-e29b-41d4-a716-446655440000
@@ -608,57 +608,57 @@ HSET file_meta:550e8400-e29b-41d4-a716-446655440000
 EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 ```
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `uploaderInternalId` | string | Канонический `internalId` загрузчика (Telegram и wallet) |
-| `uploaderTgId` | string | Опционально: Telegram ID загрузчика (legacy / best-effort) |
-| `contextType` | string | `session` или `room` |
-| `contextId` | string | ID сессии или комнаты |
-| `size` | long (строка) | Размер сохранённого **зашифрованного** blob'а в байтах |
-| `createdAt` | long (строка) | Unix time (мс) |
+| `uploaderInternalId` | string | Canonical uploader `internalId` (Telegram and wallet) |
+| `uploaderTgId` | string | Optional: uploader Telegram ID (legacy / best-effort) |
+| `contextType` | string | `session` or `room` |
+| `contextId` | string | Session or room ID |
+| `size` | long (string) | Size of stored **encrypted** blob in bytes |
+| `createdAt` | long (string) | Unix time (ms) |
 
-**TTL:** по умолчанию 24 часа (`FileStorageProperties.metadataTtl`), синхронизирован с очисткой и burn cascade.
+**TTL:** 24 hours by default (`FileStorageProperties.metadataTtl`), synchronized with cleanup and burn cascade.
 
 ### `file_context:{contextId}`
 
-**Set** из `fileId`, привязанных к одной сессии или комнате. Используется для каскадного удаления файлов при burn сессии/комнаты (`FileBurnService`): по списку `fileId` удаляются записи в `file_meta:*`, объекты на filesystem и члены множества.
+**Set** of `fileId` bound to one session or room. Used for cascading file deletion on session/room burn (`FileBurnService`): for each `fileId` in the list, `file_meta:*` records, filesystem objects, and set members are removed.
 
-**TTL:** продлевается при каждом добавлении файла (как у `file_meta`), чтобы индекс не переживал метаданные.
+**TTL:** extended on each file add (like `file_meta`) so the index does not outlive metadata.
 
 ---
 
-## Формат кодировки шифртекста (encoding contract)
+## Ciphertext Encoding Format (encoding contract)
 
-Все криптографические blob'ы на стыке **frontend ↔ backend ↔ Redis** кодируются
-**стандартным Base64** (RFC 4648 §4, алфавит `A–Z a–z 0–9 + /` с `=`-padding) —
-**не** base64url (`-`/`_`). Контракт единый для всех полей:
+All cryptographic blobs at the **frontend ↔ backend ↔ Redis** boundary are encoded as
+**standard Base64** (RFC 4648 §4, alphabet `A–Z a–z 0–9 + /` with `=`-padding) —
+**not** base64url (`-`/`_`). The contract is uniform for all fields:
 
-| Поле | Назначение | Где |
+| Field | Purpose | Where |
 |------|------------|-----|
-| `encryptedContent` | AES-GCM ciphertext сообщения / медиа-подписи | room messages, DM, edit-события |
-| `iv` | 12-byte GCM IV для `encryptedContent` | те же |
-| `encryptedMeta` | ciphertext метаданных файла (`{ fileName, mimeType }`) | медиа-сообщения |
-| `nameEncrypted` | ciphertext имени комнаты | `room:{roomId}`, `CREATE_ROOM` (optional), `ROOM_NAME_UPDATED`, room-list |
-| `nameIv` | 12-byte GCM IV для `nameEncrypted` | те же |
+| `encryptedContent` | AES-GCM ciphertext of message / media payload | room messages, DM, edit events |
+| `iv` | 12-byte GCM IV for `encryptedContent` | same |
+| `encryptedMeta` | file metadata ciphertext (`{ fileName, mimeType }`) | media messages |
+| `nameEncrypted` | room name ciphertext | `room:{roomId}`, `CREATE_ROOM` (optional), `ROOM_NAME_UPDATED`, room-list |
+| `nameIv` | 12-byte GCM IV for `nameEncrypted` | same |
 | key-bundle: `ephemeralPublicKey`, `encryptedKey`, `iv` | wrapped group key (ECDH + AES-GCM) | `KEY_BUNDLE`, `room_keys:{roomId}:{epoch}` |
-| `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW-proof / ECDH pubkeys | CREATE_ROOM, JOIN |
+| `salt`, `passwordProof`, `*PublicKey` | KDF salt / PoW proof / ECDH pubkeys | CREATE_ROOM, JOIN |
 
-**Реализация (источник истины):**
+**Implementation (source of truth):**
 
-- **Frontend** — `frontend/src/crypto/aes.ts`: `arrayBufferToBase64` использует `btoa`,
-  `base64ToArrayBuffer` — `atob` (стандартный Base64). Эти же helpers применяются для
+- **Frontend** — `frontend/src/crypto/aes.ts`: `arrayBufferToBase64` uses `btoa`,
+  `base64ToArrayBuffer` — `atob` (standard Base64). Same helpers apply to
   `encryptRoomName` (`crypto/groupKey.ts`) → `{ nameEncrypted, nameIv }`.
-- **Backend** — Base64 на wire проверяется через `@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`
-  на DTO-полях и/или ручной `java.util.Base64.getDecoder()` (стандартный, **не**
-  `getUrlDecoder()`) в сервисах/хендлерах (например `HandshakeHandler.isValidBase64Key`,
-  `PasswordProofService`). Отдельного `@Base64` / `Base64Validator` в коде нет.
+- **Backend** — Base64 on wire is validated via `@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`
+  on DTO fields and/or manual `java.util.Base64.getDecoder()` (standard, **not**
+  `getUrlDecoder()`) in services/handlers (e.g. `HandshakeHandler.isValidBase64Key`,
+  `PasswordProofService`). No separate `@Base64` / `Base64Validator` in code.
 
-**Zero-knowledge инвариант.** Сервер хранит и ретранслирует эти поля как **opaque-строки**
-и **никогда** не декодирует/расшифровывает содержимое — только метаданные (длина для
-валидации, временные метки для prune). Ключей шифрования сервер не видит.
+**Zero-knowledge invariant.** Server stores and relays these fields as **opaque strings**
+and **never** decodes/decrypts content — only metadata (length for
+validation, timestamps for prune). Server does not see encryption keys.
 
-> **Зачем зафиксировано.** Аудит кода ↔ спека выявил, что формат кодировки был описан
-> разрозненно. Несоответствий base64 vs base64url **не обнаружено** — контракт един.
+> **Why documented.** Code ↔ spec audit found encoding format was described
+> inconsistently. No base64 vs base64url mismatches **were found** — contract is unified.
 
 ---
 
@@ -667,7 +667,7 @@ EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
 ### Session Entity
 
 ```java
-// model/Session.java — участники по internalId
+// model/Session.java — participants by internalId
 public class Session {
     private String id;
     private String initiatorInternalId;
@@ -711,7 +711,7 @@ public class ChatRequest {
 ### File metadata (Java)
 
 ```java
-// model/FileMetadata.java — см. репозиторий FileMetadataRepository (Redis Hash file_meta:{fileId})
+// model/FileMetadata.java — see FileMetadataRepository (Redis Hash file_meta:{fileId})
 @Data
 @Builder
 @NoArgsConstructor
@@ -727,12 +727,12 @@ public class FileMetadata {
 }
 ```
 
-### Message (1-to-1, очередь + STOMP)
+### Message (1-to-1, queue + STOMP)
 
-Очередь offline и событие нового сообщения используют модель **`Message`** с файловыми полями для типов `image`, `video`, `file`:
+Offline queue and new-message event use **`Message`** model with file fields for `image`, `video`, `file` types:
 
 ```java
-// model/Message.java (фрагмент)
+// model/Message.java (fragment)
 @Data
 @Builder
 @NoArgsConstructor
@@ -759,12 +759,12 @@ public class Message implements Serializable {
 }
 ```
 
-**Тип сообщения:** `text` \| `image` \| `video` \| `file`. Для не-text поле `fileId` обязательно (валидация `FileMessageValidator`).
+**Message type:** `text` \| `image` \| `video` \| `file`. For non-text, `fileId` is required (`FileMessageValidator` validation).
 
 ### Telegram User (Redis cache)
 
 ```java
-// model/TelegramUser.java — кэш в user:{tgId}, не wire-DTO Bot API
+// model/TelegramUser.java — cache in user:{tgId}, not wire DTO Bot API
 @Data
 @Builder
 @NoArgsConstructor
@@ -779,7 +779,7 @@ public class TelegramUser implements Serializable {
     @Builder.Default
     private boolean isPremium = false;
     @Builder.Default
-    private Instant cachedAt = Instant.now();  // DM-17: не Jackson @JsonProperty
+    private Instant cachedAt = Instant.now();  // DM-17: not Jackson @JsonProperty
 }
 ```
 
@@ -850,8 +850,8 @@ public class PublicKeyRequest {
 }
 
 
-// dto/request/SendMessageRequest.java — STOMP /app/message.send (см. API.md)
-// Для type ∈ { image, video, file } обязателен fileId (@ValidFileMessage)
+// dto/request/SendMessageRequest.java — STOMP /app/message.send (see API.md)
+// For type ∈ { image, video, file }, fileId is required (@ValidFileMessage)
 @Data
 public class SendMessageRequest {
     @NotBlank private String sessionId;
@@ -889,11 +889,11 @@ public class VerificationRequest {
 
 ### Response/Event DTOs
 
-События STOMP несут **`UserResponse`** (не фантомный `PeerInfo`, DM-7). Ошибки —
-**string-коды** в поле `error` (отдельного enum `ErrorCode` нет, DM-8).
+STOMP events carry **`UserResponse`** (not phantom `PeerInfo`, DM-7). Errors are
+**string codes** in the `error` field (no separate `ErrorCode` enum, DM-8).
 
 ```java
-// dto/response/UserResponse.java — peer/sender/recipient во всех событиях
+// dto/response/UserResponse.java — peer/sender/recipient in all events
 @Data
 public class UserResponse {
     private String internalId;
@@ -1024,17 +1024,17 @@ public class VerificationEvent {
 }
 ```
 
-**WebSocket errors:** `WebSocketExceptionHandler.baseError` шлёт `Map<String,Object>`
-на `/user/queue/errors` с полями `success=false`, **`error`** (код ошибки),
-`message`, `timestamp` (ISO-8601); опционально `retryAfter` (RATE_LIMIT_EXCEEDED)
-и `field` (VALIDATION_ERROR). Отдельного `ErrorEvent` DTO нет. Фронт читает
+**WebSocket errors:** `WebSocketExceptionHandler.baseError` sends `Map<String,Object>`
+to `/user/queue/errors` with fields `success=false`, **`error`** (error code),
+`message`, `timestamp` (ISO-8601); optional `retryAfter` (RATE_LIMIT_EXCEEDED)
+and `field` (VALIDATION_ERROR). No separate `ErrorEvent` DTO. Frontend reads
 `data.error` (`useSession.ts`).
 
 ---
 
 ## TypeScript Interfaces
 
-Источник истины для доменных типов (`UserInfo`, `Session`, `Message`, …):
+Source of truth for domain types (`UserInfo`, `Session`, `Message`, …):
 `frontend/src/types/index.ts` (DM-11, DM-12).
 
 ### Frontend Types
@@ -1206,21 +1206,21 @@ interface StompErrorPayload {
 
 ---
 
-## Валидация данных
+## Data Validation
 
 ### Java Bean Validation
 
-Фактический класс: `util/ValidationConstants.java` (не `validation/`).
+Actual class: `util/ValidationConstants.java` (not `validation/`).
 
 ```java
 // util/ValidationConstants.java
 public final class ValidationConstants {
 
-    /** Максимальный размер принимаемого зашифрованного blob'а (байты).
-     *  Plaintext до ~25 MB + заголовок AES-GCM/chunked → потолок 26 MB. */
+    /** Maximum accepted encrypted blob size (bytes).
+     *  Plaintext up to ~25 MB + AES-GCM/chunked header → ceiling 26 MB. */
     public static final long MAX_ENCRYPTED_FILE_SIZE = 26 * 1024 * 1024;
 
-    /** Лимит POST /api/files/upload на пользователя (см. RateLimitService.RateLimitType.FILE_UPLOAD). */
+    /** POST /api/files/upload per-user limit (see RateLimitService.RateLimitType.FILE_UPLOAD). */
     public static final int FILE_UPLOAD_RATE_LIMIT = 10;
 
     /** Valid context types for file uploads. */
@@ -1233,35 +1233,35 @@ public final class ValidationConstants {
 
 ### Base64 validation (no custom `@Base64`)
 
-Отдельного `Base64Validator` / аннотации `@Base64` в репозитории нет. На DTO
-используется `@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`; дополнительная проверка
-длины/декодирования — ручной `Base64.getDecoder()` в хендлерах и сервисах
-(например `HandshakeHandler.isValidBase64Key`, `PasswordProofService`).
+No separate `Base64Validator` / `@Base64` annotation in the repository. DTOs use
+`@Pattern(regexp = "^[A-Za-z0-9+/]+=*$")`; additional length/decode checks use
+manual `Base64.getDecoder()` in handlers and services
+(e.g. `HandshakeHandler.isValidBase64Key`, `PasswordProofService`).
 
 ### Crypto / message size reference (descriptive)
 
-Эти величины **не** объявлены в `ValidationConstants`; они задаются
-`@Size` / `@Pattern` на DTO и клиентским crypto-кодом.
+These values are **not** declared in `ValidationConstants`; they are set by
+`@Size` / `@Pattern` on DTOs and client crypto code.
 
-| Величина | Значение | Где задано |
+| Quantity | Value | Where set |
 |----------|----------|------------|
 | AES-GCM IV | 12 bytes (Base64 wire ≈ 16–24 chars) | `SendMessageRequest.iv` `@Size(min=16,max=24)` |
-| GCM auth tag | 16 bytes (входит в ciphertext Web Crypto) | клиент / SECURITY.md |
+| GCM auth tag | 16 bytes (included in Web Crypto ciphertext) | client / SECURITY.md |
 | P-256 SPKI public key (Base64) | `@Size(min=44, max=256)` | `PublicKeyRequest.publicKey` |
-| Текст сообщения (продуктовый ориентир) | ≤ 4096 chars plaintext | клиент UX; на wire — encrypted blob ≤ 64 KB |
-| `fileName` (в encryptedMeta) | ≤ 255 chars | клиент + `encryptFileMetadata` |
+| Text message (product guideline) | ≤ 4096 chars plaintext | client UX; on wire — encrypted blob ≤ 64 KB |
+| `fileName` (in encryptedMeta) | ≤ 255 chars | client + `encryptFileMetadata` |
 
 ### Limits Summary
 
-| Поле / правило | Лимит | Причина |
+| Field / rule | Limit | Reason |
 |----------------|-------|---------|
-| `text` (plaintext UX) | 4096 chars | Оптимально для чата |
-| Зашифрованный blob upload | ≤ `MAX_ENCRYPTED_FILE_SIZE` (26 MB) | Потолок на сервере; plaintext и MIME — ориентиры продукта (см. SECURITY.md) |
+| `text` (plaintext UX) | 4096 chars | Optimal for chat |
+| Encrypted blob upload | ≤ `MAX_ENCRYPTED_FILE_SIZE` (26 MB) | Server ceiling; plaintext and MIME are product guidelines (see SECURITY.md) |
 | `POST /api/files/upload` | `FILE_UPLOAD_RATE_LIMIT` (10) / 1 min | Redis rate limit per user |
-| `fileName` | 255 chars | Клиент + `encryptFileMetadata` |
+| `fileName` | 255 chars | Client + `encryptFileMetadata` |
 | `sessionId` | UUID v4 | Collision resistance |
 | `IV` | 12 bytes | AES-GCM standard |
-| GCM `tag` | 16 bytes | Входит в ciphertext Web Crypto output |
+| GCM `tag` | 16 bytes | Included in Web Crypto ciphertext output |
 | `SearchRequest.query` | 1–64 chars | `SearchRequest` `@Size` |
 | `AcceptSessionRequest.secretAnswer` | ≤ 256 chars | `AcceptSessionRequest` `@Size` |
 | `PublicKeyRequest.publicKey` | 44–256 chars Base64 | `PublicKeyRequest` `@Size` |
@@ -1270,8 +1270,8 @@ public final class ValidationConstants {
 
 ## Redis Repository Examples
 
-Упрощённые фрагменты **фактических** репозиториев (DM-10). Не использовать
-legacy-поля `participant1/2` или ключ `messages:{sessionId}`.
+Simplified fragments of **actual** repositories (DM-10). Do not use
+legacy `participant1/2` fields or key `messages:{sessionId}`.
 
 ### Session Repository
 
@@ -1340,9 +1340,8 @@ public class MessageRepository {
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [API.md](./API.md) — WebSocket события
-- [SECURITY.md](./SECURITY.md) — криптографические примитивы
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — общая архитектура
-
+- [API.md](./API.md) — WebSocket events
+- [SECURITY.md](./SECURITY.md) — cryptographic primitives
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — overall architecture

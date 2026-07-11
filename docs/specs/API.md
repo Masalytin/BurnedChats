@@ -1,18 +1,18 @@
-# API Спецификация
+# API Specification
 
-> WebSocket (STOMP) события и REST эндпоинты (Java Backend)
+> WebSocket (STOMP) events and REST endpoints (Java Backend)
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Общая информация](#общая-информация)
+- [General Information](#general-information)
 - [REST API](#rest-api)
 - [WebSocket API (STOMP)](#websocket-api-stomp)
-- [Типы данных](#типы-данных)
-- [Коды ошибок](#коды-ошибок)
+- [Data Types](#data-types)
+- [Error Codes](#error-codes)
 
 ---
 
-## Общая информация
+## General Information
 
 ### Base URL
 
@@ -21,27 +21,27 @@ Production: https://api.burnedchats.com
 Development: http://localhost:8080
 ```
 
-### Аутентификация
+### Authentication
 
-**Auth выполняется на HTTP WebSocket handshake** (`StompHandshakeAuthInterceptor` +
-`StompIdentityAuthService`), не в STOMP `CONNECT`. Клиент передаёт креды в
-handshake headers (и дублирует в query-параметрах для SockJS). STOMP `CONNECT`
-только подтверждает, что principal уже установлен (`StompAuthInterceptor`);
-повторной Redis-аутентификации на `CONNECT` нет.
+**Auth happens on the HTTP WebSocket handshake** (`StompHandshakeAuthInterceptor` +
+`StompIdentityAuthService`), not in STOMP `CONNECT`. The client passes credentials in
+handshake headers (and duplicates them in query parameters for SockJS). STOMP `CONNECT`
+only confirms that the principal is already set (`StompAuthInterceptor`);
+there is no repeated Redis authentication on `CONNECT`.
 
-Режимы:
+Modes:
 
-- `telegram` (по умолчанию, если `X-Auth-Type` отсутствует): `X-Telegram-Init-Data`
-- `wallet`: `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token из `POST /api/auth/wallet`)
+- `telegram` (default when `X-Auth-Type` is absent): `X-Telegram-Init-Data`
+- `wallet`: `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token from `POST /api/auth/wallet`)
 
 ```typescript
-// Frontend — auth на HTTP handshake (SockJS / raw WS), не в CONNECT-only
+// Frontend — auth on HTTP handshake (SockJS / raw WS), not CONNECT-only
 const client = new Client({
   webSocketFactory: () => new SockJS(
-    // query-параметры нужны для SockJS (кастомные headers на handshake недоступны)
+    // query parameters required for SockJS (custom handshake headers unavailable)
     `https://api.burnedchats.com/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
   ),
-  // connectHeaders опциональны для raw WebSocket; для SockJS креды уже в URL
+  // connectHeaders optional for raw WebSocket; for SockJS credentials are already in the URL
   connectHeaders: {
     'X-Auth-Type': 'telegram',
     'X-Telegram-Init-Data': window.Telegram.WebApp.initData
@@ -60,47 +60,47 @@ const walletClient = new Client({
 });
 ```
 
-Handshake без кредов допускается (соединение поднимается неаутентифицированным);
-невалидные креды → handshake **отклоняется**. `Principal#getName()` =
-`UnifiedUser.internalId()` (UUID), не Telegram numeric ID.
+Handshake without credentials is allowed (connection comes up unauthenticated);
+invalid credentials → handshake **rejected**. `Principal#getName()` =
+`UnifiedUser.internalId()` (UUID), not Telegram numeric ID.
 
-Совместимость: backend также принимает legacy-имена заголовков/query `auth-type` / `auth-token`.
+Compatibility: backend also accepts legacy header/query names `auth-type` / `auth-token`.
 
 ### Rate Limits
 
-| Эндпоинт/событие | Лимит | Окно | Примечание |
+| Endpoint/event | Limit | Window | Notes |
 |------------------|-------|------|------------|
-| REST `/api/auth/**` | 20 req | 1 min | `RestRateLimitInterceptor` (по IP / token) |
-| REST `/api/wallet/**`, `/api/governance/**` | 60 req | 1 min | тот же интерцептор |
-| REST `/api/files/**` | — | — | **вне** REST-интерцептора; upload — отдельный bucket |
+| REST `/api/auth/**` | 20 req | 1 min | `RestRateLimitInterceptor` (by IP / token) |
+| REST `/api/wallet/**`, `/api/governance/**` | 60 req | 1 min | same interceptor |
+| REST `/api/files/**` | — | — | **outside** REST interceptor; upload — separate bucket |
 | `POST /api/files/upload` | 10 req | 1 min | `FILE_UPLOAD` (`FileValidationService`) |
 | `SEARCH_USER` (`/app/search`) | 10 req | 1 min | `SEARCH` |
 | `SEND_MESSAGE` (`/app/message.send`, `/app/message.sync`) | 60 msg | 1 min | `MESSAGE` (`RateLimitService`; yaml `rate-limit.messages.per-minute`) |
-| `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (после PoW) |
-| `session.accept` / `session.reject` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject — в `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` в `RoomHandler`) |
+| `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (after PoW) |
+| `session.accept` / `session.reject` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject — in `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` in `RoomHandler`) |
 | `handshake.key` (`/app/handshake.key`) | 10 req | 1 min | `HANDSHAKE` |
 | `message.edit` / `room.message.edit` | 10 req | 1 min | `MESSAGE_EDIT` |
 | `message.delete` / `room.message.delete` | 30 req | 1 min | `MESSAGE_DELETE` |
 | `room.getMembers` / `room.getPresence` / `room.getBans` | 30 req | 1 min | `ROOM_READ` |
-| `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, не interceptor) |
-| Неудачный proof пароля комнаты (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — ключ `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; атомарный INCR на попытку, reset при успехе |
-| Прочие незамапленные `/app/*` | 100 req | 1 min | `GENERAL` fallback в `RateLimitInterceptor` |
+| `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, not interceptor) |
+| Failed room password proof (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — key `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; atomic INCR per attempt, reset on success |
+| Other unmapped `/app/*` | 100 req | 1 min | `GENERAL` fallback in `RateLimitInterceptor` |
 | `/app/heartbeat` | exempt | — | presence heartbeat |
 
-При превышении STOMP-лимита SEND-фрейм дропается; клиент получает
-`RATE_LIMIT_EXCEEDED` на `/user/queue/errors` (соединение остаётся открытым).
+When a STOMP limit is exceeded, the SEND frame is dropped; the client receives
+`RATE_LIMIT_EXCEEDED` on `/user/queue/errors` (connection stays open).
 
-### REST (файлы): аутентификация
+### REST (files): authentication
 
-Эндпоинты файлов поддерживают те же два режима, что и WebSocket handshake:
+File endpoints support the same two modes as the WebSocket handshake:
 
-| Режим | Заголовки |
+| Mode | Headers |
 |-------|-----------|
-| `telegram` (по умолчанию) | `X-Auth-Type: telegram` (необязательный) + `X-Telegram-Init-Data` |
-| `wallet` | `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token из `POST /api/auth/wallet`) |
+| `telegram` (default) | `X-Auth-Type: telegram` (optional) + `X-Telegram-Init-Data` |
+| `wallet` | `X-Auth-Type: wallet` + `X-Auth-Token` (opaque session token from `POST /api/auth/wallet`) |
 
 ```http
-# Telegram (legacy — без X-Auth-Type, только initData)
+# Telegram (legacy — without X-Auth-Type, initData only)
 X-Telegram-Init-Data: <query string from Telegram.WebApp.initData>
 
 # Wallet
@@ -108,8 +108,8 @@ X-Auth-Type: wallet
 X-Auth-Token: <session-token>
 ```
 
-Отсутствие или невалидные креды → **401**. Участник контекста проверяется по `internalId`
-в обоих режимах.
+Missing or invalid credentials → **401**. Context membership is verified by `internalId`
+in both modes.
 
 ---
 
@@ -117,7 +117,7 @@ X-Auth-Token: <session-token>
 
 ### Health Check
 
-Кастомные эндпоинты (`HealthController`, префикс `/api`):
+Custom endpoints (`HealthController`, prefix `/api`):
 
 ```http
 GET /api/health
@@ -137,10 +137,10 @@ GET /api/health/detailed
 ```
 
 **Response:** `status` = `UP` | `DEGRADED`; `components.redis` / `components.websocket`
-(Redis через `RedisHealthService`).
+(Redis via `RedisHealthService`).
 
-Также доступны Spring Actuator: `GET /actuator/health`, `GET /actuator/info`
-(см. `application.yml` management endpoints).
+Spring Actuator is also available: `GET /actuator/health`, `GET /actuator/info`
+(see `application.yml` management endpoints).
 
 ### Application Info
 
@@ -148,7 +148,7 @@ GET /api/health/detailed
 GET /api/info
 ```
 
-**Response** (`HealthController` — версия **захардкожена**):
+**Response** (`HealthController` — version is **hardcoded**):
 ```json
 {
   "name": "BurnedChats Backend",
@@ -161,15 +161,15 @@ GET /api/info
 }
 ```
 
-> Actuator `/actuator/info` может отдавать `info.app.version` из Maven
-> (`@project.version@`) — это **отдельный** эндпоинт; канон для агентов —
+> Actuator `/actuator/info` may return `info.app.version` from Maven
+> (`@project.version@`) — that is a **separate** endpoint; the canonical source for agents is
 > `/api/info` → `0.1.0-SNAPSHOT`.
 
-### Wallet auth (Phase 3): nonce для Ton Connect
+### Wallet auth (Phase 3): nonce for Ton Connect
 
 #### `GET /api/auth/nonce`
 
-Выдаёт короткоживущую непрозрачную строку для поля Ton Connect `tonProof` в запросе подключения (`ConnectAdditionalRequest.tonProof`). Кошелёк возвращает подписанный `ton_proof`; backend сверяет подпись с этим nonce (защита от replay).
+Issues a short-lived opaque string for the Ton Connect `tonProof` field in the connect request (`ConnectAdditionalRequest.tonProof`). The wallet returns a signed `ton_proof`; the backend verifies the signature against this nonce (replay protection).
 
 **Response `200 OK`:**
 
@@ -179,16 +179,16 @@ GET /api/info
 }
 ```
 
-Клиент также принимает поле `payload` как синоним `nonce` для обратной совместимости.
+The client also accepts the `payload` field as a synonym for `nonce` for backward compatibility.
 
-**Примечания:**
+**Notes:**
 
-- Требования к авторизации запроса (публичный эндпоинт vs привязка к сессии) задаёт реализация backend; рекомендуется rate limiting.
-- Базовый URL тот же, что в разделе [Base URL](#base-url); во frontend dev без `VITE_API_URL` используется относительный путь `/api/auth/nonce` (прокси Vite).
+- Request authorization requirements (public endpoint vs session binding) are defined by the backend implementation; rate limiting is recommended.
+- Base URL is the same as in [Base URL](#base-url); in frontend dev without `VITE_API_URL`, the relative path `/api/auth/nonce` is used (Vite proxy).
 
 #### `POST /api/auth/wallet`
 
-Проверяет TON `walletProof` (формат: сериализованный `ton_proof` JSON из Ton Connect) и выдаёт opaque session token для STOMP.
+Verifies TON `walletProof` (format: serialized `ton_proof` JSON from Ton Connect) and issues an opaque session token for STOMP.
 
 **Request body:**
 
@@ -201,9 +201,9 @@ GET /api/info
 }
 ```
 
-`walletPublicKey` (hex, 32 bytes) и `walletStateInit` (base64 BoC) **опциональны**, но должны передаваться **парой**.
-Если оба присутствуют, backend верифицирует `publicKey ↔ stateInit ↔ address` локально (без RPC к toncenter).
-Если отсутствуют — используется legacy fallback через toncenter (см. `BURNEDCHATS_TON_API_KEY`).
+`walletPublicKey` (hex, 32 bytes) and `walletStateInit` (base64 BoC) are **optional**, but must be sent **as a pair**.
+If both are present, the backend verifies `publicKey ↔ stateInit ↔ address` locally (no RPC to toncenter).
+If absent — legacy fallback via toncenter is used (see `BURNEDCHATS_TON_API_KEY`).
 
 **Response `200 OK`:**
 
@@ -217,9 +217,9 @@ GET /api/info
 }
 ```
 
-**Ошибки:**
+**Errors:**
 
-Тело ошибки (JSON):
+Error body (JSON):
 
 ```json
 {
@@ -229,16 +229,16 @@ GET /api/info
 }
 ```
 
-Поле `code` — машиночитаемая причина (`WalletProofException.Reason.name()`). Поле `error` сохранено для обратной совместимости.
+The `code` field is a machine-readable reason (`WalletProofException.Reason.name()`). The `error` field is kept for backward compatibility.
 
-| HTTP | `code` (примеры) | Когда |
+| HTTP | `code` (examples) | When |
 |------|------------------|-------|
-| `400` | `INVALID_REQUEST`, `ADDRESS_INVALID` | Пустой/битый body, невалидный адрес или JSON proof |
-| `401` | `PROOF_EXPIRED`, `DOMAIN_MISMATCH`, `NONCE_UNKNOWN`, `SIGNATURE_INVALID`, … | Клиентская ошибка proof (см. полный список в backend `WalletProofException.Reason`) |
-| `502` | `PUBLIC_KEY_UNAVAILABLE` | toncenter недоступен / не вернул `public_key` (transient; retry имеет смысл) |
-| `500` | `INTERNAL` | Неожиданная ошибка backend |
+| `400` | `INVALID_REQUEST`, `ADDRESS_INVALID` | Empty/corrupt body, invalid address or JSON proof |
+| `401` | `PROOF_EXPIRED`, `DOMAIN_MISMATCH`, `NONCE_UNKNOWN`, `SIGNATURE_INVALID`, … | Client proof error (see full list in backend `WalletProofException.Reason`) |
+| `502` | `PUBLIC_KEY_UNAVAILABLE` | toncenter unavailable / did not return `public_key` (transient; retry makes sense) |
+| `500` | `INTERNAL` | Unexpected backend error |
 
-Полный список `code` → HTTP:
+Full `code` → HTTP mapping:
 
 | `code` | HTTP |
 |--------|------|
@@ -254,33 +254,33 @@ GET /api/info
 | `PUBLIC_KEY_UNAVAILABLE` | 502 |
 | `INTERNAL` | 500 |
 
-- `500 Internal Server Error` — внутренняя ошибка при выдаче token (`INTERNAL` или необработанное исключение).
+- `500 Internal Server Error` — internal error when issuing token (`INTERNAL` or unhandled exception).
 
-#### `POST /api/auth/dev-login` (только dev-профиль)
+#### `POST /api/auth/dev-login` (dev profile only)
 
-> **В проде отсутствует.** Контроллер существует только под Spring-профилем
-> `dev` И при `DEV_AUTH_ENABLED=true` (по умолчанию `false`). Прод работает на
-> `prod,testnet` — эндпоинт возвращает 404. Назначение: автономная авторизация
-> ИИ-агентов для UI-тестирования (dev profile only).
+> **Not present in production.** The controller exists only under the Spring profile
+> `dev` AND when `DEV_AUTH_ENABLED=true` (default `false`). Production runs on
+> `prod,testnet` — the endpoint returns 404. Purpose: autonomous authorization
+> for AI agents for UI testing (dev profile only).
 
-Выдаёт обычный opaque session token для синтетической identity `dev-{label}`
-без проверки `ton_proof`. Контракт ответа идентичен `POST /api/auth/wallet`.
+Issues a regular opaque session token for synthetic identity `dev-{label}`
+without verifying `ton_proof`. Response contract is identical to `POST /api/auth/wallet`.
 
-**Request body:** `{ "label": "agent-a" }` — `label` соответствует `[a-z0-9-]{1,32}`.
+**Request body:** `{ "label": "agent-a" }` — `label` must match `[a-z0-9-]{1,32}`.
 
 **Response `200 OK`:** `{ "token": "<opaque>", "user": { "internalId": "<uuid>", "displayName": "dev-...nt-a" } }`
 
-**Ошибки:** `400` — невалидный `label`; `404` — выключено флагом или прод-профиль; `500` — ошибка Redis.
+**Errors:** `400` — invalid `label`; `404` — disabled by flag or prod profile; `500` — Redis error.
 
 ---
 
 ### Account linking (Phase 3): Telegram ↔ TON wallet
 
-Все эндпоинты ниже **не** требуют Spring Security cookie: доверие строится на валидном `initData` (Telegram) и/или проверенном `walletProof` / opaque `sessionToken`.
+All endpoints below **do not** require a Spring Security cookie: trust is built on valid `initData` (Telegram) and/or verified `walletProof` / opaque `sessionToken`.
 
 #### `POST /api/auth/link-wallet`
 
-Привязка кошелька к пользователю, вошедшему через Mini App.
+Link a wallet to a user signed in via Mini App.
 
 **Request body:**
 
@@ -292,11 +292,11 @@ GET /api/info
 }
 ```
 
-**Ответ `200 OK`:** объект в форме «linked accounts» (см. `POST /api/auth/linked-accounts`).
+**Response `200 OK`:** object in the "linked accounts" shape (see `POST /api/auth/linked-accounts`).
 
-**Ошибки:** `400` — невалидное тело; `401` — initData / proof; `409` — кошелёк или другой кошелёк уже привязан к другому аккаунту / нужно сначала отвязать; `500` — внутренняя ошибка.
+**Errors:** `400` — invalid body; `401` — initData / proof; `409` — wallet or another wallet already linked to another account / unlink first; `500` — internal error.
 
-**Failure body (пример):**
+**Failure body (example):**
 
 ```json
 {
@@ -306,46 +306,46 @@ GET /api/info
 }
 ```
 
-| `code` | HTTP | Описание |
+| `code` | HTTP | Description |
 |--------|------|----------|
-| `SIGNATURE_INVALID`, `PROOF_EXPIRED`, `NONCE_UNKNOWN`, … | 401 | Отклонён `ton_proof` (те же коды, что у `POST /api/auth/wallet`) |
-| `CONFLICT` | 409 | Кошелёк уже привязан к другому аккаунту или у пользователя другой кошелёк |
-| `INTERNAL` | 500 | Необработанная ошибка сервера / Redis |
+| `SIGNATURE_INVALID`, `PROOF_EXPIRED`, `NONCE_UNKNOWN`, … | 401 | Rejected `ton_proof` (same codes as `POST /api/auth/wallet`) |
+| `CONFLICT` | 409 | Wallet already linked to another account or user has a different wallet |
+| `INTERNAL` | 500 | Unhandled server / Redis error |
 
 #### `POST /api/auth/link-telegram/challenge`
 
-Для **wallet-only** сессии (opaque token после `POST /api/auth/wallet`): создаёт одноразовый challenge в Redis (TTL ~15 мин).
+For a **wallet-only** session (opaque token after `POST /api/auth/wallet`): creates a one-time challenge in Redis (TTL ~15 min).
 
 **Request body:** `{ "sessionToken": "<opaque>" }`
 
 **Response `200 OK`:** `{ "ok": true, "challengeId": "<32 hex>", "telegramLink": "https://t.me/<bot>?startapp=lt_<challengeId>" }`  
-Поле `telegramLink` может отсутствовать, если в конфиге не задан `telegram.bot.username`.
+The `telegramLink` field may be absent if `telegram.bot.username` is not set in config.
 
 #### `POST /api/auth/link-telegram/complete`
 
-Завершение привязки Telegram из Mini App: `start_param` имеет вид `lt_<challengeId>`.
+Complete Telegram linking from Mini App: `start_param` has the form `lt_<challengeId>`.
 
 **Request body:** `{ "challengeId": "<32 hex>", "initData": "..." }`
 
-**Ответ `200 OK`:** как у `linked-accounts`.
+**Response `200 OK`:** same as `linked-accounts`.
 
-**Ошибки:** `401` — просроченный challenge / невалидный initData; `409` — Telegram уже привязан к другому internalId.
+**Errors:** `401` — expired challenge / invalid initData; `409` — Telegram already linked to another internalId.
 
 #### `POST /api/auth/linked-accounts`
 
-Снимок привязок для текущего пользователя. Ровно одно из полей:
+Snapshot of links for the current user. Exactly one of:
 
 ```json
 { "initData": "...", "sessionToken": null }
 ```
 
-или
+or
 
 ```json
 { "initData": null, "sessionToken": "..." }
 ```
 
-**Response `200 OK` (пример):**
+**Response `200 OK` (example):**
 
 ```json
 {
@@ -364,37 +364,37 @@ GET /api/info
 
 #### `POST /api/auth/unlink-wallet`
 
-Тело: `{ "initData": "..." }`. Отвязывает кошелёк, если остаётся привязанный Telegram (`400`, если это единственный способ входа).
+Body: `{ "initData": "..." }`. Unlinks the wallet if Telegram remains linked (`400` if it is the only sign-in method).
 
 #### `POST /api/auth/unlink-telegram`
 
-Тело: `{ "sessionToken": "..." }`. Отвязывает Telegram, если остаётся кошелёк.
+Body: `{ "sessionToken": "..." }`. Unlinks Telegram if a wallet remains.
 
 ---
 
 ### REST API: Files (Phase 4)
 
-Загрузка и скачивание **зашифрованных на клиенте** blob'ов. Тело запроса/ответа — сырая бинарная последовательность (`application/octet-stream`), не JSON.
+Upload and download of **client-encrypted** blobs. Request/response body is a raw binary stream (`application/octet-stream`), not JSON.
 
 #### `POST /api/files/upload`
 
-Сохраняет один зашифрованный файл (основной медиафайл или thumbnail) и создаёт метаданные в Redis (`file_meta:{fileId}`, TTL 24 ч).
+Stores one encrypted file (main media file or thumbnail) and creates metadata in Redis (`file_meta:{fileId}`, TTL 24 h).
 
 **Headers:**
 
-| Заголовок | Обязательно | Описание |
+| Header | Required | Description |
 |-----------|-------------|----------|
-| `X-Auth-Type` | Нет | `telegram` \| `wallet`; по умолчанию `telegram` |
-| `X-Telegram-Init-Data` | Да* | Валидный initData (режим `telegram`) |
-| `X-Auth-Token` | Да* | Opaque session token (режим `wallet`) |
-| `X-Context-Type` | Да | `session` \| `room` |
-| `X-Context-Id` | Да | UUID сессии или комнаты |
-| `Content-Type` | Да | `application/octet-stream` |
-| `Content-Length` | Да | Размер загружаемого **зашифрованного** blob'а в байтах (≥ 1) |
+| `X-Auth-Type` | No | `telegram` \| `wallet`; default `telegram` |
+| `X-Telegram-Init-Data` | Yes* | Valid initData (`telegram` mode) |
+| `X-Auth-Token` | Yes* | Opaque session token (`wallet` mode) |
+| `X-Context-Type` | Yes | `session` \| `room` |
+| `X-Context-Id` | Yes | Session or room UUID |
+| `Content-Type` | Yes | `application/octet-stream` |
+| `Content-Length` | Yes | Size of the uploaded **encrypted** blob in bytes (≥ 1) |
 
-\* Один из режимов auth обязателен: для `telegram` — `X-Telegram-Init-Data`, для `wallet` — `X-Auth-Token`.
+\* One auth mode is required: for `telegram` — `X-Telegram-Init-Data`, for `wallet` — `X-Auth-Token`.
 
-**Body:** поток байт зашифрованных данных (см. [SECURITY.md](./SECURITY.md) — формат blob'а на клиенте).
+**Body:** stream of encrypted data bytes (see [SECURITY.md](./SECURITY.md) — client blob format).
 
 **Response `200 OK`:**
 
@@ -405,21 +405,21 @@ GET /api/info
 }
 ```
 
-`size` — размер **зашифрованного** blob'а, сохранённого на сервере (байты ciphertext), не исходного plaintext-файла. Для STOMP `fileSize` клиент передаёт plaintext size отдельно (см. ниже).
+`size` — size of the **encrypted** blob stored on the server (ciphertext bytes), not the original plaintext file. For STOMP `fileSize`, the client passes plaintext size separately (see below).
 
-**Errors (JSON body, кроме 429 где указано):**
+**Errors (JSON body, except 429 where noted):**
 
-| HTTP | Поле `error` | Когда |
+| HTTP | `error` field | When |
 |------|--------------|--------|
-| 401 | `AUTH_ERROR` / код из `AuthenticationException` | Отсутствуют, невалидные или просроченные auth-креды (initData или session token) |
-| 400 | `INVALID_CONTEXT_TYPE` | `X-Context-Type` не `session` и не `room` |
-| 400 | `FILE_SIZE_INVALID` | Несоответствие размера на диске и `Content-Length` после загрузки |
-| 403 | `ACCESS_DENIED` | Пользователь не участник сессии / не член комнаты |
-| 404 | `CONTEXT_NOT_FOUND` | Сессия не найдена (для `session`) |
-| 413 | `FILE_TOO_LARGE` | Размер вне допустимого диапазона (см. `ValidationConstants.MAX_ENCRYPTED_FILE_SIZE`) |
-| 429 | `RATE_LIMIT_EXCEEDED` | Превышен лимит загрузок; возможны заголовки `Retry-After` и поле `retryAfter` в JSON |
+| 401 | `AUTH_ERROR` / code from `AuthenticationException` | Missing, invalid, or expired auth credentials (initData or session token) |
+| 400 | `INVALID_CONTEXT_TYPE` | `X-Context-Type` is neither `session` nor `room` |
+| 400 | `FILE_SIZE_INVALID` | On-disk size does not match `Content-Length` after upload |
+| 403 | `ACCESS_DENIED` | User is not a session participant / room member |
+| 404 | `CONTEXT_NOT_FOUND` | Session not found (for `session`) |
+| 413 | `FILE_TOO_LARGE` | Size outside allowed range (see `ValidationConstants.MAX_ENCRYPTED_FILE_SIZE`) |
+| 429 | `RATE_LIMIT_EXCEEDED` | Upload limit exceeded; `Retry-After` header and `retryAfter` field in JSON may be present |
 
-Пример тела при 429:
+Example body for 429:
 
 ```json
 {
@@ -431,33 +431,33 @@ GET /api/info
 
 #### `GET /api/files/{fileId}`
 
-Возвращает **тот же** зашифрованный blob, если вызывающий — участник контекста (session/room), к которому привязан файл.
+Returns the **same** encrypted blob if the caller is a member of the context (session/room) the file is bound to.
 
 **Headers:**
 
-| Заголовок | Обязательно | Описание |
+| Header | Required | Description |
 |-----------|-------------|----------|
-| `X-Auth-Type` | Нет | `telegram` \| `wallet`; по умолчанию `telegram` |
-| `X-Telegram-Init-Data` | Да* | Валидный initData (режим `telegram`) |
-| `X-Auth-Token` | Да* | Opaque session token (режим `wallet`) |
+| `X-Auth-Type` | No | `telegram` \| `wallet`; default `telegram` |
+| `X-Telegram-Init-Data` | Yes* | Valid initData (`telegram` mode) |
+| `X-Auth-Token` | Yes* | Opaque session token (`wallet` mode) |
 
-\* Один из режимов auth обязателен (см. upload).
+\* One auth mode is required (see upload).
 
 **Response `200 OK`:**
 
 - `Content-Type: application/octet-stream`
 - `Cache-Control: no-store`
-- Тело: байты зашифрованного файла
+- Body: encrypted file bytes
 
 **Errors (JSON):**
 
-| HTTP | Поле `error` | Когда |
+| HTTP | `error` field | When |
 |------|--------------|--------|
-| 401 | `AUTH_ERROR` | Отсутствуют, невалидные или просроченные auth-креды |
-| 403 | `ACCESS_DENIED` | Нет прав на контекст файла |
-| 404 | `FILE_NOT_FOUND` | Нет метаданных, истёк TTL, или файл отсутствует на диске |
+| 401 | `AUTH_ERROR` | Missing, invalid, or expired auth credentials |
+| 403 | `ACCESS_DENIED` | No access to file context |
+| 404 | `FILE_NOT_FOUND` | No metadata, TTL expired, or file missing on disk |
 
-> Семантика «нет доступа к файлу» в обсуждениях иногда обозначается как `FILE_ACCESS_DENIED`; в JSON ответов REST используется код **`ACCESS_DENIED`**.
+> The semantics "no file access" in discussions is sometimes labeled `FILE_ACCESS_DENIED`; REST JSON responses use code **`ACCESS_DENIED`**.
 
 ---
 
@@ -467,9 +467,9 @@ GET /api/info
 POST /api/telegram/webhook
 ```
 
-Обрабатывает входящие update от Telegram Bot API.
-Контроллер: `TelegramWebhookController` (`@RequestMapping("/api/telegram")` +
-`@PostMapping("/webhook")`). Включается при `telegram.bot.webhook.enabled=true`.
+Handles incoming updates from the Telegram Bot API.
+Controller: `TelegramWebhookController` (`@RequestMapping("/api/telegram")` +
+`@PostMapping("/webhook")`). Enabled when `telegram.bot.webhook.enabled=true`.
 
 **Headers:**
 ```http
@@ -487,118 +487,118 @@ Content-Type: application/json
 | `/help` | Help text |
 | `/burn` | Remote burn-all: inline keyboard with **Burn all data** (`wipeIdentity=false`), **Burn account** (`wipeIdentity=true`), and **Cancel**. Callback `callback_data`: `burnall:{nonce}:{data\|account\|cancel}`. Nonce stored at Redis `bot:burn:nonce:{nonce}` → `internalId`, TTL **60s**, one-time (`GETDEL`). Resolves `tgId` via `UserIdentityRepository.findByTelegramId`. Unknown `tgId` → polite «no data» reply (no error, no leak). On confirm: `UserBurnService.burnAllForUser` + STOMP `/user/queue/burn-all-complete` to active sessions; bot sends HTML summary message. |
 
-Невалидный secret → **401**. Nginx prod проксирует тот же путь
+Invalid secret → **401**. Nginx prod proxies the same path
 (`/api/telegram/webhook`).
 
 ---
 
 ### Phase 5: BURN jetton / staking / governance (backend read services)
 
-Публичные **read-only** GET для governance Mini App (кэш + TON RPC через `GovernanceVerifier`):
+Public **read-only** GET for governance Mini App (cache + TON RPC via `GovernanceVerifier`):
 
-| Метод | Путь | Описание |
+| Method | Path | Description |
 |-------|------|----------|
-| `GET` | `/api/governance/active-proposals` | `Flux<ProposalSummary>` — предложения в состоянии `ACTIVE` |
-| `GET` | `/api/governance/recent-proposals?limit=` | Последние N предложений по id (убывание) |
-| `GET` | `/api/governance/proposals/{id}` | `ProposalDetail` (summary + декодированный payload + кворум / порог bps) |
-| `GET` | `/api/governance/proposals/{proposalId}/vote?address=` | `UserVote` или **404**, если пользователь не голосовал |
-| `GET` | `/api/governance/voting-power?address=` | `{ "votingPower": "<bigint string>" }` — VP через `StakingVerifier` |
+| `GET` | `/api/governance/active-proposals` | `Flux<ProposalSummary>` — proposals in `ACTIVE` state |
+| `GET` | `/api/governance/recent-proposals?limit=` | Last N proposals by id (descending) |
+| `GET` | `/api/governance/proposals/{id}` | `ProposalDetail` (summary + decoded payload + quorum / threshold bps) |
+| `GET` | `/api/governance/proposals/{proposalId}/vote?address=` | `UserVote` or **404** if the user has not voted |
+| `GET` | `/api/governance/voting-power?address=` | `{ "votingPower": "<bigint string>" }` — VP via `StakingVerifier` |
 
-Тела соответствуют `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Перечисления Jackson сериализует как строки (`PARAMETER_CHANGE`, …).
+Bodies match `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Jackson serializes enums as strings (`PARAMETER_CHANGE`, …).
 
-**Окно голосования и состояние `ACTIVE`**
+**Voting window and `ACTIVE` state**
 
-- `GET /api/governance/active-proposals` и `ProposalSummary.state == ACTIVE` включают **pre-vote окно** `CANCEL_LAG` (**3600 с**): on-chain proposal в `PS_ACTIVE`, но голосование ещё **не открыто** (proposer может отменить proposal; см. соответствующий раздел спеки).
-- `startTime = creationTime + CANCEL_LAG` (`governor.tact`); голосование доступно только при **`now >= startTime`** и `now <= endTime`.
-- Голос до `startTime` отклоняется on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; голос не засчитывается).
-- Клиент обязан блокировать `CastVote`, пока `now < startTime`, даже если backend возвращает `ACTIVE`.
+- `GET /api/governance/active-proposals` and `ProposalSummary.state == ACTIVE` include the **pre-vote window** `CANCEL_LAG` (**3600 s**): on-chain proposal in `PS_ACTIVE`, but voting is **not yet open** (proposer can cancel the proposal; see the relevant spec section).
+- `startTime = creationTime + CANCEL_LAG` (`governor.tact`); voting is available only when **`now >= startTime`** and `now <= endTime`.
+- Voting before `startTime` is rejected on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; vote not counted).
+- The client must block `CastVote` while `now < startTime`, even if the backend returns `ACTIVE`.
 
-**On-chain relay-флоу голоса и газовый бюджет**
+**On-chain vote relay flow and gas budget**
 
-| Шаг | От → К | Сообщение | Value (TON) | Примечание |
+| Step | From → To | Message | Value (TON) | Notes |
 |-----|--------|-----------|-------------|------------|
 | 1 | Wallet → **Governor** | `CastVote` (`0x5a040102`) | attach **≥ `GasVoteAttach` = 0.18** | `require(context().value >= GasVoteAttach, "Need TON for vote")` |
 | 2 | Governor → **StakingMaster** | `GovernorVoteRelay` (`0x5a040019`) | **`value: 0`** | `SendRemainingValue`; VP relay |
-| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **`value: 0`** | `SendRemainingValue`; VP cap по on-chain staking |
+| 3 | StakingMaster → **Proposal** | `ProposalVoteRelay` (`0x5a040011`) | **`value: 0`** | `SendRemainingValue`; VP cap from on-chain staking |
 
-- Успешный голос: остаток relay возвращается **voter'у** из Proposal (`SendRemainingValue | SendIgnoreErrors`).
-- Bounce (отклонение на Governor/StakingMaster): value **поглощается** на hop'е без `cashback` — voter не получает refund из truncated bounce body (RC-2 / AD-1).
-- Источник констант: `contracts/governance/governor.tact`; зеркало — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`).
+- Successful vote: relay remainder is returned to the **voter** from Proposal (`SendRemainingValue | SendIgnoreErrors`).
+- Bounce (rejection at Governor/StakingMaster): value is **consumed** at the hop without `cashback` — voter does not get a refund from truncated bounce body (RC-2 / AD-1).
+- Source of constants: `contracts/governance/governor.tact`; mirror — `contracts/wrappers/Governor.ts` (`GOVERNOR_VOTE_ATTACH_NANO`), `frontend/src/ton/transactionBuilder.ts` (`VOTE_ATTACHED_TON`).
 
-Публичные **read-only** GET для on-chain данных кошелька (кэш + TON RPC через **`JettonService`**):
+Public **read-only** GET for on-chain wallet data (cache + TON RPC via **`JettonService`**):
 
-| Метод | Путь | Описание |
+| Method | Path | Description |
 |-------|------|----------|
-| `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance в nano; без auth |
-| `GET` | `/api/wallet/jetton-wallet?address=` | BURN jetton wallet адрес владельца; без auth |
-| `GET` | `/api/wallet/staking-profile?address=` | Staking-профиль кошелька (stakes, voting power); без auth |
+| `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance in nano; no auth |
+| `GET` | `/api/wallet/jetton-wallet?address=` | Owner's BURN jetton wallet address; no auth |
+| `GET` | `/api/wallet/staking-profile?address=` | Wallet staking profile (stakes, voting power); no auth |
 
 **`GET /api/wallet/burn-balance`**
 
-- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address.
-- **200 OK:** `{ "balanceNano": "<decimal string>", "address": "<trimmed query address>" }` — `balanceNano` из `BigInteger`, не JSON number.
-- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
-- **502:** `{ "message": "…" }` — сбой Ton Center / contract read (`TonRpcException`).
+- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address.
+- **200 OK:** `{ "balanceNano": "<decimal string>", "address": "<trimmed query address>" }` — `balanceNano` from `BigInteger`, not a JSON number.
+- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
+- **502:** `{ "message": "…" }` — Ton Center / contract read failure (`TonRpcException`).
 
-Frontend (`burnToken.ts`) принимает поля `balanceNano`, `nano` или `balance` в теле; при `404`/`501` уходит на Ton Center RPC из браузера.
+Frontend (`burnToken.ts`) accepts `balanceNano`, `nano`, or `balance` fields in the body; on `404`/`501` falls back to Ton Center RPC from the browser.
 
 **`GET /api/wallet/jetton-wallet`**
 
-- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address владельца (owner).
-- **200 OK:** `{ "jettonWalletAddress": "<friendly|null>", "ownerAddress": "<trimmed query address>" }` — `jettonWalletAddress` равен `null`, если jetton wallet отсутствует или не удалось вычислить адрес (non-zero contract exit / zero address); это **не** ошибка HTTP.
-- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
-- **502:** `{ "message": "…" }` — сбой Ton Center / transport (`TonRpcException`).
+- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address of the owner.
+- **200 OK:** `{ "jettonWalletAddress": "<friendly|null>", "ownerAddress": "<trimmed query address>" }` — `jettonWalletAddress` is `null` if the jetton wallet is absent or the address could not be computed (non-zero contract exit / zero address); this is **not** an HTTP error.
+- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
+- **502:** `{ "message": "…" }` — Ton Center / transport failure (`TonRpcException`).
 
-Frontend (`burnToken.ts`) сначала вызывает этот endpoint; при `404`/`501`, `502` (после одного retry) или `jettonWalletAddress: null` переходит на Ton Center RPC из браузера (`jettonWalletResolve.ts`).
+Frontend (`burnToken.ts`) calls this endpoint first; on `404`/`501`, `502` (after one retry), or `jettonWalletAddress: null` falls back to Ton Center RPC from the browser (`jettonWalletResolve.ts`).
 
 **`GET /api/wallet/staking-profile`**
 
-- Query `address` (обязателен): friendly (`EQ…` / `0Q…`) или raw TON address владельца.
+- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address of the owner.
 - **200 OK:** `UserStakingProfile` — `{ "address", "highestTier", "totalStakedNano", "votingPowerNano", "stakes": [ … ] }`.
-  - `highestTier`: `"FLEXIBLE"` | `"SILVER"` | `"GOLD"` | `"DIAMOND"` | `null` (нет активных стейков).
-  - `totalStakedNano`, `votingPowerNano`, `stakes[].amount`, `stakes[].pendingRewards` — decimal string или JSON number (парсятся фронтом через `bigIntFromJsonField`).
-  - Каждый элемент `stakes[]`: `{ "tier", "amount", "startTime", "unlockTime", "lastClaimTime", "pendingRewards" }` — формат, который читает `mapBackendStake` в `staking.ts`.
-- **400:** `{ "message": "…" }` — отсутствует/пустой `address` или невалидный формат.
-- **502:** `{ "message": "…" }` — сбой Ton Center / contract read (`TonRpcException`).
+  - `highestTier`: `"FLEXIBLE"` | `"SILVER"` | `"GOLD"` | `"DIAMOND"` | `null` (no active stakes).
+  - `totalStakedNano`, `votingPowerNano`, `stakes[].amount`, `stakes[].pendingRewards` — decimal string or JSON number (parsed by frontend via `bigIntFromJsonField`).
+  - Each `stakes[]` element: `{ "tier", "amount", "startTime", "unlockTime", "lastClaimTime", "pendingRewards" }` — format read by `mapBackendStake` in `staking.ts`.
+- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
+- **502:** `{ "message": "…" }` — Ton Center / contract read failure (`TonRpcException`).
 
-Реализация: `WalletController` → `StakingVerifier.getStakingProfile` (Redis-кэш профиля, TTL 30 с). Frontend (`staking.ts` → `tryBackendStakes`) при `200` использует `stakes`; при `404`/`501` уходит на Ton Center RPC из браузера.
+Implementation: `WalletController` → `StakingVerifier.getStakingProfile` (Redis profile cache, TTL 30 s). Frontend (`staking.ts` → `tryBackendStakes`) on `200` uses `stakes`; on `404`/`501` falls back to Ton Center RPC from the browser.
 
 ---
 
 ## WebSocket API (STOMP)
 
-### User destinations и идентификатор получателя (backend)
+### User destinations and recipient identifier (backend)
 
-Подписки вида `/user/queue/...` маршрутизируются Spring по **имени принципала** STOMP-сессии. После миграции идентичности это имя — **`UnifiedUser.internalId()`** (UUID-строка), то же значение, что возвращает `Principal#getName()` для `TelegramPrincipal` / `WalletPrincipal`. **Нельзя** передавать в `SimpMessagingTemplate#convertAndSendToUser` первым аргументом числовой Telegram ID или `String.valueOf(telegramId)` — сообщение не дойдёт до клиента. Серверная отправка на персональные очереди должна использовать **`internalId`** (в т.ч. через компонент `StompUserMessenger`).
+Subscriptions of the form `/user/queue/...` are routed by Spring using the **principal name** of the STOMP session. After the identity migration, this name is **`UnifiedUser.internalId()`** (UUID string), the same value returned by `Principal#getName()` for `TelegramPrincipal` / `WalletPrincipal`. **Do not** pass a numeric Telegram ID or `String.valueOf(telegramId)` as the first argument to `SimpMessagingTemplate#convertAndSendToUser` — the message will not reach the client. Server-side delivery to personal queues must use **`internalId`** (including via the `StompUserMessenger` component).
 
-### Единая идентичность (`internalId`)
+### Unified identity (`internalId`)
 
-> **Канонический адресный идентификатор на проводе — `internalId` (UUID-строка).** Числовой Telegram ID (`Long`) остаётся опциональным полем для Telegram-linked пользователей и **не используется** для маршрутизации STOMP.
+> **The canonical wire address identifier is `internalId` (UUID string).** Numeric Telegram ID (`Long`) remains an optional field for Telegram-linked users and is **not used** for STOMP routing.
 
-| Принципал | STOMP auth | `Principal#getName()` | `telegramId` |
+| Principal | STOMP auth | `Principal#getName()` | `telegramId` |
 |-----------|------------|----------------------|--------------|
-| `TelegramPrincipal` | `X-Auth-Type: telegram` + initData | `internalId` | есть |
-| `WalletPrincipal` | `X-Auth-Type: wallet` + session token | `internalId` (случайный UUID) | **нет** |
+| `TelegramPrincipal` | `X-Auth-Type: telegram` + initData | `internalId` | present |
+| `WalletPrincipal` | `X-Auth-Type: wallet` + session token | `internalId` (random UUID) | **absent** |
 
-**Правила контрактов (additive vs break):**
+**Contract rules (additive vs break):**
 
-| Область | Политика | Примечание |
+| Area | Policy | Notes |
 |---------|----------|------------|
-| Поиск, DM-сессии, join-flow | **Additive** — новые `*InternalId` + optional deprecated `*TgId` / `recipientId` | Старые Telegram-клиенты продолжают работать до миграции frontend |
-| Групповые ключи (KEY_BUNDLE, REKEY) | **Break** — только `recipientInternalId` | Wallet-only члены не имеют TG ID |
-| Room-сообщения | **Additive** — `senderInternalId` primary, `senderTgId` optional | Legacy Redis-записи читаются через `getSenderKey()` |
+| Search, DM sessions, join flow | **Additive** — new `*InternalId` + optional deprecated `*TgId` / `recipientId` | Legacy Telegram clients keep working until frontend migration |
+| Group keys (KEY_BUNDLE, REKEY) | **Break** — `recipientInternalId` only | Wallet-only members have no TG ID |
+| Room messages | **Additive** — `senderInternalId` primary, `senderTgId` optional | Legacy Redis records read via `getSenderKey()` |
 
-**Telegram-only деградация (best-effort, без ошибки для клиента):**
+**Telegram-only degradation (best-effort, no client error):**
 
-- Бот-уведомления offline DM / chat request — только при `telegramId != null`.
-- File upload в комнатах — валидация ownership по `uploaderInternalId` (канонический `internalId`); legacy-fallback по `uploaderTgId` для старых метаданных.
+- Bot notifications for offline DM / chat request — only when `telegramId != null`.
+- File upload in rooms — ownership validation by `uploaderInternalId` (canonical `internalId`); legacy fallback by `uploaderTgId` for old metadata.
 
-Хендлеры используют `AppPrincipal` / `internalId`; каст `(TelegramPrincipal)` в бизнес-логике **запрещён**.
+Handlers use `AppPrincipal` / `internalId`; casting to `(TelegramPrincipal)` in business logic is **forbidden**.
 
-### Подключение
+### Connection
 
 ```typescript
-// Frontend - STOMP Client (auth на HTTP handshake; см. «Аутентификация»)
+// Frontend - STOMP Client (auth on HTTP handshake; see Authentication)
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
@@ -611,7 +611,7 @@ const client = new Client({
   heartbeatOutgoing: 10000,
   onConnect: () => {
     console.log('Connected');
-    // Персональные очереди — актуальные имена из кода
+    // Personal queues — current names from code
     client.subscribe('/user/queue/new-message', handleMessage);
     client.subscribe('/user/queue/errors', handleError);
     client.subscribe('/user/queue/sync-messages', handleSync);
@@ -620,13 +620,13 @@ const client = new Client({
 
 client.activate();
 
-// Presence heartbeat (отдельно от STOMP broker heartbeat): каждые ~20s
+// Presence heartbeat (separate from STOMP broker heartbeat): every ~20s
 setInterval(() => {
   client.publish({ destination: '/app/heartbeat', body: '{}' });
 }, 20000);
 ```
 
-### Жизненный цикл соединения
+### Connection Lifecycle
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -639,7 +639,7 @@ setInterval(() => {
 │    │  (auth headers / SockJS query)     │ validate creds     │
 │    │                                    │                    │
 │    │ ─────── STOMP CONNECT ─────────────►│                   │
-│    │  (подтверждает principal)          │                    │
+│    │  (confirms principal)               │                    │
 │    │ ◄─────── CONNECTED ────────────────│                    │
 │    │                                    │                    │
 │    │ ─────── SUBSCRIBE ─────────────────►│                   │
@@ -655,31 +655,31 @@ setInterval(() => {
 
 ---
 
-## Клиентские события (Client → Server)
+## Client Events (Client → Server)
 
 ### `SEARCH_USER` (`/app/search`)
 
-Поиск пользователя для начала DM. Доступен **любому** аутентифицированному STOMP-принципалу (`TelegramPrincipal` или `WalletPrincipal`).
+Search for a user to start a DM. Available to **any** authenticated STOMP principal (`TelegramPrincipal` or `WalletPrincipal`).
 
-**Запрос** (`SearchRequest`):
+**Request** (`SearchRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `query` | string (1–64) | Да | Строка поиска — см. форматы ниже |
+| `query` | string (1–64) | Yes | Search string — see formats below |
 
-**Поддерживаемые форматы `query` (exact match):**
+**Supported `query` formats (exact match):**
 
-| Формат | Пример | Резолв |
+| Format | Example | Resolve |
 |--------|--------|--------|
 | `@username` | `@alice` | `UserRepository` (Telegram cache) |
-| `username` | `alice` | то же (без `@`) |
+| `username` | `alice` | same (without `@`) |
 | Numeric TG ID | `123456789` | `UserRepository` + `auth_tg:` → `internalId` |
 | `internalId` (UUID) | `550e8400-e29b-41d4-a716-446655440000` | `UserIdentityRepository.findById` |
 | Wallet address | `EQBx7...` / `UQ...` | `auth_wallet:` → `internalId` (normalized lowercase) |
 
-Неподходящая строка → `INVALID_QUERY`. Частичный UUID / префикс wallet → **не** enumeration (см. [SECURITY.md](./SECURITY.md)).
+Non-matching string → `INVALID_QUERY`. Partial UUID / wallet prefix → **not** enumeration (see [SECURITY.md](./SECURITY.md)).
 
-**Ответ** — `/user/queue/search-result` (`SearchResultEvent`):
+**Response** — `/user/queue/search-result` (`SearchResultEvent`):
 
 ```json
 {
@@ -696,43 +696,43 @@ setInterval(() => {
 }
 ```
 
-| Поле `user` | Тип | Описание |
+| Field `user` | Type | Description |
 |-------------|-----|----------|
-| `internalId` | string | **Primary** — передаётся в `session.create` как `recipientInternalId` |
-| `id` | number \| null | Telegram numeric ID; `null` для wallet-only |
-| `username` | string? | Telegram username (без `@`) |
-| `displayName` | string | Имя для UI |
-| `photoUrl` | string? | Аватар |
-| `online` | boolean | Статус heartbeat |
+| `internalId` | string | **Primary** — passed to `session.create` as `recipientInternalId` |
+| `id` | number \| null | Telegram numeric ID; `null` for wallet-only |
+| `username` | string? | Telegram username (without `@`) |
+| `displayName` | string | Display name for UI |
+| `photoUrl` | string? | Avatar |
+| `online` | boolean | Heartbeat status |
 | `premium` | boolean | Telegram Premium |
 
-**Ответы на `/user/queue/search-result`:**
+**Responses on `/user/queue/search-result`:**
 
-| Условие | Payload |
+| Condition | Payload |
 |---------|---------|
-| Найден | `{ found: true, user: UserResponse }` |
-| Не найден / ошибка репозитория | `{ found: false }` (`error` = `null`) — **не** отдельный код `NOT_FOUND` |
-| Невалидный формат | `{ found: false, error: "INVALID_QUERY" }` |
+| Found | `{ found: true, user: UserResponse }` |
+| Not found / repository error | `{ found: false }` (`error` = `null`) — **not** a separate `NOT_FOUND` code |
+| Invalid format | `{ found: false, error: "INVALID_QUERY" }` |
 | Self-search | `{ found: false, error: "SELF_SEARCH" }` |
 
-**Rate-limit** (`SEARCH` 10/min): SEND дропается; клиент получает
-`RATE_LIMIT_EXCEEDED` на `/user/queue/errors` (не на `search-result`).
+**Rate-limit** (`SEARCH` 10/min): SEND is dropped; client receives
+`RATE_LIMIT_EXCEEDED` on `/user/queue/errors` (not on `search-result`).
 
-**Backend:** `SearchHandler` — `@MessageMapping("/search")`, доставка через `StompUserMessenger` по `internalId` инициатора поиска.
+**Backend:** `SearchHandler` — `@MessageMapping("/search")`, delivery via `StompUserMessenger` by search initiator's `internalId`.
 
 ---
 
 ### `POW_CHALLENGE` (`/app/pow.challenge`)
 
-Запрос PoW-challenge перед gated-действием. Маршрут **не** требует PoW (иначе «курица/яйцо»). **Rate-limit на issuance:** `RateLimitService.POW_CHALLENGE` — **10 запросов / мин / `internalId`**; при превышении → `/user/queue/errors` с `RATE_LIMIT_EXCEEDED` и `retryAfter` (секунды).
+Request a PoW challenge before a gated action. The route **does not** require PoW (otherwise chicken-and-egg). **Issuance rate-limit:** `RateLimitService.POW_CHALLENGE` — **10 requests / min / `internalId`**; on exceed → `/user/queue/errors` with `RATE_LIMIT_EXCEEDED` and `retryAfter` (seconds).
 
-**Реализованный scope (2026-06-16):** backend **верифицирует** PoW только на `/app/session.create`; frontend решает PoW только для `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` также принимает `search`, `room_create`, `invite` для выдачи challenge — enforcement на этих маршрутах **ещё не подключён** (задел на будущее расширение).
+**Implemented scope (2026-06-16):** backend **verifies** PoW only on `/app/session.create`; frontend solves PoW only for `session_create` (`useSession` / `ChatRequestDialog`). Wire-format `action` also accepts `search`, `room_create`, `invite` for challenge issuance — enforcement on those routes is **not yet wired** (future extension).
 
-**Запрос** (`PowHandler.PowChallengeRequest`):
+**Request** (`PowHandler.PowChallengeRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `action` | string | Да | Wire-format: `session_create`, `search`, `room_create`, `invite` (`PowAction`) |
+| `action` | string | Yes | Wire-format: `session_create`, `search`, `room_create`, `invite` (`PowAction`) |
 
 ```typescript
 client.publish({
@@ -741,115 +741,115 @@ client.publish({
 });
 ```
 
-Неизвестный или пустой `action` → сервер **молча игнорирует** запрос (debug-log, без error event).
+Unknown or empty `action` → server **silently ignores** the request (debug log, no error event).
 
-**Ответ** — `/user/queue/pow-challenge` (`PowChallengeEvent`):
+**Response** — `/user/queue/pow-challenge` (`PowChallengeEvent`):
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `challengeId` | string | 16 байт случайности, hex (32 символа) |
-| `action` | string | Действие, к которому привязан challenge |
-| `difficulty` | number | Целевое число ведущих нулевых **бит** (SHA-256 Hashcash) |
-| `ttlMs` | number | TTL challenge в миллисекундах (из `pow.challenge-ttl`, default ~60000) |
+| `challengeId` | string | 16 random bytes, hex (32 chars) |
+| `action` | string | Action the challenge is bound to |
+| `difficulty` | number | Target number of leading zero **bits** (SHA-256 Hashcash) |
+| `ttlMs` | number | Challenge TTL in milliseconds (from `pow.challenge-ttl`, default ~60000) |
 
-Поле `issuedAt` хранится **только в Redis** (`pow:challenge:{id}`), в STOMP-событие **не** входит.
+The `issuedAt` field is stored **only in Redis** (`pow:challenge:{id}`), not in the STOMP event.
 
-Сложность адаптивная (глобальный abuse-сигнал `pow:abuse:global`, DESIGN §5). Сервер хранит авторитетные `action`/`difficulty` только в Redis; клиентским значениям не доверяет. Выданная сложность cap'ится `pow.ceiling` (default 26).
+Difficulty is adaptive (global abuse signal `pow:abuse:global`, DESIGN §5). Server stores authoritative `action`/`difficulty` only in Redis; client values are not trusted. Issued difficulty is capped by `pow.ceiling` (default 26).
 
-**Backend:** `PowHandler` — `@MessageMapping("/pow.challenge")`. Доставка через `StompUserMessenger.convertAndSendToUser` → `/user/queue/pow-challenge`.
+**Backend:** `PowHandler` — `@MessageMapping("/pow.challenge")`. Delivery via `StompUserMessenger.convertAndSendToUser` → `/user/queue/pow-challenge`.
 
 **`pow.enabled`:**
 
-| Профиль | Значение | Поведение |
+| Profile | Value | Behavior |
 |---------|----------|-----------|
-| default / `prod` / `prod,testnet` | `true` (`${POW_ENABLED:true}`) | Challenge с реальной difficulty; verify обязателен на gated-маршрутах |
-| `dev`, `test` | `false` | Challenge с `difficulty: 0`; `PowVerificationService.verify` — no-op |
+| default / `prod` / `prod,testnet` | `true` (`${POW_ENABLED:true}`) | Challenge with real difficulty; verify required on gated routes |
+| `dev`, `test` | `false` | Challenge with `difficulty: 0`; `PowVerificationService.verify` — no-op |
 
-Prod/testnet **не** переопределяют `pow.enabled` в `application-prod.yml` / `application-testnet.yml`.
+Prod/testnet **do not** override `pow.enabled` in `application-prod.yml` / `application-testnet.yml`.
 
 ---
 
 ### `CREATE_SESSION` (`/app/session.create`)
 
-Создание нового чата и отправка запроса собеседнику.
+Create a new chat and send a request to the peer.
 
-**Нормализация секретного ответа** (инициатор и получатель должны совпадать по смыслу): `trim` → `toLowerCase()` на строке → UTF-8 → SHA-256 → Base64 (см. `SecretAnswerHasher` на сервере).
+**Secret answer normalization** (initiator and recipient must match semantically): `trim` → `toLowerCase()` on the string → UTF-8 → SHA-256 → Base64 (see `SecretAnswerHasher` on the server).
 
-**Запрос** (`CreateSessionRequest`):
+**Request** (`CreateSessionRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `recipientInternalId` | string (UUID) | Да* | Primary address key из `UserResponse.internalId` поиска |
-| `recipientId` | number | Нет (deprecated) | Legacy Telegram ID; резолвится в `internalId` через `auth_tg:` |
-| `secretQuestion` | string (≤256) | Нет | Секретный вопрос |
-| `secretExpectedAnswer` | string (≤256) | Если есть вопрос | Ожидаемый ответ; не логировать |
-| `pow` | object | Если `pow.enabled=true` на gated-маршруте | Решение PoW: `{ challengeId, nonce }` (`PowSolution`) |
+| `recipientInternalId` | string (UUID) | Yes* | Primary address key from search `UserResponse.internalId` |
+| `recipientId` | number | No (deprecated) | Legacy Telegram ID; resolved to `internalId` via `auth_tg:` |
+| `secretQuestion` | string (≤256) | No | Secret question |
+| `secretExpectedAnswer` | string (≤256) | If question set | Expected answer; do not log |
+| `pow` | object | If `pow.enabled=true` on gated route | PoW solution: `{ challengeId, nonce }` (`PowSolution`) |
 
-\* Обязателен один из `recipientInternalId` или `recipientId` (legacy). Новые клиенты передают только `recipientInternalId`.
+\* One of `recipientInternalId` or `recipientId` (legacy) is required. New clients send only `recipientInternalId`.
 
-**Порядок на сервере (DESIGN §6.2):** PoW verify → rate-limit `SESSION_CREATE` (3/min) → бизнес-логика.
+**Server order (DESIGN §6.2):** PoW verify → rate-limit `SESSION_CREATE` (3/min) → business logic.
 
 ```typescript
 client.publish({
   destination: '/app/session.create',
   body: JSON.stringify({
     recipientInternalId: '550e8400-e29b-41d4-a716-446655440000',
-    secretQuestion: 'Как звали моего кота?',
-    secretExpectedAnswer: 'Барсик',
+    secretQuestion: 'What was my cat\'s name?',
+    secretExpectedAnswer: 'Barsik',
     pow: { challengeId: '00112233445566778899aabbccddeeff', nonce: '1373' }
   })
 });
 ```
 
-**Ответ инициатору** — `/user/queue/session-created` (`SessionCreatedEvent`).
+**Response to initiator** — `/user/queue/session-created` (`SessionCreatedEvent`).
 
-**Уведомление получателю** — `/user/queue/incoming-request` (`IncomingRequestEvent`):
+**Notification to recipient** — `/user/queue/incoming-request` (`IncomingRequestEvent`):
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `sessionId` | string | UUID сессии |
-| `sender` | `UserResponse` | Профиль отправителя (вкл. `sender.internalId`) |
-| `fromInternalId` | string | Дублирует `sender.internalId` для явного доступа |
-| `hasSecretQuestion` | boolean | Есть ли секретный вопрос |
-| `secretQuestion` | string? | Текст вопроса |
-| `createdAt`, `expiresAt` | ISO-8601 | TTL запроса (5 мин) |
+| `sessionId` | string | Session UUID |
+| `sender` | `UserResponse` | Sender profile (incl. `sender.internalId`) |
+| `fromInternalId` | string | Duplicates `sender.internalId` for explicit access |
+| `hasSecretQuestion` | boolean | Whether a secret question exists |
+| `secretQuestion` | string? | Question text |
+| `createdAt`, `expiresAt` | ISO-8601 | Request TTL (5 min) |
 
-Очередь pending: Redis `request:{recipientInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
+Pending queue: Redis `request:{recipientInternalId}` (see [DATA_MODELS.md](./DATA_MODELS.md)).
 
-**Коды ошибок** (`success: false` на `/user/queue/session-created`):
+**Error codes** (`success: false` on `/user/queue/session-created`):
 `SELF_REQUEST`, `INVALID_RECIPIENT`, `EXPECTED_ANSWER_REQUIRED`,
 `EXPECTED_ANSWER_TOO_LONG`, `ALREADY_HAS_SESSION`, `RECIPIENT_HAS_SESSION`,
 `PENDING_REQUEST_EXISTS`, `INTERNAL_ERROR`.
 
-> Коды `USER_NOT_FOUND` / `SELF_CHAT` / `USER_BLOCKED` / `RATE_LIMITED` на
-> `session-created` **не используются**. Rate-limit и PoW идут на
-> `/user/queue/errors` (см. ниже).
+> Codes `USER_NOT_FOUND` / `SELF_CHAT` / `USER_BLOCKED` / `RATE_LIMITED` on
+> `session-created` are **not used**. Rate-limit and PoW go to
+> `/user/queue/errors` (see below).
 
-**PoW / rate-limit ошибки** (на `/user/queue/errors`, `WebSocketExceptionHandler`):
+**PoW / rate-limit errors** (on `/user/queue/errors`, `WebSocketExceptionHandler`):
 
-Формат тела (`Map`):
+Body format (`Map`):
 
-| Поле | Тип | PoW / rate-limit |
+| Field | Type | PoW / rate-limit |
 |------|-----|------------------|
-| `success` | boolean | всегда `false` |
-| `error` | string | код ошибки |
-| `message` | string | человекочитаемое сообщение |
+| `success` | boolean | always `false` |
+| `error` | string | error code |
+| `message` | string | Human-readable message |
 | `timestamp` | string | ISO-8601 instant |
-| `retryAfter` | number | только для `RATE_LIMIT_EXCEEDED` (секунды) |
+| `retryAfter` | number | only for `RATE_LIMIT_EXCEEDED` (seconds) |
 
-| Код | Когда |
+| Code | When |
 |-----|-------|
-| `POW_REQUIRED` | Нет/пустой `pow`, challenge истёк или отсутствует в Redis |
-| `POW_INVALID` | Неверный nonce, action mismatch, replay (`pow:spent` уже занят) |
-| `RATE_LIMIT_EXCEEDED` | Превышен per-identity cap **после** валидного PoW |
+| `POW_REQUIRED` | Missing/empty `pow`, challenge expired or absent in Redis |
+| `POW_INVALID` | Invalid nonce, action mismatch, replay (`pow:spent` already consumed) |
+| `RATE_LIMIT_EXCEEDED` | Per-identity cap exceeded **after** valid PoW |
 
-**Backend:** `SessionHandler` — `@MessageMapping("/session.create")`. Доставка по `StompUserMessenger.convertAndSendToInternalId`. Telegram-бот offline — best-effort при `telegramId` получателя.
+**Backend:** `SessionHandler` — `@MessageMapping("/session.create")`. Delivery via `StompUserMessenger.convertAndSendToInternalId`. Telegram bot offline — best-effort when recipient has `telegramId`.
 
 ---
 
 ### `ACCEPT_REQUEST` (`/app/session.accept`)
 
-Принятие входящего запроса на чат.
+Accept an incoming chat request.
 
 **Frontend:**
 ```typescript
@@ -857,26 +857,26 @@ client.publish({
   destination: '/app/session.accept',
   body: JSON.stringify({
     sessionId: 'abc123',
-    secretAnswer: 'Барсик' // если был секретный вопрос; нормализация та же, что при создании
+    secretAnswer: 'Barsik' // if there was a secret question; same normalization as on create
   })
 });
 
-// Оба участника получают успех на `/user/queue/session-accepted`
+// Both participants receive success on `/user/queue/session-accepted`
 client.subscribe('/user/queue/session-accepted', (message) => {
   const data = JSON.parse(message.body);
   // success, sessionId, peer, acceptedAt, expiresAt | error
 });
 
-// Ошибки принятия (только получатель), в т.ч. WRONG_ANSWER — ответ не совпал с ожидаемым хэшем
+// Accept errors (recipient only), incl. WRONG_ANSWER — answer did not match expected hash
 ```
 
-**Backend:** `SessionHandler` — `@MessageMapping("/session.accept")`, событие `SessionAcceptedEvent`.
+**Backend:** `SessionHandler` — `@MessageMapping("/session.accept")`, event `SessionAcceptedEvent`.
 
 ---
 
 ### `REJECT_REQUEST` (`/app/session.reject`)
 
-Отклонение запроса на чат.
+Reject a chat request.
 
 **Frontend:**
 ```typescript
@@ -894,23 +894,23 @@ client.subscribe('/user/queue/session-rejected', (message) => {
 ```
 
 **Backend:** `SessionHandler` — `@MessageMapping("/session.reject")`.
-Доставка инициатору через `StompUserMessenger` по **`internalId`**
-(не Telegram ID). Principal name = `UnifiedUser.internalId()`.
+Delivery to initiator via `StompUserMessenger` by **`internalId`**
+(not Telegram ID). Principal name = `UnifiedUser.internalId()`.
 
 ---
 
 ### `SEND_PUBLIC_KEY` (`/app/handshake.key`)
 
-Отправка публичного ключа ECDH для handshake.
+Send ECDH public key for handshake.
 
-**Формат ключа:** SPKI/ASN.1, Base64 (`exportKey('spki', …)` на клиенте — см. `ecdh.ts`).
+**Key format:** SPKI/ASN.1, Base64 (`exportKey('spki', …)` on the client — see `ecdh.ts`).
 
-**Семантика повторной отправки:** пока пир **не** прислал свой ключ (`!areBothKeysReady()`),
-повторный запрос от того же участника **перезаписывает** его pending-ключ в
-`session:{sessionId}` (сценарий client retry / reconnect с новой ECDH-парой после
-`burn()`). Когда оба ключа уже в буфере — повтор молча игнорируется (relay в процессе).
-После успешного relay ключи очищаются, сессия → `ACTIVE`; для key refresh на `ACTIVE`
-действует тот же принцип перезаписи до ответа пира + `KEY_REFRESH_NEEDED` пиру.
+**Resend semantics:** while the peer has **not** sent their key (`!areBothKeysReady()`),
+a repeat request from the same participant **overwrites** their pending key in
+`session:{sessionId}` (client retry / reconnect with new ECDH pair after
+`burn()`). When both keys are already buffered — repeat is silently ignored (relay in progress).
+After successful relay keys are cleared, session → `ACTIVE`; for key refresh on `ACTIVE`
+the same overwrite-until-peer-responds principle applies + `KEY_REFRESH_NEEDED` to peer.
 
 **Frontend:**
 ```typescript
@@ -922,7 +922,7 @@ client.publish({
   })
 });
 
-// Peer получает
+// Peer receives
 client.subscribe('/user/queue/peer-key', (message) => {
   const data = JSON.parse(message.body);
   // PeerPublicKeyEvent: sessionId, publicKey, …
@@ -930,33 +930,33 @@ client.subscribe('/user/queue/peer-key', (message) => {
 ```
 
 **Backend:** `HandshakeHandler` — `@MessageMapping("/handshake.key")`.
-Peer-доставка: `StompUserMessenger` → `/user/queue/peer-key` по `internalId`.
-Также существует `/user/queue/handshake-refresh` при refresh handshake.
-Rate-limit: `HANDSHAKE` — 10 req/min (см. таблицу выше).
+Peer delivery: `StompUserMessenger` → `/user/queue/peer-key` by `internalId`.
+`/user/queue/handshake-refresh` also exists on handshake refresh.
+Rate-limit: `HANDSHAKE` — 10 req/min (see table above).
 
 ---
 
 ### `SEND_MESSAGE` (`/app/message.send`)
 
-Отправка зашифрованного сообщения (текст или файл: изображение, видео, документ).
+Send an encrypted message (text or file: image, video, document).
 
-**Текстовое сообщение (Frontend):**
+**Text message (Frontend):**
 ```typescript
 client.publish({
   destination: '/app/message.send',
   body: JSON.stringify({
     sessionId: '550e8400-e29b-41d4-a716-446655440000',
     messageId: 'client-generated-id',
-    encryptedContent: 'base64...', // AES-GCM ciphertext (текст)
+    encryptedContent: 'base64...', // AES-GCM ciphertext (text)
     iv: 'base64...',
     timestamp: Date.now(),
     type: 'text',
-    replyToMessageId: 'optional-parent-message-id' // опционально
+    replyToMessageId: 'optional-parent-message-id' // optional
   })
 });
 ```
 
-**Файловое сообщение** — после `POST /api/files/upload` для основного blob'а и при необходимости для thumbnail клиент передаёт `fileId` и опционально `thumbnailFileId`, а также зашифрованные метаданные и размер **исходного** файла:
+**File message** — after `POST /api/files/upload` for the main blob and optionally for thumbnail, the client passes `fileId` and optional `thumbnailFileId`, plus encrypted metadata and **original** file size:
 
 ```typescript
 // type: "image" | "video" | "file"
@@ -965,25 +965,25 @@ client.publish({
   body: JSON.stringify({
     sessionId: '550e8400-e29b-41d4-a716-446655440000',
     messageId: 'client-generated-id',
-    encryptedContent: 'base64...', // опциональная подпись к медиа; может быть пустой заглушкой
+    encryptedContent: 'base64...', // optional media caption; may be empty placeholder
     iv: 'base64...',
     timestamp: Date.now(),
     type: 'image',
     fileId: 'uuid-of-main-upload',
-    thumbnailFileId: 'uuid-of-thumb-upload', // опционально
-    encryptedMeta: 'base64...', // см. encryptFileMetadata: { fileName, mimeType }
+    thumbnailFileId: 'uuid-of-thumb-upload', // optional
+    encryptedMeta: 'base64...', // see encryptFileMetadata: { fileName, mimeType }
     fileSize: 1048576,
-    replyToMessageId: 'optional-parent-message-id' // опционально
+    replyToMessageId: 'optional-parent-message-id' // optional
   })
 });
 ```
 
-Сервер перед ретрансляцией проверяет, что `fileId` (и `thumbnailFileId`, если есть) существуют в `file_meta:*`, загружены отправителем (ownership по `uploaderInternalId` == `sender.internalId()`; legacy-fallback по `uploaderTgId` только для старых метаданных без `uploaderInternalId` и при `sender.telegramId != null`) и привязаны к той же `sessionId`. При ошибке валидации возможны коды: `FILE_NOT_FOUND`, `FILE_NOT_OWNED`, `FILE_CONTEXT_MISMATCH`.
+Before relay, the server verifies that `fileId` (and `thumbnailFileId`, if present) exist in `file_meta:*`, were uploaded by the sender (ownership by `uploaderInternalId` == `sender.internalId()`; legacy fallback by `uploaderTgId` only for old metadata without `uploaderInternalId` and when `sender.telegramId != null`) and are bound to the same `sessionId`. Validation errors may use: `FILE_NOT_FOUND`, `FILE_NOT_OWNED`, `FILE_CONTEXT_MISMATCH`.
 
-**События:**
+**Events:**
 
-- Получатель: `/user/queue/new-message` — тело в формате `NewMessageEvent` (включая `senderInternalId`, `replyToMessageId?`, `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` для медиа).
-- Отправитель: `/user/queue/message-sent` — подтверждение доставки.
+- Recipient: `/user/queue/new-message` — body as `NewMessageEvent` (incl. `senderInternalId`, `replyToMessageId?`, `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` for media).
+- Sender: `/user/queue/message-sent` — delivery acknowledgment.
 
 ```typescript
 client.subscribe('/user/queue/new-message', (message) => {
@@ -994,15 +994,15 @@ client.subscribe('/user/queue/new-message', (message) => {
 });
 ```
 
-**Backend:** `MessageHandler` — `@MessageMapping("/message.send")`, см. `SendMessageRequest`, `NewMessageEvent`.
+**Backend:** `MessageHandler` — `@MessageMapping("/message.send")`, see `SendMessageRequest`, `NewMessageEvent`.
 
-> Для **комнат** используется отдельный handler и `SendRoomMessageRequest` с теми же файловыми полями; destination см. в коде (`RoomMessageHandler`).
+> For **rooms**, a separate handler and `SendRoomMessageRequest` with the same file fields are used; see destination in code (`RoomMessageHandler`).
 
 ---
 
 ### `CONFIRM_VERIFICATION` (`/app/verification.confirm`)
 
-Подтверждение Visual Fingerprint.
+Confirm Visual Fingerprint.
 
 **Frontend:**
 ```typescript
@@ -1014,7 +1014,7 @@ client.publish({
   })
 });
 
-// Оба получают статус
+// Both receive status
 client.subscribe('/user/queue/verification', (message) => {
   const data = JSON.parse(message.body);
   // VerificationEvent: success, sessionId, verified, peerVerified, bothVerified, verifiedAt?, error?
@@ -1022,13 +1022,13 @@ client.subscribe('/user/queue/verification', (message) => {
 ```
 
 **Backend:** `VerificationHandler` — `@MessageMapping("/verification.confirm")`.
-Доставка через `StompUserMessenger` → `/user/queue/verification` по `internalId`.
+Delivery via `StompUserMessenger` → `/user/queue/verification` by `internalId`.
 
 ---
 
 ### `BURN_SESSION` (`/app/session.burn`)
 
-Уничтожение сессии.
+Destroy the session.
 
 **Frontend:**
 ```typescript
@@ -1039,7 +1039,7 @@ client.publish({
   })
 });
 
-// Оба получают
+// Both receive
 client.subscribe('/user/queue/burn-signal', (message) => {
   const data = JSON.parse(message.body);
   // BurnSignalEvent: sessionId, burnedBy?, burnedAt, success
@@ -1047,22 +1047,22 @@ client.subscribe('/user/queue/burn-signal', (message) => {
 ```
 
 **Backend:** `BurnHandler` — `@MessageMapping("/session.burn")`.
-Доставка через `StompUserMessenger` → `/user/queue/burn-signal` по `internalId`
-обоих участников. После burn клиент обязан уничтожить ключи и очистить историю.
+Delivery via `StompUserMessenger` → `/user/queue/burn-signal` by `internalId`
+of both participants. After burn the client must destroy keys and clear history.
 
 ---
 
 ### `BURN_ALL` (`/app/user.burnAll`)
 
-Глобальное серверное уничтожение всех данных пользователя одним каскадом
-Требует живого STOMP-соединения.
+Global server destruction of all user data in one cascade.
+Requires a live STOMP connection.
 
 **Frontend:**
 ```typescript
 client.publish({
   destination: '/app/user.burnAll',
   body: JSON.stringify({
-    wipeIdentity: false  // true = также удалить user:{internalId}, auth_*, lang:pref, member_rooms, session_token:*
+    wipeIdentity: false  // true = also delete user:{internalId}, auth_*, lang:pref, member_rooms, session_token:*
   })
 });
 
@@ -1073,31 +1073,31 @@ client.subscribe('/user/queue/burn-all-complete', (message) => {
 ```
 
 **Backend:** `UserBurnHandler` — `@MessageMapping("/user.burnAll")`.
-Каскад `UserBurnService.burnAllForUser(internalId, wipeIdentity)`:
+Cascade `UserBurnService.burnAllForUser(internalId, wipeIdentity)`:
 
-1. Все активные DM-сессии → burn как `/app/session.burn` + `BurnSignalEvent` пирам.
-2. Комнаты во владении → `RoomService.burnRoomAsOwner` + `RoomBurnedEvent` участникам.
-3. Чужие комнаты → leave-каскад + `room-member-left` оставшимся (rekey у owner).
-4. Хвосты: `request:*`, offline/tombstone-очереди пользователя, `file_context` через `FileBurnService`.
-5. При `wipeIdentity=true` — `user:{internalId}`, `auth_tg`, `auth_wallet`, `lang:pref`, `member_rooms`, `session_token:*`.
-6. Ack инициатору → `/user/queue/burn-all-complete` **до** разрыва соединения (disconnect на клиенте).
+1. All active DM sessions → burn like `/app/session.burn` + `BurnSignalEvent` to peers.
+2. Owned rooms → `RoomService.burnRoomAsOwner` + `RoomBurnedEvent` to members.
+3. Other people's rooms → leave cascade + `room-member-left` to remaining (rekey by owner).
+4. Tail cleanup: `request:*`, user offline/tombstone queues, `file_context` via `FileBurnService`.
+5. When `wipeIdentity=true` — `user:{internalId}`, `auth_tg`, `auth_wallet`, `lang:pref`, `member_rooms`, `session_token:*`.
+6. Ack to initiator → `/user/queue/burn-all-complete` **before** connection tear-down (client disconnect).
 
 **Rate-limit:** `RateLimitService.checkRestRateLimit("burn_all", internalId, 3, 1 min)` —
-без PoW. Повторный вызов идемпотентен (добивает остатки).
+without PoW. Repeat call is idempotent (cleans up leftovers).
 
-**События пирам (не инициатору):**
+**Peer events (not to initiator):**
 
-| Очередь | Событие | Когда |
+| Queue | Event | When |
 |---------|---------|-------|
-| `/user/queue/burn-signal` | `BurnSignalEvent` | Каждая сожжённая DM-сессия |
-| `/user/queue/room-burned` | `RoomBurnedEvent` | Каждая сожжённая owned-комната |
-| `/user/queue/room-member-left` | `RoomMemberLeftEvent` | Каждый leave из чужой комнаты |
+| `/user/queue/burn-signal` | `BurnSignalEvent` | Each burned DM session |
+| `/user/queue/room-burned` | `RoomBurnedEvent` | Each burned owned room |
+| `/user/queue/room-member-left` | `RoomMemberLeftEvent` | Each leave from someone else's room |
 
 ---
 
 ### `SET_DEADMAN` (`/app/user.setDeadman`)
 
-Dead man's switch: авто-burn при неактивности N дней.
+Dead man's switch: auto-burn after N days of inactivity.
 
 **Frontend:**
 ```typescript
@@ -1106,7 +1106,7 @@ client.publish({
   body: JSON.stringify({
     enabled: true,
     periodDays: 30,      // 7 | 30 | 90 when enabled
-    wipeIdentity: false  // true = burn-all с удалением identity
+    wipeIdentity: false  // true = burn-all with identity deletion
   })
 });
 
@@ -1117,22 +1117,22 @@ client.subscribe('/user/queue/deadman-updated', (message) => {
 ```
 
 **Backend:** `UserBurnHandler` — `@MessageMapping("/user.setDeadman")`.
-`enabled=false` удаляет trigger + cfg ключи. `enabled=true` пишет cfg (без TTL) и trigger
-с TTL = `periodDays`. Ack → `/user/queue/deadman-updated`.
+`enabled=false` deletes trigger + cfg keys. `enabled=true` writes cfg (no TTL) and trigger
+with TTL = `periodDays`. Ack → `/user/queue/deadman-updated`.
 
-**Activity refresh:** при каждом STOMP CONNECT (`WebSocketEventListener`) trigger TTL
-сбрасывается на полный `periodDays`, если switch включён. Если switch включён,
-сервер дополнительно пушит `DeadmanUpdatedEvent` на `/user/queue/deadman-updated`
-с актуальным `expiresAt` (cold start / reconnect sync для frontend).
+**Activity refresh:** on each STOMP CONNECT (`WebSocketEventListener`) trigger TTL
+is reset to full `periodDays` if switch is enabled. If enabled,
+server also pushes `DeadmanUpdatedEvent` to `/user/queue/deadman-updated`
+with current `expiresAt` (cold start / reconnect sync for frontend).
 
-**Expiry:** keyspace listener на `user:deadman:*` → `UserBurnService.burnAllForUser`
-с `wipeIdentity` из cfg → удаление cfg-ключа.
+**Expiry:** keyspace listener on `user:deadman:*` → `UserBurnService.burnAllForUser`
+with `wipeIdentity` from cfg → delete cfg key.
 
 ---
 
 ### `SYNC_MESSAGES` (`/app/message.sync`)
 
-Запрос пропущенных DM-сообщений из Redis-очереди (reconnect, cold start, серверный push; см. offline sync). Тело: `SyncMessagesRequest` с полем `sessionId`.
+Request missed DM messages from Redis queue (reconnect, cold start, server push; see offline sync). Body: `SyncMessagesRequest` with `sessionId`.
 
 **Frontend:**
 ```typescript
@@ -1143,156 +1143,156 @@ client.publish({
   })
 });
 
-// Результат: SyncMessagesEvent
+// Result: SyncMessagesEvent
 client.subscribe('/user/queue/sync-messages', (message) => {
   const data = JSON.parse(message.body);
   // success, sessionId, error?, messages
 });
 ```
 
-**Backend:** `MessageHandler` — `@MessageMapping("/message.sync")`, `SyncMessagesRequest`, `SyncMessagesEvent` на `/user/queue/sync-messages`, после отправки — удаление ключа `messages:{userId}:{sessionId}`. Параметры списка: `burnedchats.messages.offline-queue` (см. `DATA_MODELS.md`).
+**Backend:** `MessageHandler` — `@MessageMapping("/message.sync")`, `SyncMessagesRequest`, `SyncMessagesEvent` on `/user/queue/sync-messages`, after send — delete key `messages:{userId}:{sessionId}`. List params: `burnedchats.messages.offline-queue` (see `DATA_MODELS.md`).
 
 ---
 
-### `TYPING_START` / `TYPING_STOP` — **planned (не реализовано)**
+### `TYPING_START` / `TYPING_STOP` — **planned (not implemented)**
 
-> **Статус:** destinations `/app/typing/start`, `/app/typing/stop` и очередь
-> `/user/queue/peer-typing` **отсутствуют в коде** (нет `@MessageMapping`, нет
-> публикаций). Не подписываться и не публиковать — клиент получит тишину.
-> Зарезервировано на будущее; до реализации индикатор набора не поддерживается.
+> **Status:** destinations `/app/typing/start`, `/app/typing/stop` and queue
+> `/user/queue/peer-typing` **are absent from code** (no `@MessageMapping`, no
+> publications). Do not subscribe or publish — client gets silence.
+> Reserved for future; typing indicator is not supported until implemented.
 
 ---
 
-### Дополнительные DM / session destinations (код)
+### Additional DM / session destinations (code)
 
-Следующие маршруты реализованы в `SessionHandler` / `MessageHandler` /
-`HeartbeatHandler` / `UserPreferenceHandler` и ранее не были сведены в одну таблицу:
+The following routes are implemented in `SessionHandler` / `MessageHandler` /
+`HeartbeatHandler` / `UserPreferenceHandler` and were not previously summarized in one table:
 
-| Destination | Handler | Ответ / очередь | Описание |
+| Destination | Handler | Response / queue | Description |
 |-------------|---------|-----------------|----------|
-| `/app/session.pending` | `SessionHandler` | (см. handler) | Список / получение pending-запросов |
-| `/app/session.status` | `SessionHandler` | `/user/queue/session-status` | Статус сессии (`SessionStatusEvent`) |
-| `/app/peer.disconnect` | `SessionHandler` | `/user/queue/peer-disconnected` | Уведомление peer об disconnect |
-| `/app/session.active.list` | `SessionHandler` | `/user/queue/active-sessions` | Список активных сессий |
-| `/app/session.resume` | `SessionHandler` | `/user/queue/session-resumed` | Resume после reconnect |
-| `/app/message.edit` | `MessageHandler` | `/user/queue/message-edited` | Редактирование DM |
-| `/app/message.delete` | `MessageHandler` | `/user/queue/message-deleted` | Удаление DM |
-| `/app/heartbeat` | `HeartbeatHandler` | — (обновляет `online:*`) | Presence; rate-limit **exempt**; клиент ~20s |
-| `/app/user.setLanguage` | `UserPreferenceHandler` | — (fire-and-forget) | Сохранение языковой pref |
+| `/app/session.pending` | `SessionHandler` | (see handler) | List / fetch pending requests |
+| `/app/session.status` | `SessionHandler` | `/user/queue/session-status` | Session status (`SessionStatusEvent`) |
+| `/app/peer.disconnect` | `SessionHandler` | `/user/queue/peer-disconnected` | Notify peer of disconnect |
+| `/app/session.active.list` | `SessionHandler` | `/user/queue/active-sessions` | List of active sessions |
+| `/app/session.resume` | `SessionHandler` | `/user/queue/session-resumed` | Resume after reconnect |
+| `/app/message.edit` | `MessageHandler` | `/user/queue/message-edited` | Edit DM |
+| `/app/message.delete` | `MessageHandler` | `/user/queue/message-deleted` | Delete DM |
+| `/app/heartbeat` | `HeartbeatHandler` | — (updates `online:*`) | Presence; rate-limit **exempt**; client ~20s |
+| `/app/user.setLanguage` | `UserPreferenceHandler` | — (fire-and-forget) | Save language preference |
 
 ---
 
-## Серверные события (Server → Client)
+## Server Events (Server → Client)
 
-Все серверные события отправляются на персональные очереди пользователя
-(`/user/queue/*`) через `StompUserMessenger` по **`internalId`**.
+All server events are sent to user personal queues
+(`/user/queue/*`) via `StompUserMessenger` by **`internalId`**.
 
 ### DM / session / system
 
-| Очередь | Событие / DTO | Описание |
+| Queue | Event / DTO | Description |
 |---------|---------------|----------|
-| `/user/queue/search-result` | `SearchResultEvent` | Результат поиска |
-| `/user/queue/pow-challenge` | `PowChallengeEvent` | Выданный PoW challenge |
-| `/user/queue/session-created` | `SessionCreatedEvent` | Ответ на `session.create` |
-| `/user/queue/session-accepted` | `SessionAcceptedEvent` | Запрос принят |
-| `/user/queue/session-rejected` | `SessionRejectedEvent` | Запрос отклонён |
-| `/user/queue/session-status` | `SessionStatusEvent` | Статус сессии |
-| `/user/queue/incoming-request` | `IncomingRequestEvent` | Входящий запрос на чат |
-| `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer отключился |
-| `/user/queue/active-sessions` | `ActiveSessionsListEvent` | Список активных сессий |
-| `/user/queue/session-resumed` | `SessionResumedEvent` | Resume после reconnect |
-| `/user/queue/peer-key` | `PeerPublicKeyEvent` | Публичный ключ peer |
-| `/user/queue/handshake-refresh` | handshake refresh | Обновление handshake |
-| `/user/queue/new-message` | `NewMessageEvent` | Новое DM-сообщение |
-| `/user/queue/message-sent` | `MessageSentEvent` | Ack / ошибки отправки DM |
+| `/user/queue/search-result` | `SearchResultEvent` | Search result |
+| `/user/queue/pow-challenge` | `PowChallengeEvent` | Issued PoW challenge |
+| `/user/queue/session-created` | `SessionCreatedEvent` | Response to `session.create` |
+| `/user/queue/session-accepted` | `SessionAcceptedEvent` | Request accepted |
+| `/user/queue/session-rejected` | `SessionRejectedEvent` | Request rejected |
+| `/user/queue/session-status` | `SessionStatusEvent` | Session status |
+| `/user/queue/incoming-request` | `IncomingRequestEvent` | Incoming chat request |
+| `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer disconnected |
+| `/user/queue/active-sessions` | `ActiveSessionsListEvent` | List of active sessions |
+| `/user/queue/session-resumed` | `SessionResumedEvent` | Resume after reconnect |
+| `/user/queue/peer-key` | `PeerPublicKeyEvent` | Peer public key |
+| `/user/queue/handshake-refresh` | handshake refresh | Handshake refresh |
+| `/user/queue/new-message` | `NewMessageEvent` | New DM message |
+| `/user/queue/message-sent` | `MessageSentEvent` | DM send ack / errors |
 | `/user/queue/sync-messages` | `SyncMessagesEvent` | Offline sync DM |
-| `/user/queue/message-edited` | `MessageEditedEvent` | DM отредактировано |
-| `/user/queue/message-deleted` | `MessageDeletedEvent` | DM удалено |
-| `/user/queue/verification` | `VerificationEvent` | Статус fingerprint |
-| `/user/queue/burn-signal` | `BurnSignalEvent` | Сессия сожжена |
-| `/user/queue/burn-all-complete` | `BurnAllCompleteEvent` | Ack глобального burn-all |
-| `/user/queue/errors` | error map | Глобальные STOMP-ошибки (rate-limit, PoW, validation) |
+| `/user/queue/message-edited` | `MessageEditedEvent` | DM edited |
+| `/user/queue/message-deleted` | `MessageDeletedEvent` | DM deleted |
+| `/user/queue/verification` | `VerificationEvent` | Fingerprint status |
+| `/user/queue/burn-signal` | `BurnSignalEvent` | Session burned |
+| `/user/queue/burn-all-complete` | `BurnAllCompleteEvent` | Global burn-all ack |
+| `/user/queue/errors` | error map | Global STOMP errors (rate-limit, PoW, validation) |
 
-> **Не реализовано (не эмитятся):** `/user/queue/session-started`,
-> `peer-joined`, `peer-left`, `peer-typing`. Не подписываться.
-> Устаревшие имена из старых спек (`messages`, `sync-result`, `error`,
-> `peer-public-key`, `session-burned`, `verification-status`) **заменены**
-> строками таблицы выше.
+> **Not implemented (not emitted):** `/user/queue/session-started`,
+> `peer-joined`, `peer-left`, `peer-typing`. Do not subscribe.
+> Legacy names from old specs (`messages`, `sync-result`, `error`,
+> `peer-public-key`, `session-burned`, `verification-status`) are **replaced**
+> by table rows above.
 
 ### Room user queues
 
-| Очередь | Описание |
+| Queue | Description |
 |---------|----------|
-| `/user/queue/room-created` | Комната создана |
-| `/user/queue/invite-link` | Инвайт-ссылка |
-| `/user/queue/room-invites` | Список инвайтов |
-| `/user/queue/room-invite-info` | Инфо по токену |
-| `/user/queue/room-join-requests` | Заявки на вступление |
-| `/user/queue/room-join-result` | Результат join (approve/reject) |
+| `/user/queue/room-created` | Room created |
+| `/user/queue/invite-link` | Invite link |
+| `/user/queue/room-invites` | Invite list |
+| `/user/queue/room-invite-info` | Token info |
+| `/user/queue/room-join-requests` | Join requests |
+| `/user/queue/room-join-result` | Join result (approve/reject) |
 | `/user/queue/key-bundle` | Key bundle |
 | `/user/queue/room-rekey` | Rekey |
-| `/user/queue/member-pubkeys` | Pubkeys членов |
-| `/user/queue/room-list` | Список комнат пользователя |
-| `/user/queue/room-members` | Список членов |
-| `/user/queue/room-presence` | Snapshot presence |
-| `/user/queue/room-burned` | Комната сожжена |
-| `/user/queue/room-left` | Вы вышли |
-| `/user/queue/room-member-left` | Участник вышел |
-| `/user/queue/room-kicked` | Вас кикнули |
-| `/user/queue/room-kick-result` | Результат kick |
-| `/user/queue/room-member-removed` | Участник удалён |
-| `/user/queue/room-bans` | Список банов |
-| `/user/queue/room-message-sent` | Ack / ошибки room send |
+| `/user/queue/member-pubkeys` | Member pubkeys |
+| `/user/queue/room-list` | User's room list |
+| `/user/queue/room-members` | Member list |
+| `/user/queue/room-presence` | Presence snapshot |
+| `/user/queue/room-burned` | Room burned |
+| `/user/queue/room-left` | You left |
+| `/user/queue/room-member-left` | Member left |
+| `/user/queue/room-kicked` | You were kicked |
+| `/user/queue/room-kick-result` | Kick result |
+| `/user/queue/room-member-removed` | Member removed |
+| `/user/queue/room-bans` | Ban list |
+| `/user/queue/room-message-sent` | Room send ack / errors |
 | `/user/queue/room-sync-messages` | Offline sync room |
 | `/user/queue/room-message-edited` | Room edit ack/error |
 | `/user/queue/room-message-deleted` | Room delete ack/error |
 
-> Константа `/queue/room-message-error` в коде **определена, но не используется** —
-> ошибки room-send идут в `/user/queue/room-message-sent`.
+> Constant `/queue/room-message-error` is **defined but unused** in code —
+> room-send errors go to `/user/queue/room-message-sent`.
 
-Топик: `/topic/room/{roomId}` (мультиплекс по типу события; подписка только для членов).
+Topic: `/topic/room/{roomId}` (multiplexed by event type; subscribe only for members).
 
-### Дополнительные room destinations (client → server)
+### Additional room destinations (client → server)
 
-| Destination | Описание |
+| Destination | Description |
 |-------------|----------|
-| `/app/room.leave` | Выход из комнаты → `/user/queue/room-left` (+ peer `room-member-left`) |
-| `/app/room.requestKeyBundle` | Запрос key bundle |
-| `/app/room.getMemberPubkeys` | Pubkeys членов → `/user/queue/member-pubkeys` |
-| `/app/room.message.edit` | Редактирование room-сообщения |
-| `/app/room.message.delete` | Удаление room-сообщения |
-| `/app/room.burn` | Сожжение комнаты → `/user/queue/room-burned` |
-| `/app/user.burnAll` | Глобальный burn-all каскад → `/user/queue/burn-all-complete` (+ peer-события) |
+| `/app/room.leave` | Leave room → `/user/queue/room-left` (+ peer `room-member-left`) |
+| `/app/room.requestKeyBundle` | Request key bundle |
+| `/app/room.getMemberPubkeys` | Member pubkeys → `/user/queue/member-pubkeys` |
+| `/app/room.message.edit` | Edit room message |
+| `/app/room.message.delete` | Delete room message |
+| `/app/room.burn` | Burn room → `/user/queue/room-burned` |
+| `/app/user.burnAll` | Global burn-all cascade → `/user/queue/burn-all-complete` (+ peer events) |
 | `/app/user.setDeadman` | Dead man's switch on/off → `/user/queue/deadman-updated` |
 
 ---
 
-## Типы данных
+## Data Types
 
-### Полезная нагрузка сообщения (STOMP / offline queue)
+### Message payload (STOMP / offline queue)
 
-В протоколе используются **`SendMessageRequest`** (клиент → сервер) и **`Message`** / **`NewMessageEvent`** (сервер → клиент), а не отдельный класс с полями `ciphertext`/`tag`.
+The protocol uses **`SendMessageRequest`** (client → server) and **`Message`** / **`NewMessageEvent`** (server → client), not a separate class with `ciphertext`/`tag` fields.
 
-Общие поля:
+Common fields:
 
-| Поле | Описание |
+| Field | Description |
 |------|----------|
 | `type` | `text` \| `image` \| `video` \| `file` |
-| `encryptedContent`, `iv` | Зашифрованный текст или подпись к медиа (opaque Base64) |
-| `messageId`, `timestamp` / `clientTimestamp` | Идемпотентность и порядок |
-| `replyToMessageId` | Опционально — ID сообщения, на которое это reply (plaintext metadata; в `SendMessageRequest` и `NewMessageEvent`) |
-| `senderInternalId` | Только в `NewMessageEvent` — primary identity отправителя (wallet-safe); `senderId` (TG) может быть `null` |
+| `encryptedContent`, `iv` | Encrypted text or media caption (opaque Base64) |
+| `messageId`, `timestamp` / `clientTimestamp` | Idempotency and ordering |
+| `replyToMessageId` | Optional — ID of the message this replies to (plaintext metadata; in `SendMessageRequest` and `NewMessageEvent`) |
+| `senderInternalId` | Only in `NewMessageEvent` — sender primary identity (wallet-safe); `senderId` (TG) may be `null` |
 
-Для `image` / `video` / `file` дополнительно:
+For `image` / `video` / `file` additionally:
 
-| Поле | Описание |
+| Field | Description |
 |------|----------|
-| `fileId` | ID основного файла после `POST /api/files/upload` |
-| `thumbnailFileId` | ID зашифрованного thumbnail (опционально) |
-| `encryptedMeta` | Base64: зашифрованный JSON `{ fileName, mimeType }` |
-| `fileSize` | Размер **исходного** файла в байтах (plaintext size) |
+| `fileId` | Main file ID after `POST /api/files/upload` |
+| `thumbnailFileId` | Encrypted thumbnail ID (optional) |
+| `encryptedMeta` | Base64: encrypted JSON `{ fileName, mimeType }` |
+| `fileSize` | **Original** file size in bytes (plaintext size) |
 
-### UserResponse (поиск, incoming-request, session events)
+### UserResponse (search, incoming-request, session events)
 
 ```java
 public class UserResponse {
@@ -1308,7 +1308,7 @@ public class UserResponse {
 
 ### Session (Redis + handler logic)
 
-Участники адресуются по **`initiatorInternalId` / `responderInternalId`**. Optional `initiatorTelegramId` / `responderTelegramId` — для отображения и Telegram-only веток.
+Participants are addressed by **`initiatorInternalId` / `responderInternalId`**. Optional `initiatorTelegramId` / `responderTelegramId` — for display and Telegram-only branches.
 
 ```java
 public class Session {
@@ -1325,87 +1325,87 @@ public class Session {
 }
 ```
 
-DM-доставка peer-событий (handshake, message, verify, burn): `StompUserMessenger.convertAndSendToInternalId(peerInternalId, ...)`. Numeric `senderId` / `peerId` в событиях — best-effort при наличии `telegramId`.
+DM peer event delivery (handshake, message, verify, burn): `StompUserMessenger.convertAndSendToInternalId(peerInternalId, ...)`. Numeric `senderId` / `peerId` in events — best-effort when `telegramId` is present.
 
 ### PeerInfo / frontend peer display
 
-Клиенты current clients  используют `internalId` как primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated на frontend.
+Current clients use `internalId` as primary peer key. Legacy `PeerInfo.tgId` / `fromUserId: number` deprecated on frontend.
 
 ---
 
-## Коды ошибок
+## Error Codes
 
-### Общие ошибки
+### General errors
 
-| Код | HTTP / канал | Описание |
+| Code | HTTP / channel | Description |
 |-----|--------------|----------|
-| `UNAUTHORIZED` | 401 | Невалидный initData / session token |
-| `FORBIDDEN` | 403 | Нет доступа к ресурсу |
-| `NOT_FOUND` | 404 | Ресурс не найден |
-| `RATE_LIMIT_EXCEEDED` | 429 / STOMP `/user/queue/errors` | Превышен лимит запросов (REST и STOMP) |
-| `POW_REQUIRED` | STOMP `/user/queue/errors` | Нет/истёк PoW challenge на gated-действии |
-| `POW_INVALID` | STOMP `/user/queue/errors` | Неверное PoW-решение, action mismatch или replay |
-| `INTERNAL_ERROR` | 500 / STOMP | Внутренняя ошибка сервера |
+| `UNAUTHORIZED` | 401 | Invalid initData / session token |
+| `FORBIDDEN` | 403 | No access to resource |
+| `NOT_FOUND` | 404 | Resource not found |
+| `RATE_LIMIT_EXCEEDED` | 429 / STOMP `/user/queue/errors` | Request limit exceeded (REST and STOMP) |
+| `POW_REQUIRED` | STOMP `/user/queue/errors` | Missing/expired PoW challenge on gated action |
+| `POW_INVALID` | STOMP `/user/queue/errors` | Invalid PoW solution, action mismatch, or replay |
+| `INTERNAL_ERROR` | 500 / STOMP | Internal server error |
 
-> Устаревший код `RATE_LIMITED` в REST/STOMP global errors **не используется**
-> (`RateLimitException` → `RATE_LIMIT_EXCEEDED`). Некоторые room-event DTO
-> всё ещё могут писать строку `RATE_LIMITED` в поле `error` локального ack —
-> это отдельный wire-контракт room-handlers, не глобальный `/user/queue/errors`.
+> Legacy code `RATE_LIMITED` in REST/STOMP global errors is **not used**
+> (`RateLimitException` → `RATE_LIMIT_EXCEEDED`). Some room-event DTOs
+> may still write string `RATE_LIMITED` in local ack `error` field —
+> that is a separate room-handlers wire contract, not global `/user/queue/errors`.
 
-### Ошибки сессий
+### Session errors
 
-| Код | Описание |
+| Code | Description |
 |-----|----------|
-| `SESSION_NOT_FOUND` | Сессия не существует или истекла |
-| `SESSION_FULL` | В сессии уже 2 участника |
-| `SESSION_EXPIRED` | Время ожидания истекло |
-| `SESSION_BURNED` | Сессия была уничтожена |
-| `NOT_PARTICIPANT` | Вы не участник этой сессии |
-| `SELF_REQUEST` | Нельзя создать чат с собой (`session.create`) |
-| `INVALID_RECIPIENT` | Получатель не резолвится |
-| `ALREADY_HAS_SESSION` | У инициатора уже есть активная сессия |
-| `RECIPIENT_HAS_SESSION` | У получателя уже есть активная сессия |
-| `PENDING_REQUEST_EXISTS` | Дублирующий pending-запрос |
+| `SESSION_NOT_FOUND` | Session does not exist or expired |
+| `SESSION_FULL` | Session already has 2 participants |
+| `SESSION_EXPIRED` | Wait time expired |
+| `SESSION_BURNED` | Session was destroyed |
+| `NOT_PARTICIPANT` | You are not a participant of this session |
+| `SELF_REQUEST` | Cannot create chat with yourself (`session.create`) |
+| `INVALID_RECIPIENT` | Recipient does not resolve |
+| `ALREADY_HAS_SESSION` | Initiator already has an active session |
+| `RECIPIENT_HAS_SESSION` | Recipient already has an active session |
+| `PENDING_REQUEST_EXISTS` | Duplicate pending request |
 
-### Ошибки пользователей
+### User errors
 
-| Код | Описание |
+| Code | Description |
 |-----|----------|
-| `INVALID_QUERY` | Невалидный формат search query |
-| `SELF_SEARCH` | Поиск самого себя |
+| `INVALID_QUERY` | Invalid search query format |
+| `SELF_SEARCH` | Searching for yourself |
 
-> Коды `USER_NOT_FOUND`, `USER_BLOCKED`, `SELF_CHAT` **не эмитятся** кодом
-> (блокировки пользователей не реализованы; not-found поиска = `{found:false}`).
+> Codes `USER_NOT_FOUND`, `USER_BLOCKED`, `SELF_CHAT` are **not emitted** by code
+> (user blocking not implemented; search not-found = `{found:false}`).
 
-### Ошибки сообщений и файлов
+### Message and file errors
 
-| Код | Описание |
+| Code | Description |
 |-----|----------|
-| `MESSAGE_TOO_LARGE` | Превышен лимит размера |
-| `INVALID_FORMAT` | Неверный формат данных |
-| `FILE_TOO_LARGE` | Зашифрованный blob превышает серверный потолок (`MAX_ENCRYPTED_FILE_SIZE`) |
-| `FILE_NOT_FOUND` | Файл не найден в Redis или истёк TTL (REST download / валидация ретрансляции) |
-| `ACCESS_DENIED` | Нет доступа к файлу или контексту (REST); в документации также: «file access denied» |
-| `FILE_NOT_OWNED` | Отправитель не совпадает с загрузчиком (`uploaderInternalId` или legacy `uploaderTgId`) |
-| `FILE_CONTEXT_MISMATCH` | Файл привязан к другому session/room, чем сообщение |
-| `CONTEXT_NOT_FOUND` | Сессия для загрузки не найдена |
-| `FILE_SIZE_INVALID` | Размер после загрузки не совпал с `Content-Length` |
-| `INVALID_CONTEXT_TYPE` | Неверный `X-Context-Type` |
+| `MESSAGE_TOO_LARGE` | Size limit exceeded |
+| `INVALID_FORMAT` | Invalid data format |
+| `FILE_TOO_LARGE` | Encrypted blob exceeds server ceiling (`MAX_ENCRYPTED_FILE_SIZE`) |
+| `FILE_NOT_FOUND` | File not found in Redis or TTL expired (REST download / relay validation) |
+| `ACCESS_DENIED` | No access to file or context (REST); in docs also: "file access denied" |
+| `FILE_NOT_OWNED` | Sender does not match uploader (`uploaderInternalId` or legacy `uploaderTgId`) |
+| `FILE_CONTEXT_MISMATCH` | File bound to different session/room than message |
+| `CONTEXT_NOT_FOUND` | Session for upload not found |
+| `FILE_SIZE_INVALID` | Size after upload did not match `Content-Length` |
+| `INVALID_CONTEXT_TYPE` | Invalid `X-Context-Type` |
 
 ### STOMP Exception Handler
 
-`WebSocketExceptionHandler` ловит исключения на STOMP-маршрутах и шлёт
-payload на `/user/queue/errors` через `StompUserMessenger` по **`internalId`**
-принципала (не Telegram ID). Типичные коды: `RATE_LIMIT_EXCEEDED`,
+`WebSocketExceptionHandler` catches exceptions on STOMP routes and sends
+payload to `/user/queue/errors` via `StompUserMessenger` by principal **`internalId`**
+(not Telegram ID). Typical codes: `RATE_LIMIT_EXCEEDED`,
 `POW_REQUIRED`, `POW_INVALID`, `VALIDATION_ERROR`, `INTERNAL_ERROR`.
-Тело — `Map` с полями `success`, `error`, `message`, `timestamp`
-(+ `retryAfter` для rate-limit).
+Body — `Map` with fields `success`, `error`, `message`, `timestamp`
+(+ `retryAfter` for rate-limit).
 
 ---
 
 ## WebSocket Reconnection
 
-### Стратегия переподключения (Frontend)
+### Reconnection Strategy (Frontend)
 
 ```typescript
 const client = new Client({
@@ -1413,7 +1413,7 @@ const client = new Client({
     `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(WebApp.initData)}`
   ),
   reconnectDelay: 5000,
-  // STOMP broker heartbeat — 10s (совпадает с WebSocketConfig)
+  // STOMP broker heartbeat — 10s (matches WebSocketConfig)
   heartbeatIncoming: 10000,
   heartbeatOutgoing: 10000,
 
@@ -1438,10 +1438,10 @@ const client = new Client({
 
 ---
 
-## Пример полного flow
+## Full Flow Example
 
 ```typescript
-// 1. Подключение (auth на HTTP handshake / SockJS query)
+// 1. Connect (auth on HTTP handshake / SockJS query)
 const client = new Client({
   webSocketFactory: () => new SockJS(
     `/ws?X-Auth-Type=telegram&X-Telegram-Init-Data=${encodeURIComponent(initData)}`
@@ -1451,7 +1451,7 @@ const client = new Client({
 });
 
 client.onConnect = () => {
-  // 2. Подписки на актуальные очереди
+  // 2. Subscribe to current queues
   client.subscribe('/user/queue/search-result', handleSearchResult);
   client.subscribe('/user/queue/session-created', handleSessionCreated);
   client.subscribe('/user/queue/session-accepted', handleSessionAccepted);
@@ -1467,29 +1467,29 @@ client.onConnect = () => {
     client.publish({ destination: '/app/heartbeat', body: '{}' });
   }, 20000);
 
-  // 3. Поиск пользователя
+  // 3. Search user
   client.publish({
     destination: '/app/search',
     body: JSON.stringify({ query: '@alice' })
   });
 };
 
-// 4. Обработка результата поиска
+// 4. Handle search result
 function handleSearchResult(message) {
   const { found, user } = JSON.parse(message.body);
   if (found) {
-    // 5. Создание сессии (primary: recipientInternalId)
+    // 5. Create session (primary: recipientInternalId)
     client.publish({
       destination: '/app/session.create',
       body: JSON.stringify({
         recipientInternalId: user.internalId,
-        pow: { challengeId: '...', nonce: '...' } // если pow.enabled
+        pow: { challengeId: '...', nonce: '...' } // if pow.enabled
       })
     });
   }
 }
 
-// 6. После session-accepted / handshake — обмен ключами
+// 6. After session-accepted / handshake — key exchange
 async function startHandshake(sessionId: string) {
   const keyPair = await generateKeyPair();
   const publicKey = await exportPublicKey(keyPair.publicKey);
@@ -1500,7 +1500,7 @@ async function startHandshake(sessionId: string) {
   });
 }
 
-// 7. Получение ключа peer
+// 7. Receive peer key
 async function handlePeerPublicKey(message) {
   const { publicKey, sessionId } = JSON.parse(message.body);
   const peerKey = await importPublicKey(publicKey);
@@ -1510,7 +1510,7 @@ async function handlePeerPublicKey(message) {
   showVerificationUI(fingerprint);
 }
 
-// 8. Отправка сообщений
+// 8. Send messages
 async function sendMessage(text: string) {
   const encrypted = await encrypt(text, sharedKey);
   client.publish({
@@ -1526,7 +1526,7 @@ async function sendMessage(text: string) {
   });
 }
 
-// 9. Получение сообщений (плоский NewMessageEvent)
+// 9. Receive messages (flat NewMessageEvent)
 async function handleNewMessage(message) {
   const data = JSON.parse(message.body);
   const decrypted = await decrypt(
@@ -1536,7 +1536,7 @@ async function handleNewMessage(message) {
   displayMessage(decrypted);
 }
 
-// 10. Уничтожение
+// 10. Burn
 function burnSession() {
   client.publish({
     destination: '/app/session.burn',
@@ -1551,11 +1551,11 @@ client.activate();
 
 ---
 
-## Комнаты (Phase 2 — P2-1)
+## Rooms (Phase 2 — P2-1)
 
 ### CREATE_ROOM
 
-**Направление:** Client → Server  
+**Direction:** Client → Server  
 **Destination:** `/app/room.create`
 
 ```json
@@ -1570,327 +1570,327 @@ client.activate();
 }
 ```
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `salt` | string (Base64, 16–48 bytes) | При BY_PASSWORD | KDF salt, client-generated. При BY_REQUEST без пароля — не передавать |
-| `passwordProof` | string (Base64, 32 bytes) | При BY_PASSWORD | PBKDF2 proof. При BY_REQUEST без пароля — не передавать |
-| `joinMode` | enum | Да | `BY_PASSWORD` — вход сразу; `BY_REQUEST` — по одобрению (пароль опционален) |
-| `ownerPublicKey` | string (Base64) | Нет | Публичный ключ владельца (ECDH) |
-| `roomId` | string (UUID v4) | При `nameEncrypted`* | Client-proposed UUID комнаты; сервер использует его при отсутствии коллизии. Без имени — сервер генерирует UUID |
-| `nameEncrypted` | string (Base64) | Нет* | AES-GCM ciphertext имени (opaque, max 512 chars) |
-| `nameIv` | string (Base64) | Нет* | 12-byte GCM IV для `nameEncrypted` (max 32 chars Base64) |
+| `salt` | string (Base64, 16–48 bytes) | For BY_PASSWORD | KDF salt, client-generated. For BY_REQUEST without password — omit |
+| `passwordProof` | string (Base64, 32 bytes) | For BY_PASSWORD | PBKDF2 proof. For BY_REQUEST without password — omit |
+| `joinMode` | enum | Yes | `BY_PASSWORD` — immediate join; `BY_REQUEST` — on approval (password optional) |
+| `ownerPublicKey` | string (Base64) | No | Owner public key (ECDH) |
+| `roomId` | string (UUID v4) | When `nameEncrypted`* | Client-proposed room UUID; server uses it if no collision. Without name — server generates UUID |
+| `nameEncrypted` | string (Base64) | No* | AES-GCM ciphertext of name (opaque, max 512 chars) |
+| `nameIv` | string (Base64) | No* | 12-byte GCM IV for `nameEncrypted` (max 32 chars Base64) |
 
-\* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии **обязателен**
-client `roomId` (AES-GCM AAD = `roomId`).
-При создании с именем отдельный `SET_ROOM_NAME` **не** требуется — имя сохраняется в Redis
-атомарно с create; `ROOM_NAME_UPDATED` при create **не** публикуется.
+\* `nameEncrypted` and `nameIv` are sent **both** or **neither**; when present **client**
+`roomId` is required (AES-GCM AAD = `roomId`).
+When creating with a name, separate `SET_ROOM_NAME` is **not** required — name is saved in Redis
+atomically with create; `ROOM_NAME_UPDATED` is **not** published on create.
 
-**Ответ:** `/user/queue/room-created` — `RoomCreatedEvent` с `roomId` и опциональным `inviteUrl` (default token, 7d TTL, unlimited uses).
+**Response:** `/user/queue/room-created` — `RoomCreatedEvent` with `roomId` and optional `inviteUrl` (default token, 7d TTL, unlimited uses).
 
-**Формат `inviteUrl` / `invites[].url`:** канонический web-URL
-`{telegram.mini-app.url}/join#invite_{token}` — токен во **фрагменте** (`#`), не в path/query.
-Fallback при пустом `telegram.mini-app.url`: `https://t.me/{bot}/app?startapp=invite_{token}`.
-Старые t.me-ссылки остаются валидными на клиенте через `start_param`.
+**`inviteUrl` / `invites[].url` format:** canonical web URL
+`{telegram.mini-app.url}/join#invite_{token}` — token in **fragment** (`#`), not path/query.
+Fallback when `telegram.mini-app.url` is empty: `https://t.me/{bot}/app?startapp=invite_{token}`.
+Legacy t.me links remain valid on the client via `start_param`.
 
 ---
 
 ### GET_INVITE_LINK (`/app/room.getInviteLink`)
 
-**Направление:** Client → Server (owner or admin)
+**Direction:** Client → Server (owner or admin)
 
-**Запрос** (`GetInviteLinkRequest`):
+**Request** (`GetInviteLinkRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `expiresInSeconds` | number | Нет | TTL от текущего момента (60 с … 30 д); default 7 дней |
-| `maxUses` | number | Нет | Лимит успешных join; `0`/отсутствует = безлимит |
+| `roomId` | string | Yes | Room UUID |
+| `expiresInSeconds` | number | No | TTL from now (60 s … 30 d); default 7 days |
+| `maxUses` | number | No | Successful join limit; `0`/absent = unlimited |
 
-**Ответ:** `/user/queue/invite-link` — `InviteLinkEvent` с `inviteUrl`.
+**Response:** `/user/queue/invite-link` — `InviteLinkEvent` with `inviteUrl`.
 
-Ошибки: `ROOM_NOT_FOUND`, `NOT_OWNER`, `INTERNAL_ERROR`.
+Errors: `ROOM_NOT_FOUND`, `NOT_OWNER`, `INTERNAL_ERROR`.
 
 ---
 
 ### REVOKE_INVITE (`/app/room.revokeInvite`)
 
-**Направление:** Client → Server (owner or admin)
+**Direction:** Client → Server (owner or admin)
 
-**Запрос** (`RevokeInviteRequest`):
+**Request** (`RevokeInviteRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `token` | string | Да | Token string (не URL) |
+| `roomId` | string | Yes | Room UUID |
+| `token` | string | Yes | Token string (not URL) |
 
-Удаляет `invite:{token}` и убирает token из `room_invites:{roomId}`. Отдельный ack не рассылается (fire-and-forget); ошибки логируются (`NOT_OWNER`, `INVALID_TOKEN`, `ROOM_NOT_FOUND`).
+Deletes `invite:{token}` and removes token from `room_invites:{roomId}`. No separate ack (fire-and-forget); errors logged (`NOT_OWNER`, `INVALID_TOKEN`, `ROOM_NOT_FOUND`).
 
 ---
 
 ### GET_INVITES (`/app/room.getInvites`)
 
-**Направление:** Client → Server (owner or admin)
+**Direction:** Client → Server (owner or admin)
 
-**Запрос:** `{ "roomId": "uuid" }` (тот же DTO, что у `getInviteLink`, без опциональных полей).
+**Request:** `{ "roomId": "uuid" }` (same DTO as `getInviteLink`, without optional fields).
 
-**Ответ:** `/user/queue/room-invites` — `RoomInvitesEvent`:
+**Response:** `/user/queue/room-invites` — `RoomInvitesEvent`:
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
 | `success` | boolean | |
-| `roomId` | string | UUID комнаты |
-| `invites[]` | array | Активные токены из `room_invites:{roomId}` |
+| `roomId` | string | Room UUID |
+| `invites[]` | array | Active tokens from `room_invites:{roomId}` |
 | `invites[].token` | string | Token string |
-| `invites[].url` | string | Web invite URL (`/join#invite_{token}`) или fallback t.me deep link |
+| `invites[].url` | string | Web invite URL (`/join#invite_{token}`) or fallback t.me deep link |
 | `invites[].createdAt` | number | Unix ms |
 | `invites[].expiresAt` | number | Unix ms |
-| `invites[].maxUses` | number? | `null`/0 = безлимит |
-| `invites[].usedCount` | number | Текущий счётчик |
-| `error` | string | При `success=false`: `NOT_OWNER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR` |
+| `invites[].maxUses` | number? | `null`/0 = unlimited |
+| `invites[].usedCount` | number | Current counter |
+| `error` | string | When `success=false`: `NOT_OWNER`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR` |
 
 ---
 
 ### GET_INVITE_INFO / room-invite-info
 
-**Запрос:** Client → Server, destination `/app/room.getInviteInfo`, body `{ "inviteToken": "string" }`.
+**Request:** Client → Server, destination `/app/room.getInviteInfo`, body `{ "inviteToken": "string" }`.
 
-**Ответ:** Server → Client, destination `/user/queue/room-invite-info`.
+**Response:** Server → Client, destination `/user/queue/room-invite-info`.
 
-При успехе клиент получает `salt`, `joinMode` и **`hasPassword`** (boolean). Если `hasPassword === false`, комната без пароля (BY_REQUEST): на экране «Войти по ссылке» не показывать поле пароля, только кнопку «Отправить заявку».
+On success the client receives `salt`, `joinMode`, and **`hasPassword`** (boolean). If `hasPassword === false`, the room has no password (BY_REQUEST): on the "Join via link" screen do not show password field, only "Send request" button.
 
-Ошибки (без раскрытия данных комнаты): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`.
+Errors (without revealing room data): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`.
 
 ---
 
 ### REQUEST_JOIN_ROOM
 
-**Направление:** Client → Server  
+**Direction:** Client → Server  
 **Destination:** `/app/room.requestJoin`
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `inviteToken` | string | Да | Токен из invite-ссылки (фрагмент `#invite_{token}` или `start_param`) |
-| `passwordProof` | string (Base64) | Если у комнаты пароль | При комнате без пароля не передавать |
-| `publicKey` | string (Base64) | Нет | Публичный ключ ECDH запрашивающего |
+| `inviteToken` | string | Yes | Token from invite link (fragment `#invite_{token}` or `start_param`) |
+| `passwordProof` | string (Base64) | If room has password | Omit when room has no password |
+| `publicKey` | string (Base64) | No | Requester's ECDH public key |
 
-**Ошибки join** (на `/user/queue/room-join-result`): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
+**Join errors** (on `/user/queue/room-join-result`): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`, `WRONG_PASSWORD`, `ALREADY_MEMBER`, `REQUEST_PENDING`, `USER_BANNED`.
 
-**Lockout пароля (`ROOM_PASSWORD_FAIL`):** после 5 неудачных proof за 10 мин (ключ per `roomId`+`internalId`, yaml `rate-limit.room-password-fail.*`) дальнейшие попытки отклоняются. Wire-код на `/user/queue/room-join-result` сейчас **`INTERNAL_ERROR`** — `RoomHandler.mapJoinError` не мапит `RateLimitException` (surfacing отдельной ошибкой — вне этой спеки; см. соответствующий раздел спеки заметки / W5-4).
+**Password lockout (`ROOM_PASSWORD_FAIL`):** after 5 failed proofs in 10 min (key per `roomId`+`internalId`, yaml `rate-limit.room-password-fail.*`) further attempts are rejected. Wire code on `/user/queue/room-join-result` is currently **`INTERNAL_ERROR`** — `RoomHandler.mapJoinError` does not map `RateLimitException` (surfacing as separate error — outside this spec; see relevant spec notes / W5-4).
 
-**Событие владельцу** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
+**Event to owner** — `/user/queue/room-join-requests` (`RoomJoinRequestEvent`):
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `roomId` | string | UUID комнаты |
-| `senderInternalId` | string | **Primary** — идентификатор заявителя |
-| `senderTgId` | number? | Deprecated; `null` для wallet-only |
-| `senderDisplayName` | string | Имя из каталога `user:{internalId}` |
-| `senderUsername` | string? | Telegram username, если есть |
-| `senderPublicKey` | string? | Base64 ECDH pubkey для KEY_BUNDLE |
+| `roomId` | string | Room UUID |
+| `senderInternalId` | string | **Primary** — requester identifier |
+| `senderTgId` | number? | Deprecated; `null` for wallet-only |
+| `senderDisplayName` | string | Name from `user:{internalId}` catalog |
+| `senderUsername` | string? | Telegram username, if present |
+| `senderPublicKey` | string? | Base64 ECDH pubkey for KEY_BUNDLE |
 | `requestedAt` | number | Unix ms |
-| `autoApproved` | boolean | `true` при BY_PASSWORD без ожидания |
+| `autoApproved` | boolean | `true` on BY_PASSWORD without waiting |
 
-Redis: `room_join_request:{roomId}:{senderInternalId}` (см. [DATA_MODELS.md](./DATA_MODELS.md)).
+Redis: `room_join_request:{roomId}:{senderInternalId}` (see [DATA_MODELS.md](./DATA_MODELS.md)).
 
 ---
 
 ### ACCEPT_ROOM_JOIN / REJECT_ROOM_JOIN
 
 **Destinations:** `/app/room.acceptJoin`, `/app/room.rejectJoin`  
-**Запрос** (`RoomJoinDecisionRequest`):
+**Request** (`RoomJoinDecisionRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `senderInternalId` | string | Да* | Заявитель из `RoomJoinRequestEvent` |
-| `senderTgId` | number | Нет (deprecated) | Legacy; резолвится в `senderInternalId` |
+| `roomId` | string | Yes | Room UUID |
+| `senderInternalId` | string | Yes* | Requester from `RoomJoinRequestEvent` |
+| `senderTgId` | number | No (deprecated) | Legacy; resolved to `senderInternalId` |
 
-\* Только владелец (`ownerInternalId`). После accept владелец отправляет KEY_BUNDLE.
+\* Owner only (`ownerInternalId`). After accept owner sends KEY_BUNDLE.
 
 ---
 
 ### SEND_KEY_BUNDLE (`/app/room.sendKeyBundle`)
 
-Владелец передаёт зашифрованный групповой ключ новому члену.
+Owner delivers encrypted group key to new member.
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `recipientInternalId` | string | Да | **Break** — только internalId (не TG ID) |
-| `epoch` | number | Да | Текущая эпоха ключа (0 для новой комнаты) |
-| `ephemeralPublicKey` | string (Base64) | Да | Ephemeral ECDH P-256 |
-| `encryptedKey` | string (Base64) | Да | AES-GCM ciphertext wrapped group key |
-| `iv` | string (Base64) | Да | 12-byte GCM IV |
+| `roomId` | string | Yes | Room UUID |
+| `recipientInternalId` | string | Yes | **Break** — internalId only (not TG ID) |
+| `epoch` | number | Yes | Current key epoch (0 for new room) |
+| `ephemeralPublicKey` | string (Base64) | Yes | Ephemeral ECDH P-256 |
+| `encryptedKey` | string (Base64) | Yes | AES-GCM ciphertext wrapped group key |
+| `iv` | string (Base64) | Yes | 12-byte GCM IV |
 
-**Доставка** — `/user/queue/key-bundle` получателю по `recipientInternalId`.
+**Delivery** — `/user/queue/key-bundle` to recipient by `recipientInternalId`.
 
 ---
 
 ### REKEY (`/app/room.rekey`)
 
-Владелец ротирует групповой ключ после ухода члена.
+Owner rotates group key after member leaves.
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `newEpoch` | number | Да | `currentEpoch + 1` |
-| `bundles` | array | Да | По одному bundle на оставшегося члена |
-| `nameEncrypted` | string (Base64) | Нет* | Имя, пере-шифрованное под новую эпоху группового ключа |
-| `nameIv` | string (Base64) | Нет* | 12-byte GCM IV для `nameEncrypted` |
-| `bundles[].recipientInternalId` | string | Да | Получатель bundle |
-| `bundles[].ephemeralPublicKey` | string | Да | Base64 |
-| `bundles[].encryptedKey` | string | Да | Base64 |
-| `bundles[].iv` | string | Да | Base64 |
+| `roomId` | string | Yes | Room UUID |
+| `newEpoch` | number | Yes | `currentEpoch + 1` |
+| `bundles` | array | Yes | One bundle per remaining member |
+| `nameEncrypted` | string (Base64) | No* | Name re-encrypted under new group key epoch |
+| `nameIv` | string (Base64) | No* | 12-byte GCM IV for `nameEncrypted` |
+| `bundles[].recipientInternalId` | string | Yes | Bundle recipient |
+| `bundles[].ephemeralPublicKey` | string | Yes | Base64 |
+| `bundles[].encryptedKey` | string | Yes | Base64 |
+| `bundles[].iv` | string | Yes | Base64 |
 
-\* `nameEncrypted` и `nameIv` передаются **оба** или **ни одного**; при наличии атомарно
-обновляются в `room:{roomId}` вместе с ротацией ключей. На `/topic/room/{roomId}` рассылается
-`ROOM_NAME_UPDATED` (см. SET_ROOM_NAME).
+\* `nameEncrypted` and `nameIv` are sent **both** or **neither**; when present they are atomically
+updated in `room:{roomId}` with key rotation. `/topic/room/{roomId}` broadcasts
+`ROOM_NAME_UPDATED` (see SET_ROOM_NAME).
 
-Каждый bundle доставляется на `/user/queue/key-bundle` соответствующему `recipientInternalId`.
+Each bundle is delivered to `/user/queue/key-bundle` for the corresponding `recipientInternalId`.
 
 ---
 
 ### SET_ROOM_NAME (`/app/room.setName`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`SetRoomNameRequest`):
+**Request** (`SetRoomNameRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `nameEncrypted` | string (Base64) | Да | AES-GCM ciphertext имени (opaque, max 512 chars) |
-| `nameIv` | string (Base64) | Да | 12-byte GCM IV (max 32 chars Base64) |
+| `roomId` | string | Yes | Room UUID |
+| `nameEncrypted` | string (Base64) | Yes | AES-GCM ciphertext of name (opaque, max 512 chars) |
+| `nameIv` | string (Base64) | Yes | 12-byte GCM IV (max 32 chars Base64) |
 
-Сервер **не расшифровывает** имя; сохраняет оба поля в `room:{roomId}` и продлевает TTL.
+Server **does not decrypt** the name; stores both fields in `room:{roomId}` and extends TTL.
 
 **Fan-out:** `/topic/room/{roomId}` — `RoomNameUpdatedEvent`:
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
 | `eventType` | string | `"ROOM_NAME_UPDATED"` |
-| `roomId` | string | UUID комнаты |
+| `roomId` | string | Room UUID |
 | `nameEncrypted` | string | Base64 ciphertext |
 | `nameIv` | string | Base64 IV |
 
-Ошибки логируются на сервере (`NOT_OWNER`, `ROOM_NOT_FOUND`); отдельный user-queue ack
-не предусмотрен (fire-and-forget, как у ранних room lifecycle endpoints).
+Errors logged on server (`NOT_OWNER`, `ROOM_NOT_FOUND`); no separate user-queue ack
+(fire-and-forget, like early room lifecycle endpoints).
 
 ---
 
 ### GET_MY_ROOMS (`/app/room.getMyRooms`)
 
-**Запрос:** пустое тело или `{}`.
+**Request:** empty body or `{}`.
 
-**Ответ:** `/user/queue/room-list` (`RoomListEvent`):
+**Response:** `/user/queue/room-list` (`RoomListEvent`):
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
 | `rooms[].roomId` | string | UUID |
 | `rooms[].role` | enum | `owner` \| `admin` \| `member` |
 | `rooms[].createdAt` | number | Unix ms |
-| `rooms[].nameEncrypted` | string? | Зашифрованное имя (opaque) |
-| `rooms[].nameIv` | string? | GCM IV для имени |
+| `rooms[].nameEncrypted` | string? | Encrypted name (opaque) |
+| `rooms[].nameIv` | string? | GCM IV for name |
 
 ---
 
-### Мультиплексированный топик `/topic/room/{roomId}` (таксономия событий)
+### Multiplexed topic `/topic/room/{roomId}` (event taxonomy)
 
-`/topic/room/{roomId}` — **мультиплексированный** канал: на нём публикуются и
-обычные зашифрованные сообщения, и служебные события комнаты (имя, TTL, роли,
-передача владения, модерация, edit/delete, presence). Все они приходят в **одну**
-STOMP-подписку, поэтому клиент обязан маршрутизировать payload по дискриминатору
-`eventType` (см. контракт ниже). Сервер во всех случаях видит только opaque-данные
-и метаданные — формат кодировки шифртекста/IV единый (стандартный Base64), см.
-[DATA_MODELS.md → Формат кодировки шифртекста](./DATA_MODELS.md#формат-кодировки-шифртекста-encoding-contract).
+`/topic/room/{roomId}` is a **multiplexed** channel: it publishes both
+regular encrypted messages and room service events (name, TTL, roles,
+ownership transfer, moderation, edit/delete, presence). All arrive on **one**
+STOMP subscription, so the client must route payload by discriminator
+`eventType` (see contract below). The server always sees only opaque data
+and metadata — ciphertext/IV encoding format is uniform (standard Base64), see
+[DATA_MODELS.md → Ciphertext encoding format](./DATA_MODELS.md#ciphertext-encoding-format-encoding-contract).
 
-**Полная таблица событий топика:**
+**Full topic event table:**
 
-| `eventType` | Источник (backend) | Frontend-обработчик | Ключевые поля payload |
+| `eventType` | Source (backend) | Frontend handler | Key payload fields |
 |-------------|--------------------|---------------------|-----------------------|
-| _(отсутствует)_ — сообщение | `RoomMessageHandler` → `NewRoomMessageEvent` | `handleNewMessage` → дешифровка | `messageId`, `encryptedContent`, `iv`, `senderInternalId`, опц. `type`/`fileId`/`thumbnailFileId`/`encryptedMeta`/`fileSize`, `replyToMessageId` |
-| `ROOM_MESSAGE_DELETED` | `RoomMessageHandler` → `RoomMessageDeletedEvent` | `handleNewMessage` (ветка delete) | `messageId`, `deletedByInternalId`, `deletedByOwner` |
-| `ROOM_MESSAGE_EDITED` | `RoomMessageHandler` → `RoomMessageEditedEvent` | `handleNewMessage` (ветка edit) → дешифровка нового текста | `messageId`, `encryptedContent`, `iv`, опц. медиа-поля |
+| _(absent)_ — message | `RoomMessageHandler` → `NewRoomMessageEvent` | `handleNewMessage` → decrypt | `messageId`, `encryptedContent`, `iv`, `senderInternalId`, opt. `type`/`fileId`/`thumbnailFileId`/`encryptedMeta`/`fileSize`, `replyToMessageId` |
+| `ROOM_MESSAGE_DELETED` | `RoomMessageHandler` → `RoomMessageDeletedEvent` | `handleNewMessage` (delete branch) | `messageId`, `deletedByInternalId`, `deletedByOwner` |
+| `ROOM_MESSAGE_EDITED` | `RoomMessageHandler` → `RoomMessageEditedEvent` | `handleNewMessage` (edit branch) → decrypt new text | `messageId`, `encryptedContent`, `iv`, opt. media fields |
 | `ROOM_MODERATION` | `RoomHandler` → `RoomModerationEvent` | `handleNewMessage` → `onRoomModeration` | `readOnly`, `mutedAdded`, `mutedRemoved` |
 | `ROOM_NAME_UPDATED` | `RoomHandler` → `RoomNameUpdatedEvent` | `useSetRoomName` listener | `nameEncrypted`, `nameIv` |
 | `ROOM_TTL_UPDATED` | `RoomHandler` → `RoomTtlUpdatedEvent` | room-state listener | `autoBurnAt` |
 | `ROOM_MESSAGE_TTL_UPDATED` | `RoomHandler` → `RoomMessageTtlUpdatedEvent` | room-state listener | `messageTtlSeconds` |
 | `ROOM_ROLE_UPDATED` | `RoomHandler` → `RoomRoleUpdatedEvent` | room-roles listener | `targetInternalId`, `role` |
 | `ROOM_OWNERSHIP_TRANSFERRED` | `RoomHandler` → `RoomOwnershipTransferredEvent` | room-roles listener | `newOwnerInternalId`, `previousOwnerInternalId` |
-| _(отсутствует)_ — presence | `WebSocketEventListener` → `RoomPresenceEvent` | room-presence listener | `internalId`, `online`, `lastSeen` (нет `messageId`/`encryptedContent`) |
+| _(absent)_ — presence | `WebSocketEventListener` → `RoomPresenceEvent` | room-presence listener | `internalId`, `online`, `lastSeen` (no `messageId`/`encryptedContent`) |
 
-**Контракт обработчика сообщений (`handleNewMessage`, `frontend/src/hooks/useRoomMessages.ts`):**
+**Message handler contract (`handleNewMessage`, `frontend/src/hooks/useRoomMessages.ts`):**
 
-- payload **без** `eventType`, с `messageId` и `encryptedContent`/`iv` (или файловыми
-  полями) — единственный случай, который трактуется как сообщение и **дешифруется**
-  групповым ключом комнаты;
-- `ROOM_MESSAGE_DELETED` / `ROOM_MESSAGE_EDITED` / `ROOM_MODERATION` обрабатываются
-  собственными ветками (удаление / правка / модерация);
-- **любой иной `eventType`** (`ROOM_NAME_UPDATED`, `ROOM_TTL_UPDATED`,
-  `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) и
-  **любой неизвестный `eventType`** — безопасный дефолт: ранний `return`, payload
-  **никогда** не попадает в путь дешифровки текста;
-- payload **без** `eventType` и **без** `messageId` (например `RoomPresenceEvent`) не
-  порождает ни сообщения, ни тоста: служебный listener обрабатывает его сам, а в
-  `handleNewMessage` отсутствие `encryptedContent` приводит к типизированной ошибке
+- payload **without** `eventType`, with `messageId` and `encryptedContent`/`iv` (or file
+  fields) — the only case treated as a message and **decrypted**
+  with the room group key;
+- `ROOM_MESSAGE_DELETED` / `ROOM_MESSAGE_EDITED` / `ROOM_MODERATION` handled
+  by dedicated branches (delete / edit / moderation);
+- **any other `eventType`** (`ROOM_NAME_UPDATED`, `ROOM_TTL_UPDATED`,
+  `ROOM_MESSAGE_TTL_UPDATED`, `ROOM_ROLE_UPDATED`, `ROOM_OWNERSHIP_TRANSFERRED`) and
+  **any unknown `eventType`** — safe default: early `return`, payload
+  **never** enters text decryption path;
+- payload **without** `eventType` and **without** `messageId` (e.g. `RoomPresenceEvent`) does
+  not create a message or toast: service listener handles it; in
+  `handleNewMessage` missing `encryptedContent` yields typed error
   (`INVALID_CIPHERTEXT_ENCODING`)
-  и graceful-degrade без плейсхолдера (нет `messageId`).
+  and graceful degrade without placeholder (no `messageId`).
 
-> **Зачем это зафиксировано.** Неявный контракт мультиплексора был корневой причиной
-> бага дешифровки при создании комнаты (служебное `ROOM_NAME_UPDATED` проваливалось в
-> путь дешифровки текста → `atob(undefined)`).
+> **Why this is documented.** Implicit multiplexer contract was the root cause of
+> decrypt bug on room create (service `ROOM_NAME_UPDATED` fell into
+> text decryption path → `atob(undefined)`).
 
-Ниже — детальные payload'ы каждого служебного события (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
-`ROOM_ROLE_UPDATED`, и т.д.).
+Below — detailed payloads for each service event (`SET_ROOM_NAME`, `SET_ROOM_TTL`,
+`ROOM_ROLE_UPDATED`, etc.).
 
 ---
 
-### ROOM_MESSAGES (текст / медиа)
+### ROOM_MESSAGES (text / media)
 
-**Отправка:** `/app/room.message.send` (`SendRoomMessageRequest` — те же файловые поля, что у DM).
+**Send:** `/app/room.message.send` (`SendRoomMessageRequest` — same file fields as DM).
 
-**Ack отправителю:** `/user/queue/room-message-sent` (`RoomMessageSentEvent`). При отказе модерации:
-`error` = `MUTED` (отправитель в `room_muted:{roomId}`) или `ROOM_READ_ONLY` (комната в режиме read-only и отправитель не owner).
-Сообщение **не** записывается в offline-очередь.
+**Ack to sender:** `/user/queue/room-message-sent` (`RoomMessageSentEvent`). On moderation reject:
+`error` = `MUTED` (sender in `room_muted:{roomId}`) or `ROOM_READ_ONLY` (room read-only and sender not owner).
+Message is **not** written to offline queue.
 
 **Fan-out:** `/topic/room/{roomId}` — `NewRoomMessageEvent`:
 
-**Subscribe guard:** клиент **обязан** быть аутентифицирован (`AppPrincipal` на STOMP-сессии)
-и членом комнаты (`room_members:{roomId}`) для `SUBSCRIBE /topic/room/{roomId}`. Иначе сервер
-отклоняет подписку STOMP ERROR (не регистрирует subscription; WebSocket остаётся открытым):
+**Subscribe guard:** client **must** be authenticated (`AppPrincipal` on STOMP session)
+and room member (`room_members:{roomId}`) for `SUBSCRIBE /topic/room/{roomId}`. Otherwise server
+rejects subscription with STOMP ERROR (does not register subscription; WebSocket stays open):
 
-- без principal — код `AUTH_ERROR` в теле/заголовке сообщения;
-- без membership — код `NOT_MEMBER` в теле/заголовке сообщения.
+- no principal — code `AUTH_ERROR` in message body/header;
+- no membership — code `NOT_MEMBER` in message body/header.
 
-Guard дополняет, но не заменяет обязательный rekey после kick/ban. Подписки на `/user/queue/*` не затрагиваются.
+Guard supplements but does not replace mandatory rekey after kick/ban. `/user/queue/*` subscriptions are unaffected.
 
-**Force-unsubscribe:** после успешного `/app/room.kick`, `/app/room.ban` или `/app/room.leave` сервер
-снимает **все** активные подписки удалённого участника на `/topic/room/{roomId}` через
-`SubscriptionRegistry` (все STOMP-сессии пользователя). Это закрывает окно, когда подписка была
-открыта до kick/leave и продолжала получать ciphertext до client disconnect. Re-subscribe по-прежнему
-блокируется subscribe-guard (`NOT_MEMBER`).
+**Force-unsubscribe:** after successful `/app/room.kick`, `/app/room.ban`, or `/app/room.leave` server
+removes **all** active subscriptions of removed participant on `/topic/room/{roomId}` via
+`SubscriptionRegistry` (all user STOMP sessions). Closes window where subscription was
+open before kick/leave and kept receiving ciphertext until client disconnect. Re-subscribe still
+blocked by subscribe-guard (`NOT_MEMBER`).
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
 | `senderInternalId` | string | **Primary** — canonical sender |
-| `senderTgId` | number? | Deprecated; `null` для wallet-only |
-| `senderName` | string? | Display name из каталога |
-| `messageId`, `roomId`, `encryptedContent`, `iv` | — | Как у DM |
-| `type`, `fileId`, … | — | Медиа-поля при `type != text` |
+| `senderTgId` | number? | Deprecated; `null` for wallet-only |
+| `senderName` | string? | Display name from catalog |
+| `messageId`, `roomId`, `encryptedContent`, `iv` | — | Same as DM |
+| `type`, `fileId`, … | — | Media fields when `type != text` |
 
-**Sync:** `/app/room.message.sync` → `/user/queue/room-sync-messages` (`SyncRoomMessagesEvent` с `senderInternalId`).
+**Sync:** `/app/room.message.sync` → `/user/queue/room-sync-messages` (`SyncRoomMessagesEvent` with `senderInternalId`).
 
-**Edit/delete:** события `RoomMessageEditedEvent`, `RoomMessageDeletedEvent` с `deletedByInternalId` (+ optional `deletedByTgId`).
+**Edit/delete:** events `RoomMessageEditedEvent`, `RoomMessageDeletedEvent` with `deletedByInternalId` (+ optional `deletedByTgId`).
 
-Проверка членства: `roomMembersRepository.isMember(roomId, internalId)`.
+Membership check: `roomMembersRepository.isMember(roomId, internalId)`.
 
 ---
 
 ### GET_ROOM_MEMBERS (`/app/room.getMembers`)
 
-**Запрос:** Client → Server, body `{ "roomId": "string" }`. Только член комнаты.
+**Request:** Client → Server, body `{ "roomId": "string" }`. Room member only.
 
-**Ответ:** Server → Client, destination `/user/queue/room-members` (`RoomMembersListEvent`).
+**Response:** Server → Client, destination `/user/queue/room-members` (`RoomMembersListEvent`).
 
 **Success:**
 
@@ -1914,14 +1914,14 @@ Guard дополняет, но не заменяет обязательный re
 }
 ```
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `members` | array | Обогащённые участники (breaking change: раньше `string[]` internalId) |
-| `members[].internalId` | string | Стабильный internal id |
-| `members[].displayName` | string? | Имя из каталога `user:{internalId}`; опущено для неизвестных |
-| `members[].username` | string? | Telegram username (каталог пока не хранит — часто `null`) |
-| `members[].role` | enum | `owner` если `internalId == room.ownerInternalId`; `admin` если overlay в `room_roles`; иначе `member` |
-| `members[].joinedAt` | number? | Не заполняется (Redis Set не хранит время вступления) |
+| `members` | array | Enriched members (breaking change: was `string[]` internalId) |
+| `members[].internalId` | string | Stable internal id |
+| `members[].displayName` | string? | Name from `user:{internalId}` catalog; omitted for unknown |
+| `members[].username` | string? | Telegram username (catalog does not store yet — often `null`) |
+| `members[].role` | enum | `owner` if `internalId == room.ownerInternalId`; `admin` if overlay in `room_roles`; else `member` |
+| `members[].joinedAt` | number? | Not populated (Redis Set does not store join time) |
 
 **Error:** `{ "success": false, "error": "NOT_MEMBER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
 
@@ -1929,9 +1929,9 @@ Guard дополняет, но не заменяет обязательный re
 
 ### GET_ROOM_PRESENCE (`/app/room.getPresence`)
 
-**Запрос:** Client → Server, body `{ "roomId": "string" }`. Только член комнаты.
+**Request:** Client → Server, body `{ "roomId": "string" }`. Room member only.
 
-**Ответ:** Server → Client, destination `/user/queue/room-presence` (`RoomPresenceEvent.Snapshot`).
+**Response:** Server → Client, destination `/user/queue/room-presence` (`RoomPresenceEvent.Snapshot`).
 
 **Success:**
 
@@ -1949,34 +1949,34 @@ Guard дополняет, но не заменяет обязательный re
 }
 ```
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `members[].internalId` | string | Стабильный internal id |
-| `members[].online` | boolean | Активное WS-соединение (глобальный heartbeat, 30s TTL) |
-| `members[].lastSeen` | number? | Epoch ms, округление до минуты; опущено если presence ещё не наблюдался |
+| `members[].internalId` | string | Stable internal id |
+| `members[].online` | boolean | Active WS connection (global heartbeat, 30s TTL) |
+| `members[].lastSeen` | number? | Epoch ms, rounded to minute; omitted if presence not yet observed |
 
-**Live updates:** Server → Client broadcast на `/topic/room/{roomId}` — `RoomPresenceEvent`
-(`roomId`, `internalId`, `online`, `lastSeen`) при connect / subscribe / disconnect члена.
+**Live updates:** Server → Client broadcast on `/topic/room/{roomId}` — `RoomPresenceEvent`
+(`roomId`, `internalId`, `online`, `lastSeen`) on member connect / subscribe / disconnect.
 
 **Error:** `{ "success": false, "error": "NOT_MEMBER | ROOM_NOT_FOUND | INTERNAL_ERROR" }`
 
-> **Metadata leak:** presence раскрывает, кто когда был активен в комнате. См. [SECURITY.md](./SECURITY.md#room-presence-metadata).
+> **Metadata leak:** presence reveals who was active in the room and when. See [SECURITY.md](./SECURITY.md#room-presence-metadata).
 
 ---
 
 ### KICK_MEMBER (`/app/room.kick`)
 
-**Направление:** Client → Server (owner or admin; admin may kick members only)
+**Direction:** Client → Server (owner or admin; admin may kick members only)
 
-**Запрос** (`KickMemberRequest`):
+**Request** (`KickMemberRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `targetInternalId` | string | Да | Internal ID участника для удаления |
+| `roomId` | string | Yes | Room UUID |
+| `targetInternalId` | string | Yes | Internal ID of member to remove |
 
-**Ответ инициатору:** `/user/queue/room-kick-result` (`RoomKickResultEvent`) — ровно одно
-событие на каждый запрос kick (success или failure).
+**Response to initiator:** `/user/queue/room-kick-result` (`RoomKickResultEvent`) — exactly one
+event per kick request (success or failure).
 
 **Success:**
 ```json
@@ -1997,44 +1997,44 @@ Guard дополняет, но не заменяет обязательный re
 }
 ```
 
-**Серверный cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL bundle жертвы во **всех** эпохах `room_keys:{roomId}:{epoch}`; **force-unsubscribe** с `/topic/room/{roomId}` для всех STOMP-сессий жертвы.
+**Server cleanup:** SREM `room_members` / `member_rooms`; HDEL `room_member_pubkey`; DEL `room_join_request:{roomId}:{target}`; HDEL victim bundle in **all** epochs `room_keys:{roomId}:{epoch}`; **force-unsubscribe** from `/topic/room/{roomId}` for all victim STOMP sessions.
 
-**События после успешного кика:**
+**Events after successful kick:**
 
-| Событие | Destination | Получатель | Поля |
+| Event | Destination | Recipient | Fields |
 |---------|-------------|------------|------|
-| `ROOM_KICKED` | `/user/queue/room-kicked` | Жертва | `roomId`, `byInternalId` |
-| `ROOM_MEMBER_REMOVED` | `/user/queue/room-member-removed` | Каждый оставшийся член (включая owner) | `roomId`, `removedInternalId` |
-| `ROOM_KICK_RESULT` | `/user/queue/room-kick-result` | Инициатор (owner) | `success`, `roomId`, `targetInternalId`, `error?` |
+| `ROOM_KICKED` | `/user/queue/room-kicked` | Victim | `roomId`, `byInternalId` |
+| `ROOM_MEMBER_REMOVED` | `/user/queue/room-member-removed` | Each remaining member (incl. owner) | `roomId`, `removedInternalId` |
+| `ROOM_KICK_RESULT` | `/user/queue/room-kick-result` | Initiator (owner) | `success`, `roomId`, `targetInternalId`, `error?` |
 
-Владелец **обязан** выполнить rekey после `ROOM_MEMBER_REMOVED` (см. [SECURITY.md](./SECURITY.md) — forward secrecy при kick).
+Owner **must** rekey after `ROOM_MEMBER_REMOVED` (see [SECURITY.md](./SECURITY.md) — forward secrecy on kick).
 
-Rate-limit: `SESSION_ACTION` (10/min), как у ban/mute (`RoomHandler.enforceRateLimit`). У `room.acceptJoin` / `room.rejectJoin` отдельного `SESSION_ACTION` нет — они попадают в `GENERAL` через interceptor.
+Rate-limit: `SESSION_ACTION` (10/min), same as ban/mute (`RoomHandler.enforceRateLimit`). `room.acceptJoin` / `room.rejectJoin` have no separate `SESSION_ACTION` — they fall into `GENERAL` via interceptor.
 
 ---
 
 ### BAN_MEMBER (`/app/room.ban`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`BanMemberRequest`):
+**Request** (`BanMemberRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `targetInternalId` | string | Да | Internal ID участника для бана |
+| `roomId` | string | Yes | Room UUID |
+| `targetInternalId` | string | Yes | Internal ID of member to ban |
 
-Логически = kick **+** запись в `room_bans:{roomId}`. Жертва удаляется из membership
-и получает те же события, что при kick (`ROOM_KICKED`, `ROOM_MEMBER_REMOVED` остальным); инициатору —
-`ROOM_KICK_RESULT` на `/user/queue/room-kick-result`.
+Logically = kick **+** entry in `room_bans:{roomId}`. Victim removed from membership
+and gets same events as kick (`ROOM_KICKED`, `ROOM_MEMBER_REMOVED` to others); initiator gets
+`ROOM_KICK_RESULT` on `/user/queue/room-kick-result`.
 
-**Ошибки:** те же, что у `KICK_MEMBER` (`NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`,
+**Errors:** same as `KICK_MEMBER` (`NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`,
 `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`).
 
-**Серверный cleanup:** как у kick + `SADD room_bans:{roomId} {targetInternalId}`; force-unsubscribe
-с `/topic/room/{roomId}`.
+**Server cleanup:** as kick + `SADD room_bans:{roomId} {targetInternalId}`; force-unsubscribe
+from `/topic/room/{roomId}`.
 
-Забаненный `internalId` не может повторно вступить (`requestJoin` / `acceptJoin`) → `USER_BANNED`.
+Banned `internalId` cannot rejoin (`requestJoin` / `acceptJoin`) → `USER_BANNED`.
 
 Rate-limit: `SESSION_ACTION` (10/min).
 
@@ -2042,23 +2042,23 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### UNBAN_MEMBER (`/app/room.unban`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос:** тот же payload, что у ban — `{ "roomId": "string", "targetInternalId": "string" }`
+**Request:** same payload as ban — `{ "roomId": "string", "targetInternalId": "string" }`
 (`BanMemberRequest`).
 
-**Сервер:** `SREM room_bans:{roomId} {targetInternalId}`. Отдельный user-queue ack не предусмотрен
-(fire-and-forget); ошибки логируются (`NOT_OWNER`, `ROOM_NOT_FOUND`).
+**Server:** `SREM room_bans:{roomId} {targetInternalId}`. No separate user-queue ack
+(fire-and-forget); errors logged (`NOT_OWNER`, `ROOM_NOT_FOUND`).
 
 ---
 
 ### GET_ROOM_BANS (`/app/room.getBans`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос:** `{ "roomId": "string" }` (тот же shape, что у `GET_ROOM_MEMBERS`).
+**Request:** `{ "roomId": "string" }` (same shape as `GET_ROOM_MEMBERS`).
 
-**Ответ:** `/user/queue/room-bans` (`RoomBanListEvent`):
+**Response:** `/user/queue/room-bans` (`RoomBanListEvent`):
 
 ```json
 {
@@ -2074,21 +2074,21 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### MUTE_MEMBER (`/app/room.mute`)
 
-**Направление:** Client → Server (owner or admin; admin may mute members only)
+**Direction:** Client → Server (owner or admin; admin may mute members only)
 
-**Запрос** (`MuteMemberRequest`):
+**Request** (`MuteMemberRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `targetInternalId` | string | Да | Internal ID участника для mute |
+| `roomId` | string | Yes | Room UUID |
+| `targetInternalId` | string | Yes | Internal ID of member to mute |
 
-Участник **остаётся** в `room_members`; сервер добавляет `internalId` в `room_muted:{roomId}`.
-Rekey **не** требуется.
+Member **remains** in `room_members`; server adds `internalId` to `room_muted:{roomId}`.
+Rekey is **not** required.
 
-**Ошибки (лог):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+**Errors (log):** `NOT_OWNER`, `CANNOT_KICK_SELF`, `CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`, `NOT_MEMBER`, `ROOM_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`.
 
-**Событие после успеха:** `ROOM_MODERATION` на `/topic/room/{roomId}` (`RoomModerationEvent` с `mutedAdded`).
+**Event after success:** `ROOM_MODERATION` on `/topic/room/{roomId}` (`RoomModerationEvent` with `mutedAdded`).
 
 Rate-limit: `SESSION_ACTION` (10/min).
 
@@ -2096,50 +2096,50 @@ Rate-limit: `SESSION_ACTION` (10/min).
 
 ### UNMUTE_MEMBER (`/app/room.unmute`)
 
-**Направление:** Client → Server (owner or admin)
+**Direction:** Client → Server (owner or admin)
 
-**Запрос:** тот же payload, что у mute — `{ "roomId": "string", "targetInternalId": "string" }`
+**Request:** same payload as mute — `{ "roomId": "string", "targetInternalId": "string" }`
 (`MuteMemberRequest`).
 
-**Сервер:** `SREM room_muted:{roomId} {targetInternalId}`. При успешном удалении — broadcast
-`ROOM_MODERATION` с `mutedRemoved` на `/topic/room/{roomId}`.
+**Server:** `SREM room_muted:{roomId} {targetInternalId}`. On successful removal — broadcast
+`ROOM_MODERATION` with `mutedRemoved` on `/topic/room/{roomId}`.
 
 ---
 
 ### SET_READ_ONLY (`/app/room.setReadOnly`)
 
-**Направление:** Client → Server (owner or admin)
+**Direction:** Client → Server (owner or admin)
 
-**Запрос** (`SetReadOnlyRequest`):
+**Request** (`SetReadOnlyRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `readOnly` | boolean | Да | `true` — постят owner и admin; member получает `ROOM_READ_ONLY` |
+| `roomId` | string | Yes | Room UUID |
+| `readOnly` | boolean | Yes | `true` — owner and admin can post; member gets `ROOM_READ_ONLY` |
 
-**Сервер:** `HSET room:{roomId} readOnly {true|false}`; broadcast `ROOM_MODERATION` с полем `readOnly`.
+**Server:** `HSET room:{roomId} readOnly {true|false}`; broadcast `ROOM_MODERATION` with `readOnly`.
 
-**Send enforce:** member при `readOnly=true` → `/user/queue/room-message-sent` с `error=ROOM_READ_ONLY`.
-Owner и admin могут отправлять в read-only.
+**Send enforce:** member when `readOnly=true` → `/user/queue/room-message-sent` with `error=ROOM_READ_ONLY`.
+Owner and admin can send in read-only.
 
 ---
 
 ### SET_ROLE (`/app/room.setRole`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`SetRoleRequest`):
+**Request** (`SetRoleRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `targetInternalId` | string | Да | Internal ID члена |
-| `role` | enum | Да | `admin` или `member` (снятие overlay) |
+| `roomId` | string | Yes | Room UUID |
+| `targetInternalId` | string | Yes | Member internal ID |
+| `role` | enum | Yes | `admin` or `member` (remove overlay) |
 
-**Сервер:** owner-only; target ∈ `room_members`; нельзя менять роль owner; `admin` → `HSET room_roles`;
-`member` → `HDEL room_roles`. Broadcast `ROOM_ROLE_UPDATED` на `/topic/room/{roomId}`.
+**Server:** owner-only; target ∈ `room_members`; cannot change owner role; `admin` → `HSET room_roles`;
+`member` → `HDEL room_roles`. Broadcast `ROOM_ROLE_UPDATED` on `/topic/room/{roomId}`.
 
-**Ошибки (лог):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_SET_ROLE_ON_OWNER`, `INVALID_ROLE`, `ROOM_NOT_FOUND`.
+**Errors (log):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_SET_ROLE_ON_OWNER`, `INVALID_ROLE`, `ROOM_NOT_FOUND`.
 
 ---
 
@@ -2162,25 +2162,25 @@ Owner и admin могут отправлять в read-only.
 
 ### SET_ROOM_TTL (`/app/room.setTtl`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`SetRoomTtlRequest`):
+**Request** (`SetRoomTtlRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `ttlSeconds` | number | Нет* | Относительный срок жизни в секундах от «сейчас» |
-| `autoBurnAt` | number | Нет* | Абсолютный момент auto-burn (Unix epoch ms) |
+| `roomId` | string | Yes | Room UUID |
+| `ttlSeconds` | number | No* | Relative lifetime in seconds from "now" |
+| `autoBurnAt` | number | No* | Absolute auto-burn moment (Unix epoch ms) |
 
-\* Требуется **ровно одно** из `ttlSeconds` или `autoBurnAt`. Если заданы оба — используется `autoBurnAt`.
+\* Exactly **one** of `ttlSeconds` or `autoBurnAt` is required. If both set — `autoBurnAt` is used.
 
-**Сервер:** owner-only; `HSET room:{roomId} autoBurnAt {value}`; `EXPIRE room:{roomId}` до дедлайна (cap);
-`SET room:autoburn:{roomId}` с TTL до дедлайна (trigger, не продлевается активностью).
+**Server:** owner-only; `HSET room:{roomId} autoBurnAt {value}`; `EXPIRE room:{roomId}` until deadline (cap);
+`SET room:autoburn:{roomId}` with TTL until deadline (trigger, not extended by activity).
 
-**Ошибки (лог):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `TTL_OR_AUTOBURN_REQUIRED`, `INVALID_TTL`,
+**Errors (log):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `TTL_OR_AUTOBURN_REQUIRED`, `INVALID_TTL`,
 `AUTO_BURN_IN_PAST`, `INTERNAL_ERROR`.
 
-**Событие после успеха:** `ROOM_TTL_UPDATED` на `/topic/room/{roomId}`.
+**Event after success:** `ROOM_TTL_UPDATED` on `/topic/room/{roomId}`.
 
 ---
 
@@ -2196,28 +2196,28 @@ Owner и admin могут отправлять в read-only.
 }
 ```
 
-**Auto-burn:** по истечении `room:autoburn:{roomId}` сервер выполняет тот же каскад, что и
-`/app/room.burn`, и рассылает `ROOM_BURNED` на `/user/queue/room-burned` каждому члену.
+**Auto-burn:** when `room:autoburn:{roomId}` expires server runs same cascade as
+`/app/room.burn`, and sends `ROOM_BURNED` to `/user/queue/room-burned` to each member.
 
 ---
 
 ### SET_MESSAGE_TTL (`/app/room.setMessageTtl`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`SetMessageTtlRequest`):
+**Request** (`SetMessageTtlRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `messageTtlSeconds` | number | Да | Таймер самоуничтожения сообщений в секундах; `0` = выкл |
+| `roomId` | string | Yes | Room UUID |
+| `messageTtlSeconds` | number | Yes | Message self-destruct timer in seconds; `0` = off |
 
-**Сервер:** owner-only; `HSET room:{roomId} messageTtl {value}`; немедленный lazy prune
-`messages:{roomId}`; broadcast события.
+**Server:** owner-only; `HSET room:{roomId} messageTtl {value}`; immediate lazy prune
+`messages:{roomId}`; broadcast event.
 
-**Ошибки (лог):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `INVALID_MESSAGE_TTL`, `INTERNAL_ERROR`.
+**Errors (log):** `NOT_OWNER`, `ROOM_NOT_FOUND`, `INVALID_MESSAGE_TTL`, `INTERNAL_ERROR`.
 
-**Событие после успеха:** `ROOM_MESSAGE_TTL_UPDATED` на `/topic/room/{roomId}`.
+**Event after success:** `ROOM_MESSAGE_TTL_UPDATED` on `/topic/room/{roomId}`.
 
 ---
 
@@ -2237,23 +2237,23 @@ Owner и admin могут отправлять в read-only.
 
 ### TRANSFER_OWNERSHIP (`/app/room.transferOwnership`)
 
-**Направление:** Client → Server (owner-only)
+**Direction:** Client → Server (owner-only)
 
-**Запрос** (`TransferOwnershipRequest`):
+**Request** (`TransferOwnershipRequest`):
 
-| Поле | Тип | Обязательно | Описание |
+| Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `roomId` | string | Да | UUID комнаты |
-| `newOwnerInternalId` | string | Да | Internal ID действующего члена, который станет владельцем |
+| `roomId` | string | Yes | Room UUID |
+| `newOwnerInternalId` | string | Yes | Internal ID of active member who will become owner |
 
-**Сервер:** проверка owner-only; `newOwnerInternalId` ∈ `room_members`; атомарно
-`HSET room:{roomId} ownerInternalId {newOwnerInternalId}`; предыдущий владелец →
+**Server:** owner-only check; `newOwnerInternalId` ∈ `room_members`; atomically
+`HSET room:{roomId} ownerInternalId {newOwnerInternalId}`; previous owner →
 `HSET room_roles:{roomId} {previousOwner} admin`; `HDEL room_roles:{roomId} {newOwner}`.
-**Rekey не требуется** — новый владелец уже член с групповым ключом.
+**Rekey not required** — new owner is already a member with group key.
 
-**Ошибки (лог):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_TRANSFER_TO_SELF`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`.
+**Errors (log):** `NOT_OWNER`, `NOT_MEMBER`, `CANNOT_TRANSFER_TO_SELF`, `ROOM_NOT_FOUND`, `INTERNAL_ERROR`.
 
-**Событие после успеха:** `ROOM_OWNERSHIP_TRANSFERRED` на `/topic/room/{roomId}`.
+**Event after success:** `ROOM_OWNERSHIP_TRANSFERRED` on `/topic/room/{roomId}`.
 
 ---
 
@@ -2286,17 +2286,17 @@ Owner и admin могут отправлять в read-only.
 }
 ```
 
-| Поле | Описание |
+| Field | Description |
 |------|----------|
-| `readOnly` | Текущий флаг read-only после изменения |
-| `mutedAdded` | При mute — internalId добавленного |
-| `mutedRemoved` | При unmute — internalId удалённого |
+| `readOnly` | Current read-only flag after change |
+| `mutedAdded` | On mute — added internalId |
+| `mutedRemoved` | On unmute — removed internalId |
 
 ---
 
 ### ROOM_CREATED
 
-**Направление:** Server → Client  
+**Direction:** Server → Client  
 **Destination:** `/user/queue/room-created`
 
 **Success:**
@@ -2307,7 +2307,7 @@ Owner и admin могут отправлять в read-only.
 }
 ```
 
-**Error** (на `/user/queue/room-created` код эмитит только `INTERNAL_ERROR`):
+**Error** (on `/user/queue/room-created` only `INTERNAL_ERROR` is emitted):
 ```json
 {
   "success": false,
@@ -2315,13 +2315,13 @@ Owner и admin могут отправлять в read-only.
 }
 ```
 
-Валидация запроса → `VALIDATION_ERROR` на `/user/queue/errors`; превышение STOMP rate-limit → `RATE_LIMIT_EXCEEDED` там же (см. Rate Limits выше). На `room-created` эти коды **не** приходят.
+Request validation → `VALIDATION_ERROR` on `/user/queue/errors`; STOMP rate-limit exceed → `RATE_LIMIT_EXCEEDED` there (see Rate Limits above). Those codes do **not** arrive on `room-created`.
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных в Redis
-- [SECURITY.md](./SECURITY.md) — криптография
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — общая архитектура
+- [DATA_MODELS.md](./DATA_MODELS.md) — Redis data structures
+- [SECURITY.md](./SECURITY.md) — cryptography
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — overall architecture
 

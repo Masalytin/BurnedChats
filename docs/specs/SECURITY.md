@@ -1,80 +1,80 @@
-# Безопасность и криптография
+# Security and Cryptography
 
-> Детальное описание криптографических протоколов и модели угроз
+> Detailed description of cryptographic protocols and the threat model
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Обзор безопасности](#обзор-безопасности)
-- [Криптографические примитивы](#криптографические-примитивы)
-- [Протокол обмена ключами](#протокол-обмена-ключами)
-- [Шифрование сообщений](#шифрование-сообщений)
-- [Файлы: шифрование и хранение (Phase 4)](#файлы-шифрование-и-хранение-phase-4)
+- [Security Overview](#security-overview)
+- [Cryptographic Primitives](#cryptographic-primitives)
+- [Key Exchange Protocol](#key-exchange-protocol)
+- [Message Encryption](#message-encryption)
+- [Files: Encryption and Storage (Phase 4)](#files-encryption-and-storage-phase-4)
 - [Visual Fingerprint](#visual-fingerprint)
-- [Граница доверия: verification ceremony](#граница-доверия-verification-ceremony)
-- [Модель угроз](#модель-угроз)
-- [Антиспам / Sybil-защита (PoW)](#антиспам--sybil-защита-pow)
-- [Защитные механизмы](#защитные-механизмы)
-- [Governance on-chain (Phase 5)](#governance-on-chain-phase-5)
-- [Комнаты (Phase 2)](#комнаты-phase-2)
+- [Trust Boundary: Verification Ceremony](#trust-boundary-verification-ceremony)
+- [Threat Model](#threat-model)
+- [Anti-spam / Sybil Protection (PoW)](#anti-spam--sybil-protection-pow)
+- [Protective Mechanisms](#protective-mechanisms)
+- [Governance On-chain (Phase 5)](#governance-on-chain-phase-5)
+- [Rooms (Phase 2)](#rooms-phase-2)
 
 ---
 
-## Обзор безопасности
+## Security Overview
 
-### Гарантии системы
+### System Guarantees
 
-| Свойство | Гарантия | Как достигается |
+| Property | Guarantee | How It Is Achieved |
 |----------|----------|-----------------|
-| **Confidentiality** | Сервер не видит содержимое | E2EE с ключами только на клиентах |
-| **Integrity** | Сообщения не изменены | AES-GCM authentication tag |
-| **Forward Secrecy** | Прошлые сообщения защищены | Ephemeral ключи только in-memory (`keyStore.ts`); burn на unload / длительный background |
-| **Deniability** | Нет доказательства авторства | Нет цифровых подписей |
-| **Anti-MITM** | Защита от подмены ключей | Visual Fingerprint verification |
+| **Confidentiality** | Server cannot see content | E2EE with keys only on clients |
+| **Integrity** | Messages are not altered | AES-GCM authentication tag |
+| **Forward Secrecy** | Past messages are protected | Ephemeral keys in-memory only (`keyStore.ts`); burn on unload / long background |
+| **Deniability** | No proof of authorship | No digital signatures |
+| **Anti-MITM** | Protection against key substitution | Visual Fingerprint verification |
 
-### Что система НЕ защищает
+### What the System Does NOT Protect
 
-- ❌ **Metadata** — сервер видит кто с кем общается (Telegram ID)
-- ❌ **Timing** — время отправки сообщений
-- ❌ **Screenshot** — пользователь может сделать скриншот
-- ❌ **Compromised device** — если устройство взломано, ключи доступны
+- ❌ **Metadata** — server sees who communicates with whom (Telegram ID)
+- ❌ **Timing** — message send times
+- ❌ **Screenshot** — user can take a screenshot
+- ❌ **Compromised device** — if the device is compromised, keys are accessible
 
-### Комнаты (Phase 2)
+### Rooms (Phase 2)
 
-В **фазе 2** (комнаты с паролем) действуют дополнительные принципы конфиденциальности:
+In **phase 2** (password-protected rooms), additional confidentiality principles apply:
 
-- **Пароль комнаты:** на сервер передаётся только производная от пароля (salt + proof через KDF). Plaintext пароль не передаётся, не хранится и не логируется. Проверка входа выполняется сравнением proof с сохранённым значением (constant-time). Подробнее — в разделе [Комнаты (Phase 2)](#комнаты-phase-2) ниже.
-- **Групповой ключ:** хранится только на клиентах; сервер ретранслирует только зашифрованные ключевые бандлы (opaque blobs).
-- **Инвайт-токены:** криптостойкие, с TTL и опциональным лимитом использований; не раскрывают roomId без проверки.
+- **Room password:** only a password derivative (salt + proof via KDF) is sent to the server. Plaintext password is not transmitted, stored, or logged. Join verification compares proof against the stored value (constant-time). Details — in the [Rooms (Phase 2)](#rooms-phase-2) section below.
+- **Group key:** stored only on clients; server relays only encrypted key bundles (opaque blobs).
+- **Invite tokens:** cryptographically strong, with TTL and optional usage limit; do not reveal roomId without verification.
 
 ---
 
-## Криптографические примитивы
+## Cryptographic Primitives
 
 ### 1. ECDH (Elliptic Curve Diffie-Hellman)
 
 ```
-Кривая: P-256 (secp256r1)
-Размер ключа: 256 bit
-Стандарт: NIST FIPS 186-4
+Curve: P-256 (secp256r1)
+Key size: 256 bit
+Standard: NIST FIPS 186-4
 ```
 
-**Почему P-256:**
-- Широкая поддержка в Web Crypto API
-- Оптимальный баланс безопасности и производительности
-- Используется в TLS 1.3, Signal Protocol
+**Why P-256:**
+- Wide support in Web Crypto API
+- Optimal balance of security and performance
+- Used in TLS 1.3, Signal Protocol
 
 ### 2. AES-GCM (Advanced Encryption Standard - Galois/Counter Mode)
 
 ```
-Размер ключа: 256 bit
+Key size: 256 bit
 IV (nonce): 96 bit (12 bytes)
 Tag length: 128 bit
 ```
 
-**Почему AES-GCM:**
-- Authenticated encryption (шифрование + проверка целостности)
-- Нативная поддержка в Web Crypto API
-- Высокая производительность (hardware acceleration)
+**Why AES-GCM:**
+- Authenticated encryption (encryption + integrity verification)
+- Native support in Web Crypto API
+- High performance (hardware acceleration)
 
 ### 3. HKDF (HMAC-based Key Derivation Function)
 
@@ -83,22 +83,22 @@ Hash: SHA-256
 Output: 256 bit
 ```
 
-Используется для получения симметричного ключа из ECDH shared secret.
+Used to derive a symmetric key from the ECDH shared secret.
 
 ---
 
-## Протокол обмена ключами
+## Key Exchange Protocol
 
-### Шаг 1: Генерация ключевой пары (Frontend - Web Crypto API)
+### Step 1: Key Pair Generation (Frontend - Web Crypto API)
 
-> **Wire-формат публичного ключа — SPKI/ASN.1**, не uncompressed point (`'raw'`).
-> Источник истины: `PUBLIC_KEY_FORMAT = 'spki'` в
+> **Wire format of the public key — SPKI/ASN.1**, not uncompressed point (`'raw'`).
+> Source of truth: `PUBLIC_KEY_FORMAT = 'spki'` in
 > [`frontend/src/crypto/ecdh.ts`](../../frontend/src/crypto/ecdh.ts)
-> (`exportPublicKey` / `importPublicKey`). Тот же SPKI-блоб — вход
-> fingerprint-хеша (см. [Visual Fingerprint](#visual-fingerprint)).
+> (`exportPublicKey` / `importPublicKey`). The same SPKI blob is the input
+> to the fingerprint hash (see [Visual Fingerprint](#visual-fingerprint)).
 
 ```typescript
-// На стороне каждого клиента
+// On each client side
 const keyPair = await crypto.subtle.generateKey(
   {
     name: 'ECDH',
@@ -108,12 +108,12 @@ const keyPair = await crypto.subtle.generateKey(
   ['deriveKey', 'deriveBits']
 );
 
-// Экспорт публичного ключа для передачи (SPKI/ASN.1 — PUBLIC_KEY_FORMAT в ecdh.ts)
+// Export public key for transmission (SPKI/ASN.1 — PUBLIC_KEY_FORMAT in ecdh.ts)
 const publicKeySpki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
 const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeySpki)));
 ```
 
-### Шаг 2: Обмен публичными ключами
+### Step 2: Public Key Exchange
 
 ```
 Alice                         Server                         Bob
@@ -128,16 +128,16 @@ Alice                         Server                         Bob
   │◄─────────────────────────────│                             │
 ```
 
-Пока второй ключ не получен, участник может **перезаписать** свой pending-ключ
-(клиентский retry/reconnect). Сервер ретранслирует пару только когда оба ключа
-готовы; после relay буфер очищается. Это не ослабляет MITM-защиту: fingerprint
-считается клиентом из фактически обменянных SPKI — рассинхрон пары даёт расхождение
-отпечатков (см. [Visual Fingerprint](#visual-fingerprint)).
+Until the second key is received, a participant may **overwrite** their pending key
+(client retry/reconnect). The server relays the pair only when both keys
+are ready; after relay the buffer is cleared. This does not weaken MITM protection: the fingerprint
+is computed by the client from the actually exchanged SPKI — pair desync causes fingerprint
+mismatch (see [Visual Fingerprint](#visual-fingerprint)).
 
-### Шаг 3: Вычисление Shared Secret
+### Step 3: Shared Secret Computation
 
 ```typescript
-// Импорт публичного ключа собеседника (SPKI/ASN.1 — тот же PUBLIC_KEY_FORMAT)
+// Import peer's public key (SPKI/ASN.1 — same PUBLIC_KEY_FORMAT)
 const peerPublicKey = await crypto.subtle.importKey(
   'spki',
   peerPublicKeyBuffer,
@@ -146,7 +146,7 @@ const peerPublicKey = await crypto.subtle.importKey(
   []
 );
 
-// Вычисление shared secret
+// Compute shared secret
 const sharedBits = await crypto.subtle.deriveBits(
   { name: 'ECDH', public: peerPublicKey },
   keyPair.privateKey,
@@ -154,10 +154,10 @@ const sharedBits = await crypto.subtle.deriveBits(
 );
 ```
 
-### Шаг 4: Получение симметричного ключа (HKDF)
+### Step 4: Symmetric Key Derivation (HKDF)
 
 ```typescript
-// Import shared secret как HKDF key
+// Import shared secret as HKDF key
 const hkdfKey = await crypto.subtle.importKey(
   'raw',
   sharedBits,
@@ -181,12 +181,12 @@ const aesKey = await crypto.subtle.deriveKey(
 );
 ```
 
-> **HKDF-параметры (фактический код):** salt = `sessionId` (UUID сессии), info =
+> **HKDF parameters (actual code):** salt = `sessionId` (session UUID), info =
 > `'BurnedChats-AES-GCM-Key'` (`frontend/src/crypto/ecdh.ts`). Session-bound salt
-> **строже**, чем статическая строка вроде `BurnedChats-v1`: компрометация одной
-> сессии не переносится на другие даже при одинаковом ECDH shared secret.
+> is **stricter** than a static string like `BurnedChats-v1`: compromise of one
+> session does not carry over to others even with the same ECDH shared secret.
 
-### Диаграмма полного процесса
+### Full Process Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -222,15 +222,15 @@ const aesKey = await crypto.subtle.deriveKey(
 
 ---
 
-## Шифрование сообщений
+## Message Encryption
 
-### Формат зашифрованного сообщения (wire / STOMP)
+### Encrypted Message Format (wire / STOMP)
 
-На проводе (`SendMessageRequest`, `NewMessageEvent`) сервер видит **не** отдельные
-поля `ciphertext` + `tag`, а единое поле `encryptedContent`: Base64-кодированный
-**ciphertext ‖ GCM authentication tag** (128 bit tag appended). IV передаётся
-отдельно. Реализация клиента: `frontend/src/crypto/aes.ts` (`EncryptedData.ciphertext`
-включает tag); DTO: `SendMessageRequest.encryptedContent`.
+On the wire (`SendMessageRequest`, `NewMessageEvent`) the server sees **not** separate
+`ciphertext` + `tag` fields, but a single `encryptedContent` field: Base64-encoded
+**ciphertext ‖ GCM authentication tag** (128 bit tag appended). IV is transmitted
+separately. Client implementation: `frontend/src/crypto/aes.ts` (`EncryptedData.ciphertext`
+includes tag); DTO: `SendMessageRequest.encryptedContent`.
 
 ```typescript
 /** Client-side encryption result (aes.ts) */
@@ -246,7 +246,7 @@ interface WireEncryptedMessage {
   iv: string;
   timestamp: number;
   type: 'text' | 'image' | 'video' | 'file';
-  // file messages: fileId, thumbnailFileId, encryptedMeta, fileSize — см. API.md
+  // file messages: fileId, thumbnailFileId, encryptedMeta, fileSize — see API.md
 }
 ```
 
@@ -266,7 +266,7 @@ public class SendMessageRequest {
 }
 ```
 
-### Шифрование (отправка)
+### Encryption (send)
 
 ```typescript
 async function encryptMessage(
@@ -291,7 +291,7 @@ async function encryptMessage(
 }
 ```
 
-### Дешифрование (получение)
+### Decryption (receive)
 
 ```typescript
 async function decryptMessage(
@@ -314,65 +314,65 @@ async function decryptMessage(
 
 ---
 
-## Файлы: шифрование и хранение (Phase 4)
+## Files: Encryption and Storage (Phase 4)
 
-Реализация на клиенте: `frontend/src/crypto/fileEncryption.ts` (тот же симметричный ключ AES-256-GCM, что и для текстовых сообщений после ECDH / группового ключа комнаты).
+Client implementation: `frontend/src/crypto/fileEncryption.ts` (same AES-256-GCM symmetric key as text messages after ECDH / room group key).
 
-### File Encryption (Phase 4) — поток данных
+### File Encryption (Phase 4) — Data Flow
 
-1. Клиент шифрует файл (и при необходимости отдельный thumbnail) **до** отправки.
-2. `POST /api/files/upload` передаёт **один** непрерывный зашифрованный blob (`application/octet-stream`); сервер сохраняет его как `{fileId}.enc` и пишет метаданные в Redis (`file_meta:{fileId}`).
-3. В STOMP-сообщении (`type`: `image` \| `video` \| `file`) клиент указывает `fileId`, опционально `thumbnailFileId`, `encryptedMeta` (зашифрованные имя и MIME) и `fileSize` (размер **исходного** plaintext).
-4. Получатель вызывает `GET /api/files/{fileId}`, получает тот же blob и расшифровывает его локально.
+1. Client encrypts the file (and optionally a separate thumbnail) **before** upload.
+2. `POST /api/files/upload` sends **one** contiguous encrypted blob (`application/octet-stream`); server stores it as `{fileId}.enc` and writes metadata to Redis (`file_meta:{fileId}`).
+3. In the STOMP message (`type`: `image` \| `video` \| `file`) the client specifies `fileId`, optionally `thumbnailFileId`, `encryptedMeta` (encrypted name and MIME) and `fileSize` (size of the **original** plaintext).
+4. Recipient calls `GET /api/files/{fileId}`, receives the same blob and decrypts it locally.
 
-### Формат зашифрованного blob'а (upload body)
+### Encrypted Blob Format (upload body)
 
-Младший байт задаёт вариант упаковки:
+The least significant byte defines the packaging variant:
 
-- **Один проход** (файлы ≤ 5 MiB):  
-  `[0x00][IV — 12 байт][ciphertext ‖ GCM tag]`  
-  где `ciphertext ‖ tag` — непосредственный вывод `crypto.subtle.encrypt` (Web Crypto AES-GCM, tag 128 bit).
+- **Single pass** (files ≤ 5 MiB):  
+  `[0x00][IV — 12 bytes][ciphertext ‖ GCM tag]`  
+  where `ciphertext ‖ tag` is the direct output of `crypto.subtle.encrypt` (Web Crypto AES-GCM, tag 128 bit).
 
-- **По чанкам** (файлы > 5 MiB, plaintext чанки по 64 KiB):  
-  `[0x01][chunk_count — 4 байта big-endian][повтор: IV 12 байт ‖ encrypt(chunk)]`.
+- **Chunked** (files > 5 MiB, plaintext chunks of 64 KiB):  
+  `[0x01][chunk_count — 4 bytes big-endian][repeat: IV 12 bytes ‖ encrypt(chunk)]`.
 
-Таким образом на диске и по сети везде лежит только opaque-бинарник; сервер не выполняет дешифрование.
+Thus on disk and over the network only an opaque binary is stored; the server does not decrypt.
 
-**Thumbnail:** генерируется на клиенте, шифруется **тем же** `CryptoKey` и загружается вторым `fileId` (отдельный upload).
+**Thumbnail:** generated on the client, encrypted with the **same** `CryptoKey` and uploaded as a second `fileId` (separate upload).
 
-**Метаданные (имя файла, MIME):** JSON `FileMetaPlain` шифруется через `encryptFileMetadata` → одна Base64-строка в поле `encryptedMeta` STOMP-сообщения. Сервер видит только непрозрачный blob и число `fileSize` для UX/лимитов.
+**Metadata (file name, MIME):** JSON `FileMetaPlain` is encrypted via `encryptFileMetadata` → a single Base64 string in the `encryptedMeta` field of the STOMP message. Server sees only an opaque blob and the `fileSize` number for UX/limits.
 
-### File Storage Security (сервер)
+### File Storage Security (server)
 
-| Аспект | Поведение |
+| Aspect | Behavior |
 |--------|-----------|
-| Zero-knowledge | На сервере хранятся только зашифрованные blob'ы и минимальные метаданные (tgId загрузившего, контекст, размер blob'а, время). |
-| Filesystem | Файлы без исходного расширения: `{uuid}.enc`. Утечка диска не раскрывает тип содержимого. |
-| TTL | Метаданные Redis и политика жизни файлов — **24 часа** (см. `FileStorageProperties`); автоочистка орфанов на диске. |
-| Burn cascade | При уничтожении сессии/комнаты набор `fileId` из `file_context:{contextId}` удаляется с диска и из Redis. |
-| Access control | Upload и download разрешены только если initData валиден и пользователь — участник указанной сессии или комнаты; ретрансляция STOMP проверяет владельца и контекст файла. |
+| Zero-knowledge | Server stores only encrypted blobs and minimal metadata (uploader tgId, context, blob size, timestamp). |
+| Filesystem | Files without original extension: `{uuid}.enc`. Disk leak does not reveal content type. |
+| TTL | Redis metadata and file lifetime policy — **24 hours** (see `FileStorageProperties`); orphan cleanup on disk. |
+| Burn cascade | On session/room destruction, `fileId` set from `file_context:{contextId}` is removed from disk and Redis. |
+| Access control | Upload and download allowed only if initData is valid and user is a member of the specified session or room; STOMP relay verifies file owner and context. |
 
-### Validation (продукт и сервер)
+### Validation (product and server)
 
-| Уровень | Правило |
+| Level | Rule |
 |---------|---------|
-| Клиент | Whitelist MIME по категориям продукта (см. план Phase 4): изображения (`image/jpeg`, `image/png`, `image/gif`, `image/webp`), видео (`video/mp4`, `video/webm`), документы (`application/pdf`, `text/plain`, `application/zip`). Рекомендуемые **оригинальные** размеры: до 10 MB (изображения), до 25 MB (видео/документы) — до упаковки в AES-GCM. |
-| Сервер | Верхняя граница принимаемого **зашифрованного** тела: `MAX_ENCRYPTED_FILE_SIZE` (26 MiB); проверка `Content-Length > 0`; rate limit `POST /api/files/upload`: 10 запросов / минуту на пользователя (`FILE_UPLOAD_RATE_LIMIT`). Тип MIME на REST не проверяется (файл нечитаем). |
+| Client | MIME whitelist by product category (see Phase 4 plan): images (`image/jpeg`, `image/png`, `image/gif`, `image/webp`), video (`video/mp4`, `video/webm`), documents (`application/pdf`, `text/plain`, `application/zip`). Recommended **original** sizes: up to 10 MB (images), up to 25 MB (video/documents) — before AES-GCM packaging. |
+| Server | Upper bound on accepted **encrypted** body: `MAX_ENCRYPTED_FILE_SIZE` (26 MiB); check `Content-Length > 0`; rate limit `POST /api/files/upload`: 10 requests / minute per user (`FILE_UPLOAD_RATE_LIMIT`). MIME type is not checked on REST (file is unreadable). |
 
 ---
 
 ## Visual Fingerprint
 
-### Концепция
+### Concept
 
-Основной канал сверки — **safety-number** (128 бит). Поверх него идёт быстрый
-визуальный якорь: набор **эмодзи** (alphabet v1, см. соответствующий раздел спеки) как
-мнемоника, которую проще сравнить «на глаз», чем абстрактные фигуры:
+The primary verification channel is the **safety-number** (128 bits). On top of it is a quick
+visual anchor: a set of **emoji** (alphabet v1, see the corresponding spec section) as a
+mnemonic that is easier to compare "at a glance" than abstract shapes:
 
 ```
 ┌────────────────────────────────────────┐
 │                                        │
-│   Отпечаток безопасности               │
+│   Safety number                        │
 │   12345 67890 23456 78901              │
 │   34567 89012 45678 90123              │
 │                                        │
@@ -380,24 +380,24 @@ async function decryptMessage(
 │   │🦊│ │🍎│ │🚀│ │🐼│ │⭐│ │🐧│        │
 │   └──┘ └──┘ └──┘ └──┘ └──┘ └──┘        │
 │                                        │
-│   [✓ Совпадают]    [✗ Не совпадают]    │
+│   [✓ Match]        [✗ No match]        │
 │                                        │
 └────────────────────────────────────────┘
 ```
 
-> **История:** до emoji alphabet v1 визуальный якорь был парой `{ фигура, цвет }`
-> (6×6, 4 слота). Цвет убран (многоцветные эмодзи делают CSS-`color`
-> ненаблюдаемым), энтропия компенсирована числом слотов и размером алфавита.
+> **History:** before emoji alphabet v1 the visual anchor was a pair of `{ shape, color }`
+> (6×6, 4 slots). Color was removed (multicolor emoji makes CSS `color`
+> unobservable), entropy compensated by number of slots and alphabet size.
 
-### Устранённая уязвимость
+### Eliminated Vulnerability
 
-| Было (устранено) | Стало |
+| Before (eliminated) | After |
 |------------------|-------|
-| Отпечаток из **shared secret**, первые **4 байта hex (32 бита)** | Отпечаток из **sorted SPKI публичных ключей**, SHA-256, **≥16 байт (128 бит)** |
-| Визуал: 4×(6×6) ≈ **20.7 бита** — перебор ECDH-ключей атакующим реалистичен | Safety-number: **8 групп × 5 цифр** = 128 бит; визуал-эмодзи — дополнительный UX, не единственный канал |
-| Signal safety number ≈ 200 бит; наш старый формат был существенно слабее | Приближение к industry practice (Signal): привязка к **паре identity keys**, не к shared secret |
+| Fingerprint from **shared secret**, first **4 bytes hex (32 bits)** | Fingerprint from **sorted SPKI public keys**, SHA-256, **≥16 bytes (128 bits)** |
+| Visual: 4×(6×6) ≈ **20.7 bits** — ECDH key brute-force by attacker is realistic | Safety-number: **8 groups × 5 digits** = 128 bits; emoji visual — additional UX, not the sole channel |
+| Signal safety number ≈ 200 bits; our old format was substantially weaker | Closer to industry practice (Signal): binding to **identity key pair**, not shared secret |
 
-### Алгоритм генерации
+### Generation Algorithm
 
 ```typescript
 const FINGERPRINT_HASH_BYTES = 16; // 128 bits
@@ -446,146 +446,144 @@ async function generateVisualFingerprint(
 }
 ```
 
-**Инвариант:** Alice(`pubA`, `pubB`) и Bob(`pubB`, `pubA`) получают **идентичный**
-safety-number и набор эмодзи — порядок ключей нормализуется сортировкой
-(`hashSortedPublicKeys`). Маппинг чисто функциональный от `hashBytes`, без
-локали/рандома. Эмодзи берутся **только** из байт 16–21; safety-number (байты
-0–15) визуалом не используется.
+**Invariant:** Alice(`pubA`, `pubB`) and Bob(`pubB`, `pubA`) get **identical**
+safety-number and emoji set — key order is normalized by sorting
+(`hashSortedPublicKeys`). Mapping is purely functional from `hashBytes`, without
+locale/randomness. Emoji are taken **only** from bytes 16–21; safety-number (bytes
+0–15) is not used for the visual.
 
-### Энтропия и threat model (MITM)
+### Entropy and Threat Model (MITM)
 
-| Компонент | Энтропия | Роль |
+| Component | Entropy | Role |
 |-----------|----------|------|
-| Safety-number | **128 бит** (16 байт SHA-256) | Основная out-of-band сверка (голос, лично) |
-| 6 эмодзи-слотов (alphabet v1, 20 эмодзи) | ~25.9 бит (`6 × log2 20`) — мнемоника | Быстрая визуальная проверка, не заменяет числа |
+| Safety-number | **128 bits** (16 bytes SHA-256) | Primary out-of-band verification (voice, in person) |
+| 6 emoji slots (alphabet v1, 20 emoji) | ~25.9 bits (`6 × log2 20`) — mnemonic | Quick visual check, does not replace numbers |
 
-Активный MITM, подбирающий ECDH-ключи под старый 32-битный отпечаток, должен перебрать
-≈2³²–2²⁰ операций — **устранено**. С 128-битным safety-number подбор отпечатка
-в реальном времени **непрактичен** (≈2¹²⁸). Визуальная энтропия после перехода на
-эмодзи **не понижена** (~25.9 бит против прежних ~20.7).
+Active MITM brute-forcing ECDH keys for the old 32-bit fingerprint had to search
+≈2³²–2²⁰ operations — **eliminated**. With 128-bit safety-number fingerprint
+brute-force in real time is **impractical** (≈2¹²⁸). Visual entropy after switching to
+emoji is **not reduced** (~25.9 bits vs previous ~20.7).
 
-**Намеренная несовместимость:** (1) клиенты до entropy fix показывают другой
-отпечаток из-за смены источника энтропии; (2) клиенты до emoji alphabet v1 для той же
-пары ключей показывают геометрические фигуры, а не эмодзи. Для ephemeral-сессий
-приемлемо.
+**Intentional incompatibility:** (1) clients before entropy fix show a different
+fingerprint due to entropy source change; (2) clients before emoji alphabet v1 for the same
+key pair show geometric shapes, not emoji. Acceptable for ephemeral sessions.
 
-### Свойства алфавита эмодзи (v1)
+### Emoji Alphabet Properties (v1)
 
-1. **Наблюдаемость энтропии** — каждый слот = один сравнимый глазом эмодзи; убран
-   невидимый CSS-`color`-канал.
-2. **128-бит safety-number** — основной канал защиты от подбора MITM, неизменен.
-3. **Кросс-платформенность** — одиночные кодпоинты, Emoji ≤ 3.0, без ZWJ/variation
-   selectors; одинаково рендерятся на Apple/Google/Windows/Telegram.
-4. **Привязка к публичным ключам** — как Signal, исключает edge-case с одинаковым
+1. **Entropy observability** — each slot = one eye-comparable emoji; invisible
+   CSS `color` channel removed.
+2. **128-bit safety-number** — primary MITM brute-force protection channel, unchanged.
+3. **Cross-platform** — single codepoints, Emoji ≤ 3.0, no ZWJ/variation
+   selectors; render consistently on Apple/Google/Windows/Telegram.
+4. **Binding to public keys** — like Signal, excludes edge-case with identical
    shared secret.
 
-> Версионирование алфавита (`v1`) позволяет пересматривать набор/энтропию без
-> потери детерминизма.
+> Alphabet versioning (`v1`) allows revising the set/entropy without
+> losing determinism.
 
 ---
 
-## Секретный вопрос (опционально)
+## Secret Question (optional)
 
-### Модель (server-side admission control)
+### Model (server-side admission control)
 
-Секретный вопрос — **не** криптографическая KDF-сепарация и **не** изменение
-HKDF-salt на клиенте. Это **контроль допуска на сервере** перед активацией сессии:
+Secret question is **not** cryptographic KDF separation and **not** a change to
+HKDF salt on the client. It is **server-side admission control** before session activation:
 
-1. Инициатор задаёт вопрос и **ожидаемый ответ** при создании чата (`CreateSessionRequest`).
-2. На сервер сохраняются **plaintext** `secretQuestion` и **SHA-256 hash**
-   нормализованного ответа (`SecretAnswerHasher` → `secretAnswerHash` в Redis).
-3. Получатель при accept передаёт `secretAnswer` в plaintext; сервер хеширует и
-   сравнивает constant-time (`SessionLifecycleService`).
-4. При неверном ответе сессия **не активируется** — E2EE-ключи на клиентах могут
-   быть вычислены (ECDH), но обмен сообщениями блокируется политикой сервера.
+1. Initiator sets question and **expected answer** when creating chat (`CreateSessionRequest`).
+2. Server stores **plaintext** `secretQuestion` and **SHA-256 hash**
+   of normalized answer (`SecretAnswerHasher` → `secretAnswerHash` in Redis).
+3. Recipient on accept sends `secretAnswer` in plaintext; server hashes and
+   compares constant-time (`SessionLifecycleService`).
+4. On wrong answer session **does not activate** — E2EE keys on clients may
+   be computed (ECDH), but message exchange is blocked by server policy.
 
 ```typescript
-// Frontend: create session (useSession.ts) — Q/A уходят на сервер
+// Frontend: create session (useSession.ts) — Q/A go to server
 payload.secretQuestion = question.trim();
 payload.secretExpectedAnswer = expectedAnswer.trim();
 
-// Backend: accept — server-side hash gate (не HKDF)
+// Backend: accept — server-side hash gate (not HKDF)
 const providedHash = SecretAnswerHasher.hash(providedAnswer);
 if (!SecretAnswerHasher.constantTimeEquals(providedHash, expectedHash)) {
   // reject accept — session stays pending / inactive
 }
 ```
 
-### Что это даёт и чего не даёт
+### What It Provides and What It Does Not
 
-| Аспект | Поведение |
+| Aspect | Behavior |
 |--------|-----------|
-| Защита от «случайного» accept | Получатель должен знать shared secret out-of-band |
-| Zero-knowledge содержимого | Сервер **видит** plaintext Q/A при create/accept — это **метаданные допуска**, не ciphertext сообщений |
-| Криpto-изоляция ключей | **Нет** — HKDF по-прежнему использует `sessionId` / `BurnedChats-AES-GCM-Key` (`ecdh.ts`), ответ на вопрос salt **не** подменяет |
-| MITM | Не заменяет Visual Fingerprint / safety-number |
+| Protection against "accidental" accept | Recipient must know shared secret out-of-band |
+| Zero-knowledge of content | Server **sees** plaintext Q/A on create/accept — this is **admission metadata**, not message ciphertext |
+| Crypto key isolation | **No** — HKDF still uses `sessionId` / `BurnedChats-AES-GCM-Key` (`ecdh.ts`), answer does **not** replace salt |
+| MITM | Does not replace Visual Fingerprint / safety-number |
 ---
 
-## Граница доверия: verification ceremony
+## Trust Boundary: Verification Ceremony
 
-> Наблюдение аудита **FE-11** (REPORT-frontend): server-mediated флаг, не криптография.
+> Audit observation **FE-11** (REPORT-frontend): server-mediated flag, not cryptography.
 
-После ECDH клиенты показывают **safety-number** и visual fingerprint, вычисленные
-**локально** из sorted SPKI публичных ключей (`ecdh.ts`). Сервер ретранслирует
-только публичные ключи и события церемонии (`VerificationHandler`).
+After ECDH clients show **safety-number** and visual fingerprint computed
+**locally** from sorted SPKI public keys (`ecdh.ts`). Server relays
+only public keys and ceremony events (`VerificationHandler`).
 
-| Элемент | Кто вычисляет | Может ли злонамеренный сервер подделать? |
+| Element | Who computes | Can malicious server forge? |
 |---------|-------------|-------------------------------------------|
-| Safety-number / emoji fingerprint | **Клиент** из импортированных `CryptoKey` пира | **Нет** — подмена ключа на relay меняет и отпечаток; пользователь увидит расхождение |
-| `selfVerified` / peer verified flags | Сервер (Redis session state) | **Да** — сервер может выставить флаги без реальной сверки |
-| `bothVerified` | Сервер (`initiatorVerified && recipientVerified` после `/app/verification.confirm`) | **Да** — это **флаг церемонии**, не криптографическое доказательство |
-| Блокировка отправки DM до verify | Клиент (`useVerification` + gating в hooks) | UX-gate; не заменяет out-of-band сверку safety-number |
+| Safety-number / emoji fingerprint | **Client** from imported peer `CryptoKey` | **No** — key substitution on relay changes fingerprint; user sees mismatch |
+| `selfVerified` / peer verified flags | Server (Redis session state) | **Yes** — server can set flags without real verification |
+| `bothVerified` | Server (`initiatorVerified && recipientVerified` after `/app/verification.confirm`) | **Yes** — this is a **ceremony flag**, not cryptographic proof |
+| Blocking DM send until verify | Client (`useVerification` + gating in hooks) | UX-gate; does not replace out-of-band safety-number verification |
 
-**Практический вывод:** пользователь должен сверять safety-number / fingerprint
-out-of-band (голос, лично). `bothVerified=true` означает «оба нажали подтвердить в
-UI», а не «MITM невозможен». Fingerprint при этом остаётся независимым каналом
-проверки, который сервер не может согласовать с подменённым ключом незаметно для
-обоих клиентов.
+**Practical conclusion:** user must verify safety-number / fingerprint
+out-of-band (voice, in person). `bothVerified=true` means "both pressed confirm in
+UI", not "MITM is impossible". Fingerprint remains an independent verification
+channel that the server cannot align with a substituted key without both clients noticing.
 
 ---
 
-## Модель угроз
+## Threat Model
 
 ### Threat Model
 
-| Угроза | Атакующий | Защита |
+| Threat | Attacker | Protection |
 |--------|-----------|--------|
-| **Перехват трафика** | Сетевой уровень | TLS + E2EE |
-| **Компрометация сервера** | Хакер/инсайдер | Zero-knowledge, нет ключей |
-| **MITM** | Активная атака | Safety-number (128 бит) + Visual Fingerprint из публичных ключей |
-| **Identity Spoofing** | Угон аккаунта / неверный peer | Секретный вопрос (server-side admission) + Visual Fingerprint |
-| **Replay Attack** | Повтор сообщений | Уникальный IV + timestamp |
-| **Modification** | Изменение сообщений | GCM auth tag |
-| **Утечка filesystem / бэкапа файлов** | Физический доступ к диску сервера | Только файлы `.enc` без ключей; отдельно нужен доступ к целевому устройству пользователя |
-| **Утечка «метаданных» файла** | Анализ трафика или Redis | Имя и MIME передаются только в `encryptedMeta`; сервер не может их прочитать |
-| **Room presence** | Член комнаты запрашивает snapshot или подписан на topic | Видит `online` + грубый `lastSeen` других членов — **не** содержимое сообщений |
+| **Traffic interception** | Network level | TLS + E2EE |
+| **Server compromise** | Hacker/insider | Zero-knowledge, no keys |
+| **MITM** | Active attack | Safety-number (128 bits) + Visual Fingerprint from public keys |
+| **Identity Spoofing** | Account hijack / wrong peer | Secret question (server-side admission) + Visual Fingerprint |
+| **Replay Attack** | Message replay | Unique IV + timestamp |
+| **Modification** | Message alteration | GCM auth tag |
+| **Filesystem / file backup leak** | Physical access to server disk | Only `.enc` files without keys; separate access to target user device required |
+| **File "metadata" leak** | Traffic or Redis analysis | Name and MIME sent only in `encryptedMeta`; server cannot read them |
+| **Room presence** | Room member requests snapshot or subscribes to topic | Sees `online` + coarse `lastSeen` of other members — **not** message content |
 
-### Room presence (metadata)
+### Room Presence (metadata)
 
-> Реализация: room presence. Redis key `room_presence:{roomId}`.
+> Implementation: room presence. Redis key `room_presence:{roomId}`.
 
-Presence — **метаданные WebSocket-соединения**, которые сервер и так наблюдает при relay STOMP.
-Это **снижает приватность** относительно «никто не знает, кто онлайн»:
+Presence is **WebSocket connection metadata** that the server observes anyway when relaying STOMP.
+This **reduces privacy** relative to "nobody knows who is online":
 
-- Члены комнаты получают `online` (глобальный heartbeat, ~30s TTL) и `lastSeen` (округление **до минуты**).
-- Данные эфемерны: hash TTL **10 минут**, удаление при manual `BURN_ROOM`.
-- Не затрагивает zero-knowledge invariant для **сообщений и ключей** — только connection metadata.
-- Опциональное room-level отключение presence — не реализовано.
+- Room members receive `online` (global heartbeat, ~30s TTL) and `lastSeen` (rounded **to the minute**).
+- Data is ephemeral: hash TTL **10 minutes**, removal on manual `BURN_ROOM`.
+- Does not affect zero-knowledge invariant for **messages and keys** — only connection metadata.
+- Optional room-level presence disable — not implemented.
 
-Mitigations в текущей версии: member-only access, coarse last-seen, короткий TTL.
+Mitigations in current version: member-only access, coarse last-seen, short TTL.
 
-### Что видит атакующий
+### What the Attacker Sees
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Уровень атаки            │ Что видит                           │
+│ Attack level             │ What is visible                       │
 ├──────────────────────────┼──────────────────────────────────────┤
-│ Telegram (MITM в app)    │ Только открытие Mini App            │
-│ Наш сервер               │ internalIds + TG IDs (if linked) + encrypted blobs │
-│ Сетевой перехват         │ TLS encrypted WebSocket             │
+│ Telegram (MITM in app)   │ Only Mini App open                    │
+│ Our server               │ internalIds + TG IDs (if linked) + encrypted blobs │
+│ Network interception     │ TLS encrypted WebSocket             │
 │ Redis breach             │ Encrypted messages + metadata       │
-│ Физический доступ (off)  │ In-memory keys wiped (`burnAll` on unload) |
-│ Физический доступ (on)   │ Ключи в RAM — требует root/dump            |
+│ Physical access (off)  │ In-memory keys wiped (`burnAll` on unload) |
+│ Physical access (on)   │ Keys in RAM — requires root/dump            │
 └──────────────────────────┴──────────────────────────────────────┘
 ```
 
@@ -593,219 +591,219 @@ Mitigations в текущей версии: member-only access, coarse last-seen
 
 ## Wallet auth (TON Connect `ton_proof`)
 
-`POST /api/auth/wallet` принимает опциональные поля `walletPublicKey` + `walletStateInit` от TON Connect.
-Backend **не доверяет** присланному `walletPublicKey` без криптографической привязки к адресу:
+`POST /api/auth/wallet` accepts optional fields `walletPublicKey` + `walletStateInit` from TON Connect.
+Backend **does not trust** the supplied `walletPublicKey` without cryptographic binding to the address:
 
-1. `sha256(stateInit_cell) == address.hashPart` — адрес выводится из stateInit.
-2. `extractPubkey(stateInit.data) == walletPublicKey` — pubkey зашит в data-cell контракта (v3R2 / v4 / v5).
-3. Ed25519-подпись `ton_proof` проверяется с этим pubkey (`TonProofVerifier` + `TonProofSupport`).
+1. `sha256(stateInit_cell) == address.hashPart` — address is derived from stateInit.
+2. `extractPubkey(stateInit.data) == walletPublicKey` — pubkey is embedded in contract data-cell (v3R2 / v4 / v5).
+3. Ed25519 signature of `ton_proof` is verified with this pubkey (`TonProofVerifier` + `TonProofSupport`).
 
-Если клиент не прислал пару полей — fallback на toncenter RPC (`PUBLIC_KEY_UNAVAILABLE` → HTTP 502 при сбое).
-Сервер по-прежнему не хранит приватные ключи; проверка выполняется только на публичных данных кошелька.
+If client did not send the pair — fallback to toncenter RPC (`PUBLIC_KEY_UNAVAILABLE` → HTTP 502 on failure).
+Server still does not store private keys; verification uses only public wallet data.
 
-См. [API.md](./API.md) (`/api/auth/wallet`).
+See [API.md](./API.md) (`/api/auth/wallet`).
 
 ---
 
-## Дискаверабилити пользователей (wallet-only identity)
+## User Discoverability (wallet-only identity)
 
-> STOMP-контракт: [API.md](./API.md#search_user-appsearch).
+> STOMP contract: [API.md](./API.md#search_user-appsearch).
 
-Wallet-only пользователи не имеют Telegram username / numeric ID. Их можно найти для начала DM по:
+Wallet-only users have no Telegram username / numeric ID. They can be found to start DM by:
 
-| Идентификатор | Формат | Политика |
+| Identifier | Format | Policy |
 |---------------|--------|----------|
-| `internalId` | UUID v4 (36 символов) | **Exact match** — полная строка после trim |
-| Wallet address | `EQ…` / `UQ…` (TON friendly) | **Exact match** после lowercase-normalize |
+| `internalId` | UUID v4 (36 characters) | **Exact match** — full string after trim |
+| Wallet address | `EQ…` / `UQ…` (TON friendly) | **Exact match** after lowercase-normalize |
 
-Telegram-пользователи по-прежнему находятся по `@username` или numeric TG ID (exact match по полному имени / ID).
+Telegram users are still found by `@username` or numeric TG ID (exact match on full name / ID).
 
-### Запрет enumeration
+### Enumeration Prevention
 
-- Частичный UUID, префикс wallet address, «похожие» строки → `INVALID_QUERY` или `NOT_FOUND`, **не** список кандидатов.
-- Валидация формата на уровне `SearchHandler` / `SearchRequest` — до обращения к Redis.
-- Rate limit `search`: 10 req / 1 min на `internalId` инициатора (см. `ratelimit:search:{internalId}`), в т.ч. для wallet-сессий.
+- Partial UUID, wallet address prefix, "similar" strings → `INVALID_QUERY` or `NOT_FOUND`, **not** a candidate list.
+- Format validation at `SearchHandler` / `SearchRequest` level — before Redis lookup.
+- Rate limit `search`: 10 req / 1 min per initiator `internalId` (see `ratelimit:search:{internalId}`), including wallet sessions.
 
-### Zero-knowledge инвариант
+### Zero-knowledge Invariant
 
-Миграция на `internalId` **не нарушает** zero-knowledge модель сервера:
+Migration to `internalId` **does not violate** server zero-knowledge model:
 
-- `internalId` — серверный идентификатор сессии/маршрутизации, уже хранился до миграции (`auth_tg:`, `auth_wallet:`).
-- Поиск возвращает только **публичный профиль** (display name, avatar, online) — те же классы данных, что для Telegram-поиска.
-- E2EE payload (сообщения, group keys, file blobs) по-прежнему opaque; сервер не получает ключей шифрования.
-- Wallet address в поиске — публичный on-chain идентификатор, добровольно привязанный пользователем при wallet-auth.
+- `internalId` — server session/routing identifier, already stored before migration (`auth_tg:`, `auth_wallet:`).
+- Search returns only **public profile** (display name, avatar, online) — same data classes as Telegram search.
+- E2EE payload (messages, group keys, file blobs) remains opaque; server does not receive encryption keys.
+- Wallet address in search — public on-chain identifier voluntarily linked by user during wallet-auth.
 
-### Приватность vs UX
+### Privacy vs UX
 
-Пользователь **копирует** свой `internalId` из профиля (`HomePage`) и передаёт собеседнику out-of-band — как публичный contact handle. Сервер не публикует каталог всех wallet-юзеров и не поддерживает wildcard/prefix search.
+User **copies** their `internalId` from profile (`HomePage`) and shares out-of-band with peer — like a public contact handle. Server does not publish a catalog of all wallet users and does not support wildcard/prefix search.
 
 ---
 
-## Антиспам / Sybil-защита (PoW)
+## Anti-spam / Sybil Protection (PoW)
 
-Burned Chats использует **эшелонированную** антиспам-защиту. PoW (Слой 1) **дополняет**, а не заменяет rate-limit (Слой 0) и **не затрагивает** E2EE / zero-knowledge модель содержимого сообщений.
+Burned Chats uses **layered** anti-spam protection. PoW (Layer 1) **supplements**, not replaces rate-limit (Layer 0) and **does not affect** E2EE / zero-knowledge content model.
 
-### Слой 0 — Rate limiting (per `internalId`)
+### Layer 0 — Rate limiting (per `internalId`)
 
-- Реализация: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis **fixed-window** (Lua `INCR` + одноразовый `EXPIRE` при `count == 1`; ключ `ratelimit:{type}:{internalId}`).
-- Закрывает **флуд от одной идентичности** (search, message, session create и др.).
-- **Не** останавливает Sybil: новая Telegram/wallet-идентичность получает свой счётчик.
-- **STOMP SEND:** при превышении лимита в `RateLimitInterceptor` inbound-фрейм **отбрасывается** (`null`), клиент получает `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` на `/user/queue/errors` через `StompUserMessenger` — WebSocket **не** закрывается (в отличие от STOMP ERROR).
-- **`/app/heartbeat`:** whitelist — не учитывается в `GENERAL`, чтобы presence-heartbeat не рвал соединение после выжженного общего бакета.
-- **Room read-only STOMP:** `/app/room.getMembers`, `/app/room.getPresence`, `/app/room.getBans` → `ROOM_READ` (30 req / min), отдельно от `GENERAL` (100 req / min).
+- Implementation: [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java) + Redis **fixed-window** (Lua `INCR` + one-time `EXPIRE` at `count == 1`; key `ratelimit:{type}:{internalId}`).
+- Closes **flood from one identity** (search, message, session create, etc.).
+- **Does not** stop Sybil: new Telegram/wallet identity gets its own counter.
+- **STOMP SEND:** on limit exceeded `RateLimitInterceptor` **drops** inbound frame (`null`), client receives `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` on `/user/queue/errors` via `StompUserMessenger` — WebSocket is **not** closed (unlike STOMP ERROR).
+- **`/app/heartbeat`:** whitelist — not counted in `GENERAL`, so presence heartbeat does not break connection after exhausted general bucket.
+- **Room read-only STOMP:** `/app/room.getMembers`, `/app/room.getPresence`, `/app/room.getBans` → `ROOM_READ` (30 req / min), separate from `GENERAL` (100 req / min).
 
-| `RateLimitType` | Лимит | Назначение |
+| `RateLimitType` | Limit | Purpose |
 |-----------------|-------|------------|
 | `SEARCH` | 10 / min | `/app/search` |
-| `SESSION_CREATE` | 3 / min | после PoW на `/app/session.create` |
+| `SESSION_CREATE` | 3 / min | after PoW on `/app/session.create` |
 | `MESSAGE` | 60 / min | send/sync |
 | `SESSION_ACTION` | 10 / min | accept/reject/verification |
 | `HANDSHAKE` | 10 / min | key exchange |
 | `FILE_UPLOAD` | 10 / min | REST upload |
-| `GENERAL` | 100 / min | прочие `/app/*` без явного маппинга |
+| `GENERAL` | 100 / min | other `/app/*` without explicit mapping |
 | `MESSAGE_EDIT` | 10 / min | edit |
 | `MESSAGE_DELETE` | 30 / min | delete |
 | `POW_CHALLENGE` | 10 / min | `/app/pow.challenge` |
 | `ROOM_READ` | 30 / min | room.getMembers / getPresence / getBans |
 | *(whitelist)* | — | `/app/heartbeat` |
 
-На gated-маршруте `session.create` rate-limit применяется **после** успешной PoW-верификации (DESIGN §6.2), чтобы атакующий не сжигал чужой cap до доказательства work.
+On gated route `session.create` rate-limit applies **after** successful PoW verification (DESIGN §6.2), so attacker does not burn others' cap before proof of work.
 
-### Слой 1 — Client-side Proof-of-Work
+### Layer 1 — Client-side Proof-of-Work
 
-- Примитив: Hashcash на **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (битовая сложность, не hex-символы).
-- Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; решение `{ challengeId, nonce }` в теле gated-запроса.
-- Адаптивность: глобальный abuse-сигнал `pow:abuse:global` (ratio rejected/total) поднимает difficulty; **ceiling 26 bit** защищает слабые устройства.
-- **Production/testnet:** `pow.enabled=true` по умолчанию (`application.yml`, override только через `POW_ENABLED`); dev/test-профили могут отключать PoW для UX разработки.
+- Primitive: Hashcash on **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (bit difficulty, not hex characters).
+- Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; solution `{ challengeId, nonce }` in gated request body.
+- Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 26 bit** protects weak devices.
+- **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
-**Текущий enforcement (2026-06-16):** backend gate только на `/app/session.create`; frontend решает PoW при создании чата (`session_create`). Wire-format поддерживает также `search`, `room_create`, `invite` — issuance готов, gate — follow-up (см. SECURITY_REVIEW).
+**Current enforcement (2026-06-16):** backend gate only on `/app/session.create`; frontend solves PoW when creating chat (`session_create`). Wire-format also supports `search`, `room_create`, `invite` — issuance ready, gate — follow-up (see SECURITY_REVIEW).
 
-### Место в threat model
+### Place in Threat Model
 
-| Угроза | Слой 0 | Слой 1 |
+| Threat | Layer 0 | Layer 1 |
 |--------|--------|--------|
-| Sybil-массовый спам асимметричных действий | слабо (новый `internalId` = новый лимит) | **основная** (CPU × число действий) |
-| Флуд от одного аккаунта | **основная** | дополнительная |
-| Целенаправленная атака с GPU/фермой | — | частично (экономический барьер, не абсолют) |
-| Содержимое / ключи E2EE | — | **не затрагивается** (ортогонально) |
+| Sybil mass spam of asymmetric actions | weak (new `internalId` = new limit) | **primary** (CPU × number of actions) |
+| Flood from one account | **primary** | additional |
+| Targeted attack with GPU/farm | — | partial (economic barrier, not absolute) |
+| E2EE content / keys | — | **not affected** (orthogonal) |
 
-PoW **не** заменяет Visual Fingerprint (MITM), initData/wallet-auth или шифрование сообщений.
+PoW **does not** replace Visual Fingerprint (MITM), initData/wallet-auth or message encryption.
 
-### Zero-knowledge инвариант (PoW)
+### Zero-knowledge Invariant (PoW)
 
-Сервер **не должен** получать новую **долгоживущую** метаданную «identity ↔ попытка действия» из-за PoW:
+Server **must not** receive new **long-lived** metadata "identity ↔ action attempt" from PoW:
 
-- Redis `pow:challenge:{id}` и `pow:spent:{id}` **не** содержат `internalId` / userId — только challenge id, action, difficulty, timestamps.
-- Нет журнала «кто решил challenge»; TTL challenge ~60s, spent ~120s, затем ключи испаряются.
-- `pow:abuse:*` — агрегаты без per-user полей.
-- При верификации gated STOMP-запроса сервер знает инициатора из **существующего** STOMP principal — это не новое хранилище связи с challenge.
+- Redis `pow:challenge:{id}` and `pow:spent:{id}` **do not** contain `internalId` / userId — only challenge id, action, difficulty, timestamps.
+- No log of "who solved challenge"; TTL challenge ~60s, spent ~120s, then keys evaporate.
+- `pow:abuse:*` — aggregates without per-user fields.
+- On gated STOMP request verification server knows initiator from **existing** STOMP principal — not new storage linking to challenge.
 
-E2EE payload (сообщения, group keys, file blobs) по-прежнему opaque; PoW защищает **точки создания состояния / назойливости**, не confidentiality сообщений.
-
----
+E2EE payload (messages, group keys, file blobs) remains opaque; PoW protects **state creation / nuisance points**, not message confidentiality.
 
 ---
 
-## Защитные механизмы
+---
 
-> Актуальная таблица rate-limit enum — в § «Слой 0» [выше](#слой-0--rate-limiting-per-internalid).
-> Устаревшие illustrative snippet'ы (старые лимиты, `rate:` prefix, Spring CSP, sessionStorage keyStore)
-> **удалены** — ниже только указатели на реальный код.
+## Protective Mechanisms
 
-### Rate limiting (реализация)
+> Current rate-limit enum table — in § "Layer 0" [above](#layer-0--rate-limiting-per-internalid).
+> Outdated illustrative snippets (old limits, `rate:` prefix, Spring CSP, sessionStorage keyStore)
+> **removed** — below only pointers to actual code.
 
-- **Код:** [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java), enum `RateLimitType`.
-- **Алгоритм:** fixed-window (Lua `INCR` + одноразовый `EXPIRE`), не sliding-window.
-- **Redis keys:** `ratelimit:{type}:{internalId}` (не `rate:`).
-- **Лимиты:** см. таблицу «Слой 0» (MESSAGE 60/min, SESSION_CREATE 3/min, …).
-- **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — реализован в
+### Rate limiting (implementation)
+
+- **Code:** [`RateLimitService`](../../backend/src/main/java/dev/burnedchats/service/RateLimitService.java), enum `RateLimitType`.
+- **Algorithm:** fixed-window (Lua `INCR` + one-time `EXPIRE`), not sliding-window.
+- **Redis keys:** `ratelimit:{type}:{internalId}` (not `rate:`).
+- **Limits:** see "Layer 0" table (MESSAGE 60/min, SESSION_CREATE 3/min, …).
+- **Room password brute-force (SEC-8):** bucket `ROOM_PASSWORD_FAIL` — implemented in
   `RateLimitService` (`ROOM_PASSWORD_FAIL`, fixed-window per room).
 
 ### Edge rate-limit (nginx)
 
-Периметр перед приложением — `limit_req` в [`nginx/prod.conf`](../../nginx/prod.conf)
-(закрывает edge WS flood). Не путать с app-level `RateLimitService` (Слой 0): edge —
-per-IP на HTTP/SockJS handshake, app — per-`internalId` на STOMP/REST.
+Perimeter before application — `limit_req` in [`nginx/prod.conf`](../../nginx/prod.conf)
+(closes edge WS flood). Not to be confused with app-level `RateLimitService` (Layer 0): edge —
+per-IP on HTTP/SockJS handshake, app — per-`internalId` on STOMP/REST.
 
 | Zone | Rate | Burst | Locations |
 |------|------|-------|-----------|
 | `ws_limit` | 5 r/s | 10 (`nodelay`) | `/ws` (SockJS info + transport + upgrade) |
-| `api_limit` | 10 r/s | 20 (`nodelay`) | `/api/**` (в т.ч. webhook, `/api/auth/`, общий `/api/`) |
+| `api_limit` | 10 r/s | 20 (`nodelay`) | `/api/**` (including webhook, `/api/auth/`, general `/api/`) |
 
-Агент, переписывающий nginx «по спеке» без этих зон, вернёт регрессию INF-2.
+Agent rewriting nginx "per spec" without these zones reintroduces INF-2 regression.
 
-### Input validation (реализация)
+### Input validation (implementation)
 
-- **Константы:** [`ValidationConstants`](../../backend/src/main/java/dev/burnedchats/util/ValidationConstants.java) —
+- **Constants:** [`ValidationConstants`](../../backend/src/main/java/dev/burnedchats/util/ValidationConstants.java) —
   encrypted file size ceiling (26 MiB), `FILE_UPLOAD_RATE_LIMIT`, context type strings.
-- **Wire limits:** Jakarta Bean Validation на DTO — например `SendMessageRequest`
-  (`@Size(max = 65536)` на `encryptedContent`, regex на `type`, UUID patterns).
-- MIME whitelist на REST upload **не** проверяется (opaque blob); клиентская whitelist — product policy (Phase 4).
+- **Wire limits:** Jakarta Bean Validation on DTO — e.g. `SendMessageRequest`
+  (`@Size(max = 65536)` on `encryptedContent`, regex on `type`, UUID patterns).
+- MIME whitelist on REST upload **not** checked (opaque blob); client whitelist — product policy (Phase 4).
 
-### Безопасное хранение ключей (Frontend)
+### Secure Key Storage (Frontend)
 
-Реализация: [`keyStore.ts`](../../frontend/src/crypto/keyStore.ts), lifecycle
+Implementation: [`keyStore.ts`](../../frontend/src/crypto/keyStore.ts), lifecycle
 [`useAppLifecycle.ts`](../../frontend/src/hooks/useAppLifecycle.ts).
 
-| Аспект | Поведение |
+| Aspect | Behavior |
 |--------|-----------|
-| Хранилище | In-memory `Map` (DM keys + room group keys by epoch). **Не** sessionStorage / localStorage / IndexedDB для ключей |
+| Storage | In-memory `Map` (DM keys + room group keys by epoch). **Not** sessionStorage / localStorage / IndexedDB for keys |
 | Burn | `burn()` / `burnAll()`; `beforeunload`/`unload` → `burnAll('page_unload')` |
 | Background | Mini App hidden > **45s** → `burnAll('background_timeout')` (`BACKGROUND_BURN_THRESHOLD_MS`) |
 | Private ECDH keys | `generateKeyPair()`: `extractable: false` (`ecdh.ts`) |
 
-**Известное отклонение (SEC-14 / FE-2):** dev-only **DebugPanel** replay сохраняет
-STOMP-тела (в т.ч. ciphertext) в `localStorage` (`debug-replay-sessions` via
-`useReplay.ts`). Production не должен включать панель; fix — список синтеза §7.
+**Known deviation (SEC-14 / FE-2):** dev-only **DebugPanel** replay stores
+STOMP bodies (including ciphertext) in `localStorage` (`debug-replay-sessions` via
+`useReplay.ts`). Production must not enable panel; fix — synthesis list §7.
 
 ### Security headers / CSP
 
-- **Spring `SecurityConfig` с CSP не развёрнут** — в backend нет активного
-  `@EnableWebFluxSecurity` filter chain с CSP directives (historical snippet удалён).
-- **Фактическая CSP:** только nginx — см. [§4.1](#41-content-security-policy-для-telegram-mini-app-spa) и `nginx/prod.conf`.
+- **Spring `SecurityConfig` with CSP not deployed** — backend has no active
+  `@EnableWebFluxSecurity` filter chain with CSP directives (historical snippet removed).
+- **Actual CSP:** nginx only — see [§4.1](#41-content-security-policy-for-telegram-mini-app-spa) and `nginx/prod.conf`.
 
-### Эфемерность Redis (TTL)
+### Redis Ephemerality (TTL)
 
-Инвариант: **почти все** ключи Redis с TTL. Аудит backend (2026-07): **50 из 51**
-паттернов с expire.
+Invariant: **almost all** Redis keys have TTL. Backend audit (2026-07): **50 of 51**
+patterns with expire.
 
-**Известное исключение (SEC-13 / F-1):** `room_invites:{roomId}` — `SADD` без
-`EXPIRE` (`InviteTokenRepository`). Fix в коде — отдельная задача; не ciphertext,
-но нарушает формулировку «100% TTL».
+**Known exception (SEC-13 / F-1):** `room_invites:{roomId}` — `SADD` without
+`EXPIRE` (`InviteTokenRepository`). Fix in code — separate task; not ciphertext,
+but violates "100% TTL" wording.
 
-### 4.1. Content-Security-Policy для Telegram Mini App (SPA)
+### 4.1. Content-Security-Policy for Telegram Mini App (SPA)
 
-Фактическая политика для HTML/загрузки мини-приложения задаётся **обратным прокси** (`nginx/prod.conf`) и дублируется в **`frontend/nginx.prod.conf`** (контейнер статики), чтобы при расхождении деплоя не остаться без критичных директив.
+Actual policy for HTML/mini-app loading is set by **reverse proxy** (`nginx/prod.conf`) and duplicated in **`frontend/nginx.prod.conf`** (static container), so deployment mismatch does not leave critical directives missing.
 
-**Обязательно для работы видео (MP4 и др.):** явная директива `media-src`, разрешающая `blob:`. Клиент использует object URL (`URL.createObjectURL`) для превью до отправки, захвата кадра постера и воспроизведения расшифрованного Blob в `<video>`. Если `media-src` не задана, браузер падает обратно на `default-src`; при `default-src 'self'` без `blob:` загрузка медиа с `blob:https://...` блокируется (в консоли: *Loading media from 'blob:...' violates ... default-src*).
+**Required for video (MP4 etc.):** explicit `media-src` directive allowing `blob:`. Client uses object URL (`URL.createObjectURL`) for preview before send, poster frame capture and decrypted Blob playback in `<video>`. If `media-src` is not set, browser falls back to `default-src`; with `default-src 'self'` without `blob:` media load from `blob:https://...` is blocked (console: *Loading media from 'blob:...' violates ... default-src*).
 
-**Картинки:** превью в `FilePreview` может использовать `data:` URL — это обходит необходимость `blob:` в `img-src` для этого экрана. Для видео data URL всего файла неприемлем по размеру, поэтому инфраструктурное разрешение `blob:` в `media-src` — основной путь.
+**Images:** preview in `FilePreview` may use `data:` URL — bypasses need for `blob:` in `img-src` for that screen. For video a data URL of the whole file is unacceptable by size, so infrastructure `blob:` permission in `media-src` is the primary path.
 
-**Несколько заголовков `Content-Security-Policy`:** браузер применяет политики совместно (пересечение). Если один из источников (CDN, второй прокси) отдаёт политику без `media-src 'self' blob:` (или эквивалента), медиа с `blob:` может оказаться запрещённой. Нужно либо убрать конфликтующий заголовок, либо добавить согласованную директиву `media-src` на всех уровнях.
+**Multiple `Content-Security-Policy` headers:** browser applies policies jointly (intersection). If one source (CDN, second proxy) sends policy without `media-src 'self' blob:` (or equivalent), `blob:` media may be forbidden. Either remove conflicting header or add consistent `media-src` directive at all levels.
 
-Эталонная строка политики для продакшена совпадает с `add_header Content-Security-Policy` в `nginx/prod.conf` (включая `img-src ... blob:` для превью/постеров, использующих object URL для изображений).
+Reference policy string for production matches `add_header Content-Security-Policy` in `nginx/prod.conf` (including `img-src ... blob:` for previews/posters using object URL for images).
 
-**`script-src` (исполнение JS):** `'unsafe-inline'` **не используется**. Production `index.html` после Vite-сборки содержит только внешние скрипты: `'self'` (бандл `/assets/*.js`) и `https://telegram.org` (Telegram WebApp SDK). Inline `<script>` в исходном `frontend/index.html` нет; nonce/hash не требуются до появления inline-скриптов. Динамически вставляемые inline-скрипты (XSS) блокируются. **`style-src 'unsafe-inline'`** оставлен — React/тема используют inline-стили; риск ниже, чем у script XSS для E2EE-клиента.
+**`script-src` (JS execution):** `'unsafe-inline'` **not used**. Production `index.html` after Vite build contains only external scripts: `'self'` (bundle `/assets/*.js`) and `https://telegram.org` (Telegram WebApp SDK). No inline `<script>` in source `frontend/index.html`; nonce/hash not required until inline scripts appear. Dynamically inserted inline scripts (XSS) are blocked. **`style-src 'unsafe-inline'`** retained — React/theme use inline styles; risk lower than script XSS for E2EE client.
 
-**Security-заголовки (edge + frontend-контейнер):** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` — задаются в `nginx/prod.conf` и дублируются в `frontend/nginx.prod.conf`. Дополнительно на edge: `X-Frame-Options: DENY` (для Mini App достаточно `frame-ancestors` в CSP).
+**Security headers (edge + frontend container):** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` — set in `nginx/prod.conf` and duplicated in `frontend/nginx.prod.conf`. Additionally on edge: `X-Frame-Options: DENY` (for Mini App `frame-ancestors` in CSP is sufficient).
 
-**Invite URL fragment:** сервер генерирует канонический invite-URL
-`{app-domain}/join#invite_{token}`. Токен размещается в **URL-фрагменте** (`#`), а не в path
-или query: фрагмент не отправляется браузером на сервер, не попадает в nginx access-логи и не
-утекает через `Referer` при переходах на внешние origin. Клиент извлекает токен из
-`location.hash` (web) или `start_param` (legacy t.me deep link). Zero-knowledge инвариант
-не нарушается — сервер и ранее знал токен (Redis); меняется только транспортная гигиена.
+**Invite URL fragment:** server generates canonical invite URL
+`{app-domain}/join#invite_{token}`. Token is placed in **URL fragment** (`#`), not in path
+or query: fragment is not sent by browser to server, does not appear in nginx access logs and does not
+leak via `Referer` on external origin navigation. Client extracts token from
+`location.hash` (web) or `start_param` (legacy t.me deep link). Zero-knowledge invariant
+not violated — server already knew token (Redis); only transport hygiene changes.
 
-**`connect-src` (сеть из Mini App):** помимо `'self'`, API и WebSocket домена (`burnedchats.net`), `https://telegram.org`, мостов TON Connect (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` и соответствующие `wss://`) политика явно разрешает клиентский wallet RPC к Ton Center: `https://toncenter.com` (mainnet, без поддомена — wildcard `*.toncenter.com` его не покрывает), `https://testnet.toncenter.com` (testnet), а также `https://tonkeeper.com` и `https://*.tonkeeper.com` (согласованность с diagnostics CLI). Полный список origins — в строке CSP в `nginx/prod.conf` / `frontend/nginx.prod.conf`; при смене `VITE_TON_RPC_URL` или сети обновлять оба файла синхронно.
+**`connect-src` (network from Mini App):** besides `'self'`, API and WebSocket domain (`burnedchats.net`), `https://telegram.org`, TON Connect bridges (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` and corresponding `wss://`) policy explicitly allows client wallet RPC to Ton Center: `https://toncenter.com` (mainnet, no subdomain — wildcard `*.toncenter.com` does not cover it), `https://testnet.toncenter.com` (testnet), and `https://tonkeeper.com` and `https://*.tonkeeper.com` (consistency with diagnostics CLI). Full origin list — in CSP string in `nginx/prod.conf` / `frontend/nginx.prod.conf`; on `VITE_TON_RPC_URL` or network change update both files synchronously.
 
-### 5. HMAC Validation для Telegram (Java)
+### 5. HMAC Validation for Telegram (Java)
 
-> **Нет отдельного `util/HmacUtils.java`.** HMAC-SHA256, hex-кодирование и
-> constant-time сравнение реализованы **инлайн** в
+> **No separate `util/HmacUtils.java`.** HMAC-SHA256, hex encoding and
+> constant-time comparison implemented **inline** in
 > [`TelegramAuthService`](../../backend/src/main/java/dev/burnedchats/security/TelegramAuthService.java)
-> (`computeHash`, `bytesToHex`, `constantTimeEquals`). Ниже — иллюстративная
-> схема семантики (крипто-инвариант верный); при правках смотреть сервис, не
-> выдумывать utility-класс.
+> (`computeHash`, `bytesToHex`, `constantTimeEquals`). Below — illustrative
+> semantics diagram (crypto invariant correct); on edits see service, do not
+> invent utility class.
 
 ```java
 // Illustrative — actual code is private methods in TelegramAuthService
@@ -820,123 +818,123 @@ if (!constantTimeEquals(computedHash, providedHash)) {
 
 ---
 
-## Governance on-chain (Phase 5)
+## Governance On-chain (Phase 5)
 
-### Модель веса голоса и анти-flash-stake
+### Vote Weight Model and Anti-flash-stake
 
-**Инвариант (после фикса F-2):** знаменатель кворума и эффективный вес голоса
-согласованы по **локу капитала**, а не по live-стейку на момент релея.
+**Invariant (after F-2 fix):** quorum denominator and effective vote weight
+aligned on **capital lock**, not live stake at relay moment.
 
-1. **Знаменатель кворума** фиксируется при создании proposal: Governor запрашивает
-   у StakingMaster `RequestTotalVpSnapshot` → `TotalVpSnapshotReply.totalVp`,
-   считает `quorumRequired = totalVp × quorumPercent / 100` и деплоит Proposal
-   с этим знаменателем.
-2. **Вес голоса** при `CastVote` → `GovernorVoteRelay` считается как
-   `min(claimedVp, Σ VP стейков с unlockTime > proposal.endTime)`.
-   StakingMaster использует `computeOwnerVotingPowerLockedBeyond(voter, voteEndTime)`;
-   `voteEndTime` передаёт Governor из карты `proposalEndTimeById` (тот же
-   `endTime`, что записан в init Proposal).
-3. **Следствие:** Flexible-тир (`durationSeconds = 0` → `unlockTime = startTime`)
-   **не даёт права голоса** — капитал можно вывести до конца голосования.
-   Ближайший голосующий тир по умолчанию — Silver (лок ~180 дней) при окнах
-   голосования 1–7 дней.
+1. **Quorum denominator** fixed at proposal creation: Governor requests
+   from StakingMaster `RequestTotalVpSnapshot` → `TotalVpSnapshotReply.totalVp`,
+   computes `quorumRequired = totalVp × quorumPercent / 100` and deploys Proposal
+   with this denominator.
+2. **Vote weight** on `CastVote` → `GovernorVoteRelay` computed as
+   `min(claimedVp, Σ VP of stakes with unlockTime > proposal.endTime)`.
+   StakingMaster uses `computeOwnerVotingPowerLockedBeyond(voter, voteEndTime)`;
+   `voteEndTime` passed by Governor from map `proposalEndTimeById` (same
+   `endTime` recorded in init Proposal).
+3. **Consequence:** Flexible tier (`durationSeconds = 0` → `unlockTime = startTime`)
+   **does not grant voting rights** — capital can be withdrawn before vote ends.
+   Nearest voting tier by default — Silver (lock ~180 days) with voting windows
+   1–7 days.
 
-**Что закрыто:** путь «post-snapshot стейк в Flexible → голос → анстейк» —
-капитало-эффективный захват кворума без lock-издержек.
+**What is closed:** path "post-snapshot stake in Flexible → vote → unstake" —
+capital-effective quorum capture without lock cost.
 
-**Остаточный риск (осознанный, не полный Compound-style prior-votes):** адрес
-может застейкать **после** снапшота в locked-тир (Silver+) и голосовать VP,
-которого не было в знаменателе. Атака перестаёт быть flash: капитал блокируется
-на 180+ дней. Полный снапшот VP каждого адреса на момент создания proposal
-отложен.
+**Residual risk (conscious, not full Compound-style prior-votes):** address
+can stake **after** snapshot in locked tier (Silver+) and vote VP
+not in denominator. Attack ceases to be flash: capital locked
+for 180+ days. Full VP snapshot per address at proposal creation
+deferred.
 
-**Подход:** snapshot eligibility по tier lock, не полный prior-votes Compound-style.
+**Approach:** snapshot eligibility by tier lock, not full Compound-style prior-votes.
 
-### Cashback-петля между auto-cashback контрактами (RC-2)
+### Cashback Loop Between Auto-cashback Contracts (RC-2)
 
-**Класс уязвимости:** два (или более) служебных контракта с безусловным или рефлексивным
-`receive() { cashback(sender()); }`, где один контракт завершает relay-хендлер терминальным
-`cashback(sender())` в адрес «партнёра», который сам авто-cashback'ает обратно. `cashback`
-использует `SendRemainingValue` — остаток TON переносится почти целиком на каждый хоп →
-сотни пустых переводов (`opcode: null`) и **self-DoS** (out-of-gas, exit `-14`) на одном из
-контрактов. Не атака извне: срабатывает на **каждом** штатном relayed-голосе.
+**Vulnerability class:** two (or more) service contracts with unconditional or reflexive
+`receive() { cashback(sender()); }`, where one contract ends relay handler with terminal
+`cashback(sender())` to "partner" that auto-cashbacks back. `cashback`
+uses `SendRemainingValue` — remaining TON moves almost entirely on each hop →
+hundreds of empty transfers (`opcode: null`) and **self-DoS** (out-of-gas, exit `-14`) on one of
+contracts. Not external attack: triggers on **every** normal relayed vote.
 
-**Подтверждённый инцидент (testnet):** Governor ⇄ StakingMaster при `GovernorVoteRelay` —
-self-DoS через cashback-петлю (~349 пустых hop'ов в одном trace).
+**Confirmed incident (testnet):** Governor ⇄ StakingMaster on `GovernorVoteRelay` —
+self-DoS via cashback loop (~349 empty hops in one trace).
 
-**Принятый паттерн предотвращения:**
+**Accepted prevention pattern:**
 
-1. **Refund voter, не partner:** в `StakingMaster.GovernorVoteRelay` после форварда
-   `ProposalVoteRelay` остаток relay отправляется на **`msg.voter`** терминальным режимом
-   (`SendRemainingValue | SendIgnoreErrors`), а не `cashback(sender())` в Governor.
-2. **Non-reflective `receive()`:** plain TON от «партнёра по петле» поглощается без cashback:
-   - `governor.tact` — `receive()`: cashback только если `sender() != stakingMaster`;
-   - `staking-master.tact` — `receive()`: cashback только если `sender() != governorAddr`.
-3. **Bounce-хендлеры без re-ping:** `bounced<GovernorVoteRelay>` / `bounced<ProposalVoteRelay>`
-   не вызывают `cashback(sender())` в адрес партнёра.
+1. **Refund voter, not partner:** in `StakingMaster.GovernorVoteRelay` after forwarding
+   `ProposalVoteRelay` remaining relay sent to **`msg.voter`** in terminal mode
+   (`SendRemainingValue | SendIgnoreErrors`), not `cashback(sender())` to Governor.
+2. **Non-reflective `receive()`:** plain TON from "loop partner" absorbed without cashback:
+   - `governor.tact` — `receive()`: cashback only if `sender() != stakingMaster`;
+   - `staking-master.tact` — `receive()`: cashback only if `sender() != governorAddr`.
+3. **Bounce handlers without re-ping:** `bounced<GovernorVoteRelay>` / `bounced<ProposalVoteRelay>`
+   do not call `cashback(sender())` to partner.
 
-Паттерн (2) уже используется в staking stack (Pool ↔ Master). При добавлении новых
-relay-цепочек между auto-cashback контрактами — **не** завершать relay терминальным cashback
-в служебный контракт-партнёр; возвращать остаток инициатору или явному beneficiary.
+Pattern (2) already used in staking stack (Pool ↔ Master). When adding new
+relay chains between auto-cashback contracts — **do not** end relay with terminal cashback
+to service partner contract; return remainder to initiator or explicit beneficiary.
 
-### Fee-exempt transfers и stale excluded snapshot
+### Fee-exempt Transfers and Stale Excluded Snapshot
 
-**Проблема:** `BurnJettonWallet.JettonTransfer` проверяет excluded-статус по **локальному снимку**
-`feeConfig` отправителя. Если `StakingMaster` (или другой protocol sink) добавлен в excluded на
-мастере после sync кошелька пользователя, депозит в стейкинг облагается стандартным 1% fee
-(расхождение с `TOKENOMICS.md`).
+**Problem:** `BurnJettonWallet.JettonTransfer` checks excluded status against **local snapshot**
+of sender's `feeConfig`. If `StakingMaster` (or other protocol sink) added to excluded on
+master after user wallet sync, staking deposit charged standard 1% fee
+(mismatch with `TOKENOMICS.md`).
 
-**Принятый механизм (live resolve на master):**
+**Accepted mechanism (live resolve on master):**
 
-1. Локальный fast-path: отправитель или получатель в локальном excluded-снимке → excluded transfer.
-2. Обычный P2P (`forwardTonAmount < 1 TON`, не excluded локально) → fee path без hop на master
-   (газовый профиль warm-wallet path сохранён).
-3. Protocol notify path (`forwardTonAmount ≥ 1 TON`, типичный стейкинг) при отсутствии локального
-   excluded → `ResolveJettonTransfer` (wallet → master). Мастер сверяет **живой** `excludedHead`,
-   пушит актуальный `JettonUpdateFeeConfig` на отправителя и выполняет `CommitJettonTransfer`.
+1. Local fast-path: sender or recipient in local excluded snapshot → excluded transfer.
+2. Normal P2P (`forwardTonAmount < 1 TON`, not locally excluded) → fee path without hop to master
+   (warm-wallet path gas profile preserved).
+3. Protocol notify path (`forwardTonAmount ≥ 1 TON`, typical staking) when not locally
+   excluded → `ResolveJettonTransfer` (wallet → master). Master checks **live** `excludedHead`,
+   pushes current `JettonUpdateFeeConfig` to sender and executes `CommitJettonTransfer`.
 
-**Безопасность:** `excludedTransfer=true` в commit выставляется только если адрес есть в
-timelock-управляемом excluded-листе мастера (`AddExcluded` / `RemoveExcluded`). Произвольный
-получатель не может обойти комиссию. Wallet авторизован: sender jetton wallet == caller;
-`CommitJettonTransfer` принимается только от master.
+**Security:** `excludedTransfer=true` in commit set only if address is in
+timelock-managed excluded list on master (`AddExcluded` / `RemoveExcluded`). Arbitrary
+recipient cannot bypass fee. Wallet authorized: sender jetton wallet == caller;
+`CommitJettonTransfer` accepted only from master.
 
 Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
 
 ---
 
-## Аудит безопасности (чеклист)
+## Security Audit (checklist)
 
-> Сверка с кодом (2026-07). Пункты отражают **фактическую** реализацию;
-> известные отклонения помечены явно.
+> Code verification (2026-07). Items reflect **actual** implementation;
+> known deviations marked explicitly.
 
 ### Frontend
-- [x] Web Crypto API вместо JS библиотек
-- [x] Уникальный IV для каждого сообщения
+- [x] Web Crypto API instead of JS libraries
+- [x] Unique IV for each message
 - [x] Non-extractable ECDH private keys (`generateKeyPair`: `extractable: false`)
-- [x] Ключи E2EE только in-memory (`keyStore.ts`), не sessionStorage/localStorage
-- [x] Burn при закрытии / beforeunload; background burn после 45s hidden
-- [ ] DebugPanel replay → localStorage (dev-only отклонение, SEC-14)
+- [x] E2EE keys in-memory only (`keyStore.ts`), not sessionStorage/localStorage
+- [x] Burn on close / beforeunload; background burn after 45s hidden
+- [ ] DebugPanel replay → localStorage (dev-only deviation, SEC-14)
 
 ### Backend (Java)
-- [x] HMAC-SHA256 валидация initData
-- [x] Constant-time сравнение хешей
-- [x] Rate limiting на критических эндпоинтах (`ratelimit:*` keys)
-- [x] Input validation на DTO (Bean Validation)
-- [x] CSP / security headers на nginx (не Spring SecurityConfig)
-- [x] TLS только (no HTTP)
+- [x] HMAC-SHA256 initData validation
+- [x] Constant-time hash comparison
+- [x] Rate limiting on critical endpoints (`ratelimit:*` keys)
+- [x] Input validation on DTO (Bean Validation)
+- [x] CSP / security headers on nginx (not Spring SecurityConfig)
+- [x] TLS only (no HTTP)
 
-### Общее
-- [x] Telegram initData expiry check — prod default **24h** (`telegram.mini-app.auth.max-age: 86400`, override `TELEGRAM_AUTH_MAX_AGE`); осознанное решение REPORT-backend D1
-- [x] Session TTL в Redis
-- [x] Нет логирования содержимого сообщений
-- [x] Нет хранения ключей на сервере
-- [ ] Redis TTL на **всех** ключах — 50/51; исключение `room_invites:{roomId}` (SEC-13 / F-1, fix отдельно)
+### General
+- [x] Telegram initData expiry check — prod default **24h** (`telegram.mini-app.auth.max-age: 86400`, override `TELEGRAM_AUTH_MAX_AGE`); conscious decision REPORT-backend D1
+- [x] Session TTL in Redis
+- [x] No logging of message content
+- [x] No key storage on server
+- [ ] Redis TTL on **all** keys — 50/51; exception `room_invites:{roomId}` (SEC-13 / F-1, fix separately)
 
 ---
 
-## Тестирование безопасности
+## Security Testing
 
-### Unit тесты криптографии (Frontend)
+### Cryptography Unit Tests (Frontend)
 
 ```typescript
 describe('Crypto Module', () => {
@@ -983,7 +981,7 @@ describe('Crypto Module', () => {
 });
 ```
 
-### Integration тесты (Java)
+### Integration Tests (Java)
 
 ```java
 @SpringBootTest
@@ -998,7 +996,7 @@ class TelegramAuthServiceTest {
     
     @Test
     void shouldValidateCorrectInitData() {
-        // Генерируем валидный initData
+        // Generate valid initData
         String initData = generateValidInitData(botToken, 123456789L);
         
         TelegramUser user = authService.validateInitData(initData);
@@ -1008,7 +1006,7 @@ class TelegramAuthServiceTest {
     
     @Test
     void shouldRejectExpiredInitData() {
-        // initData старше configured max-age (prod default 24h — telegram.mini-app.auth.max-age)
+        // initData older than configured max-age (prod default 24h — telegram.mini-app.auth.max-age)
         String initData = generateExpiredInitData(botToken, 123456789L);
         
         assertThatThrownBy(() -> authService.validateInitData(initData))
@@ -1029,26 +1027,26 @@ class TelegramAuthServiceTest {
 
 ---
 
-## Комнаты (Phase 2)
+## Rooms (Phase 2)
 
-### Пароль комнаты
+### Room Password
 
-#### Алгоритм KDF (реализовано в P2-1)
+#### KDF Algorithm (implemented in P2-1)
 
-Используется **PBKDF2-HMAC-SHA256** через Web Crypto API (фронтенд) и `javax.crypto` (бэкенд, только для тестов).
+**PBKDF2-HMAC-SHA256** is used via Web Crypto API (frontend) and `javax.crypto` (backend, tests only).
 
-| Параметр | Значение |
+| Parameter | Value |
 |----------|----------|
-| Алгоритм | PBKDF2WithHmacSHA256 |
-| Итерации | 200 000 |
-| Длина proof | 256 бит (32 байта) |
-| Salt | 16 байт, `crypto.getRandomValues` |
-| Кодировка | Base64 |
+| Algorithm | PBKDF2WithHmacSHA256 |
+| Iterations | 200 000 |
+| Proof length | 256 bits (32 bytes) |
+| Salt | 16 bytes, `crypto.getRandomValues` |
+| Encoding | Base64 |
 
-#### Поток создания комнаты
+#### Room Creation Flow
 
 ```
-Клиент                              Сервер
+Client                              Server
   │                                    │
   ├─ salt = crypto.getRandomValues()   │
   ├─ proof = PBKDF2(password, salt)    │
@@ -1060,12 +1058,12 @@ class TelegramAuthServiceTest {
   │◄── ROOM_CREATED {roomId} ──────────┤
 ```
 
-#### Поток проверки пароля при входе
+#### Password Verification Flow on Join
 
 ```
-Клиент                              Сервер
+Client                              Server
   │                                    │
-  ├─ GET salt (из invite:{token})       │
+  ├─ GET salt (from invite:{token})       │
   ├─── REQUEST_JOIN {token, proof} ────►│
   │                                    ├─ actualHash = SHA-256(proof)
   │                                    ├─ stored = room.passwordProofHash
@@ -1073,65 +1071,65 @@ class TelegramAuthServiceTest {
   │◄── JOIN_ACCEPTED / JOIN_REJECTED ──┤
 ```
 
-#### Гарантии безопасности
+#### Security Guarantees
 
-- **Plaintext пароль** не логируется, не передаётся на сервер, не хранится нигде.
-- **Proof** хешируется SHA-256 перед записью в Redis — утечка Redis-дампа не даёт proof напрямую.
-- **Constant-time сравнение** (`MessageDigest.isEqual`) предотвращает timing-атаки.
-- **Не логировать** `proof`, `salt` и `passwordProofHash` в DEBUG/INFO логах — только уровень TRACE при необходимости диагностики.
+- **Plaintext password** is not logged, not sent to server, not stored anywhere.
+- **Proof** hashed SHA-256 before writing to Redis — Redis dump leak does not give proof directly.
+- **Constant-time comparison** (`MessageDigest.isEqual`) prevents timing attacks.
+- **Do not log** `proof`, `salt` and `passwordProofHash` in DEBUG/INFO logs — TRACE level only if diagnostics needed.
 
-#### Защита от перебора (Rate Limiting)
+#### Brute-force Protection (Rate Limiting)
 
-Неудачные проверки password-proof на `REQUEST_JOIN` / join-by-password
-лимитируются через `RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL`
-(ключ Redis: `ratelimit:room_password_fail:{roomId}:{internalId}`):
+Failed password-proof checks on `REQUEST_JOIN` / join-by-password
+are limited via `RateLimitService.RateLimitType.ROOM_PASSWORD_FAIL`
+(Redis key: `ratelimit:room_password_fail:{roomId}:{internalId}`):
 
-- Лимит: **5 неудачных попыток за 10 минут**
+- Limit: **5 failed attempts per 10 minutes**
   (`rate-limit.room-password-fail.per-window` /
-  `rate-limit.room-password-fail.window-seconds` в `application.yml`).
-- Инкремент счётчика — **только** при неуспешной проверке proof
-  (пустой/неверный proof); успешный proof счётчик не трогает.
-- При исчерпании бюджета (`remaining == 0`) следующая попытка отклоняется
-  `RATE_LIMIT_EXCEEDED` до истечения окна (TTL ключа) — отдельный
-  «длинный» lockout 15–60 мин не используется; окно 10 мин и есть lockout.
-- Реализация: `RateLimitService.ROOM_PASSWORD_FAIL` (см. § «Пароль комнаты» выше).
+  `rate-limit.room-password-fail.window-seconds` in `application.yml`).
+- Counter increment — **only** on unsuccessful proof check
+(empty/wrong proof); successful proof does not touch counter.
+- On budget exhaustion (`remaining == 0`) next attempt rejected with
+  `RATE_LIMIT_EXCEEDED` until window expires (key TTL) — separate
+  "long" lockout 15–60 min not used; 10 min window is the lockout.
+- Implementation: `RateLimitService.ROOM_PASSWORD_FAIL` (see § "Room Password" above).
 
-### Групповой ключ комнаты
+### Room Group Key
 
-- Генерируется на клиенте (владелец) при создании комнаты. Хранится в keyStore на устройствах участников.
-- При добавлении нового участника групповой ключ шифруется его публичным ключом и доставляется через сервер (relay). Сервер не расшифровывает и не хранит ключ в открытом виде.
-- При **добровольном** выходе участника (`/app/room.leave`) владелец получает `ROOM_MEMBER_LEFT` и **должен** выполнить rekey: новый групповой ключ рассылается оставшимся; у вышедшего нет доступа к новому ключу. **Force-unsubscribe:** сервер снимает активные подписки вышедшего на `/topic/room/{roomId}` — он не получает новые ciphertext на открытой сессии до disconnect.
-- При **принудительном** удалении (`/app/room.kick`, `/app/room.ban`) сервер удаляет жертву из membership, pubkey, join-request и **всех эпох** `room_keys:{roomId}:{epoch}`. Оставшиеся получают `ROOM_MEMBER_REMOVED`; владелец **обязан** немедленно выполнить rekey (`/app/room.rekey`). **Subscribe-guard:** inbound STOMP interceptor отклоняет `SUBSCRIBE /topic/room/{roomId}` для не-членов (`NOT_MEMBER` STOMP ERROR) — удалённый участник не может получать новые ciphertext через topic даже до rekey. **Force-unsubscribe:** сервер снимает уже открытые подписки жертвы на room topic сразу после kick/ban (все сессии/вкладки); подписки `/user/queue/*` не затрагиваются. Rekey client-driven — сервер relay + cleanup Redis + membership guard + subscription cut-off.
-- **Ban:** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Забаненный `internalId` получает `USER_BANNED` при любой попытке join (любой invite token). Бан привязан к **identity** (`internalId`), не к «человеку»: wallet-only identity стабильна; Telegram→internalId детерминирован; **новый кошелёк = новый internalId** и обходит бан прежней identity. Это осознанное ограничение модели угроз (см. wallet-only identity в [ARCHITECTURE.md](./ARCHITECTURE.md)).
-- **Mute:** `/app/room.mute` добавляет `internalId` в `room_muted:{roomId}` **без** удаления из membership и **без** rekey. Заглушённый участник сохраняет групповой ключ на клиенте и может **читать** ciphertext; сервер отклоняет только `/app/room.message.send` с кодом `MUTED`. Zero-knowledge не нарушается — это policy relay, не доступ сервера к ключам.
-- **Read-only:** флаг `readOnly` в `room:{roomId}`; при `true` отправлять могут **owner и admin** (`ROOM_READ_ONLY` для member). Участники по-прежнему получают fan-out на topic.
-- **Роли:** источник истины владельца — `room.ownerInternalId`. Overlay `room_roles:{roomId}` хранит только `admin` \| `member` (отсутствие записи = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
+- Generated on client (owner) when creating room. Stored in keyStore on participant devices.
+- When adding new participant group key is encrypted with their public key and delivered via server (relay). Server does not decrypt or store key in plaintext.
+- On **voluntary** member leave (`/app/room.leave`) owner receives `ROOM_MEMBER_LEFT` and **must** perform rekey: new group key sent to remaining members; leaver has no access to new key. **Force-unsubscribe:** server removes leaver's active subscriptions to `/topic/room/{roomId}` — they do not receive new ciphertext on open session until disconnect.
+- On **forced** removal (`/app/room.kick`, `/app/room.ban`) server removes victim from membership, pubkey, join-request and **all epochs** `room_keys:{roomId}:{epoch}`. Remaining receive `ROOM_MEMBER_REMOVED`; owner **must** immediately rekey (`/app/room.rekey`). **Subscribe-guard:** inbound STOMP interceptor rejects `SUBSCRIBE /topic/room/{roomId}` for non-members (`NOT_MEMBER` STOMP ERROR) — removed participant cannot receive new ciphertext via topic even before rekey. **Force-unsubscribe:** server removes victim's open subscriptions to room topic immediately after kick/ban (all sessions/tabs); `/user/queue/*` subscriptions unaffected. Rekey client-driven — server relay + Redis cleanup + membership guard + subscription cut-off.
+- **Ban:** `/app/room.ban` = kick + `SADD room_bans:{roomId}`. Banned `internalId` receives `USER_BANNED` on any join attempt (any invite token). Ban bound to **identity** (`internalId`), not "person": wallet-only identity is stable; Telegram→internalId deterministic; **new wallet = new internalId** bypasses ban of previous identity. Conscious threat model limitation (see wallet-only identity in [ARCHITECTURE.md](./ARCHITECTURE.md)).
+- **Mute:** `/app/room.mute` adds `internalId` to `room_muted:{roomId}` **without** membership removal and **without** rekey. Muted participant keeps group key on client and can **read** ciphertext; server rejects only `/app/room.message.send` with code `MUTED`. Zero-knowledge not violated — policy relay, not server access to keys.
+- **Read-only:** `readOnly` flag in `room:{roomId}`; when `true` only **owner and admin** can send (`ROOM_READ_ONLY` for member). Participants still receive fan-out on topic.
+- **Roles:** owner source of truth — `room.ownerInternalId`. Overlay `room_roles:{roomId}` stores only `admin` \| `member` (no record = member). `roleOf(roomId, internalId)` → `owner` \| `admin` \| `member`.
   - **Owner-only:** burn, transfer ownership, setRole, setTtl, ban/unban/getBans.
   - **Admin or owner:** kick, getInviteLink/revokeInvite/getInvites, mute/unmute/setReadOnly.
-  - **Admin restrictions:** не может kick/mute owner или другого admin (`CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`).
-  - **setRole** (`/app/room.setRole`, owner-only): `role ∈ {admin, member}`; target ∈ members; нельзя назначить owner через overlay; broadcast `ROOM_ROLE_UPDATED`.
+  - **Admin restrictions:** cannot kick/mute owner or another admin (`CANNOT_KICK_OWNER`, `CANNOT_KICK_ADMIN`).
+  - **setRole** (`/app/room.setRole`, owner-only): `role ∈ {admin, member}`; target ∈ members; cannot assign owner via overlay; broadcast `ROOM_ROLE_UPDATED`.
   - **Transfer ownership** (`/app/room.transferOwnership`, owner-only).
-  - **Managed TTL / auto-burn:** owner задаёт `autoBurnAt` через `/app/room.setTtl`
-    (`ttlSeconds` или абсолютный epoch). Сервер хранит поле в `room:{roomId}`, капит activity-TTL
-    hash-ключа по этому instant и ставит dedicated trigger `room:autoburn:{roomId}` (не продлевается
-    активностью). По истечении trigger key — полный каскад BURN_ROOM + `ROOM_BURNED` всем членам
-    (keyspace listener, как offline queue). Zero-knowledge: сервер видит только метаданные TTL, не
-    содержимое сообщений.
-  - **Read-only send:** owner и admin могут постить; member получает `ROOM_READ_ONLY`.
-- После rekey старая эпоха (`newEpoch - 1`) удаляется сервером (`deleteEpoch` в обработчике `room.rekey`).
+  - **Managed TTL / auto-burn:** owner sets `autoBurnAt` via `/app/room.setTtl`
+    (`ttlSeconds` or absolute epoch). Server stores field in `room:{roomId}`, caps activity-TTL
+    of hash key to this instant and sets dedicated trigger `room:autoburn:{roomId}` (not extended by
+    activity). On trigger key expiry — full BURN_ROOM cascade + `ROOM_BURNED` to all members
+    (keyspace listener, like offline queue). Zero-knowledge: server sees only TTL metadata, not
+    message content.
+  - **Read-only send:** owner and admin can post; member gets `ROOM_READ_ONLY`.
+- After rekey old epoch (`newEpoch - 1`) deleted by server (`deleteEpoch` in `room.rekey` handler).
 
-> Детальный протокол (выбор схемы, сравнение Sender Keys vs Tree-DH, wrap/unwrap алгоритмы, rekey): [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md)
+> Detailed protocol (scheme choice, Sender Keys vs Tree-DH comparison, wrap/unwrap algorithms, rekey): [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md)
 
-### Инвайт-токены
+### Invite Tokens
 
-- Токен — криптостойкая случайная строка (например 32 байта hex). В Redis хранится только привязка к roomId и метаданные (createdBy, expiresAt, maxUses). Утечка токена даёт возможность отправить заявку на вход или (при режиме by_password) войти, зная пароль; не раскрывает состав комнаты без доступа к серверу.
+- Token — cryptographically strong random string (e.g. 32 bytes hex). Redis stores only binding to roomId and metadata (createdBy, expiresAt, maxUses). Token leak allows submitting join request or (in by_password mode) joining with password; does not reveal room composition without server access.
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — общая архитектура (в т.ч. комнаты)
-- [API.md](./API.md) — формат сообщений
-- [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band обмен ключами
-- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — overall architecture (including rooms)
+- [API.md](./API.md) — message format
+- [BAND_KEY_EXCHANGE.md](./BAND_KEY_EXCHANGE.md) — In-Band key exchange
+- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — group key protocol: scheme choice, wrap/unwrap, rekey
 

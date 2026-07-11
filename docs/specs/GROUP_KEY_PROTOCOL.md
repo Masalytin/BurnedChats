@@ -1,129 +1,129 @@
-# Протокол группового ключа — Burned Chats Rooms
+# Group Key Protocol — Burned Chats Rooms
 
-> Исследование и выбор схемы группового E2EE для комнат (P2-3.1.1)
+> Research and selection of a group E2EE scheme for rooms (P2-3.1.1)
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Сравнение протоколов](#сравнение-протоколов)
-- [Выбор: один групповой ключ (MVP)](#выбор-один-групповой-ключ-mvp)
-- [Протокол: жизненный цикл группового ключа](#протокол-жизненный-цикл-группового-ключа)
-- [Схема выдачи ключа новому участнику](#схема-выдачи-ключа-новому-участнику)
-- [Ротация ключа при выходе участника](#ротация-ключа-при-выходе-участника)
-- [Хранение в Redis](#хранение-в-redis)
-- [Ограничения и будущее](#ограничения-и-будущее)
-
----
-
-## Сравнение протоколов
-
-### Вариант A: Один общий групповой ключ (Shared Group Key)
-
-**Принцип:** Один симметричный AES-256-GCM ключ для всей комнаты. Все участники шифруют и расшифровывают сообщения одним ключом. При добавлении нового участника владелец шифрует ключ его ECDH публичным ключом. При выходе — rekey.
-
-**Преимущества:**
-- Максимально простая реализация: один ключ на комнату, нет сложных рatchet-структур.
-- Полностью базируется на уже существующем стеке (ECDH P-256 + AES-GCM, Web Crypto API).
-- Нет дополнительных зависимостей.
-- Понятная схема шифрования при передаче ключа: ECIES-like (ECDH ephemeral + HKDF + AES-GCM).
-- Низкая нагрузка на клиент при шифровании/расшифровке.
-
-**Ограничения:**
-- Нет per-sender forward secrecy: все участники, владея групповым ключом, теоретически могут читать сообщения друг друга до точки rekey.
-- Компрометация ключа одного участника — компрометация всей истории до rekey.
-- Rekey при выходе участника — O(N) операций (N зашифрованных копий нового ключа).
+- [Comparison of Protocols](#comparison-of-protocols)
+- [Choice: Single Group Key (MVP)](#choice-single-group-key-mvp)
+- [Protocol: Group Key Lifecycle](#protocol-group-key-lifecycle)
+- [Key Delivery Scheme for New Member](#key-delivery-scheme-for-new-member)
+- [Key Rotation on Member Departure](#key-rotation-on-member-departure)
+- [Redis Storage](#redis-storage)
+- [Limitations and Future](#limitations-and-future)
 
 ---
 
-### Вариант B: Signal Sender Keys
+## Comparison of Protocols
 
-**Принцип:** Каждый участник генерирует собственный `SenderKey` — набор из `SenderKeyId`, `ChainKey` и подписи. При отправке сообщения участник зашифровывает его своим Sender Key (по сути, Message Ratchet). При вступлении в группу новый участник получает `SenderKeyDistributionMessage` от каждого уже присутствующего участника.
+### Option A: Single Shared Group Key (Shared Group Key)
 
-**Преимущества:**
-- Per-sender forward secrecy: компрометация одного участника не раскрывает сообщения других.
-- Отправитель выполняет только 1 операцию шифрования независимо от размера группы.
-- Используется в Signal Group Messaging, WhatsApp.
+**Principle:** One symmetric AES-256-GCM key for the entire room. All members encrypt and decrypt messages with the same key. When a new member is added, the owner encrypts the key with their ECDH public key. On departure — rekey.
 
-**Ограничения:**
-- Существенно более сложная реализация: нужен полный рatchet (Double Ratchet или упрощённый Message Ratchet).
-- Нет нативной поддержки в Web Crypto API; нужна отдельная JS-библиотека (например `@signalapp/libsignal-client`) или собственная реализация.
-- При вступлении нового участника он получает Sender Key только от участников, которые в это время онлайн, что создаёт сложности для offline delivery.
-- При выходе участника rekey всё равно нужен (иначе вышедший продолжает расшифровывать сообщения до следующей ротации).
-- Усложняет синхронизацию состояния при reconnect.
+**Advantages:**
+- Maximum simplicity: one key per room, no complex ratchet structures.
+- Fully built on the existing stack (ECDH P-256 + AES-GCM, Web Crypto API).
+- No additional dependencies.
+- Clear key-encryption scheme for delivery: ECIES-like (ECDH ephemeral + HKDF + AES-GCM).
+- Low client load for encryption/decryption.
 
----
-
-### Вариант C: Tree-DH / MLS (Messaging Layer Security)
-
-**Принцип:** Каждый участник — листовой узел бинарного дерева ключей (Ratchet Tree). Общий ключ вычисляется через цепочку DH по дереву. Добавление/удаление участника обновляет только путь от листа до корня — O(log N) операций.
-
-**Преимущества:**
-- Оптимальная эффективность обновления ключей: O(log N) вместо O(N).
-- Полная forward secrecy.
-- RFC 9420 (MLS) — стандартизированный протокол.
-
-**Ограничения:**
-- Самая сложная реализация из всех рассматриваемых.
-- Нет зрелой JS-библиотеки для браузера без native bindings.
-- Требует строгой синхронизации состояния дерева между участниками — сложно с STOMP / WebSocket без собственного механизма консенсуса.
-- Избыточно для комнат до 50 участников.
+**Limitations:**
+- No per-sender forward secrecy: all members holding the group key can theoretically read each other's messages until the next rekey.
+- Compromise of one member's key — compromise of the entire history until rekey.
+- Rekey on member departure — O(N) operations (N encrypted copies of the new key).
 
 ---
 
-## Выбор: один групповой ключ (MVP)
+### Option B: Signal Sender Keys
 
-**Решение: Вариант A — один общий симметричный групповой ключ.**
+**Principle:** Each member generates their own `SenderKey` — a set of `SenderKeyId`, `ChainKey`, and signature. When sending a message, a member encrypts it with their Sender Key (essentially a Message Ratchet). When joining a group, the new member receives a `SenderKeyDistributionMessage` from each existing member.
 
-### Обоснование
+**Advantages:**
+- Per-sender forward secrecy: compromise of one member does not reveal messages from others.
+- The sender performs only 1 encryption operation regardless of group size.
+- Used in Signal Group Messaging, WhatsApp.
 
-| Критерий | Shared Group Key | Sender Keys | Tree-DH / MLS |
+**Limitations:**
+- Significantly more complex implementation: requires a full ratchet (Double Ratchet or a simplified Message Ratchet).
+- No native support in Web Crypto API; requires a separate JS library (e.g. `@signalapp/libsignal-client`) or a custom implementation.
+- When a new member joins, they receive Sender Keys only from members who are online at that moment, which complicates offline delivery.
+- Rekey is still required on member departure (otherwise the departed member continues to decrypt messages until the next rotation).
+- Complicates state synchronization on reconnect.
+
+---
+
+### Option C: Tree-DH / MLS (Messaging Layer Security)
+
+**Principle:** Each member is a leaf node in a binary key tree (Ratchet Tree). The shared key is computed via a chain of DH operations along the tree. Adding/removing a member updates only the path from leaf to root — O(log N) operations.
+
+**Advantages:**
+- Optimal key-update efficiency: O(log N) instead of O(N).
+- Full forward secrecy.
+- RFC 9420 (MLS) — standardized protocol.
+
+**Limitations:**
+- The most complex implementation of all options considered.
+- No mature JS library for the browser without native bindings.
+- Requires strict tree-state synchronization among members — difficult with STOMP / WebSocket without a custom consensus mechanism.
+- Overkill for rooms up to 50 members.
+
+---
+
+## Choice: Single Group Key (MVP)
+
+**Decision: Option A — single shared symmetric group key.**
+
+### Rationale
+
+| Criterion | Shared Group Key | Sender Keys | Tree-DH / MLS |
 |----------|:---:|:---:|:---:|
-| Сложность реализации | ✅ Низкая | ⚠️ Высокая | ❌ Очень высокая |
-| Web Crypto API native | ✅ Полностью | ❌ Нет | ❌ Нет |
-| Forward secrecy | ⚠️ Только после rekey | ✅ Per-sender | ✅ Полная |
-| Эффективность rekey | ⚠️ O(N) | ⚠️ O(N) | ✅ O(log N) |
-| Offline доставка ключа | ✅ Просто | ❌ Сложно | ❌ Сложно |
-| Размер комнаты ≤ 50 | ✅ Достаточно | ✅ Достаточно | ✅ Избыточно |
-| Соответствует стеку | ✅ ECDH + AES-GCM | ❌ Нет | ❌ Нет |
+| Implementation complexity | ✅ Low | ⚠️ High | ❌ Very high |
+| Web Crypto API native | ✅ Fully | ❌ No | ❌ No |
+| Forward secrecy | ⚠️ Only after rekey | ✅ Per-sender | ✅ Full |
+| Rekey efficiency | ⚠️ O(N) | ⚠️ O(N) | ✅ O(log N) |
+| Offline key delivery | ✅ Simple | ❌ Complex | ❌ Complex |
+| Room size ≤ 50 | ✅ Sufficient | ✅ Sufficient | ✅ Overkill |
+| Stack alignment | ✅ ECDH + AES-GCM | ❌ No | ❌ No |
 
-**Для MVP с лимитом 50 участников** Sender Keys и Tree-DH дают несоразмерную сложность реализации без значительного выигрыша в безопасности для данного сценария использования.
+**For MVP with a 50-member limit**, Sender Keys and Tree-DH introduce disproportionate implementation complexity without a significant security gain for this use case.
 
-> При росте требований (>50 участников или повышенный профиль угроз) — переход на Sender Keys в v2.1.
+> If requirements grow (>50 members or a higher threat profile) — migrate to Sender Keys in v2.1.
 
 ---
 
-## Протокол: жизненный цикл группового ключа
+## Protocol: Group Key Lifecycle
 
-### Криптографические примитивы
+### Cryptographic Primitives
 
-| Операция | Алгоритм |
+| Operation | Algorithm |
 |----------|----------|
-| Групповой ключ | AES-256-GCM (256-bit) |
-| Шифрование ключа для участника | ECDH P-256 (ephemeral) + HKDF-SHA256 + AES-256-GCM |
-| Генерация ключа | `crypto.subtle.generateKey({ name: "AES-GCM", length: 256 })` |
+| Group key | AES-256-GCM (256-bit) |
+| Key encryption for member | ECDH P-256 (ephemeral) + HKDF-SHA256 + AES-256-GCM |
+| Key generation | `crypto.subtle.generateKey({ name: "AES-GCM", length: 256 })` |
 
 ### Epoch
 
-Каждый групповой ключ имеет номер эпохи (`epoch`), начиная с `0`. При rekey epoch инкрементируется. Участники знают текущий epoch и могут расшифровать сообщения только своей эпохи.
+Each group key has an epoch number (`epoch`), starting at `0`. On rekey, epoch is incremented. Members know the current epoch and can decrypt messages only from their epoch.
 
 ```
-epoch=0  → начальный ключ (при создании комнаты)
-epoch=1  → после первого rekey
-epoch=N  → после N-го выхода участника
+epoch=0  → initial key (on room creation)
+epoch=1  → after first rekey
+epoch=N  → after N-th member departure
 ```
 
 ---
 
-## Схема выдачи ключа новому участнику
+## Key Delivery Scheme for New Member
 
-### Сценарий: заявка принята, участник добавлен в комнату
+### Scenario: join request accepted, member added to room
 
-Ключ доставляется через сервер в виде opaque blob — зашифрованного ключевого бандла. Сервер видит только зашифрованный blob, он не может расшифровать групповой ключ.
+The key is delivered via the server as an opaque blob — an encrypted key bundle. The server sees only the encrypted blob; it cannot decrypt the group key.
 
 ```
-Владелец (Owner)                Сервер                  Новый участник (Joiner)
+Owner                           Server                  New Member (Joiner)
      │                              │                              │
-     │  (получает publicKey Joiner) │                              │
-     │  ← из STOMP-события JOIN_ACCEPTED или KEY_BUNDLE_REQUEST    │
+     │  (receives Joiner publicKey) │                              │
+     │  ← from STOMP event JOIN_ACCEPTED or KEY_BUNDLE_REQUEST       │
      │                              │                              │
      │  1. ephemeralKey = ECDH.generateKeyPair()                   │
      │  2. sharedSecret = ECDH(ephemeralKey.private, joiner.pubKey)│
@@ -145,26 +145,26 @@ epoch=N  → после N-го выхода участника
      │                              │              8. keyStore.set(roomId, epoch, groupKey)
 ```
 
-### Формат ключевого бандла (TypeScript)
+### Key Bundle Format (TypeScript)
 
 ```typescript
 interface KeyBundle {
   roomId: string;
   epoch: number;
-  recipientTgId: string;        // кому предназначен бандл
+  recipientTgId: string;        // intended recipient of the bundle
   ephemeralPublicKey: string;   // Base64, 65 bytes (P-256 uncompressed)
   encryptedKey: string;         // Base64, AES-256-GCM ciphertext (32 bytes + tag)
   iv: string;                   // Base64, 12 bytes
 }
 ```
 
-### Алгоритм обёртки ключа (wrap / unwrap)
+### Key Wrap / Unwrap Algorithm
 
 #### Wrap (Owner → Joiner)
 
 ```typescript
 async function wrapGroupKey(
-  groupKey: CryptoKey,        // AES-256-GCM, extractable=true для wrap
+  groupKey: CryptoKey,        // AES-256-GCM, extractable=true for wrap
   joinerPublicKey: CryptoKey  // ECDH P-256
 ): Promise<KeyBundle> {
   // 1. Ephemeral ECDH keypair
@@ -263,20 +263,20 @@ async function unwrapGroupKey(
 
 ---
 
-## Ротация ключа при выходе участника
+## Key Rotation on Member Departure
 
-### Принцип
+### Principle
 
-При выходе участника из комнаты (или исключении владельцем):
-1. Владелец генерирует новый групповой ключ (epoch + 1).
-2. Владелец шифрует новый ключ для каждого **оставшегося** участника (N-1 зашифрованных бандлов).
-3. Все бандлы отправляются серверу одним батчем через STOMP-событие `REKEY`.
-4. Сервер сохраняет бандлы в `room_keys:{roomId}:{epoch+1}` и рассылает каждому участнику его бандл.
-5. Участники обновляют keyStore для данного roomId.
-6. Вышедший участник не получает новый ключ → не может читать сообщения после rekey.
+When a member leaves the room (or is removed by the owner):
+1. The owner generates a new group key (epoch + 1).
+2. The owner encrypts the new key for each **remaining** member (N-1 encrypted bundles).
+3. All bundles are sent to the server in one batch via the STOMP `REKEY` event.
+4. The server stores bundles in `room_keys:{roomId}:{epoch+1}` and delivers each member their bundle.
+5. Members update keyStore for that roomId.
+6. The departed member does not receive the new key → cannot read messages after rekey.
 
 ```
-Owner                          Сервер                     Members A, B, C
+Owner                          Server                     Members A, B, C
   │                               │                              │
   │ (User D left/kicked)          │                              │
   │                               │                              │
@@ -289,7 +289,7 @@ Owner                          Сервер                     Members A, B, C
   │   roomId, epoch+1,            │                              │
   │   bundles: [A, B, C]          │                              │
   │ } ───────────────────────────►│                              │
-  │                               ├─ сохранить в Redis ────────  │
+  │                               ├─ store in Redis ────────────  │
   │                               ├─── bundle A → Member A ─────►│
   │                               ├─── bundle B → Member B ─────►│
   │                               └─── bundle C → Member C ─────►│
@@ -298,61 +298,61 @@ Owner                          Сервер                     Members A, B, C
   │                               │              6. keyStore.set(roomId, epoch+1, newKey)
 ```
 
-### Поведение при offline участниках
+### Behavior for Offline Members
 
-Если участник был offline в момент rekey:
-- Его бандл сохраняется в Redis (`room_keys:{roomId}:{epoch}:{tgId}`) до получения.
-- При reconnect участник запрашивает `KEY_BUNDLE` для своего tgId и текущего roomId.
-- Сервер возвращает последний доступный бандл.
-- TTL бандла: 7 дней (или TTL самой комнаты, если меньше).
+If a member was offline at the time of rekey:
+- Their bundle is stored in Redis (`room_keys:{roomId}:{epoch}:{tgId}`) until delivery.
+- On reconnect, the member requests `KEY_BUNDLE` for their tgId and current roomId.
+- The server returns the latest available bundle.
+- Bundle TTL: 7 days (or the room TTL if shorter).
 
 ---
 
-## Хранение в Redis
+## Redis Storage
 
 ```
 room_keys:{roomId}:{epoch}:{tgId}
-  → { ephemeralPublicKey, encryptedKey, iv }  — зашифрованный бандл для конкретного участника
-  → TTL: 7 дней
+  → { ephemeralPublicKey, encryptedKey, iv }  — encrypted bundle for a specific member
+  → TTL: 7 days
 
 room_key_epoch:{roomId}
-  → текущий epoch (integer)
-  → обновляется при rekey
-  → TTL: совпадает с room:{roomId}
+  → current epoch (integer)
+  → updated on rekey
+  → TTL: matches room:{roomId}
 ```
 
-**Гарантии сервера:**
-- Сервер хранит только зашифрованные бандлы (opaque blobs) — расшифровать без приватного ключа участника невозможно.
-- Бандлы для вышедшего/исключённого участника не создаются; старые — удаляются при rekey (или по TTL).
-- Сервер не хранит групповой ключ в открытом виде.
+**Server guarantees:**
+- The server stores only encrypted bundles (opaque blobs) — decryption without the member's private key is impossible.
+- Bundles for departed/removed members are not created; old ones are deleted on rekey (or by TTL).
+- The server does not store the group key in plaintext.
 
 ---
 
-## Ограничения и будущее
+## Limitations and Future
 
-### Текущие ограничения MVP
+### Current MVP Limitations
 
-| Свойство | MVP (Shared Group Key) | Желаемое |
-|----------|------------------------|---------- |
-| Per-sender forward secrecy | ❌ Нет | ✅ Sender Keys |
-| Breakin / Break-out secrecy | ✅ Rekey при выходе | — |
-| Эффективность rekey при N>50 | ⚠️ O(N) | ✅ Tree-DH O(log N) |
-| Независимость сообщений участников | ❌ Общий ключ | ✅ Sender Keys |
+| Property | MVP (Shared Group Key) | Desired |
+|----------|------------------------|----------|
+| Per-sender forward secrecy | ❌ No | ✅ Sender Keys |
+| Breakin / Break-out secrecy | ✅ Rekey on departure | — |
+| Rekey efficiency at N>50 | ⚠️ O(N) | ✅ Tree-DH O(log N) |
+| Message independence per member | ❌ Shared key | ✅ Sender Keys |
 
 ### Roadmap
 
-- **v2.0 (MVP):** Shared Group Key — один ключ, rekey при выходе.
-- **v2.1:** Рассмотреть переход на **Sender Keys** при появлении зрелой браузерной реализации или при росте требований к приватности отдельных отправителей.
-- **v3.0:** Tree-DH / MLS при масштабировании за 50 участников.
+- **v2.0 (MVP):** Shared Group Key — single key, rekey on departure.
+- **v2.1:** Consider migrating to **Sender Keys** when a mature browser implementation appears or when requirements for per-sender privacy increase.
+- **v3.0:** Tree-DH / MLS when scaling beyond 50 members.
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [SECURITY.md](../../specs/SECURITY.md) — криптографические примитивы и модель угроз
-- [DATA_MODELS.md](../../specs/DATA_MODELS.md) — структуры Redis для комнат
-- [DEVELOPMENT_PLAN_ROOMS.md](DEVELOPMENT_PLAN_ROOMS.md) — план фазы 2
-- [P2-3-1-2](cards/P2-3-1-2.md) — Frontend: генерация и распределение группового ключа
-- [P2-3-1-3](cards/P2-3-1-3.md) — Redis: хранение зашифрованных бандлов
-- [P2-3-2-1](cards/P2-3-2-1.md) — Выдача ключа новому участнику (KEY_BUNDLE event)
-- [P2-3-2-2](cards/P2-3-2-2.md) — Ротация ключа (REKEY event)
+- [SECURITY.md](../../specs/SECURITY.md) — cryptographic primitives and threat model
+- [DATA_MODELS.md](../../specs/DATA_MODELS.md) — Redis structures for rooms
+- [DEVELOPMENT_PLAN_ROOMS.md](DEVELOPMENT_PLAN_ROOMS.md) — phase 2 plan
+- [P2-3-1-2](cards/P2-3-1-2.md) — Frontend: group key generation and distribution
+- [P2-3-1-3](cards/P2-3-1-3.md) — Redis: encrypted bundle storage
+- [P2-3-2-1](cards/P2-3-2-1.md) — Key delivery to new member (KEY_BUNDLE event)
+- [P2-3-2-2](cards/P2-3-2-2.md) — Key rotation (REKEY event)

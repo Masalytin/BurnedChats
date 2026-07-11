@@ -1,86 +1,86 @@
-# BURN Token — Токеномика
+# BURN Token — Tokenomics
 
-> Дефляционный токен на блокчейне TON для экосистемы Burned Chats
+> Deflationary token on the TON blockchain for the Burned Chats ecosystem
 
-> **Терминология (с июня 2026):** **TON** — блокчейн и экосистема (The Open Network, TON Connect, TON RPC).
-> **GRAM** — нативная монета сети для gas и комиссий (ранее Toncoin, ticker `TON`; без миграции токена).
+> **Terminology (as of June 2026):** **TON** — blockchain and ecosystem (The Open Network, TON Connect, TON RPC).
+> **GRAM** — native network coin for gas and fees (formerly Toncoin, ticker `TON`; no token migration).
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Обзор токена](#обзор-токена)
-- [Ключевые параметры](#ключевые-параметры)
-- [Дефляционный механизм](#дефляционный-механизм)
+- [Token Overview](#token-overview)
+- [Key Parameters](#key-parameters)
+- [Deflationary Mechanism](#deflationary-mechanism)
 - [Treasury](#treasury)
-- [Распределение эмиссии](#распределение-эмиссии)
-- [Стейкинг](#стейкинг)
+- [Emission Distribution](#emission-distribution)
+- [Staking](#staking)
 - [BCID Fee Semantics](#bcid-fee-semantics)
-- [Utility (применение)](#utility-применение)
+- [Utility](#utility)
 - [Governance](#governance)
-- [Техническая архитектура](#техническая-архитектура)
+- [Technical Architecture](#technical-architecture)
 - [Smart Contracts](#smart-contracts)
-- [Интеграция с BurnedChats](#интеграция-с-burnedchats)
-- [План запуска](#план-запуска)
-- [Риски и митигация](#риски-и-митигация)
+- [BurnedChats Integration](#burnedchats-integration)
+- [Launch Plan](#launch-plan)
+- [Risks and Mitigation](#risks-and-mitigation)
 
 ---
 
-## Обзор токена
+## Token Overview
 
-### Философия
+### Philosophy
 
-Название и механика токена **BURN** идеально совпадают с философией Burned Chats:
+The name and mechanics of the **BURN** token align perfectly with the Burned Chats philosophy:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    🔥 BURN = PRIVACY + VALUE                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│   Сообщения сгорают    →    Токены сжигаются                    │
-│   Приватность растёт   →    Дефицит увеличивается               │
-│   Доверие укрепляется  →    Ценность повышается                 │
+│   Messages burn        →    Tokens are burned                    │
+│   Privacy grows        →    Scarcity increases                   │
+│   Trust strengthens    →    Value rises                          │
 │                                                                  │
-│   "Чем активнее использование — тем больше сжигается"           │
+│   "The more active the usage — the more gets burned"             │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Почему TON?
+### Why TON?
 
-| Преимущество | Описание |
+| Advantage | Description |
 |--------------|----------|
-| **Нативная интеграция** | TON встроен в Telegram через @wallet |
-| **Мгновенные транзакции** | ~5 секунд на подтверждение |
-| **Низкие комиссии** | ~$0.01-0.05 за транзакцию (оплата gas в native coin **GRAM**) |
-| **TON Connect** | Бесшовная авторизация в Mini App |
-| **Jetton стандарт** | Проверенный стандарт токенов |
-| **Экосистема** | DeDust, STON.fi, Tonkeeper |
+| **Native integration** | TON is built into Telegram via @wallet |
+| **Instant transactions** | ~5 seconds to confirm |
+| **Low fees** | ~$0.01–0.05 per transaction (gas paid in native coin **GRAM**) |
+| **TON Connect** | Seamless authorization in Mini App |
+| **Jetton standard** | Proven token standard |
+| **Ecosystem** | DeDust, STON.fi, Tonkeeper |
 
 ---
 
-## Ключевые параметры
+## Key Parameters
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      BURN TOKEN SPECS                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│   Название:           BURN                                       │
-│   Блокчейн:           TON (The Open Network)                     │
+│   Name:               BURN                                       │
+│   Blockchain:         TON (The Open Network)                     │
 │   Native coin:        GRAM¹ (gas, network fees)                 │
-│   Стандарт:           Jetton (TEP-74)                            │
+│   Standard:           Jetton (TEP-74)                            │
 │   Decimals:           9                                          │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
-│   Максимальная эмиссия:    1,000 BURN                            │
-│   Минимальная единица:     0.000000001 BURN (1 nano)             │
+│   Maximum supply:          1,000 BURN                            │
+│   Minimum unit:            0.000000001 BURN (1 nano)             │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
-│   Burn Rate:               0.5% от каждой транзакции             │
-│   Staking Pool Rate:       0.3% от каждой транзакции             │
-│   Treasury Rate:           0.2% от каждой транзакции             │
-│   Total Fee:               1.0% от каждой транзакции             │
+│   Burn Rate:               0.5% of each transaction              │
+│   Staking Pool Rate:       0.3% of each transaction              │
+│   Treasury Rate:           0.2% of each transaction              │
+│   Total Fee:               1.0% of each transaction              │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
@@ -89,106 +89,106 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-¹ **GRAM** — официальный post-rebrand ticker нативной монеты TON (ранее Toncoin, ticker `TON`). Блокчейн и продукты экосистемы по-прежнему называются TON.
+¹ **GRAM** — official post-rebrand ticker of the TON native coin (formerly Toncoin, ticker `TON`). The blockchain and ecosystem products are still called TON.
 
 ---
 
-## Дефляционный механизм
+## Deflationary Mechanism
 
-### Базовый механизм (1% общая комиссия, 0.5% burn)
+### Base mechanism (1% total fee, 0.5% burn)
 
-При каждой транзакции:
+On every transaction:
 
 ```
-Отправитель: 100 BURN
+Sender: 100 BURN
     │
-    ├── 0.5% → Сжигание навсегда 🔥     = 0.5 BURN
-    ├── 0.3% → Staking Pool 💰          = 0.3 BURN  
-    ├── 0.2% → Treasury 🏦              = 0.2 BURN
+    ├── 0.5% → Burned forever 🔥          = 0.5 BURN
+    ├── 0.3% → Staking Pool 💰           = 0.3 BURN  
+    ├── 0.2% → Treasury 🏦               = 0.2 BURN
     │
-    └── Получатель получает:            = 99.0 BURN
+    └── Recipient receives:              = 99.0 BURN
 ```
 
-### Динамический Burn (опционально)
+### Dynamic Burn (optional)
 
 ```
 ┌─────────────────────────────────────────┐
 │         DYNAMIC BURN MECHANISM          │
 ├─────────────────────────────────────────┤
 │                                         │
-│  Базовый burn:              0.5%        │
+│  Base burn:                 0.5%        │
 │                                         │
-│  Бонус за крупную          +0.25%       │
-│  транзакцию (>10 BURN)                  │
+│  Large transaction bonus    +0.25%      │
+│  (>10 BURN)                             │
 │                                         │
-│  Бонус за высокую          +0.125%      │
-│  активность сети                        │
-│  (>100 tx/час)                          │
+│  High network activity      +0.125%     │
+│  bonus                                  │
+│  (>100 tx/hour)                         │
 │                                         │
 │  ─────────────────────────────────      │
-│  Максимальный burn:         ~0.875%     │
+│  Maximum burn:              ~0.875%     │
 │                                         │
 └─────────────────────────────────────────┘
 ```
 
-### Прогноз дефляции
+### Deflation forecast
 
-Расчёт при базовом burn rate 0.5% и средней транзакции ~0.1 BURN:
+Calculation at base burn rate 0.5% and average transaction ~0.1 BURN:
 
-| Сценарий | Транзакций/день | Сожжено/год | Supply через год |
+| Scenario | Transactions/day | Burned/year | Supply after 1 year |
 |----------|-----------------|-------------|------------------|
-| Низкий | 100 | ~18 BURN | ~982 BURN |
-| Средний | 500 | ~91 BURN | ~909 BURN |
-| Высокий | 2000 | ~365 BURN | ~635 BURN |
+| Low | 100 | ~18 BURN | ~982 BURN |
+| Medium | 500 | ~91 BURN | ~909 BURN |
+| High | 2000 | ~365 BURN | ~635 BURN |
 
-> **Важно:** При высокой активности supply может сократиться на 35%+ за год. Реальная дефляция зависит от объёма транзакций (volume × burn rate), а не только от их количества. При supply < 100 BURN burn rate автоматически снижается до 0.1% (см. FAQ).
+> **Important:** At high activity levels, supply can shrink by 35%+ per year. Actual deflation depends on transaction volume (volume × burn rate), not just transaction count. When supply < 100 BURN, burn rate automatically drops to 0.1% (see FAQ).
 
 ---
 
 ## Treasury
 
-Treasury — отдельный смарт-контракт, аккумулирующий 0.2% от каждой транзакции. Является **excluded address** для механики комиссий (входящие переводы не облагаются дополнительным burn/staking fee).
+Treasury is a separate smart contract that accumulates 0.2% of each transaction. It is an **excluded address** for fee mechanics (incoming transfers are not subject to additional burn/staking fees).
 
-### Назначение средств
+### Fund allocation
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    TREASURY ALLOCATION                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. 🏗️ ИНФРАСТРУКТУРА                                            │
-│     ├── Хостинг и серверы (backend, Redis)                       │
-│     ├── TON RPC ноды и сервисы                                   │
-│     ├── Доменные имена и SSL сертификаты                         │
-│     └── Мониторинг и логирование                                 │
+│  1. 🏗️ INFRASTRUCTURE                                            │
+│     ├── Hosting and servers (backend, Redis)                     │
+│     ├── TON RPC nodes and services                                 │
+│     ├── Domain names and SSL certificates                        │
+│     └── Monitoring and logging                                   │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  2. 🛡️ БЕЗОПАСНОСТЬ                                              │
-│     ├── Smart contract аудиты (внешние)                          │
-│     ├── Bug bounty программа                                     │
+│  2. 🛡️ SECURITY                                                  │
+│     ├── Smart contract audits (external)                         │
+│     ├── Bug bounty program                                       │
 │     ├── Penetration testing                                      │
-│     └── Формальная верификация контрактов                        │
+│     └── Formal contract verification                             │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  3. 🤝 ГРАНТЫ                                                    │
-│     ├── Гранты разработчикам (расширение функционала)            │
-│     ├── Гранты партнёрам экосистемы (интеграции)                 │
-│     └── Образовательные инициативы и документация                │
+│  3. 🤝 GRANTS                                                    │
+│     ├── Developer grants (feature expansion)                     │
+│     ├── Ecosystem partner grants (integrations)                  │
+│     └── Educational initiatives and documentation                │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **Разграничение с Ecosystem allocation (150 BURN):** Ecosystem allocation предназначен для крупных стратегических партнёрств и маркетинговых кампаний (vesting 2 года). Treasury финансирует операционные расходы, аудиты, bug bounty и точечные гранты из текущего потока транзакционных комиссий — это позволило сократить Ecosystem allocation с 200 до 150 BURN, перенаправив средства в Liquidity Pool.
+> **Distinction from Ecosystem allocation (150 BURN):** Ecosystem allocation is intended for large strategic partnerships and marketing campaigns (2-year vesting). Treasury funds operational expenses, audits, bug bounty, and targeted grants from the ongoing transaction fee stream — this allowed reducing Ecosystem allocation from 200 to 150 BURN, redirecting funds to the Liquidity Pool.
 
-### Расходование Treasury
+### Treasury spending
 
-Любое расходование Treasury требует governance-голосования (`Treasury Spend`: кворум 20% VP, порог 66%, период 7 дней). Голосуют все стейкеры по VP-формуле.
+Any Treasury spending requires governance voting (`Treasury Spend`: 20% VP quorum, 66% threshold, 7-day period). All stakers vote using the VP formula.
 
 ---
 
-## Распределение эмиссии
+## Emission Distribution
 
 ### Allocation Chart
 
@@ -219,16 +219,16 @@ Total Supply: 1,000 BURN
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Детали распределения
+### Distribution details
 
-| Категория | Количество | % | Vesting | Назначение |
+| Category | Amount | % | Vesting | Purpose |
 |-----------|------------|---|---------|------------|
-| **Developer** | 7 | 0.7% | 12 мес линейно | Личная аллокация разработчика |
-| **Community Airdrop** | 200 | 20% | — | Ранние пользователи BurnedChats |
-| **Staking Rewards** | 300 | 30% | 3 года | Награды за стейкинг (линейная выдача) |
-| **Ecosystem** | 150 | 15% | 2 года | Гранты, партнёрства, маркетинг |
-| **Liquidity** | 300 | 30% | — | DEX пулы (DeDust, STON.fi) |
-| **Reserve** | 43 | 4.3% | 3 года | Непредвиденные расходы |
+| **Developer** | 7 | 0.7% | 12 months linear | Developer personal allocation |
+| **Community Airdrop** | 200 | 20% | — | Early BurnedChats users |
+| **Staking Rewards** | 300 | 30% | 3 years | Staking rewards (linear distribution) |
+| **Ecosystem** | 150 | 15% | 2 years | Grants, partnerships, marketing |
+| **Liquidity** | 300 | 30% | — | DEX pools (DeDust, STON.fi) |
+| **Reserve** | 43 | 4.3% | 3 years | Unforeseen expenses |
 
 ### Vesting Schedule
 
@@ -237,31 +237,31 @@ Total Supply: 1,000 BURN
 │                      VESTING TIMELINE                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Месяц    0    6    12   18   24   30   36   48   60            │
+│  Month    0    6    12   18   24   30   36   48   60            │
 │          ─┬────┬────┬────┬────┬────┬────┬────┬────┬─            │
 │           │    │    │    │    │    │    │    │    │             │
-│  Airdrop  ████████████████████████████████████████  Сразу       │
+│  Airdrop  ████████████████████████████████████████  Immediate    │
 │           │    │    │    │    │    │    │    │    │             │
-│  Liquidity████████████████████████████████████████  Сразу (LP)  │
+│  Liquidity████████████████████████████████████████  Immediate (LP)│
 │           │    │    │    │    │    │    │    │    │             │
-│  Developer██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  Линейно     │
-│           │    │    │    │    │    │    │    │    │  12 мес     │
+│  Developer██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  Linear       │
+│           │    │    │    │    │    │    │    │    │  12 months │
 │           │    │    │    │    │    │    │    │    │             │
-│  Staking  ████████████████████████░░░░░░░░░░░░░░░░  Линейно    │
-│           │    │    │    │    │    │    │    │    │  3 года     │
+│  Staking  ████████████████████████░░░░░░░░░░░░░░░░  Linear     │
+│           │    │    │    │    │    │    │    │    │  3 years    │
 │           │    │    │    │    │    │    │    │    │             │
-│  Ecosystem░░░░░░░░░░████████████████████████░░░░░░░  Линейно    │
-│           │    │    │    │    │    │    │    │    │  2 года     │
+│  Ecosystem░░░░░░░░░░████████████████████████░░░░░░░  Linear      │
+│           │    │    │    │    │    │    │    │    │  2 years    │
 │           │    │    │    │    │    │    │    │    │             │
-│  Reserve  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░████████  После     │
-│           │    │    │    │    │    │    │    │    │  3 лет      │
+│  Reserve  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░████████  After      │
+│           │    │    │    │    │    │    │    │    │  3 years    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Стейкинг
+## Staking
 
 ### Tiered Staking System
 
@@ -270,136 +270,136 @@ Total Supply: 1,000 BURN
 │                      STAKING TIERS                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  🥉 FLEXIBLE (без лока)                                          │
+│  🥉 FLEXIBLE (no lock)                                             │
 │     ├── Reward share: 5%                                         │
 │     ├── Voting Power: 1.0x                                       │
-│     └── Unstake: мгновенно                                       │
+│     └── Unstake: instant                                         │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  🥈 SILVER (6 месяцев)                                           │
+│  🥈 SILVER (6 months)                                              │
 │     ├── Reward share: 10%                                        │
 │     ├── Voting Power: 1.5x                                       │
-│     └── Unstake: после периода                                   │
+│     └── Unstake: after lock period                               │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  🥇 GOLD (1 год)                                                 │
+│  🥇 GOLD (1 year)                                                 │
 │     ├── Reward share: 25%                                        │
 │     ├── Voting Power: 2.0x                                       │
-│     └── Unstake: после периода                                   │
+│     └── Unstake: after lock period                               │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  💎 DIAMOND (3 года)                                             │
+│  💎 DIAMOND (3 years)                                             │
 │     ├── Reward share: 60%                                        │
-│     ├── Voting Power: 3.0x (максимальный)                        │
-│     ├── Бонусы: + Эксклюзивный NFT Badge                         │
-│     ├── Early Access: Бета-функции                               │
-│     └── Unstake: после периода                                   │
+│     ├── Voting Power: 3.0x (maximum)                           │
+│     ├── Bonuses: + Exclusive NFT Badge                           │
+│     ├── Early Access: Beta features                                │
+│     └── Unstake: after lock period                               │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **APY не фиксирован** — он зависит от общего объёма застейканных токенов в каждом тире и текущей скорости выдачи из Staking Pool. Reward share — доля общего распределения наград, причитающаяся тиру.
+> **APY is not fixed** — it depends on total staked tokens in each tier and the current distribution rate from the Staking Pool. Reward share is the portion of total reward distribution allocated to a tier.
 
-### Динамика Staking Pool
+### Staking Pool dynamics
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                  STAKING POOL DYNAMICS                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  PHASE 1 (год 0–3): Initial Allocation                           │
-│  ├── Источник: 300 BURN distributed линейно                      │
-│  ├── Скорость:  100 BURN/год = ~0.274 BURN/день                  │
-│  └── Дополнительно: + 0.3% от объёма каждой транзакции           │
+│  PHASE 1 (year 0–3): Initial Allocation                          │
+│  ├── Source: 300 BURN distributed linearly                       │
+│  ├── Rate:     100 BURN/year = ~0.274 BURN/day                     │
+│  └── Additional: + 0.3% of each transaction volume               │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  PHASE 2 (год 3+): Self-sustaining                               │
-│  ├── Источник: только transaction fees                           │
-│  ├── Скорость: 0.3% × ежедневный tx volume                       │
-│  └── Зависит от активности сети                                  │
+│  PHASE 2 (year 3+): Self-sustaining                              │
+│  ├── Source: transaction fees only                               │
+│  ├── Rate: 0.3% × daily tx volume                                │
+│  └── Depends on network activity                                 │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  Распределение между тирами (всегда):                            │
-│  ├── 60% → Diamond  (3 года)                                     │
-│  ├── 25% → Gold     (1 год)                                      │
-│  ├── 10% → Silver   (6 мес)                                      │
-│  └── 5%  → Flexible (без лока)                                   │
+│  Distribution across tiers (always):                             │
+│  ├── 60% → Diamond  (3 years)                                    │
+│  ├── 25% → Gold     (1 year)                                     │
+│  ├── 10% → Silver   (6 months)                                   │
+│  └── 5%  → Flexible (no lock)                                    │
 │                                                                  │
-│  Внутри тира — пропорционально размеру стейка                    │
+│  Within a tier — proportional to stake size                      │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Расчёт индивидуальной награды
+### Individual reward calculation
 
 ```
 DailyReward(user) = TierShare × DailyPoolEmission × (UserStake / TotalTierStake)
 
-Где:
+Where:
 ├── TierShare           — 0.05 / 0.10 / 0.25 / 0.60 (Flexible/Silver/Gold/Diamond)
-├── DailyPoolEmission   — 0.274 BURN (фаза 1) + tx_fees_today
-└── UserStake / TotalTierStake — доля пользователя внутри своего тира
+├── DailyPoolEmission   — 0.274 BURN (phase 1) + tx_fees_today
+└── UserStake / TotalTierStake — user's share within their tier
 ```
 
-### Калькулятор индикативного APY (Phase 1, при разных уровнях участия)
+### Indicative APY calculator (Phase 1, at different participation levels)
 
-Допущения: 30% supply (300 BURN) в стейке, типовое распределение по тирам (Diamond 30% / Gold 25% / Silver 25% / Flexible 20%), tx fees игнорируются.
+Assumptions: 30% supply (300 BURN) staked, typical tier distribution (Diamond 30% / Gold 25% / Silver 25% / Flexible 20%), tx fees ignored.
 
-| Стейк | Тир | Доля тира в общем стейке | Индикативный APY | Награда/год |
+| Stake | Tier | Tier share of total stake | Indicative APY | Reward/year |
 |-------|-----|--------------------------|-------------------|-------------|
-| 10 BURN | Flexible | 60 BURN всего | ~8% | ~0.83 BURN |
-| 10 BURN | Silver | 75 BURN всего | ~13% | ~1.33 BURN |
-| 10 BURN | Gold | 75 BURN всего | ~33% | ~3.33 BURN |
-| 10 BURN | Diamond | 90 BURN всего | ~67% | ~6.67 BURN |
+| 10 BURN | Flexible | 60 BURN total | ~8% | ~0.83 BURN |
+| 10 BURN | Silver | 75 BURN total | ~13% | ~1.33 BURN |
+| 10 BURN | Gold | 75 BURN total | ~33% | ~3.33 BURN |
+| 10 BURN | Diamond | 90 BURN total | ~67% | ~6.67 BURN |
 
-> **Важно:** Реальный APY зависит от того, сколько токенов застейкано в вашем тире. Чем меньше конкурентов — тем выше доходность. После года 3 (исчерпание initial allocation) APY определяется только tx fees и существенно снижается.
+> **Important:** Actual APY depends on how many tokens are staked in your tier. Fewer competitors means higher yield. After year 3 (initial allocation exhausted), APY is determined only by tx fees and drops substantially.
 
 ### Staking Pool Wallet
 
-Staking Pool — отдельный смарт-контракт, выступающий **excluded address** для механики комиссий: переводы из Staking Pool пользователю не подвергаются повторному burn/staking/treasury fee. Это позволяет наградам выплачиваться без двойного обложения.
+Staking Pool is a separate smart contract acting as an **excluded address** for fee mechanics: transfers from Staking Pool to users are not subject to repeated burn/staking/treasury fees. This allows rewards to be paid out without double taxation.
 
 ---
 
 ## BCID Fee Semantics
 
-> Распределение BURN при операциях с Burned Chats ID (BCID NFT-профилем) и согласование с **стандартным 1% Jetton fee** на переводах.
+> BURN distribution for Burned Chats ID (BCID NFT profile) operations and alignment with the **standard 1% Jetton fee** on transfers.
 
-### Варианты операций
+### Operation variants
 
-| Операция | Стоимость (пользователь) | Распределение внутри BCID-контракта |
+| Operation | Cost (user) | Distribution within BCID contract |
 |----------|---------------------------|--------------------------------------|
 | Mint BCID | 0.001 BURN (+ GRAM gas) | 50% burn / 30% staking / 20% treasury |
 | Rename | 0.001 BURN | 50% / 30% / 20% |
 | Avatar update | 0.0005 BURN | 50% / 30% / 20% |
 
-### Механика (Variant A — adopted)
+### Mechanics (Variant A — adopted)
 
-1. **BCID-контракт включён в excluded addresses** Jetton Master; конкретный адрес BCID добавляется после on-chain деплоя.
-2. Пользовательский Jetton **transfer** на адрес BCID-контракта **не** облагается стандартным 1% fee уровня Jetton Wallet (отправитель/получатель excluded по правилам master).
-3. BCID-контракт получает **полную** заявленную сумму (например 0.001 BURN для mint).
-4. Контракт исполняет **исходящие** переводы согласно сплиту 50/30/20 (к excluded burn path / staking pool / treasury — без повторного Jetton fee).
-5. **Итог:** 100% уплаченного BURN по смыслу продукта уходит в 50/30/20; не суммируется «1% Jetton поверх» для mint/rename/avatar на BCID.
+1. **BCID contract is included in Jetton Master excluded addresses**; the specific BCID address is added after on-chain deployment.
+2. User Jetton **transfer** to the BCID contract address is **not** subject to the standard 1% Jetton Wallet-level fee (sender/recipient excluded per master rules).
+3. BCID contract receives the **full** stated amount (e.g. 0.001 BURN for mint).
+4. Contract executes **outgoing** transfers per the 50/30/20 split (to excluded burn path / staking pool / treasury — without repeated Jetton fee).
+5. **Result:** 100% of BURN paid by product semantics goes to 50/30/20; no stacking of "1% Jetton on top" for mint/rename/avatar on BCID.
 
 ### Edge cases
 
-- **Недостаточный баланс** — кошелёк отклоняет transfer до сети.
-- **Недостаток GRAM для gas** у BCID-контракта — операция не завершается; пользователь видит ошибку в кошельке / UI.
-- **Коллизия nickname** — разрешается on-chain в nickname registry (см. P3-3.1.2).
+- **Insufficient balance** — wallet rejects transfer before reaching the network.
+- **Insufficient GRAM for gas** on BCID contract — operation does not complete; user sees error in wallet / UI.
+- **Nickname collision** — resolved on-chain in nickname registry (see P3-3.1.2).
 
-### Обоснование
+### Rationale
 
 Variant A — adopted: BCID operations use the 50/30/20 split without stacking the standard 1% Jetton transfer fee.
 
 ---
 
-## Utility (применение)
+## Utility
 
-### Use Cases в BurnedChats
+### Use Cases in BurnedChats
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -407,36 +407,36 @@ Variant A — adopted: BCID operations use the 50/30/20 split without stacking t
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. 🎁 REWARDS & INCENTIVES                                      │
-│     ├── Airdrop ранним пользователям                             │
-│     ├── Реферальная программа (invite friends)                   │
-│     ├── Награда за баг-репорты                                   │
-│     ├── Конкурсы и челленджи                                     │
-│     └── Активность в сообществе                                  │
+│     ├── Airdrop to early users                                   │
+│     ├── Referral program (invite friends)                        │
+│     ├── Bug report rewards                                       │
+│     ├── Contests and challenges                                  │
+│     └── Community activity                                       │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
 │  2. 🗳️ GOVERNANCE                                                │
-│     ├── Голосование за новые фичи                                │
-│     ├── Приоритизация roadmap                                    │
-│     ├── Изменение параметров (burn rate, tier shares,            │
+│     ├── Voting on new features                                   │
+│     ├── Roadmap prioritization                                   │
+│     ├── Parameter changes (burn rate, tier shares,               │
 │     │   distribution rate)                                       │
-│     └── Распределение Treasury                                   │
+│     └── Treasury distribution                                    │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
 │  3. 💎 STAKING BENEFITS                                          │
-│     ├── Пассивный доход (динамический APY)                       │
-│     ├── Voting Power для governance                              │
-│     ├── Эксклюзивные NFT бейджи (Diamond)                        │
-│     └── Ранний доступ к бета-функциям (Diamond)                  │
+│     ├── Passive income (dynamic APY)                             │
+│     ├── Voting Power for governance                              │
+│     ├── Exclusive NFT badges (Diamond)                           │
+│     └── Early access to beta features (Diamond)                  │
 │                                                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
 │  4. 🎨 COSMETICS & STATUS                                        │
-│     ├── Уникальные аватар-рамки                                  │
-│     ├── Анимированные эффекты burn                               │
-│     ├── Эксклюзивные звуки уведомлений                           │
-│     └── Статус "OG Holder" для ранних                            │
+│     ├── Unique avatar frames                                     │
+│     ├── Animated burn effects                                    │
+│     ├── Exclusive notification sounds                            │
+│     └── "OG Holder" status for early adopters                    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -454,26 +454,26 @@ Time Multipliers:
 ├── 1 year:    2.0x
 └── 3 years:   3.0x
 
-Пример:
-├── Alice: 10 BURN (3 года) → 10 × 3.0 = 30 VP
+Example:
+├── Alice: 10 BURN (3 years) → 10 × 3.0 = 30 VP
 ├── Bob:   20 BURN (flexible) → 20 × 1.0 = 20 VP
-└── Alice имеет больше влияния несмотря на меньший стейк
+└── Alice has more influence despite a smaller stake
 ```
 
 ### Governance Proposals
 
-| Тип | Кворум | Порог принятия | Период голосования |
+| Type | Quorum | Approval threshold | Voting period |
 |-----|--------|----------------|-------------------|
-| Parameter Change | 10% VP | 51% | 3 дня |
-| Feature Priority | 5% VP | 51% | 7 дней |
-| Treasury Spend | 20% VP | 66% | 7 дней |
-| Emergency | 30% VP | 75% | 24 часа |
+| Parameter Change | 10% VP | 51% | 3 days |
+| Feature Priority | 5% VP | 51% | 7 days |
+| Treasury Spend | 20% VP | 66% | 7 days |
+| Emergency | 30% VP | 75% | 24 hours |
 
-### Примеры proposals
+### Proposal examples
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  PROPOSAL #001: Снизить burn rate до 0.25%                       │
+│  PROPOSAL #001: Reduce burn rate to 0.25%                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Type: Parameter Change                                          │
 │  Proposer: 0x1234...                                             │
@@ -491,9 +491,9 @@ Time Multipliers:
 
 ---
 
-## Техническая архитектура
+## Technical Architecture
 
-### Общая схема
+### Overview diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -525,22 +525,22 @@ Time Multipliers:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Новые компоненты Frontend
+### New Frontend components
 
 ```
 frontend/src/
 ├── ton/
-│   ├── connector.ts           # TON Connect интеграция
-│   ├── burnToken.ts           # Взаимодействие с Jetton
-│   ├── staking.ts             # Staking операции
-│   ├── governance.ts          # Голосование
-│   └── wallet.ts              # Баланс, история
+│   ├── connector.ts           # TON Connect integration
+│   ├── burnToken.ts           # Jetton interaction
+│   ├── staking.ts             # Staking operations
+│   ├── governance.ts          # Voting
+│   └── wallet.ts              # Balance, history
 ├── components/
 │   ├── Wallet/
-│   │   ├── WalletButton.tsx   # Кнопка подключения
-│   │   ├── Balance.tsx        # Отображение баланса
-│   │   ├── SendModal.tsx      # Отправка токенов
-│   │   └── History.tsx        # История транзакций
+│   │   ├── WalletButton.tsx   # Connect button
+│   │   ├── Balance.tsx        # Balance display
+│   │   ├── SendModal.tsx      # Send tokens
+│   │   └── History.tsx        # Transaction history
 │   ├── Staking/
 │   │   ├── StakingDashboard.tsx
 │   │   ├── StakeModal.tsx
@@ -560,175 +560,175 @@ frontend/src/
     └── ton.ts
 ```
 
-### Backend изменения
+### Backend changes
 
 ```
 backend/src/main/java/dev/burnedchats/
 ├── ton/
-│   ├── TonService.java            # TON RPC клиент
-│   ├── JettonService.java         # Проверка баланса BURN
-│   ├── StakingVerifier.java       # Проверка стейкинга
+│   ├── TonService.java            # TON RPC client
+│   ├── JettonService.java         # BURN balance verification
+│   ├── StakingVerifier.java       # Staking verification
 │   └── dto/
 │       ├── WalletInfo.java
 │       └── StakingInfo.java
 └── config/
-    └── TonConfig.java             # Конфигурация TON
+    └── TonConfig.java             # TON configuration
 ```
 
 ---
 
 ## Smart Contracts
 
-### Структура контрактов
+### Contract structure
 
 ```
 contracts/
 ├── jetton/
-│   ├── burn-jetton-master.fc      # Главный контракт токена
-│   ├── burn-jetton-wallet.fc      # Кошелёк пользователя
-│   └── burn-logic.fc              # Логика дефляции
+│   ├── burn-jetton-master.fc      # Main token contract
+│   ├── burn-jetton-wallet.fc      # User wallet
+│   └── burn-logic.fc              # Deflation logic
 ├── staking/
-│   ├── staking-master.fc          # Главный контракт стейкинга
-│   ├── staking-pool.fc            # Пул наград
-│   └── lock-contract.fc           # Time-lock контракт
+│   ├── staking-master.fc          # Main staking contract
+│   ├── staking-pool.fc            # Rewards pool
+│   └── lock-contract.fc           # Time-lock contract
 ├── governance/
-│   ├── governor.fc                # Главный контракт governance
-│   ├── proposal.fc                # Контракт предложения
-│   └── timelock.fc                # Задержка исполнения
+│   ├── governor.fc                # Main governance contract
+│   ├── proposal.fc                # Proposal contract
+│   └── timelock.fc                # Execution delay
 ├── scripts/
-│   ├── deploy.ts                  # Деплой скрипты
-│   ├── mint.ts                    # Минтинг
-│   └── verify.ts                  # Верификация
+│   ├── deploy.ts                  # Deploy scripts
+│   ├── mint.ts                    # Minting
+│   └── verify.ts                  # Verification
 └── tests/
     ├── jetton.spec.ts
     ├── staking.spec.ts
     └── governance.spec.ts
 ```
 
-> Исходный код контрактов и интеграции появится в `contracts/` и соответствующих файлах `frontend/src/ton/`, `backend/src/.../ton/` при реализации v1.5.
+> Contract source code and integration will appear in `contracts/` and the corresponding `frontend/src/ton/`, `backend/src/.../ton/` files during v1.5 implementation.
 
 ---
 
-## Интеграция с BurnedChats
+## BurnedChats Integration
 
-### Компоненты интеграции
+### Integration components
 
-**Backend:** `TonService` (TON RPC), `JettonService` (баланс BURN), `StakingVerifier` (тир стейкинга).
+**Backend:** `TonService` (TON RPC), `JettonService` (BURN balance), `StakingVerifier` (staking tier).
 
-**Frontend:** `useTonConnect` (подключение кошелька), `useBurnToken` (баланс), `useStaking` (стейкинг операции), `useGovernance` (голосование).
+**Frontend:** `useTonConnect` (wallet connection), `useBurnToken` (balance), `useStaking` (staking operations), `useGovernance` (voting).
 
 ---
 
-## План запуска
+## Launch Plan
 
-### Phase 1: Development (Недели 1-4)
+### Phase 1: Development (Weeks 1–4)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 1: SMART CONTRACT DEVELOPMENT                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Неделя 1-2: Jetton контракт                                     │
-│  ├── [ ] Написать BURN Jetton Master                             │
-│  ├── [ ] Написать BURN Jetton Wallet                             │
-│  ├── [ ] Реализовать burn механику                               │
-│  ├── [ ] Реализовать fee distribution (burn/staking/treasury)    │
-│  └── [ ] Unit тесты (Sandbox)                                    │
+│  Week 1-2: Jetton contract                                       │
+│  ├── [ ] Write BURN Jetton Master                                │
+│  ├── [ ] Write BURN Jetton Wallet                                │
+│  ├── [ ] Implement burn mechanics                                │
+│  ├── [ ] Implement fee distribution (burn/staking/treasury)      │
+│  └── [ ] Unit tests (Sandbox)                                    │
 │                                                                  │
-│  Неделя 3-4: Staking контракт                                    │
-│  ├── [ ] Написать Staking Pool                                   │
-│  ├── [ ] Реализовать time-lock                                   │
-│  ├── [ ] Реализовать rewards distribution                        │
-│  ├── [ ] Unit тесты                                              │
-│  └── [ ] Integration тесты                                       │
+│  Week 3-4: Staking contract                                      │
+│  ├── [ ] Write Staking Pool                                      │
+│  ├── [ ] Implement time-lock                                     │
+│  ├── [ ] Implement rewards distribution                          │
+│  ├── [ ] Unit tests                                              │
+│  └── [ ] Integration tests                                       │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 2: Testing (Недели 5-6)
+### Phase 2: Testing (Weeks 5–6)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 2: TESTNET DEPLOYMENT & TESTING                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Неделя 5: Testnet                                               │
-│  ├── [ ] Деплой на TON Testnet                                   │
-│  ├── [ ] Тестирование burn при transfer                          │
-│  ├── [ ] Тестирование staking flows                              │
-│  ├── [ ] Тестирование governance flows                           │
-│  └── [ ] Нагрузочное тестирование                                │
+│  Week 5: Testnet                                                 │
+│  ├── [ ] Deploy to TON Testnet                                   │
+│  ├── [ ] Test burn on transfer                                   │
+│  ├── [ ] Test staking flows                                      │
+│  ├── [ ] Test governance flows                                   │
+│  └── [ ] Load testing                                            │
 │                                                                  │
-│  Неделя 6: Аудит                                                 │
-│  ├── [ ] Внутренний security review                              │
-│  ├── [ ] Формальная верификация (опционально)                    │
-│  ├── [ ] Bug bounty (приватный)                                  │
-│  └── [ ] Исправление найденных issues                            │
+│  Week 6: Audit                                                   │
+│  ├── [ ] Internal security review                                │
+│  ├── [ ] Formal verification (optional)                          │
+│  ├── [ ] Bug bounty (private)                                    │
+│  └── [ ] Fix identified issues                                   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 3: Integration (Недели 7-8)
+### Phase 3: Integration (Weeks 7–8)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 3: BURNEDCHATS INTEGRATION                                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Неделя 7: Frontend                                              │
-│  ├── [ ] TON Connect интеграция                                  │
-│  ├── [ ] Wallet UI компоненты                                    │
+│  Week 7: Frontend                                                │
+│  ├── [ ] TON Connect integration                                 │
+│  ├── [ ] Wallet UI components                                    │
 │  ├── [ ] Staking Dashboard                                       │
 │  ├── [ ] Governance UI                                           │
-│  └── [ ] Тестирование в Mini App                                 │
+│  └── [ ] Mini App testing                                        │
 │                                                                  │
-│  Неделя 8: Backend                                               │
-│  ├── [ ] TON RPC интеграция                                      │
+│  Week 8: Backend                                                 │
+│  ├── [ ] TON RPC integration                                     │
 │  ├── [ ] Balance verification                                    │
 │  ├── [ ] Staking verification                                    │
 │  ├── [ ] Governance integration                                  │
-│  └── [ ] E2E тестирование                                        │
+│  └── [ ] E2E testing                                             │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 4: Launch (Недели 9-10)
+### Phase 4: Launch (Weeks 9–10)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 4: MAINNET LAUNCH                                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Неделя 9: Mainnet Deploy                                        │
-│  ├── [ ] Деплой контрактов на Mainnet                            │
-│  ├── [ ] Минтинг initial supply                                  │
-│  ├── [ ] Настройка Liquidity Pool (DeDust/STON.fi)               │
-│  ├── [ ] Верификация контрактов                                  │
-│  └── [ ] Финальное тестирование                                  │
+│  Week 9: Mainnet Deploy                                          │
+│  ├── [ ] Deploy contracts to Mainnet                               │
+│  ├── [ ] Mint initial supply                                     │
+│  ├── [ ] Set up Liquidity Pool (DeDust/STON.fi)                  │
+│  ├── [ ] Contract verification                                   │
+│  └── [ ] Final testing                                           │
 │                                                                  │
-│  Неделя 10: Community Launch                                     │
-│  ├── [ ] Airdrop ранним пользователям                            │
-│  ├── [ ] Анонс в Telegram каналах                                │
-│  ├── [ ] Листинг на DEX                                          │
-│  ├── [ ] Запуск staking                                          │
-│  └── [ ] Мониторинг и поддержка                                  │
+│  Week 10: Community Launch                                       │
+│  ├── [ ] Airdrop to early users                                  │
+│  ├── [ ] Announcement in Telegram channels                       │
+│  ├── [ ] DEX listing                                             │
+│  ├── [ ] Staking launch                                          │
+│  └── [ ] Monitoring and support                                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Риски и митигация
+## Risks and Mitigation
 
-| Риск | Вероятность | Влияние | Митигация |
+| Risk | Probability | Impact | Mitigation |
 |------|-------------|---------|-----------|
-| **Smart contract bug** | Средняя | Критическое | Аудит, тесты, bug bounty |
-| **Low liquidity** | Средняя | Высокое | Усиленный LP allocation (30%, 300 BURN) для глубины DEX |
-| **Whale manipulation** | Средняя | Высокое | Низкая total supply (1000 BURN) сама по себе делает массовую скупку дорогой; мониторинг крупных кошельков |
-| **Regulatory issues** | Низкая | Критическое | Utility token, не security |
-| **Low adoption** | Средняя | Высокое | Привязка к реальной utility |
-| **TON network issues** | Низкая | Высокое | Мониторинг, fallback планы |
-| **Staking pool drain** | Низкая | Высокое | Лимиты на rewards, vesting |
+| **Smart contract bug** | Medium | Critical | Audit, tests, bug bounty |
+| **Low liquidity** | Medium | High | Increased LP allocation (30%, 300 BURN) for DEX depth |
+| **Whale manipulation** | Medium | High | Low total supply (1000 BURN) itself makes mass buying expensive; large wallet monitoring |
+| **Regulatory issues** | Low | Critical | Utility token, not security |
+| **Low adoption** | Medium | High | Tied to real utility |
+| **TON network issues** | Low | High | Monitoring, fallback plans |
+| **Staking pool drain** | Low | High | Reward limits, vesting |
 
 ### Contingency Plans
 
@@ -738,32 +738,32 @@ contracts/
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. Critical Bug Found:                                          │
-│     ├── Pause контракт (если возможно)                           │
-│     ├── Уведомить сообщество                                     │
-│     ├── Разработать и протестировать fix                         │
-│     └── Деплой обновлённого контракта                            │
+│     ├── Pause contract (if possible)                             │
+│     ├── Notify community                                         │
+│     ├── Develop and test fix                                     │
+│     └── Deploy updated contract                                  │
 │                                                                  │
 │  2. Liquidity Crisis:                                            │
-│     ├── Использовать Reserve allocation (43 BURN)                │
-│     ├── Buyback из Treasury и пополнение LP                      │
-│     ├── Временно снизить staking distribution rate               │
-│     └── Партнёрства для дополнительной ликвидности               │
+│     ├── Use Reserve allocation (43 BURN)                         │
+│     ├── Buyback from Treasury and LP replenishment               │
+│     ├── Temporarily reduce staking distribution rate             │
+│     └── Partnerships for additional liquidity                    │
 │                                                                  │
 │  3. Whale Attack / Market Manipulation:                          │
-│     ├── Активировать emergency governance                        │
-│     ├── Buyback & burn из Treasury                               │
-│     └── Координация с DEX по защитным мерам                      │
+│     ├── Activate emergency governance                            │
+│     ├── Buyback & burn from Treasury                             │
+│     └── Coordinate with DEX on protective measures               │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Метрики успеха
+## Success Metrics
 
-### Launch Metrics (первый месяц)
+### Launch Metrics (first month)
 
-| Метрика | Цель |
+| Metric | Target |
 |---------|------|
 | Unique holders | > 500 |
 | Total staked | > 30% supply |
@@ -771,9 +771,9 @@ contracts/
 | Liquidity (DEX) | > $15,000 |
 | Active stakers | > 50 |
 
-### Growth Metrics (6 месяцев)
+### Growth Metrics (6 months)
 
-| Метрика | Цель |
+| Metric | Target |
 |---------|------|
 | Unique holders | > 5,000 |
 | Total staked | > 50% supply |
@@ -783,42 +783,42 @@ contracts/
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — техническая архитектура
-- [SECURITY.md](./SECURITY.md) — безопасность системы
-- [API.md](./API.md) — API спецификация
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — technical architecture
+- [SECURITY.md](./SECURITY.md) — system security
+- [API.md](./API.md) — API specification
 
 ---
 
 ## FAQ
 
-### Почему только 1,000 токенов?
+### Why only 1,000 tokens?
 
-Низкая эмиссия создаёт:
-- Психологическую ценность ("владею целым токеном")
-- Естественный дефицит
-- Простоту понимания (1 BURN = значимая сумма)
+Low emission creates:
+- Psychological value ("I own a whole token")
+- Natural scarcity
+- Simplicity of understanding (1 BURN = meaningful amount)
 
-### Почему 0.7% developer allocation?
+### Why 0.7% developer allocation?
 
-- Демонстрирует веру в проект
-- Минимальный размер аллокации + 12-месячный линейный vesting исключают возможность "rug pull"
-- Выравнивает интересы с сообществом
+- Demonstrates belief in the project
+- Minimal allocation size + 12-month linear vesting rules out "rug pull" possibility
+- Aligns interests with the community
 
-### Что если supply станет слишком маленьким?
+### What if supply becomes too small?
 
-При supply < 100 BURN:
-- Burn rate автоматически снижается до 0.1%
-- Staking rewards уменьшаются пропорционально
-- Токен становится "коллекционным активом"
+When supply < 100 BURN:
+- Burn rate automatically drops to 0.1%
+- Staking rewards decrease proportionally
+- Token becomes a "collectible asset"
 
-### Можно ли изменить параметры?
+### Can parameters be changed?
 
-Да, через governance:
-- Burn rate (0.1% - 5%)
-- Staking pool distribution rate (скорость линейной выдачи 300 BURN initial allocation)
-- Tier reward shares (доли 60/25/10/5 между Diamond/Gold/Silver/Flexible)
-- Treasury распределение
+Yes, through governance:
+- Burn rate (0.1% – 5%)
+- Staking pool distribution rate (linear distribution speed of 300 BURN initial allocation)
+- Tier reward shares (60/25/10/5 shares between Diamond/Gold/Silver/Flexible)
+- Treasury distribution
 
-Голосуют все стейкеры с весом по VP-формуле (см. раздел Governance). Требования к кворуму и порогу принятия зависят от типа предложения (Parameter Change / Feature Priority / Treasury Spend / Emergency).
+All stakers vote with weight per the VP formula (see Governance section). Quorum and approval threshold requirements depend on proposal type (Parameter Change / Feature Priority / Treasury Spend / Emergency).

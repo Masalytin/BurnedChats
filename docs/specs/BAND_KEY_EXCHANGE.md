@@ -1,47 +1,47 @@
 # In-Band Key Exchange
 
-> Обмен ключами внутри канала без использования внешних средств связи
+> Key exchange within the channel without using external communication means
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Проблематика](#проблематика)
-- [Решение: Rendezvous Protocol](#решение-rendezvous-protocol)
-- [Защита от MITM](#защита-от-mitm)
-- [Секретный вопрос](#секретный-вопрос)
-- [Протокол сжигания](#протокол-сжигания)
-- [Риски и ограничения](#риски-и-ограничения)
-
----
-
-## Проблематика
-
-### Классическая проблема
-
-В стандартных E2EE мессенджерах (Signal, WhatsApp) обмен ключами происходит через сервер, а верификация — через **внешний канал** (звонок, личная встреча).
-
-**Наш сценарий сложнее:**
-- Внешние каналы недоступны
-- Telegram как посредник не вызывает доверия
-- Нужен In-Band обмен с защитой от перехвата
-
-### Угрозы
-
-| Угроза | Описание | Наша защита |
-|--------|----------|-------------|
-| **Passive MITM** | Перехват трафика | TLS + E2EE |
-| **Active MITM** | Подмена ключей | Visual Fingerprint |
-| **Identity Spoofing** | Угон аккаунта Telegram | Секретный вопрос |
-| **Server Compromise** | Взлом нашего сервера | Zero-knowledge |
+- [Problem Statement](#problem-statement)
+- [Solution: Rendezvous Protocol](#solution-rendezvous-protocol)
+- [MITM Protection](#mitm-protection)
+- [Secret Question](#secret-question)
+- [Burn Protocol](#burn-protocol)
+- [Risks and Limitations](#risks-and-limitations)
 
 ---
 
-## Решение: Rendezvous Protocol
+## Problem Statement
 
-### Концепция
+### The Classic Problem
 
-Сервер выступает как **точка встречи (rendezvous)**, где пользователи находят друг друга по Telegram ID, но обмен криптографическими данными происходит напрямую через WebSocket.
+In standard E2EE messengers (Signal, WhatsApp), key exchange happens through the server, while verification happens through an **external channel** (phone call, in-person meeting).
 
-### Протокол
+**Our scenario is more complex:**
+- External channels are unavailable
+- Telegram as an intermediary is not trusted
+- In-band exchange with interception protection is required
+
+### Threats
+
+| Threat | Description | Our Protection |
+|--------|-------------|----------------|
+| **Passive MITM** | Traffic interception | TLS + E2EE |
+| **Active MITM** | Key substitution | Visual Fingerprint |
+| **Identity Spoofing** | Telegram account takeover | Secret Question |
+| **Server Compromise** | Compromise of our server | Zero-knowledge |
+
+---
+
+## Solution: Rendezvous Protocol
+
+### Concept
+
+The server acts as a **rendezvous point** where users find each other by Telegram ID, but cryptographic data exchange happens directly over WebSocket.
+
+### Protocol
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -82,40 +82,40 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Что видит сервер
+### What the Server Sees
 
 ```typescript
-// Сервер видит ТОЛЬКО:
+// Server sees ONLY:
 {
   sessionId: "abc123",
   participant1: "111222333",  // Telegram ID Alice
   participant2: "444555666",  // Telegram ID Bob
-  publicKey_A: "base64...",   // Публичный ключ (бесполезен без приватного)
-  publicKey_B: "base64...",   // Публичный ключ (бесполезен без приватного)
-  encryptedMessages: [...]    // Зашифрованные blob'ы
+  publicKey_A: "base64...",   // Public key (useless without private key)
+  publicKey_B: "base64...",   // Public key (useless without private key)
+  encryptedMessages: [...]    // Encrypted blobs
 }
 
-// Сервер НЕ видит:
-// - Приватные ключи
+// Server does NOT see:
+// - Private keys
 // - Shared Secret
-// - Расшифрованные сообщения
+// - Decrypted messages
 ```
 
 ---
 
-## Защита от MITM
+## MITM Protection
 
 ### Visual Fingerprint
 
-Даже если злоумышленник подменит ключи, пользователи увидят **разные** Visual Fingerprint.
+Even if an attacker substitutes keys, users will see **different** Visual Fingerprints.
 
-#### Алгоритм генерации
+#### Generation Algorithm
 
 ```typescript
 async function generateVisualFingerprint(
   sharedSecret: ArrayBuffer
 ): Promise<FingerprintElement[]> {
-  // Детерминированный hash из shared secret
+  // Deterministic hash from shared secret
   const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
   const bytes = new Uint8Array(hash);
   
@@ -135,123 +135,123 @@ async function generateVisualFingerprint(
 }
 ```
 
-#### Почему это работает
+#### Why This Works
 
 ```
-СЦЕНАРИЙ: MITM атака
+SCENARIO: MITM attack
 
 Alice ◄──────► Mallory ◄──────► Bob
 
-1. Mallory генерирует 2 пары ключей
-2. С Alice использует пару (M1_pub, M1_priv)
-3. С Bob использует пару (M2_pub, M2_priv)
+1. Mallory generates 2 key pairs
+2. With Alice uses pair (M1_pub, M1_priv)
+3. With Bob uses pair (M2_pub, M2_priv)
 
-Результат:
-- Alice вычисляет: SharedSecret_AM = ECDH(A_priv, M1_pub)
-- Bob вычисляет: SharedSecret_BM = ECDH(B_priv, M2_pub)
+Result:
+- Alice computes: SharedSecret_AM = ECDH(A_priv, M1_pub)
+- Bob computes: SharedSecret_BM = ECDH(B_priv, M2_pub)
 
 SharedSecret_AM ≠ SharedSecret_BM
 
-→ Visual Fingerprint будут РАЗНЫМИ!
+→ Visual Fingerprints will be DIFFERENT!
 
-Alice видит: ◆RED ○BLUE □GREEN △PURPLE
-Bob видит:   ⬡CYAN ⬢ORANGE ◆RED □BLUE
+Alice sees: ◆RED ○BLUE □GREEN △PURPLE
+Bob sees:   ⬡CYAN ⬢ORANGE ◆RED □BLUE
 
-При сравнении → "Коды не совпадают" → Сессия уничтожается
+On comparison → "Codes do not match" → Session destroyed
 ```
 
-#### Вероятности
+#### Probabilities
 
 ```
-Комбинаций: 6 × 6 × 6 × 6 × 6 × 6 × 6 × 6 = 1,679,616
+Combinations: 6 × 6 × 6 × 6 × 6 × 6 × 6 × 6 = 1,679,616
 
-Вероятность случайного совпадения: 0.00006%
+Probability of random match: 0.00006%
 
-Для успешной MITM атаки Mallory должен:
-1. Угадать fingerprint Alice (1/1,679,616)
-2. Подменить UI обоих в реальном времени
+For a successful MITM attack, Mallory must:
+1. Guess Alice's fingerprint (1/1,679,616)
+2. Substitute the UI for both parties in real time
 
-→ Практически невозможно
+→ Practically impossible
 ```
 
 ---
 
-## Секретный вопрос
+## Secret Question
 
-### Проблема Identity Spoofing
+### The Identity Spoofing Problem
 
-Visual Fingerprint защищает от MITM, но не от **угона аккаунта**:
+Visual Fingerprint protects against MITM, but not against **account takeover**:
 
 ```
-СЦЕНАРИЙ: Угон аккаунта Bob
+SCENARIO: Bob's account takeover
 
-1. Mallory получает доступ к Telegram аккаунту Bob
-2. Mallory открывает Mini App под видом Bob
-3. ECDH работает корректно, Visual Fingerprint совпадает
-4. Alice думает, что общается с Bob
+1. Mallory gains access to Bob's Telegram account
+2. Mallory opens the Mini App posing as Bob
+3. ECDH works correctly, Visual Fingerprint matches
+4. Alice thinks she is talking to Bob
 
-→ Alice раскрывает секретную информацию Mallory
+→ Alice reveals secret information to Mallory
 ```
 
-### Решение: Shared Secret Knowledge
+### Solution: Shared Secret Knowledge
 
-При создании чата Alice может задать вопрос, ответ на который знает только настоящий Bob:
+When creating a chat, Alice can set a question that only the real Bob knows the answer to:
 
 ```typescript
-// Alice создаёт сессию
+// Alice creates a session
 socket.emit('CREATE_SESSION', {
   recipientTgId: "444555666",
-  secretQuestion: "Как звали моего кота в 2015?"
+  secretQuestion: "What was my cat's name in 2015?"
 });
 
-// Bob получает запрос с вопросом
+// Bob receives the request with the question
 socket.on('INCOMING_REQUEST', (data) => {
-  // data.secretQuestion = "Как звали моего кота в 2015?"
+  // data.secretQuestion = "What was my cat's name in 2015?"
 });
 
-// Bob отвечает
+// Bob responds
 socket.emit('ACCEPT_REQUEST', {
   sessionId: "abc123",
-  secretAnswer: "Барсик"
+  secretAnswer: "Barsik"
 });
 ```
 
-### Криптографическая интеграция
+### Cryptographic Integration
 
-Ответ на вопрос становится **salt** для HKDF:
+The answer to the question becomes the **salt** for HKDF:
 
 ```typescript
-// Стандартный HKDF (без секретного вопроса)
+// Standard HKDF (without secret question)
 const aesKey = await deriveKey(sharedSecret, {
   salt: "BurnedChats-v1",
   info: "encryption-key"
 });
 
-// HKDF с секретным вопросом
+// HKDF with secret question
 const answerHash = await sha256(answer.toLowerCase().trim());
 const aesKey = await deriveKey(sharedSecret, {
-  salt: answerHash,  // ← Ответ как salt
+  salt: answerHash,  // ← Answer as salt
   info: "encryption-key"
 });
 ```
 
-### Результат
+### Result
 
-| Сценарий | SharedSecret | Salt | AES Key | Сообщения |
-|----------|--------------|------|---------|-----------|
-| Правильный ответ | ✓ | ✓ | ✓ | Расшифровываются |
-| Неправильный ответ | ✓ | ✗ | ✗ | Мусор |
-| MITM | ✗ | - | ✗ | Мусор |
+| Scenario | SharedSecret | Salt | AES Key | Messages |
+|----------|--------------|------|---------|----------|
+| Correct answer | ✓ | ✓ | ✓ | Decrypted |
+| Wrong answer | ✓ | ✗ | ✗ | Garbage |
+| MITM | ✗ | - | ✗ | Garbage |
 
-**Важно:** Сервер не знает правильный ответ. Он не может проверить, правильно ли Bob ответил — это проверяется криптографически на стороне клиентов.
+**Important:** The server does not know the correct answer. It cannot verify whether Bob answered correctly — this is verified cryptographically on the client side.
 
 ---
 
-## Протокол сжигания
+## Burn Protocol
 
-### Двухсторонняя синхронизация
+### Two-Way Synchronization
 
-При уничтожении чата критически важно, чтобы данные были удалены **у обоих** участников.
+When destroying a chat, it is critical that data is deleted **for both** participants.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -281,31 +281,31 @@ const aesKey = await deriveKey(sharedSecret, {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Гарантии уничтожения
+### Destruction Guarantees
 
 ```typescript
-// На стороне клиента
+// Client side
 async function burnSession(sessionId: string): Promise<void> {
-  // 1. Уведомляем сервер
+  // 1. Notify the server
   socket.emit('BURN_SESSION', { sessionId });
   
-  // 2. Стираем ключи
+  // 2. Wipe keys
   keyStore.burn();
   
-  // 3. Очищаем состояние
+  // 3. Clear state
   messages.clear();
   
-  // 4. Перезаписываем память (best effort)
+  // 4. Overwrite memory (best effort)
   for (let i = 0; i < 10; i++) {
     sessionStorage.setItem('dummy', crypto.randomUUID());
   }
   sessionStorage.clear();
   
-  // 5. Закрываем приложение
+  // 5. Close the application
   WebApp.close();
 }
 
-// Обработка входящего сигнала
+// Handle incoming signal
 socket.on('BURN_SIGNAL', ({ sessionId }) => {
   haptics.heavy();
   showBurnAnimation();
@@ -313,98 +313,98 @@ socket.on('BURN_SIGNAL', ({ sessionId }) => {
 });
 ```
 
-### Сценарий: Bob offline
+### Scenario: Bob Offline
 
 ```
-Alice нажимает Burn, но Bob offline:
+Alice presses Burn, but Bob is offline:
 
-1. Alice: данные удалены локально
-2. Server: данные удалены из Redis
-3. Bob: при следующем подключении получит SESSION_BURNED
+1. Alice: data deleted locally
+2. Server: data deleted from Redis
+3. Bob: receives SESSION_BURNED on next connection
 
-→ Сессия недействительна, ключи на сервере отсутствуют
-→ Даже если Bob попытается синхронизироваться — нечего синхронизировать
+→ Session is invalid, keys are absent on the server
+→ Even if Bob tries to sync — nothing to sync
 ```
 
 ---
 
-## Риски и ограничения
+## Risks and Limitations
 
-### Ограничения In-Band обмена
+### In-Band Exchange Limitations
 
-| Ограничение | Описание | Mitigation |
-|-------------|----------|------------|
-| **Trust on First Use** | Первый обмен ключами не верифицирован | Visual Fingerprint |
-| **Metadata Exposure** | Сервер видит кто с кем общается | Неизбежно в данной архитектуре |
-| **Timing Attacks** | Время отправки сообщений видно | Не защищаемся (низкий приоритет) |
+| Limitation | Description | Mitigation |
+|------------|-------------|------------|
+| **Trust on First Use** | First key exchange is not verified | Visual Fingerprint |
+| **Metadata Exposure** | Server sees who talks to whom | Inevitable in this architecture |
+| **Timing Attacks** | Message send times are visible | Not protected (low priority) |
 
 ### Identity Spoofing
 
-Главный риск — **угон Telegram аккаунта**:
+The main risk is **Telegram account takeover**:
 
-> Если злоумышленник получил доступ к аккаунту, он может притвориться владельцем.
+> If an attacker gains access to the account, they can impersonate the owner.
 
-**Защита:**
-1. Секретный вопрос (shared knowledge)
-2. Рекомендация использовать 2FA в Telegram
-3. Предупреждение в UI о рисках
+**Protection:**
+1. Secret question (shared knowledge)
+2. Recommendation to use 2FA in Telegram
+3. UI warning about risks
 
-### Физический доступ
+### Physical Access
 
-| Состояние | Риск |
-|-----------|------|
-| Mini App открыт | Ключи в памяти — доступны при root |
-| Mini App закрыт | sessionStorage очищен — ничего не найти |
-| Телефон выключен | Данные не персистируются — безопасно |
+| State | Risk |
+|-------|------|
+| Mini App open | Keys in memory — accessible with root |
+| Mini App closed | sessionStorage cleared — nothing to find |
+| Phone powered off | Data not persisted — safe |
 
-### Рекомендации пользователям
+### User Recommendations
 
 ```
-⚠️ Для максимальной безопасности:
+⚠️ For maximum security:
 
-1. Используйте секретный вопрос для важных чатов
-2. Всегда проверяйте Visual Fingerprint
-3. Нажимайте "Burn" после завершения разговора
-4. Включите 2FA в Telegram
-5. Не оставляйте телефон без присмотра с открытым чатом
+1. Use a secret question for important chats
+2. Always verify the Visual Fingerprint
+3. Press "Burn" after finishing the conversation
+4. Enable 2FA in Telegram
+5. Do not leave your phone unattended with an open chat
 ```
 
 ---
 
-## Альтернативные подходы
+## Alternative Approaches
 
-### Стеганография (не реализуем в v1.0)
+### Steganography (not planned for v1.0)
 
-Идея: маскировка ключей под обычный трафик.
+Idea: disguise keys as ordinary traffic.
 
 ```
-Вместо:
+Instead of:
   socket.emit('PUBLIC_KEY', { key: "A5B6C7..." })
 
-Отправляем:
+Send:
   socket.emit('GET_AVATAR', { userId: "123", style: "A5B6C7..." })
 ```
 
-**Плюсы:** Сложнее обнаружить обмен ключами
-**Минусы:** Сложность реализации, ложное чувство безопасности
+**Pros:** Harder to detect key exchange
+**Cons:** Implementation complexity, false sense of security
 
-### QR-код (планируется в v2.0)
+### QR Code (planned for v2.0)
 
-Обмен ключами через камеру, минуя сервер полностью:
+Key exchange via camera, bypassing the server entirely:
 
 ```
-1. Alice генерирует QR с публичным ключом
-2. Bob сканирует камерой
-3. Bob генерирует QR с ответом
-4. Alice сканирует
+1. Alice generates a QR with her public key
+2. Bob scans with the camera
+3. Bob generates a QR with his response
+4. Alice scans
 
-→ Сервер никогда не видит ключи
+→ Server never sees the keys
 ```
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [SECURITY.md](./SECURITY.md) — криптографические примитивы
-- [API.md](./API.md) — WebSocket события handshake
-- [USER_FLOWS.md](./USER_FLOWS.md) — UX верификации
+- [SECURITY.md](./SECURITY.md) — cryptographic primitives
+- [API.md](./API.md) — WebSocket handshake events
+- [USER_FLOWS.md](./USER_FLOWS.md) — verification UX

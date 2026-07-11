@@ -1,102 +1,102 @@
-# Пользовательские сценарии
+# User Flows
 
-> User flows и UX решения
+> User flows and UX decisions
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Основные сценарии](#основные-сценарии)
+- [Main User Flows](#main-user-flows)
 - [Edge Cases](#edge-cases)
 - [UI/UX Guidelines](#uiux-guidelines)
 - [Wireframes](#wireframes)
 
 ---
 
-## Основные сценарии
+## Main User Flows
 
-### Сценарий 1: Создание чата (Инициатор)
+### Flow 1: Creating a Chat (Initiator)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     СОЗДАНИЕ ЧАТА (Alice)                        │
+│                     CREATING A CHAT (Alice)                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. ЗАПУСК                                                       │
+│  1. LAUNCH                                                       │
 │     ┌─────────────────────────┐                                  │
 │     │  Telegram Bot           │                                  │
-│     │  [🚀 Открыть чат]       │ ← Нажатие                        │
+│     │  [🚀 Open Chat]         │ ← Tap                            │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  2. ГЛАВНЫЙ ЭКРАН                                                │
+│  2. MAIN SCREEN                                                  │
 │     ┌─────────────────────────┐                                  │
 │     │  🔥 Burned Chats        │                                  │
 │     │                         │                                  │
 │     │  ┌───────────────────┐  │                                  │
-│     │  │ @username или ID  │  │ ← Ввод username                  │
+│     │  │ @username or ID   │  │ ← Enter username                 │
 │     │  └───────────────────┘  │                                  │
 │     │                         │                                  │
-│     │  [🔍 Найти]             │                                  │
+│     │  [🔍 Search]            │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  3. РЕЗУЛЬТАТ ПОИСКА                                             │
+│  3. SEARCH RESULT                                                │
 │     ┌─────────────────────────┐                                  │
 │     │  👤 Bob (@bob)          │                                  │
 │     │  ● Online               │                                  │
 │     │                         │                                  │
-│     │  ☐ Добавить секретный   │ ← Опционально                    │
-│     │    вопрос               │                                  │
+│     │  ☐ Add secret           │ ← Optional                       │
+│     │    question             │                                  │
 │     │                         │                                  │
-│     │  [📨 Отправить запрос]  │                                  │
+│     │  [📨 Send Request]      │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  4. ОЖИДАНИЕ                                                     │
+│  4. WAITING                                                      │
 │     ┌─────────────────────────┐                                  │
 │     │       ⏳                 │                                  │
-│     │  Ожидание ответа...     │                                  │
+│     │  Waiting for response...│                                  │
 │     │                         │                                  │
-│     │  Запрос истечёт через   │                                  │
+│     │  Request expires in     │                                  │
 │     │  4:32                   │                                  │
 │     │                         │                                  │
-│     │  [❌ Отменить]          │                                  │
+│     │  [❌ Cancel]            │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  5. ПОДКЛЮЧЕНИЕ (Bob принял)                                     │
+│  5. CONNECTING (Bob accepted)                                  │
 │     ┌─────────────────────────┐                                  │
-│     │  🔐 Установка           │                                  │
-│     │  защищённого соединения │                                  │
+│     │  🔐 Establishing        │                                  │
+│     │  secure connection      │                                  │
 │     │  ████████░░ 80%         │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  6. ВЕРИФИКАЦИЯ                                                  │
+│  6. VERIFICATION                                                 │
 │     ┌─────────────────────────┐                                  │
-│     │  Проверьте код          │                                  │
-│     │  безопасности           │                                  │
+│     │  Verify security        │                                  │
+│     │  code                   │                                  │
 │     │                         │                                  │
 │     │  ┌───┐ ┌───┐ ┌───┐ ┌───┐│                                  │
 │     │  │◆  │ │○  │ │□  │ │△  ││                                  │
 │     │  │RED│ │BLU│ │GRN│ │PUR││                                  │
 │     │  └───┘ └───┘ └───┘ └───┘│                                  │
 │     │                         │                                  │
-│     │  Спросите собеседника,  │                                  │
-│     │  видит ли он то же      │                                  │
+│     │  Ask your peer whether  │                                  │
+│     │  they see the same      │                                  │
 │     │                         │                                  │
-│     │  [✓ Совпадает]          │                                  │
+│     │  [✓ Matches]            │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  7. ЧАТ АКТИВЕН                                                  │
+│  7. CHAT ACTIVE                                                  │
 │     ┌─────────────────────────┐                                  │
 │     │  Bob 🔒                 │                                  │
 │     │  ──────────────────     │                                  │
 │     │                         │                                  │
-│     │  [Сообщения...]         │                                  │
+│     │  [Messages...]          │                                  │
 │     │                         │                                  │
 │     │  ┌───────────────────┐  │                                  │
-│     │  │ Написать...       │  │                                  │
+│     │  │ Write...          │  │                                  │
 │     │  └───────────────────┘  │                                  │
 │     │                         │                                  │
 │     │  [📎] [🔥 Burn]         │                                  │
@@ -107,149 +107,150 @@
 
 ---
 
-### Сценарий 2: Принятие запроса (Получатель)
+### Flow 2: Accepting a Request (Recipient)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   ПРИНЯТИЕ ЗАПРОСА (Bob)                         │
+│                   ACCEPTING A REQUEST (Bob)                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. УВЕДОМЛЕНИЕ В TELEGRAM                                       │
+│  1. TELEGRAM NOTIFICATION                                        │
 │     ┌─────────────────────────┐                                  │
 │     │  🔔 Burned Chats        │                                  │
 │     │                         │                                  │
-│     │  Новый запрос на        │                                  │
-│     │  приватный чат          │                                  │
+│     │  New private chat       │                                  │
+│     │  request                │                                  │
 │     │                         │                                  │
-│     │  [✅ Открыть]           │ ← Нажатие                        │
+│     │  [✅ Open]              │ ← Tap                            │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  2. ВХОДЯЩИЙ ЗАПРОС                                              │
+│  2. INCOMING REQUEST                                             │
 │     ┌─────────────────────────┐                                  │
-│     │  📨 Входящий запрос     │                                  │
+│     │  📨 Incoming request    │                                  │
 │     │                         │                                  │
-│     │  Кто-то хочет начать    │                                  │
-│     │  защищённый чат         │                                  │
+│     │  Someone wants to start │                                  │
+│     │  a secure chat          │                                  │
 │     │                         │                                  │
-│     │  ⏱ Истекает через 4:12  │                                  │
+│     │  ⏱ Expires in 4:12      │                                  │
 │     │                         │                                  │
-│     │  [✅ Принять]           │                                  │
-│     │  [❌ Отклонить]         │                                  │
+│     │  [✅ Accept]            │                                  │
+│     │  [❌ Decline]           │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  3A. ЕСЛИ ЕСТЬ СЕКРЕТНЫЙ ВОПРОС                                  │
+│  3A. IF SECRET QUESTION IS SET                                   │
 │     ┌─────────────────────────┐                                  │
-│     │  🔐 Секретный вопрос    │                                  │
+│     │  🔐 Secret question     │                                  │
 │     │                         │                                  │
-│     │  "Как звали моего кота?"│                                  │
+│     │  "What was my cat's     │                                  │
+│     │   name?"                │                                  │
 │     │                         │                                  │
 │     │  ┌───────────────────┐  │                                  │
-│     │  │ Ваш ответ...      │  │                                  │
+│     │  │ Your answer...    │  │                                  │
 │     │  └───────────────────┘  │                                  │
 │     │                         │                                  │
-│     │  [Подтвердить]          │                                  │
+│     │  [Confirm]              │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  4. ВЕРИФИКАЦИЯ + ЧАТ                                            │
-│     (Аналогично сценарию 1, шаги 5-7)                            │
+│  4. VERIFICATION + CHAT                                          │
+│     (Same as Flow 1, steps 5–7)                                    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Сценарий 3: Обмен сообщениями
+### Flow 3: Message Exchange
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     ОБМЕН СООБЩЕНИЯМИ                            │
+│                     MESSAGE EXCHANGE                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  ИНТЕРФЕЙС ЧАТА                                                  │
+│  CHAT INTERFACE                                                  │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │  ← Bob 🔒 ✓✓                                    ⋮           │ │
 │  ├─────────────────────────────────────────────────────────────┤ │
 │  │                                                             │ │
 │  │  ┌────────────────────────┐                                 │ │
-│  │  │ Привет! Как дела?      │  10:30 ✓                        │ │
+│  │  │ Hi! How are you?       │  10:30 ✓                        │ │
 │  │  └────────────────────────┘                                 │ │
 │  │                                                             │ │
 │  │                        ┌────────────────────────┐           │ │
-│  │                        │ Отлично! Что нового?   │  10:31    │ │
+│  │                        │ Great! What's new?     │  10:31    │ │
 │  │                        └────────────────────────┘           │ │
 │  │                                                             │ │
 │  │  ┌────────────────────────┐                                 │ │
-│  │  │ Смотри документ 📄     │  10:32 ✓                        │ │
+│  │  │ Check out this doc 📄  │  10:32 ✓                        │ │
 │  │  │ report.pdf (2.3 MB)    │                                 │ │
 │  │  └────────────────────────┘                                 │ │
 │  │                                                             │ │
-│  │                        Bob печатает...                      │ │
+│  │                        Bob is typing...                     │ │
 │  │                                                             │ │
 │  ├─────────────────────────────────────────────────────────────┤ │
 │  │  ┌─────────────────────────────────────────┐  📎  🔥        │ │
-│  │  │ Написать сообщение...                   │                │ │
+│  │  │ Write a message...                      │                │ │
 │  │  └─────────────────────────────────────────┘                │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                                                                  │
-│  ЛЕГЕНДА:                                                        │
-│  ✓  = Отправлено на сервер                                       │
-│  ✓✓ = Доставлено собеседнику (обе галочки в header)              │
-│  🔒 = Соединение защищено                                        │
-│  📎 = Прикрепить файл                                            │
-│  🔥 = Уничтожить чат                                             │
+│  LEGEND:                                                         │
+│  ✓  = Sent to server                                             │
+│  ✓✓ = Delivered to peer (both checkmarks in header)              │
+│  🔒 = Connection secured                                         │
+│  📎 = Attach file                                                │
+│  🔥 = Destroy chat                                               │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Сценарий 4: Уничтожение чата
+### Flow 4: Destroying a Chat
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     УНИЧТОЖЕНИЕ ЧАТА                             │
+│                     DESTROYING A CHAT                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. НАЖАТИЕ НА 🔥                                                │
+│  1. TAP 🔥                                                       │
 │     ┌─────────────────────────┐                                  │
-│     │  ⚠️ Уничтожить чат?     │                                  │
+│     │  ⚠️ Destroy chat?     │                                  │
 │     │                         │                                  │
-│     │  Все сообщения будут    │                                  │
-│     │  удалены без возможности│                                  │
-│     │  восстановления.        │                                  │
+│     │  All messages will be   │                                  │
+│     │  deleted with no way to   │                                  │
+│     │  recover them.          │                                  │
 │     │                         │                                  │
-│     │  [Отмена] [🔥 Сжечь]    │                                  │
+│     │  [Cancel] [🔥 Burn]     │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  2. АНИМАЦИЯ УНИЧТОЖЕНИЯ                                         │
+│  2. DESTRUCTION ANIMATION                                        │
 │     ┌─────────────────────────┐                                  │
 │     │                         │                                  │
 │     │         🔥🔥🔥           │                                  │
 │     │                         │                                  │
-│     │    Чат уничтожен        │                                  │
+│     │    Chat destroyed       │                                  │
 │     │                         │                                  │
-│     │  Ключи удалены с обоих  │                                  │
-│     │  устройств              │                                  │
+│     │  Keys removed from both │                                  │
+│     │  devices                │                                  │
 │     │                         │                                  │
 │     └─────────────────────────┘                                  │
 │                 │                                                │
 │                 ▼                                                │
-│  3. ЗАКРЫТИЕ (через 2 секунды)                                   │
-│     Mini App закрывается автоматически                           │
+│  3. CLOSE (after 2 seconds)                                      │
+│     Mini App closes automatically                                │
 │                                                                  │
-│  НА СТОРОНЕ СОБЕСЕДНИКА:                                         │
+│  ON THE PEER'S SIDE:                                             │
 │     ┌─────────────────────────┐                                  │
 │     │                         │                                  │
 │     │         🔥              │                                  │
 │     │                         │                                  │
-│     │  Собеседник уничтожил   │                                  │
-│     │  чат                    │                                  │
+│     │  Your peer destroyed    │                                  │
+│     │  the chat               │                                  │
 │     │                         │                                  │
-│     │  [Закрыть]              │                                  │
+│     │  [Close]                │                                  │
 │     └─────────────────────────┘                                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -257,43 +258,42 @@
 
 ---
 
-### Сценарий 5: Offline сообщения
+### Flow 5: Offline Messages
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     OFFLINE СООБЩЕНИЯ                            │
+│                     OFFLINE MESSAGES                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ALICE (Online)              BOB (Offline)                       │
 │  ──────────────              ────────────                        │
 │                                                                  │
-│  1. Отправляет               1. Закрыл Mini App                  │
-│     сообщение                                                    │
+│  1. Sends message            1. Closed Mini App                  │
 │         │                                                        │
 │         ▼                                                        │
-│  2. Сервер сохраняет                                             │
+│  2. Server stores                                                │
 │     encrypted blob                                               │
-│     в Redis                                                      │
+│     in Redis                                                     │
 │         │                                                        │
 │         ▼                                                        │
-│  3. Telegram Bot             2. Получает push:                   │
-│     отправляет ────────────────► "💬 Новое сообщение"            │
-│     уведомление                                                  │
+│  3. Telegram Bot             2. Receives push:                   │
+│     sends ──────────────────► "💬 New message"                   │
+│     notification                                                 │
 │                                      │                           │
 │                                      ▼                           │
-│                              3. Открывает Mini App               │
+│                              3. Opens Mini App                   │
 │                                      │                           │
 │                                      ▼                           │
 │                              4. SYNC_MESSAGES                    │
-│                                 Запрашивает                      │
-│                                 пропущенные                      │
+│                                 Requests missed                  │
+│                                 messages                         │
 │                                      │                           │
 │                                      ▼                           │
-│                              5. Расшифровывает                   │
-│                                 локально                         │
+│                              5. Decrypts                         │
+│                                 locally                          │
 │                                                                  │
-│  ВАЖНО: TTL offline сообщений = 24 часа                          │
-│         После этого — автоудаление                               │
+│  IMPORTANT: Offline message TTL = 24 hours                       │
+│             After that — auto-deletion                           │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -302,124 +302,124 @@
 
 ## Edge Cases
 
-### Case 1: Запрос истёк
+### Case 1: Request Expired
 
 ```
-Ситуация: Bob не ответил в течение 5 минут
+Situation: Bob did not respond within 5 minutes
 
-Поведение:
-├── Alice видит: "⏱ Запрос истёк"
-├── Опция: [Отправить повторно] [Закрыть]
-└── Redis: session удаляется по TTL
+Behavior:
+├── Alice sees: "⏱ Request expired"
+├── Options: [Send again] [Close]
+└── Redis: session deleted by TTL
 ```
 
-### Case 2: Потеря соединения
+### Case 2: Connection Lost
 
 ```
-Ситуация: Пропало интернет-соединение
+Situation: Internet connection dropped
 
-Поведение:
-├── UI: Показывается "Переподключение..."
-├── Socket.io: Автоматический reconnect
-├── При восстановлении:
+Behavior:
+├── UI: Shows "Reconnecting..."
+├── Socket.io: Automatic reconnect
+├── On recovery:
 │   ├── REJOIN_SESSION
 │   └── SYNC_MESSAGES
-└── Ключи НЕ удаляются (хранятся в sessionStorage)
+└── Keys are NOT deleted (stored in sessionStorage)
 ```
 
-### Case 3: Закрытие Mini App
+### Case 3: Mini App Closed
 
 ```
-Ситуация: Пользователь закрыл приложение (swipe down / back button)
+Situation: User closed the app (swipe down / back button)
 
-Поведение:
-├── beforeunload: Ключи удаляются из sessionStorage
-├── Сессия остаётся active на сервере (TTL 1 час)
-├── При повторном входе:
-│   ├── Если тот же sessionStorage → продолжение
-│   └── Если очищен → новый handshake требуется
-└── Собеседник видит: "Peer disconnected" (temporary: true)
+Behavior:
+├── beforeunload: Keys removed from sessionStorage
+├── Session remains active on server (TTL 1 hour)
+├── On re-entry:
+│   ├── If same sessionStorage → resume
+│   └── If cleared → new handshake required
+└── Peer sees: "Peer disconnected" (temporary: true)
 ```
 
-### Case 4: Неправильный секретный ответ
+### Case 4: Incorrect Secret Answer
 
 ```
-Ситуация: Bob ответил неправильно на секретный вопрос
+Situation: Bob answered the secret question incorrectly
 
-Поведение:
-├── Handshake проходит успешно (ECDH не зависит от ответа)
-├── Но AES key получается разный (salt отличается)
-├── Сообщения не расшифровываются
-├── UI: "Не удалось расшифровать сообщение"
-└── Опция: Связаться другим способом для проверки
+Behavior:
+├── Handshake succeeds (ECDH does not depend on the answer)
+├── But AES key differs (salt differs)
+├── Messages cannot be decrypted
+├── UI: "Failed to decrypt message"
+└── Option: Contact via another channel to verify
 ```
 
-### Case 5: Visual Fingerprint не совпадает
+### Case 5: Visual Fingerprint Mismatch
 
 ```
-Ситуация: Пользователи видят разные коды
+Situation: Users see different codes
 
-Поведение (если нажали "Не совпадает"):
-├── Сессия автоматически уничтожается
-├── UI: "⚠️ Возможна атака MITM"
-├── Рекомендация: "Попробуйте снова или свяжитесь другим способом"
-└── Ключи удаляются на обоих устройствах
+Behavior (if "Does not match" was tapped):
+├── Session is automatically destroyed
+├── UI: "⚠️ Possible MITM attack"
+├── Recommendation: "Try again or contact via another channel"
+└── Keys removed on both devices
 ```
 
-### Case 6: Блокировка пользователя
+### Case 6: User Blocked
 
 ```
-Ситуация: Alice заблокировала Bob ранее
+Situation: Alice blocked Bob earlier
 
-Поведение:
-├── Bob ищет @alice
-├── Поиск возвращает: "Пользователь не найден"
-├── Никаких уведомлений Alice
-└── Bob не знает о блокировке (privacy)
+Behavior:
+├── Bob searches for @alice
+├── Search returns: "User not found"
+├── No notifications to Alice
+└── Bob is unaware of the block (privacy)
 ```
 
 ---
 
 ## UI/UX Guidelines
 
-### Принципы
+### Principles
 
-1. **Минимализм** — только необходимые элементы
-2. **Понятные состояния** — пользователь всегда знает, что происходит
-3. **Быстрые действия** — критические действия в 1-2 касания
-4. **Telegram Native** — использование нативных компонентов где возможно
+1. **Minimalism** — only essential elements
+2. **Clear states** — the user always knows what is happening
+3. **Fast actions** — critical actions in 1–2 taps
+4. **Telegram Native** — use native components where possible
 
-### Цветовая схема
+### Color Scheme
 
 ```css
-/* Наследуем от Telegram */
+/* Inherited from Telegram */
 :root {
-  /* Основные */
+  /* Primary */
   --bg-primary: var(--tg-bg-color);
   --bg-secondary: var(--tg-secondary-bg-color);
   --text-primary: var(--tg-text-color);
   --text-secondary: var(--tg-hint-color);
   
-  /* Акценты */
+  /* Accents */
   --accent: var(--tg-button-color);
   --accent-text: var(--tg-button-text-color);
   
-  /* Состояния */
+  /* States */
   --success: #34C759;
   --warning: #FF9500;
   --danger: var(--tg-destructive-text-color);
   
-  /* Специфичные для приложения */
+  /* App-specific */
   --burn-color: #FF3B30;
   --secure-color: #34C759;
   --fingerprint-bg: rgba(0, 0, 0, 0.05);
 }
 ```
 
-### Типография
+### Typography
 
 ```css
-/* Telegram-подобная типография */
+/* Telegram-like typography */
 .title {
   font-size: 17px;
   font-weight: 600;
@@ -442,20 +442,20 @@
 
 ### Haptic Feedback Map
 
-| Действие | Тип Haptic |
-|----------|------------|
-| Отправка сообщения | `light` |
-| Получение сообщения | `light` |
-| Верификация подтверждена | `success` |
-| Ошибка | `error` |
-| Burn нажат | `heavy` |
-| Чат уничтожен | `heavy` + `success` |
-| Выбор элемента | `selection` |
+| Action | Haptic Type |
+|--------|-------------|
+| Send message | `light` |
+| Receive message | `light` |
+| Verification confirmed | `success` |
+| Error | `error` |
+| Burn tapped | `heavy` |
+| Chat destroyed | `heavy` + `success` |
+| Select item | `selection` |
 
-### Анимации
+### Animations
 
 ```css
-/* Появление сообщения */
+/* Message appearance */
 @keyframes messageIn {
   from {
     opacity: 0;
@@ -498,7 +498,7 @@
 
 ## Wireframes
 
-### Главный экран
+### Main Screen
 
 ```
 ┌────────────────────────────────────┐
@@ -506,36 +506,36 @@
 ├────────────────────────────────────┤
 │                                    │
 │  ┌──────────────────────────────┐  │
-│  │ 🔍 Найти по @username или ID │  │
+│  │ 🔍 Search by @username or ID │  │
 │  └──────────────────────────────┘  │
 │                                    │
 │  ─────────────────────────────────  │
 │                                    │
-│  📨 Входящие запросы (2)           │
+│  📨 Incoming requests (2)          │
 │                                    │
 │  ┌──────────────────────────────┐  │
-│  │ 👤 Кто-то хочет поговорить   │  │
-│  │    ⏱ 4:32 осталось           │  │
-│  │    [✅ Принять] [❌]          │  │
+│  │ 👤 Someone wants to chat     │  │
+│  │    ⏱ 4:32 remaining          │  │
+│  │    [✅ Accept] [❌]           │  │
 │  └──────────────────────────────┘  │
 │                                    │
 │  ┌──────────────────────────────┐  │
-│  │ 👤 Ещё один запрос           │  │
-│  │    ⏱ 2:15 осталось           │  │
-│  │    [✅ Принять] [❌]          │  │
+│  │ 👤 Another request           │  │
+│  │    ⏱ 2:15 remaining          │  │
+│  │    [✅ Accept] [❌]           │  │
 │  └──────────────────────────────┘  │
 │                                    │
 └────────────────────────────────────┘
 ```
 
-### Экран верификации
+### Verification Screen
 
 ```
 ┌────────────────────────────────────┐
 │ ←                                  │
 ├────────────────────────────────────┤
 │                                    │
-│         🔐 Код безопасности        │
+│         🔐 Security Code           │
 │                                    │
 │  ┌────┐  ┌────┐  ┌────┐  ┌────┐   │
 │  │    │  │    │  │    │  │    │   │
@@ -544,25 +544,26 @@
 │  │RED │  │BLUE│  │GRN │  │PUR │   │
 │  └────┘  └────┘  └────┘  └────┘   │
 │                                    │
-│  Убедитесь, что собеседник         │
-│  видит такой же код.               │
+│  Make sure your peer sees          │
+│  the same code.                    │
 │                                    │
-│  Если коды совпадают — соединение  │
-│  защищено от прослушивания.        │
+│  If the codes match — the          │
+│  connection is protected from      │
+│  eavesdropping.                    │
 │                                    │
 │                                    │
 │  ┌──────────────────────────────┐  │
-│  │    ✓ Коды совпадают          │  │
+│  │    ✓ Codes match             │  │
 │  └──────────────────────────────┘  │
 │                                    │
 │  ┌──────────────────────────────┐  │
-│  │    ✗ Коды НЕ совпадают       │  │
+│  │    ✗ Codes do NOT match      │  │
 │  └──────────────────────────────┘  │
 │                                    │
 └────────────────────────────────────┘
 ```
 
-### Экран чата
+### Chat Screen
 
 ```
 ┌────────────────────────────────────┐
@@ -570,37 +571,36 @@
 ├────────────────────────────────────┤
 │                                    │
 │  ┌─────────────────────┐           │
-│  │ Привет!             │ 10:30 ✓   │
+│  │ Hi!                 │ 10:30 ✓   │
 │  └─────────────────────┘           │
 │                                    │
 │           ┌─────────────────────┐  │
-│           │ Привет! Как дела?   │  │
+│           │ Hi! How are you?    │  │
 │           └─────────────────────┘  │
 │                          10:31     │
 │                                    │
 │  ┌─────────────────────┐           │
-│  │ Отлично!            │ 10:32 ✓   │
+│  │ Great!              │ 10:32 ✓   │
 │  │                     │           │
 │  │ 📄 document.pdf     │           │
 │  │ 2.3 MB              │           │
 │  └─────────────────────┘           │
 │                                    │
-│                 Bob печатает...    │
+│                 Bob is typing...   │
 │                                    │
 ├────────────────────────────────────┤
 │ ┌────────────────────────┐ 📎  🔥 │
-│ │ Сообщение...           │         │
+│ │ Message...             │         │
 │ └────────────────────────┘         │
 └────────────────────────────────────┘
 ```
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) — сценарии комнат (Phase 2)
-- [TELEGRAM.md](./TELEGRAM.md) — SDK и интеграция
-- [API.md](./API.md) — WebSocket события
+- [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) — room flows (Phase 2)
+- [TELEGRAM.md](./TELEGRAM.md) — SDK and integration
+- [API.md](./API.md) — WebSocket events
 - [SECURITY.md](./SECURITY.md) — Visual Fingerprint
-
 

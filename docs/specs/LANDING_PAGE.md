@@ -1,63 +1,63 @@
-# Landing Page — Спецификация
+# Landing Page — Specification
 
-> Лендинг для пользователей, открывших сайт вне Telegram Mini App.
-> Концепция: **"Манифест приватности" + "Техническая витрина"**
+> Landing page for users who opened the site outside the Telegram Mini App.
+> Concept: **"Privacy Manifesto" + "Technical Showcase"**
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Контекст и цель](#контекст-и-цель)
-- [Когда показывается лендинг](#когда-показывается-лендинг)
-- [Дизайн-система и тональность](#дизайн-система-и-тональность)
-- [Структура страницы](#структура-страницы)
+- [Context and Purpose](#context-and-purpose)
+- [When the Landing Page Is Shown](#when-the-landing-page-is-shown)
+- [Design System and Tone](#design-system-and-tone)
+- [Page Structure](#page-structure)
   - [1. Hero](#1-hero)
-  - [2. Манифест — Принципы](#2-манифест--принципы)
-  - [3. How It Works — Жизненный цикл](#3-how-it-works--жизненный-цикл)
-  - [4. Trust Block — Что видит сервер](#4-trust-block--что-видит-сервер)
-  - [5. Сравнение с альтернативами](#5-сравнение-с-альтернативами)
-  - [6. Технологии и Open Source](#6-технологии-и-open-source)
+  - [2. Manifesto — Principles](#2-manifesto--principles)
+  - [3. How It Works — Lifecycle](#3-how-it-works--lifecycle)
+  - [4. Trust Block — What the Server Sees](#4-trust-block--what-the-server-sees)
+  - [5. Comparison with Alternatives](#5-comparison-with-alternatives)
+  - [6. Technologies and Open Source](#6-technologies-and-open-source)
   - [7. Footer CTA](#7-footer-cta)
-- [Адаптивность](#адаптивность)
-- [Анимации](#анимации)
-- [Доступность (a11y)](#доступность-a11y)
-- [Технические требования](#технические-требования)
+- [Responsiveness](#responsiveness)
+- [Animations](#animations)
+- [Accessibility (a11y)](#accessibility-a11y)
+- [Technical Requirements](#technical-requirements)
 - [Wireframe](#wireframe)
 
 ---
 
-## Контекст и цель
+## Context and Purpose
 
-Сейчас при открытии приложения вне Telegram показывается заглушка:
+Currently, when the app is opened outside Telegram, a placeholder is shown:
 
 ```
 ⚠️ Cannot Start App
 Please open this app from Telegram
 ```
 
-**Цель**: заменить заглушку полноценным лендингом, который:
+**Goal**: replace the placeholder with a full landing page that:
 
-1. **Объясняет** — что такое Burned Chats и зачем это нужно
-2. **Убеждает** — почему этому можно доверять (zero-knowledge, open source)
-3. **Конвертирует** — направляет пользователя в Telegram для запуска Mini App
-4. **Впечатляет** — визуально передаёт "burned" эстетику и серьёзность подхода к приватности
+1. **Explains** — what Burned Chats is and why it matters
+2. **Convinces** — why it can be trusted (zero-knowledge, open source)
+3. **Converts** — directs the user to Telegram to launch the Mini App
+4. **Impresses** — visually conveys the "burned" aesthetic and a serious approach to privacy
 
-**Целевая аудитория**:
-- Пользователь перешёл по ссылке на сайт (из статьи, соцсетей, поисковика)
-- Пользователь скопировал URL приложения и открыл в обычном браузере
-- Любопытствующий технический пользователь, который хочет разобраться в проекте
+**Target audience**:
+- User followed a link to the site (from an article, social media, search engine)
+- User copied the app URL and opened it in a regular browser
+- Curious technical user who wants to understand the project
 
 ---
 
-## Когда показывается лендинг
+## When the Landing Page Is Shown
 
-Логика определения контекста запуска уже реализована в `useTelegram` хуке:
+Launch context detection logic is already implemented in the `useTelegram` hook:
 
 ```
 frontend/src/hooks/useTelegram.ts → isInTelegram
 ```
 
-**Условие**: `isInTelegram === false` в production-режиме.
+**Condition**: `isInTelegram === false` in production mode.
 
-Текущий код в `App.tsx` (строки 370–373):
+Current code in `App.tsx` (lines 370–373):
 
 ```typescript
 if (import.meta.env.PROD && !isInTelegram) {
@@ -66,60 +66,60 @@ if (import.meta.env.PROD && !isInTelegram) {
 }
 ```
 
-**Изменение**: вместо `setInitError(...)` — рендерить компонент `<LandingPage />`.
+**Change**: instead of `setInitError(...)` — render the `<LandingPage />` component.
 
 ---
 
-## Дизайн-система и тональность
+## Design System and Tone
 
-### Цветовая палитра
+### Color Palette
 
-Используем существующие переменные из `theme.css` + дополнительные для лендинга:
+Use existing variables from `theme.css` plus additional ones for the landing page:
 
-| Назначение | Переменная / Значение | Использование |
+| Purpose | Variable / Value | Usage |
 |---|---|---|
-| Фон основной | `--bc-bg-primary` (`#0f0f0f`) | Фон страницы |
-| Фон секций | `--bc-bg-secondary` (`#1a1a1a`) | Чередующиеся секции |
-| Фон карточек | `--bc-bg-elevated` (`#242424`) | Карточки фич, comparison |
-| Бренд-оранжевый | `--bc-brand-primary` (`#ff6b35`) | Акценты, CTA, иконки |
-| Бренд-градиент | `--bc-brand-gradient` | CTA-кнопки, highlights |
-| Бренд-жёлтый | `--bc-brand-secondary` (`#ff9f1c`) | Второй акцент в градиентах |
-| Текст основной | `--bc-text-primary` (`#ffffff`) | Заголовки, body |
-| Текст вторичный | `--bc-text-secondary` (`#7d7d7d`) | Подзаголовки, описания |
-| Зелёный | `--bc-success` (`#34c759`) | "Вы видите" в trust-блоке |
-| Красный | `--bc-error` (`#ff4444`) | "Сервер видит" в trust-блоке |
+| Main background | `--bc-bg-primary` (`#0f0f0f`) | Page background |
+| Section backgrounds | `--bc-bg-secondary` (`#1a1a1a`) | Alternating sections |
+| Card backgrounds | `--bc-bg-elevated` (`#242424`) | Feature cards, comparison |
+| Brand orange | `--bc-brand-primary` (`#ff6b35`) | Accents, CTA, icons |
+| Brand gradient | `--bc-brand-gradient` | CTA buttons, highlights |
+| Brand yellow | `--bc-brand-secondary` (`#ff9f1c`) | Secondary accent in gradients |
+| Primary text | `--bc-text-primary` (`#ffffff`) | Headings, body |
+| Secondary text | `--bc-text-secondary` (`#7d7d7d`) | Subheadings, descriptions |
+| Green | `--bc-success` (`#34c759`) | "You see" in trust block |
+| Red | `--bc-error` (`#ff4444`) | "Server sees" in trust block |
 
-### Типографика
+### Typography
 
-| Элемент | Desktop | Mobile |
+| Element | Desktop | Mobile |
 |---|---|---|
-| Hero заголовок | 56–64px, font-weight: 800 | 36–40px |
-| Hero подзаголовок | 20–24px, font-weight: 400 | 16–18px |
-| Заголовок секции | 36–40px, font-weight: 700 | 28–32px |
-| Подзаголовок секции | 18–20px, font-weight: 400 | 16px |
-| Body текст | 16–18px | 15–16px |
-| Манифест-цитата | 28–32px, font-weight: 600, italic | 22–24px |
-| Моноширинный | `--bc-font-mono` | Для code-блоков, протоколов |
+| Hero heading | 56–64px, font-weight: 800 | 36–40px |
+| Hero subheading | 20–24px, font-weight: 400 | 16–18px |
+| Section heading | 36–40px, font-weight: 700 | 28–32px |
+| Section subheading | 18–20px, font-weight: 400 | 16px |
+| Body text | 16–18px | 15–16px |
+| Manifesto quote | 28–32px, font-weight: 600, italic | 22–24px |
+| Monospace | `--bc-font-mono` | For code blocks, protocols |
 
-### Тональность текста
+### Text Tone
 
-- Спокойная уверенность, без агрессии и хайпа
-- Короткие декларативные предложения
-- Стиль: "мы не просим доверять — мы делаем доверие ненужным"
-- Язык лендинга: **английский** (основная аудитория — Telegram-юзеры международно)
+- Calm confidence, without aggression or hype
+- Short declarative sentences
+- Style: "we don't ask you to trust us — we make trust unnecessary"
+- Landing page language: **English** (primary audience — international Telegram users)
 
 ---
 
-## Структура страницы
+## Page Structure
 
 ### 1. Hero
 
-**Цель**: захватить внимание, объяснить суть за 5 секунд.
+**Goal**: capture attention, explain the essence in 5 seconds.
 
-**Содержание**:
+**Content**:
 
 ```
-[Анимированная иконка огня / логотип]
+[Animated fire icon / logo]
 
 Burned Chats
 
@@ -131,58 +131,58 @@ Built on zero-knowledge architecture.
 [Open in Telegram]  ← Primary CTA
 ```
 
-**Визуальные детали**:
-- Логотип / иконка огня в центре с мягной glow-анимацией (оранжевый `--bc-shadow-glow`)
-- Заголовок: крупный, белый, font-weight: 800
-- Подзаголовок: `--bc-text-secondary`, font-weight: 400
-- Три ключевых слова (encrypted / self-destructing / zero-knowledge) — выделены оранжевым или с подчёркиванием
-- CTA-кнопка: градиент `--bc-brand-gradient`, крупная, с иконкой Telegram
-- Фон: тонкий radial-gradient от `#1a1a1a` к `#0f0f0f`, можно добавить subtle particle-эффект или тонкий grid-паттерн
-- Скролл-индикатор внизу (стрелка вниз / chevron с анимацией bounce)
+**Visual details**:
+- Logo / fire icon centered with soft glow animation (orange `--bc-shadow-glow`)
+- Heading: large, white, font-weight: 800
+- Subheading: `--bc-text-secondary`, font-weight: 400
+- Three key words (encrypted / self-destructing / zero-knowledge) — highlighted in orange or underlined
+- CTA button: `--bc-brand-gradient` gradient, large, with Telegram icon
+- Background: subtle radial gradient from `#1a1a1a` to `#0f0f0f`, optional subtle particle effect or thin grid pattern
+- Scroll indicator at the bottom (down arrow / chevron with bounce animation)
 
-**Высота**: полный viewport (`100vh` / `100dvh`).
+**Height**: full viewport (`100vh` / `100dvh`).
 
 ---
 
-### 2. Манифест — Принципы
+### 2. Manifesto — Principles
 
-**Цель**: эмоциональный блок — сформировать доверие через принципы.
+**Goal**: emotional block — build trust through principles.
 
-**Содержание**:
+**Content**:
 
-Крупная цитата-statement сверху:
+Large quote-statement at the top:
 
 > *"We can't read your messages. Even if we wanted to."*
 
-Далее 4 принципа в виде карточек (2x2 grid на desktop, вертикальный список на mobile):
+Then 4 principles as cards (2x2 grid on desktop, vertical list on mobile):
 
-| # | Иконка | Заголовок | Описание |
+| # | Icon | Heading | Description |
 |---|--------|-----------|----------|
 | 1 | Shield/Lock | **Zero Knowledge** | The server never sees your messages, keys, or passwords. It relays encrypted bytes — nothing more. |
 | 2 | Flame | **Ephemeral by Design** | Messages exist only in the moment. When you burn a chat, all data is permanently destroyed. No backups, no traces. |
 | 3 | Key | **End-to-End Encrypted** | ECDH key exchange + AES-256-GCM encryption. Keys live only on your device and never leave it. |
 | 4 | Eye / Fingerprint | **Verified Identity** | Visual fingerprint verification protects against man-in-the-middle attacks. You know who you're talking to. |
 
-**Визуальные детали**:
-- Цитата: крупный текст, italic, по центру, с decorative quotes
-- Карточки: фон `--bc-bg-elevated`, border `--bc-border-color`, border-radius `--bc-radius-lg`
-- Иконки: оранжевые (`--bc-brand-primary`), размер 32–40px
-- Появление карточек: анимация при скролле (staggered fade-in + slide-up)
+**Visual details**:
+- Quote: large text, italic, centered, with decorative quotes
+- Cards: background `--bc-bg-elevated`, border `--bc-border-color`, border-radius `--bc-radius-lg`
+- Icons: orange (`--bc-brand-primary`), size 32–40px
+- Card appearance: scroll animation (staggered fade-in + slide-up)
 
 ---
 
-### 3. How It Works — Жизненный цикл
+### 3. How It Works — Lifecycle
 
-**Цель**: визуально показать как работает протокол, просто и понятно.
+**Goal**: visually show how the protocol works, simply and clearly.
 
-**Содержание**:
+**Content**:
 
-Заголовок: **"How it works"**
-Подзаголовок: *"A secure chat in 5 steps"*
+Heading: **"How it works"**
+Subheading: *"A secure chat in 5 steps"*
 
-Вертикальный timeline с 5 шагами:
+Vertical timeline with 5 steps:
 
-| Шаг | Иконка | Заголовок | Описание |
+| Step | Icon | Heading | Description |
 |-----|--------|-----------|----------|
 | 1 | Search | **Find** | Search for a Telegram user by username or ID |
 | 2 | Send | **Invite** | Send an encrypted chat request. They get a Telegram notification |
@@ -190,13 +190,13 @@ Built on zero-knowledge architecture.
 | 4 | Shield | **Verify** | Compare visual fingerprints to ensure no one is intercepting the connection |
 | 5 | Chat/Flame | **Chat & Burn** | Exchange messages encrypted with AES-256-GCM. When done — burn everything |
 
-**Визуальные детали**:
-- Timeline — вертикальная линия слева (desktop) или по центру (mobile)
-- Каждый шаг — кружок с номером на линии + карточка с описанием справа/слева (чередование на desktop)
-- Линия: градиент от `--bc-brand-primary` к `--bc-brand-secondary`
-- Номера шагов: в оранжевом кружке
-- Анимация: шаги появляются по одному при скролле
-- Между шагами 3–4 можно показать ASCII-схему протокола:
+**Visual details**:
+- Timeline — vertical line on the left (desktop) or centered (mobile)
+- Each step — numbered circle on the line + description card on the right/left (alternating on desktop)
+- Line: gradient from `--bc-brand-primary` to `--bc-brand-secondary`
+- Step numbers: in orange circles
+- Animation: steps appear one by one on scroll
+- Between steps 3–4, show an ASCII protocol diagram:
 
 ```
 Alice            Server           Bob
@@ -210,19 +210,19 @@ Alice            Server           Bob
   └────────────────┴────────────────┘
 ```
 
-Схема — в моноширинном шрифте, стилизованная, с подсветкой "??? blob" красным, а "sharedSecret" — зелёным.
+Diagram — monospace font, styled, with "??? blob" highlighted in red and "sharedSecret" in green.
 
 ---
 
-### 4. Trust Block — Что видит сервер
+### 4. Trust Block — What the Server Sees
 
-**Цель**: конкретно и наглядно показать разницу между тем, что видит сервер, и тем, что видит пользователь.
+**Goal**: concretely and visually show the difference between what the server sees and what the user sees.
 
-**Заголовок**: **"Don't trust us. You don't have to."**
+**Heading**: **"Don't trust us. You don't have to."**
 
-**Содержание**: два столбца (или две стопки на mobile):
+**Content**: two columns (or two stacks on mobile):
 
-**Левый столбец — "What the server sees"** (фон с красноватым оттенком):
+**Left column — "What the server sees"** (background with reddish tint):
 
 ```
 session: a1b2c3d4
@@ -233,9 +233,9 @@ status: ACTIVE
 ttl: 3600s
 ```
 
-Подпись: *Encrypted bytes. Metadata. Nothing else.*
+Caption: *Encrypted bytes. Metadata. Nothing else.*
 
-**Правый столбец — "What you see"** (фон с зеленоватым оттенком):
+**Right column — "What you see"** (background with greenish tint):
 
 ```
 Hey, are we still meeting tomorrow?
@@ -247,24 +247,24 @@ Sounds good. I'll bring the documents.
 [🔥 Burn Chat]
 ```
 
-Подпись: *Decrypted on your device. Keys never leave your browser.*
+Caption: *Decrypted on your device. Keys never leave your browser.*
 
-**Визуальные детали**:
-- Два столбца оформлены как "экраны" или "окна терминала"
-- Левый: стиль терминала, тёмный фон, моноширинный шрифт, subtle красный accent (`--bc-error` с низкой opacity для border/glow)
-- Правый: стиль мессенджера с bubble-сообщениями, зелёный accent (`--bc-success`)
-- На mobile: два блока вертикально (сервер сверху, пользователь снизу)
-- Анимация: при скролле сначала появляется левый блок (encrypted), затем правый (decrypted) — эффект "расшифровки"
+**Visual details**:
+- Two columns styled as "screens" or "terminal windows"
+- Left: terminal style, dark background, monospace font, subtle red accent (`--bc-error` with low opacity for border/glow)
+- Right: messenger style with message bubbles, green accent (`--bc-success`)
+- On mobile: two blocks vertically (server on top, user below)
+- Animation: on scroll, left block (encrypted) appears first, then right (decrypted) — "decryption" effect
 
 ---
 
-### 5. Сравнение с альтернативами
+### 5. Comparison with Alternatives
 
-**Цель**: объективно показать отличия от существующих решений.
+**Goal**: objectively show differences from existing solutions.
 
-**Заголовок**: **"How we compare"**
+**Heading**: **"How we compare"**
 
-**Таблица**:
+**Table**:
 
 | Feature | Burned Chats | Telegram Secret | Signal | WhatsApp |
 |---------|:---:|:---:|:---:|:---:|
@@ -276,30 +276,30 @@ Sounds good. I'll bring the documents.
 | No Phone Number Required | ✅ | ❌ | ❌ | ❌ |
 | Open Source | ✅ | ⚠️ client | ✅ | ❌ |
 
-**Визуальные детали**:
-- Таблица: фон `--bc-bg-elevated`, rounded corners
-- Столбец "Burned Chats" — визуально выделен (accent border сверху или gradient highlight)
-- ✅ — зелёный, ❌ — красный/серый, ⚠️ — жёлтый
-- На mobile: таблица горизонтально скроллится, или преобразуется в карточки (каждый конкурент — отдельная карточка)
-- Под таблицей примечание мелким текстом: *"Comparison based on publicly available information. Last updated: [date]."*
+**Visual details**:
+- Table: background `--bc-bg-elevated`, rounded corners
+- "Burned Chats" column — visually highlighted (accent border on top or gradient highlight)
+- ✅ — green, ❌ — red/gray, ⚠️ — yellow
+- On mobile: table scrolls horizontally, or transforms into cards (each competitor — separate card)
+- Note below the table in small text: *"Comparison based on publicly available information. Last updated: [date]."*
 
 ---
 
-### 6. Технологии и Open Source
+### 6. Technologies and Open Source
 
-**Цель**: показать техническую серьёзность, прозрачность кода.
+**Goal**: demonstrate technical seriousness and code transparency.
 
-**Заголовок**: **"Built in the open"**
+**Heading**: **"Built in the open"**
 
-**Содержание**:
+**Content**:
 
-Ряд технологических бейджей:
+Row of technology badges:
 
 ```
 [ECDH P-256]  [AES-256-GCM]  [Web Crypto API]  [React]  [Spring Boot]  [Redis]  [TypeScript]  [Java 21]
 ```
 
-Под бейджами — блок с GitHub:
+Below badges — GitHub block:
 
 ```
 🔗  Source code is public. Audit it yourself.
@@ -307,7 +307,7 @@ Sounds good. I'll bring the documents.
 [View on GitHub]  ← Secondary CTA (link button)
 ```
 
-Опционально — короткий code snippet как "proof of transparency":
+Optional — short code snippet as "proof of transparency":
 
 ```typescript
 // All encryption happens in your browser
@@ -318,24 +318,24 @@ const sharedSecret = await crypto.subtle.deriveBits(
 );
 ```
 
-**Визуальные детали**:
-- Бейджи: pill-shape, фон `--bc-bg-elevated`, border `--bc-border-color`, моноширинный шрифт
-- GitHub-блок: по центру, иконка GitHub + кнопка
-- Code snippet: стилизованный как IDE с подсветкой синтаксиса, тёмная тема
-- Бейджи выстраиваются в ряд с переносом (flexbox wrap)
+**Visual details**:
+- Badges: pill-shape, background `--bc-bg-elevated`, border `--bc-border-color`, monospace font
+- GitHub block: centered, GitHub icon + button
+- Code snippet: styled like an IDE with syntax highlighting, dark theme
+- Badges arranged in a row with wrapping (flexbox wrap)
 
 ---
 
 ### 7. Footer CTA
 
-**Цель**: финальный призыв к действию + базовая информация.
+**Goal**: final call to action + basic information.
 
-**Содержание**:
+**Content**:
 
 ```
 Ready to chat without leaving a trace?
 
-[Open in Telegram]  ← Primary CTA (повтор)
+[Open in Telegram]  ← Primary CTA (repeat)
 
 ---
 
@@ -345,80 +345,80 @@ Built with ❤️ and 🔥
 [GitHub]  [Documentation]
 ```
 
-**Визуальные детали**:
-- Заголовок: крупный, по центру
-- CTA-кнопка: аналогична hero (градиент, крупная)
-- Разделитель: тонкая линия `--bc-border-color`
-- Нижний текст: мелкий, `--bc-text-muted`
-- Ссылки: иконки + текст, `--bc-text-link`
-- Минимальный padding снизу
+**Visual details**:
+- Heading: large, centered
+- CTA button: same as hero (gradient, large)
+- Divider: thin line `--bc-border-color`
+- Bottom text: small, `--bc-text-muted`
+- Links: icons + text, `--bc-text-link`
+- Minimal bottom padding
 
 ---
 
-## Адаптивность
+## Responsiveness
 
-Страница должна корректно отображаться на всех устройствах:
+The page must display correctly on all devices:
 
-| Breakpoint | Ширина | Особенности |
+| Breakpoint | Width | Notes |
 |---|---|---|
-| Mobile | < 640px | Один столбец, уменьшенная типографика, вертикальный trust-блок, таблица скроллится или карточки |
-| Tablet | 640–1024px | Два столбца где возможно, промежуточная типографика |
-| Desktop | > 1024px | Полная раскладка, все grid'ы, timeline чередуется |
+| Mobile | < 640px | Single column, reduced typography, vertical trust block, table scrolls or cards |
+| Tablet | 640–1024px | Two columns where possible, intermediate typography |
+| Desktop | > 1024px | Full layout, all grids, alternating timeline |
 
-**Максимальная ширина контента**: 1200px (`.landing-container`), центрируется.
+**Maximum content width**: 1200px (`.landing-container`), centered.
 
-**Mobile-first**: стили пишутся от mobile, расширяются через `min-width` media queries.
+**Mobile-first**: styles written from mobile, expanded via `min-width` media queries.
 
 ---
 
-## Анимации
+## Animations
 
-Все анимации реализуются через **CSS** (предпочтительно) или **Intersection Observer API**.
+All animations implemented via **CSS** (preferred) or **Intersection Observer API**.
 
-| Элемент | Тип анимации | Trigger |
+| Element | Animation type | Trigger |
 |---|---|---|
-| Hero логотип | Мягный glow pulse (бесконечный) | При загрузке |
-| Hero текст | Fade-in + slide-up (staggered) | При загрузке |
-| Scroll-индикатор | Bounce (бесконечный) | При загрузке, исчезает после первого скролла |
-| Манифест-цитата | Fade-in | Scroll into view |
-| Карточки принципов | Staggered fade-in + slide-up | Scroll into view |
-| Timeline шаги | Sequential appearance | Scroll into view |
-| Trust-блок столбцы | Left fade-in, then right fade-in | Scroll into view |
-| Таблица сравнения | Fade-in | Scroll into view |
-| Бейджи технологий | Staggered scale-in | Scroll into view |
+| Hero logo | Soft glow pulse (infinite) | On load |
+| Hero text | Fade-in + slide-up (staggered) | On load |
+| Scroll indicator | Bounce (infinite) | On load, disappears after first scroll |
+| Manifesto quote | Fade-in | Scroll into view |
+| Principle cards | Staggered fade-in + slide-up | Scroll into view |
+| Timeline steps | Sequential appearance | Scroll into view |
+| Trust block columns | Left fade-in, then right fade-in | Scroll into view |
+| Comparison table | Fade-in | Scroll into view |
+| Technology badges | Staggered scale-in | Scroll into view |
 
-**Требования**:
-- Все анимации должны уважать `prefers-reduced-motion: reduce` — при активации анимации отключаются
-- Длительность: 300–600ms для появлений, ease-out timing
-- Задержки stagger: 100–150ms между элементами
-- Никаких тяжёлых JS-библиотек для анимаций (без GSAP, Framer Motion и т.д.)
-
----
-
-## Доступность (a11y)
-
-- Семантическая HTML-разметка: `<header>`, `<main>`, `<section>`, `<footer>`, `<nav>`
-- Все изображения/иконки имеют `alt` / `aria-label`
-- CTA-кнопки: `role="link"` или `<a>`, с `aria-label` описывающим действие
-- Таблица сравнения: валидная `<table>` с `<thead>`, `<th scope>`, `<caption>`
-- Контраст текста: минимум WCAG AA (4.5:1 для body, 3:1 для крупного текста)
-- Фокус-стили: видимые, используют `--bc-brand-primary`
-- Skip-to-content ссылка для keyboard-навигации
-- Корректный `lang="en"` на лендинге
+**Requirements**:
+- All animations must respect `prefers-reduced-motion: reduce` — when active, animations are disabled
+- Duration: 300–600ms for appearances, ease-out timing
+- Stagger delays: 100–150ms between elements
+- No heavy JS animation libraries (no GSAP, Framer Motion, etc.)
 
 ---
 
-## Технические требования
+## Accessibility (a11y)
 
-### Компонентная структура
+- Semantic HTML markup: `<header>`, `<main>`, `<section>`, `<footer>`, `<nav>`
+- All images/icons have `alt` / `aria-label`
+- CTA buttons: `role="link"` or `<a>`, with `aria-label` describing the action
+- Comparison table: valid `<table>` with `<thead>`, `<th scope>`, `<caption>`
+- Text contrast: minimum WCAG AA (4.5:1 for body, 3:1 for large text)
+- Focus styles: visible, using `--bc-brand-primary`
+- Skip-to-content link for keyboard navigation
+- Correct `lang="en"` on the landing page
+
+---
+
+## Technical Requirements
+
+### Component Structure
 
 ```
 frontend/src/
 ├── pages/
 │   └── LandingPage/
-│       ├── LandingPage.tsx          — основной компонент
-│       ├── LandingPage.css          — стили
-│       └── index.ts                 — экспорт
+│       ├── LandingPage.tsx          — main component
+│       ├── LandingPage.css          — styles
+│       └── index.ts                 — export
 │
 ├── components/
 │   └── Landing/
@@ -432,53 +432,53 @@ frontend/src/
 │       └── index.ts
 ```
 
-### Точка интеграции
+### Integration Point
 
-В `App.tsx` — заменить блок с `initError`:
+In `App.tsx` — replace the `initError` block:
 
 ```typescript
-// Было:
+// Before:
 if (import.meta.env.PROD && !isInTelegram) {
   setInitError('Please open this app from Telegram');
   return;
 }
 
-// Стало:
+// After:
 if (import.meta.env.PROD && !isInTelegram) {
   return <LandingPage />;
 }
 ```
 
-Компонент `<LandingPage />` рендерится **вне** `<ToastProvider>` и основного app-flow — это полностью самостоятельная страница.
+The `<LandingPage />` component renders **outside** `<ToastProvider>` and the main app flow — it is a fully standalone page.
 
-### Зависимости
+### Dependencies
 
-- **Никаких новых npm-зависимостей** — только React, CSS, Web API
-- Intersection Observer: нативный (поддержка > 95%)
-- Анимации: CSS `@keyframes` + `animation`, CSS `transition`
-- Иконки: можно использовать существующие из `frontend/src/icons/` или добавить новые SVG inline-компоненты
+- **No new npm dependencies** — only React, CSS, Web API
+- Intersection Observer: native (support > 95%)
+- Animations: CSS `@keyframes` + `animation`, CSS `transition`
+- Icons: can use existing ones from `frontend/src/icons/` or add new inline SVG components
 
-### Ссылки CTA
+### CTA Links
 
-| CTA | URL | Примечание |
+| CTA | URL | Notes |
 |---|---|---|
-| Open in Telegram | `https://t.me/{BOT_USERNAME}` | Значение из env-переменной `VITE_TELEGRAM_BOT_URL` или захардкоженное |
-| View on GitHub | `https://github.com/{ORG}/{REPO}` | Конфигурируемо |
+| Open in Telegram | `https://t.me/{BOT_USERNAME}` | Value from env variable `VITE_TELEGRAM_BOT_URL` or hardcoded |
+| View on GitHub | `https://github.com/{ORG}/{REPO}` | Configurable |
 
-### Производительность
+### Performance
 
-- Лендинг не должен загружать WebSocket-логику, crypto-модули и прочий app-код
-- Рассмотреть lazy-загрузку: если `!isInTelegram` — не импортировать основное приложение
-- Целевые метрики:
+- Landing page must not load WebSocket logic, crypto modules, and other app code
+- Consider lazy loading: if `!isInTelegram` — do not import the main application
+- Target metrics:
   - LCP < 2.5s
   - CLS < 0.1
   - FID < 100ms
-- Никаких внешних шрифтов (используем system font stack из `--bc-font-family`)
-- Минимальный bundle: только React + CSS + SVG иконки
+- No external fonts (use system font stack from `--bc-font-family`)
+- Minimal bundle: only React + CSS + SVG icons
 
-### SEO и метаданные
+### SEO and Metadata
 
-Поскольку лендинг — единственное, что видят поисковики, в `index.html` должны быть:
+Since the landing page is the only thing search engines see, `index.html` must include:
 
 ```html
 <title>Burned Chats — Ephemeral Encrypted Messaging</title>
@@ -490,7 +490,7 @@ if (import.meta.env.PROD && !isInTelegram) {
 <meta name="twitter:card" content="summary_large_image">
 ```
 
-OG-изображение (`og-image.png`): логотип + слоган на тёмном фоне, 1200x630px.
+OG image (`og-image.png`): logo + tagline on dark background, 1200x630px.
 
 ---
 
@@ -627,10 +627,10 @@ OG-изображение (`og-image.png`): логотип + слоган на �
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [README.md](../../README.md) — обзор проекта
-- [SECURITY.md](./SECURITY.md) — криптография (источник для технических деталей лендинга)
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — архитектура
-- [TELEGRAM.md](./TELEGRAM.md) — интеграция с Telegram (детекция `isInTelegram`)
-- [USER_FLOWS.md](./USER_FLOWS.md) — пользовательские сценарии (источник для "How It Works")
+- [README.md](../../README.md) — project overview
+- [SECURITY.md](./SECURITY.md) — cryptography (source for landing page technical details)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — architecture
+- [TELEGRAM.md](./TELEGRAM.md) — Telegram integration (`isInTelegram` detection)
+- [USER_FLOWS.md](./USER_FLOWS.md) — user flows (source for "How It Works")

@@ -1,20 +1,20 @@
-# Архитектура системы
+# System Architecture
 
-> Техническое описание компонентов Burned Chats (Java Stack)
+> Technical description of Burned Chats components (Java Stack)
 
-## 📋 Содержание
+## 📋 Table of Contents
 
-- [Обзор архитектуры](#обзор-архитектуры)
-- [Компоненты системы](#компоненты-системы)
-- [Потоки данных](#потоки-данных)
-- [Масштабирование](#масштабирование)
-- [Отказоустойчивость](#отказоустойчивость)
+- [Architecture Overview](#architecture-overview)
+- [System Components](#system-components)
+- [Data Flows](#data-flows)
+- [Scaling](#scaling)
+- [Fault Tolerance](#fault-tolerance)
 
 ---
 
-## Обзор архитектуры
+## Architecture Overview
 
-### Высокоуровневая схема
+### High-Level Diagram
 
 ```
                                     ┌─────────────────────┐
@@ -36,7 +36,7 @@
        │                            │          │          │
        │                            │  ┌───────▼───────┐  │
        │  Web Crypto API            │  │    Redis      │  │
-       │  (все ключи здесь)         │  │  (Lettuce)    │  │
+       │  (all keys here)           │  │  (Lettuce)    │  │
        │                            │  └───────────────┘  │
        ▼                            └─────────────────────┘
 ┌──────────────┐
@@ -45,16 +45,16 @@
 └──────────────┘
 ```
 
-### Принципы проектирования
+### Design Principles
 
-1. **Zero-Knowledge** — сервер никогда не видит plaintext
-2. **Ephemeral by Design** — данные существуют только в RAM клиентов
-3. **Fail-Safe Destruction** — при любой ошибке ключи уничтожаются
-4. **Minimal Trust** — доверие только к Web Crypto API браузера
+1. **Zero-Knowledge** — the server never sees plaintext
+2. **Ephemeral by Design** — data exists only in client RAM
+3. **Fail-Safe Destruction** — keys are destroyed on any error
+4. **Minimal Trust** — trust only the browser's Web Crypto API
 
 ---
 
-## Компоненты системы
+## System Components
 
 ### 1. Frontend (Telegram Mini App)
 
@@ -65,16 +65,16 @@ frontend/
 │   ├── App.tsx                  # Root component
 │   ├── components/
 │   │   ├── Chat/
-│   │   │   ├── ChatRoom.tsx     # Основной чат
-│   │   │   ├── MessageList.tsx  # Список сообщений
-│   │   │   ├── MessageInput.tsx # Ввод с шифрованием
-│   │   │   └── BurnButton.tsx   # Кнопка уничтожения
+│   │   │   ├── ChatRoom.tsx     # Main chat
+│   │   │   ├── MessageList.tsx  # Message list
+│   │   │   ├── MessageInput.tsx # Input with encryption
+│   │   │   └── BurnButton.tsx   # Burn button
 │   │   ├── Search/
-│   │   │   ├── UserSearch.tsx   # Поиск по Telegram ID
+│   │   │   ├── UserSearch.tsx   # Search by Telegram ID
 │   │   │   └── PendingRequest.tsx
 │   │   ├── Verification/
-│   │   │   ├── VisualFingerprint.tsx  # Визуальная верификация
-│   │   │   └── SecretQuestion.tsx     # Опциональный вопрос
+│   │   │   ├── VisualFingerprint.tsx  # Visual verification
+│   │   │   └── SecretQuestion.tsx     # Optional question
 │   │   └── UI/
 │   │       └── ...
 │   ├── crypto/
@@ -94,7 +94,7 @@ frontend/
 │   │   ├── index.ts             # i18next init, language_code → locale
 │   │   └── locales/
 │   │       ├── en.json          # English (fallback)
-│   │       └── ru.json          # Русский
+│   │       └── ru.json          # Russian
 │   ├── hooks/
 │   │   ├── useEncryptedChat.ts
 │   │   ├── useKeyExchange.ts
@@ -106,15 +106,15 @@ frontend/
 └── Dockerfile
 ```
 
-#### Ключевые особенности Frontend
+#### Key Frontend Features
 
-| Модуль | Ответственность |
-|--------|-----------------|
-| `crypto/` | Вся криптография изолирована, использует только Web Crypto API |
-| `keyStore.ts` | Обёртка над sessionStorage с автоочисткой при закрытии |
-| `socket/` | STOMP клиент для WebSocket, типизированные события |
-| `telegram/` | Интеграция с Telegram: тема, haptics, back button |
-| `i18n/` | Мультиязычность: react-i18next, автодетект из `language_code` |
+| Module | Responsibility |
+|--------|----------------|
+| `crypto/` | All cryptography isolated, uses only Web Crypto API |
+| `keyStore.ts` | sessionStorage wrapper with auto-cleanup on close |
+| `socket/` | STOMP client for WebSocket, typed events |
+| `telegram/` | Telegram integration: theme, haptics, back button |
+| `i18n/` | Multilingual support: react-i18next, auto-detect from `language_code` |
 
 ---
 
@@ -125,28 +125,28 @@ backend/
 ├── src/main/java/dev/burnedchats/
 │   ├── BurnedChatsApplication.java      # Entry point
 │   ├── config/
-│   │   ├── WebSocketConfig.java         # STOMP/WebSocket настройки
+│   │   ├── WebSocketConfig.java         # STOMP/WebSocket settings
 │   │   ├── RedisConfig.java             # Reactive Redis
-│   │   ├── SecurityConfig.java          # Security фильтры
-│   │   └── AppConfig.java               # Общие бины
+│   │   ├── SecurityConfig.java          # Security filters
+│   │   └── AppConfig.java               # Common beans
 │   ├── controller/
 │   │   ├── HealthController.java        # Health check
-│   │   ├── TelegramWebhookController.java # Webhook для бота
-│   │   └── ChatController.java          # @MessageMapping для STOMP
+│   │   ├── TelegramWebhookController.java # Bot webhook
+│   │   └── ChatController.java          # @MessageMapping for STOMP
 │   ├── service/
-│   │   ├── SessionService.java          # Управление сессиями
-│   │   ├── MessageService.java          # Relay сообщений
-│   │   ├── UserService.java             # Кеш пользователей
-│   │   └── NotificationService.java     # Telegram уведомления
+│   │   ├── SessionService.java          # Session management
+│   │   ├── MessageService.java          # Message relay
+│   │   ├── UserService.java             # User cache
+│   │   └── NotificationService.java     # Telegram notifications
 │   ├── telegram/
-│   │   ├── BurnedChatsBot.java          # TelegramBots реализация
-│   │   ├── TelegramAuthService.java     # initData валидация
-│   │   ├── BotMessageService.java       # i18n: ключи → локализованный текст
-│   │   └── BotCommands.java             # /start, /help команды
+│   │   ├── BurnedChatsBot.java          # TelegramBots implementation
+│   │   ├── TelegramAuthService.java     # initData validation
+│   │   ├── BotMessageService.java       # i18n: keys → localized text
+│   │   └── BotCommands.java             # /start, /help commands
 │   ├── websocket/
 │   │   ├── WebSocketEventListener.java  # Connect/disconnect events
-│   │   ├── UserSessionRegistry.java     # Маппинг user → session
-│   │   ├── StompAuthInterceptor.java    # Авторизация WebSocket
+│   │   ├── UserSessionRegistry.java     # user → session mapping
+│   │   ├── StompAuthInterceptor.java    # WebSocket authorization
 │   │   └── handlers/
 │   │       ├── SearchHandler.java       # SEARCH_USER
 │   │       ├── SessionHandler.java      # CREATE/ACCEPT/REJECT
@@ -193,77 +193,77 @@ backend/
 └── docker-compose.yml
 ```
 
-#### Backend НЕ делает:
+#### Backend does NOT:
 
-- ❌ Не хранит ключи шифрования
-- ❌ Не расшифровывает сообщения
-- ❌ Не логирует содержимое
-- ❌ Не хранит историю чатов
+- ❌ Store encryption keys
+- ❌ Decrypt messages
+- ❌ Log message content
+- ❌ Store chat history
 
-#### Backend делает:
+#### Backend does:
 
-- ✅ Валидирует Telegram initData
-- ✅ Соединяет пользователей (rendezvous)
-- ✅ Пересылает зашифрованные пакеты
-- ✅ Хранит encrypted blobs с TTL (для offline)
-- ✅ Отправляет push-уведомления (без содержимого)
+- ✅ Validate Telegram initData
+- ✅ Connect users (rendezvous)
+- ✅ Relay encrypted packets
+- ✅ Store encrypted blobs with TTL (for offline)
+- ✅ Send push notifications (without content)
 
 ---
 
-### 3. Redis (Хранилище метаданных)
+### 3. Redis (Metadata Storage)
 
 ```
-Структура ключей:
+Key structure:
 
-session:{sessionId}           # Метаданные активной сессии
-  → TTL: 1 час
+session:{sessionId}           # Active session metadata
+  → TTL: 1 hour
   → { participants, status, createdAt }
 
-request:{recipientTgId}       # Входящие запросы на чат
-  → TTL: 5 минут
+request:{recipientTgId}       # Incoming chat requests
+  → TTL: 5 minutes
   → { senderTgId, sessionId, timestamp }
 
-messages:{sessionId}          # Очередь зашифрованных сообщений
-  → TTL: 24 часа
+messages:{sessionId}          # Encrypted message queue
+  → TTL: 24 hours
   → List of encrypted blobs
 
-online:{tgId}                 # Статус онлайн
-  → TTL: 30 секунд (heartbeat)
+online:{tgId}                 # Online status
+  → TTL: 30 seconds (heartbeat)
 ```
 
-#### TTL стратегия
+#### TTL Strategy
 
-| Тип данных | TTL | Причина |
-|------------|-----|---------|
-| Активная сессия | 1 час | Автоочистка неактивных |
-| Запрос на чат | 5 минут | Быстрый ответ или отмена |
-| Offline сообщения | 24 часа | Баланс между UX и приватностью |
-| Online статус | 30 сек | Heartbeat обновление |
+| Data Type | TTL | Reason |
+|-----------|-----|--------|
+| Active session | 1 hour | Auto-cleanup of inactive sessions |
+| Chat request | 5 minutes | Quick response or cancellation |
+| Offline messages | 24 hours | Balance between UX and privacy |
+| Online status | 30 sec | Heartbeat refresh |
 
 ---
 
 ### 4. Telegram Bot
 
 ```
-Функции бота:
+Bot functions:
 
-1. Уведомления о запросах
-   "🔔 Вам поступил запрос на приватный чат"
-   [Открыть чат] ← inline button
+1. Request notifications
+   "🔔 You received a private chat request"
+   [Open chat] ← inline button
 
-2. Уведомления о сообщениях (если offline)
-   "💬 У вас новое зашифрованное сообщение"
-   [Открыть] ← inline button
+2. Message notifications (if offline)
+   "💬 You have a new encrypted message"
+   [Open] ← inline button
 
-3. НЕ содержит:
-   - Имени отправителя
-   - Текста сообщения
-   - Любых идентификаторов, кроме sessionId
+3. Does NOT contain:
+   - Sender name
+   - Message text
+   - Any identifiers except sessionId
 ```
 
 ---
 
-## Ключевые Java компоненты
+## Key Java Components
 
 ### WebSocket Configuration
 
@@ -274,7 +274,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Используем простой брокер (или Redis для масштабирования)
+        // Use simple broker (or Redis for scaling)
         config.enableSimpleBroker("/topic", "/queue");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
@@ -360,7 +360,7 @@ public class ChatController {
                                    request.getMessage(), 
                                    senderTgId)
             .subscribe(result -> {
-                // Отправляем получателю
+                // Send to recipient
                 messagingTemplate.convertAndSendToUser(
                     result.getRecipientTgId(),
                     "/queue/messages",
@@ -368,7 +368,7 @@ public class ChatController {
                                        request.getMessage())
                 );
                 
-                // Подтверждаем отправителю
+                // Confirm to sender
                 messagingTemplate.convertAndSendToUser(
                     senderTgId,
                     "/queue/message-sent",
@@ -385,7 +385,7 @@ public class ChatController {
         
         sessionService.burnSession(request.getSessionId(), tgId)
             .subscribe(session -> {
-                // Уведомляем обоих участников
+                // Notify both participants
                 session.getParticipants().forEach(participantId -> {
                     messagingTemplate.convertAndSendToUser(
                         participantId,
@@ -400,9 +400,9 @@ public class ChatController {
 
 ---
 
-## Потоки данных
+## Data Flows
 
-### Flow 1: Установка соединения
+### Flow 1: Connection Establishment
 
 ```
 Alice                    Server                      Bob
@@ -429,7 +429,7 @@ Alice                    Server                      Bob
   │         (local)         │         (local)         │
 ```
 
-### Flow 2: Обмен сообщениями
+### Flow 2: Message Exchange
 
 ```
 Alice                    Server                      Bob
@@ -452,7 +452,7 @@ Alice                    Server                      Bob
   │                         │   send notification    │
 ```
 
-### Flow 3: Уничтожение сессии
+### Flow 3: Session Burn
 
 ```
 Alice                    Server                      Bob
@@ -468,9 +468,9 @@ Alice                    Server                      Bob
 
 ---
 
-## Масштабирование
+## Scaling
 
-### Горизонтальное масштабирование (v2.0+)
+### Horizontal Scaling (v2.0+)
 
 ```
                     ┌─────────────────┐
@@ -494,27 +494,27 @@ Alice                    Server                      Bob
                     └─────────────────┘
 ```
 
-Для масштабирования WebSocket используем Redis pub/sub через Spring Session.
+For WebSocket scaling, use Redis pub/sub via Spring Session.
 
-### Текущая архитектура (v1.0)
+### Current Architecture (v1.0)
 
-Для self-hosted MVP достаточно:
-- 1 Spring Boot инстанс
-- 1 Redis инстанс
-- nginx как reverse proxy
+For self-hosted MVP, the following is sufficient:
+- 1 Spring Boot instance
+- 1 Redis instance
+- nginx as reverse proxy
 
 ---
 
-## Отказоустойчивость
+## Fault Tolerance
 
-### Сценарии сбоев
+### Failure Scenarios
 
-| Сценарий | Поведение | Восстановление |
-|----------|-----------|----------------|
-| Потеря соединения | Auto-reconnect STOMP | Сообщения из Redis очереди |
-| Crash сервера | Все активные сессии теряются | Пользователи создают новую сессию |
-| Redis недоступен | Сервер возвращает 503 | Автоматически после восстановления Redis |
-| Закрытие Mini App | Ключи стираются из sessionStorage | Новый handshake при повторном входе |
+| Scenario | Behavior | Recovery |
+|----------|----------|----------|
+| Connection loss | Auto-reconnect STOMP | Messages from Redis queue |
+| Server crash | All active sessions are lost | Users create a new session |
+| Redis unavailable | Server returns 503 | Automatic after Redis recovery |
+| Mini App closed | Keys wiped from sessionStorage | New handshake on re-entry |
 
 ### Graceful Degradation
 
@@ -531,10 +531,10 @@ public class WebSocketEventListener {
         StompHeaderAccessor headers = StompHeaderAccessor.wrap(event.getMessage());
         String tgId = headers.getUser().getName();
         
-        // Помечаем пользователя как offline
+        // Mark user as offline
         sessionService.setOffline(tgId);
         
-        // Уведомляем собеседников
+        // Notify conversation partners
         sessionService.getActiveSessions(tgId)
             .flatMap(session -> {
                 String peerId = session.getOtherParticipant(tgId);
@@ -554,10 +554,10 @@ public class WebSocketEventListener {
         StompHeaderAccessor headers = StompHeaderAccessor.wrap(event.getMessage());
         String tgId = headers.getUser().getName();
         
-        // Помечаем пользователя как online
+        // Mark user as online
         sessionService.setOnline(tgId);
         
-        // Синхронизируем пропущенные сообщения
+        // Sync missed messages
         sessionService.syncMessages(tgId).subscribe();
     }
 }
@@ -565,56 +565,55 @@ public class WebSocketEventListener {
 
 ---
 
-## Подготовка к групповым чатам и комнатам (v2.0 / Phase 2)
+## Preparation for Group Chats and Rooms (v2.0 / Phase 2)
 
-Архитектура учитывает будущую поддержку групп и **комнат с паролем**.
+The architecture accounts for future group support and **password-protected rooms**.
 
-### Комнаты: принципы конфиденциальности
+### Rooms: Privacy Principles
 
-- **Пароль:** на сервер передаётся только производная (salt + proof от KDF). Plaintext пароль не хранится и не логируется.
-- **Инвайт-ссылки:** одноразовые или с лимитом использований; формат `startapp=invite_{token}` для Mini App.
-- **Заявки на вход:** владелец принимает/отклоняет; сервер хранит заявки с TTL, без избыточной истории.
+- **Password:** only a derivative (salt + KDF proof) is sent to the server. Plaintext password is not stored or logged.
+- **Invite links:** one-time use or usage-limited; format `startapp=invite_{token}` for Mini App.
+- **Join requests:** owner accepts/rejects; server stores requests with TTL, without excessive history.
 
-### Redis структура (Phase 2: комнаты)
+### Redis Structure (Phase 2: Rooms)
 
 ```
 room:{roomId}
   → { ownerTgId, salt, passwordProofHash, joinMode, createdAt }
-  → TTL: 30 дней (продлевается при активности)
+  → TTL: 30 days (extended on activity)
 
 room_members:{roomId}
-  → Set of tgId (участники)
-  → удаляется при BURN_ROOM
+  → Set of tgId (members)
+  → deleted on BURN_ROOM
 
 invite:{token}
   → { roomId, createdBy, expiresAt, maxUses? }
-  → TTL по expiresAt
+  → TTL per expiresAt
 
 room_join_request:{roomId}
-  → заявки на вход (senderTgId, createdAt, …)
-  → TTL: 24 часа
+  → join requests (senderTgId, createdAt, …)
+  → TTL: 24 hours
 
 room_keys:{roomId}:{epoch}
-  → зашифрованные ключи для участников (opaque blobs)
-  → удаляется при BURN_ROOM / rekey
+  → encrypted keys for members (opaque blobs)
+  → deleted on BURN_ROOM / rekey
 
 messages:{roomId}
-  → List зашифрованных сообщений (аналог messages:{sessionId})
-  → TTL: 24 часа
+  → List of encrypted messages (analog of messages:{sessionId})
+  → TTL: 24 hours
 ```
 
-### Групповой E2EE
+### Group E2EE
 
-1. **Key Distribution** — Group Key Agreement (один групповой ключ в MVP или Sender Keys / Tree-DH), см. [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md).
-2. **Выдача ключа новому участнику** — key bundle (групповой ключ, зашифрованный публичным ключом участника); relay через сервер.
-3. **Ротация ключей** — при выходе участника генерируется новый групповой ключ (rekey), рассылка оставшимся.
+1. **Key Distribution** — Group Key Agreement (single group key in MVP or Sender Keys / Tree-DH), see [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md).
+2. **Key delivery to new member** — key bundle (group key encrypted with member's public key); relay via server.
+3. **Key rotation** — on member departure, a new group key is generated (rekey), distributed to remaining members.
 
 ---
 
-## Связанные документы
+## Related Documents
 
-- [SECURITY.md](./SECURITY.md) — детали криптографии (в т.ч. пароли комнат в Phase 2)
-- [API.md](./API.md) — спецификация WebSocket событий
-- [DATA_MODELS.md](./DATA_MODELS.md) — структуры данных (в т.ч. комнаты)
-- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — протокол группового ключа: выбор схемы, wrap/unwrap, rekey
-
+- [SECURITY.md](./SECURITY.md) — cryptography details (including room passwords in Phase 2)
+- [API.md](./API.md) — WebSocket event specification
+- [DATA_MODELS.md](./DATA_MODELS.md) — data structures (including rooms)
+- [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) — group key protocol: scheme selection, wrap/unwrap, rekey
