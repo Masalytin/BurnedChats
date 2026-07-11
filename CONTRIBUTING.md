@@ -5,6 +5,18 @@ face** of Burned Chats: product code plus stable specifications under
 `docs/specs/`. Internal backlog, task cards, and agent workflow live in a
 **private maintainer repo** and are not part of this clone.
 
+### Maintainers & AI agents (dual-root)
+
+Task cards, Cursor rules, and backlog validation live in the private sibling repo
+**`BurnedChats-dev`**, not here. To work on cards or run agents:
+
+1. Clone `BurnedChats-dev` next to this repo (same parent folder).
+2. Open **`BurnedChats-dev/BurnedChats.code-workspace`** in Cursor.
+3. Run `node scripts/workspace/check-workspace.mjs` from the private root.
+
+Implement code and update `docs/specs/` in **this** public repo; update cards and
+plans in **private**. See private `docs/AGENT_WORKSPACE.md`.
+
 ## Prerequisites
 
 | Module | Requirements |
