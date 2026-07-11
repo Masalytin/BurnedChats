@@ -162,7 +162,7 @@ GET /api/info
 ```
 
 > Actuator `/actuator/info` may return `info.app.version` from Maven
-> (`@project.version@`) — that is a **separate** endpoint; the canonical source for agents is
+> (`@project.version@`) — that is a **separate** endpoint; the canonical version for clients is
 > `/api/info` → `0.1.0-SNAPSHOT`.
 
 ### Wallet auth (Phase 3): nonce for Ton Connect
@@ -260,8 +260,8 @@ Full `code` → HTTP mapping:
 
 > **Not present in production.** The controller exists only under the Spring profile
 > `dev` AND when `DEV_AUTH_ENABLED=true` (default `false`). Production runs on
-> `prod,testnet` — the endpoint returns 404. Purpose: autonomous authorization
-> for AI agents for UI testing (dev profile only).
+> `prod,testnet` — the endpoint returns 404. Purpose: local development and automated UI testing
+> (dev profile only).
 
 Issues a regular opaque session token for synthetic identity `dev-{label}`
 without verifying `ton_proof`. Response contract is identical to `POST /api/auth/wallet`.

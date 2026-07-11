@@ -9,14 +9,14 @@
  *   - cross_platform: keys shared between frontend and backend (same logical name) and
  *                     any per-language gaps between the two platforms
  *
- * Full report — audit / CI. Compact task report — small JSON for AI agents.
+ * Full report — audit / CI. Compact task report — small JSON for batch translation jobs.
  *
  * Usage:
  *   node scripts/i18n/check-i18n.mjs
  *   node scripts/i18n/check-i18n.mjs --out reports/i18n-full.json
  *   node scripts/i18n/check-i18n.mjs --summary-only --out reports/i18n-summary.json
  *
- * Compact task for one agent batch:
+ * Compact task for one language batch:
  *   node scripts/i18n/check-i18n.mjs --task --platform frontend --lang ru --limit 20 \
  *     --out reports/i18n-task-frontend-ru.json
  *
@@ -26,7 +26,7 @@
  *
  * Flags:
  *   --out <path>        Output path (default: i18n-report.json in repo root)
- *   --task              Write compact agent task JSON instead of full report
+ *   --task              Write compact task JSON instead of full report
  *   --emit-tasks        Write one compact task file per platform/language with gaps
  *   --task-dir <path>   Directory for --emit-tasks (default: reports/i18n-tasks)
  *   --platform <name>   frontend | backend (required with --task)
@@ -61,7 +61,7 @@ const BACKEND_DIR = join(REPO_ROOT, "backend", "src", "main", "resources", "i18n
 const FRONTEND_SOURCE = "frontend/src/i18n/locales/en.json";
 const BACKEND_SOURCE = "backend/src/main/resources/i18n/messages.properties";
 
-/** Default language priority when auto-picking batches for agents. */
+/** Default language priority when auto-picking translation batches. */
 const LANG_PRIORITY = ["en", "ru", "uk", "de", "fr", "es", "ar", "zh", "default"];
 
 /**
@@ -440,7 +440,7 @@ function buildReport() {
 }
 
 // --------------------------------------------------------------------------
-// Compact task reports (for AI agents)
+// Compact task reports (for batch translation workflows)
 // --------------------------------------------------------------------------
 
 function filterKeys(keys, prefix) {
@@ -449,7 +449,7 @@ function filterKeys(keys, prefix) {
 }
 
 /**
- * Pick up to `limit` keys for one agent batch.
+ * Pick up to `limit` keys for one translation batch.
  * Priority: empty_values first (quick wins), then missing_keys alphabetically.
  */
 function pickBatchKeys(emptyAll, missingAll, limit, prefix) {
@@ -516,7 +516,7 @@ function buildTaskReport(report, platformName, lang, options = {}) {
     missing_keys: batch.missing_keys,
     empty_values: batch.empty_values,
     plural_families: pluralFamiliesInBatch(allBatchKeys, platform.plural_families),
-    agent_notes: [
+    task_notes: [
       "Fill empty_values first, then missing_keys.",
       "Use source file as reference text; preserve {{placeholders}} and HTML tags.",
       "For plural_families, add only plural categories valid for the target language (i18next).",
@@ -644,7 +644,7 @@ function hasScopedIssues(report, prefix) {
 }
 
 function printTaskSummary(task, outPath) {
-  console.log("\ni18n agent task");
+  console.log("\ni18n translation task");
   console.log("─".repeat(48));
   console.log(`  Platform:                   ${task.platform}`);
   console.log(`  Language:                   ${task.language}`);
@@ -711,7 +711,7 @@ function runEmitTasksMode(report) {
   }
 
   if (!QUIET) {
-    console.log("\ni18n agent tasks emitted");
+    console.log("\ni18n translation tasks emitted");
     console.log("─".repeat(48));
     console.log(`  Directory:                  ${relative(REPO_ROOT, TASK_DIR)}`);
     console.log(`  Limit per task:             ${TASK_LIMIT}`);

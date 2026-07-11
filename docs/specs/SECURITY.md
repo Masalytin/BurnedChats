@@ -676,7 +676,7 @@ On gated route `session.create` rate-limit applies **after** successful PoW veri
 - Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 26 bit** protects weak devices.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
-**Current enforcement (2026-06-16):** backend gate only on `/app/session.create`; frontend solves PoW when creating chat (`session_create`). Wire-format also supports `search`, `room_create`, `invite` — issuance ready, gate — follow-up (see SECURITY_REVIEW).
+**Current enforcement (2026-06-16):** backend gate only on `/app/session.create`; frontend solves PoW when creating chat (`session_create`). Wire-format also supports `search`, `room_create`, `invite` — issuance is implemented; enforcement on those routes is planned follow-up work.
 
 ### Place in Threat Model
 

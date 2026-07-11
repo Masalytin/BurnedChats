@@ -72,7 +72,7 @@ jobs:
               run: npm audit --omit=dev --audit-level=high
 
             # Informational only: full tree including the triaged dev
-            # toolchain (protobufjs et al., TOOLING.md §2). Never fails the
+            # toolchain (protobufjs et al.). Never fails the
             # gate; kept visible so new toolchain CVEs surface in logs.
             - name: npm audit report (full tree, informational)
               if: always()

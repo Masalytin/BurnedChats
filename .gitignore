@@ -192,6 +192,15 @@ site/
 docs/_tmp_*
 docs/**/_tmp_*
 
+# i18n automation outputs (generated reports and translation batches)
+i18n-report.json
+reports/
+scripts/i18n/*-patch.json
+scripts/i18n/*-flat.json
+scripts/i18n/*-missing*.json
+scripts/i18n/*-overrides.json
+scripts/i18n/*-ru-base.json
+
 # SSL certificates for development (keep README)
 certs/*.pem
 certs/*.key

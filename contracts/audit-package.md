@@ -73,7 +73,7 @@ Synced with [SECURITY.md](../docs/specs/SECURITY.md) (Governance on-chain sectio
 |-------|-------------|-------|
 | **Timelock contract** | High — holds spend/fee/revoke authority | `admin` + `timelock` on JettonMaster after bootstrap |
 | **Governor contract** | Medium — coordinates proposals/votes | VP from staking snapshot |
-| **Deployer EOA** | **Residual trust** | `Timelock.governor = deployer` — can replay `TimelockQueue` from Governor (P5-6-1-1). No direct fee/treasury access post-bootstrap |
+| **Deployer EOA** | **Residual trust** | `Timelock.governor = deployer` — can replay `TimelockQueue` from Governor during bootstrap. No direct fee/treasury access post-bootstrap |
 | **Staking bootstrapOwner** | **Residual trust** | `FundEmissionReserve` gated by deployer until migrated to governance |
 | **External users** | Untrusted | All value-moving paths gated |
 
