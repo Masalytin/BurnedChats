@@ -1,6 +1,34 @@
 # API Specification
 
-> WebSocket (STOMP) events and REST endpoints (Java Backend)
+> Narrative contract for cross-cutting API semantics (auth handshake, rate limits,
+> error taxonomy, ZK field rules, server→client STOMP events). **REST paths and
+> inbound STOMP destinations** are machine-readable — see index below.
+
+## Specification index
+
+| Artifact | Role |
+|----------|------|
+| [openapi.yaml](./openapi.yaml) | **REST canon** — paths, methods, request/response schemas |
+| [stomp-routes.json](./stomp-routes.json) | **Inbound STOMP canon** — `/app/*` `@MessageMapping` inventory |
+| [DATA_MODELS.md](./DATA_MODELS.md) | Redis keys, TTL, DTO persistence shapes |
+| [SECURITY.md](./SECURITY.md) | Zero-knowledge threat model, crypto, in-band exchange, Telegram auth |
+
+### Project invariants (summary)
+
+Burned Chats preserves **zero-knowledge** (server sees ciphertext only — field rules in
+[Data Types](#data-types) and [SECURITY.md](./SECURITY.md)), **ephemeral** data (Redis
+TTL — [DATA_MODELS.md](./DATA_MODELS.md)), **in-band ECDH key exchange** with visual
+verification (`/app/handshake.key` flow below), and **Telegram Mini App** authentication
+(handshake headers / SockJS query params in [Authentication](#authentication)). Full
+threat model: [SECURITY.md](./SECURITY.md).
+
+### v1 contract gap — outbound STOMP
+
+`stomp-routes.json` covers **client→server** inbound routes only. **Server→client**
+destinations (`/user/queue/*`, multiplexed `/topic/room/{roomId}` events) are
+documented narratively in [Server Events (Server → Client)](#server-events-server--client)
+below and are **not** CI-enforced in v1 — drift on outbound event names requires manual
+reconcile or a future inventory card.
 
 ## General Information
 
@@ -105,443 +133,31 @@ in both modes.
 
 ## REST API
 
-### Health Check
-
-Custom endpoints (`HealthController`, prefix `/api`):
-
-```http
-GET /api/health
-```
-
-**Response:**
-```json
-{
-  "status": "UP",
-  "service": "burned-chats-backend",
-  "timestamp": "2026-07-09T10:00:00Z"
-}
-```
-
-```http
-GET /api/health/detailed
-```
-
-**Response:** `status` = `UP` | `DEGRADED`; `components.redis` / `components.websocket`
-(Redis via `RedisHealthService`).
-
-Spring Actuator is also available: `GET /actuator/health`, `GET /actuator/info`
-(see `application.yml` management endpoints).
-
-### Application Info
-
-```http
-GET /api/info
-```
-
-**Response** (`HealthController` — version is **hardcoded**):
-```json
-{
-  "name": "BurnedChats Backend",
-  "version": "0.1.0-SNAPSHOT",
-  "description": "Secure ephemeral chat backend for Telegram Mini App",
-  "features": {
-    "websocket": "STOMP over WebSocket with SockJS fallback",
-    "redis": "Lettuce reactive client with connection pooling"
-  }
-}
-```
-
-> Actuator `/actuator/info` may return `info.app.version` from Maven
-> (`@project.version@`) — that is a **separate** endpoint; the canonical version for clients is
-> `/api/info` → `0.1.0-SNAPSHOT`.
-
-### Wallet auth — nonce for Ton Connect
-
-#### `GET /api/auth/nonce`
-
-Issues a short-lived opaque string for the Ton Connect `tonProof` field in the connect request (`ConnectAdditionalRequest.tonProof`). The wallet returns a signed `ton_proof`; the backend verifies the signature against this nonce (replay protection).
-
-**Response `200 OK`:**
-
-```json
-{
-  "nonce": "<opaque server-generated string>"
-}
-```
-
-The client also accepts the `payload` field as a synonym for `nonce` for backward compatibility.
-
-**Notes:**
-
-- Request authorization requirements (public endpoint vs session binding) are defined by the backend implementation; rate limiting is recommended.
-- Base URL is the same as in [Base URL](#base-url); in frontend dev without `VITE_API_URL`, the relative path `/api/auth/nonce` is used (Vite proxy).
-
-#### `POST /api/auth/wallet`
-
-Verifies TON `walletProof` (format: serialized `ton_proof` JSON from Ton Connect) and issues an opaque session token for STOMP.
-
-**Request body:**
-
-```json
-{
-  "walletAddress": "EQBx7...",
-  "walletProof": "{\"address\":\"EQBx7...\",\"proof\":{\"timestamp\":1679312400,\"domain\":{\"value\":\"burnedchats.net\",\"lengthBytes\":16},\"signature\":\"base64...\",\"payload\":\"nonce\"}}",
-  "walletPublicKey": "0a1b2c3...",
-  "walletStateInit": "te6cckEC..."
-}
-```
-
-`walletPublicKey` (hex, 32 bytes) and `walletStateInit` (base64 BoC) are **optional**, but must be sent **as a pair**.
-If both are present, the backend verifies `publicKey ↔ stateInit ↔ address` locally (no RPC to toncenter).
-If absent — legacy fallback via toncenter is used (see `BURNEDCHATS_TON_API_KEY`).
-
-**Response `200 OK`:**
-
-```json
-{
-  "token": "opaque-session-token",
-  "user": {
-    "internalId": "uuid",
-    "displayName": "EQBx...7JfP"
-  }
-}
-```
-
-**Errors:**
-
-Error body (JSON):
-
-```json
-{
-  "error": "Unauthorized",
-  "code": "DOMAIN_MISMATCH",
-  "message": "TON proof domain mismatch (expected: burnedchats.net, got: www.burnedchats.net)"
-}
-```
-
-The `code` field is a machine-readable reason (`WalletProofException.Reason.name()`). The `error` field is kept for backward compatibility.
-
-| HTTP | `code` (examples) | When |
-|------|------------------|-------|
-| `400` | `INVALID_REQUEST`, `ADDRESS_INVALID` | Empty/corrupt body, invalid address or JSON proof |
-| `401` | `PROOF_EXPIRED`, `DOMAIN_MISMATCH`, `NONCE_UNKNOWN`, `SIGNATURE_INVALID`, … | Client proof error (see full list in backend `WalletProofException.Reason`) |
-| `502` | `PUBLIC_KEY_UNAVAILABLE` | toncenter unavailable / did not return `public_key` (transient; retry makes sense) |
-| `500` | `INTERNAL` | Unexpected backend error |
-
-Full `code` → HTTP mapping:
-
-| `code` | HTTP |
-|--------|------|
-| `INVALID_REQUEST` | 400 |
-| `ADDRESS_INVALID` | 400 |
-| `PROOF_TIMESTAMP_FUTURE` | 401 |
-| `PROOF_EXPIRED` | 401 |
-| `DOMAIN_MISMATCH` | 401 |
-| `DOMAIN_LENGTH_MISMATCH` | 401 |
-| `NONCE_MISSING` | 401 |
-| `NONCE_UNKNOWN` | 401 |
-| `SIGNATURE_INVALID` | 401 |
-| `PUBLIC_KEY_UNAVAILABLE` | 502 |
-| `INTERNAL` | 500 |
-
-- `500 Internal Server Error` — internal error when issuing token (`INTERNAL` or unhandled exception).
-
-#### `POST /api/auth/dev-login` (dev profile only)
-
-> **Not present in production.** The controller exists only under the Spring profile
-> `dev` AND when `DEV_AUTH_ENABLED=true` (default `false`). Production runs on
-> `prod,testnet` — the endpoint returns 404. Purpose: local development and automated UI testing
-> (dev profile only).
-
-Issues a regular opaque session token for synthetic identity `dev-{label}`
-without verifying `ton_proof`. Response contract is identical to `POST /api/auth/wallet`.
-
-**Request body:** `{ "label": "agent-a" }` — `label` must match `[a-z0-9-]{1,32}`.
-
-**Response `200 OK`:** `{ "token": "<opaque>", "user": { "internalId": "<uuid>", "displayName": "dev-...nt-a" } }`
-
-**Errors:** `400` — invalid `label`; `404` — disabled by flag or prod profile; `500` — Redis error.
-
----
-
-### Account linking — Telegram ↔ TON wallet
-
-All endpoints below **do not** require a Spring Security cookie: trust is built on valid `initData` (Telegram) and/or verified `walletProof` / opaque `sessionToken`.
-
-#### `POST /api/auth/link-wallet`
-
-Link a wallet to a user signed in via Mini App.
-
-**Request body:**
-
-```json
-{
-  "initData": "...",
-  "walletAddress": "EQBx7...",
-  "walletProof": "{... Ton Connect ton_proof JSON ...}"
-}
-```
-
-**Response `200 OK`:** object in the "linked accounts" shape (see `POST /api/auth/linked-accounts`).
-
-**Errors:** `400` — invalid body; `401` — initData / proof; `409` — wallet or another wallet already linked to another account / unlink first; `500` — internal error.
-
-**Failure body (example):**
-
-```json
-{
-  "error": "Unauthorized",
-  "code": "SIGNATURE_INVALID",
-  "message": "TON proof signature verification failed"
-}
-```
-
-| `code` | HTTP | Description |
-|--------|------|----------|
-| `SIGNATURE_INVALID`, `PROOF_EXPIRED`, `NONCE_UNKNOWN`, … | 401 | Rejected `ton_proof` (same codes as `POST /api/auth/wallet`) |
-| `CONFLICT` | 409 | Wallet already linked to another account or user has a different wallet |
-| `INTERNAL` | 500 | Unhandled server / Redis error |
-
-#### `POST /api/auth/link-telegram/challenge`
-
-For a **wallet-only** session (opaque token after `POST /api/auth/wallet`): creates a one-time challenge in Redis (TTL ~15 min).
-
-**Request body:** `{ "sessionToken": "<opaque>" }`
-
-**Response `200 OK`:** `{ "ok": true, "challengeId": "<32 hex>", "telegramLink": "https://t.me/<bot>?startapp=lt_<challengeId>" }`  
-The `telegramLink` field may be absent if `telegram.bot.username` is not set in config.
-
-#### `POST /api/auth/link-telegram/complete`
-
-Complete Telegram linking from Mini App: `start_param` has the form `lt_<challengeId>`.
-
-**Request body:** `{ "challengeId": "<32 hex>", "initData": "..." }`
-
-**Response `200 OK`:** same as `linked-accounts`.
-
-**Errors:** `401` — expired challenge / invalid initData; `409` — Telegram already linked to another internalId.
-
-#### `POST /api/auth/linked-accounts`
-
-Snapshot of links for the current user. Exactly one of:
-
-```json
-{ "initData": "...", "sessionToken": null }
-```
-
-or
-
-```json
-{ "initData": null, "sessionToken": "..." }
-```
-
-**Response `200 OK` (example):**
-
-```json
-{
-  "ok": true,
-  "internalId": "...",
-  "authType": "TELEGRAM",
-  "displayName": "...",
-  "telegramLinked": true,
-  "telegramId": 123456789,
-  "telegramLabel": "@username",
-  "walletLinked": true,
-  "walletAddress": "0:...",
-  "linkedMethodCount": 2
-}
-```
-
-#### `POST /api/auth/unlink-wallet`
-
-Body: `{ "initData": "..." }`. Unlinks the wallet if Telegram remains linked (`400` if it is the only sign-in method).
-
-#### `POST /api/auth/unlink-telegram`
-
-Body: `{ "sessionToken": "..." }`. Unlinks Telegram if a wallet remains.
-
----
-
-### REST API: Files
-
-Upload and download of **client-encrypted** blobs. Request/response body is a raw binary stream (`application/octet-stream`), not JSON.
-
-#### `POST /api/files/upload`
-
-Stores one encrypted file (main media file or thumbnail) and creates metadata in Redis (`file_meta:{fileId}`, TTL 24 h).
-
-**Headers:**
-
-| Header | Required | Description |
-|-----------|-------------|----------|
-| `X-Auth-Type` | No | `telegram` \| `wallet`; default `telegram` |
-| `X-Telegram-Init-Data` | Yes* | Valid initData (`telegram` mode) |
-| `X-Auth-Token` | Yes* | Opaque session token (`wallet` mode) |
-| `X-Context-Type` | Yes | `session` \| `room` |
-| `X-Context-Id` | Yes | Session or room UUID |
-| `Content-Type` | Yes | `application/octet-stream` |
-| `Content-Length` | Yes | Size of the uploaded **encrypted** blob in bytes (≥ 1) |
-
-\* One auth mode is required: for `telegram` — `X-Telegram-Init-Data`, for `wallet` — `X-Auth-Token`.
-
-**Body:** stream of encrypted data bytes (see [SECURITY.md](./SECURITY.md) — client blob format).
-
-**Response `200 OK`:**
-
-```json
-{
-  "fileId": "550e8400-e29b-41d4-a716-446655440000",
-  "size": 1048576
-}
-```
-
-`size` — size of the **encrypted** blob stored on the server (ciphertext bytes), not the original plaintext file. For STOMP `fileSize`, the client passes plaintext size separately (see below).
-
-**Errors (JSON body, except 429 where noted):**
-
-| HTTP | `error` field | When |
-|------|--------------|--------|
-| 401 | `AUTH_ERROR` / code from `AuthenticationException` | Missing, invalid, or expired auth credentials (initData or session token) |
-| 400 | `INVALID_CONTEXT_TYPE` | `X-Context-Type` is neither `session` nor `room` |
-| 400 | `FILE_SIZE_INVALID` | On-disk size does not match `Content-Length` after upload |
-| 403 | `ACCESS_DENIED` | User is not a session participant / room member |
-| 404 | `CONTEXT_NOT_FOUND` | Session not found (for `session`) |
-| 413 | `FILE_TOO_LARGE` | Size outside allowed range (see `ValidationConstants.MAX_ENCRYPTED_FILE_SIZE`) |
-| 429 | `RATE_LIMIT_EXCEEDED` | Upload limit exceeded; `Retry-After` header and `retryAfter` field in JSON may be present |
-
-Example body for 429:
-
-```json
-{
-  "error": "RATE_LIMIT_EXCEEDED",
-  "message": "...",
-  "retryAfter": 45
-}
-```
-
-#### `GET /api/files/{fileId}`
-
-Returns the **same** encrypted blob if the caller is a member of the context (session/room) the file is bound to.
-
-**Headers:**
-
-| Header | Required | Description |
-|-----------|-------------|----------|
-| `X-Auth-Type` | No | `telegram` \| `wallet`; default `telegram` |
-| `X-Telegram-Init-Data` | Yes* | Valid initData (`telegram` mode) |
-| `X-Auth-Token` | Yes* | Opaque session token (`wallet` mode) |
-
-\* One auth mode is required (see upload).
-
-**Response `200 OK`:**
-
-- `Content-Type: application/octet-stream`
-- `Cache-Control: no-store`
-- Body: encrypted file bytes
-
-**Errors (JSON):**
-
-| HTTP | `error` field | When |
-|------|--------------|--------|
-| 401 | `AUTH_ERROR` | Missing, invalid, or expired auth credentials |
-| 403 | `ACCESS_DENIED` | No access to file context |
-| 404 | `FILE_NOT_FOUND` | No metadata, TTL expired, or file missing on disk |
-
-> The semantics "no file access" in discussions is sometimes labeled `FILE_ACCESS_DENIED`; REST JSON responses use code **`ACCESS_DENIED`**.
-
----
-
-### Telegram Webhook
-
-```http
-POST /api/telegram/webhook
-```
-
-Handles incoming updates from the Telegram Bot API.
-Controller: `TelegramWebhookController` (`@RequestMapping("/api/telegram")` +
-`@PostMapping("/webhook")`). Enabled when `telegram.bot.webhook.enabled=true`.
-
-**Headers:**
-```http
-X-Telegram-Bot-Api-Secret-Token: <webhook_secret>
-Content-Type: application/json
-```
-
-**Body:** Telegram Update object
-
-**Bot commands (when processed by `BurnedChatsWebhookBot` / `BurnedChatsBot`):**
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome message + Mini App launch button |
-| `/help` | Help text |
-| `/burn` | Remote burn-all: inline keyboard with **Burn all data** (`wipeIdentity=false`), **Burn account** (`wipeIdentity=true`), and **Cancel**. Callback `callback_data`: `burnall:{nonce}:{data\|account\|cancel}`. Nonce stored at Redis `bot:burn:nonce:{nonce}` → `internalId`, TTL **60s**, one-time (`GETDEL`). Resolves `tgId` via `UserIdentityRepository.findByTelegramId`. Unknown `tgId` → polite «no data» reply (no error, no leak). On confirm: `UserBurnService.burnAllForUser` + STOMP `/user/queue/burn-all-complete` to active sessions; bot sends HTML summary message. |
-
-Invalid secret → **401**. Nginx prod proxies the same path
-(`/api/telegram/webhook`).
-
----
-
-### BURN jetton / staking / governance (read-only REST)
-
-Public **read-only** GET for governance Mini App (cache + TON RPC via `GovernanceVerifier`):
-
-| Method | Path | Description |
-|-------|------|----------|
-| `GET` | `/api/governance/active-proposals` | `Flux<ProposalSummary>` — proposals in `ACTIVE` state |
-| `GET` | `/api/governance/recent-proposals?limit=` | Last N proposals by id (descending) |
-| `GET` | `/api/governance/proposals/{id}` | `ProposalDetail` (summary + decoded payload + quorum / threshold bps) |
-| `GET` | `/api/governance/proposals/{proposalId}/vote?address=` | `UserVote` or **404** if the user has not voted |
-| `GET` | `/api/governance/voting-power?address=` | `{ "votingPower": "<bigint string>" }` — VP via `StakingVerifier` |
-
-Bodies match `dev.burnedchats.ton.dto.*` (`ProposalSummary`, `ProposalDetail`, `UserVote`). Jackson serializes enums as strings (`PARAMETER_CHANGE`, …).
-
-**Voting window and `ACTIVE` state**
-
-- `GET /api/governance/active-proposals` and `ProposalSummary.state == ACTIVE` include the **pre-vote window** `CANCEL_LAG` (**3600 s**): on-chain proposal in `PS_ACTIVE`, but voting is **not yet open** (proposer can cancel the proposal; see the relevant spec section).
-- `startTime = creationTime + CANCEL_LAG` (`governor.tact`); voting is available only when **`now >= startTime`** and `now <= endTime`.
-- Voting before `startTime` is rejected on-chain: `Proposal.ProposalVoteRelay` → `require(t >= self.startTime, "Not started")` → **exit code `54220`** (bounce; vote not counted).
-- The client must block `CastVote` while `now < startTime`, even if the backend returns `ACTIVE`.
-
-**On-chain voting:** attach >= 0.18 TON with CastVote; voting opens after CANCEL_LAG (3600s) from proposal creation. See contracts/governance/governor.tact and rontend/src/ton/transactionBuilder.ts.
-
-Public **read-only** GET for on-chain wallet data (cache + TON RPC via **`JettonService`**):
-
-| Method | Path | Description |
-|-------|------|----------|
-| `GET` | `/api/wallet/burn-balance?address=` | BURN jetton balance in nano; no auth |
-| `GET` | `/api/wallet/jetton-wallet?address=` | Owner's BURN jetton wallet address; no auth |
-| `GET` | `/api/wallet/staking-profile?address=` | Wallet staking profile (stakes, voting power); no auth |
-
-**`GET /api/wallet/burn-balance`**
-
-- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address.
-- **200 OK:** `{ "balanceNano": "<decimal string>", "address": "<trimmed query address>" }` — `balanceNano` from `BigInteger`, not a JSON number.
-- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
-- **502:** `{ "message": "…" }` — Ton Center / contract read failure (`TonRpcException`).
-
-Frontend (`burnToken.ts`) accepts `balanceNano`, `nano`, or `balance` fields in the body; on `404`/`501` falls back to Ton Center RPC from the browser.
-
-**`GET /api/wallet/jetton-wallet`**
-
-- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address of the owner.
-- **200 OK:** `{ "jettonWalletAddress": "<friendly|null>", "ownerAddress": "<trimmed query address>" }` — `jettonWalletAddress` is `null` if the jetton wallet is absent or the address could not be computed (non-zero contract exit / zero address); this is **not** an HTTP error.
-- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
-- **502:** `{ "message": "…" }` — Ton Center / transport failure (`TonRpcException`).
-
-Frontend (`burnToken.ts`) calls this endpoint first; on `404`/`501`, `502` (after one retry), or `jettonWalletAddress: null` falls back to Ton Center RPC from the browser (`jettonWalletResolve.ts`).
-
-**`GET /api/wallet/staking-profile`**
-
-- Query `address` (required): friendly (`EQ…` / `0Q…`) or raw TON address of the owner.
-- **200 OK:** `UserStakingProfile` — `{ "address", "highestTier", "totalStakedNano", "votingPowerNano", "stakes": [ … ] }`.
-  - `highestTier`: `"FLEXIBLE"` | `"SILVER"` | `"GOLD"` | `"DIAMOND"` | `null` (no active stakes).
-  - `totalStakedNano`, `votingPowerNano`, `stakes[].amount`, `stakes[].pendingRewards` — decimal string or JSON number (parsed by frontend via `bigIntFromJsonField`).
-  - Each `stakes[]` element: `{ "tier", "amount", "startTime", "unlockTime", "lastClaimTime", "pendingRewards" }` — format read by `mapBackendStake` in `staking.ts`.
-- **400:** `{ "message": "…" }` — missing/empty `address` or invalid format.
-- **502:** `{ "message": "…" }` — Ton Center / contract read failure (`TonRpcException`).
-
-Implementation: `WalletController` → `StakingVerifier.getStakingProfile` (Redis profile cache, TTL 30 s). Frontend (`staking.ts` → `tryBackendStakes`) on `200` uses `stakes`; on `404`/`501` falls back to Ton Center RPC from the browser.
+Canonical REST paths, request bodies, response schemas, and HTTP status codes live in
+**[openapi.yaml](./openapi.yaml)**. Regenerate after controller changes:
+
+`ash
+./gradlew exportOpenApi   # from repository root
+`
+
+### Cross-cutting REST notes (not in OpenAPI)
+
+- **File upload/download** uses pplication/octet-stream for **client-encrypted**
+  blobs; auth headers mirror the WebSocket handshake (see
+  [REST (files): authentication](#rest-files-authentication) above).
+  ileSize in STOMP events is **plaintext** size; POST /api/files/upload size
+  field is **ciphertext** bytes — see [Data Types](#data-types).
+- **Governance voting window:** GET /api/governance/active-proposals may return
+  ACTIVE during the on-chain **pre-vote** window (CANCEL_LAG = 3600 s). Voting
+  opens only when 
+ow >= startTime (creationTime + CANCEL_LAG). Casting before
+  startTime fails on-chain (exit 54220). Client must block UI until voting opens.
+- **Telegram webhook** (POST /api/telegram/webhook) is internal — excluded from
+  committed OpenAPI. Bot /burn command uses inline keyboard callbacks stored at
+  Redis ot:burn:nonce:{nonce} (TTL 60 s, one-time).
+- **Wallet TON proof** error codes (WalletProofException.Reason) and HTTP mapping
+  are in OpenAPI; session **secret answer** normalization (	rim → lowercase → SHA-256
+  → Base64) is STOMP-side — see CREATE_SESSION below.
 
 ---
 
@@ -582,6 +198,10 @@ SockJS endpoint `/ws`. Auth on HTTP handshake (see Authentication). Broker heart
 ---
 
 ## Client Events (Client → Server)
+
+> **Inbound destination list:** all `/app/*` routes with handler class and request DTO type
+> are in **[stomp-routes.json](./stomp-routes.json)**. Sections below document **payload
+> shapes and semantics** for primary flows (not duplicated in JSON v1).
 
 ### `SEARCH_USER` (`/app/search`)
 
@@ -1046,22 +666,9 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 
 ---
 
-### Additional DM / session destinations
-
-The following routes are implemented in `SessionHandler` / `MessageHandler` /
-`HeartbeatHandler` / `UserPreferenceHandler` and were not previously summarized in one table:
-
-| Destination | Handler | Response / queue | Description |
-|-------------|---------|-----------------|----------|
-| `/app/session.pending` | `SessionHandler` | (see handler) | List / fetch pending requests |
-| `/app/session.status` | `SessionHandler` | `/user/queue/session-status` | Session status (`SessionStatusEvent`) |
-| `/app/peer.disconnect` | `SessionHandler` | `/user/queue/peer-disconnected` | Notify peer of disconnect |
-| `/app/session.active.list` | `SessionHandler` | `/user/queue/active-sessions` | List of active sessions |
-| `/app/session.resume` | `SessionHandler` | `/user/queue/session-resumed` | Resume after reconnect |
-| `/app/message.edit` | `MessageHandler` | `/user/queue/message-edited` | Edit DM |
-| `/app/message.delete` | `MessageHandler` | `/user/queue/message-deleted` | Delete DM |
-| `/app/heartbeat` | `HeartbeatHandler` | — (updates `online:*`) | Presence; rate-limit **exempt**; client ~20s |
-| `/app/user.setLanguage` | `UserPreferenceHandler` | — (fire-and-forget) | Save language preference |
+> Other inbound DM/session routes (`session.pending`, `session.status`, `message.edit`,
+> `heartbeat`, …) — see **[stomp-routes.json](./stomp-routes.json)** for destinations
+> and `requestType`; response queues in [Server Events](#server-events-server--client).
 
 ---
 
@@ -1130,18 +737,8 @@ Room send errors are delivered on `/user/queue/room-message-sent`, not a separat
 
 Topic: `/topic/room/{roomId}` (multiplexed by event type; subscribe only for members).
 
-### Additional room destinations (client → server)
-
-| Destination | Description |
-|-------------|----------|
-| `/app/room.leave` | Leave room → `/user/queue/room-left` (+ peer `room-member-left`) |
-| `/app/room.requestKeyBundle` | Request key bundle |
-| `/app/room.getMemberPubkeys` | Member pubkeys → `/user/queue/member-pubkeys` |
-| `/app/room.message.edit` | Edit room message |
-| `/app/room.message.delete` | Delete room message |
-| `/app/room.burn` | Burn room → `/user/queue/room-burned` |
-| `/app/user.burnAll` | Global burn-all cascade → `/user/queue/burn-all-complete` (+ peer events) |
-| `/app/user.setDeadman` | Dead man's switch on/off → `/user/queue/deadman-updated` |
+> Additional inbound room routes (`room.leave`, `room.burn`, `room.message.edit`, …) —
+> see **[stomp-routes.json](./stomp-routes.json)**; payload shapes in [Rooms](#rooms) below.
 
 ---
 
@@ -1172,17 +769,9 @@ For `image` / `video` / `file` additionally:
 
 ### UserResponse (search, incoming-request, session events)
 
-```java
-public class UserResponse {
-    private String internalId;   // primary address key (always set)
-    private Long id;             // Telegram ID; null for wallet-only
-    private String username;
-    private String displayName;
-    private String photoUrl;
-    private boolean online;
-    private boolean premium;
-}
-```
+Wire shape: `internalId` (primary), optional Telegram `id`, `username`, `displayName`,
+`photoUrl`, `online`, `premium`. See [DATA_MODELS.md](./DATA_MODELS.md) and OpenAPI
+schemas where applicable.
 
 ### Peer display
 
@@ -1828,20 +1417,6 @@ Owner and admin can send in read-only.
 
 ---
 
-### ROOM_ROLE_UPDATED (topic event)
-
-**Destination:** `/topic/room/{roomId}`
-
-```json
-{
-  "eventType": "ROOM_ROLE_UPDATED",
-  "roomId": "uuid-v4",
-  "targetInternalId": "internal-id",
-  "role": "admin"
-}
-```
-
----
 
 ---
 
@@ -1869,22 +1444,6 @@ Owner and admin can send in read-only.
 
 ---
 
-### ROOM_TTL_UPDATED (topic event)
-
-**Destination:** `/topic/room/{roomId}`
-
-```json
-{
-  "eventType": "ROOM_TTL_UPDATED",
-  "roomId": "uuid-v4",
-  "autoBurnAt": 1706745600000
-}
-```
-
-**Auto-burn:** when `room:autoburn:{roomId}` expires server runs same cascade as
-`/app/room.burn`, and sends `ROOM_BURNED` to `/user/queue/room-burned` to each member.
-
----
 
 ### SET_MESSAGE_TTL (`/app/room.setMessageTtl`)
 
@@ -1906,19 +1465,6 @@ Owner and admin can send in read-only.
 
 ---
 
-### ROOM_MESSAGE_TTL_UPDATED (topic event)
-
-**Destination:** `/topic/room/{roomId}`
-
-```json
-{
-  "eventType": "ROOM_MESSAGE_TTL_UPDATED",
-  "roomId": "uuid-v4",
-  "messageTtlSeconds": 3600
-}
-```
-
----
 
 ### TRANSFER_OWNERSHIP (`/app/room.transferOwnership`)
 
@@ -1942,71 +1488,14 @@ Owner and admin can send in read-only.
 
 ---
 
-### ROOM_OWNERSHIP_TRANSFERRED (topic event)
 
-**Destination:** `/topic/room/{roomId}`
 
-```json
-{
-  "eventType": "ROOM_OWNERSHIP_TRANSFERRED",
-  "roomId": "uuid-v4",
-  "newOwnerInternalId": "internal-id-new-owner",
-  "previousOwnerInternalId": "internal-id-previous-owner"
-}
-```
-
----
-
-### ROOM_MODERATION (topic event)
-
-**Destination:** `/topic/room/{roomId}`
-
-```json
-{
-  "eventType": "ROOM_MODERATION",
-  "roomId": "uuid-v4",
-  "readOnly": false,
-  "mutedAdded": "internal-id",
-  "mutedRemoved": null
-}
-```
-
-| Field | Description |
-|------|----------|
-| `readOnly` | Current read-only flag after change |
-| `mutedAdded` | On mute — added internalId |
-| `mutedRemoved` | On unmute — removed internalId |
-
----
-
-### ROOM_CREATED
-
-**Direction:** Server → Client  
-**Destination:** `/user/queue/room-created`
-
-**Success:**
-```json
-{
-  "success": true,
-  "roomId": "uuid-v4"
-}
-```
-
-**Error** (on `/user/queue/room-created` only `INTERNAL_ERROR` is emitted):
-```json
-{
-  "success": false,
-  "error": "INTERNAL_ERROR"
-}
-```
-
-Request validation → `VALIDATION_ERROR` on `/user/queue/errors`; STOMP rate-limit exceed → `RATE_LIMIT_EXCEEDED` there (see Rate Limits above). Those codes do **not** arrive on `room-created`.
-
----
 
 ## Related Documents
 
+- [openapi.yaml](./openapi.yaml) — REST paths and schemas (generated)
+- [stomp-routes.json](./stomp-routes.json) — inbound STOMP destination inventory (generated)
 - [DATA_MODELS.md](./DATA_MODELS.md) — Redis data structures
-- [SECURITY.md](./SECURITY.md) — cryptography
+- [SECURITY.md](./SECURITY.md) — cryptography and threat model
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — overall architecture
 
