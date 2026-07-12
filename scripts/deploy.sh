@@ -110,6 +110,16 @@ restart_services() {
     start_services
 }
 
+cleanup_disk() {
+    local cleanup_script="$SCRIPT_DIR/prod-disk-cleanup.sh"
+    if [ ! -x "$cleanup_script" ]; then
+        log_warn "Disk cleanup script not found or not executable: $cleanup_script"
+        return 0
+    fi
+    log_info "Running post-deploy disk cleanup..."
+    "$cleanup_script"
+}
+
 update_and_restart() {
     log_info "Pulling latest changes..."
     cd "$PROJECT_DIR"
@@ -117,6 +127,8 @@ update_and_restart() {
     
     log_info "Rebuilding and restarting services..."
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+    
+    cleanup_disk
     
     log_info "Update complete!"
 }
@@ -240,15 +252,19 @@ case "$1" in
     webhook-delete)
         delete_webhook
         ;;
+    cleanup)
+        cleanup_disk
+        ;;
     *)
-        echo "Usage: $0 {setup|start|stop|restart|update|logs|renew|webhook|webhook-info|webhook-delete}"
+        echo "Usage: $0 {setup|start|stop|restart|update|logs|renew|cleanup|webhook|webhook-info|webhook-delete}"
         echo ""
         echo "Commands:"
         echo "  setup          - First time setup (obtain SSL certificates)"
         echo "  start          - Start all services"
         echo "  stop           - Stop all services"
         echo "  restart        - Restart all services"
-        echo "  update         - Pull git changes and restart"
+        echo "  update         - Pull git changes, restart, and run disk cleanup"
+        echo "  cleanup        - Prune Docker build cache, journal, and /tmp artifacts"
         echo "  logs           - View container logs"
         echo "  renew          - Renew SSL certificates"
         echo "  webhook        - Set Telegram webhook"
