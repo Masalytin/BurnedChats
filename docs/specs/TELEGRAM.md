@@ -34,7 +34,7 @@ From `WebApp.initDataUnsafe.user`:
 | Web invite URL | `{app-domain}/join#invite_{token}` (token in fragment, not sent to server) |
 | Fallback | `https://t.me/{bot}/app?startapp=invite_{token}` |
 
-Room and auth flows: [API.md](./API.md), [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md).
+Room and auth flows: [API.md](./API.md).
 
 ---
 
@@ -111,4 +111,3 @@ Used for REST file upload, account linking, and STOMP handshake (Telegram mode).
 - [API.md](./API.md) — STOMP destinations and REST auth
 - [SECURITY.md](./SECURITY.md) — threat model and initData
 - [I18N.md](./I18N.md) — bot and UI localization
-- [USER_FLOWS.md](./USER_FLOWS.md) — 1:1 UX

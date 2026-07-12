@@ -38,7 +38,7 @@ production-ready.
   treasury, and vesting contracts (Tact + Sandbox tests, 80% coverage gate).
 - **Operations** — Docker Compose (dev / prod / SSL), Nginx TLS, Redis with TTL-only
   storage, Actuator + Prometheus metrics.
-- **Specifications** — API, security, data models, and flows under [`docs/specs/`](docs/specs/).
+- **Specifications** — API, security, and data models under [`docs/specs/`](docs/specs/).
 
 ---
 
@@ -124,7 +124,7 @@ BurnedChats/
 ├── backend/          # Spring Boot relay, STOMP handlers, Redis, TON RPC client
 ├── frontend/         # React Mini App — crypto, chat/rooms UI, TON Connect, i18n
 ├── contracts/        # TON smart contracts (Tact)
-├── docs/specs/       # API, security, data models, flows, tokenomics
+├── docs/specs/       # API, security, data models, tokenomics
 ├── scripts/          # CLI, git hooks, i18n checker, SSL setup
 ├── docker-compose*.yml
 └── .github/workflows/
@@ -189,8 +189,6 @@ is no funded liquidity, no external audit, and no distribution program behind it
 | [DATA_MODELS.md](docs/specs/DATA_MODELS.md) | Redis keys and DTOs |
 | [BAND_KEY_EXCHANGE.md](docs/specs/BAND_KEY_EXCHANGE.md) | In-band ECDH |
 | [GROUP_KEY_PROTOCOL.md](docs/specs/GROUP_KEY_PROTOCOL.md) | Group E2EE for rooms |
-| [USER_FLOWS.md](docs/specs/USER_FLOWS.md) | 1:1 chat UX |
-| [USER_FLOWS_ROOMS.md](docs/specs/USER_FLOWS_ROOMS.md) | Rooms UX |
 | [TELEGRAM.md](docs/specs/TELEGRAM.md) | Mini App and bot |
 | [TOKENOMICS.md](docs/specs/TOKENOMICS.md) | BURN token design |
 | [I18N.md](docs/specs/I18N.md) | Localization |

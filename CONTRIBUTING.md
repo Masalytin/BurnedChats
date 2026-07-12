@@ -62,7 +62,6 @@ contributors or integrators:
 | Crypto, threat model | `docs/specs/SECURITY.md` |
 | Architecture | `docs/specs/ARCHITECTURE.md` |
 | Token / on-chain | `docs/specs/TOKENOMICS.md` |
-| User flows | `docs/specs/USER_FLOWS.md`, `USER_FLOWS_ROOMS.md` |
 | Telegram integration | `docs/specs/TELEGRAM.md` |
 
 ## Internationalization
@@ -90,11 +89,8 @@ for frontend (`react-i18next`) and backend/bot (`MessageSource`) conventions.
 | [DATA_MODELS.md](docs/specs/DATA_MODELS.md) | Redis and DTOs |
 | [GROUP_KEY_PROTOCOL.md](docs/specs/GROUP_KEY_PROTOCOL.md) | Group E2EE |
 | [I18N.md](docs/specs/I18N.md) | Localization |
-| [LANDING_PAGE.md](docs/specs/LANDING_PAGE.md) | Marketing copy spec |
 | [SECURITY.md](docs/specs/SECURITY.md) | Threat model |
 | [TELEGRAM.md](docs/specs/TELEGRAM.md) | Mini App and bot |
 | [TOKENOMICS.md](docs/specs/TOKENOMICS.md) | BURN token |
-| [USER_FLOWS.md](docs/specs/USER_FLOWS.md) | 1:1 chat UX |
-| [USER_FLOWS_ROOMS.md](docs/specs/USER_FLOWS_ROOMS.md) | Rooms UX |
 
 Questions about roadmap or priorities — open a GitHub issue.

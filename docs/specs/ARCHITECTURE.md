@@ -127,4 +127,3 @@ Horizontal multi-instance STOMP fan-out is **not** implemented (simple broker, n
 | [DATA_MODELS.md](./DATA_MODELS.md) | Redis keys and DTOs |
 | [SECURITY.md](./SECURITY.md) | Cryptography and threat model |
 | [GROUP_KEY_PROTOCOL.md](./GROUP_KEY_PROTOCOL.md) | Room group E2EE |
-| [USER_FLOWS.md](./USER_FLOWS.md) / [USER_FLOWS_ROOMS.md](./USER_FLOWS_ROOMS.md) | UX flows |

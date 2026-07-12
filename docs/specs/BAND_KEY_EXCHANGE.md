@@ -407,4 +407,3 @@ Key exchange via camera, bypassing the server entirely:
 
 - [SECURITY.md](./SECURITY.md) — cryptographic primitives
 - [API.md](./API.md) — WebSocket handshake events
-- [USER_FLOWS.md](./USER_FLOWS.md) — verification UX
