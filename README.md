@@ -9,8 +9,8 @@ smart contracts for wallet auth and an experimental deflationary token.
 [![Frontend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml)
 [![Contracts CI](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml)
 
-| | |
-|---|---|
+| Component | Stack |
+|-----------|-------|
 | Backend | Java 21, Spring Boot 3.3 |
 | Frontend | React 19, Vite 7, TypeScript |
 | Crypto | ECDH P-256, AES-256-GCM |
