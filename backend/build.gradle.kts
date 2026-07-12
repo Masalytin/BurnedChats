@@ -8,6 +8,7 @@ val lombokVersion: String by project
 val mapstructVersion: String by project
 val telegramBotsVersion: String by project
 val testcontainersVersion: String by project
+val springdocVersion: String by project
 
 fun isDockerEngineAvailable(): Boolean {
     return try {
@@ -57,6 +58,9 @@ dependencies {
     // TON cell / BoC decoding (governance proposal payloads)
     implementation("org.ton.ton4j:cell:2.0.2")
 
+    // OpenAPI / Swagger UI (dev/testnet only — disabled in prod profile)
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
@@ -100,5 +104,26 @@ tasks.withType<JavaCompile> {
         "-Amapstruct.defaultComponentModel=spring",
         "-Amapstruct.unmappedTargetPolicy=ERROR"
     ))
+}
+
+val openApiOutput = rootProject.file("docs/specs/openapi.yaml")
+val stompRoutesOutput = rootProject.file("docs/specs/stomp-routes.json")
+
+tasks.register<JavaExec>("exportOpenApi") {
+    group = "documentation"
+    description = "Exports REST OpenAPI spec to docs/specs/openapi.yaml"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("dev.burnedchats.tools.OpenApiExporter")
+    workingDir = rootProject.projectDir
+    args(openApiOutput.absolutePath)
+}
+
+tasks.register<JavaExec>("exportStompRoutes") {
+    group = "documentation"
+    description = "Exports STOMP route inventory to docs/specs/stomp-routes.json"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("dev.burnedchats.tools.StompRouteExporter")
+    workingDir = rootProject.projectDir
+    args(stompRoutesOutput.absolutePath)
 }
 

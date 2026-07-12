@@ -24,3 +24,11 @@ app:
 burnedchats:
   wallet-auth:
     ton-api-base-url: ${BURNEDCHATS_TON_API_BASE_URL:https://testnet.toncenter.com/api/v2}
+
+# springdoc OpenAPI + Swagger UI (testnet staging — not prod-only deploy)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+

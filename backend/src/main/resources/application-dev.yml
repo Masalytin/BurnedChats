@@ -50,4 +50,11 @@ management:
     health:
       show-details: always
 
+# springdoc OpenAPI + Swagger UI (dev only — not prod)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 

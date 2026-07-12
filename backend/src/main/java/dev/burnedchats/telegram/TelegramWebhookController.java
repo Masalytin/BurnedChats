@@ -1,6 +1,7 @@
 package dev.burnedchats.telegram;
 
 import dev.burnedchats.config.TelegramProperties;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,6 +35,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
  * @see TelegramWebhookConfig
  */
 @Slf4j
+@Hidden
 @RestController
 @RequestMapping("/api/telegram")
 @RequiredArgsConstructor

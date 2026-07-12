@@ -66,6 +66,13 @@ management:
     health:
       show-details: when_authorized
 
+# OpenAPI / Swagger UI disabled in production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # DM/room message list limits (default from application.yml; override in env if needed)
 burnedchats:
   messages:

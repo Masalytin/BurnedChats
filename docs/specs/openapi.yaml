@@ -1,0 +1,546 @@
+components:
+  schemas:
+    WalletAuthRequest:
+      type: "object"
+      properties:
+        walletAddress:
+          type: "string"
+        walletProof:
+          type: "string"
+        walletPublicKey:
+          type: "string"
+        walletStateInit:
+          type: "string"
+    InitDataOnlyRequest:
+      type: "object"
+      properties:
+        initData:
+          type: "string"
+    SessionTokenOnlyRequest:
+      type: "object"
+      properties:
+        sessionToken:
+          type: "string"
+    LinkedAccountsQuery:
+      type: "object"
+      properties:
+        initData:
+          type: "string"
+        sessionToken:
+          type: "string"
+    LinkWalletRequest:
+      type: "object"
+      properties:
+        initData:
+          type: "string"
+        walletAddress:
+          type: "string"
+        walletProof:
+          type: "string"
+    LinkTelegramCompleteRequest:
+      type: "object"
+      properties:
+        challengeId:
+          type: "string"
+        initData:
+          type: "string"
+    ProposalSummary:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+        type:
+          type: "string"
+          enum:
+          - "PARAMETER_CHANGE"
+          - "FEATURE_PRIORITY"
+          - "TREASURY_SPEND"
+          - "EMERGENCY"
+        proposer:
+          type: "string"
+        title:
+          type: "string"
+        startTime:
+          type: "integer"
+          format: "int64"
+        endTime:
+          type: "integer"
+          format: "int64"
+        state:
+          type: "string"
+          enum:
+          - "ACTIVE"
+          - "SUCCEEDED"
+          - "DEFEATED"
+          - "QUEUED"
+          - "EXECUTED"
+          - "CANCELLED"
+          - "UNKNOWN"
+        forVotes:
+          type: "integer"
+        againstVotes:
+          type: "integer"
+    UserVote:
+      type: "object"
+      properties:
+        proposalId:
+          type: "integer"
+          format: "int64"
+        support:
+          type: "boolean"
+        vp:
+          type: "integer"
+        voteTimestamp:
+          type: "integer"
+          format: "int64"
+    ProposalDetail:
+      type: "object"
+      properties:
+        summary:
+          $ref: "#/components/schemas/ProposalSummary"
+        decodedPayload:
+          type: "object"
+        quorumRequired:
+          type: "integer"
+        thresholdRequired:
+          type: "integer"
+        totalVoters:
+          type: "integer"
+          format: "int32"
+    StreamingResponseBody:
+      type: "object"
+info:
+  title: "Burned Chats API"
+  description: "REST surface for Burned Chats Telegram Mini App"
+  version: "0.1.0-SNAPSHOT"
+openapi: "3.0.1"
+paths:
+  /api/auth/link-telegram/challenge:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "linkTelegramChallenge"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionTokenOnlyRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/link-telegram/complete:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "linkTelegramComplete"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkTelegramCompleteRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/link-wallet:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "linkWallet"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkWalletRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/linked-accounts:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "linkedAccounts"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkedAccountsQuery"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/nonce:
+    get:
+      tags:
+      - "auth-controller"
+      operationId: "issueNonce"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  /api/auth/unlink-telegram:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "unlinkTelegram"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionTokenOnlyRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/unlink-wallet:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "unlinkWallet"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitDataOnlyRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/auth/wallet:
+    post:
+      tags:
+      - "auth-controller"
+      operationId: "authenticateWallet"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletAuthRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/files/upload:
+    post:
+      tags:
+      - "file-controller"
+      operationId: "upload"
+      parameters:
+      - name: "X-Auth-Type"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      - name: "X-Telegram-Init-Data"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      - name: "X-Auth-Token"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      - name: "X-Context-Type"
+        in: "header"
+        required: true
+        schema:
+          type: "string"
+      - name: "X-Context-Id"
+        in: "header"
+        required: true
+        schema:
+          type: "string"
+      - name: "Content-Length"
+        in: "header"
+        required: true
+        schema:
+          type: "integer"
+          format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/files/{fileId}:
+    get:
+      tags:
+      - "file-controller"
+      operationId: "download"
+      parameters:
+      - name: "fileId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "X-Auth-Type"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      - name: "X-Telegram-Init-Data"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      - name: "X-Auth-Token"
+        in: "header"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StreamingResponseBody"
+  /api/governance/active-proposals:
+    get:
+      tags:
+      - "governance-controller"
+      operationId: "activeProposals"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/ProposalSummary"
+  /api/governance/proposals/{id}:
+    get:
+      tags:
+      - "governance-controller"
+      operationId: "proposal"
+      parameters:
+      - name: "id"
+        in: "path"
+        required: true
+        schema:
+          type: "integer"
+          format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+  /api/governance/proposals/{proposalId}/vote:
+    get:
+      tags:
+      - "governance-controller"
+      operationId: "userVote"
+      parameters:
+      - name: "proposalId"
+        in: "path"
+        required: true
+        schema:
+          type: "integer"
+          format: "int64"
+      - name: "address"
+        in: "query"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserVote"
+  /api/governance/recent-proposals:
+    get:
+      tags:
+      - "governance-controller"
+      operationId: "recentProposals"
+      parameters:
+      - name: "limit"
+        in: "query"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 10
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/ProposalSummary"
+  /api/governance/voting-power:
+    get:
+      tags:
+      - "governance-controller"
+      operationId: "votingPower"
+      parameters:
+      - name: "address"
+        in: "query"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  /api/health:
+    get:
+      tags:
+      - "health-controller"
+      operationId: "health"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/health/detailed:
+    get:
+      tags:
+      - "health-controller"
+      operationId: "healthDetailed"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/info:
+    get:
+      tags:
+      - "health-controller"
+      operationId: "info"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+  /api/wallet/burn-balance:
+    get:
+      tags:
+      - "wallet-controller"
+      operationId: "burnBalance"
+      parameters:
+      - name: "address"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+  /api/wallet/jetton-wallet:
+    get:
+      tags:
+      - "wallet-controller"
+      operationId: "jettonWallet"
+      parameters:
+      - name: "address"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+  /api/wallet/staking-profile:
+    get:
+      tags:
+      - "wallet-controller"
+      operationId: "stakingProfile"
+      parameters:
+      - name: "address"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"

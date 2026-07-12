@@ -2,6 +2,7 @@ package dev.burnedchats.controller;
 
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.SessionTokenService;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -35,6 +36,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @Slf4j
+@Hidden
 @Profile("dev")
 @RestController
 @RequestMapping("/api/auth")

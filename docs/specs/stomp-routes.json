@@ -1,0 +1,275 @@
+{
+  "version" : 1,
+  "generatedAt" : "2026-07-12T10:12:52.264407300Z",
+  "inbound" : [ {
+    "destination" : "/app/handshake.key",
+    "handler" : "dev.burnedchats.handler.HandshakeHandler",
+    "method" : "relayPublicKey",
+    "requestType" : "dev.burnedchats.dto.request.PublicKeyRequest"
+  }, {
+    "destination" : "/app/heartbeat",
+    "handler" : "dev.burnedchats.handler.HeartbeatHandler",
+    "method" : "heartbeat",
+    "requestType" : null
+  }, {
+    "destination" : "/app/message.delete",
+    "handler" : "dev.burnedchats.handler.MessageHandler",
+    "method" : "deleteMessage",
+    "requestType" : "dev.burnedchats.dto.request.DeleteMessageRequest"
+  }, {
+    "destination" : "/app/message.edit",
+    "handler" : "dev.burnedchats.handler.MessageHandler",
+    "method" : "editMessage",
+    "requestType" : "dev.burnedchats.dto.request.EditMessageRequest"
+  }, {
+    "destination" : "/app/message.send",
+    "handler" : "dev.burnedchats.handler.MessageHandler",
+    "method" : "relayMessage",
+    "requestType" : "dev.burnedchats.dto.request.SendMessageRequest"
+  }, {
+    "destination" : "/app/message.sync",
+    "handler" : "dev.burnedchats.handler.MessageHandler",
+    "method" : "syncMessages",
+    "requestType" : "dev.burnedchats.dto.request.SyncMessagesRequest"
+  }, {
+    "destination" : "/app/peer.disconnect",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "handlePeerDisconnect",
+    "requestType" : "dev.burnedchats.dto.request.PeerDisconnectRequest"
+  }, {
+    "destination" : "/app/pow.challenge",
+    "handler" : "dev.burnedchats.handler.PowHandler",
+    "method" : "requestChallenge",
+    "requestType" : "dev.burnedchats.handler.PowHandler$PowChallengeRequest"
+  }, {
+    "destination" : "/app/room.acceptJoin",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "acceptRoomJoin",
+    "requestType" : "dev.burnedchats.dto.request.RoomJoinDecisionRequest"
+  }, {
+    "destination" : "/app/room.ban",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "banMember",
+    "requestType" : "dev.burnedchats.dto.request.BanMemberRequest"
+  }, {
+    "destination" : "/app/room.burn",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "burnRoom",
+    "requestType" : "dev.burnedchats.dto.request.BurnRoomRequest"
+  }, {
+    "destination" : "/app/room.create",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "createRoom",
+    "requestType" : "dev.burnedchats.dto.request.CreateRoomRequest"
+  }, {
+    "destination" : "/app/room.getBans",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getBans",
+    "requestType" : "dev.burnedchats.dto.request.GetRoomMembersRequest"
+  }, {
+    "destination" : "/app/room.getInviteInfo",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getInviteInfo",
+    "requestType" : "dev.burnedchats.dto.request.GetInviteInfoRequest"
+  }, {
+    "destination" : "/app/room.getInviteLink",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getInviteLink",
+    "requestType" : "dev.burnedchats.dto.request.GetInviteLinkRequest"
+  }, {
+    "destination" : "/app/room.getInvites",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getInvites",
+    "requestType" : "dev.burnedchats.dto.request.GetInviteLinkRequest"
+  }, {
+    "destination" : "/app/room.getMemberPubkeys",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getMemberPubkeys",
+    "requestType" : "dev.burnedchats.dto.request.GetMemberPubkeysRequest"
+  }, {
+    "destination" : "/app/room.getMembers",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getRoomMembers",
+    "requestType" : "dev.burnedchats.dto.request.GetRoomMembersRequest"
+  }, {
+    "destination" : "/app/room.getMyRooms",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getMyRooms",
+    "requestType" : "dev.burnedchats.dto.request.GetMyRoomsRequest"
+  }, {
+    "destination" : "/app/room.getPresence",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "getRoomPresence",
+    "requestType" : "dev.burnedchats.dto.request.GetRoomPresenceRequest"
+  }, {
+    "destination" : "/app/room.kick",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "kickMember",
+    "requestType" : "dev.burnedchats.dto.request.KickMemberRequest"
+  }, {
+    "destination" : "/app/room.leave",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "leaveRoom",
+    "requestType" : "dev.burnedchats.dto.request.LeaveRoomRequest"
+  }, {
+    "destination" : "/app/room.message.delete",
+    "handler" : "dev.burnedchats.handler.RoomMessageHandler",
+    "method" : "deleteRoomMessage",
+    "requestType" : "dev.burnedchats.dto.request.DeleteRoomMessageRequest"
+  }, {
+    "destination" : "/app/room.message.edit",
+    "handler" : "dev.burnedchats.handler.RoomMessageHandler",
+    "method" : "editRoomMessage",
+    "requestType" : "dev.burnedchats.dto.request.EditRoomMessageRequest"
+  }, {
+    "destination" : "/app/room.message.send",
+    "handler" : "dev.burnedchats.handler.RoomMessageHandler",
+    "method" : "sendRoomMessage",
+    "requestType" : "dev.burnedchats.dto.request.SendRoomMessageRequest"
+  }, {
+    "destination" : "/app/room.message.sync",
+    "handler" : "dev.burnedchats.handler.RoomMessageHandler",
+    "method" : "syncRoomMessages",
+    "requestType" : "dev.burnedchats.dto.request.SyncRoomMessagesRequest"
+  }, {
+    "destination" : "/app/room.mute",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "muteMember",
+    "requestType" : "dev.burnedchats.dto.request.MuteMemberRequest"
+  }, {
+    "destination" : "/app/room.rejectJoin",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "rejectRoomJoin",
+    "requestType" : "dev.burnedchats.dto.request.RoomJoinDecisionRequest"
+  }, {
+    "destination" : "/app/room.rekey",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "rekey",
+    "requestType" : "dev.burnedchats.dto.request.RekeyRequest"
+  }, {
+    "destination" : "/app/room.requestJoin",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "requestJoinRoom",
+    "requestType" : "dev.burnedchats.dto.request.RequestJoinRoomRequest"
+  }, {
+    "destination" : "/app/room.requestKeyBundle",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "requestKeyBundle",
+    "requestType" : "dev.burnedchats.dto.request.RequestKeyBundleRequest"
+  }, {
+    "destination" : "/app/room.revokeInvite",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "revokeInvite",
+    "requestType" : "dev.burnedchats.dto.request.RevokeInviteRequest"
+  }, {
+    "destination" : "/app/room.sendKeyBundle",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "sendKeyBundle",
+    "requestType" : "dev.burnedchats.dto.request.SendKeyBundleRequest"
+  }, {
+    "destination" : "/app/room.setMessageTtl",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "setMessageTtl",
+    "requestType" : "dev.burnedchats.dto.request.SetMessageTtlRequest"
+  }, {
+    "destination" : "/app/room.setName",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "setRoomName",
+    "requestType" : "dev.burnedchats.dto.request.SetRoomNameRequest"
+  }, {
+    "destination" : "/app/room.setReadOnly",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "setReadOnly",
+    "requestType" : "dev.burnedchats.dto.request.SetReadOnlyRequest"
+  }, {
+    "destination" : "/app/room.setRole",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "setRole",
+    "requestType" : "dev.burnedchats.dto.request.SetRoleRequest"
+  }, {
+    "destination" : "/app/room.setTtl",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "setRoomTtl",
+    "requestType" : "dev.burnedchats.dto.request.SetRoomTtlRequest"
+  }, {
+    "destination" : "/app/room.transferOwnership",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "transferOwnership",
+    "requestType" : "dev.burnedchats.dto.request.TransferOwnershipRequest"
+  }, {
+    "destination" : "/app/room.unban",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "unbanMember",
+    "requestType" : "dev.burnedchats.dto.request.BanMemberRequest"
+  }, {
+    "destination" : "/app/room.unmute",
+    "handler" : "dev.burnedchats.handler.RoomHandler",
+    "method" : "unmuteMember",
+    "requestType" : "dev.burnedchats.dto.request.MuteMemberRequest"
+  }, {
+    "destination" : "/app/search",
+    "handler" : "dev.burnedchats.handler.SearchHandler",
+    "method" : "searchUser",
+    "requestType" : "dev.burnedchats.dto.request.SearchRequest"
+  }, {
+    "destination" : "/app/session.accept",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "acceptRequest",
+    "requestType" : "dev.burnedchats.dto.request.AcceptSessionRequest"
+  }, {
+    "destination" : "/app/session.active.list",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "getActiveSessions",
+    "requestType" : null
+  }, {
+    "destination" : "/app/session.burn",
+    "handler" : "dev.burnedchats.handler.BurnHandler",
+    "method" : "burnSession",
+    "requestType" : "dev.burnedchats.dto.request.BurnSessionRequest"
+  }, {
+    "destination" : "/app/session.create",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "createSession",
+    "requestType" : "dev.burnedchats.dto.request.CreateSessionRequest"
+  }, {
+    "destination" : "/app/session.pending",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "getPendingRequests",
+    "requestType" : null
+  }, {
+    "destination" : "/app/session.reject",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "rejectRequest",
+    "requestType" : "dev.burnedchats.dto.request.RejectSessionRequest"
+  }, {
+    "destination" : "/app/session.resume",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "resumeSession",
+    "requestType" : "dev.burnedchats.dto.request.ResumeSessionRequest"
+  }, {
+    "destination" : "/app/session.status",
+    "handler" : "dev.burnedchats.handler.SessionHandler",
+    "method" : "checkSessionStatus",
+    "requestType" : "dev.burnedchats.dto.request.SessionStatusRequest"
+  }, {
+    "destination" : "/app/user.burnAll",
+    "handler" : "dev.burnedchats.handler.UserBurnHandler",
+    "method" : "burnAll",
+    "requestType" : "dev.burnedchats.dto.request.BurnAllRequest"
+  }, {
+    "destination" : "/app/user.setDeadman",
+    "handler" : "dev.burnedchats.handler.UserBurnHandler",
+    "method" : "setDeadman",
+    "requestType" : "dev.burnedchats.dto.request.SetDeadmanRequest"
+  }, {
+    "destination" : "/app/user.setLanguage",
+    "handler" : "dev.burnedchats.handler.UserPreferenceHandler",
+    "method" : "setLanguage",
+    "requestType" : "dev.burnedchats.dto.request.SetLanguageRequest"
+  }, {
+    "destination" : "/app/verification.confirm",
+    "handler" : "dev.burnedchats.handler.VerificationHandler",
+    "method" : "confirmVerification",
+    "requestType" : "dev.burnedchats.dto.request.VerificationRequest"
+  } ]
+}
