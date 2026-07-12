@@ -109,6 +109,16 @@ tasks.withType<JavaCompile> {
 val openApiOutput = rootProject.file("docs/specs/openapi.yaml")
 val stompRoutesOutput = rootProject.file("docs/specs/stomp-routes.json")
 
+tasks.register<JavaExec>("checkApiContracts") {
+    group = "verification"
+    description = "Fails when committed openapi.yaml or stomp-routes.json drift from code"
+    dependsOn("classes")
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("dev.burnedchats.tools.ApiContractsDriftChecker")
+    workingDir = rootProject.projectDir
+    args(openApiOutput.absolutePath, stompRoutesOutput.absolutePath)
+}
+
 tasks.register<JavaExec>("exportOpenApi") {
     group = "documentation"
     description = "Exports REST OpenAPI spec to docs/specs/openapi.yaml"

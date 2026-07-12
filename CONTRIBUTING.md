@@ -57,12 +57,34 @@ contributors or integrators:
 
 | Change type | Update |
 |-------------|--------|
-| REST / STOMP API | `docs/specs/API.md` |
+| REST endpoints / request-response shapes | `docs/specs/openapi.yaml` — run `./gradlew exportOpenApi` from repo root and commit the diff |
+| Inbound STOMP `@MessageMapping` destinations | `docs/specs/stomp-routes.json` — run `./gradlew exportStompRoutes` and commit the diff |
+| Auth handshake, rate limits, error taxonomy, ZK field semantics, server→client STOMP events | `docs/specs/API.md` (narrative only) |
 | Redis keys, DTOs | `docs/specs/DATA_MODELS.md` |
 | Crypto, threat model | `docs/specs/SECURITY.md` |
 | Architecture | `docs/specs/ARCHITECTURE.md` |
 | Token / on-chain | `docs/specs/TOKENOMICS.md` |
 | Telegram integration | `docs/specs/TELEGRAM.md` |
+
+### API contract drift check
+
+CI runs `./gradlew :backend:checkApiContracts` after every backend build.
+It fails when committed `openapi.yaml` or `stomp-routes.json` do not match
+a fresh export from the current code.
+
+Before opening a PR that touches REST controllers or STOMP handlers:
+
+```bash
+# From repository root
+./gradlew exportOpenApi exportStompRoutes
+git diff docs/specs/openapi.yaml docs/specs/stomp-routes.json
+# Commit any changes together with your code
+./gradlew :backend:checkApiContracts
+```
+
+Narrative-only API changes (handshake flow, rate-limit table, error semantics)
+belong in slim `API.md` — do not duplicate REST paths or inbound destination
+lists there; those live in the generated artifacts above.
 
 ## Internationalization
 

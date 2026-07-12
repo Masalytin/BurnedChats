@@ -1,6 +1,7 @@
 package dev.burnedchats.tools;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -9,6 +10,7 @@ import org.springframework.core.type.filter.RegexPatternTypeFilter;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.time.Instant;
@@ -40,6 +42,9 @@ public final class StompRouteInventory {
     public record Inventory(int version, String generatedAt, List<InboundRoute> inbound) {
     }
 
+    public record CanonicalInventory(int version, List<InboundRoute> inbound) {
+    }
+
     public static List<InboundRoute> scan() {
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false);
@@ -68,6 +73,32 @@ public final class StompRouteInventory {
             return JSON.writerWithDefaultPrettyPrinter().writeValueAsString(inventory);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize STOMP inventory", e);
+        }
+    }
+
+    public static String toCanonicalJson(List<InboundRoute> routes) {
+        CanonicalInventory inventory = new CanonicalInventory(1, routes);
+        try {
+            return JSON.writerWithDefaultPrettyPrinter().writeValueAsString(inventory);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize canonical STOMP inventory", e);
+        }
+    }
+
+    /**
+     * Parses committed or fresh JSON and re-serializes without volatile {@code generatedAt}.
+     */
+    public static String toCanonicalJsonFromExisting(String json) {
+        try {
+            JsonNode root = JSON.readTree(json);
+            JsonNode inboundNode = root.get("inbound");
+            if (inboundNode == null || !inboundNode.isArray()) {
+                throw new IllegalStateException("STOMP inventory JSON must contain an inbound array");
+            }
+            List<InboundRoute> routes = JSON.readerForListOf(InboundRoute.class).readValue(inboundNode);
+            return toCanonicalJson(routes);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to parse STOMP inventory JSON", e);
         }
     }
 

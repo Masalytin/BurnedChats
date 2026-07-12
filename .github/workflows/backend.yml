@@ -9,6 +9,8 @@ on:
             - 'gradle.properties'
             - 'gradle/**'
             - 'config/**'
+            - 'docs/specs/openapi.yaml'
+            - 'docs/specs/stomp-routes.json'
             - '.github/workflows/backend.yml'
     push:
         branches: [master]
@@ -19,6 +21,8 @@ on:
             - 'gradle.properties'
             - 'gradle/**'
             - 'config/**'
+            - 'docs/specs/openapi.yaml'
+            - 'docs/specs/stomp-routes.json'
             - '.github/workflows/backend.yml'
 
 jobs:
@@ -41,6 +45,9 @@ jobs:
             # :backend:integrationTest and are not run in CI.
             - name: Build (compile, checkstyle, spotbugs, unit tests)
               run: ./gradlew :backend:build --no-daemon
+
+            - name: Check API contract artifacts (OpenAPI + STOMP drift)
+              run: ./gradlew :backend:checkApiContracts --no-daemon
 
             - name: Upload test reports
               if: failure()
