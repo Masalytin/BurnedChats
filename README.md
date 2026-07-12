@@ -44,22 +44,24 @@ production-ready.
 
 ## Architecture
 
-```
-┌─────────────┐        WSS/STOMP        ┌─────────────┐        WSS/STOMP        ┌─────────────┐
-│    Alice    │◄───────────────────────►│   Backend   │◄───────────────────────►│     Bob     │
-│  (browser)  │   encrypted blobs only  │   (relay)   │   encrypted blobs only  │  (browser)  │
-└──────┬──────┘                         └──────┬──────┘                         └──────┬──────┘
-       │ keys in RAM                            │ metadata + ciphertext in Redis        │ keys in RAM
-       │                                        │ (TTL, never plaintext)                │
-       │ TON Connect                            │ read-only TON RPC                     │
-       ▼                                        ▼
-┌─────────────┐                          ┌─────────────┐
-│  TON Wallet │                          │  TON RPC    │
-└──────┬──────┘                          └─────────────┘
-       ▼
-┌───────────────────────────────────────────────────────────────┐
-│  TON: BURN Jetton · Staking · Governance · Treasury · Vesting │
-└───────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Clients["Clients · keys in RAM"]
+    A["Alice / Bob<br/>Telegram Mini App<br/>Web Crypto"]
+  end
+
+  TG["Telegram Bot"]
+  BE["Backend relay<br/>Redis TTL<br/>ciphertext + metadata<br/>never plaintext"]
+  RPC["TON RPC<br/>read-only"]
+  WAL["TON Wallet"]
+  CHAIN["TON contracts<br/>BURN Jetton · Staking<br/>Governance · Treasury · Vesting"]
+
+  A <-->|"HTTPS + WSS/STOMP"| BE
+  BE <-->|"webhook / notify<br/>no message content"| TG
+  A -->|"TON Connect"| WAL
+  WAL --> CHAIN
+  BE -->|"queries"| RPC
+  RPC --> CHAIN
 ```
 
 The server performs three roles: **rendezvous** (connect users), **relay** (forward
