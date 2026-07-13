@@ -49,6 +49,24 @@ function clearAppLocalStorage(): void {
   }
 }
 
+function clearTonConnectLocalStorage(): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith('ton-connect') || key.startsWith('tonconnect')) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key);
+  }
+}
+
 function clearCloudLanguagePreference(): void {
   try {
     WebApp.CloudStorage.removeItem(CLOUD_LANGUAGE_KEY, () => {});
@@ -74,6 +92,7 @@ export async function performBurnAllLocalCleanup(options: BurnAllCleanupOptions)
 
   if (options.wipeIdentity) {
     clearAppLocalStorage();
+    clearTonConnectLocalStorage();
     clearCloudLanguagePreference();
   }
 }

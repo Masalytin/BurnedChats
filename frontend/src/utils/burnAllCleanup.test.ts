@@ -51,4 +51,16 @@ describe('performBurnAllLocalCleanup', () => {
     expect(localStorage.getItem(PREFERENCES_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem('bc:other')).toBeNull();
   });
+
+  it('clears TonConnect localStorage keys when wipeIdentity is true', async () => {
+    localStorage.setItem('ton-connect-ui_wallet-info', '{"name":"mock"}');
+    localStorage.setItem('tonconnect-preferences', '{"theme":"dark"}');
+    localStorage.setItem('bc:other', 'keep-for-data-mode');
+
+    await performBurnAllLocalCleanup({ wipeIdentity: true, disconnectTon });
+
+    expect(localStorage.getItem('ton-connect-ui_wallet-info')).toBeNull();
+    expect(localStorage.getItem('tonconnect-preferences')).toBeNull();
+    expect(localStorage.getItem('bc:other')).toBeNull();
+  });
 });

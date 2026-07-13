@@ -13,23 +13,6 @@ import type { TransactionMessage, TxResult } from './types';
 
 let tonConnectUiSingleton: TonConnectUI | null = null;
 
-type TonConnectResetListener = () => void;
-const tonConnectResetListeners = new Set<TonConnectResetListener>();
-
-/** Subscribe to {@link resetTonConnectUI} so hooks can re-bind to a fresh singleton. */
-export function subscribeTonConnectReset(listener: TonConnectResetListener): () => void {
-  tonConnectResetListeners.add(listener);
-  return () => {
-    tonConnectResetListeners.delete(listener);
-  };
-}
-
-function notifyTonConnectReset(): void {
-  for (const listener of tonConnectResetListeners) {
-    listener();
-  }
-}
-
 export type TonConnectUIOptions = {
   restoreConnection?: boolean;
 };
@@ -104,13 +87,13 @@ export function getTonConnectUIForAuth(): TonConnectUI {
 }
 
 /**
- * Drops the Ton Connect UI singleton so the next {@link getTonConnectUI} builds a fresh instance.
- * Disconnects first to avoid leaking storage listeners from the library.
+ * Disconnects the wallet if connected; never destroys or recreates the TonConnectUI singleton.
  */
-export function resetTonConnectUI(): void {
-  void tonConnectUiSingleton?.disconnect();
-  tonConnectUiSingleton = null;
-  notifyTonConnectReset();
+export async function disconnectTonConnect(): Promise<void> {
+  const ui = getTonConnectUI();
+  if (ui.connected) {
+    await ui.disconnect();
+  }
 }
 
 export function accountToFriendlyAddress(account: Account): string {

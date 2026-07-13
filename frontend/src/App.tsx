@@ -98,7 +98,7 @@ import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
 import { completeUserExit } from './utils/completeUserExit';
 import { shouldRefreshHomeData } from './utils/shouldRefreshHomeData';
-import { resetTonConnectUI } from './ton/connector';
+import { disconnectTonConnect } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
 import { isFilesErrorI18nKey } from './services/fileTransferErrors';
@@ -2529,9 +2529,7 @@ function AppContent() {
       void (async () => {
         await performBurnAllLocalCleanup({
           wipeIdentity: event.wipeIdentity,
-          disconnectTon: async () => {
-            resetTonConnectUI();
-          },
+          disconnectTon: disconnectTonConnect,
         });
 
         if (exitBurnPendingRef.current) {

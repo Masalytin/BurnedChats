@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import type { Wallet } from '@tonconnect/sdk';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTonConnect } from '@/hooks/useTonConnect';
-import { getTonConnectUI, resetTonConnectUI } from '@/ton/connector';
+import { getTonConnectUI } from '@/ton/connector';
 
 type StatusListener = (wallet: Wallet | null) => void;
 
@@ -24,12 +24,11 @@ function mockWallet(): Wallet {
   } as Wallet;
 }
 
-function createMockTonConnectUi(label: string) {
+function createMockTonConnectUi() {
   let currentWallet: Wallet | null = null;
   const listeners = new Set<StatusListener>();
 
   return {
-    label,
     get wallet() {
       return currentWallet;
     },
@@ -60,46 +59,33 @@ vi.mock('@/ton/connector', async (importOriginal) => {
 
 describe('useTonConnect', () => {
   beforeEach(() => {
-    resetTonConnectUI();
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    resetTonConnectUI();
-  });
-
-  it('re-subscribes to TonConnect UI after resetTonConnectUI (burn-all cleanup)', async () => {
-    const uiBeforeBurn = createMockTonConnectUi('before');
-    const uiAfterBurn = createMockTonConnectUi('after');
-    let activeUi = uiBeforeBurn;
-
-    vi.mocked(getTonConnectUI).mockImplementation(() => activeUi as never);
+  it('reflects disconnect on the same TonConnect UI instance and allows reconnect', async () => {
+    const ui = createMockTonConnectUi();
+    vi.mocked(getTonConnectUI).mockImplementation(() => ui as never);
 
     const { result } = renderHook(() => useTonConnect());
 
     await waitFor(() => {
-      expect(uiBeforeBurn.onStatusChange).toHaveBeenCalled();
+      expect(ui.onStatusChange).toHaveBeenCalledTimes(1);
     });
 
     act(() => {
-      uiBeforeBurn.emit(mockWallet());
+      ui.emit(mockWallet());
     });
     expect(result.current.isConnected).toBe(true);
 
-    activeUi = uiAfterBurn;
     act(() => {
-      resetTonConnectUI();
+      ui.emit(null);
     });
-
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(false);
-      expect(uiAfterBurn.onStatusChange).toHaveBeenCalled();
-    });
+    expect(result.current.isConnected).toBe(false);
+    expect(ui.onStatusChange).toHaveBeenCalledTimes(1);
 
     act(() => {
-      uiAfterBurn.emit(mockWallet());
+      ui.emit(mockWallet());
     });
-
     expect(result.current.isConnected).toBe(true);
     expect(result.current.walletAddress).toBeTruthy();
   });
