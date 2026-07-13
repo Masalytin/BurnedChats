@@ -6,9 +6,13 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { GOVERNANCE_POLL_MS, useGovernance } from '@/hooks/useGovernance';
 import {
   calculateProposalProgress,
+  createProposal,
   getActiveProposals,
+  getProposal,
+  getRecentProposals,
   getUserVote,
   getUserVotingPowerLockedBeyond,
+  GovernanceError,
 } from '@/ton/governance';
 import { ProposalType, ProposalState, type ProposalSummary } from '@/types/ton';
 import { encodePayload } from '@/utils/governance-encode';
@@ -27,6 +31,33 @@ function jsonResponse(data: unknown, status = 200): Response {
 function mockT(): TFunction {
   const fn = ((key: string) => key) as TFunction;
   return fn;
+}
+
+const GOVERNOR = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
+const STAKING = 'EQBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+
+function validProposalRow(over: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    id: 0,
+    type: 'PARAMETER_CHANGE',
+    proposer: 'EQaa__________________________ax___________________________0d',
+    title: 'Change fee',
+    startTime: 1,
+    endTime: 2,
+    state: 'ACTIVE',
+    forVotes: '10',
+    againstVotes: '5',
+    quorumRequired: '100',
+    thresholdRequired: '6600',
+    ...over,
+  };
+}
+
+function stubGovernanceEnv(): void {
+  vi.stubEnv('VITE_API_URL', 'http://api.test');
+  vi.stubEnv('VITE_GOVERNOR_ADDRESS', GOVERNOR);
+  vi.stubEnv('VITE_STAKING_MASTER', STAKING);
+  vi.stubEnv('VITE_TON_RPC_URL', 'https://rpc.test/api/v2');
 }
 
 vi.mock('@/hooks/useTonConnect', () => ({
@@ -145,23 +176,9 @@ describe('encodePayload', () => {
 
 describe('getActiveProposals', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_API_URL', 'http://api.test');
-    vi.stubEnv('VITE_GOVERNOR_ADDRESS', 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
-    vi.stubEnv('VITE_STAKING_MASTER', 'EQBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB');
+    stubGovernanceEnv();
 
-    const row: Record<string, unknown> = {
-      id: 0,
-      type: 'PARAMETER_CHANGE',
-      proposer: 'EQaa__________________________ax___________________________0d',
-      title: 'Change fee',
-      startTime: 1,
-      endTime: 2,
-      state: 'ACTIVE',
-      forVotes: '10',
-      againstVotes: '5',
-      quorumRequired: '100',
-      thresholdRequired: '6600',
-    };
+    const row = validProposalRow();
 
     vi.stubGlobal(
       'fetch',
@@ -186,6 +203,244 @@ describe('getActiveProposals', () => {
     expect(list[0]!.type).toBe(ProposalType.ParameterChange);
     expect(list[0]!.state).toBe(ProposalState.Active);
     expect(list[0]!.forVotes).toBe(10n);
+  });
+});
+
+describe('strict API parsing', () => {
+  beforeEach(() => {
+    stubGovernanceEnv();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('skips row with unknown type string and keeps valid rows', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/active-proposals')) {
+          return Promise.resolve(
+            jsonResponse([
+              validProposalRow({ id: 1, type: 'NOT_A_REAL_TYPE' }),
+              validProposalRow({ id: 2 }),
+            ]),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    const list = await getActiveProposals();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.id).toBe(2);
+    expect(list[0]!.type).toBe(ProposalType.ParameterChange);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('skips row with non-numeric id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/active-proposals')) {
+          return Promise.resolve(jsonResponse([validProposalRow({ id: 'not-a-number' }), validProposalRow({ id: 3 })]));
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    const list = await getActiveProposals();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.id).toBe(3);
+  });
+
+  it('skips row with float vote fields instead of coercing to 0n', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/active-proposals')) {
+          return Promise.resolve(
+            jsonResponse([
+              validProposalRow({ id: 4, forVotes: 1.5 }),
+              validProposalRow({ id: 5, forVotes: '20' }),
+            ]),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    const list = await getActiveProposals();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.id).toBe(5);
+    expect(list[0]!.forVotes).toBe(20n);
+  });
+
+  it('throws when more than half of list rows are corrupt', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/active-proposals')) {
+          return Promise.resolve(
+            jsonResponse([
+              validProposalRow({ id: 10, type: 'BOGUS' }),
+              validProposalRow({ id: 11, forVotes: 'not-a-number' }),
+              validProposalRow({ id: 12 }),
+            ]),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    await expect(getActiveProposals()).rejects.toMatchObject({
+      name: 'GovernanceError',
+      code: 'NETWORK',
+      message: 'Malformed proposal feed',
+      retryable: true,
+    });
+  });
+
+  it('getRecentProposals throws when corrupt ratio exceeds 50%', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/recent-proposals')) {
+          return Promise.resolve(
+            jsonResponse([
+              validProposalRow({ id: 20, state: 'INVALID_STATE' }),
+              validProposalRow({ id: 21, type: 'BAD_TYPE' }),
+            ]),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    await expect(getRecentProposals(10)).rejects.toMatchObject({
+      code: 'NETWORK',
+      message: 'Malformed proposal feed',
+    });
+  });
+
+  it('getProposal throws GovernanceError on malformed detail body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/governance/proposals/7')) {
+          return Promise.resolve(
+            jsonResponse({
+              summary: {
+                id: -1,
+                type: 'PARAMETER_CHANGE',
+                state: 'ACTIVE',
+              },
+            }),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 404));
+      }),
+    );
+
+    await expect(getProposal(7)).rejects.toMatchObject({
+      name: 'GovernanceError',
+      code: 'NETWORK',
+      message: 'Malformed proposal',
+      retryable: true,
+    });
+  });
+});
+
+describe('createProposal min VP gate', () => {
+  const wallet = Address.parse(`0:${'d'.repeat(64)}`).toString({
+    bounceable: true,
+    testOnly: true,
+    urlSafe: true,
+  });
+
+  beforeEach(() => {
+    stubGovernanceEnv();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('rejects before sendTransaction when claimed VP is below getMinProposalVp', async () => {
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/api/governance/voting-power')) {
+        return Promise.resolve(jsonResponse({ votingPower: '50' }));
+      }
+      if (url.includes('/runGetMethod')) {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+        if (body.method === 'get_min_proposal_vp') {
+          return Promise.resolve(
+            jsonResponse({
+              ok: true,
+              result: { exit_code: 0, stack: [['num', '0x64']] }, // 100
+            }),
+          );
+        }
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const payload = beginCell().endCell();
+    const result = await createProposal(
+      { type: ProposalType.ParameterChange, payload, walletAddress: wallet },
+      { fetchImpl: fetchMock as typeof fetch, sendTransactionImpl: sendTransactionImpl as never },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'unknown',
+      message: 'insufficient voting power — cannot create proposal',
+    });
+    expect(sendTransactionImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('useGovernance error propagation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stubGovernanceEnv();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('surfaces GovernanceError when active feed is mostly corrupt', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/governance/active-proposals')) {
+        return Promise.resolve(
+          jsonResponse([
+            validProposalRow({ id: 30, type: 'BAD' }),
+            validProposalRow({ id: 31, forVotes: 'x' }),
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useGovernance({ fetchImpl: fetchMock as typeof fetch }));
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(result.current.error).toBeInstanceOf(GovernanceError);
+    expect((result.current.error as GovernanceError).code).toBe('NETWORK');
+    expect(result.current.proposals).toEqual([]);
   });
 });
 

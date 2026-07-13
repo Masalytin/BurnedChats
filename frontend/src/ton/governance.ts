@@ -2,6 +2,7 @@ import { Address, Cell } from '@ton/core';
 
 import { addressToSliceStackBoc } from '@/ton/burnToken';
 import { sendTonTransaction } from '@/ton/connector';
+import { getMinProposalVp } from '@/ton/governance-vp';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { resolveIsTestNet } from '@/ton/rpc';
@@ -145,8 +146,24 @@ function bigIntFromJsonField(v: unknown): bigint {
   return 0n;
 }
 
-function parseProposalType(raw: unknown): ProposalType {
-  if (typeof raw === 'number' && raw >= 0 && raw <= 3) {
+function parseBigIntStrict(v: unknown): bigint {
+  if (typeof v === 'bigint') {
+    return v;
+  }
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v) || !Number.isInteger(v)) {
+      throw new Error('invalid bigint field');
+    }
+    return BigInt(v);
+  }
+  if (typeof v === 'string' && /^-?\d+$/.test(v.trim())) {
+    return BigInt(v.trim());
+  }
+  throw new Error('invalid bigint field');
+}
+
+function parseProposalType(raw: unknown): ProposalType | null {
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= 3) {
     return raw as ProposalType;
   }
   if (typeof raw === 'string') {
@@ -159,11 +176,24 @@ function parseProposalType(raw: unknown): ProposalType {
       return n as ProposalType;
     }
   }
-  return ProposalType.ParameterChange;
+  return null;
 }
 
-function parseProposalState(raw: unknown): ProposalState {
+const VALID_STATE_NUMS = new Set<number>([
+  ProposalState.Active,
+  ProposalState.Succeeded,
+  ProposalState.Defeated,
+  ProposalState.Queued,
+  ProposalState.Executed,
+  ProposalState.Cancelled,
+  ProposalState.Unknown,
+]);
+
+function parseProposalState(raw: unknown): ProposalState | null {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
+    if (!VALID_STATE_NUMS.has(raw)) {
+      return null;
+    }
     return raw as ProposalState;
   }
   if (typeof raw === 'string') {
@@ -172,28 +202,43 @@ function parseProposalState(raw: unknown): ProposalState {
       return STATE_BY_NAME[u]!;
     }
     const n = Number.parseInt(raw, 10);
-    if (!Number.isNaN(n)) {
+    if (!Number.isNaN(n) && VALID_STATE_NUMS.has(n)) {
       return n as ProposalState;
     }
   }
-  return ProposalState.Unknown;
+  return null;
 }
 
-function mapSummaryFields(row: Record<string, unknown>): ProposalSummary {
-  const id = Number(row.id ?? 0);
-  return {
-    id: Number.isFinite(id) ? id : 0,
-    type: parseProposalType(row.type),
-    proposer: String(row.proposer ?? ''),
-    title: String(row.title ?? ''),
-    startTime: Number(row.startTime ?? 0) || 0,
-    endTime: Number(row.endTime ?? 0) || 0,
-    state: parseProposalState(row.state),
-    forVotes: bigIntFromJsonField(row.forVotes),
-    againstVotes: bigIntFromJsonField(row.againstVotes),
-    quorumRequired: bigIntFromJsonField(row.quorumRequired),
-    thresholdRequired: bigIntFromJsonField(row.thresholdRequired),
-  };
+function mapSummaryFields(row: Record<string, unknown>): ProposalSummary | null {
+  const id = Number(row.id);
+  if (!Number.isFinite(id) || !Number.isInteger(id) || id < 0) {
+    return null;
+  }
+  const type = parseProposalType(row.type);
+  if (type === null) {
+    return null;
+  }
+  const state = parseProposalState(row.state);
+  if (state === null) {
+    return null;
+  }
+  try {
+    return {
+      id,
+      type,
+      proposer: String(row.proposer ?? ''),
+      title: String(row.title ?? ''),
+      startTime: Number(row.startTime ?? 0) || 0,
+      endTime: Number(row.endTime ?? 0) || 0,
+      state,
+      forVotes: parseBigIntStrict(row.forVotes ?? 0),
+      againstVotes: parseBigIntStrict(row.againstVotes ?? 0),
+      quorumRequired: parseBigIntStrict(row.quorumRequired ?? 0),
+      thresholdRequired: parseBigIntStrict(row.thresholdRequired ?? 0),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function mergeSummaryWithThresholds(s: ProposalSummary, quorum: bigint, threshold: bigint): ProposalSummary {
@@ -206,24 +251,77 @@ function mergeSummaryWithThresholds(s: ProposalSummary, quorum: bigint, threshol
 
 function mapProposalDetailJson(body: Record<string, unknown>): ProposalDetail {
   const summaryRaw = (body.summary ?? body) as Record<string, unknown>;
-  const quorum = bigIntFromJsonField(body.quorumRequired ?? summaryRaw.quorumRequired);
-  const threshold = bigIntFromJsonField(body.thresholdRequired ?? summaryRaw.thresholdRequired);
-  const summary = mergeSummaryWithThresholds(mapSummaryFields(summaryRaw), quorum, threshold);
+  let quorum: bigint;
+  let threshold: bigint;
+  try {
+    quorum = parseBigIntStrict(body.quorumRequired ?? summaryRaw.quorumRequired ?? 0);
+    threshold = parseBigIntStrict(body.thresholdRequired ?? summaryRaw.thresholdRequired ?? 0);
+  } catch {
+    throw new GovernanceError('NETWORK', 'Malformed proposal');
+  }
+  const summary = mapSummaryFields(summaryRaw);
+  if (summary === null) {
+    throw new GovernanceError('NETWORK', 'Malformed proposal');
+  }
+  const merged = mergeSummaryWithThresholds(summary, quorum, threshold);
   return {
-    summary,
+    summary: merged,
     decodedPayload: body.decodedPayload ?? null,
-    quorumRequired: quorum > 0n ? quorum : summary.quorumRequired,
-    thresholdRequired: threshold > 0n ? threshold : summary.thresholdRequired,
+    quorumRequired: quorum > 0n ? quorum : merged.quorumRequired,
+    thresholdRequired: threshold > 0n ? threshold : merged.thresholdRequired,
     totalVoters: Number(body.totalVoters ?? 0) || 0,
   };
 }
 
-function normalizeProposalListItem(raw: unknown): ProposalSummary {
+function normalizeProposalListItem(raw: unknown): ProposalSummary | null {
   if (raw && typeof raw === 'object' && 'summary' in raw) {
-    const d = mapProposalDetailJson(raw as Record<string, unknown>);
-    return d.summary;
+    try {
+      return mapProposalDetailJson(raw as Record<string, unknown>).summary;
+    } catch {
+      return null;
+    }
+  }
+  if (!raw || typeof raw !== 'object') {
+    return null;
   }
   return mapSummaryFields(raw as Record<string, unknown>);
+}
+
+function rowIdHint(raw: unknown): string {
+  if (raw && typeof raw === 'object') {
+    const row = raw as Record<string, unknown>;
+    if ('id' in row) {
+      return String(row.id);
+    }
+    if ('summary' in row && row.summary && typeof row.summary === 'object' && 'id' in row.summary) {
+      return String((row.summary as Record<string, unknown>).id);
+    }
+  }
+  return '?';
+}
+
+function parseProposalList(body: unknown[]): ProposalSummary[] {
+  const total = body.length;
+  if (total === 0) {
+    return [];
+  }
+  let bad = 0;
+  const good: ProposalSummary[] = [];
+  for (const raw of body) {
+    const item = normalizeProposalListItem(raw);
+    if (item === null) {
+      bad += 1;
+      if (import.meta.env.DEV) {
+        console.warn(`[governance] skipping malformed proposal row (id=${rowIdHint(raw)})`);
+      }
+    } else {
+      good.push(item);
+    }
+  }
+  if (bad / total > 0.5) {
+    throw new GovernanceError('NETWORK', 'Malformed proposal feed');
+  }
+  return good;
 }
 
 async function apiGetJson<T>(r: ResolvedGovernanceDeps, path: string): Promise<T> {
@@ -285,7 +383,7 @@ export async function getActiveProposals(deps?: GovernanceDeps): Promise<Proposa
   if (!Array.isArray(body)) {
     return [];
   }
-  return body.map(normalizeProposalListItem);
+  return parseProposalList(body);
 }
 
 export async function getRecentProposals(limit: number, deps?: GovernanceDeps): Promise<ProposalSummary[]> {
@@ -295,7 +393,7 @@ export async function getRecentProposals(limit: number, deps?: GovernanceDeps): 
   if (!Array.isArray(body)) {
     return [];
   }
-  return body.map(normalizeProposalListItem);
+  return parseProposalList(body);
 }
 
 export async function getProposal(id: number, deps?: GovernanceDeps): Promise<ProposalDetail> {
@@ -610,8 +708,11 @@ export async function createProposal(
   deps?: GovernanceDeps,
 ): Promise<TxResult> {
   const r = resolveDeps(deps);
-  const claimedVp = await getUserVotingPower(params.walletAddress.trim(), deps);
-  if (claimedVp <= 0n) {
+  const [claimedVp, minProposalVp] = await Promise.all([
+    getUserVotingPower(params.walletAddress.trim(), deps),
+    getMinProposalVp(deps),
+  ]);
+  if (claimedVp < minProposalVp) {
     return { ok: false, kind: 'unknown', message: 'insufficient voting power — cannot create proposal' };
   }
   const gov = Address.parse(r.governorAddress.trim());
