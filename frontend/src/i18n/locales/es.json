@@ -12,6 +12,15 @@
     "date": {
       "today": "Hoy",
       "yesterday": "Ayer"
+    },
+    "duration": {
+      "errorAboveMax": "El máximo es {{max}}",
+      "errorBelowMin": "El mínimo es {{min}}",
+      "errorEmpty": "Introduce un valor",
+      "errorNaN": "Introduce un número válido",
+      "unitDays": "d",
+      "unitHours": "h",
+      "unitMinutes": "min"
     }
   },
   "status": {
@@ -47,9 +56,9 @@
     "refreshRooms": "Actualizar salas",
     "refreshSessions": "Actualizar sesiones",
     "scrollToTopRefresh": "Desplazarse arriba y actualizar",
-    "closeDialog": "Cerrar diálogo"
+    "closeDialog": "Cerrar diálogo",
+    "refreshWallet": "Actualizar wallet"
   },
-
   "help": {
     "common": {
       "trigger": "¿Qué es esto?"
@@ -129,7 +138,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "Cifrado y Verificado",
     "burnButtonLabel": "Destruir chat",
@@ -369,7 +377,8 @@
   },
   "pendingRequest": {
     "title": "Esperando respuesta",
-    "cancelButton": "Cancelar Solicitud"
+    "cancelButton": "Cancelar Solicitud",
+    "errorRejected": "Tu solicitud de chat fue rechazada"
   },
   "userSearch": {
     "searching": "Buscando...",
@@ -386,19 +395,16 @@
     },
     "walletUser": "Usuario de wallet"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Sesión destruida",
     "backgroundBurnMessage": "Las claves de cifrado se borraron porque la app permaneció en segundo plano demasiado tiempo. Abre la sala desde la lista: como propietario, restaura el cifrado manualmente; como miembro, espera a que el propietario restaure la clave."
   },
-
   "panic": {
     "countdown": "Quemando todo en {{seconds}}",
     "cancel": "Cancelar",
     "toggle": "Gesto de pánico",
     "toggleHint": "Mantén pulsado el logo de BurnedChats en la pantalla principal para quemar todos los datos. Tienes 3 segundos para deshacer."
   },
-
   "room": {
     "sectionMyRooms": "Mis Salas",
     "emptyRooms": "Aún no hay salas",
@@ -430,7 +436,9 @@
       "passwordGenerated": "¡Contraseña segura generada y copiada al portapapeles!",
       "passwordGeneratedNoCopy": "Contraseña segura generada. Cópiala manualmente.",
       "errorWeak": "La contraseña es demasiado débil",
-      "errorNetwork": "Error de red. Por favor intenta de nuevo"
+      "errorNetwork": "Error de red. Por favor intenta de nuevo",
+      "nameLabel": "Nombre de la sala (opcional)",
+      "namePlaceholder": "p. ej. Proyecto Alpha"
     },
     "join": {
       "title": "Unirse a la Sala",
@@ -447,7 +455,12 @@
       "errorAlreadyMember": "Ya eres miembro de esta sala",
       "errorRequestPending": "Tu solicitud de unión ya está pendiente",
       "errorRejected": "Tu solicitud de unión fue rechazada por el propietario",
-      "errorNetwork": "Error de red. Por favor intenta de nuevo"
+      "errorNetwork": "Error de red. Por favor intenta de nuevo",
+      "errorBanned": "Has sido bloqueado de esta sala",
+      "errorBannedHint": "Contacta con el propietario de la sala si necesitas acceso",
+      "errorInviteExhausted": "Este enlace de invitación ya no está activo",
+      "errorInviteExpired": "Este enlace de invitación ha expirado",
+      "errorInviteHint": "Pide al propietario de la sala que cree un nuevo enlace"
     },
     "requests": {
       "title": "Solicitudes de Unión",
@@ -476,7 +489,13 @@
       "ownerRekeyingHint": "Distribuyendo la clave a los miembros de la sala",
       "requestingKey": "Solicitando clave de cifrado al propietario de la sala...",
       "retryKey": "Reintentar",
-      "sendError": "Error al enviar el mensaje"
+      "sendError": "Error al enviar el mensaje",
+      "decryptError": "No se pudo descifrar el mensaje",
+      "ephemeralBadge": "Mensajes que desaparecen",
+      "errorMuted": "Has sido silenciado en esta sala y no puedes enviar mensajes",
+      "errorReadOnly": "Esta sala es de solo lectura — solo el propietario puede publicar",
+      "mutedBanner": "Has sido silenciado y no puedes enviar mensajes",
+      "readOnlyBanner": "Esta sala es de solo lectura — solo el propietario puede publicar"
     },
     "recovery": {
       "neededToast": "Las claves de cifrado se borraron. Restaura el cifrado para continuar.",
@@ -501,7 +520,88 @@
       "membersTitle": "Miembros",
       "membersEmpty": "Aún no hay miembros",
       "burnConfirmTitle": "¿Destruir esta sala?",
-      "burnConfirmText": "Esto destruirá permanentemente la sala y todos sus mensajes para todos. Esto no se puede deshacer."
+      "burnConfirmText": "Esto destruirá permanentemente la sala y todos sus mensajes para todos. Esto no se puede deshacer.",
+      "autoBurnIn": "Autodestrucción en {{time}}",
+      "banConfirmButton": "Eliminar y bloquear",
+      "banOption": "Bloquear permanentemente",
+      "banSuccess": "Miembro bloqueado de la sala",
+      "bannedEmpty": "No hay usuarios bloqueados",
+      "bannedTitle": "Bloqueados",
+      "bansError": {
+        "INTERNAL_ERROR": "No se pudieron cargar los usuarios bloqueados — inténtalo de nuevo",
+        "NOT_OWNER": "Solo el propietario de la sala puede ver usuarios bloqueados",
+        "PARSE_ERROR": "No se pudieron cargar los usuarios bloqueados — inténtalo de nuevo",
+        "ROOM_NOT_FOUND": "Sala no encontrada",
+        "unknown": "No se pudieron cargar los usuarios bloqueados"
+      },
+      "demoteAdmin": "Quitar admin",
+      "invitesEmpty": "No hay enlaces de invitación activos",
+      "invitesMore": "{{count}} más",
+      "invitesTitle": "Enlaces de invitación",
+      "kickButton": "Eliminar",
+      "kickConfirmButton": "Eliminar de la sala",
+      "kickConfirmDescription": "Perderá inmediatamente el acceso a esta sala y sus mensajes.",
+      "kickConfirmTitle": "¿Eliminar a {{name}} de la sala?",
+      "kickConfirmWarning": "La clave de cifrado de la sala se rotará tras la eliminación.",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "Los admins no pueden eliminar a otros admins ni al propietario",
+        "CANNOT_KICK_OWNER": "El propietario de la sala no puede ser eliminado",
+        "CANNOT_KICK_SELF": "No puedes eliminarte a ti mismo — usa Abandonar sala en su lugar",
+        "INTERNAL_ERROR": "No se pudo eliminar al miembro — inténtalo de nuevo",
+        "NOT_ADMIN_OR_OWNER": "No tienes permiso para eliminar miembros",
+        "NOT_MEMBER": "Este usuario ya no está en la sala",
+        "NOT_OWNER": "Solo el propietario de la sala puede eliminar miembros",
+        "RATE_LIMITED": "Demasiadas solicitudes — inténtalo más tarde",
+        "ROOM_NOT_FOUND": "Sala no encontrada",
+        "unknown": "No se pudo eliminar al miembro"
+      },
+      "kickSuccess": "Miembro eliminado de la sala",
+      "lastSeen": "Visto por última vez hace {{time}}",
+      "memberFallback": "{{id}}",
+      "memberYou": "Tú",
+      "msgTtlCustomApply": "Aplicar",
+      "msgTtlCustomLabel": "Duración del mensaje",
+      "msgTtlPreset1h": "1 hora",
+      "msgTtlPreset24h": "24 horas",
+      "msgTtlPreset5m": "5 min",
+      "msgTtlPresetCustom": "Personalizado",
+      "msgTtlPresetOff": "Desactivado",
+      "msgTtlTitle": "Temporizador de mensajes",
+      "muteButton": "Silenciar",
+      "nameLabel": "Nombre de la sala",
+      "namePlaceholder": "Introduce un nombre de sala…",
+      "online": "En línea",
+      "onlineCount": "{{count}} en línea",
+      "promoteAdmin": "Hacer admin",
+      "readOnlyHint": "Cuando está activado, solo propietarios y admins pueden enviar mensajes",
+      "readOnlyHintModerator": "Cuando está activado, solo propietarios y admins pueden enviar mensajes",
+      "readOnlyToggle": "Modo solo lectura",
+      "relativeDays": "{{count}} d",
+      "relativeHours": "{{count}} h",
+      "relativeJustNow": "ahora mismo",
+      "relativeMinutes": "{{count}} min",
+      "renameButton": "Renombrar",
+      "renameError": "No se pudo actualizar el nombre de la sala",
+      "renameSave": "Guardar nombre",
+      "renameSuccess": "Nombre de la sala actualizado",
+      "roleAdmin": "Admin",
+      "roleOwner": "Propietario",
+      "transferConfirmButton": "Transferir propiedad",
+      "transferConfirmDescription": "Se convertirá en propietario de la sala con control total. Tú pasarás a ser admin y perderás acciones exclusivas del propietario.",
+      "transferConfirmTitle": "¿Transferir la propiedad a {{name}}?",
+      "transferConfirmWarning": "Esto no se puede deshacer desde tu lado. Solo el nuevo propietario puede devolverte la propiedad.",
+      "transferOwnership": "Transferir propiedad",
+      "ttlCustomApply": "Aplicar",
+      "ttlCustomLabel": "Duración personalizada",
+      "ttlPreset1h": "1 hora",
+      "ttlPreset24h": "24 horas",
+      "ttlPreset30d": "30 días",
+      "ttlPreset7d": "7 días",
+      "ttlPresetCustom": "Personalizado",
+      "ttlPresetNone": "Sin autodestrucción",
+      "ttlTitle": "Duración de la sala",
+      "unbanButton": "Desbloquear",
+      "unmuteButton": "Quitar silencio"
     },
     "burn": {
       "title": "¿Destruir esta sala?",
@@ -514,7 +614,40 @@
       "description": "Ya no tendrás acceso a los mensajes de esta sala.",
       "warning": "La clave de cifrado de la sala se rotará después de que abandones.",
       "confirmButton": "Abandonar"
-    }
+    },
+    "invite": {
+      "createButton": "Crear enlace",
+      "createExpiry1h": "1 hora",
+      "createExpiry24h": "24 horas",
+      "createExpiry7d": "7 días",
+      "createExpiryCustom": "Personalizado",
+      "createExpiryLabel": "Expira después de",
+      "createExpiryNone": "Sin límite",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "Personalizado",
+      "createLimitLabel": "Límite de usos",
+      "createLimitUnlimited": "∞",
+      "createTitle": "Crear enlace",
+      "expiresIn": "Expira en {{time}}",
+      "expiryCustomLabel": "Expiración personalizada",
+      "limitCustomLabel": "Límite de usos personalizado",
+      "limitErrorAboveMax": "El máximo es {{max}}",
+      "limitErrorBelowMin": "El mínimo es {{min}}",
+      "limitErrorEmpty": "Introduce un límite de usos",
+      "limitErrorNaN": "Introduce un número válido",
+      "limitErrorNotInteger": "Usa un número entero",
+      "revoke": "Revocar",
+      "usesLeft": "{{used}}/{{max}} usos",
+      "usesUnlimited": "{{used}} usos · ilimitado"
+    },
+    "kicked": {
+      "message": "Fuiste eliminado de la sala",
+      "offlineMessage": "Ya no tienes acceso a esta sala",
+      "title": "Eliminado de la sala"
+    },
+    "subscribeDenied": "Ya no tienes acceso a esta sala"
   },
   "sessionCard": {
     "statusPending": "Pendiente...",
@@ -641,6 +774,11 @@
     "viewer": {
       "close": "Cerrar",
       "saveToDevice": "Guardar en el dispositivo"
+    },
+    "save": {
+      "cancelled": "Guardado cancelado.",
+      "shareHint": "En la hoja de compartir, elige \"Guardar en Archivos\" o Archivos para guardar el archivo.",
+      "unavailable": "No se pudo guardar este archivo. Inténtalo de nuevo o usa otra app para compartirlo."
     }
   },
   "governance": {
@@ -782,7 +920,37 @@
     "voteSuccess": "Voto enviado",
     "votesSummary": "{{forAmount}} a favor · {{againstAmount}} en contra",
     "vpUnavailable": "Conecta la wallet para ver VP",
-    "yourVp": "Tu poder de voto"
+    "yourVp": "Tu poder de voto",
+    "error": {
+      "connectWalletCreate": "Conecta la wallet para crear una proposal.",
+      "connectWalletExecute": "Conecta la wallet para ejecutar una proposal.",
+      "connectWalletQueue": "Conecta la wallet para poner en cola una proposal.",
+      "connectWalletVote": "Conecta la wallet para votar.",
+      "voteEndTimeRequired": "Se requiere la hora de fin de la proposal para votar."
+    },
+    "treasuryLockedHint": "Treasury fija del protocolo — las proposals de gasto siempre apuntan a este contrato.",
+    "validation": {
+      "invalidAddress": "Introduce una dirección TON válida.",
+      "invalidAmount": "Introduce una cantidad mayor que cero.",
+      "invalidArgs": "La celda de argumentos debe ser BOC Base64 o hex válido.",
+      "invalidMethodId": "El id de método debe ser un número no negativo.",
+      "required": "Este campo es obligatorio.",
+      "treasuryMismatch": "La dirección del Treasury debe coincidir con el Treasury del protocolo.",
+      "treasuryNotConfigured": "El Treasury no está configurado en este entorno."
+    },
+    "voteConfirmed": "Voto registrado on-chain",
+    "voteConfirming": "Confirmando on-chain…",
+    "voteConfirmingHint": "Tu wallet aceptó la transacción. Esperando a que el voto aparezca on-chain.",
+    "voteFlexibleHint": "Haz Staking en un tier bloqueado (Silver o superior) que se desbloquee después de que termine esta proposal.",
+    "voteFlexibleNoVp": "El Staking flexible no cuenta para votos de Governance — solo para recompensas. Tu voto no se registraría.",
+    "voteFlexibleOpenStaking": "Abrir Staking",
+    "voteNotOpenYet": "La votación aún no ha abierto",
+    "voteNotRecorded": "Voto aún no registrado on-chain. Vuelve a comprobar esta proposal en unos minutos.",
+    "voteOpensIn": "La votación abre en {{parts}}",
+    "voteSubmitted": "Transacción enviada — confirmando on-chain…",
+    "vpError": "No se pudo cargar el poder de voto.",
+    "vpLoading": "Cargando poder de voto…",
+    "vpLockHint": "Total de Staking en vivo. El peso del voto usa Staking bloqueado (consulta la proposal para el peso exacto)."
   },
   "nav": {
     "home": "Inicio",
@@ -995,7 +1163,8 @@
     "unstakeOverStake": "La cantidad supera tu Staking.",
     "unstakeSigning": "Confirma en tu wallet…",
     "unstakeTitle": "Unstake {{tier}}",
-    "walletBalance": "Saldo de wallet: {{amount}}"
+    "walletBalance": "Saldo de wallet: {{amount}}",
+    "stakeNetWithFee": "Se hará Staking de: ≈{{net}} (comisión de transferencia del 1%: {{fee}})"
   },
   "wallet": {
     "amountSliderAria": "Cantidad como porcentaje de tu saldo",
@@ -1124,7 +1293,6 @@
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — vía QR o deep link",
     "title": "Burned Chats"
   },
-
   "antispam": {
     "pow": {
       "securing": "Asegurando tu solicitud…",
@@ -1141,7 +1309,6 @@
       "retry": "Intentar de nuevo"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "La verificación fue rechazada. Inténtalo de nuevo.",
@@ -1151,7 +1318,6 @@
       "failed": "La verificación falló. Inténtalo de nuevo."
     }
   },
-
   "joinLanding": {
     "title": "Estás invitado a una sala",
     "subtitle": "Elige cómo quieres unirte",
