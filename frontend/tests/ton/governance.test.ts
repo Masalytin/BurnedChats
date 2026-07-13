@@ -526,12 +526,54 @@ describe('useGovernance error propagation', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     stubGovernanceEnv();
+    vi.mocked(useTonConnectModule.useTonConnect).mockReturnValue({
+      walletAddress: Address.parse(`0:${'f'.repeat(64)}`).toString({
+        bounceable: true,
+        testOnly: true,
+        urlSafe: true,
+      }),
+      isConnected: true,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      tonProof: undefined,
+      sendTransaction: vi.fn(),
+    });
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it('keeps votingPower when a per-proposal vote fetch fails', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/governance/active-proposals')) {
+        return Promise.resolve(jsonResponse([validProposalRow({ id: 1 }), validProposalRow({ id: 2 })]));
+      }
+      if (url.includes('/api/governance/voting-power')) {
+        return Promise.resolve(jsonResponse({ votingPower: '1500000000' }));
+      }
+      if (url.includes('/api/governance/proposals/1/vote')) {
+        return Promise.resolve(new Response('rpc down', { status: 500 }));
+      }
+      if (url.includes('/api/governance/proposals/2/vote')) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useGovernance({ fetchImpl: fetchMock as typeof fetch }));
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.votingPower).toBe(1_500_000_000n);
+    expect(result.current.userVotes.size).toBe(0);
   });
 
   it('surfaces GovernanceError when active feed is mostly corrupt', async () => {

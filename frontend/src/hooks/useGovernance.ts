@@ -51,28 +51,39 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
 
   const depsRef = useRef(deps);
   depsRef.current = deps;
+  const loadGenRef = useRef(0);
 
   const load = useCallback(async (): Promise<void> => {
+    const gen = ++loadGenRef.current;
     setIsLoading(true);
     setError(null);
     try {
       const d = depsRef.current;
       const list = await getActiveProposals(d);
+      if (gen !== loadGenRef.current) {
+        return;
+      }
       setProposals(list);
       const addr = walletAddress?.trim();
       if (isConnected && addr) {
         const vp = await getUserVotingPower(addr, d);
+        if (gen !== loadGenRef.current) {
+          return;
+        }
         setVotingPower(vp);
-        const entries = await Promise.all(
+        const entries = await Promise.allSettled(
           list.map(async (p) => {
             const v = await getUserVote(p.id, addr, d);
             return [p.id, v] as const;
           }),
         );
+        if (gen !== loadGenRef.current) {
+          return;
+        }
         const m = new Map<number, UserVote>();
-        for (const [id, v] of entries) {
-          if (v !== null) {
-            m.set(id, v);
+        for (const entry of entries) {
+          if (entry.status === 'fulfilled' && entry.value[1] !== null) {
+            m.set(entry.value[0], entry.value[1]);
           }
         }
         setUserVotes(m);
@@ -81,10 +92,14 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
         setUserVotes(new Map());
       }
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      if (gen === loadGenRef.current) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+      }
     } finally {
-      setIsLoading(false);
-      setHasLoadedOnce(true);
+      if (gen === loadGenRef.current) {
+        setIsLoading(false);
+        setHasLoadedOnce(true);
+      }
     }
   }, [isConnected, walletAddress]);
 
