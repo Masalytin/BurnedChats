@@ -12,6 +12,15 @@
     "date": {
       "today": "Сьогодні",
       "yesterday": "Вчора"
+    },
+    "duration": {
+      "errorAboveMax": "Максимум — {{max}}",
+      "errorBelowMin": "Мінімум — {{min}}",
+      "errorEmpty": "Введіть значення",
+      "errorNaN": "Введіть коректне число",
+      "unitDays": "д",
+      "unitHours": "год",
+      "unitMinutes": "хв"
     }
   },
   "status": {
@@ -47,9 +56,9 @@
     "refreshRooms": "Оновити кімнати",
     "refreshSessions": "Оновити сесії",
     "scrollToTopRefresh": "Прокрутити вгору та оновити",
-    "closeDialog": "Закрити діалог"
+    "closeDialog": "Закрити діалог",
+    "refreshWallet": "Оновити гаманець"
   },
-
   "help": {
     "common": {
       "trigger": "Що це?"
@@ -129,7 +138,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "Зашифровано та підтверджено",
     "burnButtonLabel": "Спалити чат",
@@ -369,7 +377,8 @@
   },
   "pendingRequest": {
     "title": "Очікування відповіді",
-    "cancelButton": "Скасувати запит"
+    "cancelButton": "Скасувати запит",
+    "errorRejected": "Ваш запит на чат було відхилено"
   },
   "userSearch": {
     "searching": "Пошук...",
@@ -386,19 +395,16 @@
     },
     "walletUser": "Користувач гаманця"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Чат згорів",
     "backgroundBurnMessage": "Ключі шифрування видалено — застосунок занадто довго був у фоні. Відкрийте кімнату зі списку: як власник — відновіть шифрування вручну; як учасник — дочекайтеся, поки власник відновить ключ."
   },
-
   "panic": {
     "countdown": "Спалюю все через {{seconds}}",
     "cancel": "Скасувати",
     "toggle": "Panic-жест",
     "toggleHint": "Довге натискання на логотип BurnedChats на головному екрані спалить усі дані. У вас буде 3 секунди на скасування."
   },
-
   "room": {
     "sectionMyRooms": "Мої кімнати",
     "emptyRooms": "Поки що немає кімнат",
@@ -430,7 +436,9 @@
       "passwordGenerated": "Надійний пароль згенеровано та скопійовано в буфер обміну!",
       "passwordGeneratedNoCopy": "Надійний пароль згенеровано. Скопіюйте його вручну.",
       "errorWeak": "Пароль занадто слабкий",
-      "errorNetwork": "Помилка мережі. Будь ласка, спробуйте ще раз"
+      "errorNetwork": "Помилка мережі. Будь ласка, спробуйте ще раз",
+      "nameLabel": "Назва кімнати (необов'язково)",
+      "namePlaceholder": "Наприклад, Проєкт Alpha"
     },
     "join": {
       "title": "Приєднатися до кімнати",
@@ -447,7 +455,12 @@
       "errorAlreadyMember": "Ви вже є учасником цієї кімнати",
       "errorRequestPending": "Ваш запит на вступ вже очікує розгляду",
       "errorRejected": "Ваш запит на вступ було відхилено власником",
-      "errorNetwork": "Помилка мережі. Будь ласка, спробуйте ще раз"
+      "errorNetwork": "Помилка мережі. Будь ласка, спробуйте ще раз",
+      "errorBanned": "Вас заблоковано в цій кімнаті",
+      "errorBannedHint": "Зверніться до власника кімнати, якщо вам потрібен доступ",
+      "errorInviteExhausted": "Посилання більше не активне",
+      "errorInviteExpired": "Термін дії посилання закінчився",
+      "errorInviteHint": "Попросіть власника створити нове посилання"
     },
     "requests": {
       "title": "Запити на вступ",
@@ -476,7 +489,13 @@
       "ownerRekeyingHint": "Розподіл ключа учасникам кімнати",
       "requestingKey": "Запит ключа шифрування у власника кімнати...",
       "retryKey": "Повторити",
-      "sendError": "Не вдалося надіслати повідомлення"
+      "sendError": "Не вдалося надіслати повідомлення",
+      "decryptError": "Не вдалося розшифрувати повідомлення",
+      "ephemeralBadge": "Зникаючі повідомлення",
+      "errorMuted": "Вас заглушено в цій кімнаті — надсилання повідомлень недоступне",
+      "errorReadOnly": "Кімната в режимі «лише читання» — писати може лише власник",
+      "mutedBanner": "Вас заглушено, і ви не можете надсилати повідомлення",
+      "readOnlyBanner": "Кімната в режимі «лише читання» — писати може лише власник"
     },
     "recovery": {
       "neededToast": "Ключі шифрування видалено. Для продовження потрібно відновити шифрування.",
@@ -501,7 +520,88 @@
       "membersTitle": "Учасники",
       "membersEmpty": "Поки що немає учасників",
       "burnConfirmTitle": "Спалити цю кімнату?",
-      "burnConfirmText": "Це назавжди знищить кімнату та всі її повідомлення для всіх учасників. Цю дію не можна скасувати."
+      "burnConfirmText": "Це назавжди знищить кімнату та всі її повідомлення для всіх учасників. Цю дію не можна скасувати.",
+      "autoBurnIn": "Авто-спалення через {{time}}",
+      "banConfirmButton": "Видалити та заблокувати",
+      "bannedEmpty": "Немає заблокованих",
+      "bannedTitle": "Заблоковані",
+      "banOption": "Заблокувати назавжди",
+      "bansError": {
+        "INTERNAL_ERROR": "Не вдалося завантажити список — спробуйте знову",
+        "NOT_OWNER": "Список заблокованих доступний лише власнику кімнати",
+        "PARSE_ERROR": "Не вдалося завантажити список — спробуйте знову",
+        "ROOM_NOT_FOUND": "Кімнату не знайдено",
+        "unknown": "Не вдалося завантажити список заблокованих"
+      },
+      "banSuccess": "Учасника заблоковано в кімнаті",
+      "demoteAdmin": "Зняти адміна",
+      "invitesEmpty": "Немає активних посилань",
+      "invitesMore": "ще {{count}}",
+      "invitesTitle": "Запрошувальні посилання",
+      "kickButton": "Видалити",
+      "kickConfirmButton": "Видалити з кімнати",
+      "kickConfirmDescription": "Учасник негайно втратить доступ до кімнати та повідомлень.",
+      "kickConfirmTitle": "Видалити {{name}} з кімнати?",
+      "kickConfirmWarning": "Після видалення ключ шифрування кімнати буде оновлено.",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "Адмін не може видалити іншого адміна або власника",
+        "CANNOT_KICK_OWNER": "Власника кімнати не можна видалити",
+        "CANNOT_KICK_SELF": "Не можна видалити себе — скористайтеся «Покинути кімнату»",
+        "INTERNAL_ERROR": "Не вдалося видалити учасника — спробуйте знову",
+        "NOT_ADMIN_OR_OWNER": "У вас немає прав на видалення учасників",
+        "NOT_MEMBER": "Цього користувача вже немає в кімнаті",
+        "NOT_OWNER": "Видаляти учасників може лише власник кімнати",
+        "RATE_LIMITED": "Забагато запитів — спробуйте пізніше",
+        "ROOM_NOT_FOUND": "Кімнату не знайдено",
+        "unknown": "Не вдалося видалити учасника"
+      },
+      "kickSuccess": "Учасника видалено з кімнати",
+      "lastSeen": "був(ла) {{time}} тому",
+      "memberFallback": "{{id}}",
+      "memberYou": "Ви",
+      "msgTtlCustomApply": "Застосувати",
+      "msgTtlCustomLabel": "Термін життя повідомлень",
+      "msgTtlPreset1h": "1 год",
+      "msgTtlPreset24h": "24 год",
+      "msgTtlPreset5m": "5 хв",
+      "msgTtlPresetCustom": "Своє",
+      "msgTtlPresetOff": "Вимк.",
+      "msgTtlTitle": "Таймер повідомлень",
+      "muteButton": "Заглушити",
+      "nameLabel": "Назва кімнати",
+      "namePlaceholder": "Введіть назву…",
+      "online": "В мережі",
+      "onlineCount": "онлайн {{count}}",
+      "promoteAdmin": "Призначити адміном",
+      "readOnlyHint": "Коли увімкнено, писати можуть лише власник і адміни",
+      "readOnlyHintModerator": "Коли увімкнено, писати можуть лише власник і адміни",
+      "readOnlyToggle": "Лише читання",
+      "relativeDays": "{{count}} д",
+      "relativeHours": "{{count}} год",
+      "relativeJustNow": "щойно",
+      "relativeMinutes": "{{count}} хв",
+      "renameButton": "Перейменувати",
+      "renameError": "Не вдалося оновити назву",
+      "renameSave": "Зберегти назву",
+      "renameSuccess": "Назву кімнати оновлено",
+      "roleAdmin": "Адмін",
+      "roleOwner": "Власник",
+      "transferConfirmButton": "Передати володіння",
+      "transferConfirmDescription": "Цей учасник стане власником з повним контролем. Ви станете адміном і втратите дії, доступні лише власнику.",
+      "transferConfirmTitle": "Передати володіння {{name}}?",
+      "transferConfirmWarning": "Це незворотно з вашого боку. Лише новий власник зможе передати володіння назад.",
+      "transferOwnership": "Передати володіння",
+      "ttlCustomApply": "Застосувати",
+      "ttlCustomLabel": "Термін життя",
+      "ttlPreset1h": "1 год",
+      "ttlPreset24h": "24 год",
+      "ttlPreset30d": "30 д",
+      "ttlPreset7d": "7 д",
+      "ttlPresetCustom": "Своє",
+      "ttlPresetNone": "Без авто-спалення",
+      "ttlTitle": "Термін життя кімнати",
+      "unbanButton": "Розблокувати",
+      "unmuteButton": "Розглушити"
     },
     "burn": {
       "title": "Спалити цю кімнату?",
@@ -514,7 +614,40 @@
       "description": "Ви більше не матимете доступу до повідомлень цієї кімнати.",
       "warning": "Ключ шифрування кімнати буде змінено після вашого виходу.",
       "confirmButton": "Покинути"
-    }
+    },
+    "invite": {
+      "createButton": "Створити посилання",
+      "createExpiry1h": "1 година",
+      "createExpiry24h": "24 години",
+      "createExpiry7d": "7 днів",
+      "createExpiryCustom": "Своє",
+      "createExpiryLabel": "Термін дії",
+      "createExpiryNone": "Без обмеження",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "Своє",
+      "createLimitLabel": "Ліміт використань",
+      "createLimitUnlimited": "∞",
+      "createTitle": "Створити посилання",
+      "expiresIn": "Закінчується через {{time}}",
+      "expiryCustomLabel": "Власний термін дії",
+      "limitCustomLabel": "Власний ліміт використань",
+      "limitErrorAboveMax": "Максимум — {{max}}",
+      "limitErrorBelowMin": "Мінімум — {{min}}",
+      "limitErrorEmpty": "Вкажіть ліміт",
+      "limitErrorNaN": "Введіть число",
+      "limitErrorNotInteger": "Лише ціле число",
+      "revoke": "Відкликати",
+      "usesLeft": "{{used}}/{{max}} використань",
+      "usesUnlimited": "{{used}} вик. · без ліміту"
+    },
+    "kicked": {
+      "message": "Вас видалили з кімнати",
+      "offlineMessage": "У вас більше немає доступу до цієї кімнати",
+      "title": "Видалення з кімнати"
+    },
+    "subscribeDenied": "У вас більше немає доступу до цієї кімнати"
   },
   "sessionCard": {
     "statusPending": "Очікування...",
@@ -641,6 +774,11 @@
     "viewer": {
       "close": "Закрити",
       "saveToDevice": "Зберегти на пристрій"
+    },
+    "save": {
+      "cancelled": "Збереження скасовано.",
+      "shareHint": "У меню «Поділитися» оберіть «Зберегти у Файли» або Files.",
+      "unavailable": "Не вдалося зберегти файл. Спробуйте знову або поділіться через інший застосунок."
     }
   },
   "governance": {
@@ -782,7 +920,37 @@
     "voteSuccess": "Голос надіслано",
     "votesSummary": "{{forAmount}} за · {{againstAmount}} проти",
     "vpUnavailable": "Підключіть гаманець, щоб бачити VP",
-    "yourVp": "Ваша сила голосу"
+    "yourVp": "Ваша сила голосу",
+    "error": {
+      "connectWalletCreate": "Підключіть гаманець, щоб створити пропозицію.",
+      "connectWalletExecute": "Підключіть гаманець, щоб виконати пропозицію.",
+      "connectWalletQueue": "Підключіть гаманець, щоб поставити пропозицію в чергу.",
+      "connectWalletVote": "Підключіть гаманець, щоб голосувати.",
+      "voteEndTimeRequired": "Для голосування потрібен час завершення пропозиції."
+    },
+    "treasuryLockedHint": "Фіксована скарбниця протоколу — spend-пропозиції завжди спрямовані на цей контракт.",
+    "validation": {
+      "invalidAddress": "Введіть коректну TON-адресу.",
+      "invalidAmount": "Сума має бути більше нуля.",
+      "invalidArgs": "Комірка аргументів має бути валідним Base64 BOC або hex.",
+      "invalidMethodId": "ID методу — невід'ємне число.",
+      "required": "Поле обов'язкове.",
+      "treasuryMismatch": "Адреса скарбниці має збігатися з treasury протоколу.",
+      "treasuryNotConfigured": "Скарбниця не налаштована в цьому середовищі."
+    },
+    "voteConfirmed": "Голос зафіксовано в блокчейні",
+    "voteConfirming": "Підтвердження в блокчейні…",
+    "voteConfirmingHint": "Гаманець прийняв транзакцію. Чекаємо появу голосу on-chain.",
+    "voteFlexibleHint": "Застейкайте в locked-тирі (Silver або вище) з розблокуванням після завершення цієї пропозиції.",
+    "voteFlexibleNoVp": "Flexible-стейк не дає права голосу в governance — лише на винагороди. Ваш голос не буде зараховано.",
+    "voteFlexibleOpenStaking": "Відкрити стейкінг",
+    "voteNotOpenYet": "Голосування ще не відкрито",
+    "voteNotRecorded": "Голос поки не зараховано on-chain. Перевірте цю пропозицію за кілька хвилин.",
+    "voteOpensIn": "Голосування відкриється через {{parts}}",
+    "voteSubmitted": "Транзакцію надіслано — підтверджується в блокчейні…",
+    "vpError": "Не вдалося завантажити силу голосу.",
+    "vpLoading": "Завантаження сили голосу…",
+    "vpLockHint": "Поточний стейк. Вага голосу враховує лише заблокований стейк (точне значення — у картці пропозиції)."
   },
   "nav": {
     "home": "Головна",
@@ -995,7 +1163,8 @@
     "unstakeOverStake": "Сума більша за ваш стейк.",
     "unstakeSigning": "Підтвердіть у гаманці…",
     "unstakeTitle": "Вывод {{tier}}",
-    "walletBalance": "Баланс гаманця: {{amount}}"
+    "walletBalance": "Баланс гаманця: {{amount}}",
+    "stakeNetWithFee": "До стейку: ≈{{net}} (комісія переказу 1%: {{fee}})"
   },
   "wallet": {
     "amountSliderAria": "Частка від вашого балансу",
@@ -1124,7 +1293,6 @@
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — QR або deep link",
     "title": "Burned Chats"
   },
-
   "antispam": {
     "pow": {
       "securing": "Захищаємо запит…",
@@ -1141,7 +1309,6 @@
       "retry": "Повторити"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "Перевірку відхилено. Спробуйте ще раз.",
@@ -1151,7 +1318,6 @@
       "failed": "Перевірку не вдалося виконати. Спробуйте ще раз."
     }
   },
-
   "joinLanding": {
     "title": "Вас запросили до кімнати",
     "subtitle": "Оберіть, як ви хочете приєднатися",
