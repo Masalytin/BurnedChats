@@ -87,6 +87,7 @@ describe('VoteModal lock-gated VP UX', () => {
       userVotes: new Map(),
       votingPower: 5_000_000_000n,
       isLoading: false,
+      hasLoadedOnce: true,
       error: null,
       refetch: vi.fn(),
       vote: vi.fn(),

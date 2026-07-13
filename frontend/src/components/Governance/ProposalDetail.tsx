@@ -4,7 +4,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { getProposal, getProposalLifecycleMeta, getUserVotingPowerLockedBeyond, type ProposalLifecycleMeta } from '@/ton/governance';
+import { getProposal, getProposalLifecycleMeta, getUserVotingPowerLockedBeyond, type ProposalLifecycleMeta, calculateProposalProgress } from '@/ton/governance';
 import { ProposalState, ProposalType, type ProposalDetail as ProposalDetailDto } from '@/types/ton';
 import { formatBurn } from '@/utils/format';
 import { useTonConnect } from '@/hooks/useTonConnect';
@@ -14,6 +14,7 @@ import { ProposalTimeline } from './ProposalTimeline';
 import { VoteModal, type LockGatedVpState } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
 import {
+  canQueueProposal,
   describeLockGatedVoteUx,
   formatEndsInRemaining,
   formatStartsInRemaining,
@@ -268,7 +269,15 @@ export function ProposalDetail() {
 
   const canQueue = useMemo(() => {
     if (!summary) return false;
-    return isConnected && summary.state === ProposalState.Active && nowSec > summary.endTime;
+    const progress = calculateProposalProgress(summary);
+    return canQueueProposal({
+      isConnected,
+      state: summary.state,
+      endTime: summary.endTime,
+      nowSec,
+      quorumMet: progress.quorumMet,
+      thresholdMet: progress.thresholdMet,
+    });
   }, [summary, isConnected, nowSec]);
 
   const canExecute = useMemo(() => {

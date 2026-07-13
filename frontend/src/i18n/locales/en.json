@@ -455,6 +455,9 @@
     "notConfiguredHint": "Governor and related contracts are not configured in this environment yet. Addresses are filled in after testnet deployment.",
     "yourVp": "Your voting power",
     "vpUnavailable": "Connect wallet to see VP",
+    "vpLoading": "Loading voting power…",
+    "vpError": "Could not load voting power.",
+    "vpLockHint": "Live stake total. Vote weight uses locked stake (see proposal for exact weight).",
     "backToList": "All proposals",
     "tabActive": "Active",
     "tabRecent": "Recent",
@@ -589,6 +592,13 @@
       "invalidAmount": "Enter an amount greater than zero.",
       "invalidMethodId": "Method id must be a non-negative number.",
       "invalidArgs": "Argument cell must be valid Base64 BOC or hex."
+    },
+    "error": {
+      "connectWalletVote": "Connect wallet to vote.",
+      "connectWalletQueue": "Connect wallet to queue a proposal.",
+      "connectWalletExecute": "Connect wallet to execute a proposal.",
+      "connectWalletCreate": "Connect wallet to create a proposal.",
+      "voteEndTimeRequired": "Proposal end time is required to vote."
     }
   },
 

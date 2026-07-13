@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import { Address } from '@ton/core';
 
 import type { ProposalSummary } from '@/types/ton';
+import { ProposalState } from '@/types/ton';
 
 const SEC_PER_DAY = 86_400;
 
@@ -128,7 +129,7 @@ export function filterProposalsForTab(
   const merged = mergeProposalsUnique(activeRows, recentRows);
   switch (tab) {
     case 'active':
-      return activeRows.filter((p) => p.state === 0);
+      return activeRows.filter((p) => p.state === ProposalState.Active);
     case 'recent':
       return recentRows;
     case 'my-votes':
@@ -142,6 +143,29 @@ export function filterProposalsForTab(
     default:
       return merged;
   }
+}
+
+/** Whether the queue action is available (Succeeded, or Active past end with quorum + threshold). */
+export function canQueueProposal(params: {
+  isConnected: boolean;
+  state: ProposalState;
+  endTime: number;
+  nowSec: number;
+  quorumMet: boolean;
+  thresholdMet: boolean;
+}): boolean {
+  if (!params.isConnected) {
+    return false;
+  }
+  if (params.state === ProposalState.Succeeded) {
+    return true;
+  }
+  return (
+    params.state === ProposalState.Active &&
+    params.nowSec > params.endTime &&
+    params.quorumMet &&
+    params.thresholdMet
+  );
 }
 
 export function sortProposals(mode: SortMode, rows: ProposalSummary[], nowSec: number): ProposalSummary[] {

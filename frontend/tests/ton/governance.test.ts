@@ -23,6 +23,8 @@ import { formatProposalState, formatProposalType } from '@/utils/governance-form
 import type { TFunction } from 'i18next';
 import { act, renderHook } from '@testing-library/react';
 
+import i18n from '@/i18n';
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -731,6 +733,121 @@ describe('getUserVotingPowerLockedBeyond', () => {
       rpcBaseUrl: 'https://rpc.test/api/v2',
     });
     expect(vp).toBe(0n);
+  });
+});
+
+describe('useGovernance createProposal refetch', () => {
+  const wallet = Address.parse(`0:${'c'.repeat(64)}`).toString({
+    bounceable: true,
+    testOnly: true,
+    urlSafe: true,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stubGovernanceEnv();
+    vi.mocked(useTonConnectModule.useTonConnect).mockReturnValue({
+      walletAddress: wallet,
+      isConnected: true,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      tonProof: undefined,
+      sendTransaction: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('refetches proposals after successful createProposal tx', async () => {
+    const row = validProposalRow({ id: 1 });
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+    let activeCalls = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/api/governance/active-proposals')) {
+        activeCalls += 1;
+        return Promise.resolve(jsonResponse([row]));
+      }
+      if (url.includes('/api/governance/voting-power')) {
+        return Promise.resolve(jsonResponse({ votingPower: '100' }));
+      }
+      if (url.includes('/runGetMethod')) {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+        if (body.method === 'get_min_proposal_vp') {
+          return Promise.resolve(
+            jsonResponse({
+              ok: true,
+              result: { exit_code: 0, stack: [['num', '0x1']] },
+            }),
+          );
+        }
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() =>
+      useGovernance({
+        fetchImpl: fetchMock as typeof fetch,
+        sendTransactionImpl: sendTransactionImpl as never,
+      }),
+    );
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    const before = activeCalls;
+
+    const payload = beginCell().endCell();
+    await act(async () => {
+      const tx = await result.current.createProposal({ type: ProposalType.ParameterChange, payload });
+      expect(tx.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(activeCalls).toBeGreaterThan(before);
+  });
+});
+
+describe('useGovernance mutation i18n', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stubGovernanceEnv();
+    vi.mocked(useTonConnectModule.useTonConnect).mockReturnValue({
+      walletAddress: null,
+      isConnected: false,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      tonProof: undefined,
+      sendTransaction: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('returns translated connect-wallet message for vote without wallet', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([], 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useGovernance({ fetchImpl: fetchMock as typeof fetch }));
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    const res = await result.current.vote({ proposalId: 1, support: true, endTimeSec: 99 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.code).toBe('governance.error.connectWalletVote');
+      expect(res.message).toBe(i18n.t('governance.error.connectWalletVote'));
+    }
   });
 });
 

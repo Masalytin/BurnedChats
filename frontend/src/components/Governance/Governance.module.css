@@ -28,15 +28,44 @@
 
 .vpPill {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--bc-spacing-sm);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--bc-spacing-xs);
   max-width: 100%;
   padding: var(--bc-spacing-sm) var(--bc-spacing-md);
   border-radius: var(--bc-radius-lg);
   background: var(--bc-bg-secondary);
   border: 1px solid var(--bc-border-color);
   font-size: var(--bc-text-sm);
+}
+
+.vpPillMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--bc-spacing-sm);
+}
+
+.vpPillHint {
+  margin: 0;
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-xs);
+  line-height: 1.35;
+}
+
+.vpPillSkeleton {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
+  width: 100%;
+}
+
+.vpPillError {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bc-spacing-sm);
 }
 
 .muted {

@@ -69,6 +69,7 @@ describe('CreateProposal on-chain min VP gate', () => {
       userVotes: new Map(),
       votingPower: 50_000_000n,
       isLoading: false,
+      hasLoadedOnce: true,
       error: null,
       refetch: vi.fn(),
       vote: vi.fn(),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Cell } from '@ton/core';
 
+import i18n from '@/i18n';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import {
   createProposal as createProposalTx,
@@ -25,6 +26,8 @@ export interface UseGovernance {
   userVotes: Map<number, UserVote>;
   votingPower: bigint;
   isLoading: boolean;
+  /** False until the first {@link load} cycle completes (success or error). */
+  hasLoadedOnce: boolean;
   error: Error | null;
   refetch(): Promise<void>;
   vote(params: { proposalId: number; support: boolean; endTimeSec: number }): Promise<TxResult>;
@@ -43,6 +46,7 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
   const [userVotes, setUserVotes] = useState<Map<number, UserVote>>(() => new Map());
   const [votingPower, setVotingPower] = useState<bigint>(0n);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const depsRef = useRef(deps);
@@ -80,6 +84,7 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
       setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
       setIsLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [isConnected, walletAddress]);
 
@@ -104,11 +109,21 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     async (params: { proposalId: number; support: boolean; endTimeSec: number }): Promise<TxResult> => {
       const addr = walletAddress?.trim();
       if (!addr) {
-        return { ok: false, kind: 'unknown', message: 'Connect wallet to vote.' };
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.connectWalletVote',
+          message: i18n.t('governance.error.connectWalletVote'),
+        };
       }
       const endTimeSec = params.endTimeSec;
       if (!Number.isFinite(endTimeSec) || endTimeSec <= 0) {
-        return { ok: false, kind: 'unknown', message: 'Proposal end time is required to vote.' };
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.voteEndTimeRequired',
+          message: i18n.t('governance.error.voteEndTimeRequired'),
+        };
       }
       let gatedVp = 0n;
       try {
@@ -149,7 +164,12 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     async (params: { proposalId: number }): Promise<TxResult> => {
       const addr = walletAddress?.trim();
       if (!addr) {
-        return { ok: false, kind: 'unknown', message: 'Connect wallet to queue a proposal.' };
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.connectWalletQueue',
+          message: i18n.t('governance.error.connectWalletQueue'),
+        };
       }
       const result = await queueProposalTx({ proposalId: params.proposalId, walletAddress: addr }, depsRef.current);
       if (result.ok) {
@@ -164,7 +184,12 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     async (params: { proposalId: number; proposalType: ProposalType }): Promise<TxResult> => {
       const addr = walletAddress?.trim();
       if (!addr) {
-        return { ok: false, kind: 'unknown', message: 'Connect wallet to execute a proposal.' };
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.connectWalletExecute',
+          message: i18n.t('governance.error.connectWalletExecute'),
+        };
       }
       const result = await executeProposalTx(
         { proposalId: params.proposalId, proposalType: params.proposalType, walletAddress: addr },
@@ -183,11 +208,23 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
       void params.period;
       const addr = walletAddress?.trim();
       if (!addr) {
-        return { ok: false, kind: 'unknown', message: 'Connect wallet to create a proposal.' };
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.connectWalletCreate',
+          message: i18n.t('governance.error.connectWalletCreate'),
+        };
       }
-      return createProposalTx({ type: params.type, payload: params.payload, walletAddress: addr }, depsRef.current);
+      const result = await createProposalTx(
+        { type: params.type, payload: params.payload, walletAddress: addr },
+        depsRef.current,
+      );
+      if (result.ok) {
+        await load();
+      }
+      return result;
     },
-    [walletAddress],
+    [walletAddress, load],
   );
 
   return {
@@ -195,6 +232,7 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     userVotes,
     votingPower,
     isLoading,
+    hasLoadedOnce,
     error,
     refetch,
     vote,
