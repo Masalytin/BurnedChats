@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
+import type { TopicMultiplexer } from './useSetRoomName';
 
 const MUTE_MEMBER_DESTINATION = '/app/room.mute';
 const UNMUTE_MEMBER_DESTINATION = '/app/room.unmute';
@@ -21,10 +22,10 @@ export interface RoomModerationEvent {
 interface UseRoomModerationOptions {
   isConnected: boolean;
   roomId: string | null;
-  /** When true, this hook owns `/topic/room/{roomId}` (e.g. manage view without chat mounted). */
+  /** When true, listen for `ROOM_MODERATION` on the room topic (manage view without chat mounted). */
   ownsTopicSubscription: boolean;
-  subscribe: (destination: string, callback: (message: IMessage) => void) => unknown;
-  unsubscribe: (destination: string) => void;
+  /** Shared room-topic multiplexer — must not call raw unsubscribe on the topic destination. */
+  topicMultiplexer: TopicMultiplexer;
   publish: (destination: string, body: unknown) => void;
 }
 
@@ -72,8 +73,7 @@ export function useRoomModeration({
   isConnected,
   roomId,
   ownsTopicSubscription,
-  subscribe,
-  unsubscribe,
+  topicMultiplexer,
   publish,
 }: UseRoomModerationOptions): UseRoomModerationReturn {
   const [state, setState] = useState<RoomModerationState>(EMPTY_STATE);
@@ -105,9 +105,9 @@ export function useRoomModeration({
     if (!ownsTopicSubscription || !roomId || !isConnected) return;
 
     const destination = getRoomTopic(roomId);
-    subscribe(destination, handleTopicMessage);
-    return () => unsubscribe(destination);
-  }, [ownsTopicSubscription, roomId, isConnected, subscribe, unsubscribe, handleTopicMessage]);
+    topicMultiplexer.subscribe(destination, handleTopicMessage);
+    return () => topicMultiplexer.unsubscribe(destination, handleTopicMessage);
+  }, [ownsTopicSubscription, roomId, isConnected, topicMultiplexer, handleTopicMessage]);
 
   const mute = useCallback((targetRoomId: string, targetInternalId: string) => {
     if (!isConnected) return;

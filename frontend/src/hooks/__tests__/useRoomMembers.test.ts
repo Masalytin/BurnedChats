@@ -107,6 +107,43 @@ describe('useRoomMembers', () => {
     expect(result.current.members).toEqual([makeMember('bob')]);
   });
 
+  it('updateMemberRole optimistically updates member role in local state', () => {
+    const { result } = renderMembersHook();
+    const members = [makeMember('alice'), { ...makeMember('bob'), role: 'admin' as const }];
+
+    act(() => {
+      result.current.fetchMembers('room-a');
+    });
+
+    act(() => {
+      messageHandler?.({
+        body: JSON.stringify({
+          success: true,
+          roomId: 'room-a',
+          members,
+        }),
+      } as IMessage);
+    });
+
+    act(() => {
+      result.current.updateMemberRole('alice', 'admin');
+    });
+
+    expect(result.current.members).toEqual([
+      { ...makeMember('alice'), role: 'admin' },
+      { ...makeMember('bob'), role: 'admin' },
+    ]);
+
+    act(() => {
+      result.current.updateMemberRole('bob', 'member');
+    });
+
+    expect(result.current.members).toEqual([
+      { ...makeMember('alice'), role: 'admin' },
+      makeMember('bob'),
+    ]);
+  });
+
   it('subscribes to room-members queue on mount', () => {
     renderMembersHook();
     expect(subscribe).toHaveBeenCalledWith(ROOM_MEMBERS_DESTINATION, expect.any(Function));

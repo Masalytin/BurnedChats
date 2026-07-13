@@ -890,6 +890,11 @@ function AppContent() {
     onOwnershipTransferred: applyOwnershipTransfer,
   });
 
+  const handleSetMemberRole = useCallback((targetInternalId: string, role: 'admin' | 'member') => {
+    updateMemberRole(targetInternalId, role);
+    setMemberRole(targetInternalId, role);
+  }, [updateMemberRole, setMemberRole]);
+
   const manageRoleForGuard = useMemo(() => {
     if (currentView !== 'room-manage' || !activeRoomChat) return null;
     const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
@@ -914,8 +919,7 @@ function AppContent() {
     isConnected,
     roomId: activeRoomChat?.roomId ?? null,
     ownsTopicSubscription: ownsModerationTopic,
-    subscribe,
-    unsubscribe,
+    topicMultiplexer,
     publish,
   });
 
@@ -3291,7 +3295,7 @@ function AppContent() {
             onMuteMember={handleMuteMember}
             onUnmuteMember={handleUnmuteMember}
             onSetReadOnly={handleSetRoomReadOnly}
-            onSetMemberRole={isManageOwner ? setMemberRole : undefined}
+            onSetMemberRole={isManageOwner ? handleSetMemberRole : undefined}
             onTransferOwnership={isManageOwner ? transferOwnership : undefined}
             autoBurnAt={roomAutoBurnAt}
             onApplyTtlPreset={isManageOwner ? applyRoomTtlPreset : undefined}
