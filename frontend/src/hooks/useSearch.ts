@@ -9,6 +9,9 @@ const SEARCH_DESTINATION = '/app/search';
 /** Destination for receiving search results */
 const SEARCH_RESULT_DESTINATION = '/user/queue/search-result';
 
+/** Destination for STOMP handler errors (rate-limit, validation, etc.) */
+const STOMP_ERRORS_DESTINATION = '/user/queue/errors';
+
 /** Debounce delay for search input (ms) */
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -62,52 +65,25 @@ interface ServerSearchResult {
   error?: string;
 }
 
+interface StompErrorEvent {
+  error?: string;
+  message?: string;
+}
+
+function mapStompErrorCode(raw?: string): SearchErrorCode {
+  switch (raw) {
+    case 'RATE_LIMIT_EXCEEDED':
+      return 'RATE_LIMITED';
+    case 'SELF_SEARCH':
+    case 'INVALID_QUERY':
+      return raw;
+    default:
+      return 'CONNECTION_ERROR';
+  }
+}
+
 /**
  * Hook for user search functionality via STOMP WebSocket.
- * 
- * Handles:
- * - Subscribing to search result events
- * - Sending search requests
- * - Managing search state
- * - Optional input debouncing
- * 
- * @example
- * ```tsx
- * function SearchComponent() {
- *   const { isConnected, subscribe, unsubscribe, publish } = useWebSocket({ autoConnect: true });
- *   
- *   const { 
- *     query, 
- *     setQuery, 
- *     result, 
- *     search, 
- *     clearSearch,
- *     isSearching 
- *   } = useSearch({
- *     isConnected,
- *     subscribe,
- *     unsubscribe,
- *     publish,
- *     onUserFound: (user) => console.log('Found:', user),
- *   });
- * 
- *   return (
- *     <div>
- *       <input 
- *         value={query}
- *         onChange={(e) => setQuery(e.target.value)}
- *         placeholder="Search by @username"
- *       />
- *       <button onClick={() => search()} disabled={isSearching}>
- *         Search
- *       </button>
- *       {result.status === 'found' && <UserCard user={result.user} />}
- *       {result.status === 'not_found' && <p>User not found</p>}
- *       {result.error && <p>Error: {result.error}</p>}
- *     </div>
- *   );
- * }
- * ```
  */
 export function useSearch({
   isConnected,
@@ -120,16 +96,40 @@ export function useSearch({
 }: UseSearchOptions): UseSearchReturn {
   const [query, setQueryState] = useState('');
   const [result, setResult] = useState<SearchResult>(initialResult);
-  
+
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSubscribedRef = useRef(false);
-  const lastQueryRef = useRef('');
-  /** Ignore any search response after the first one for the current request (avoids race where a late "not_found" overwrites "found") */
+  const errorsSubscribedRef = useRef(false);
+  /** Ignore duplicate/late responses for the current in-flight search. */
   const searchResponseAppliedRef = useRef(false);
+
+  const onUserFoundRef = useRef(onUserFound);
+  const onSearchErrorRef = useRef(onSearchError);
+  const publishRef = useRef(publish);
+
+  useEffect(() => {
+    onUserFoundRef.current = onUserFound;
+    onSearchErrorRef.current = onSearchError;
+    publishRef.current = publish;
+  });
+
+  const applySearchError = useCallback((errorCode: SearchErrorCode) => {
+    if (searchResponseAppliedRef.current) {
+      return;
+    }
+    searchResponseAppliedRef.current = true;
+    setResult((prev) => {
+      if (prev.status !== 'searching') {
+        return prev;
+      }
+      return { status: 'error', user: null, error: errorCode };
+    });
+    onSearchErrorRef.current?.(errorCode);
+  }, []);
 
   /**
    * Handle incoming search result from server.
-   * Only applies the first response for the current request; ignores late/duplicate responses.
+   * Only applies the first response for the current request.
    */
   const handleSearchResult = useCallback((message: IMessage) => {
     if (searchResponseAppliedRef.current) {
@@ -142,47 +142,74 @@ export function useSearch({
 
     try {
       const data: ServerSearchResult = JSON.parse(message.body);
-      
+
       if (data.error) {
         const errorCode = data.error as SearchErrorCode;
         setResult((prev) => {
-          if (prev.status !== 'searching') return prev;
+          if (prev.status !== 'searching') {
+            return prev;
+          }
           return { status: 'error', user: null, error: errorCode };
         });
-        onSearchError?.(errorCode);
+        onSearchErrorRef.current?.(errorCode);
         return;
       }
 
       if (data.found && data.user) {
         const user = mapWireUser(data.user);
         setResult((prev) => {
-          if (prev.status !== 'searching') return prev;
+          if (prev.status !== 'searching') {
+            return prev;
+          }
           return { status: 'found', user, error: null };
         });
-        onUserFound?.(user);
+        onUserFoundRef.current?.(user);
       } else {
         setResult((prev) => {
-          if (prev.status !== 'searching') return prev;
+          if (prev.status !== 'searching') {
+            return prev;
+          }
           return { status: 'not_found', user: null, error: null };
         });
       }
     } catch (error) {
       console.error('[useSearch] Failed to parse search result:', error);
       setResult((prev) => {
-        if (prev.status !== 'searching') return prev;
+        if (prev.status !== 'searching') {
+          return prev;
+        }
         return { status: 'error', user: null, error: 'CONNECTION_ERROR' };
       });
+      onSearchErrorRef.current?.('CONNECTION_ERROR');
     }
-  }, [onUserFound, onSearchError]);
+  }, []);
+
+  const handleStompError = useCallback((message: IMessage) => {
+    try {
+      const data: StompErrorEvent = JSON.parse(message.body);
+      applySearchError(mapStompErrorCode(data.error));
+    } catch (error) {
+      console.error('[useSearch] Failed to parse STOMP error:', error);
+      applySearchError('CONNECTION_ERROR');
+    }
+  }, [applySearchError]);
+
+  const cleanupErrorsSubscription = useCallback(() => {
+    if (errorsSubscribedRef.current) {
+      unsubscribe(STOMP_ERRORS_DESTINATION);
+      errorsSubscribedRef.current = false;
+    }
+  }, [unsubscribe]);
 
   /**
-   * Subscribe to search results when connected
+   * Register subscription immediately (even before connected).
+   * The WebSocket hook stores subscriptions and applies them on connect/reconnect.
    */
   useEffect(() => {
-    if (isConnected && !isSubscribedRef.current) {
+    if (!isSubscribedRef.current) {
       subscribe(SEARCH_RESULT_DESTINATION, handleSearchResult);
       isSubscribedRef.current = true;
-      console.log('[useSearch] Subscribed to search results');
+      console.log('[useSearch] Registered subscription for search results');
     }
 
     return () => {
@@ -191,8 +218,9 @@ export function useSearch({
         isSubscribedRef.current = false;
         console.log('[useSearch] Unsubscribed from search results');
       }
+      cleanupErrorsSubscription();
     };
-  }, [isConnected, subscribe, unsubscribe, handleSearchResult]);
+  }, [subscribe, unsubscribe, handleSearchResult, cleanupErrorsSubscription]);
 
   /**
    * Execute search request.
@@ -213,16 +241,10 @@ export function useSearch({
         user: null,
         error: 'CONNECTION_ERROR',
       });
-      onSearchError?.('CONNECTION_ERROR');
+      onSearchErrorRef.current?.('CONNECTION_ERROR');
       return;
     }
 
-    // Avoid duplicate searches (same query already in progress)
-    if (queryToSearch === lastQueryRef.current && result.status === 'searching') {
-      return;
-    }
-
-    lastQueryRef.current = queryToSearch;
     searchResponseAppliedRef.current = false;
     setResult({
       status: 'searching',
@@ -230,11 +252,16 @@ export function useSearch({
       error: null,
     });
 
-    publish(SEARCH_DESTINATION, { query: String(queryToSearch) });
+    if (!errorsSubscribedRef.current) {
+      subscribe(STOMP_ERRORS_DESTINATION, handleStompError);
+      errorsSubscribedRef.current = true;
+    }
+
+    publishRef.current(SEARCH_DESTINATION, { query: String(queryToSearch) });
     if (import.meta.env.DEV) {
       console.log('[useSearch] Search request sent:', JSON.stringify(queryToSearch));
     }
-  }, [query, isConnected, publish, result.status, onSearchError]);
+  }, [query, isConnected, subscribe, handleStompError]);
 
   /**
    * Set query with optional debouncing
@@ -242,18 +269,15 @@ export function useSearch({
   const setQuery = useCallback((newQuery: string) => {
     setQueryState(newQuery);
 
-    // Clear previous debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // If query is empty, clear results immediately
     if (!newQuery.trim()) {
       setResult(initialResult);
       return;
     }
 
-    // Debounced search if enabled
     if (debounce) {
       debounceTimerRef.current = setTimeout(() => {
         search(newQuery);
@@ -267,7 +291,6 @@ export function useSearch({
   const clearSearch = useCallback(() => {
     setQueryState('');
     setResult(initialResult);
-    lastQueryRef.current = '';
     searchResponseAppliedRef.current = false;
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -275,7 +298,6 @@ export function useSearch({
     }
   }, []);
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
