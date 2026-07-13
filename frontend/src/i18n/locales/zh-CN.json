@@ -12,6 +12,15 @@
     "date": {
       "today": "今天",
       "yesterday": "昨天"
+    },
+    "duration": {
+      "errorAboveMax": "最大值为 {{max}}",
+      "errorBelowMin": "最小值为 {{min}}",
+      "errorEmpty": "请输入数值",
+      "errorNaN": "请输入有效数字",
+      "unitDays": "天",
+      "unitHours": "时",
+      "unitMinutes": "分"
     }
   },
   "status": {
@@ -47,9 +56,9 @@
     "refreshRooms": "刷新房间",
     "refreshSessions": "刷新会话",
     "scrollToTopRefresh": "滚动到顶部并刷新",
-    "closeDialog": "关闭对话框"
+    "closeDialog": "关闭对话框",
+    "refreshWallet": "刷新钱包"
   },
-
   "help": {
     "common": {
       "trigger": "这是什么？"
@@ -129,7 +138,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "已加密并验证",
     "burnButtonLabel": "销毁聊天",
@@ -369,7 +377,8 @@
   },
   "pendingRequest": {
     "title": "等待回复",
-    "cancelButton": "取消请求"
+    "cancelButton": "取消请求",
+    "errorRejected": "您的聊天请求已被拒绝"
   },
   "userSearch": {
     "searching": "搜索中...",
@@ -386,19 +395,16 @@
     },
     "walletUser": "钱包用户"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "会话已销毁",
     "backgroundBurnMessage": "加密密钥已清除，因为应用在后台停留时间过长。从列表打开房间——作为所有者请手动恢复加密；作为成员请等待所有者恢复密钥。"
   },
-
   "panic": {
     "countdown": "将在 {{seconds}} 秒后销毁全部数据",
     "cancel": "取消",
     "toggle": "紧急手势",
     "toggleHint": "在主屏幕长按 BurnedChats 标志可销毁全部数据。你有 3 秒时间撤销。"
   },
-
   "room": {
     "sectionMyRooms": "我的房间",
     "emptyRooms": "暂无房间",
@@ -430,7 +436,9 @@
       "passwordGenerated": "强密码已生成并复制到剪贴板!",
       "passwordGeneratedNoCopy": "强密码已生成。请手动复制。",
       "errorWeak": "密码太弱",
-      "errorNetwork": "网络错误。请重试"
+      "errorNetwork": "网络错误。请重试",
+      "nameLabel": "房间名称（可选）",
+      "namePlaceholder": "例如：项目 Alpha"
     },
     "join": {
       "title": "加入房间",
@@ -447,7 +455,12 @@
       "errorAlreadyMember": "您已经是此房间的成员",
       "errorRequestPending": "您的加入请求正在等待处理",
       "errorRejected": "您的加入请求被所有者拒绝",
-      "errorNetwork": "网络错误。请重试"
+      "errorNetwork": "网络错误。请重试",
+      "errorBanned": "您已被禁止进入此房间",
+      "errorBannedHint": "如需访问，请联系房间所有者",
+      "errorInviteExhausted": "此邀请链接已失效",
+      "errorInviteExpired": "此邀请链接已过期",
+      "errorInviteHint": "请房间所有者创建新链接"
     },
     "requests": {
       "title": "加入请求",
@@ -476,7 +489,13 @@
       "ownerRekeyingHint": "正在向房间成员分发密钥",
       "requestingKey": "正在向房间所有者请求加密密钥...",
       "retryKey": "重试",
-      "sendError": "发送消息失败"
+      "sendError": "发送消息失败",
+      "decryptError": "无法解密消息",
+      "ephemeralBadge": "阅后即焚消息",
+      "errorMuted": "您在此房间已被禁言，无法发送消息",
+      "errorReadOnly": "此房间为只读模式 — 仅所有者可发帖",
+      "mutedBanner": "您已被禁言，无法发送消息",
+      "readOnlyBanner": "此房间为只读模式 — 仅所有者可发帖"
     },
     "recovery": {
       "neededToast": "加密密钥已清除。请恢复加密以继续。",
@@ -501,7 +520,88 @@
       "membersTitle": "成员",
       "membersEmpty": "暂无成员",
       "burnConfirmTitle": "销毁此房间?",
-      "burnConfirmText": "这将永久销毁房间及其所有消息。此操作无法撤销。"
+      "burnConfirmText": "这将永久销毁房间及其所有消息。此操作无法撤销。",
+      "autoBurnIn": "{{time}} 后自动销毁",
+      "banConfirmButton": "移除并封禁",
+      "banOption": "永久封禁",
+      "banSuccess": "成员已被封禁",
+      "bannedEmpty": "暂无被封禁用户",
+      "bannedTitle": "已封禁",
+      "bansError": {
+        "INTERNAL_ERROR": "无法加载封禁列表 — 请重试",
+        "NOT_OWNER": "仅房间所有者可查看封禁列表",
+        "PARSE_ERROR": "无法加载封禁列表 — 请重试",
+        "ROOM_NOT_FOUND": "未找到房间",
+        "unknown": "无法加载封禁列表"
+      },
+      "demoteAdmin": "取消管理员",
+      "invitesEmpty": "暂无有效邀请链接",
+      "invitesMore": "还有 {{count}} 个",
+      "invitesTitle": "邀请链接",
+      "kickButton": "移除",
+      "kickConfirmButton": "从房间移除",
+      "kickConfirmDescription": "他们将立即失去对此房间及其消息的访问权限。",
+      "kickConfirmTitle": "将 {{name}} 移出房间？",
+      "kickConfirmWarning": "移除后将轮换房间加密密钥。",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "管理员无法移除其他管理员或所有者",
+        "CANNOT_KICK_OWNER": "无法移除房间所有者",
+        "CANNOT_KICK_SELF": "无法移除自己 — 请使用离开房间",
+        "INTERNAL_ERROR": "移除成员失败 — 请重试",
+        "NOT_ADMIN_OR_OWNER": "您无权移除成员",
+        "NOT_MEMBER": "此用户已不在房间中",
+        "NOT_OWNER": "仅房间所有者可移除成员",
+        "RATE_LIMITED": "请求过多 — 请稍后再试",
+        "ROOM_NOT_FOUND": "未找到房间",
+        "unknown": "移除成员失败"
+      },
+      "kickSuccess": "成员已从房间移除",
+      "lastSeen": "{{time}} 前在线",
+      "memberFallback": "{{id}}",
+      "memberYou": "您",
+      "msgTtlCustomApply": "应用",
+      "msgTtlCustomLabel": "消息存活时间",
+      "msgTtlPreset1h": "1 小时",
+      "msgTtlPreset24h": "24 小时",
+      "msgTtlPreset5m": "5 分钟",
+      "msgTtlPresetCustom": "自定义",
+      "msgTtlPresetOff": "关闭",
+      "msgTtlTitle": "消息定时器",
+      "muteButton": "禁言",
+      "nameLabel": "房间名称",
+      "namePlaceholder": "输入房间名称…",
+      "online": "在线",
+      "onlineCount": "{{count}} 人在线",
+      "promoteAdmin": "设为管理员",
+      "readOnlyHint": "启用后，仅所有者和管理员可发送消息",
+      "readOnlyHintModerator": "启用后，仅所有者和管理员可发送消息",
+      "readOnlyToggle": "只读模式",
+      "relativeDays": "{{count}} 天",
+      "relativeHours": "{{count}} 时",
+      "relativeJustNow": "刚刚",
+      "relativeMinutes": "{{count}} 分",
+      "renameButton": "重命名",
+      "renameError": "更新房间名称失败",
+      "renameSave": "保存名称",
+      "renameSuccess": "房间名称已更新",
+      "roleAdmin": "管理员",
+      "roleOwner": "所有者",
+      "transferConfirmButton": "转移所有权",
+      "transferConfirmDescription": "对方将成为房间所有者并拥有完全控制权。您将变为管理员并失去仅所有者可执行的操作。",
+      "transferConfirmTitle": "将所有权转移给 {{name}}？",
+      "transferConfirmWarning": "您无法自行撤销此操作。仅新所有者可再次转移所有权。",
+      "transferOwnership": "转移所有权",
+      "ttlCustomApply": "应用",
+      "ttlCustomLabel": "自定义存活时间",
+      "ttlPreset1h": "1 小时",
+      "ttlPreset24h": "24 小时",
+      "ttlPreset30d": "30 天",
+      "ttlPreset7d": "7 天",
+      "ttlPresetCustom": "自定义",
+      "ttlPresetNone": "不自动销毁",
+      "ttlTitle": "房间存活时间",
+      "unbanButton": "解除封禁",
+      "unmuteButton": "解除禁言"
     },
     "burn": {
       "title": "销毁此房间?",
@@ -514,7 +614,40 @@
       "description": "您将无法再访问此房间的消息。",
       "warning": "您离开后房间加密密钥将轮换。",
       "confirmButton": "离开"
-    }
+    },
+    "invite": {
+      "createButton": "创建链接",
+      "createExpiry1h": "1 小时",
+      "createExpiry24h": "24 小时",
+      "createExpiry7d": "7 天",
+      "createExpiryCustom": "自定义",
+      "createExpiryLabel": "过期时间",
+      "createExpiryNone": "无限制",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "自定义",
+      "createLimitLabel": "使用次数限制",
+      "createLimitUnlimited": "∞",
+      "createTitle": "创建链接",
+      "expiresIn": "{{time}} 后过期",
+      "expiryCustomLabel": "自定义过期时间",
+      "limitCustomLabel": "自定义使用次数",
+      "limitErrorAboveMax": "最大值为 {{max}}",
+      "limitErrorBelowMin": "最小值为 {{min}}",
+      "limitErrorEmpty": "请输入使用次数限制",
+      "limitErrorNaN": "请输入有效数字",
+      "limitErrorNotInteger": "请输入整数",
+      "revoke": "撤销",
+      "usesLeft": "已用 {{used}}/{{max}} 次",
+      "usesUnlimited": "已用 {{used}} 次 · 无限制"
+    },
+    "kicked": {
+      "message": "您已被移出房间",
+      "offlineMessage": "您已无法访问此房间",
+      "title": "已移出房间"
+    },
+    "subscribeDenied": "您已无法访问此房间"
   },
   "sessionCard": {
     "statusPending": "待处理...",
@@ -641,6 +774,11 @@
     "viewer": {
       "close": "关闭",
       "saveToDevice": "保存到设备"
+    },
+    "save": {
+      "cancelled": "保存已取消。",
+      "shareHint": "在分享菜单中选择「存储到文件」或 Files 来保存文件。",
+      "unavailable": "无法保存此文件。请重试或通过其他应用分享。"
     }
   },
   "governance": {
@@ -782,7 +920,37 @@
     "voteSuccess": "投票已提交",
     "votesSummary": "{{forAmount}} 赞成 · {{againstAmount}} 反对",
     "vpUnavailable": "连接钱包以查看 VP",
-    "yourVp": "您的投票权"
+    "yourVp": "您的投票权",
+    "error": {
+      "connectWalletCreate": "连接钱包以创建 proposal。",
+      "connectWalletExecute": "连接钱包以执行 proposal。",
+      "connectWalletQueue": "连接钱包以将 proposal 加入队列。",
+      "connectWalletVote": "连接钱包以投票。",
+      "voteEndTimeRequired": "投票需要 proposal 结束时间。"
+    },
+    "treasuryLockedHint": "固定协议 Treasury — 支出 proposal 始终指向此合约。",
+    "validation": {
+      "invalidAddress": "请输入有效的 TON 地址。",
+      "invalidAmount": "请输入大于零的金额。",
+      "invalidArgs": "参数字段必须是有效的 Base64 BOC 或 hex。",
+      "invalidMethodId": "Method id 必须为非负数。",
+      "required": "此字段为必填项。",
+      "treasuryMismatch": "Treasury 地址必须与协议 Treasury 一致。",
+      "treasuryNotConfigured": "此环境中未配置 Treasury。"
+    },
+    "voteConfirmed": "投票已记录在链上",
+    "voteConfirming": "正在链上确认…",
+    "voteConfirmingHint": "您的钱包已接受交易。正在等待投票出现在链上。",
+    "voteFlexibleHint": "在锁定层级（Silver 或更高）中 Stake，该层级在此 proposal 结束后解锁。",
+    "voteFlexibleNoVp": "Flexible Stake 不计入 Governance 投票权 — 仅用于奖励。您的投票将不会被记录。",
+    "voteFlexibleOpenStaking": "打开 Staking",
+    "voteNotOpenYet": "投票尚未开始",
+    "voteNotRecorded": "投票尚未记录在链上。请几分钟后再查看此 proposal。",
+    "voteOpensIn": "投票将于 {{parts}} 后开始",
+    "voteSubmitted": "交易已发送 — 正在链上确认…",
+    "vpError": "无法加载投票权。",
+    "vpLoading": "正在加载投票权…",
+    "vpLockHint": "当前 Stake 总额。投票权重使用锁定 Stake（确切权重见 proposal）。"
   },
   "nav": {
     "home": "首页",
@@ -995,7 +1163,8 @@
     "unstakeOverStake": "金额超过您的 Stake。",
     "unstakeSigning": "请在钱包中确认…",
     "unstakeTitle": "Unstake {{tier}}",
-    "walletBalance": "钱包余额：{{amount}}"
+    "walletBalance": "钱包余额：{{amount}}",
+    "stakeNetWithFee": "将 Stake：≈{{net}}（1% 转账费：{{fee}}）"
   },
   "wallet": {
     "amountSliderAria": "金额占余额的百分比",
@@ -1124,7 +1293,6 @@
     "supportedWallets": "Tonkeeper、MyTonWallet、Telegram @wallet — 通过 QR 或 deep link",
     "title": "Burned Chats"
   },
-
   "antispam": {
     "pow": {
       "securing": "正在保护您的请求…",
@@ -1141,7 +1309,6 @@
       "retry": "重试"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "验证被拒绝。请重试。",
@@ -1151,7 +1318,6 @@
       "failed": "验证失败。请重试。"
     }
   },
-
   "joinLanding": {
     "title": "您被邀请加入房间",
     "subtitle": "选择加入方式",
