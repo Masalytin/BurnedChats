@@ -1,12 +1,13 @@
 import { ChevronRight } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useToast } from '@/components/Toast';
-import { getTotalVotingPower } from '@/ton/governance';
+import { getMinProposalVp } from '@/ton/governance-vp';
 import { ProposalType } from '@/types/ton';
 import { encodePayload } from '@/utils/governance-encode';
+import { validateGovernanceDraft } from '@/utils/governance-validate';
 
 import {
   draftToFormValues,
@@ -14,7 +15,6 @@ import {
   type GovernanceProposalDraft,
   PayloadEditor,
 } from './PayloadEditor';
-import { minimumProposalVp } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
@@ -34,19 +34,19 @@ export function CreateProposal() {
   const { votingPower, createProposal } = useGovernanceState();
   const [step, setStep] = useState<Step>('type');
   const [draft, setDraft] = useState<GovernanceProposalDraft>(() => emptyDraft(ProposalType.ParameterChange));
-  const [totalVp, setTotalVp] = useState<bigint | null>(null);
+  const [minProposalVpOnChain, setMinProposalVpOnChain] = useState<bigint | null>(null);
   const [vpLoading, setVpLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setVpLoading(true);
-    void getTotalVotingPower()
+    void getMinProposalVp()
       .then((vp) => {
-        if (!cancelled) setTotalVp(vp);
+        if (!cancelled) setMinProposalVpOnChain(vp);
       })
       .catch(() => {
-        if (!cancelled) setTotalVp(null);
+        if (!cancelled) setMinProposalVpOnChain(null);
       })
       .finally(() => {
         if (!cancelled) setVpLoading(false);
@@ -56,8 +56,11 @@ export function CreateProposal() {
     };
   }, []);
 
-  const minVp = totalVp !== null ? minimumProposalVp(totalVp) : null;
-  const meetsVp = minVp !== null && votingPower >= minVp;
+  const validation = useMemo(() => validateGovernanceDraft(draft), [draft]);
+  const fieldErrors = validation.ok ? undefined : validation.errors;
+  const draftValid = validation.ok;
+  const meetsVp = minProposalVpOnChain !== null && votingPower >= minProposalVpOnChain;
+  const canProceed = draftValid && meetsVp;
 
   const pickType = (pt: ProposalType): void => {
     setDraft(emptyDraft(pt));
@@ -109,12 +112,12 @@ export function CreateProposal() {
       <section className={styles.panel} aria-live="polite">
         {vpLoading ? (
           <p className={styles.muted}>{t('governance.createVpLoading')}</p>
-        ) : minVp !== null ? (
+        ) : minProposalVpOnChain !== null ? (
           meetsVp ? (
-            <p className={styles.okBanner}>{t('governance.createVpOk', { minVp: minVp.toString() })}</p>
+            <p className={styles.okBanner}>{t('governance.createVpOk', { minVp: minProposalVpOnChain.toString() })}</p>
           ) : (
             <p className={styles.warnBanner} role="alert">
-              {t('governance.createStakeMore', { minVp: minVp.toString() })}
+              {t('governance.createStakeMore', { minVp: minProposalVpOnChain.toString() })}
             </p>
           )
         ) : (
@@ -159,12 +162,17 @@ export function CreateProposal() {
         {step === 'form' ? (
           <>
             <h2 className={styles.h2}>{t('governance.createStepForm')}</h2>
-            <PayloadEditor draft={draft} onChange={setDraft} />
+            <PayloadEditor draft={draft} onChange={setDraft} errors={fieldErrors} />
             <div className={styles.rowBetween}>
               <button type="button" className={styles.ghostBtn} onClick={() => setStep('type')}>
                 {t('governance.createBack')}
               </button>
-              <button type="button" className={styles.primaryBtn} onClick={() => setStep('review')}>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                disabled={!draftValid}
+                onClick={() => setStep('review')}
+              >
                 {t('governance.createNext')}
               </button>
             </div>
@@ -183,7 +191,7 @@ export function CreateProposal() {
               <button
                 type="button"
                 className={`${styles.primaryBtn}${busy ? ` ${styles.primaryBtnLoading}` : ''}`}
-                disabled={busy || !meetsVp}
+                disabled={busy || !canProceed}
                 onClick={() => void submit()}
               >
                 {busy ? t('governance.createSubmitting') : t('governance.createSubmit')}

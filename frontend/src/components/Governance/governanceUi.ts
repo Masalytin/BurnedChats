@@ -6,6 +6,7 @@ import type { ProposalSummary } from '@/types/ton';
 const SEC_PER_DAY = 86_400;
 
 /** Minimum VP to create a proposal: ceil(1% of total VP). */
+/** @deprecated Use on-chain {@link getMinProposalVp} for create gates; informational only. */
 export function minimumProposalVp(totalVp: bigint): bigint {
   if (totalVp <= 0n) {
     return 0n;

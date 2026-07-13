@@ -568,9 +568,9 @@
     "createBack": "Назад",
     "createSubmit": "Отправить предложение",
     "createSubmitting": "Отправка…",
-    "createStakeMore": "Нужно минимум {{minVp}} VP для создания предложения (1% от общего VP). Увеличьте стейк.",
-    "createVpOk": "Ваша VP достаточна (≥ {{minVp}}).",
-    "createVpLoading": "Проверка порогов голосования…",
+    "createStakeMore": "Нужно минимум {{minVp}} VP для создания предложения (on-chain минимум). Увеличьте стейк.",
+    "createVpOk": "Ваша VP достаточна для on-chain минимума (≥ {{minVp}}).",
+    "createVpLoading": "Загрузка on-chain порога для proposal…",
     "createTitleFeature": "Краткий заголовок",
     "createTitlePlaceholder": "Не более {{max}} символов",
     "createDescriptionFeature": "Полное описание (поддерживается Markdown)",
@@ -596,7 +596,14 @@
     "ariaProposalTabs": "Фильтры списка предложений",
     "ariaSortProposals": "Сортировка списка предложений",
     "ariaVoteProgress": "Диаграмма результатов голосования",
-    "ariaModalVote": "Подтверждение голоса governance"
+    "ariaModalVote": "Подтверждение голоса governance",
+    "validation": {
+      "invalidAddress": "Введите корректный TON-адрес.",
+      "required": "Поле обязательно.",
+      "invalidAmount": "Сумма должна быть больше нуля.",
+      "invalidMethodId": "ID метода — неотрицательное число.",
+      "invalidArgs": "Ячейка аргументов должна быть валидным Base64 BOC или hex."
+    }
   },
 
   "aria": {

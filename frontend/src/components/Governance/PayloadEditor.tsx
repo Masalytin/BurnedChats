@@ -1,9 +1,10 @@
-import { type ChangeEvent, useMemo } from 'react';
+import { type ChangeEvent, type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { beginCell, Cell } from '@ton/core';
 
 import { ProposalType } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
+import type { DraftFieldError } from '@/utils/governance-validate';
 import type { ProposalFormValues } from '@/utils/governance-encode';
 
 import styles from './Governance.module.css';
@@ -157,10 +158,29 @@ export function draftToFormValues(draft: GovernanceProposalDraft): ProposalFormV
 export interface PayloadEditorProps {
   draft: GovernanceProposalDraft;
   onChange(next: GovernanceProposalDraft): void;
+  /** Field-level validation errors from {@link validateGovernanceDraft}. */
+  errors?: DraftFieldError[];
 }
 
-export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
+function fieldError(errors: DraftFieldError[] | undefined, field: string): string | null {
+  const hit = errors?.find((e) => e.field === field);
+  return hit?.code ?? null;
+}
+
+export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
   const { t } = useTranslation();
+
+  const renderFieldError = (field: string): ReactNode => {
+    const code = fieldError(errors, field);
+    if (!code) {
+      return null;
+    }
+    return (
+      <span className={styles.muted} role="alert">
+        {t(`governance.validation.${code}`)}
+      </span>
+    );
+  };
 
   const targetOptions = useMemo(
     () =>
@@ -212,8 +232,11 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
               onChange={(e) => onChange({ ...draft, target: e.target.value })}
               autoComplete="off"
             />
+            {renderFieldError('target')}
           </label>
-        ) : null}
+        ) : (
+          renderFieldError('target')
+        )}
         <label className={styles.field}>
           <span>{t('governance.createMethodId')}</span>
           <input
@@ -222,6 +245,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
             value={draft.methodIdStr}
             onChange={(e) => onChange({ ...draft, methodIdStr: e.target.value })}
           />
+          {renderFieldError('methodIdStr')}
         </label>
         <label className={styles.field}>
           <span>{t('governance.createArgsCell')}</span>
@@ -231,6 +255,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
             value={draft.argsB64}
             onChange={(e) => onChange({ ...draft, argsB64: e.target.value })}
           />
+          {renderFieldError('argsB64')}
         </label>
         {isEmergency ? (
           <label className={styles.field}>
@@ -241,6 +266,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
               value={draft.reason}
               onChange={(e) => onChange({ ...draft, reason: e.target.value })}
             />
+            {renderFieldError('reason')}
           </label>
         ) : null}
       </div>
@@ -268,6 +294,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
             value={draft.description}
             onChange={(e) => onChange({ ...draft, description: e.target.value })}
           />
+          {renderFieldError('description')}
         </label>
         <label className={styles.field}>
           <span>{t('governance.createCidOptional')}</span>
@@ -276,6 +303,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
             value={draft.cid}
             onChange={(e) => onChange({ ...draft, cid: e.target.value })}
           />
+          {renderFieldError('cid')}
         </label>
       </div>
     );
@@ -290,6 +318,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
           value={draft.treasury}
           onChange={(e) => onChange({ ...draft, treasury: e.target.value })}
         />
+        {renderFieldError('treasury')}
       </label>
       <label className={styles.field}>
         <span>{t('governance.createRecipient')}</span>
@@ -299,6 +328,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
           onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
           placeholder="EQ…"
         />
+        {renderFieldError('recipient')}
       </label>
       <label className={styles.field}>
         <span>{t('governance.createAmount')}</span>
@@ -308,6 +338,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
           value={draft.amount}
           onChange={(e) => onChange({ ...draft, amount: e.target.value })}
         />
+        {renderFieldError('amount')}
       </label>
       <label className={styles.field}>
         <span>{t('governance.createReason')}</span>
@@ -317,6 +348,7 @@ export function PayloadEditor({ draft, onChange }: PayloadEditorProps) {
           value={draft.reason}
           onChange={(e) => onChange({ ...draft, reason: e.target.value })}
         />
+        {renderFieldError('reason')}
       </label>
     </div>
   );

@@ -554,9 +554,9 @@
     "createBack": "Back",
     "createSubmit": "Submit proposal",
     "createSubmitting": "Submitting…",
-    "createStakeMore": "You need at least {{minVp}} VP to create a proposal (1% of total VP). Stake more BURN to participate.",
-    "createVpOk": "Your VP meets the minimum (≥ {{minVp}}).",
-    "createVpLoading": "Checking voting thresholds…",
+    "createStakeMore": "You need at least {{minVp}} VP to create a proposal (on-chain minimum). Stake more BURN to participate.",
+    "createVpOk": "Your VP meets the on-chain minimum (≥ {{minVp}}).",
+    "createVpLoading": "Loading on-chain proposal threshold…",
     "createTitleFeature": "Short title",
     "createTitlePlaceholder": "Max {{max}} characters",
     "createDescriptionFeature": "Full description (Markdown supported)",
@@ -582,7 +582,14 @@
     "ariaProposalTabs": "Proposal filters",
     "ariaSortProposals": "Sort proposals",
     "ariaVoteProgress": "Voting results bar chart",
-    "ariaModalVote": "Confirm governance vote"
+    "ariaModalVote": "Confirm governance vote",
+    "validation": {
+      "invalidAddress": "Enter a valid TON address.",
+      "required": "This field is required.",
+      "invalidAmount": "Enter an amount greater than zero.",
+      "invalidMethodId": "Method id must be a non-negative number.",
+      "invalidArgs": "Argument cell must be valid Base64 BOC or hex."
+    }
   },
 
   "aria": {
