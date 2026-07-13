@@ -3435,6 +3435,7 @@ function ChatViewContent({
     userId,
     userTelegramId,
     ws,
+    isReconnection: ws.isReconnection,
     bothVerified,
     onError: handleMessageError,
     onEditError: handleDmEditError,

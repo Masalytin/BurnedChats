@@ -2,8 +2,6 @@ package dev.burnedchats.websocket;
 
 import dev.burnedchats.config.MessagesProperties;
 import dev.burnedchats.dto.event.IncomingRequestEvent;
-import dev.burnedchats.metrics.OfflineQueueMetrics;
-import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.dto.event.SyncMessagesEvent;
 import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedEdit;
 import dev.burnedchats.dto.event.SyncMessagesEvent.SyncedMessage;
@@ -90,7 +88,6 @@ public class WebSocketEventListener {
     private final UserMapper userMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final MessagesProperties messagesProperties;
-    private final OfflineQueueMetrics offlineQueueMetrics;
 
     /**
      * Handle WebSocket session connected event.
@@ -358,10 +355,9 @@ public class WebSocketEventListener {
      * <p>Locates all sessions with pending messages via
      * {@link MessageRepository#findSessionsWithPendingMessages(String)}
      * and, for each one, emits a {@link SyncMessagesEvent} over
-     * {@code /user/queue/sync-messages}. The Redis queue is cleared only
-     * after the event is handed off to the messaging template, so that a
-     * race with a client-initiated {@code /app/message.sync} is safe
-     * (the second response will simply contain {@code count: 0}).
+     * {@code /user/queue/sync-messages}. The Redis queue is <strong>not</strong>
+     * cleared here — the client may not be subscribed yet (chat view not open).
+     * Drain happens only on explicit {@code /app/message.sync}.
      *
      * @param internalId {@link dev.burnedchats.model.UnifiedUser#internalId()} of the user that just connected
      */
@@ -406,16 +402,21 @@ public class WebSocketEventListener {
     }
 
     /**
-     * Send a {@link SyncMessagesEvent} for a single session and clear its
-     * queue on success.
+     * Send a {@link SyncMessagesEvent} for a single session without draining Redis.
+     *
+     * <p>Server-push runs on STOMP CONNECT, often before the client subscribes to
+     * {@code /user/queue/sync-messages} (that subscription is created only when a
+     * chat view mounts). Clearing the offline queue here would drop messages that
+     * were never delivered. The queue is drained only on an explicit client
+     * {@code /app/message.sync} ({@link dev.burnedchats.handler.MessageHandler#syncMessages}).
      *
      * <p>Emits no STOMP message when the queue turns out to be empty
-     * (e.g. another fan-out or an explicit client sync drained it), to
-     * avoid a pointless {@code count: 0} event.
+     * (e.g. an explicit client sync already drained it), to avoid a pointless
+     * {@code count: 0} event.
      *
      * @param internalId recipient {@link dev.burnedchats.model.UnifiedUser#internalId()}
-     * @param sessionId the session whose queue should be drained
-     * @return mono of the number of messages delivered (0 if none)
+     * @param sessionId the session whose pending backlog should be pushed
+     * @return mono of the number of messages in the pushed event (0 if none)
      */
     private Mono<Integer> pushPendingMessagesForSession(String internalId, String sessionId) {
         return Mono.zip(
@@ -450,23 +451,11 @@ public class WebSocketEventListener {
                     event
             );
 
-            LOG.debug("Server-push sync: {} messages, {} edits, {} deletions, internalId {} session {}",
+            LOG.debug("Server-push sync (queue retained): {} messages, {} edits, {} deletions, "
+                            + "internalId {} session {}",
                     messages.size(), syncedEdits.size(), deletedIds.size(), internalId, sessionId);
 
-            Mono<Void> after = Mono.empty();
-            if (!messages.isEmpty()) {
-                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm, messages.size());
-                after = after.then(messageRepository.deleteMessages(internalId, sessionId).then());
-            }
-            if (!pendingEdits.isEmpty()) {
-                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_edit, pendingEdits.size());
-                after = after.then(messageRepository.deleteEdits(internalId, sessionId).then());
-            }
-            if (!deletions.isEmpty()) {
-                offlineQueueMetrics.recordDelivered(OfflineSessionType.dm_deletion, deletions.size());
-                after = after.then(messageRepository.deleteDeletions(internalId, sessionId).then());
-            }
-            return after.thenReturn(messages.size() + pendingEdits.size() + deletions.size());
+            return Mono.just(messages.size() + pendingEdits.size() + deletions.size());
         })
                 .onErrorResume(error -> {
                     LOG.error("Server-push sync failed for internalId {} session {}: {}",
