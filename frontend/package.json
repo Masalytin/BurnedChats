@@ -14,7 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "i18n:check": "node ../scripts/i18n/check-i18n.mjs",
+    "i18n:check:help": "node ../scripts/i18n/check-i18n.mjs --check-help"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.2.1",

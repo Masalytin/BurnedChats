@@ -91,6 +91,17 @@ lists there; those live in the generated artifacts above.
 All user-visible strings go through i18n. See [`docs/specs/I18N.md`](docs/specs/I18N.md)
 for frontend (`react-i18next`) and backend/bot (`MessageSource`) conventions.
 
+Validate locale completeness:
+
+```powershell
+node scripts/i18n/check-i18n.mjs --strict          # full audit (CI / pre-release)
+node scripts/i18n/check-i18n.mjs --check-help      # help.* namespace gate
+npm run i18n:check --prefix help --strict          # from frontend/
+```
+
+Reference locale: `en.json` (frontend), `messages.properties` (backend). Use
+`--reference union` only for legacy symmetric audits.
+
 ## Pull requests
 
 1. Fork and branch from `master`.
