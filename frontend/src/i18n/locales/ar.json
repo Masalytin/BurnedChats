@@ -12,6 +12,15 @@
     "date": {
       "today": "اليوم",
       "yesterday": "أمس"
+    },
+    "duration": {
+      "errorAboveMax": "الحد الأقصى {{max}}",
+      "errorBelowMin": "الحد الأدنى {{min}}",
+      "errorEmpty": "أدخل قيمة",
+      "errorNaN": "أدخل رقمًا صالحًا",
+      "unitDays": "ي",
+      "unitHours": "س",
+      "unitMinutes": "د"
     }
   },
   "status": {
@@ -47,9 +56,9 @@
     "refreshRooms": "تحديث الغرف",
     "refreshSessions": "تحديث الجلسات",
     "scrollToTopRefresh": "التمرير إلى الأعلى والتحديث",
-    "closeDialog": "إغلاق الحوار"
+    "closeDialog": "إغلاق الحوار",
+    "refreshWallet": "تحديث المحفظة"
   },
-
   "help": {
     "common": {
       "trigger": "ما هذا؟"
@@ -129,7 +138,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "مشفر وموثق",
     "burnButtonLabel": "حذف الدردشة",
@@ -373,7 +381,8 @@
   },
   "pendingRequest": {
     "title": "في انتظار الرد",
-    "cancelButton": "إلغاء الطلب"
+    "cancelButton": "إلغاء الطلب",
+    "errorRejected": "تم رفض طلب الدردشة الخاص بك"
   },
   "userSearch": {
     "searching": "جارٍ البحث...",
@@ -390,19 +399,16 @@
     },
     "walletUser": "مستخدم المحفظة"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "انتهت الجلسة",
     "backgroundBurnMessage": "تم مسح مفاتيح التشفير لأن التطبيق بقي في الخلفية طويلاً. افتح الغرفة من القائمة — كمالك، استعد التشفير يدوياً؛ كعضو، انتظر حتى يستعيد المالك المفتاح."
   },
-
   "panic": {
     "countdown": "سأحرق كل شيء خلال {{seconds}}",
     "cancel": "إلغاء",
     "toggle": "إيماءة الطوارئ",
     "toggleHint": "اضغط مطولاً على شعار BurnedChats في الشاشة الرئيسية لحرق جميع البيانات. لديك 3 ثوانٍ للتراجع."
   },
-
   "room": {
     "sectionMyRooms": "غرفي",
     "emptyRooms": "لا توجد غرف بعد",
@@ -434,7 +440,9 @@
       "passwordGenerated": "تم إنشاء كلمة مرور قوية ونسخها إلى الحافظة!",
       "passwordGeneratedNoCopy": "تم إنشاء كلمة مرور قوية. انسخها يدويًا.",
       "errorWeak": "كلمة المرور ضعيفة جدًا",
-      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى"
+      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى",
+      "nameLabel": "اسم الغرفة (اختياري)",
+      "namePlaceholder": "مثال: Project Alpha"
     },
     "join": {
       "title": "الانضمام إلى الغرفة",
@@ -451,7 +459,12 @@
       "errorAlreadyMember": "أنت عضو بالفعل في هذه الغرفة",
       "errorRequestPending": "طلب انضمامك معلق بالفعل",
       "errorRejected": "تم رفض طلب انضمامك من قبل المالك",
-      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى"
+      "errorNetwork": "خطأ في الشبكة. يرجى المحاولة مرة أخرى",
+      "errorBanned": "تم حظرك من هذه الغرفة",
+      "errorBannedHint": "تواصل مع مالك الغرفة إذا كنت تحتاج الوصول",
+      "errorInviteExhausted": "رابط الدعوة لم يعد نشطًا",
+      "errorInviteExpired": "انتهت صلاحية رابط الدعوة",
+      "errorInviteHint": "اطلب من مالك الغرفة إنشاء رابط جديد"
     },
     "requests": {
       "title": "طلبات الانضمام",
@@ -480,7 +493,13 @@
       "ownerRekeyingHint": "جارٍ توزيع المفتاح على أعضاء الغرفة",
       "requestingKey": "جارٍ طلب مفتاح التشفير من مالك الغرفة...",
       "retryKey": "إعادة المحاولة",
-      "sendError": "فشل إرسال الرسالة"
+      "sendError": "فشل إرسال الرسالة",
+      "decryptError": "تعذّر فك تشفير الرسالة",
+      "ephemeralBadge": "رسائل مؤقتة",
+      "errorMuted": "تم كتم صوتك في هذه الغرفة ولا يمكنك إرسال رسائل",
+      "errorReadOnly": "هذه الغرفة للقراءة فقط — المالك فقط يمكنه النشر",
+      "mutedBanner": "تم كتم صوتك ولا يمكنك إرسال رسائل",
+      "readOnlyBanner": "هذه الغرفة للقراءة فقط — المالك فقط يمكنه النشر"
     },
     "recovery": {
       "neededToast": "تم مسح مفاتيح التشفير. استعد التشفير للمتابعة.",
@@ -505,7 +524,88 @@
       "membersTitle": "الأعضاء",
       "membersEmpty": "لا يوجد أعضاء بعد",
       "burnConfirmTitle": "حذف هذه الغرفة؟",
-      "burnConfirmText": "سيؤدي هذا إلى حذف الغرفة وجميع رسائلها نهائيًا للجميع. لا يمكن التراجع عن هذا."
+      "burnConfirmText": "سيؤدي هذا إلى حذف الغرفة وجميع رسائلها نهائيًا للجميع. لا يمكن التراجع عن هذا.",
+      "autoBurnIn": "حذف تلقائي خلال {{time}}",
+      "banConfirmButton": "إزالة وحظر",
+      "bannedEmpty": "لا يوجد مستخدمون محظورون",
+      "bannedTitle": "المحظورون",
+      "banOption": "حظر دائم",
+      "bansError": {
+        "INTERNAL_ERROR": "فشل تحميل المحظورين — يرجى المحاولة مرة أخرى",
+        "NOT_OWNER": "مالك الغرفة فقط يمكنه عرض المحظورين",
+        "PARSE_ERROR": "فشل تحميل المحظورين — يرجى المحاولة مرة أخرى",
+        "ROOM_NOT_FOUND": "الغرفة غير موجودة",
+        "unknown": "فشل تحميل المحظورين"
+      },
+      "banSuccess": "تم حظر العضو من الغرفة",
+      "demoteAdmin": "إزالة صلاحيات المشرف",
+      "invitesEmpty": "لا توجد روابط دعوة نشطة",
+      "invitesMore": "{{count}} أخرى",
+      "invitesTitle": "روابط الدعوة",
+      "kickButton": "إزالة",
+      "kickConfirmButton": "إزالة من الغرفة",
+      "kickConfirmDescription": "سيفقد الوصول فورًا إلى هذه الغرفة ورسائلها.",
+      "kickConfirmTitle": "إزالة {{name}} من الغرفة؟",
+      "kickConfirmWarning": "سيتم تدوير مفتاح تشفير الغرفة بعد الإزالة.",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "لا يمكن للمشرفين إزالة مشرفين آخرين أو المالك",
+        "CANNOT_KICK_OWNER": "لا يمكن إزالة مالك الغرفة",
+        "CANNOT_KICK_SELF": "لا يمكنك إزالة نفسك — استخدم مغادرة الغرفة",
+        "INTERNAL_ERROR": "فشل إزالة العضو — يرجى المحاولة مرة أخرى",
+        "NOT_ADMIN_OR_OWNER": "ليس لديك صلاحية إزالة الأعضاء",
+        "NOT_MEMBER": "هذا المستخدم لم يعد في الغرفة",
+        "NOT_OWNER": "مالك الغرفة فقط يمكنه إزالة الأعضاء",
+        "RATE_LIMITED": "طلبات كثيرة جدًا — يرجى المحاولة لاحقًا",
+        "ROOM_NOT_FOUND": "الغرفة غير موجودة",
+        "unknown": "فشل إزالة العضو"
+      },
+      "kickSuccess": "تمت إزالة العضو من الغرفة",
+      "lastSeen": "آخر ظهور منذ {{time}}",
+      "memberFallback": "{{id}}",
+      "memberYou": "أنت",
+      "msgTtlCustomApply": "تطبيق",
+      "msgTtlCustomLabel": "مدة الرسائل",
+      "msgTtlPreset1h": "ساعة واحدة",
+      "msgTtlPreset24h": "24 ساعة",
+      "msgTtlPreset5m": "5 د",
+      "msgTtlPresetCustom": "مخصص",
+      "msgTtlPresetOff": "إيقاف",
+      "msgTtlTitle": "مؤقت الرسائل",
+      "muteButton": "كتم",
+      "nameLabel": "اسم الغرفة",
+      "namePlaceholder": "أدخل اسم الغرفة…",
+      "online": "متصل",
+      "onlineCount": "{{count}} متصل",
+      "promoteAdmin": "تعيين مشرف",
+      "readOnlyHint": "عند التفعيل، المالكون والمشرفون فقط يمكنهم إرسال رسائل",
+      "readOnlyHintModerator": "عند التفعيل، المالكون والمشرفون فقط يمكنهم إرسال رسائل",
+      "readOnlyToggle": "وضع القراءة فقط",
+      "relativeDays": "{{count}} ي",
+      "relativeHours": "{{count}} س",
+      "relativeJustNow": "الآن",
+      "relativeMinutes": "{{count}} د",
+      "renameButton": "إعادة التسمية",
+      "renameError": "فشل تحديث اسم الغرفة",
+      "renameSave": "حفظ الاسم",
+      "renameSuccess": "تم تحديث اسم الغرفة",
+      "roleAdmin": "مشرف",
+      "roleOwner": "مالك",
+      "transferConfirmButton": "نقل الملكية",
+      "transferConfirmDescription": "سيصبح مالك الغرفة بصلاحيات كاملة. ستصبح مشرفًا وتفقد إجراءات المالك فقط.",
+      "transferConfirmTitle": "نقل الملكية إلى {{name}}؟",
+      "transferConfirmWarning": "لا يمكن التراجع من جانبك. المالك الجديد فقط يمكنه إعادة نقل الملكية.",
+      "transferOwnership": "نقل الملكية",
+      "ttlCustomApply": "تطبيق",
+      "ttlCustomLabel": "مدة مخصصة",
+      "ttlPreset1h": "ساعة واحدة",
+      "ttlPreset24h": "24 ساعة",
+      "ttlPreset30d": "30 يومًا",
+      "ttlPreset7d": "7 أيام",
+      "ttlPresetCustom": "مخصص",
+      "ttlPresetNone": "بدون حذف تلقائي",
+      "ttlTitle": "مدة الغرفة",
+      "unbanButton": "إلغاء الحظر",
+      "unmuteButton": "إلغاء الكتم"
     },
     "burn": {
       "title": "حذف هذه الغرفة؟",
@@ -518,7 +618,40 @@
       "description": "لن تتمكن بعد ذلك من الوصول إلى رسائل هذه الغرفة.",
       "warning": "سيتم تدوير مفتاح تشفير الغرفة بعد مغادرتك.",
       "confirmButton": "مغادرة"
-    }
+    },
+    "invite": {
+      "createButton": "إنشاء رابط",
+      "createExpiry1h": "ساعة واحدة",
+      "createExpiry24h": "24 ساعة",
+      "createExpiry7d": "7 أيام",
+      "createExpiryCustom": "مخصص",
+      "createExpiryLabel": "ينتهي بعد",
+      "createExpiryNone": "بدون حد",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "مخصص",
+      "createLimitLabel": "حد الاستخدام",
+      "createLimitUnlimited": "∞",
+      "createTitle": "إنشاء رابط",
+      "expiresIn": "ينتهي خلال {{time}}",
+      "expiryCustomLabel": "انتهاء مخصص",
+      "limitCustomLabel": "حد استخدام مخصص",
+      "limitErrorAboveMax": "الحد الأقصى {{max}}",
+      "limitErrorBelowMin": "الحد الأدنى {{min}}",
+      "limitErrorEmpty": "أدخل حد الاستخدام",
+      "limitErrorNaN": "أدخل رقمًا صالحًا",
+      "limitErrorNotInteger": "استخدم عددًا صحيحًا",
+      "revoke": "إلغاء",
+      "usesLeft": "{{used}}/{{max}} استخدام",
+      "usesUnlimited": "{{used}} استخدام · بلا حد"
+    },
+    "kicked": {
+      "message": "تمت إزالتك من الغرفة",
+      "offlineMessage": "لم يعد لديك وصول إلى هذه الغرفة",
+      "title": "تمت الإزالة من الغرفة"
+    },
+    "subscribeDenied": "لم يعد لديك وصول إلى هذه الغرفة"
   },
   "sessionCard": {
     "statusPending": "معلق...",
@@ -645,6 +778,11 @@
     "viewer": {
       "close": "إغلاق",
       "saveToDevice": "حفظ على الجهاز"
+    },
+    "save": {
+      "cancelled": "تم إلغاء الحفظ.",
+      "shareHint": "في قائمة المشاركة، اختر «حفظ في الملفات» أو Files لحفظ الملف.",
+      "unavailable": "تعذّر حفظ هذا الملف. حاول مرة أخرى أو استخدم تطبيقًا آخر للمشاركة."
     }
   },
   "governance": {
@@ -786,7 +924,37 @@
     "voteSuccess": "تم إرسال التصويت",
     "votesSummary": "{{forAmount}} مع · {{againstAmount}} ضد",
     "vpUnavailable": "اربط المحفظة لرؤية VP",
-    "yourVp": "قوة تصويتك"
+    "yourVp": "قوة تصويتك",
+    "error": {
+      "connectWalletCreate": "اربط المحفظة لإنشاء مقترح.",
+      "connectWalletExecute": "اربط المحفظة لتنفيذ مقترح.",
+      "connectWalletQueue": "اربط المحفظة لإدراج مقترح في الانتظار.",
+      "connectWalletVote": "اربط المحفظة للتصويت.",
+      "voteEndTimeRequired": "وقت انتهاء المقترح مطلوب للتصويت."
+    },
+    "treasuryLockedHint": "خزينة البروتوكول ثابتة — مقترحات الإنفاق تستهدف دائمًا هذا العقد.",
+    "validation": {
+      "invalidAddress": "أدخل عنوان TON صالحًا.",
+      "invalidAmount": "أدخل مبلغًا أكبر من صفر.",
+      "invalidArgs": "يجب أن تكون خلية الوسيطات Base64 BOC أو hex صالحًا.",
+      "invalidMethodId": "يجب أن يكون معرّف الطريقة رقمًا غير سالب.",
+      "required": "هذا الحقل مطلوب.",
+      "treasuryMismatch": "يجب أن يتطابق عنوان Treasury مع خزينة البروتوكول.",
+      "treasuryNotConfigured": "لم يتم تكوين Treasury في هذه البيئة."
+    },
+    "voteConfirmed": "تم تسجيل التصويت على السلسلة",
+    "voteConfirming": "جارٍ التأكيد على السلسلة…",
+    "voteConfirmingHint": "قبلت محفظتك المعاملة. في انتظار ظهور التصويت على السلسلة.",
+    "voteFlexibleHint": "قم بـ Staking في فئة مقفلة (Silver أو أعلى) تُفتح بعد انتهاء هذا المقترح.",
+    "voteFlexibleNoVp": "الـ Staking المرن لا يُحتسب في تصويت Governance — للمكافآت فقط. لن يُسجَّل تصويتك.",
+    "voteFlexibleOpenStaking": "فتح Staking",
+    "voteNotOpenYet": "لم يفتح التصويت بعد",
+    "voteNotRecorded": "لم يُسجَّل التصويت على السلسلة بعد. تحقق من هذا المقترح مرة أخرى بعد بضع دقائق.",
+    "voteOpensIn": "يفتح التصويت خلال {{parts}}",
+    "voteSubmitted": "تم إرسال المعاملة — جارٍ التأكيد على السلسلة…",
+    "vpError": "تعذّر تحميل قوة التصويت.",
+    "vpLoading": "جارٍ تحميل قوة التصويت…",
+    "vpLockHint": "إجمالي الـ Stake الحي. وزن التصويت يستخدم الـ Stake المقفل (راجع المقترح للوزن الدقيق)."
   },
   "nav": {
     "home": "الرئيسية",
@@ -999,7 +1167,8 @@
     "unstakeOverStake": "المبلغ يتجاوز Staking الخاص بك.",
     "unstakeSigning": "أكّد في محفظتك…",
     "unstakeTitle": "إلغاء Staking {{tier}}",
-    "walletBalance": "رصيد المحفظة: {{amount}}"
+    "walletBalance": "رصيد المحفظة: {{amount}}",
+    "stakeNetWithFee": "سيتم الـ Stake: ≈{{net}} (رسوم التحويل 1%: {{fee}})"
   },
   "wallet": {
     "amountSliderAria": "المبلغ كنسبة من رصيدك",
@@ -1128,7 +1297,6 @@
     "supportedWallets": "Tonkeeper وMyTonWallet وTelegram @wallet — عبر QR أو deep link",
     "title": "Burned Chats"
   },
-
   "antispam": {
     "pow": {
       "securing": "جارٍ تأمين طلبك…",
@@ -1149,7 +1317,6 @@
       "retry": "حاول مرة أخرى"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "تم رفض التحقق. يرجى المحاولة مرة أخرى.",
@@ -1159,7 +1326,6 @@
       "failed": "فشل التحقق. يرجى المحاولة مرة أخرى."
     }
   },
-
   "joinLanding": {
     "title": "أنت مدعو إلى غرفة",
     "subtitle": "اختر كيف تريد الانضمام",
