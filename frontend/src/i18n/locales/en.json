@@ -789,6 +789,9 @@
       "failed": "Failed to edit message",
       "notEditable": "This message cannot be edited"
     },
+    "sync": {
+      "undecryptable": "{{count}} message(s) could not be restored — ask your peer to resend them"
+    },
     "reply": {
       "you": "You",
       "chipLabel": "Replying to {{name}}",

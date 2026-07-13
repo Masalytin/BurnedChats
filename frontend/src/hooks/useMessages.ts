@@ -142,7 +142,7 @@ interface UseMessagesOptions {
   onStatusChange?: (messageId: string, status: MessageStatus) => void;
   onError?: (error: MessageErrorCode, details?: string, i18nValues?: Record<string, string | number>) => void;
   onEditError?: (errorCode: string) => void;
-  onSyncComplete?: (count: number) => void;
+  onSyncComplete?: (count: number, failedCount?: number) => void;
   bothVerified?: boolean;
   /** Incremented when DM rekey completes — triggers resend of queued own messages (IMP-OQR-02). */
   rekeyResendNonce?: number;
@@ -542,6 +542,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       const tombstoneDeleteIds = event.deletedIds ?? event.deletedMessageIds ?? [];
       const needsKey = toDecrypt.length > 0 || editPayloads.length > 0;
       let newMessageCount = 0;
+      let decryptFailedCount = 0;
 
       if (needsKey) {
         if (!getEncryptionKey()) {
@@ -587,6 +588,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               });
             }
           } catch (decryptErr) {
+            decryptFailedCount += 1;
             console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
           }
         }
@@ -615,10 +617,12 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         setMessages(prev => prev.filter(m => !idSet.has(m.id)));
       }
 
+      const failedCount = decryptFailedCount;
       console.log(
         `[useMessages] Sync batch: ${newMessageCount} message(s), ${editPayloads.length} edit(s), ${tombstoneDeleteIds.length} delete(s)`,
+        failedCount > 0 ? `, ${failedCount} decrypt failure(s)` : '',
       );
-      onSyncComplete?.(newMessageCount);
+      onSyncComplete?.(newMessageCount, failedCount > 0 ? failedCount : undefined);
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);

@@ -230,6 +230,9 @@
       "failed": "Nachricht konnte nicht bearbeitet werden",
       "notEditable": "Diese Nachricht kann nicht bearbeitet werden"
     },
+    "sync": {
+      "undecryptable": "{{count}} Nachricht(en) konnten nicht wiederhergestellt werden — bitten Sie Ihren Gesprächspartner, sie erneut zu senden"
+    },
     "reply": {
       "you": "Sie",
       "chipLabel": "Antwort an {{name}}",

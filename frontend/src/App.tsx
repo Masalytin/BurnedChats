@@ -3445,6 +3445,15 @@ function ChatViewContent({
     [t, toast],
   );
 
+  const handleSyncComplete = useCallback(
+    (_count: number, failedCount?: number) => {
+      if (failedCount && failedCount > 0) {
+        toast.warning(t('chat.sync.undecryptable', { count: failedCount }), { duration: 8000 });
+      }
+    },
+    [t, toast],
+  );
+
   const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage, deleteMessage } = useMessages({
     sessionId,
     userId,
@@ -3455,6 +3464,7 @@ function ChatViewContent({
     rekeyResendNonce,
     onError: handleMessageError,
     onEditError: handleDmEditError,
+    onSyncComplete: handleSyncComplete,
   });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the

@@ -199,6 +199,9 @@
       "save": "Guardar",
       "windowExpired": "La ventana de edición ha expirado (límite de 15 min)"
     },
+    "sync": {
+      "undecryptable": "{{count}} mensaje(s) no se pudieron restaurar — pide a tu contacto que los reenvíe"
+    },
     "emptyHint": "Envía un mensaje para iniciar la conversación",
     "emptyMessages": "Aún no hay mensajes",
     "errorBannerLabel": "Error del chat",
