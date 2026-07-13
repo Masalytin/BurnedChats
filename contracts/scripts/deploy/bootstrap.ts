@@ -349,15 +349,16 @@ export async function deployBurnStack(
         deployer,
     );
 
+    const treasuryInit = await Treasury.prepareInit(timelockInit.address, jettonMaster.address);
+
     const governorInit = await Governor.prepareInit({
         minProposalVp,
         stakingMaster: stakingMasterInit.address,
         stakingLock: stakingLockInit.address,
         timelock: timelockInit.address,
         timelockDelaySec,
+        treasury: treasuryInit.address,
     });
-
-    const treasuryInit = await Treasury.prepareInit(timelockInit.address, jettonMaster.address);
 
     const vestingStart = process.env.VESTING_START ? BigInt(process.env.VESTING_START) : BigInt(Math.floor(Date.now() / 1000));
 

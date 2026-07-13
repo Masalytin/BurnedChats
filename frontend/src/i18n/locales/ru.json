@@ -579,6 +579,8 @@
     "createDescriptionFeature": "Полное описание (поддерживается Markdown)",
     "createCidOptional": "Необязательно: IPFS CID / id контента",
     "createTreasury": "Адрес казны",
+    "treasuryLockedHint": "Фиксированный treasury протокола — spend-предложения всегда направляются в этот контракт.",
+    "treasuryLockedHint": "Фиксированный treasury протокола — spend-предложения всегда направляются в этот контракт.",
     "createRecipient": "TON-адрес получателя",
     "createAmount": "Сумма (BURN)",
     "createReason": "Причина",
@@ -605,7 +607,9 @@
       "required": "Поле обязательно.",
       "invalidAmount": "Сумма должна быть больше нуля.",
       "invalidMethodId": "ID метода — неотрицательное число.",
-      "invalidArgs": "Ячейка аргументов должна быть валидным Base64 BOC или hex."
+      "invalidArgs": "Ячейка аргументов должна быть валидным Base64 BOC или hex.",
+      "treasuryNotConfigured": "Казна не настроена в этом окружении.",
+      "treasuryMismatch": "Адрес казны должен совпадать с treasury протокола."
     },
     "error": {
       "connectWalletVote": "Подключите кошелёк, чтобы голосовать.",

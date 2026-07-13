@@ -68,6 +68,18 @@
   gap: var(--bc-spacing-sm);
 }
 
+.readOnlyValue {
+  display: block;
+  width: 100%;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-md);
+  border: 1px solid var(--bc-border-color);
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-primary);
+  font-family: inherit;
+  font-size: var(--bc-text-sm);
+}
+
 .muted {
   color: var(--bc-text-secondary);
   font-size: var(--bc-text-sm);

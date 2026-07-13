@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 import { Address, beginCell } from '@ton/core';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GovernanceProposalDraft } from '@/components/Governance/PayloadEditor';
 import { draftToFormValues } from '@/components/Governance/PayloadEditor';
@@ -20,6 +20,10 @@ function friendlyAddr(hexDigit: string): string {
 const treasury = friendlyAddr('1');
 const recipient = friendlyAddr('2');
 const target = friendlyAddr('3');
+
+beforeEach(() => {
+  vi.stubEnv('VITE_TREASURY_ADDRESS', treasury);
+});
 
 function expectFieldError(
   result: ReturnType<typeof validateGovernanceDraft>,
@@ -169,6 +173,19 @@ describe('validateGovernanceDraft', () => {
         'amount',
         'invalidAmount',
       );
+    });
+
+    it('rejects treasury address that does not match configured protocol treasury', () => {
+      expectFieldError(
+        validateGovernanceDraft({ ...valid, treasury: friendlyAddr('9') }),
+        'treasury',
+        'treasuryMismatch',
+      );
+    });
+
+    it('rejects when protocol treasury is not configured', () => {
+      vi.stubEnv('VITE_TREASURY_ADDRESS', '');
+      expectFieldError(validateGovernanceDraft(valid), 'treasury', 'treasuryNotConfigured');
     });
 
     it('rejects empty reason', () => {

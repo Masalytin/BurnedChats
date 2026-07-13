@@ -1,6 +1,7 @@
 import { Address, Cell } from '@ton/core';
 
 import type { GovernanceProposalDraft } from '@/components/Governance/PayloadEditor';
+import { isCanonicalTreasuryAddress, getCanonicalTreasuryAddress } from '@/ton/governance-addresses';
 import { ProposalType } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
 
@@ -92,14 +93,23 @@ export function validateGovernanceDraft(draft: GovernanceProposalDraft): DraftVa
         errors.push({ field: 'cid', code: 'required' });
       }
       break;
-    case ProposalType.TreasurySpend:
-      validateAddressField(draft.treasury, 'treasury', errors);
+    case ProposalType.TreasurySpend: {
+      const canonical = getCanonicalTreasuryAddress();
+      if (!canonical) {
+        errors.push({ field: 'treasury', code: 'treasuryNotConfigured' });
+      } else {
+        if (!isCanonicalTreasuryAddress(draft.treasury)) {
+          errors.push({ field: 'treasury', code: 'treasuryMismatch' });
+        }
+        validateAddressField(draft.treasury, 'treasury', errors);
+      }
       validateAddressField(draft.recipient, 'recipient', errors);
       validateTreasuryAmount(draft.amount, errors);
       if (!isNonEmptyTrimmed(draft.reason)) {
         errors.push({ field: 'reason', code: 'required' });
       }
       break;
+    }
     case ProposalType.Emergency:
       validateParameterChangeFields(draft.target, draft.methodIdStr, draft.argsB64, errors);
       if (!isNonEmptyTrimmed(draft.reason)) {

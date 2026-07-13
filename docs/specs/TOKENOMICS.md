@@ -186,6 +186,8 @@ Treasury is a separate smart contract that accumulates 0.2% of each transaction.
 
 Any Treasury spending requires governance voting (`Treasury Spend`: 20% VP quorum, 66% threshold, 7-day period). All stakers vote using the VP formula.
 
+Treasury Spend proposals must target the **canonical Treasury contract** wired in `Governor` at deploy time; the Governor rejects create payloads whose treasury address does not match. The Mini App pins the same address from `VITE_TREASURY_ADDRESS` (read-only in the form).
+
 ---
 
 ## Emission Distribution

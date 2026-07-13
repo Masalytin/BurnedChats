@@ -42,6 +42,7 @@ contract Governor(
     stakingLock: Address,
     timelock: Address,
     timelockDelaySec: Int as uint64,
+    treasury: Address,
 ) {
     /// Skip cashback for governance relay partners — plain TON ping-pong caused
     /// Governor↔StakingMaster (IMP-GOVOTE-02), Governor↔Timelock / Governor↔Proposal
@@ -71,7 +72,7 @@ contract Governor(
     /// is only deployed in phase 2 (`TotalVpSnapshotReply`), with a quorum denominator
     /// that the proposer cannot inflate or deflate.
     receive(msg: CreateProposal) {
-        validateProposalPayloadShape(msg.proposalType, msg.payload);
+        validateProposalPayloadShape(msg.proposalType, msg.payload, self.treasury);
 
         let cfgOpt = self.proposalConfigs.get(msg.proposalType);
         require(cfgOpt != null, "Unknown proposal cfg");
@@ -318,5 +319,9 @@ contract Governor(
 
     get fun get_timelock_delay(): Int {
         return self.timelockDelaySec;
+    }
+
+    get fun get_treasury(): Address {
+        return self.treasury;
     }
 }

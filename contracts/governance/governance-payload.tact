@@ -25,9 +25,11 @@ inline fun validateFeaturePriorityPayload(payload: Cell) {
 }
 
 /// TreasurySpend: Treasury contract, recipient, Coins amount, Cell reason ref (non-empty).
-inline fun validateTreasurySpendPayload(payload: Cell) {
+/// `expectedTreasury` must match the Governor's canonical treasury (immutable init).
+inline fun validateTreasurySpendPayload(payload: Cell, expectedTreasury: Address) {
     let s = payload.beginParse();
-    s.loadAddress();
+    let treasury = s.loadAddress();
+    require(treasury == expectedTreasury, "Treasury address mismatch");
     s.loadAddress();
     let _amt = s.loadCoins();
     let reasonCell = s.loadRef();
@@ -48,7 +50,7 @@ inline fun validateEmergencyPayload(payload: Cell) {
     require(rs.bits() > 0, "Emergency reason required");
 }
 
-inline fun validateProposalPayloadShape(proposalType: Int, payload: Cell) {
+inline fun validateProposalPayloadShape(proposalType: Int, payload: Cell, expectedTreasury: Address) {
     /// ProposalType constants match TASK_CARD ProposalType enum
     let t = proposalType;
     require(t >= 0 && t <= 3, "Bad proposal type");
@@ -62,7 +64,7 @@ inline fun validateProposalPayloadShape(proposalType: Int, payload: Cell) {
         return;
     }
     if (t == 2) {
-        validateTreasurySpendPayload(payload);
+        validateTreasurySpendPayload(payload, expectedTreasury);
         return;
     }
     validateEmergencyPayload(payload);

@@ -66,6 +66,7 @@ export class Governor extends GovernorBase {
         stakingLock: Address;
         timelock: Address;
         timelockDelaySec: bigint;
+        treasury: Address;
         proposalConfigs?: Dictionary<number, ProposalConfig>;
     }): Promise<Governor> {
         const raw = await GovernorBase.fromInit(
@@ -79,6 +80,7 @@ export class Governor extends GovernorBase {
             params.stakingLock,
             params.timelock,
             params.timelockDelaySec,
+            params.treasury,
         );
         return new Governor(raw.address, raw.init);
     }

@@ -565,6 +565,7 @@
     "createDescriptionFeature": "Full description (Markdown supported)",
     "createCidOptional": "Optional IPFS CID / content id",
     "createTreasury": "Treasury address",
+    "treasuryLockedHint": "Fixed protocol treasury — spend proposals always target this contract.",
     "createRecipient": "Recipient TON address",
     "createAmount": "Amount (BURN)",
     "createReason": "Reason",
@@ -591,7 +592,9 @@
       "required": "This field is required.",
       "invalidAmount": "Enter an amount greater than zero.",
       "invalidMethodId": "Method id must be a non-negative number.",
-      "invalidArgs": "Argument cell must be valid Base64 BOC or hex."
+      "invalidArgs": "Argument cell must be valid Base64 BOC or hex.",
+      "treasuryNotConfigured": "Treasury is not configured in this environment.",
+      "treasuryMismatch": "Treasury address must match the protocol treasury."
     },
     "error": {
       "connectWalletVote": "Connect wallet to vote.",

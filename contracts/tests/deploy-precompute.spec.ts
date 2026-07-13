@@ -29,12 +29,14 @@ describe('deploy address layout (P5-6-1-1)', () => {
             deployer.address,
         );
         const timelock = await Timelock.prepareInit(deployer.address);
+        const treasury = await Treasury.prepareInit(timelock.address, jetton.address);
         const governor = await Governor.prepareInit({
             minProposalVp: 10_000_000n,
             stakingMaster: master.address,
             stakingLock: lock.address,
             timelock: timelock.address,
             timelockDelaySec: 86_400n,
+            treasury: treasury.address,
         });
 
         const pool2 = await StakingPool.prepareInit({

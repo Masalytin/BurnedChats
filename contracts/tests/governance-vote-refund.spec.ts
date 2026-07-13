@@ -6,6 +6,7 @@ import '@ton/test-utils';
 import { Governor, GOVERNOR_VOTE_ATTACH_NANO } from '../wrappers/Governor';
 import { Proposal } from '../wrappers/Proposal';
 import { Timelock } from '../wrappers/Timelock';
+import { Treasury } from '../wrappers/Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { NANO_PER_BURN } from './helpers';
 import { advanceTime, mintAndSyncUser, setupStakingEnvironment, stakeAs, StakingTestEnv } from './staking-helpers';
@@ -36,6 +37,8 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
     const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
     await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
+    const treasuryInit = await Treasury.prepareInit(timelock.address, env.jettonMaster.address);
+
     const governor = blockchain.openContract(
         await Governor.prepareInit({
             minProposalVp,
@@ -43,6 +46,7 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
             stakingLock: stakingLock.address,
             timelock: timelock.address,
             timelockDelaySec: BigInt(DAY),
+            treasury: treasuryInit.address,
         }),
     );
     await governor.send(deployer.getSender(), { value: toNano('1') }, null);

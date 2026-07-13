@@ -47,7 +47,13 @@ const TYPE_EMERGENCY = 3;
 type GovEnv = StakingTestEnv & {
     timelock: SandboxContract<Timelock>;
     governor: SandboxContract<Governor>;
+    treasuryAddress: Address;
 };
+
+async function canonicalTreasuryAddress(timelock: Address, jettonMaster: Address): Promise<Address> {
+    const init = await Treasury.prepareInit(timelock, jettonMaster);
+    return init.address;
+}
 
 /**
  * Full governance stack on top of the staking environment.
@@ -68,6 +74,8 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
     const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
     await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
+    const treasuryAddress = await canonicalTreasuryAddress(timelock.address, env.jettonMaster.address);
+
     const governor = blockchain.openContract(
         await Governor.prepareInit({
             minProposalVp,
@@ -75,6 +83,7 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
             stakingLock: stakingLock.address,
             timelock: timelock.address,
             timelockDelaySec: BigInt(DAY),
+            treasury: treasuryAddress,
         }),
     );
     await governor.send(deployer.getSender(), { value: toNano('1') }, null);
@@ -85,7 +94,7 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
     expect(setGov.transactions).toHaveTransaction({ success: true });
     expect((await stakingMaster.getGetGovernorAddr()).equals(governor.address)).toBe(true);
 
-    return { ...env, timelock, governor };
+    return { ...env, timelock, governor, treasuryAddress };
 }
 
 /**
@@ -100,6 +109,8 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
     const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
     await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
+    const treasuryAddress = await canonicalTreasuryAddress(timelock.address, env.jettonMaster.address);
+
     const governor = blockchain.openContract(
         await Governor.prepareInit({
             minProposalVp,
@@ -107,12 +118,13 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
             stakingLock: stakingLock.address,
             timelock: timelock.address,
             timelockDelaySec: BigInt(DAY),
+            treasury: treasuryAddress,
         }),
     );
     await governor.send(deployer.getSender(), { value: toNano('1') }, null);
 
     expect((await stakingMaster.getGetGovernorAddr()).equals(deployer.address)).toBe(true);
-    return { ...env, timelock, governor };
+    return { ...env, timelock, governor, treasuryAddress };
 }
 
 /** Mint + stake a user so they carry on-chain voting power. */
@@ -427,6 +439,29 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                     [treasury.address, treasuryJw],
                 ],
             });
+        });
+
+        it('rejects TreasurySpend create when payload treasury is not canonical', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-mismatch.json');
+            const voter = await env.blockchain.treasury('gov-treas-mismatch-voter');
+            await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+            const wrongTreasury = await env.blockchain.treasury('wrong-treasury-target');
+            const recipient = await env.blockchain.treasury('treas-mismatch-recipient');
+            const totalVp = await env.stakingMaster.getGetTotalVotingPower();
+
+            const createTx = await env.governor.sendCreateProposal(voter.getSender(), {
+                proposalType: TYPE_TREASURY,
+                payload: treasurySpendPayload(
+                    wrongTreasury.address,
+                    recipient.address,
+                    1n * NANO_PER_BURN,
+                    'mismatched treasury',
+                ),
+                claimedVp: totalVp,
+            });
+            expect(createTx.transactions).toHaveTransaction({ on: env.governor.address, success: false });
+            expect((await env.governor.getGetProposalCount())).toBe(0n);
         });
 
         it('Treasury rejects a TreasurySpend not coming from the Timelock', async () => {

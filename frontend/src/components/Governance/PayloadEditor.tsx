@@ -4,9 +4,11 @@ import { beginCell, Cell } from '@ton/core';
 
 import { ProposalType } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
+import { getCanonicalTreasuryAddress } from '@/ton/governance-addresses';
 import type { DraftFieldError } from '@/utils/governance-validate';
 import type { ProposalFormValues } from '@/utils/governance-encode';
 
+import { truncateMiddle } from './governanceUi';
 import styles from './Governance.module.css';
 
 export type GovernanceProposalDraft =
@@ -45,6 +47,10 @@ function envAddr(...keys: string[]): string {
   return '';
 }
 
+function canonicalTreasuryOrEmpty(): string {
+  return getCanonicalTreasuryAddress() ?? envAddr('VITE_TREASURY_ADDRESS');
+}
+
 function parseArgsCell(b64OrHex: string): Cell {
   const raw = b64OrHex.trim();
   if (!raw) {
@@ -58,7 +64,6 @@ function parseArgsCell(b64OrHex: string): Cell {
 }
 
 export function emptyDraft(kind: ProposalType): GovernanceProposalDraft {
-  const treasuryDefault = envAddr('VITE_TREASURY_ADDRESS');
   switch (kind) {
     case ProposalType.ParameterChange:
       return {
@@ -72,7 +77,7 @@ export function emptyDraft(kind: ProposalType): GovernanceProposalDraft {
     case ProposalType.TreasurySpend:
       return {
         kind: ProposalType.TreasurySpend,
-        treasury: treasuryDefault,
+        treasury: canonicalTreasuryOrEmpty(),
         recipient: '',
         amount: '',
         reason: '',
@@ -122,11 +127,15 @@ export function draftToFormValues(draft: GovernanceProposalDraft): ProposalFormV
       };
     }
     case ProposalType.TreasurySpend: {
+      const canonical = getCanonicalTreasuryAddress();
+      if (!canonical) {
+        throw new RangeError('treasury');
+      }
       const nano = parseBurn(draft.amount);
       return {
         type: ProposalType.TreasurySpend,
         values: {
-          treasury: draft.treasury.trim(),
+          treasury: canonical,
           recipient: draft.recipient.trim(),
           amount: nano,
           reason: draft.reason.trim(),
@@ -311,15 +320,14 @@ export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
 
   return (
     <div className={styles.formStack}>
-      <label className={styles.field}>
+      <div className={styles.field}>
         <span>{t('governance.createTreasury')}</span>
-        <input
-          className={styles.input}
-          value={draft.treasury}
-          onChange={(e) => onChange({ ...draft, treasury: e.target.value })}
-        />
+        <output className={styles.readOnlyValue}>
+          {draft.treasury ? truncateMiddle(draft.treasury) : '—'}
+        </output>
+        <span className={styles.muted}>{t('governance.treasuryLockedHint')}</span>
         {renderFieldError('treasury')}
-      </label>
+      </div>
       <label className={styles.field}>
         <span>{t('governance.createRecipient')}</span>
         <input
