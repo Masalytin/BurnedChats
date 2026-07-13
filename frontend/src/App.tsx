@@ -193,6 +193,10 @@ function AppContent() {
 
   /** Incremented on each WS reconnect (via onReconnect) — drives auto-resume handshake */
   const [wsReconnectNonce, setWsReconnectNonce] = useState(0);
+  /** Incremented when DM rekey completes — triggers queued-message resend in active chat (IMP-OQR-02). */
+  const [rekeyResendNonce, setRekeyResendNonce] = useState(0);
+  /** Session awaiting rekey resend after handshake completes (set before forceRefresh / resume rekey). */
+  const pendingRekeyResendRef = useRef<string | null>(null);
   /** Guards auto-resume: one startHandshake per reconnect nonce */
   const lastHandshakeAutoResumeNonceRef = useRef(0);
   /** Session for which auto-resume last ran — reset on view/session change */
@@ -406,6 +410,10 @@ function AppContent() {
       notificationOccurred('success');
       toast.success('Secure connection established!');
       console.log('[App] Handshake complete:', sessionId, fingerprint);
+      if (pendingRekeyResendRef.current === sessionId) {
+        pendingRekeyResendRef.current = null;
+        setRekeyResendNonce((n) => n + 1);
+      }
     },
     onError: (errorCode) => {
       notificationOccurred('error');
@@ -786,11 +794,13 @@ function AppContent() {
             setCurrentView(isFullyVerified(session.sessionId) ? 'chat' : 'verify');
           } else {
             toast.info('Restoring secure connection...');
+            pendingRekeyResendRef.current = session.sessionId;
             startHandshake(session.sessionId, peerInfo);
             setCurrentView('handshake');
           }
         } else {
           toast.info('Restoring secure connection...');
+          pendingRekeyResendRef.current = session.sessionId;
           startHandshake(session.sessionId, peerInfo);
           setCurrentView('handshake');
         }
@@ -2711,6 +2721,7 @@ function AppContent() {
       // We're currently in the chat for this session - auto-start handshake with forceRefresh
       // This generates new keys and sends them to the server without switching to handshake view
       console.log('[App] Auto key refresh for active chat:', keyRefreshSessionId);
+      pendingRekeyResendRef.current = keyRefreshSessionId;
       handshakePeerRef.current = chat.peer;
       startHandshake(keyRefreshSessionId, chat.peer, true);
     } else {
@@ -3083,6 +3094,7 @@ function AppContent() {
             userTelegramId={telegramUserId ?? undefined}
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             bothVerified={isFullyVerified(activeChat.sessionId)}
+            rekeyResendNonce={rekeyResendNonce}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
             syncMessagesRef={dmSyncMessagesRef}
@@ -3383,6 +3395,8 @@ interface ChatViewContentProps {
   ws: UseMessagesWebSocket;
   /** Whether both parties confirmed visual fingerprint verification */
   bothVerified: boolean;
+  /** Bumped after DM rekey — triggers resend of queued own messages (IMP-OQR-02). */
+  rekeyResendNonce?: number;
   onBack: () => void;
   onBurn: () => void;
   /**
@@ -3400,6 +3414,7 @@ function ChatViewContent({
   userTelegramId,
   ws,
   bothVerified,
+  rekeyResendNonce = 0,
   onBack,
   onBurn,
   syncMessagesRef,
@@ -3437,6 +3452,7 @@ function ChatViewContent({
     ws,
     isReconnection: ws.isReconnection,
     bothVerified,
+    rekeyResendNonce,
     onError: handleMessageError,
     onEditError: handleDmEditError,
   });

@@ -20,6 +20,7 @@ import {
   resolvePendingMessageAck,
   mergeMessagesSorted,
   updateMessageStatus,
+  runUndeliveredResendAfterRekey,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
@@ -143,6 +144,8 @@ interface UseMessagesOptions {
   onEditError?: (errorCode: string) => void;
   onSyncComplete?: (count: number) => void;
   bothVerified?: boolean;
+  /** Incremented when DM rekey completes — triggers resend of queued own messages (IMP-OQR-02). */
+  rekeyResendNonce?: number;
 }
 
 interface UseMessagesReturn {
@@ -199,6 +202,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     onSyncComplete,
     onEditError,
     bothVerified = false,
+    rekeyResendNonce = 0,
   } = options;
 
   const ownershipCtx: DmMessageOwnershipContext = {
@@ -259,6 +263,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const {
     setMessages,
     visibleMessages,
+    messages,
+    hiddenIds,
     isLoading,
     error,
     setError,
@@ -309,6 +315,63 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     }
     return null;
   }, [isConnected, sessionId, bothVerified, getEncryptionKey]);
+
+  const lastRekeyResendNonceRef = useRef(0);
+
+  const resendUndeliveredAfterRekey = useCallback(async () => {
+    if (!isConnected || !sessionId) return;
+    if (!isHandshakeComplete(sessionId)) return;
+    if (!bothVerified) return;
+
+    const { textResent, filesMarkedFailed } = await runUndeliveredResendAfterRekey({
+      messages,
+      hiddenIds,
+      contextId: sessionId,
+      logTag: LOG_TAG,
+      sendDestination: SEND_MESSAGE_DESTINATION,
+      publish,
+      handleError,
+      setMessages,
+      pendingMessagesRef,
+      buildPublishPayload: ({ messageId, encryptedContent, iv, timestamp, replyToMessageId }) => ({
+        sessionId,
+        messageId,
+        encryptedContent,
+        iv,
+        timestamp,
+        ...(replyToMessageId ? { replyToMessageId } : {}),
+      }),
+      validateBeforeSend,
+      noKeyError: 'NO_ENCRYPTION_KEY',
+      encryptionFailedError: 'ENCRYPTION_FAILED',
+    });
+
+    if (textResent > 0 || filesMarkedFailed > 0) {
+      debugLog('info', 'Rekey resend after DM key refresh', {
+        sessionId,
+        textResent,
+        filesMarkedFailed,
+      });
+    }
+  }, [
+    isConnected,
+    sessionId,
+    bothVerified,
+    messages,
+    hiddenIds,
+    publish,
+    handleError,
+    setMessages,
+    pendingMessagesRef,
+    validateBeforeSend,
+  ]);
+
+  useEffect(() => {
+    if (rekeyResendNonce === 0) return;
+    if (lastRekeyResendNonceRef.current === rekeyResendNonce) return;
+    lastRekeyResendNonceRef.current = rekeyResendNonce;
+    void resendUndeliveredAfterRekey();
+  }, [rekeyResendNonce, resendUndeliveredAfterRekey]);
 
   const sendMessage = useCallback(async (
     text: string,

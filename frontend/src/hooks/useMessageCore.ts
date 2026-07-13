@@ -606,6 +606,7 @@ export interface UseMessageCoreReturn<TError extends string> {
   pendingEditResolversRef: PendingMessageResolversRef;
   pendingEditTimeoutsRef: React.MutableRefObject<Map<string, number>>;
   hideMessages: (ids: string | string[]) => void;
+  hiddenIds: ReadonlySet<string>;
   clearMessages: () => void;
   isSyncing: boolean;
   setSyncing: (v: boolean) => void;
@@ -774,6 +775,7 @@ export function useMessageCore<TError extends string>(
     pendingEditResolversRef,
     pendingEditTimeoutsRef,
     hideMessages,
+    hiddenIds,
     clearMessages,
     isSyncing,
     setSyncing,
@@ -809,4 +811,180 @@ export function updateMessageStatus(
   return prev.map(msg =>
     msg.id === messageId ? { ...msg, status } : msg
   );
+}
+
+/** Server offline queue cap — limit rekey resend batch size (IMP-OQR-02). */
+export const UNDELIVERED_RESEND_CAP = 100;
+
+export interface UndeliveredResendTextCandidate {
+  messageId: string;
+  content: string;
+  timestamp: number;
+  replyToMessageId?: string;
+}
+
+export interface UndeliveredResendSelection {
+  textCandidates: UndeliveredResendTextCandidate[];
+  fileMessageIds: string[];
+}
+
+/**
+ * Own queued (sent, not delivered) messages eligible for rekey resend.
+ * Excludes hidden/deleted, peer messages, and non-sent statuses.
+ */
+export function selectUndeliveredResendCandidates(
+  messages: DecryptedMessage[],
+  hiddenIds: ReadonlySet<string>,
+  cap = UNDELIVERED_RESEND_CAP,
+): UndeliveredResendSelection {
+  const eligible = messages
+    .filter((m) =>
+      m.isOwn
+      && m.status === 'sent'
+      && !hiddenIds.has(m.id),
+    )
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const capped = eligible.length > cap ? eligible.slice(-cap) : eligible;
+
+  const textCandidates: UndeliveredResendTextCandidate[] = [];
+  const fileMessageIds: string[] = [];
+
+  for (const m of capped) {
+    if (m.type === 'text') {
+      textCandidates.push({
+        messageId: m.id,
+        content: m.content,
+        timestamp: m.timestamp,
+        replyToMessageId: m.replyToMessageId,
+      });
+    } else {
+      fileMessageIds.push(m.id);
+    }
+  }
+
+  return { textCandidates, fileMessageIds };
+}
+
+export interface ResendEncryptedTextMessageParams<TError extends string> {
+  candidate: UndeliveredResendTextCandidate;
+  contextId: string;
+  logTag: string;
+  sendDestination: string;
+  publish: ChatWebSocketApi['publish'];
+  handleError: (code: TError, details?: string) => void;
+  setMessages: React.Dispatch<React.SetStateAction<DecryptedMessage[]>>;
+  pendingMessagesRef: React.MutableRefObject<Map<string, { text: string; timestamp: number }>>;
+  buildPublishPayload: (payload: {
+    messageId: string;
+    encryptedContent: string;
+    iv: string;
+    timestamp: number;
+    replyToMessageId?: string;
+  }) => Record<string, unknown>;
+  validateBeforeSend: () => TError | null;
+  noKeyError: TError;
+  encryptionFailedError: TError;
+}
+
+/** Re-publish a text message under the current session key, preserving messageId and timestamp. */
+export async function resendEncryptedTextMessage<TError extends string>(
+  params: ResendEncryptedTextMessageParams<TError>,
+): Promise<boolean> {
+  const {
+    candidate,
+    contextId,
+    logTag,
+    sendDestination,
+    publish,
+    handleError,
+    setMessages,
+    pendingMessagesRef,
+    buildPublishPayload,
+    validateBeforeSend,
+    noKeyError,
+    encryptionFailedError,
+  } = params;
+
+  const preflightError = validateBeforeSend();
+  if (preflightError) {
+    handleError(preflightError);
+    return false;
+  }
+
+  const aesKey = getEncryptionKey(contextId);
+  if (!aesKey) {
+    handleError(noKeyError);
+    return false;
+  }
+
+  try {
+    const encrypted = await encryptMessage(aesKey, candidate.content, contextId);
+    pendingMessagesRef.current.set(candidate.messageId, {
+      text: candidate.content,
+      timestamp: candidate.timestamp,
+    });
+
+    setMessages((prev) =>
+      updateMessageStatus(prev, candidate.messageId, 'sending'),
+    );
+
+    publish(sendDestination, buildPublishPayload({
+      messageId: candidate.messageId,
+      encryptedContent: encrypted.ciphertext,
+      iv: encrypted.iv,
+      timestamp: candidate.timestamp,
+      replyToMessageId: candidate.replyToMessageId,
+    }));
+
+    return true;
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[${logTag}] Rekey resend encryption failed:`, err);
+    handleError(encryptionFailedError, errMsg);
+    setMessages((prev) =>
+      updateMessageStatus(prev, candidate.messageId, 'failed'),
+    );
+    pendingMessagesRef.current.delete(candidate.messageId);
+    return false;
+  }
+}
+
+export interface RunUndeliveredResendAfterRekeyParams<TError extends string> {
+  messages: DecryptedMessage[];
+  hiddenIds: ReadonlySet<string>;
+  contextId: string;
+  logTag: string;
+  sendDestination: string;
+  publish: ChatWebSocketApi['publish'];
+  handleError: (code: TError, details?: string) => void;
+  setMessages: React.Dispatch<React.SetStateAction<DecryptedMessage[]>>;
+  pendingMessagesRef: React.MutableRefObject<Map<string, { text: string; timestamp: number }>>;
+  buildPublishPayload: ResendEncryptedTextMessageParams<TError>['buildPublishPayload'];
+  validateBeforeSend: () => TError | null;
+  noKeyError: TError;
+  encryptionFailedError: TError;
+}
+
+/** Resend queued text messages after DM rekey; mark queued file messages failed (IMP-OQR-02). */
+export async function runUndeliveredResendAfterRekey<TError extends string>(
+  params: RunUndeliveredResendAfterRekeyParams<TError>,
+): Promise<{ textResent: number; filesMarkedFailed: number }> {
+  const { messages, hiddenIds, setMessages, ...resendParams } = params;
+  const { textCandidates, fileMessageIds } = selectUndeliveredResendCandidates(messages, hiddenIds);
+
+  if (fileMessageIds.length > 0) {
+    const failedSet = new Set(fileMessageIds);
+    setMessages((prev) =>
+      prev.map((m) => (failedSet.has(m.id) ? { ...m, status: 'failed' as MessageStatus } : m)),
+    );
+  }
+
+  let textResent = 0;
+  for (const candidate of textCandidates) {
+    const ok = await resendEncryptedTextMessage({ ...resendParams, setMessages, candidate });
+    if (ok) textResent += 1;
+  }
+
+  return { textResent, filesMarkedFailed: fileMessageIds.length };
 }
