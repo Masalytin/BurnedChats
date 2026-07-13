@@ -13,6 +13,7 @@ import {
   vote as voteTx,
   type GovernanceDeps,
 } from '@/ton/governance';
+import { getVoteEffectiveVp } from '@/ton/governance-vp';
 import type { TxResult } from '@/ton/types';
 import type { ProposalType, ProposalSummary, UserVote } from '@/types/ton';
 
@@ -26,7 +27,7 @@ export interface UseGovernance {
   isLoading: boolean;
   error: Error | null;
   refetch(): Promise<void>;
-  vote(params: { proposalId: number; support: boolean }): Promise<TxResult>;
+  vote(params: { proposalId: number; support: boolean; endTimeSec: number }): Promise<TxResult>;
   queue(params: { proposalId: number }): Promise<TxResult>;
   execute(params: { proposalId: number; proposalType: ProposalType }): Promise<TxResult>;
   createProposal(params: { type: ProposalType; payload: Cell; period?: number }): Promise<TxResult>;
@@ -100,15 +101,25 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
   }, [load]);
 
   const vote = useCallback(
-    async (params: { proposalId: number; support: boolean }): Promise<TxResult> => {
+    async (params: { proposalId: number; support: boolean; endTimeSec: number }): Promise<TxResult> => {
       const addr = walletAddress?.trim();
       if (!addr) {
         return { ok: false, kind: 'unknown', message: 'Connect wallet to vote.' };
       }
+      const endTimeSec = params.endTimeSec;
+      if (!Number.isFinite(endTimeSec) || endTimeSec <= 0) {
+        return { ok: false, kind: 'unknown', message: 'Proposal end time is required to vote.' };
+      }
+      let gatedVp = 0n;
+      try {
+        gatedVp = await getVoteEffectiveVp(addr, endTimeSec, depsRef.current);
+      } catch {
+        gatedVp = 0n;
+      }
       const optimistic: UserVote = {
         proposalId: params.proposalId,
         support: params.support,
-        vp: votingPower,
+        vp: gatedVp,
         voteTimestamp: Math.floor(Date.now() / 1000),
       };
       setUserVotes((prev) => {
@@ -116,7 +127,10 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
         next.set(params.proposalId, optimistic);
         return next;
       });
-      const result = await voteTx({ ...params, walletAddress: addr }, depsRef.current);
+      const result = await voteTx(
+        { ...params, walletAddress: addr, endTimeSec },
+        depsRef.current,
+      );
       if (result.ok) {
         await load();
       } else {
@@ -128,7 +142,7 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
       }
       return result;
     },
-    [walletAddress, votingPower, load],
+    [walletAddress, load],
   );
 
   const queue = useCallback(

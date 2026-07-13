@@ -2,7 +2,7 @@ import { Address, Cell } from '@ton/core';
 
 import { addressToSliceStackBoc } from '@/ton/burnToken';
 import { sendTonTransaction } from '@/ton/connector';
-import { getMinProposalVp } from '@/ton/governance-vp';
+import { getMinProposalVp, getVoteEffectiveVp } from '@/ton/governance-vp';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { resolveIsTestNet } from '@/ton/rpc';
@@ -688,17 +688,17 @@ export async function executeProposal(
 }
 
 export async function vote(
-  params: { proposalId: number; support: boolean; walletAddress: string },
+  params: { proposalId: number; support: boolean; walletAddress: string; endTimeSec: number },
   deps?: GovernanceDeps,
 ): Promise<TxResult> {
   const r = resolveDeps(deps);
-  const vp = await getUserVotingPower(params.walletAddress.trim(), deps);
+  const claimedVp = await getVoteEffectiveVp(params.walletAddress.trim(), params.endTimeSec, deps);
   const gov = Address.parse(r.governorAddress.trim());
   const msg = buildVoteMsg({
     governor: gov,
     proposalId: BigInt(params.proposalId),
     support: params.support,
-    claimedVp: vp,
+    claimedVp,
   });
   return r.sendTransactionImpl([msg]);
 }

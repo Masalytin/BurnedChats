@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 
-import { Address, beginCell } from '@ton/core';
+import { Address, beginCell, Cell } from '@ton/core';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { GOVERNANCE_POLL_MS, useGovernance } from '@/hooks/useGovernance';
@@ -13,7 +13,9 @@ import {
   getUserVote,
   getUserVotingPowerLockedBeyond,
   GovernanceError,
+  vote,
 } from '@/ton/governance';
+import * as governanceVp from '@/ton/governance-vp';
 import { ProposalType, ProposalState, type ProposalSummary } from '@/types/ton';
 import { encodePayload } from '@/utils/governance-encode';
 import { formatProposalState, formatProposalType } from '@/utils/governance-format';
@@ -70,6 +72,8 @@ vi.mock('@/hooks/useTonConnect', () => ({
     sendTransaction: vi.fn(),
   })),
 }));
+
+import * as useTonConnectModule from '@/hooks/useTonConnect';
 
 describe('calculateProposalProgress', () => {
   const base = (over: Partial<ProposalSummary> = {}): ProposalSummary => ({
@@ -403,6 +407,116 @@ describe('createProposal min VP gate', () => {
       message: 'insufficient voting power — cannot create proposal',
     });
     expect(sendTransactionImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('vote lock-gated claimedVp', () => {
+  const wallet = Address.parse(`0:${'e'.repeat(64)}`).toString({
+    bounceable: true,
+    testOnly: true,
+    urlSafe: true,
+  });
+  const endTimeSec = 1_700_000_000;
+
+  beforeEach(() => {
+    stubGovernanceEnv();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('uses lock-gated VP as claimedVp when live VP is higher', async () => {
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+    const getVoteEffectiveVpSpy = vi.spyOn(governanceVp, 'getVoteEffectiveVp').mockResolvedValue(30n);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await vote(
+      { proposalId: 3, support: true, walletAddress: wallet, endTimeSec },
+      { fetchImpl: fetchMock as typeof fetch, sendTransactionImpl: sendTransactionImpl as never },
+    );
+
+    expect(getVoteEffectiveVpSpy).toHaveBeenCalledWith(wallet, endTimeSec, expect.anything());
+    expect(sendTransactionImpl).toHaveBeenCalledTimes(1);
+    const [msgs] = sendTransactionImpl.mock.calls[0]! as [{ payload: string }[]];
+    const cell = Cell.fromBoc(Buffer.from(msgs[0]!.payload, 'base64'))[0]!;
+    const s = cell.beginParse();
+    s.loadUint(32); // op
+    s.loadUintBig(64); // queryId
+    s.loadUintBig(64); // proposalId
+    s.loadBit(); // support
+    expect(s.loadIntBig(257)).toBe(30n);
+  });
+});
+
+describe('useGovernance optimistic vote VP', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stubGovernanceEnv();
+    vi.mocked(useTonConnectModule.useTonConnect).mockReturnValue({
+      walletAddress: Address.parse(`0:${'f'.repeat(64)}`).toString({
+        bounceable: true,
+        testOnly: true,
+        urlSafe: true,
+      }),
+      isConnected: true,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      tonProof: undefined,
+      sendTransaction: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('optimistic UserVote.vp uses lock-gated VP not header votingPower', async () => {
+    const row = validProposalRow({ id: 9, endTime: 1_700_000_000 });
+    const sendTransactionImpl = vi.fn(() => new Promise(() => {}));
+    vi.spyOn(governanceVp, 'getVoteEffectiveVp').mockResolvedValue(30n);
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/governance/active-proposals')) {
+        return Promise.resolve(jsonResponse([row]));
+      }
+      if (url.includes('/api/governance/voting-power')) {
+        return Promise.resolve(jsonResponse({ votingPower: '100' }));
+      }
+      if (url.includes('/api/governance/proposals/9/vote')) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() =>
+      useGovernance({
+        fetchImpl: fetchMock as typeof fetch,
+        sendTransactionImpl: sendTransactionImpl as never,
+      }),
+    );
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(result.current.votingPower).toBe(100n);
+
+    await act(async () => {
+      void result.current.vote({ proposalId: 9, support: true, endTimeSec: 1_700_000_000 });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const optimistic = result.current.userVotes.get(9);
+    expect(optimistic?.vp).toBe(30n);
+    expect(optimistic?.vp).not.toBe(100n);
   });
 });
 

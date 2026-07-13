@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -15,6 +15,11 @@ import styles from './Governance.module.css';
 const VOTE_CONFIRM_POLL_MS = 4_000;
 /** Max poll attempts (~60 s) before surfacing an inconclusive outcome. */
 const VOTE_CONFIRM_MAX_ATTEMPTS = 15;
+
+export type LockGatedVpState =
+  | { status: 'loading' }
+  | { status: 'ready'; vp: bigint }
+  | { status: 'error' };
 
 export interface VoteModalProps {
   open: boolean;
@@ -51,8 +56,6 @@ async function pollVoteRecorded(
   return false;
 }
 
-type VotePhase = 'idle' | 'sending' | 'confirming';
-
 /**
  * Confirms governance vote side with lock-gated VP summary and irreversibility warning.
  * After TonConnect accepts the tx, polls on-chain vote state instead of
@@ -72,13 +75,18 @@ export function VoteModal({
   const [phase, setPhase] = useState<VotePhase>('idle');
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(0);
-  const [lockGatedVp, setLockGatedVp] = useState<bigint | null>(null);
+  const [lockGatedVp, setLockGatedVp] = useState<LockGatedVpState>({ status: 'loading' });
+  const [lockGatedFetchGen, setLockGatedFetchGen] = useState(0);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+
+  const retryLockGatedVp = useCallback((): void => {
+    setLockGatedFetchGen((g) => g + 1);
+  }, []);
 
   useEffect(() => {
     if (!open) {
       setPhase('idle');
-      setLockGatedVp(null);
+      setLockGatedVp({ status: 'loading' });
       return;
     }
     setNowSec(Math.floor(Date.now() / 1000));
@@ -116,44 +124,47 @@ export function VoteModal({
     }
     const addr = walletAddress?.trim();
     if (!addr) {
-      setLockGatedVp(0n);
+      setLockGatedVp({ status: 'ready', vp: 0n });
       return;
     }
     let cancelled = false;
-    setLockGatedVp(null);
+    setLockGatedVp({ status: 'loading' });
     void getUserVotingPowerLockedBeyond(addr, endTime)
       .then((vp) => {
         if (!cancelled) {
-          setLockGatedVp(vp);
+          setLockGatedVp({ status: 'ready', vp });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setLockGatedVp(0n);
+          setLockGatedVp({ status: 'error' });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [open, endTime, walletAddress]);
+  }, [open, endTime, walletAddress, lockGatedFetchGen]);
 
   const isPreVoteWindow = useMemo(
     () => startTime > 0 && nowSec < startTime,
     [startTime, nowSec],
   );
 
-  const voteUx = useMemo(
-    () =>
-      describeLockGatedVoteUx({
-        liveVp: votingPower,
-        lockGatedVp: lockGatedVp ?? 0n,
-      }),
-    [votingPower, lockGatedVp],
-  );
+  const voteUx = useMemo(() => {
+    if (lockGatedVp.status !== 'ready') {
+      return { kind: 'no-stake' as const, displayVp: 0n, showFlexibleHint: false };
+    }
+    return describeLockGatedVoteUx({
+      liveVp: votingPower,
+      lockGatedVp: lockGatedVp.vp,
+    });
+  }, [votingPower, lockGatedVp]);
 
-  const vpReady = lockGatedVp !== null;
   const cannotCast =
-    isPreVoteWindow || !vpReady || voteUx.kind === 'flexible-only' || voteUx.displayVp <= 0n;
+    isPreVoteWindow ||
+    lockGatedVp.status !== 'ready' ||
+    voteUx.kind === 'flexible-only' ||
+    voteUx.displayVp <= 0n;
 
   const busy = phase !== 'idle';
 
@@ -164,7 +175,7 @@ export function VoteModal({
   const sideLabel = support ? t('governance.voteSideFor') : t('governance.voteSideAgainst');
 
   const handleConfirm = async (): Promise<void> => {
-    if (cannotCast) {
+    if (cannotCast || endTime <= 0) {
       return;
     }
     const addr = walletAddress?.trim();
@@ -175,7 +186,7 @@ export function VoteModal({
 
     setPhase('sending');
     try {
-      const res = await vote({ proposalId, support });
+      const res = await vote({ proposalId, support, endTimeSec: endTime });
       if (!res.ok) {
         toast.error(res.message && res.message.length > 0 ? res.message : t('governance.voteFail'));
         return;
@@ -206,7 +217,12 @@ export function VoteModal({
         ? t('governance.voteConfirming')
         : t('governance.voteModalConfirm');
 
-  const displayVpLabel = vpReady ? formatBurn(voteUx.displayVp) : '…';
+  const displayVpLabel =
+    lockGatedVp.status === 'loading'
+      ? '…'
+      : lockGatedVp.status === 'error'
+        ? '—'
+        : formatBurn(voteUx.displayVp);
 
   return (
     <div
@@ -233,6 +249,14 @@ export function VoteModal({
         <p className={styles.modalMeta}>
           {t('governance.voteModalVp')}: <strong>{displayVpLabel}</strong>
         </p>
+        {lockGatedVp.status === 'error' ? (
+          <p className={styles.errorBanner} role="alert">
+            {t('governance.errorLoad')}{' '}
+            <button type="button" className={styles.inlineLink} onClick={retryLockGatedVp}>
+              {t('governance.retry')}
+            </button>
+          </p>
+        ) : null}
         {voteUx.showFlexibleHint ? (
           <div className={styles.warnBanner} role="status">
             <p className={styles.modalBody}>{t('governance.voteFlexibleNoVp')}</p>
@@ -272,3 +296,5 @@ export function VoteModal({
     </div>
   );
 }
+
+type VotePhase = 'idle' | 'sending' | 'confirming';

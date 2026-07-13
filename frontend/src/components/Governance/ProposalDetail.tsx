@@ -11,7 +11,7 @@ import { useTonConnect } from '@/hooks/useTonConnect';
 import { useToast } from '@/components/Toast';
 
 import { ProposalTimeline } from './ProposalTimeline';
-import { VoteModal } from './VoteModal';
+import { VoteModal, type LockGatedVpState } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
 import {
   describeLockGatedVoteUx,
@@ -136,7 +136,8 @@ export function ProposalDetail() {
   const [lifecycle, setLifecycle] = useState<ProposalLifecycleMeta | null>(null);
   const [queueBusy, setQueueBusy] = useState(false);
   const [executeBusy, setExecuteBusy] = useState(false);
-  const [lockGatedVp, setLockGatedVp] = useState<bigint | null>(null);
+  const [lockGatedVp, setLockGatedVp] = useState<LockGatedVpState>({ status: 'loading' });
+  const [lockGatedFetchGen, setLockGatedFetchGen] = useState(0);
 
   useEffect(() => {
     if (!Number.isFinite(id) || id < 0) {
@@ -199,50 +200,50 @@ export function ProposalDetail() {
     const end = detail?.summary.endTime;
     const addr = walletAddress?.trim();
     if (!isConnected || !addr || end === undefined || end <= 0) {
-      setLockGatedVp(null);
+      setLockGatedVp({ status: 'loading' });
       return;
     }
     let cancelled = false;
-    setLockGatedVp(null);
+    setLockGatedVp({ status: 'loading' });
     void getUserVotingPowerLockedBeyond(addr, end)
       .then((vp) => {
-        if (!cancelled) setLockGatedVp(vp);
+        if (!cancelled) setLockGatedVp({ status: 'ready', vp });
       })
       .catch(() => {
-        if (!cancelled) setLockGatedVp(0n);
+        if (!cancelled) setLockGatedVp({ status: 'error' });
       });
     return () => {
       cancelled = true;
     };
-  }, [detail?.summary.endTime, isConnected, walletAddress]);
+  }, [detail?.summary.endTime, isConnected, walletAddress, lockGatedFetchGen]);
 
   const summary = detail?.summary;
   const userVote = summary ? userVotes.get(summary.id) : undefined;
 
   const nowSec = Math.floor(Date.now() / 1000);
 
-  const voteUx = useMemo(
-    () =>
-      describeLockGatedVoteUx({
-        liveVp: votingPower,
-        lockGatedVp: lockGatedVp ?? 0n,
-      }),
-    [votingPower, lockGatedVp],
-  );
+  const voteUx = useMemo(() => {
+    if (lockGatedVp.status !== 'ready') {
+      return { kind: 'no-stake' as const, displayVp: 0n, showFlexibleHint: false };
+    }
+    return describeLockGatedVoteUx({
+      liveVp: votingPower,
+      lockGatedVp: lockGatedVp.vp,
+    });
+  }, [votingPower, lockGatedVp]);
 
   const canVote = useMemo(() => {
     if (!summary) return false;
-    const lockReady = lockGatedVp !== null;
     return (
       isConnected &&
-      lockReady &&
+      lockGatedVp.status === 'ready' &&
       voteUx.displayVp > 0n &&
       summary.state === ProposalState.Active &&
       nowSec >= summary.startTime &&
       nowSec < summary.endTime &&
       (userVote === undefined || userVote.support === null)
     );
-  }, [summary, userVote, isConnected, nowSec, lockGatedVp, voteUx.displayVp]);
+  }, [summary, userVote, isConnected, nowSec, lockGatedVp.status, voteUx.displayVp]);
 
   const isPreVoteWindow = useMemo(() => {
     if (!summary) return false;
@@ -456,9 +457,21 @@ export function ProposalDetail() {
             })}
           </p>
         ) : null}
-        {isConnected && lockGatedVp !== null ? (
+        {isConnected && lockGatedVp.status === 'ready' ? (
           <p className={styles.muted}>
             {t('governance.voteModalVp')}: <strong>{formatBurn(voteUx.displayVp)}</strong>
+          </p>
+        ) : null}
+        {lockGatedVp.status === 'error' ? (
+          <p className={styles.errorBanner} role="alert">
+            {t('governance.errorLoad')}{' '}
+            <button
+              type="button"
+              className={styles.inlineLink}
+              onClick={() => setLockGatedFetchGen((g) => g + 1)}
+            >
+              {t('governance.retry')}
+            </button>
           </p>
         ) : null}
         {voteUx.showFlexibleHint ? (

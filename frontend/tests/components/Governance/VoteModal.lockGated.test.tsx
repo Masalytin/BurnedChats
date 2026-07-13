@@ -129,4 +129,42 @@ describe('VoteModal lock-gated VP UX', () => {
     const confirm = screen.getByRole('button', { name: 'governance.voteModalConfirm' });
     expect((confirm as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it('shows error banner with retry when lock-gated RPC fails', async () => {
+    getUserVotingPowerLockedBeyond.mockRejectedValue(new Error('rpc down'));
+
+    renderModal();
+
+    await waitFor(() => {
+      expect(getUserVotingPowerLockedBeyond).toHaveBeenCalled();
+    });
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText('governance.errorLoad')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'governance.retry' })).toBeTruthy();
+    expect(screen.queryByText('governance.voteFlexibleNoVp')).toBeNull();
+    const confirm = screen.getByRole('button', { name: 'governance.voteModalConfirm' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('retries lock-gated fetch when retry is clicked', async () => {
+    getUserVotingPowerLockedBeyond.mockRejectedValueOnce(new Error('rpc down'));
+    getUserVotingPowerLockedBeyond.mockResolvedValueOnce(2_000_000_000n);
+
+    renderModal();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'governance.retry' })).toBeTruthy();
+    });
+
+    screen.getByRole('button', { name: 'governance.retry' }).click();
+
+    await waitFor(() => {
+      expect(getUserVotingPowerLockedBeyond).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('2.000000000 BURN')).toBeTruthy();
+    });
+
+    const confirm = screen.getByRole('button', { name: 'governance.voteModalConfirm' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+  });
 });
