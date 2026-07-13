@@ -12,7 +12,16 @@
     "copied": "Kopiert!",
     "unknown": "Unbekannt",
     "showPassword": "Passwort anzeigen",
-    "hidePassword": "Passwort ausblenden"
+    "hidePassword": "Passwort ausblenden",
+    "duration": {
+      "errorAboveMax": "Maximum ist {{max}}",
+      "errorBelowMin": "Minimum ist {{min}}",
+      "errorEmpty": "Geben Sie einen Wert ein",
+      "errorNaN": "Geben Sie eine gültige Zahl ein",
+      "unitDays": "T",
+      "unitHours": "Std.",
+      "unitMinutes": "Min."
+    }
   },
   "errors": {
     "rootTitle": "Etwas ist schiefgelaufen",
@@ -56,9 +65,9 @@
     "refreshRooms": "Räume aktualisieren",
     "refreshSessions": "Sitzungen aktualisieren",
     "scrollToTopRefresh": "Nach oben scrollen und aktualisieren",
-    "closeDialog": "Dialog schließen"
+    "closeDialog": "Dialog schließen",
+    "refreshWallet": "Wallet aktualisieren"
   },
-
   "help": {
     "common": {
       "trigger": "Was ist das?"
@@ -138,7 +147,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "Verschlüsselt & Verifiziert",
     "premiumTitle": "Premium-Nutzer",
@@ -330,6 +338,11 @@
     "viewer": {
       "saveToDevice": "Auf Gerät speichern",
       "close": "Schließen"
+    },
+    "save": {
+      "cancelled": "Speichern abgebrochen.",
+      "shareHint": "Wählen Sie im Teilen-Menü „In Dateien sichern“ oder Dateien, um die Datei zu speichern.",
+      "unavailable": "Diese Datei konnte nicht gespeichert werden. Versuchen Sie es erneut oder nutzen Sie eine andere App zum Teilen."
     }
   },
   "governance": {
@@ -471,7 +484,37 @@
     "targetGovernor": "Governor",
     "targetTreasury": "Treasury",
     "targetCustom": "Benutzerdefinierte Adresse",
-    "customAddressLabel": "Vertragsadresse"
+    "customAddressLabel": "Vertragsadresse",
+    "error": {
+      "connectWalletCreate": "Verbinden Sie Ihre Wallet, um einen Vorschlag zu erstellen.",
+      "connectWalletExecute": "Verbinden Sie Ihre Wallet, um einen Vorschlag auszuführen.",
+      "connectWalletQueue": "Verbinden Sie Ihre Wallet, um einen Vorschlag einzureihen.",
+      "connectWalletVote": "Verbinden Sie Ihre Wallet, um abzustimmen.",
+      "voteEndTimeRequired": "Zum Abstimmen ist das Enddatum des Vorschlags erforderlich."
+    },
+    "treasuryLockedHint": "Feste Protokoll-Treasury — Ausgabevorschläge zielen immer auf diesen Vertrag.",
+    "validation": {
+      "invalidAddress": "Geben Sie eine gültige TON-Adresse ein.",
+      "invalidAmount": "Geben Sie einen Betrag größer als null ein.",
+      "invalidArgs": "Argumentzelle muss gültiges Base64-BOC oder Hex sein.",
+      "invalidMethodId": "Methoden-ID muss eine nicht negative Zahl sein.",
+      "required": "Dieses Feld ist erforderlich.",
+      "treasuryMismatch": "Treasury-Adresse muss der Protokoll-Treasury entsprechen.",
+      "treasuryNotConfigured": "Treasury ist in dieser Umgebung nicht konfiguriert."
+    },
+    "voteConfirmed": "Stimme on-chain erfasst",
+    "voteConfirming": "On-Chain-Bestätigung…",
+    "voteConfirmingHint": "Ihre Wallet hat die Transaktion akzeptiert. Warten auf die On-Chain-Erfassung Ihrer Stimme.",
+    "voteFlexibleHint": "Staken Sie in einer gesperrten Stufe (Silber oder höher), die nach Ende dieses Vorschlags entsperrt wird.",
+    "voteFlexibleNoVp": "Flexibler Stake zählt nicht für Governance-Abstimmungen — nur für Belohnungen. Ihre Stimme würde nicht erfasst.",
+    "voteFlexibleOpenStaking": "Staking öffnen",
+    "voteNotOpenYet": "Die Abstimmung hat noch nicht begonnen",
+    "voteNotRecorded": "Stimme noch nicht on-chain erfasst. Prüfen Sie diesen Vorschlag in einigen Minuten erneut.",
+    "voteOpensIn": "Abstimmung beginnt in {{parts}}",
+    "voteSubmitted": "Transaktion gesendet — On-Chain-Bestätigung…",
+    "vpError": "Stimmkraft konnte nicht geladen werden.",
+    "vpLoading": "Stimmkraft wird geladen…",
+    "vpLockHint": "Aktueller Stake-Gesamtbetrag. Stimmgewicht basiert auf gesperrtem Stake (siehe Vorschlag für genaues Gewicht)."
   },
   "burnDialog": {
     "title": "Diesen Chat löschen?",
@@ -629,7 +672,8 @@
   },
   "pendingRequest": {
     "title": "Warte auf Antwort",
-    "cancelButton": "Anfrage abbrechen"
+    "cancelButton": "Anfrage abbrechen",
+    "errorRejected": "Ihre Chat-Anfrage wurde abgelehnt"
   },
   "userSearch": {
     "searching": "Suche...",
@@ -646,19 +690,16 @@
     },
     "walletUser": "Wallet-Nutzer"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Sitzung gelöscht",
     "backgroundBurnMessage": "Verschlüsselungsschlüssel wurden gelöscht, weil die App zu lange im Hintergrund blieb. Öffnen Sie den Raum aus der Liste — als Besitzer stellen Sie die Verschlüsselung manuell wieder her; als Mitglied warten Sie, bis der Besitzer den Schlüssel wiederherstellt."
   },
-
   "panic": {
     "countdown": "Alles wird in {{seconds}} verbrannt",
     "cancel": "Abbrechen",
     "toggle": "Panic-Geste",
     "toggleHint": "Langes Drücken auf das BurnedChats-Logo auf dem Startbildschirm verbrennt alle Daten. Sie haben 3 Sekunden zum Abbrechen."
   },
-
   "room": {
     "sectionMyRooms": "Meine Räume",
     "emptyRooms": "Noch keine Räume",
@@ -690,7 +731,9 @@
       "passwordGenerated": "Sicheres Passwort generiert und in die Zwischenablage kopiert!",
       "passwordGeneratedNoCopy": "Sicheres Passwort generiert. Bitte manuell kopieren.",
       "errorWeak": "Passwort ist zu schwach",
-      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut"
+      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut",
+      "nameLabel": "Raumname (optional)",
+      "namePlaceholder": "z. B. Projekt Alpha"
     },
     "join": {
       "title": "Raum beitreten",
@@ -707,7 +750,12 @@
       "errorAlreadyMember": "Sie sind bereits Mitglied dieses Raums",
       "errorRequestPending": "Ihre Beitrittsanfrage ist bereits ausstehend",
       "errorRejected": "Ihre Beitrittsanfrage wurde vom Besitzer abgelehnt",
-      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut"
+      "errorNetwork": "Netzwerkfehler. Bitte versuchen Sie es erneut",
+      "errorBanned": "Sie wurden aus diesem Raum ausgeschlossen",
+      "errorBannedHint": "Kontaktieren Sie den Raumbesitzer, wenn Sie Zugang benötigen",
+      "errorInviteExhausted": "Dieser Einladungslink ist nicht mehr aktiv",
+      "errorInviteExpired": "Dieser Einladungslink ist abgelaufen",
+      "errorInviteHint": "Bitten Sie den Raumbesitzer, einen neuen Link zu erstellen"
     },
     "requests": {
       "title": "Beitrittsanfragen",
@@ -736,7 +784,13 @@
       "encryptedTitle": "Ende-zu-Ende-verschlüsselt",
       "messagePlaceholder": "Nachricht an Raum...",
       "sendError": "Nachricht konnte nicht gesendet werden",
-      "keyLoadError": "Verschlüsselungsschlüssel konnte nicht geladen werden"
+      "keyLoadError": "Verschlüsselungsschlüssel konnte nicht geladen werden",
+      "decryptError": "Nachricht konnte nicht entschlüsselt werden",
+      "ephemeralBadge": "Selbstlöschende Nachrichten",
+      "errorMuted": "Sie wurden in diesem Raum stummgeschaltet und können keine Nachrichten senden",
+      "errorReadOnly": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten",
+      "mutedBanner": "Sie wurden stummgeschaltet und können keine Nachrichten senden",
+      "readOnlyBanner": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten"
     },
     "recovery": {
       "neededToast": "Verschlüsselungsschlüssel wurden gelöscht. Stellen Sie die Verschlüsselung wieder her, um fortzufahren.",
@@ -761,7 +815,88 @@
       "membersTitle": "Mitglieder",
       "membersEmpty": "Noch keine Mitglieder",
       "burnConfirmTitle": "Diesen Raum löschen?",
-      "burnConfirmText": "Dies wird den Raum und alle seine Nachrichten für alle dauerhaft löschen. Dies kann nicht rückgängig gemacht werden."
+      "burnConfirmText": "Dies wird den Raum und alle seine Nachrichten für alle dauerhaft löschen. Dies kann nicht rückgängig gemacht werden.",
+      "autoBurnIn": "Auto-Löschung in {{time}}",
+      "banConfirmButton": "Entfernen und sperren",
+      "banOption": "Dauerhaft sperren",
+      "banSuccess": "Mitglied aus dem Raum gesperrt",
+      "bannedEmpty": "Keine gesperrten Nutzer",
+      "bannedTitle": "Gesperrt",
+      "bansError": {
+        "INTERNAL_ERROR": "Gesperrte Nutzer konnten nicht geladen werden — bitte versuchen Sie es erneut",
+        "NOT_OWNER": "Nur der Raumbesitzer kann gesperrte Nutzer einsehen",
+        "PARSE_ERROR": "Gesperrte Nutzer konnten nicht geladen werden — bitte versuchen Sie es erneut",
+        "ROOM_NOT_FOUND": "Raum nicht gefunden",
+        "unknown": "Gesperrte Nutzer konnten nicht geladen werden"
+      },
+      "demoteAdmin": "Admin-Rechte entziehen",
+      "invitesEmpty": "Keine aktiven Einladungslinks",
+      "invitesMore": "{{count}} weitere",
+      "invitesTitle": "Einladungslinks",
+      "kickButton": "Entfernen",
+      "kickConfirmButton": "Aus dem Raum entfernen",
+      "kickConfirmDescription": "Die Person verliert sofort den Zugriff auf diesen Raum und seine Nachrichten.",
+      "kickConfirmTitle": "{{name}} aus dem Raum entfernen?",
+      "kickConfirmWarning": "Der Raumverschlüsselungsschlüssel wird nach der Entfernung erneuert.",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "Admins können andere Admins oder den Besitzer nicht entfernen",
+        "CANNOT_KICK_OWNER": "Der Raumbesitzer kann nicht entfernt werden",
+        "CANNOT_KICK_SELF": "Sie können sich nicht selbst entfernen — nutzen Sie stattdessen „Raum verlassen“",
+        "INTERNAL_ERROR": "Mitglied konnte nicht entfernt werden — bitte versuchen Sie es erneut",
+        "NOT_ADMIN_OR_OWNER": "Sie haben keine Berechtigung, Mitglieder zu entfernen",
+        "NOT_MEMBER": "Dieser Nutzer ist nicht mehr im Raum",
+        "NOT_OWNER": "Nur der Raumbesitzer kann Mitglieder entfernen",
+        "RATE_LIMITED": "Zu viele Anfragen — bitte versuchen Sie es später erneut",
+        "ROOM_NOT_FOUND": "Raum nicht gefunden",
+        "unknown": "Mitglied konnte nicht entfernt werden"
+      },
+      "kickSuccess": "Mitglied aus dem Raum entfernt",
+      "lastSeen": "Zuletzt gesehen vor {{time}}",
+      "memberFallback": "{{id}}",
+      "memberYou": "Sie",
+      "msgTtlCustomApply": "Anwenden",
+      "msgTtlCustomLabel": "Nachrichtenlebensdauer",
+      "msgTtlPreset1h": "1 Stunde",
+      "msgTtlPreset24h": "24 Stunden",
+      "msgTtlPreset5m": "5 Min.",
+      "msgTtlPresetCustom": "Benutzerdefiniert",
+      "msgTtlPresetOff": "Aus",
+      "msgTtlTitle": "Nachrichten-Timer",
+      "muteButton": "Stummschalten",
+      "nameLabel": "Raumname",
+      "namePlaceholder": "Raumnamen eingeben…",
+      "online": "Online",
+      "onlineCount": "{{count}} online",
+      "promoteAdmin": "Zum Admin ernennen",
+      "readOnlyHint": "Wenn aktiviert, können nur Besitzer und Admins Nachrichten senden",
+      "readOnlyHintModerator": "Wenn aktiviert, können nur Besitzer und Admins Nachrichten senden",
+      "readOnlyToggle": "Schreibgeschützter Modus",
+      "relativeDays": "{{count}} T",
+      "relativeHours": "{{count}} Std.",
+      "relativeJustNow": "gerade eben",
+      "relativeMinutes": "{{count}} Min.",
+      "renameButton": "Umbenennen",
+      "renameError": "Raumname konnte nicht aktualisiert werden",
+      "renameSave": "Name speichern",
+      "renameSuccess": "Raumname aktualisiert",
+      "roleAdmin": "Admin",
+      "roleOwner": "Besitzer",
+      "transferConfirmButton": "Besitz übertragen",
+      "transferConfirmDescription": "Die Person wird Raumbesitzer mit voller Kontrolle. Sie werden Admin und verlieren besitzerexklusive Aktionen.",
+      "transferConfirmTitle": "Besitz an {{name}} übertragen?",
+      "transferConfirmWarning": "Dies kann von Ihrer Seite nicht rückgängig gemacht werden. Nur der neue Besitzer kann den Besitz zurückübertragen.",
+      "transferOwnership": "Besitz übertragen",
+      "ttlCustomApply": "Anwenden",
+      "ttlCustomLabel": "Benutzerdefinierte Lebensdauer",
+      "ttlPreset1h": "1 Stunde",
+      "ttlPreset24h": "24 Stunden",
+      "ttlPreset30d": "30 Tage",
+      "ttlPreset7d": "7 Tage",
+      "ttlPresetCustom": "Benutzerdefiniert",
+      "ttlPresetNone": "Keine Auto-Löschung",
+      "ttlTitle": "Raumlebensdauer",
+      "unbanButton": "Entsperren",
+      "unmuteButton": "Stummschaltung aufheben"
     },
     "burn": {
       "title": "Diesen Raum löschen?",
@@ -774,7 +909,40 @@
       "description": "Sie haben dann keinen Zugriff mehr auf die Nachrichten dieses Raums.",
       "warning": "Der Raum-Verschlüsselungsschlüssel wird nach Ihrem Austritt erneuert.",
       "confirmButton": "Verlassen"
-    }
+    },
+    "invite": {
+      "createButton": "Link erstellen",
+      "createExpiry1h": "1 Stunde",
+      "createExpiry24h": "24 Stunden",
+      "createExpiry7d": "7 Tage",
+      "createExpiryCustom": "Benutzerdefiniert",
+      "createExpiryLabel": "Läuft ab nach",
+      "createExpiryNone": "Kein Limit",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "Benutzerdefiniert",
+      "createLimitLabel": "Nutzungslimit",
+      "createLimitUnlimited": "∞",
+      "createTitle": "Link erstellen",
+      "expiresIn": "Läuft ab in {{time}}",
+      "expiryCustomLabel": "Benutzerdefiniertes Ablaufdatum",
+      "limitCustomLabel": "Benutzerdefiniertes Nutzungslimit",
+      "limitErrorAboveMax": "Maximum ist {{max}}",
+      "limitErrorBelowMin": "Minimum ist {{min}}",
+      "limitErrorEmpty": "Geben Sie ein Nutzungslimit ein",
+      "limitErrorNaN": "Geben Sie eine gültige Zahl ein",
+      "limitErrorNotInteger": "Verwenden Sie eine ganze Zahl",
+      "revoke": "Widerrufen",
+      "usesLeft": "{{used}}/{{max}} Nutzungen",
+      "usesUnlimited": "{{used}} Nutzungen · unbegrenzt"
+    },
+    "kicked": {
+      "message": "Sie wurden aus dem Raum entfernt",
+      "offlineMessage": "Sie haben keinen Zugriff mehr auf diesen Raum",
+      "title": "Aus dem Raum entfernt"
+    },
+    "subscribeDenied": "Sie haben keinen Zugriff mehr auf diesen Raum"
   },
   "sessionCard": {
     "statusPending": "Ausstehend...",
@@ -1122,9 +1290,9 @@
       "modalDay": "≈ {{amount}} / Tag",
       "modalMonth": "≈ {{amount}} / Monat",
       "modalYear": "≈ {{amount}} / Jahr"
-    }
+    },
+    "stakeNetWithFee": "Wird gestakt: ≈{{net}} (1 % Überweisungsgebühr: {{fee}})"
   },
-
   "antispam": {
     "pow": {
       "securing": "Sichern Ihrer Anfrage…",
@@ -1141,7 +1309,6 @@
       "retry": "Erneut versuchen"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "Verifizierung wurde abgelehnt. Bitte versuchen Sie es erneut.",
@@ -1151,7 +1318,6 @@
       "failed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
     }
   },
-
   "joinLanding": {
     "title": "Sie wurden in einen Raum eingeladen",
     "subtitle": "Wählen Sie, wie Sie beitreten möchten",
