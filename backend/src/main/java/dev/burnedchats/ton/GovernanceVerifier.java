@@ -269,19 +269,7 @@ public class GovernanceVerifier {
     }
 
     private static BigInteger parseNum(JsonNode item) {
-        String raw;
-        if (item.isArray() && item.size() >= 2) {
-            raw = item.get(1).asText();
-        } else if (item.has("value")) {
-            raw = item.get("value").asText();
-        } else {
-            raw = item.asText();
-        }
-        raw = raw.trim();
-        if (raw.startsWith("0x") || raw.startsWith("0X")) {
-            return new BigInteger(raw.substring(2), 16);
-        }
-        return new BigInteger(raw);
+        return TonCenterStack.parseNum(item);
     }
 
     private static String cellBase64(JsonNode stackEntry) {

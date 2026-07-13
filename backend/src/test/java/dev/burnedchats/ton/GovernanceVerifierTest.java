@@ -187,8 +187,9 @@ class GovernanceVerifierTest {
                         case "get_proposal_count" -> json(okExitNumStack(List.of(BigInteger.valueOf(2))));
                         case "get_proposal_state" -> proposalState(parseFirstUintArg(body));
                         case "get_proposal" -> json(okExitSliceStack(List.of(addrBoc(STAKER))));
-                        case "has_voted" -> json(
-                                okExitNumStack(List.of(hasVotedAlways ? BigInteger.ONE.negate() : BigInteger.ZERO)));
+                        case "has_voted" -> hasVotedAlways
+                                ? json("{\"ok\":true,\"result\":{\"exit_code\":0,\"stack\":[[\"num\",\"-0x1\"]]}}")
+                                : json(okExitNumStack(List.of(BigInteger.ZERO)));
                         case "get_proposal_type" -> json(okExitNumStack(List.of(BigInteger.ONE)));
                         case "get_proposer" -> json(okExitSliceStack(List.of(addrBoc(STAKER))));
                         case "get_payload" -> json(okExitCellStack(List.of(featurePriorityPayloadBase64)));
