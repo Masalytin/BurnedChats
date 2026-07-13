@@ -12,6 +12,15 @@
     "date": {
       "today": "Aujourd'hui",
       "yesterday": "Hier"
+    },
+    "duration": {
+      "errorAboveMax": "Le maximum est {{max}}",
+      "errorBelowMin": "Le minimum est {{min}}",
+      "errorEmpty": "Saisissez une valeur",
+      "errorNaN": "Saisissez un nombre valide",
+      "unitDays": "j",
+      "unitHours": "h",
+      "unitMinutes": "min"
     }
   },
   "status": {
@@ -47,9 +56,9 @@
     "refreshRooms": "Actualiser les salons",
     "refreshSessions": "Actualiser les sessions",
     "scrollToTopRefresh": "Faire défiler vers le haut et actualiser",
-    "closeDialog": "Fermer la boîte de dialogue"
+    "closeDialog": "Fermer la boîte de dialogue",
+    "refreshWallet": "Actualiser le portefeuille"
   },
-
   "help": {
     "common": {
       "trigger": "Qu'est-ce que c'est ?"
@@ -129,7 +138,6 @@
       }
     }
   },
-
   "chat": {
     "verifiedTitle": "Chiffré et Vérifié",
     "burnButtonLabel": "Détruire la discussion",
@@ -369,7 +377,8 @@
   },
   "pendingRequest": {
     "title": "En attente de réponse",
-    "cancelButton": "Annuler la Demande"
+    "cancelButton": "Annuler la Demande",
+    "errorRejected": "Votre demande de discussion a été refusée"
   },
   "userSearch": {
     "searching": "Recherche...",
@@ -386,19 +395,16 @@
     },
     "walletUser": "Utilisateur portefeuille"
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Session détruite",
     "backgroundBurnMessage": "Les clés de chiffrement ont été effacées car l'application est restée trop longtemps en arrière-plan. Ouvrez le salon depuis la liste — en tant que propriétaire, restaurez le chiffrement manuellement ; en tant que membre, attendez que le propriétaire restaure la clé."
   },
-
   "panic": {
     "countdown": "Tout sera brûlé dans {{seconds}}",
     "cancel": "Annuler",
     "toggle": "Geste panique",
     "toggleHint": "Appui long sur le logo BurnedChats sur l'écran d'accueil pour brûler toutes les données. Vous avez 3 secondes pour annuler."
   },
-
   "room": {
     "sectionMyRooms": "Mes Salons",
     "emptyRooms": "Aucun salon pour l'instant",
@@ -430,7 +436,9 @@
       "passwordGenerated": "Mot de passe fort généré et copié dans le presse-papiers !",
       "passwordGeneratedNoCopy": "Mot de passe fort généré. Copiez-le manuellement.",
       "errorWeak": "Le mot de passe est trop faible",
-      "errorNetwork": "Erreur réseau. Veuillez réessayer"
+      "errorNetwork": "Erreur réseau. Veuillez réessayer",
+      "nameLabel": "Nom du salon (facultatif)",
+      "namePlaceholder": "p. ex. Projet Alpha"
     },
     "join": {
       "title": "Rejoindre le Salon",
@@ -447,7 +455,12 @@
       "errorAlreadyMember": "Vous êtes déjà membre de ce salon",
       "errorRequestPending": "Votre demande de rejoindre est déjà en attente",
       "errorRejected": "Votre demande de rejoindre a été refusée par le propriétaire",
-      "errorNetwork": "Erreur réseau. Veuillez réessayer"
+      "errorNetwork": "Erreur réseau. Veuillez réessayer",
+      "errorBanned": "Vous avez été exclu de ce salon",
+      "errorBannedHint": "Contactez le propriétaire du salon si vous avez besoin d'un accès",
+      "errorInviteExhausted": "Ce lien d'invitation n'est plus actif",
+      "errorInviteExpired": "Ce lien d'invitation a expiré",
+      "errorInviteHint": "Demandez au propriétaire du salon de créer un nouveau lien"
     },
     "requests": {
       "title": "Demandes de Rejoindre",
@@ -476,7 +489,13 @@
       "ownerRekeyingHint": "Distribution de la clé aux membres du salon",
       "requestingKey": "Demande de la clé de chiffrement au propriétaire du salon...",
       "retryKey": "Réessayer",
-      "sendError": "Échec de l'envoi du message"
+      "sendError": "Échec de l'envoi du message",
+      "decryptError": "Impossible de déchiffrer le message",
+      "ephemeralBadge": "Messages éphémères",
+      "errorMuted": "Vous avez été mis en sourdine dans ce salon et ne pouvez pas envoyer de messages",
+      "errorReadOnly": "Ce salon est en lecture seule — seul le propriétaire peut publier",
+      "mutedBanner": "Vous avez été mis en sourdine et ne pouvez pas envoyer de messages",
+      "readOnlyBanner": "Ce salon est en lecture seule — seul le propriétaire peut publier"
     },
     "recovery": {
       "neededToast": "Les clés de chiffrement ont été effacées. Restaurez le chiffrement pour continuer.",
@@ -501,7 +520,88 @@
       "membersTitle": "Membres",
       "membersEmpty": "Aucun membre pour l'instant",
       "burnConfirmTitle": "Détruire ce salon ?",
-      "burnConfirmText": "Cela détruira définitivement le salon et tous ses messages pour tout le monde. Cela est irréversible."
+      "burnConfirmText": "Cela détruira définitivement le salon et tous ses messages pour tout le monde. Cela est irréversible.",
+      "autoBurnIn": "Auto-destruction dans {{time}}",
+      "banConfirmButton": "Retirer et bloquer",
+      "banOption": "Bloquer définitivement",
+      "banSuccess": "Membre bloqué dans le salon",
+      "bannedEmpty": "Aucun utilisateur bloqué",
+      "bannedTitle": "Bloqués",
+      "bansError": {
+        "INTERNAL_ERROR": "Impossible de charger les utilisateurs bloqués — veuillez réessayer",
+        "NOT_OWNER": "Seul le propriétaire du salon peut voir les utilisateurs bloqués",
+        "PARSE_ERROR": "Impossible de charger les utilisateurs bloqués — veuillez réessayer",
+        "ROOM_NOT_FOUND": "Salon introuvable",
+        "unknown": "Impossible de charger les utilisateurs bloqués"
+      },
+      "demoteAdmin": "Retirer les droits admin",
+      "invitesEmpty": "Aucun lien d'invitation actif",
+      "invitesMore": "{{count}} de plus",
+      "invitesTitle": "Liens d'invitation",
+      "kickButton": "Retirer",
+      "kickConfirmButton": "Retirer du salon",
+      "kickConfirmDescription": "La personne perdra immédiatement l'accès à ce salon et à ses messages.",
+      "kickConfirmTitle": "Retirer {{name}} du salon ?",
+      "kickConfirmWarning": "La clé de chiffrement du salon sera renouvelée après le retrait.",
+      "kickError": {
+        "CANNOT_KICK_ADMIN": "Les admins ne peuvent pas retirer d'autres admins ou le propriétaire",
+        "CANNOT_KICK_OWNER": "Le propriétaire du salon ne peut pas être retiré",
+        "CANNOT_KICK_SELF": "Vous ne pouvez pas vous retirer vous-même — utilisez Quitter le salon",
+        "INTERNAL_ERROR": "Impossible de retirer le membre — veuillez réessayer",
+        "NOT_ADMIN_OR_OWNER": "Vous n'avez pas la permission de retirer des membres",
+        "NOT_MEMBER": "Cet utilisateur n'est plus dans le salon",
+        "NOT_OWNER": "Seul le propriétaire du salon peut retirer des membres",
+        "RATE_LIMITED": "Trop de requêtes — veuillez réessayer plus tard",
+        "ROOM_NOT_FOUND": "Salon introuvable",
+        "unknown": "Impossible de retirer le membre"
+      },
+      "kickSuccess": "Membre retiré du salon",
+      "lastSeen": "Vu pour la dernière fois il y a {{time}}",
+      "memberFallback": "{{id}}",
+      "memberYou": "Vous",
+      "msgTtlCustomApply": "Appliquer",
+      "msgTtlCustomLabel": "Durée de vie des messages",
+      "msgTtlPreset1h": "1 heure",
+      "msgTtlPreset24h": "24 heures",
+      "msgTtlPreset5m": "5 min",
+      "msgTtlPresetCustom": "Personnalisé",
+      "msgTtlPresetOff": "Désactivé",
+      "msgTtlTitle": "Minuteur des messages",
+      "muteButton": "Mettre en sourdine",
+      "nameLabel": "Nom du salon",
+      "namePlaceholder": "Saisissez un nom de salon…",
+      "online": "En ligne",
+      "onlineCount": "{{count}} en ligne",
+      "promoteAdmin": "Nommer admin",
+      "readOnlyHint": "Si activé, seuls les propriétaires et admins peuvent envoyer des messages",
+      "readOnlyHintModerator": "Si activé, seuls les propriétaires et admins peuvent envoyer des messages",
+      "readOnlyToggle": "Mode lecture seule",
+      "relativeDays": "{{count}} j",
+      "relativeHours": "{{count}} h",
+      "relativeJustNow": "à l'instant",
+      "relativeMinutes": "{{count}} min",
+      "renameButton": "Renommer",
+      "renameError": "Impossible de mettre à jour le nom du salon",
+      "renameSave": "Enregistrer le nom",
+      "renameSuccess": "Nom du salon mis à jour",
+      "roleAdmin": "Admin",
+      "roleOwner": "Propriétaire",
+      "transferConfirmButton": "Transférer la propriété",
+      "transferConfirmDescription": "La personne deviendra propriétaire du salon avec un contrôle total. Vous deviendrez admin et perdrez les actions réservées au propriétaire.",
+      "transferConfirmTitle": "Transférer la propriété à {{name}} ?",
+      "transferConfirmWarning": "Cela ne peut pas être annulé de votre côté. Seul le nouveau propriétaire peut transférer la propriété en retour.",
+      "transferOwnership": "Transférer la propriété",
+      "ttlCustomApply": "Appliquer",
+      "ttlCustomLabel": "Durée de vie personnalisée",
+      "ttlPreset1h": "1 heure",
+      "ttlPreset24h": "24 heures",
+      "ttlPreset30d": "30 jours",
+      "ttlPreset7d": "7 jours",
+      "ttlPresetCustom": "Personnalisé",
+      "ttlPresetNone": "Pas d'auto-destruction",
+      "ttlTitle": "Durée de vie du salon",
+      "unbanButton": "Débloquer",
+      "unmuteButton": "Réactiver le son"
     },
     "burn": {
       "title": "Détruire ce salon ?",
@@ -514,7 +614,40 @@
       "description": "Vous n'aurez plus accès aux messages de ce salon.",
       "warning": "La clé de chiffrement du salon sera changée après votre départ.",
       "confirmButton": "Quitter"
-    }
+    },
+    "invite": {
+      "createButton": "Créer un lien",
+      "createExpiry1h": "1 heure",
+      "createExpiry24h": "24 heures",
+      "createExpiry7d": "7 jours",
+      "createExpiryCustom": "Personnalisé",
+      "createExpiryLabel": "Expire après",
+      "createExpiryNone": "Sans limite",
+      "createLimit1": "1",
+      "createLimit10": "10",
+      "createLimit5": "5",
+      "createLimitCustom": "Personnalisé",
+      "createLimitLabel": "Limite d'utilisation",
+      "createLimitUnlimited": "∞",
+      "createTitle": "Créer un lien",
+      "expiresIn": "Expire dans {{time}}",
+      "expiryCustomLabel": "Expiration personnalisée",
+      "limitCustomLabel": "Limite d'utilisation personnalisée",
+      "limitErrorAboveMax": "Le maximum est {{max}}",
+      "limitErrorBelowMin": "Le minimum est {{min}}",
+      "limitErrorEmpty": "Saisissez une limite d'utilisation",
+      "limitErrorNaN": "Saisissez un nombre valide",
+      "limitErrorNotInteger": "Utilisez un nombre entier",
+      "revoke": "Révoquer",
+      "usesLeft": "{{used}}/{{max}} utilisations",
+      "usesUnlimited": "{{used}} utilisations · illimité"
+    },
+    "kicked": {
+      "message": "Vous avez été retiré du salon",
+      "offlineMessage": "Vous n'avez plus accès à ce salon",
+      "title": "Retiré du salon"
+    },
+    "subscribeDenied": "Vous n'avez plus accès à ce salon"
   },
   "sessionCard": {
     "statusPending": "En attente...",
@@ -641,6 +774,11 @@
     "viewer": {
       "close": "Fermer",
       "saveToDevice": "Enregistrer sur l'appareil"
+    },
+    "save": {
+      "cancelled": "Enregistrement annulé.",
+      "shareHint": "Dans la feuille de partage, choisissez « Enregistrer dans Fichiers » ou Fichiers pour enregistrer le fichier.",
+      "unavailable": "Impossible d'enregistrer ce fichier. Réessayez ou utilisez une autre app pour le partager."
     }
   },
   "governance": {
@@ -782,7 +920,37 @@
     "voteSuccess": "Vote soumis",
     "votesSummary": "{{forAmount}} pour · {{againstAmount}} contre",
     "vpUnavailable": "Connectez le portefeuille pour voir le VP",
-    "yourVp": "Votre pouvoir de vote"
+    "yourVp": "Votre pouvoir de vote",
+    "error": {
+      "connectWalletCreate": "Connectez le portefeuille pour créer une proposition.",
+      "connectWalletExecute": "Connectez le portefeuille pour exécuter une proposition.",
+      "connectWalletQueue": "Connectez le portefeuille pour mettre en file d'attente une proposition.",
+      "connectWalletVote": "Connectez le portefeuille pour voter.",
+      "voteEndTimeRequired": "La date de fin de la proposition est requise pour voter."
+    },
+    "treasuryLockedHint": "Treasury protocolaire fixe — les propositions de dépense ciblent toujours ce contrat.",
+    "validation": {
+      "invalidAddress": "Saisissez une adresse TON valide.",
+      "invalidAmount": "Saisissez un montant supérieur à zéro.",
+      "invalidArgs": "La cellule d'arguments doit être un BOC Base64 ou hex valide.",
+      "invalidMethodId": "L'identifiant de méthode doit être un nombre positif ou nul.",
+      "required": "Ce champ est obligatoire.",
+      "treasuryMismatch": "L'adresse Treasury doit correspondre à la Treasury du protocole.",
+      "treasuryNotConfigured": "La Treasury n'est pas configurée dans cet environnement."
+    },
+    "voteConfirmed": "Vote enregistré on-chain",
+    "voteConfirming": "Confirmation on-chain…",
+    "voteConfirmingHint": "Votre portefeuille a accepté la transaction. En attente de l'enregistrement du vote on-chain.",
+    "voteFlexibleHint": "Stakez dans un palier verrouillé (Silver ou supérieur) qui se déverrouille après la fin de cette proposition.",
+    "voteFlexibleNoVp": "Le stake flexible ne compte pas pour les votes governance — uniquement pour les récompenses. Votre vote ne serait pas enregistré.",
+    "voteFlexibleOpenStaking": "Ouvrir le staking",
+    "voteNotOpenYet": "Le vote n'a pas encore commencé",
+    "voteNotRecorded": "Vote pas encore enregistré on-chain. Vérifiez cette proposition dans quelques minutes.",
+    "voteOpensIn": "Le vote commence dans {{parts}}",
+    "voteSubmitted": "Transaction envoyée — confirmation on-chain…",
+    "vpError": "Impossible de charger le pouvoir de vote.",
+    "vpLoading": "Chargement du pouvoir de vote…",
+    "vpLockHint": "Total de stake en direct. Le poids du vote utilise le stake verrouillé (voir la proposition pour le poids exact)."
   },
   "nav": {
     "home": "Accueil",
@@ -995,7 +1163,8 @@
     "unstakeOverStake": "Le montant dépasse votre stake.",
     "unstakeSigning": "Confirmez dans votre portefeuille…",
     "unstakeTitle": "Unstake {{tier}}",
-    "walletBalance": "Solde du portefeuille : {{amount}}"
+    "walletBalance": "Solde du portefeuille : {{amount}}",
+    "stakeNetWithFee": "Sera staké : ≈{{net}} (frais de transfert 1 % : {{fee}})"
   },
   "wallet": {
     "amountSliderAria": "Montant en pourcentage de votre solde",
@@ -1124,7 +1293,6 @@
     "supportedWallets": "Tonkeeper, MyTonWallet, Telegram @wallet — via QR ou deep link",
     "title": "Burned Chats"
   },
-
   "antispam": {
     "pow": {
       "securing": "Sécurisation de votre requête…",
@@ -1141,7 +1309,6 @@
       "retry": "Réessayer"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "La vérification a été rejetée. Veuillez réessayer.",
@@ -1151,7 +1318,6 @@
       "failed": "Échec de la vérification. Veuillez réessayer."
     }
   },
-
   "joinLanding": {
     "title": "Vous êtes invité dans une salle",
     "subtitle": "Choisissez comment rejoindre",
