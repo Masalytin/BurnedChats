@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import './Avatar.css';
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -13,20 +14,28 @@ interface AvatarProps {
  * User avatar component with fallback to initials
  */
 export function Avatar({ src, name, size = 'md', className = '' }: AvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const initials = getInitials(name);
   const backgroundColor = getColorFromName(name);
+  const showImage = Boolean(src) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
 
   return (
     <div 
       className={`avatar avatar--${size} ${className}`}
-      style={{ backgroundColor: src ? undefined : backgroundColor }}
+      style={{ backgroundColor: showImage ? undefined : backgroundColor }}
     >
-      {src ? (
+      {showImage ? (
         <img 
-          src={src} 
+          src={src!} 
           alt={name} 
           className="avatar-image" 
           loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
         />
       ) : (
         <span className="avatar-initials">{initials}</span>

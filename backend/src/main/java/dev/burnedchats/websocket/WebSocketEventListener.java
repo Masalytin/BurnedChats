@@ -260,15 +260,17 @@ public class WebSocketEventListener {
      * @param principal the Telegram principal
      */
     private void cacheUserInfo(TelegramPrincipal principal) {
+        TelegramUser initUser = principal.getInitData().getUser();
         TelegramUser user = TelegramUser.builder()
                 .id(principal.getUserId())
                 .username(principal.getUsername())
                 .firstName(principal.getFirstName())
                 .lastName(principal.getLastName())
+                .photoUrl(initUser != null ? initUser.getPhotoUrl() : null)
                 .isPremium(principal.isPremium())
                 .build();
 
-        userRepository.save(user)
+        userRepository.save(user, principal.getInternalId())
                 .doOnSuccess(v -> LOG.debug("User {} cached", user.getId()))
                 .subscribe();
     }
