@@ -8,6 +8,7 @@ import {
   resetTonConnectUI,
   sendTonTransaction,
   serializeTonProofFromWallet,
+  subscribeTonConnectReset,
 } from '@/ton/connector';
 import type { TransactionMessage, TxResult } from '@/ton/types';
 
@@ -25,9 +26,17 @@ export interface UseTonConnectResult {
  */
 export function useTonConnect(): UseTonConnectResult {
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [connectEpoch, setConnectEpoch] = useState(0);
+
+  useEffect(() => subscribeTonConnectReset(() => {
+    setWallet(null);
+    setConnectEpoch((epoch) => epoch + 1);
+  }), []);
 
   useEffect(() => {
     const ui = getTonConnectUI();
+
+    setWallet(ui.wallet ?? null);
 
     const unsub = ui.onStatusChange(setWallet);
 
@@ -43,7 +52,7 @@ export function useTonConnect(): UseTonConnectResult {
     return () => {
       unsub();
     };
-  }, []);
+  }, [connectEpoch]);
 
   const walletAddress =
     wallet?.account !== undefined ? accountToFriendlyAddress(wallet.account) : null;
