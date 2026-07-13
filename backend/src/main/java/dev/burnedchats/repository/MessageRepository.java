@@ -237,6 +237,53 @@ public class MessageRepository {
     }
 
     /**
+     * Drop undeliverable offline message and edit queues for both DM participants when a session
+     * rekeys (new ECDH key K2 invalidates K1 ciphertext). Deletion tombstone queues are preserved.
+     *
+     * @param sessionId            the session ID
+     * @param initiatorInternalId  initiator internal ID
+     * @param responderInternalId  responder internal ID
+     * @return counts of messages and edits removed across both participants
+     */
+    public Mono<RekeyQueueDropCounts> dropStaleOfflineQueuesForRekey(
+            String sessionId, String initiatorInternalId, String responderInternalId) {
+        return dropStaleQueuesForParticipant(initiatorInternalId, sessionId)
+                .flatMap(initiatorCounts -> dropStaleQueuesForParticipant(responderInternalId, sessionId)
+                        .map(responderCounts -> new RekeyQueueDropCounts(
+                                initiatorCounts.messagesDropped() + responderCounts.messagesDropped(),
+                                initiatorCounts.editsDropped() + responderCounts.editsDropped())))
+                .doOnSuccess(counts -> {
+                    if (counts.messagesDropped() > 0) {
+                        offlineQueueMetrics.recordDroppedRekey(OfflineSessionType.dm, counts.messagesDropped());
+                    }
+                    if (counts.editsDropped() > 0) {
+                        offlineQueueMetrics.recordDroppedRekey(OfflineSessionType.dm_edit, counts.editsDropped());
+                    }
+                    if (counts.messagesDropped() > 0 || counts.editsDropped() > 0) {
+                        LOG.info(
+                                "Dropped stale offline queues on DM rekey: sessionId={}, messages={}, edits={}",
+                                sessionId, counts.messagesDropped(), counts.editsDropped());
+                    }
+                });
+    }
+
+    /**
+     * Counts of messages and edits removed from offline queues during DM rekey.
+     */
+    public record RekeyQueueDropCounts(long messagesDropped, long editsDropped) { }
+
+    private Mono<RekeyQueueDropCounts> dropStaleQueuesForParticipant(String participantInternalId, String sessionId) {
+        String messagesKey = keyFor(participantInternalId, sessionId);
+        String editsKey = editsKeyFor(participantInternalId, sessionId);
+
+        return redisTemplate.opsForList().size(messagesKey).defaultIfEmpty(0L)
+                .flatMap(messageCount -> redisTemplate.opsForList().size(editsKey).defaultIfEmpty(0L)
+                        .flatMap(editCount -> deleteMessages(participantInternalId, sessionId)
+                                .then(deleteEdits(participantInternalId, sessionId))
+                                .thenReturn(new RekeyQueueDropCounts(messageCount, editCount))));
+    }
+
+    /**
      * Delete all pending messages for a session (both participants).
      *
      * <p>Called when a session is burned.

@@ -423,6 +423,12 @@ a repeat request from the same participant **overwrites** their pending key in
 `burn()`). When both keys are already buffered — repeat is silently ignored (relay in progress).
 After successful relay keys are cleared, session → `ACTIVE`; for key refresh on `ACTIVE`
 the same overwrite-until-peer-responds principle applies + `KEY_REFRESH_NEEDED` to peer.
+When both keys are relayed for a session that was already `ACTIVE` (DM **rekey** after
+memory-only key burn / background timeout), the server **drops** both participants'
+offline `messages:{internalId}:{sessionId}` and `message-edits:{internalId}:{sessionId}`
+queues — K1 ciphertext is undeliverable after K2. Tombstone `message-deletions` queues
+are **not** dropped (plain message IDs). First handshake (`HANDSHAKE` → `ACTIVE`) does
+not drop queues. Delivery after rekey is the sender's responsibility (client resend).
 
 **Frontend:**
 ```typescript
@@ -663,6 +669,11 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 ```
 
 **Backend:** `MessageHandler` — `@MessageMapping("/message.sync")`, `SyncMessagesRequest`, `SyncMessagesEvent` on `/user/queue/sync-messages`, after send — delete key `messages:{userId}:{sessionId}`. List params: `burnedchats.messages.offline-queue` (see `DATA_MODELS.md`).
+
+**Rekey invalidation:** if the DM session rekeyed while messages were queued (recipient
+offline, keys burned client-side), those queued messages/edits were removed server-side
+during rekey — `message.sync` returns empty messages/edits for that epoch (deletions
+tombstones may still sync). Senders must resend under the new session key.
 
 ---
 

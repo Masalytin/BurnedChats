@@ -503,6 +503,40 @@ class MessageRepositoryTest {
     }
 
     @Nested
+    @DisplayName("dropStaleOfflineQueuesForRekey")
+    class DropStaleOfflineQueuesForRekey {
+
+        private static final String INITIATOR_ID = "initiator-int";
+        private static final String RESPONDER_ID = "responder-int";
+
+        @Test
+        @DisplayName("drops messages and edits for both participants")
+        void dropsMessagesAndEditsForBothParticipants() {
+            stubParticipantDrop(INITIATOR_ID, 2L, 1L);
+            stubParticipantDrop(RESPONDER_ID, 1L, 0L);
+
+            StepVerifier.create(messageRepository.dropStaleOfflineQueuesForRekey(
+                            TEST_SESSION_ID, INITIATOR_ID, RESPONDER_ID))
+                    .expectNextMatches(counts -> counts.messagesDropped() == 3L && counts.editsDropped() == 1L)
+                    .verifyComplete();
+        }
+
+        private void stubParticipantDrop(String recipientId, long messageCount, long editCount) {
+            String msgKey = "messages:" + recipientId + ":" + TEST_SESSION_ID;
+            String editKey = "message-edits:" + recipientId + ":" + TEST_SESSION_ID;
+            String countKey = "messages:count:" + recipientId;
+
+            when(listOperations.size(msgKey)).thenReturn(Mono.just(messageCount));
+            when(listOperations.size(editKey)).thenReturn(Mono.just(editCount));
+            when(redisTemplate.delete(msgKey)).thenReturn(Mono.just(messageCount > 0 ? 1L : 0L));
+            when(redisTemplate.delete(editKey)).thenReturn(Mono.just(editCount > 0 ? 1L : 0L));
+            if (messageCount > 0) {
+                when(valueOperations.decrement(countKey, messageCount)).thenReturn(Mono.just(0L));
+            }
+        }
+    }
+
+    @Nested
     @DisplayName("Tombstone queue caps (50)")
     class TombstoneQueueCaps {
 

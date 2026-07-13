@@ -20,6 +20,7 @@ public class OfflineQueueMetrics {
     public static final String METRIC_ENQUEUED = "burnedchats.offline_queue.enqueued";
     public static final String METRIC_DROPPED = "burnedchats.offline_queue.dropped_overflow";
     public static final String METRIC_DELIVERED = "burnedchats.offline_queue.delivered";
+    public static final String METRIC_DROPPED_REKEY = "burnedchats.offline_queue.dropped_rekey";
     public static final String METRIC_EXPIRED = "burnedchats.offline_queue.expired_messages";
     public static final String TAG_SESSION_TYPE = "session_type";
     public static final String METRIC_SIZE = "burnedchats.offline_queue.size";
@@ -38,6 +39,8 @@ public class OfflineQueueMetrics {
     private final Counter deliveredRoom;
     private final Counter deliveredDmEdit;
     private final Counter deliveredDmDeletion;
+    private final Counter droppedRekeyDm;
+    private final Counter droppedRekeyDmEdit;
     private final Counter expiredMessagesDm;
     private final Counter expiredMessagesRoom;
     private final AtomicLong sizeGaugeDm = new AtomicLong(0L);
@@ -72,6 +75,14 @@ public class OfflineQueueMetrics {
         this.deliveredDmDeletion = Counter.builder(METRIC_DELIVERED)
                 .description("DM tombstone deletions delivered via sync and removed from Redis")
                 .tag(TAG_SESSION_TYPE, OfflineSessionType.dm_deletion.name())
+                .register(registry);
+        this.droppedRekeyDm = Counter.builder(METRIC_DROPPED_REKEY)
+                .description("DM messages dropped because session rekeyed (K1 queue undeliverable)")
+                .tag(TAG_SESSION_TYPE, OfflineSessionType.dm.name())
+                .register(registry);
+        this.droppedRekeyDmEdit = Counter.builder(METRIC_DROPPED_REKEY)
+                .description("DM tombstone edits dropped because session rekeyed")
+                .tag(TAG_SESSION_TYPE, OfflineSessionType.dm_edit.name())
                 .register(registry);
         this.expiredMessagesDm = Counter.builder(METRIC_EXPIRED)
                 .description("Messages lost to Redis key TTL, approximated from last known list size")
@@ -116,6 +127,19 @@ public class OfflineQueueMetrics {
             case dm_deletion -> deliveredDmDeletion.increment(messageCount);
             default -> {
                 throw new IllegalStateException("Unhandled offline session type: " + type);
+            }
+        }
+    }
+
+    public void recordDroppedRekey(OfflineSessionType type, long n) {
+        if (n <= 0) {
+            return;
+        }
+        switch (type) {
+            case dm -> droppedRekeyDm.increment(n);
+            case dm_edit -> droppedRekeyDmEdit.increment(n);
+            default -> {
+                throw new IllegalStateException("Unhandled offline session type for rekey drop: " + type);
             }
         }
     }

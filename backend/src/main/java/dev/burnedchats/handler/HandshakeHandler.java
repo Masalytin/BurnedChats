@@ -5,6 +5,7 @@ import dev.burnedchats.dto.request.PublicKeyRequest;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.messaging.StompUserMessenger;
+import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.security.AppPrincipal;
@@ -93,6 +94,7 @@ public class HandshakeHandler {
     private static final int MAX_KEY_LENGTH = 256;
 
     private final SessionRepository sessionRepository;
+    private final MessageRepository messageRepository;
     private final StompUserMessenger stompUserMessenger;
 
     /**
@@ -200,7 +202,13 @@ public class HandshakeHandler {
             LOG.info("Both public keys relayed: sessionId={}, initiator={}, responder={}",
                     sessionId, initiatorInternalId, responderInternalId);
 
-            return sessionRepository.clearPublicKeysAndSetActive(sessionId)
+            Mono<Void> dropStaleQueues = status == SessionStatus.ACTIVE
+                    ? messageRepository.dropStaleOfflineQueuesForRekey(
+                            sessionId, initiatorInternalId, responderInternalId).then()
+                    : Mono.empty();
+
+            return dropStaleQueues
+                    .then(sessionRepository.clearPublicKeysAndSetActive(sessionId))
                     .doOnSuccess(s -> LOG.info("Session {} is now ACTIVE", sessionId))
                     .then();
         }
