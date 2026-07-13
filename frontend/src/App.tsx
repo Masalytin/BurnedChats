@@ -3337,7 +3337,6 @@ function AppContent() {
           onRoomClick={handleRoomClick}
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
-          onTonWalletChromeNeeded={requestTelegramWalletChrome}
           panicBrandRef={panicBrandRef}
         />
 
