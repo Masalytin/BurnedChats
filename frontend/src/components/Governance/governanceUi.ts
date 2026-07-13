@@ -1,8 +1,22 @@
 import type { TFunction } from 'i18next';
 import { Address } from '@ton/core';
 
-import type { ProposalSummary } from '@/types/ton';
+import type { ProposalSummary, UserVote } from '@/types/ton';
 import { ProposalState } from '@/types/ton';
+
+/**
+ * Whether backend/chain reports the user has voted on this proposal.
+ * {@link UserVote.support} is often `null` — the proposal contract stores only `has_voted`.
+ */
+export function isOnChainVoteRecorded(vote: UserVote | null, expectedSupport: boolean): boolean {
+  if (vote === null) {
+    return false;
+  }
+  if (vote.support == null) {
+    return true;
+  }
+  return vote.support === expectedSupport;
+}
 
 const SEC_PER_DAY = 86_400;
 

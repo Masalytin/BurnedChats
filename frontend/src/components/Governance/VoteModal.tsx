@@ -7,14 +7,14 @@ import { useTonConnect } from '@/hooks/useTonConnect';
 import { getProposal, getUserVote, getUserVotingPowerLockedBeyond } from '@/ton/governance';
 import { formatBurn } from '@/utils/format';
 
-import { describeLockGatedVoteUx, formatStartsInRemaining } from './governanceUi';
+import { describeLockGatedVoteUx, formatStartsInRemaining, isOnChainVoteRecorded } from './governanceUi';
 import { useGovernanceState } from './GovernanceStateProvider';
 import styles from './Governance.module.css';
 
 /** Poll interval while waiting for on-chain vote indexing after TonConnect accept. */
-const VOTE_CONFIRM_POLL_MS = 4_000;
-/** Max poll attempts (~60 s) before surfacing an inconclusive outcome. */
-const VOTE_CONFIRM_MAX_ATTEMPTS = 15;
+const VOTE_CONFIRM_POLL_MS = 1_500;
+/** Max poll attempts (~30 s) before surfacing an inconclusive outcome. */
+const VOTE_CONFIRM_MAX_ATTEMPTS = 20;
 
 export type LockGatedVpState =
   | { status: 'loading' }
@@ -46,7 +46,7 @@ async function pollVoteRecorded(
     }
     try {
       const vote = await getUserVote(proposalId, address);
-      if (vote !== null && vote.support === support) {
+      if (isOnChainVoteRecorded(vote, support)) {
         return true;
       }
     } catch {
