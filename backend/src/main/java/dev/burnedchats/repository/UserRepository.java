@@ -90,13 +90,21 @@ public class UserRepository {
         String normalizedUsername = username.toLowerCase().replaceFirst("^@", "");
 
         return redisTemplate.keys(KEY_PREFIX + "*")
+                // Skip sub-namespaces like "user:deadman:*" — they hold non-hash values
+                // and HGETALL on them fails the whole scan with WRONGTYPE.
+                .filter(key -> key.indexOf(':', KEY_PREFIX.length()) < 0)
                 .flatMap(key -> redisTemplate.opsForHash().entries(key)
                         .collectMap(
                                 entry -> entry.getKey().toString(),
                                 entry -> entry.getValue().toString()
                         )
                         .filter(map -> !map.isEmpty())
-                        .map(this::mapToUser))
+                        .map(this::mapToUser)
+                        .onErrorResume(err -> {
+                            LOG.warn("Skipping unreadable user key '{}' during username scan: {}",
+                                    key, err.getMessage());
+                            return Mono.empty();
+                        }))
                 .filter(user -> user.getUsername() != null
                         && user.getUsername().toLowerCase().equals(normalizedUsername))
                 .next()
