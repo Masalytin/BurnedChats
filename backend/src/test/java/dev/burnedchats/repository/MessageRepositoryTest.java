@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.redis.core.ReactiveHashOperations;
 import org.springframework.data.redis.core.ReactiveListOperations;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
@@ -57,6 +58,9 @@ class MessageRepositoryTest {
     @Mock
     private ReactiveValueOperations<String, String> valueOperations;
 
+    @Mock
+    private ReactiveHashOperations<String, Object, Object> hashOperations;
+
     private MessageRepository messageRepository;
     private ObjectMapper objectMapper;
     private MessagesProperties messagesProperties;
@@ -76,6 +80,7 @@ class MessageRepositoryTest {
         objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         when(redisTemplate.opsForList()).thenReturn(listOperations);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         messagesProperties = new MessagesProperties();
         offlineQueueMetrics = new OfflineQueueMetrics(new SimpleMeterRegistry());
         messageRepository = new MessageRepository(redisTemplate, objectMapper, messagesProperties, offlineQueueMetrics);
@@ -533,6 +538,55 @@ class MessageRepositoryTest {
             if (messageCount > 0) {
                 when(valueOperations.decrement(countKey, messageCount)).thenReturn(Mono.just(0L));
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("putMessageSenderIndex")
+    class PutMessageSenderIndex {
+
+        private static final String SENDER_INTERNAL_ID = "sender-int";
+        private static final String SENDER_INDEX_KEY = "message-senders:" + TEST_SESSION_ID;
+
+        @Test
+        @DisplayName("returns true when field is created for the first time")
+        void returnsTrueOnFirstWrite() {
+            when(hashOperations.put(eq(SENDER_INDEX_KEY), eq(TEST_MESSAGE_ID), anyString()))
+                    .thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(SENDER_INDEX_KEY), any(Duration.class))).thenReturn(Mono.just(true));
+
+            StepVerifier.create(messageRepository.putMessageSenderIndex(
+                            TEST_SESSION_ID, TEST_MESSAGE_ID, SENDER_INTERNAL_ID, SENDER_ID))
+                    .expectNext(true)
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("returns true when field already exists (HSET update on resend after rekey)")
+        void returnsTrueWhenFieldAlreadyExists() {
+            // HSET replies 0 (false) when the field existed and was updated — the write succeeded.
+            // Regression: resend with the same messageId after DM rekey must not fail with
+            // INTERNAL_ERROR (IMP-OQR-02 resend flow).
+            when(hashOperations.put(eq(SENDER_INDEX_KEY), eq(TEST_MESSAGE_ID), anyString()))
+                    .thenReturn(Mono.just(false));
+            when(redisTemplate.expire(eq(SENDER_INDEX_KEY), any(Duration.class))).thenReturn(Mono.just(true));
+
+            StepVerifier.create(messageRepository.putMessageSenderIndex(
+                            TEST_SESSION_ID, TEST_MESSAGE_ID, SENDER_INTERNAL_ID, SENDER_ID))
+                    .expectNext(true)
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("returns false on Redis error")
+        void returnsFalseOnError() {
+            when(hashOperations.put(eq(SENDER_INDEX_KEY), eq(TEST_MESSAGE_ID), anyString()))
+                    .thenReturn(Mono.error(new RuntimeException("Redis error")));
+
+            StepVerifier.create(messageRepository.putMessageSenderIndex(
+                            TEST_SESSION_ID, TEST_MESSAGE_ID, SENDER_INTERNAL_ID, SENDER_ID))
+                    .expectNext(false)
+                    .verifyComplete();
         }
     }
 

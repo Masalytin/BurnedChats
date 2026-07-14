@@ -582,9 +582,13 @@ public class MessageRepository {
         }
         String key = senderIndexKey(sessionId);
         Duration ttl = messagesProperties.getSenderIndexTtl();
+        // HSET returns true only when the field is created for the first time. On a resend
+        // with the same messageId (e.g. sender resend after DM rekey, IMP-OQR-02) the field
+        // already exists, put() completes with false even though the write succeeded.
+        // Report success of the write itself; real failures surface via onErrorResume.
         return redisTemplate.opsForHash()
                 .put(key, messageId, value)
-                .flatMap(ok -> redisTemplate.expire(key, ttl).thenReturn(Boolean.TRUE.equals(ok)))
+                .flatMap(ok -> redisTemplate.expire(key, ttl).thenReturn(true))
                 .onErrorResume(e -> {
                     LOG.warn("putMessageSenderIndex failed: {}", e.getMessage());
                     return Mono.just(false);
