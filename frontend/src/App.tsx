@@ -15,10 +15,6 @@ import { useSession, type PendingSession } from './hooks/useSession';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake, MAX_HANDSHAKE_MANUAL_RETRIES, HANDSHAKE_RETRY_BASE_COOLDOWN_MS } from './hooks/useHandshake';
 import { useVerification } from './hooks/useVerification';
-import {
-  claimBothVerifiedToast,
-  forgetBothVerifiedToast,
-} from './utils/claimBothVerifiedToast';
 import { useBackButton } from './hooks/useBackButton';
 import { useActiveSessions, type ActiveSession } from './hooks/useActiveSessions';
 import { useCreateRoom, type RoomJoinMode } from './hooks/useCreateRoom';
@@ -428,27 +424,17 @@ function AppContent() {
     },
   });
 
-  /** Sessions that already showed bothVerified toast this runtime (false→true dedup) */
-  const bothVerifiedToastShownRef = useRef<Set<string>>(new Set());
-
   const {
     getStatus: getVerificationStatus,
     confirmVerification,
     reportMismatch,
     isFullyVerified,
-    clearStatus: clearVerificationStatusRaw,
+    clearStatus: clearVerificationStatus,
   } = useVerification({
     isConnected,
     subscribe,
     unsubscribe,
     publish,
-    onBothVerified: (sessionId) => {
-      if (!claimBothVerifiedToast(bothVerifiedToastShownRef.current, sessionId)) {
-        return;
-      }
-      notificationOccurred('success');
-      toast.success(t('verification.verifiedToast'));
-    },
     onMismatch: (sessionId) => {
       notificationOccurred('error');
       toast.error(t('verification.subtitleMismatch'), {
@@ -468,14 +454,6 @@ function AppContent() {
       }
     },
   });
-
-  const clearVerificationStatus = useCallback(
-    (sessionId: string) => {
-      forgetBothVerifiedToast(bothVerifiedToastShownRef.current, sessionId);
-      clearVerificationStatusRaw(sessionId);
-    },
-    [clearVerificationStatusRaw],
-  );
 
   /** Session burns deferred until WebSocket reconnects (offline cancel) */
   const pendingBurnsRef = useRef<Set<string>>(new Set());

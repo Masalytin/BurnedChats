@@ -304,8 +304,7 @@
     "waitingPeer": "En attente de la vérification du pair...",
     "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\".",
     "waitingLonger": "Cela prend plus de temps que d'habitude…",
-    "connectionLost": "Pas de connexion — votre confirmation n'a pas été envoyée.",
-    "verifiedToast": "Empreintes vérifiées"
+    "connectionLost": "Pas de connexion — votre confirmation n'a pas été envoyée."
   },
   "handshake": {
     "title": "Établissement d'une Connexion Sécurisée",

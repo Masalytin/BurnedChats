@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement, UserInfo } from '../../types';
 import type { VerificationStatus } from '../../hooks/useVerification';
@@ -61,7 +61,6 @@ export function VerificationView({
   const [isTakingLonger, setIsTakingLonger] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopic, setHelpTopic] = useState('verification.about');
-  const autoContinuedRef = useRef(false);
   const safetyNumber = useMemo(
     () => getFingerprint(sessionId) ?? null,
     [sessionId, fingerprint],
@@ -78,24 +77,6 @@ export function VerificationView({
     if (selfVerified) return 'waiting_peer';
     return 'pending';
   }, [mismatchReported, bothVerified, selfVerified]);
-
-  // C1 + C2 + re-entry: navigate on status change, not on Match tap (IMP-VFAST-01)
-  useEffect(() => {
-    autoContinuedRef.current = false;
-  }, [sessionId]);
-
-  useEffect(() => {
-    const shouldContinue =
-      (selfVerified || bothVerified) && !mismatchReported;
-    if (!shouldContinue) {
-      return;
-    }
-    if (autoContinuedRef.current) {
-      return;
-    }
-    autoContinuedRef.current = true;
-    onContinue();
-  }, [selfVerified, bothVerified, mismatchReported, onContinue]);
 
   useEffect(() => {
     if (viewState !== 'waiting_peer') {

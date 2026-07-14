@@ -599,8 +599,7 @@
     "waitingPeer": "Warte auf Verifizierung des Partners...",
     "helpText": "Bitten Sie Ihren Partner, seine Fingerabdruck-Symbole über einen Sprachanruf oder persönlich vorzulesen. Wenn sie übereinstimmen, drücken Sie \"Fingerabdruck stimmt überein\".",
     "waitingLonger": "Dauert länger als üblich…",
-    "connectionLost": "Keine Verbindung — Ihre Bestätigung wurde nicht gesendet.",
-    "verifiedToast": "Fingerabdrücke verifiziert"
+    "connectionLost": "Keine Verbindung — Ihre Bestätigung wurde nicht gesendet."
   },
   "handshake": {
     "title": "Sichere Verbindung wird hergestellt",

@@ -304,8 +304,7 @@
     "waitingPeer": "等待对方验证...",
     "helpText": "请对方通过电话或当面读出他们的指纹符号。如果匹配，请点击「指纹匹配」。",
     "waitingLonger": "比平时花费更长时间…",
-    "connectionLost": "无连接 — 您的确认未发送。",
-    "verifiedToast": "指纹已核对"
+    "connectionLost": "无连接 — 您的确认未发送。"
   },
   "handshake": {
     "title": "建立安全连接",

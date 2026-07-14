@@ -304,8 +304,7 @@
     "waitingPeer": "Esperando que el par verifique...",
     "helpText": "Pide a tu par que lea sus símbolos de huella digital por llamada de voz o en persona. Si coinciden, presiona \"La Huella Coincide\".",
     "waitingLonger": "Está tardando más de lo habitual…",
-    "connectionLost": "Sin conexión — tu confirmación no se envió.",
-    "verifiedToast": "Huellas verificadas"
+    "connectionLost": "Sin conexión — tu confirmación no se envió."
   },
   "handshake": {
     "title": "Estableciendo Conexión Segura",
