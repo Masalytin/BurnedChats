@@ -26,19 +26,6 @@ export type VerificationErrorCode =
   | 'CONNECTION_ERROR'      // WebSocket not connected
   | 'INTERNAL_ERROR';       // Server error
 
-/**
- * Server errors that mean confirm failed — roll back optimistic selfVerified.
- * INTERNAL_ERROR is included but only applied while a confirm is still pending
- * (see pendingConfirmRef); late echoes after server ack stay under IMP-CCVF-08.
- */
-const CONFIRM_ROLLBACK_ERROR_CODES: ReadonlySet<VerificationErrorCode> = new Set([
-  'SESSION_NOT_FOUND',
-  'SESSION_BURNED',
-  'SESSION_NOT_ACTIVE',
-  'SESSION_NOT_READY',
-  'INTERNAL_ERROR',
-]);
-
 /** Verification status for a session */
 export interface VerificationStatus {
   /** Session ID */
@@ -178,11 +165,6 @@ export function useVerification({
   // callback deps (which would re-create the STOMP subscription on every status change).
   const statusesRef = useRef<Map<string, VerificationStatus>>(statuses);
 
-  // Sessions with an in-flight confirm awaiting server ack (IMP-VFAST-02). Distinguishes
-  // a real confirm failure INTERNAL_ERROR from a late/duplicate echo after success
-  // (IMP-CCVF-08), because optimistic selfVerified alone would look "already verified".
-  const pendingConfirmRef = useRef<Set<string>>(new Set());
-
   const isSubscribedRef = useRef(false);
 
   // Callback refs for stable handlers (prevents subscription churn on every render).
@@ -234,12 +216,9 @@ export function useVerification({
       // Handle error response
       if (!data.success && data.error) {
         const errorCode = data.error as VerificationErrorCode;
-        const isConfirmPending =
-          !!data.sessionId && pendingConfirmRef.current.has(data.sessionId);
-
+        
         // Check for mismatch
         if (errorCode === 'FINGERPRINT_MISMATCH' && data.sessionId) {
-          pendingConfirmRef.current.delete(data.sessionId);
           updateStatus(data.sessionId, {
             mismatchReported: true,
             selfVerified: false,
@@ -254,9 +233,7 @@ export function useVerification({
         // a real failure, and must not surface a scary toast on a working chat. Only
         // INTERNAL_ERROR is filtered, and only after verification; CONNECTION_ERROR,
         // FINGERPRINT_MISMATCH and pre-confirmation INTERNAL_ERROR are untouched.
-        // Pending optimistic confirm is NOT "already verified" — that failure must roll back
-        // (IMP-VFAST-02).
-        if (errorCode === 'INTERNAL_ERROR' && data.sessionId && !isConfirmPending) {
+        if (errorCode === 'INTERNAL_ERROR' && data.sessionId) {
           const current = statusesRef.current.get(data.sessionId);
           if (current?.selfVerified || current?.bothVerified) {
             console.warn(
@@ -267,24 +244,12 @@ export function useVerification({
           }
         }
 
-        // Roll back optimistic selfVerified when the server rejects confirm.
-        if (
-          data.sessionId &&
-          CONFIRM_ROLLBACK_ERROR_CODES.has(errorCode) &&
-          (errorCode !== 'INTERNAL_ERROR' || isConfirmPending)
-        ) {
-          pendingConfirmRef.current.delete(data.sessionId);
-          updateStatus(data.sessionId, { selfVerified: false });
-        }
-
         onErrorRef.current?.(errorCode, data.sessionId);
         return;
       }
 
       // Update status
       if (data.sessionId) {
-        pendingConfirmRef.current.delete(data.sessionId);
-
         const updates: Partial<VerificationStatus> = {};
         
         if (data.verified !== undefined) {
@@ -350,8 +315,7 @@ export function useVerification({
 
     console.log('[useVerification] Confirming verification for session:', sessionId);
 
-    // Optimistically update local state; mark confirm pending until server ack/error
-    pendingConfirmRef.current.add(sessionId);
+    // Optimistically update local state
     updateStatus(sessionId, { selfVerified: true });
 
     // Send confirmation to server
@@ -371,8 +335,6 @@ export function useVerification({
     }
 
     console.warn('[useVerification] SECURITY: Reporting fingerprint mismatch for session:', sessionId);
-
-    pendingConfirmRef.current.delete(sessionId);
 
     // Update local state
     updateStatus(sessionId, { 
@@ -407,7 +369,6 @@ export function useVerification({
    * Clear status for a session.
    */
   const clearStatus = useCallback((sessionId: string) => {
-    pendingConfirmRef.current.delete(sessionId);
     setStatuses((prev) => {
       const newStatuses = new Map(prev);
       newStatuses.delete(sessionId);
