@@ -958,6 +958,7 @@
     "waitingPeer": "Waiting for peer to verify...",
     "waitingLonger": "Taking longer than usual…",
     "connectionLost": "No connection — your confirmation wasn't sent.",
+    "verifiedToast": "Fingerprints verified",
     "helpText": "Ask your peer to read their fingerprint symbols over a voice call or in person. If they match, press \"Fingerprint Matches\"."
   },
 
