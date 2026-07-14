@@ -519,10 +519,9 @@ public class MessageHandler {
                         serverTimestamp, fileId, thumbId)
                 .flatMap(metaOk -> {
                     if (!Boolean.TRUE.equals(metaOk)) {
+                        // Best-effort: missing edit meta only degrades edit/delete, not delivery.
                         LOG.warn("Failed to store editable meta for immediate delivery: sessionId={}, messageId={}",
                                 sessionId, messageId);
-                        sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
-                        return Mono.<Void>empty();
                     }
                     return messageRepository.putMessageSenderIndex(
                                     sessionId, messageId, sender.internalId(), sender.telegramId())
@@ -532,8 +531,6 @@ public class MessageHandler {
                                             "Failed to store sender index for immediate delivery: "
                                                     + "sessionId={}, messageId={}",
                                             sessionId, messageId);
-                                    sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
-                                    return Mono.empty();
                                 }
                                 stompUserMessenger.convertAndSendToInternalId(
                                         recipientInternalId, NEW_MESSAGE_DESTINATION, newMessageEvent);
@@ -578,10 +575,9 @@ public class MessageHandler {
                                     sender.telegramId(), serverTimestamp, fileId, thumbId)
                             .flatMap(metaOk -> {
                                 if (!Boolean.TRUE.equals(metaOk)) {
+                                    // Best-effort: message already queued; meta only gates edit/delete.
                                     LOG.warn("Failed to store editable meta for queued message: sessionId={}, "
                                             + "messageId={}", sessionId, messageId);
-                                    sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
-                                    return Mono.<Void>empty();
                                 }
                                 return messageRepository.putMessageSenderIndex(
                                                 sessionId, messageId, sender.internalId(), sender.telegramId())
@@ -589,8 +585,6 @@ public class MessageHandler {
                                             if (!Boolean.TRUE.equals(indexOk)) {
                                                 LOG.warn("Failed to store sender index for queued message: "
                                                         + "sessionId={}, messageId={}", sessionId, messageId);
-                                                sendError(sender, sessionId, messageId, "INTERNAL_ERROR");
-                                                return Mono.empty();
                                             }
                                             MessageSentEvent sentEvent = MessageSentEvent.queued(
                                                     sessionId, messageId, serverTimestamp);

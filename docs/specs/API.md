@@ -503,6 +503,14 @@ Before relay, the server verifies that `fileId` (and `thumbnailFileId`, if prese
 - Recipient: `/user/queue/new-message` — body as `NewMessageEvent` (incl. `senderInternalId`, `replyToMessageId?`, `type`, `fileId`, `thumbnailFileId`, `encryptedMeta`, `fileSize` for media).
 - Sender: `/user/queue/message-sent` — delivery acknowledgment.
 
+**Delivery vs edit metadata:** relay stores best-effort DM edit/delete metadata
+(`putDmMessageEditableMeta`, `putMessageSenderIndex`). A failure writing those keys
+does **not** abort delivery: the recipient still gets `new-message` (online) or the
+message stays queued (offline), and the sender still gets `message-sent` with
+`delivered` / `queued`. Edit/delete for that message may later return
+`NOT_EDITABLE` / `NOT_FOUND`. Failures of the offline queue itself still yield
+`QUEUE_FAILED` on `message-sent`.
+
 ```typescript
 client.subscribe('/user/queue/new-message', (message) => {
   const data = JSON.parse(message.body);
