@@ -463,9 +463,21 @@ function AppContent() {
       notificationOccurred('error');
       if (errorCode === 'CONNECTION_ERROR') {
         toast.error(t('verification.connectionLost'), { title: t('handshake.errorTitle') });
-      } else {
-        toast.error(`Verification failed: ${errorCode}`, { title: 'Error' });
+        return;
       }
+      // IMP-VFAST-02: confirm rejected after optimistic selfVerified — hook already rolled
+      // state back. Stay on current view (chat/verify); session is dead — exit via back/burn.
+      // Reuse handshake.errors.* (existing i18n) rather than new verification.* keys.
+      const message =
+        errorCode === 'SESSION_NOT_FOUND' ||
+        errorCode === 'SESSION_BURNED' ||
+        errorCode === 'SESSION_NOT_ACTIVE' ||
+        errorCode === 'SESSION_NOT_READY'
+          ? t('handshake.errors.SESSION_NOT_FOUND')
+          : errorCode === 'NOT_PARTICIPANT'
+            ? t('handshake.errors.NOT_PARTICIPANT')
+            : t('handshake.errors.DEFAULT');
+      toast.error(message, { title: t('handshake.errorTitle') });
     },
   });
 
