@@ -2,14 +2,9 @@ package dev.burnedchats.controller;
 
 import dev.burnedchats.controller.WalletController.BurnBalanceResponse;
 import dev.burnedchats.controller.WalletController.JettonWalletResponse;
-import dev.burnedchats.model.enums.StakingTier;
 import dev.burnedchats.ton.JettonService;
-import dev.burnedchats.ton.StakingVerifier;
-import dev.burnedchats.ton.dto.StakeInfo;
-import dev.burnedchats.ton.dto.UserStakingProfile;
 import dev.burnedchats.ton.exception.TonRpcException;
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,14 +26,12 @@ class WalletControllerTest {
             "EQBo3W19O92qLjdoYbERATFtQUh1Qp_NZJ6JU_lXyLnGUJT_";
 
     private JettonService jettonService;
-    private StakingVerifier stakingVerifier;
     private WalletController controller;
 
     @BeforeEach
     void setUp() {
         jettonService = mock(JettonService.class);
-        stakingVerifier = mock(StakingVerifier.class);
-        controller = new WalletController(jettonService, stakingVerifier);
+        controller = new WalletController(jettonService);
     }
 
     @Test
@@ -163,71 +156,6 @@ class WalletControllerTest {
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                     assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center jetton wallet error"));
-                })
-                .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("GET /api/wallet/staking-profile returns 200 with stakes")
-    void stakingProfileHappyPath() {
-        StakeInfo goldStake = new StakeInfo(
-                StakingTier.GOLD,
-                new BigInteger("10000000000"),
-                1_710_000_000L,
-                1_741_536_000L,
-                1_710_000_000L,
-                new BigInteger("123456"));
-        UserStakingProfile profile = new UserStakingProfile(
-                VALID_ADDRESS,
-                StakingTier.GOLD,
-                new BigInteger("10000000000"),
-                new BigInteger("20000000000"),
-                List.of(goldStake));
-        when(stakingVerifier.getStakingProfile(anyString())).thenReturn(Mono.just(profile));
-
-        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS))
-                .assertNext(resp -> {
-                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-                    assertThat(resp.getBody()).isInstanceOf(UserStakingProfile.class);
-                    UserStakingProfile body = (UserStakingProfile) resp.getBody();
-                    assertThat(body.address()).isEqualTo(VALID_ADDRESS);
-                    assertThat(body.highestTier()).isEqualTo(StakingTier.GOLD);
-                    assertThat(body.stakes()).hasSize(1);
-                    assertThat(body.stakes().getFirst().pendingRewards()).isEqualTo(new BigInteger("123456"));
-                })
-                .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("staking-profile missing address returns 400")
-    void stakingProfileMissingAddress() {
-        StepVerifier.create(controller.stakingProfile(null))
-                .assertNext(resp -> assertBadRequest(resp, "address is required"))
-                .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("staking-profile invalid address returns 400")
-    void stakingProfileInvalidAddress() {
-        StepVerifier.create(controller.stakingProfile("not-a-ton-address"))
-                .assertNext(resp -> {
-                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(resp.getBody()).isInstanceOf(Map.class);
-                    assertThat(((Map<?, ?>) resp.getBody()).get("message")).isNotNull();
-                })
-                .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("staking-profile Ton RPC failure returns 502")
-    void stakingProfileRpcFailure() {
-        when(stakingVerifier.getStakingProfile(anyString()))
-                .thenReturn(Mono.error(new TonRpcException("Ton Center staking error")));
-
-        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS))
-                .assertNext(resp -> {
-                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
-                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center staking error"));
                 })
                 .verifyComplete();
     }

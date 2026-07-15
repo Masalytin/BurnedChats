@@ -1,7 +1,6 @@
 package dev.burnedchats.controller;
 
 import dev.burnedchats.ton.JettonService;
-import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.TonAddressBoc;
 import dev.burnedchats.ton.exception.TonRpcException;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -24,7 +23,6 @@ import reactor.core.publisher.Mono;
 public class WalletController {
 
     private final JettonService jettonService;
-    private final StakingVerifier stakingVerifier;
 
     /**
      * BURN jetton balance in nano units (decimal string). Public read; no auth.
@@ -68,30 +66,6 @@ public class WalletController {
                 .resolveJettonWallet(trimmed)
                 .map(jw -> ResponseEntity.<Object>ok(new JettonWalletResponse(jw, trimmed)))
                 .switchIfEmpty(Mono.just(ResponseEntity.<Object>ok(new JettonWalletResponse(null, trimmed))))
-                .onErrorResume(
-                        TonRpcException.class,
-                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
-                                .body(Map.of("message", e.getMessage()))));
-    }
-
-    /**
-     * Aggregated staking profile for one wallet (stakes, voting power, pending rewards). Public read; no auth.
-     * Response shape matches frontend {@code staking.ts} {@code tryBackendStakes} / {@code mapBackendStake}.
-     */
-    @GetMapping("/staking-profile")
-    public Mono<ResponseEntity<Object>> stakingProfile(@RequestParam(required = false) @Nullable String address) {
-        if (address == null || address.isBlank()) {
-            return Mono.just(badRequest("address is required"));
-        }
-        String trimmed = address.trim();
-        try {
-            TonAddressBoc.parse(trimmed);
-        } catch (TonRpcException e) {
-            return Mono.just(badRequest(e.getMessage()));
-        }
-        return stakingVerifier
-                .getStakingProfile(trimmed)
-                .map(profile -> ResponseEntity.<Object>ok(profile))
                 .onErrorResume(
                         TonRpcException.class,
                         e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)

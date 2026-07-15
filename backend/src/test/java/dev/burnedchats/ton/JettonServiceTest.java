@@ -2,13 +2,9 @@ package dev.burnedchats.ton;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.ton.TonConfig.TonSettings;
-import dev.burnedchats.ton.dto.EffectiveFeeParams;
-import dev.burnedchats.ton.dto.JettonInfo;
-import dev.burnedchats.ton.dto.UserBalance;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,14 +16,9 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.util.HexFormat;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,7 +67,7 @@ class JettonServiceTest {
         WebClient webClient = WebClient.builder().baseUrl(settings.getRpc().getEndpoint()).build();
         TonService tonService = new TonService(
                 webClient, settings, redisTemplate, objectMapper, new SimpleMeterRegistry());
-        jettonService = new JettonService(tonService, settings, redisTemplate, objectMapper);
+        jettonService = new JettonService(tonService, settings, redisTemplate);
     }
 
     @AfterEach
@@ -116,126 +107,36 @@ class JettonServiceTest {
     }
 
     @Test
-    @DisplayName("getBurnBalanceFormatted divides by 1e9")
-    void getBurnBalanceFormatted() {
+    @DisplayName("resolveJettonWallet returns wallet address from master get_wallet_address")
+    void resolveJettonWalletHappyPath() {
         when(valueOps.get(anyString())).thenReturn(Mono.empty());
 
         String walletBoc = TonAddressBoc.addressCellToBocBase64(WALLET_RAW);
         String walletAddrResp = """
                 {"ok":true,"result":{"exit_code":0,"stack":[["tvm.Slice","%s"]]} }
                 """.formatted(walletBoc).replaceAll("\\s+", "");
-        String walletDataResp = """
-                {"ok":true,"result":{"exit_code":0,"stack":[["num","0x3b9aca00"]]}}
-                """;
 
         server.enqueue(new MockResponse().setBody(walletAddrResp).addHeader("Content-Type", "application/json"));
-        server.enqueue(new MockResponse().setBody(walletDataResp).addHeader("Content-Type", "application/json"));
 
-        StepVerifier.create(jettonService.getBurnBalanceFormatted(ANY_USER))
-                .expectNext(new BigDecimal("1.000000000"))
+        StepVerifier.create(jettonService.resolveJettonWallet(ANY_USER))
+                .expectNext(WALLET_RAW)
                 .verifyComplete();
     }
 
     @Test
-    @DisplayName("getJettonInfo cache hit skips HTTP")
-    void jettonInfoUsesApplicationCache() throws Exception {
-        String adminBoc = TonAddressBoc.addressCellToBocBase64("0:" + "bb".repeat(32));
-        String contentBoc = TonAddressBoc.addressCellToBocBase64("0:" + "cc".repeat(32));
-        String codeBoc = TonAddressBoc.addressCellToBocBase64("0:" + "dd".repeat(32));
-        String adminRaw = TonAddressBoc.decodeRawAddressFromSingleRootBoc(adminBoc);
-        JettonInfo cached = new JettonInfo(BigInteger.TEN, false, adminRaw, codeBoc, "");
-
-        AtomicInteger redisGets = new AtomicInteger();
-        when(valueOps.get(anyString())).thenAnswer(inv -> {
-            String key = inv.getArgument(0, String.class);
-            if (key.contains("ton:jetton:info")) {
-                if (redisGets.getAndIncrement() == 0) {
-                    return Mono.empty();
-                }
-                return Mono.just(objectMapper.writeValueAsString(cached));
-            }
-            return Mono.empty();
-        });
-
-        String jettonData = """
-                {"ok":true,"result":{"exit_code":0,"stack":[
-                  ["num","0xa"],
-                  ["num","0x0"],
-                  ["tvm.Slice","%s"],
-                  ["tvm.Slice","%s"],
-                  ["tvm.Slice","%s"]
-                ]}}
-                """
-                .formatted(adminBoc, contentBoc, codeBoc)
-                .replaceAll("\\s+", "");
-
-        server.enqueue(new MockResponse().setBody(jettonData).addHeader("Content-Type", "application/json"));
-
-        StepVerifier.create(jettonService.getJettonInfo()).expectNextCount(1).verifyComplete();
-
-        RecordedRequest only = server.takeRequest(5, TimeUnit.SECONDS);
-        assertThat(only).isNotNull();
-
-        StepVerifier.create(jettonService.getJettonInfo()).expectNextCount(1).verifyComplete();
-
-        RecordedRequest miss = server.takeRequest(250, TimeUnit.MILLISECONDS);
-        assertThat(miss).as("second getJettonInfo must not hit Ton Center").isNull();
-    }
-
-    @Test
-    @DisplayName("getEffectiveFeeParams reads basis points from master")
-    void effectiveFees() {
-        when(valueOps.get(anyString())).thenReturn(Mono.empty());
-        String body = """
-                {"ok":true,"result":{"exit_code":0,"stack":[
-                  ["num","0x1f4"],["num","0x258"],["num","0x2bc"]
-                ]}}
-                """.replaceAll("\\s+", "");
-        server.enqueue(new MockResponse().setBody(body).addHeader("Content-Type", "application/json"));
-
-        StepVerifier.create(jettonService.getEffectiveFeeParams())
-                .expectNext(new EffectiveFeeParams(500, 600, 700))
-                .verifyComplete();
-    }
-
-    @Test
-    @DisplayName("getBurnBalances limits concurrency and maps UserBalance entries")
-    void bulkBalances() {
+    @DisplayName("resolveJettonWallet empty when wallet address is zero")
+    void resolveJettonWalletZeroAddress() {
         when(valueOps.get(anyString())).thenReturn(Mono.empty());
 
-        String u1 = "0:" + "aa".repeat(32);
-        String u2 = "0:" + "bb".repeat(32);
-        String u3 = "0:" + "cc".repeat(32);
-
-        String walletBoc = TonAddressBoc.addressCellToBocBase64(WALLET_RAW);
-        String walletAddrTemplate = """
+        String zeroWallet = "0:" + "00".repeat(32);
+        String walletBoc = TonAddressBoc.addressCellToBocBase64(zeroWallet);
+        String walletAddrResp = """
                 {"ok":true,"result":{"exit_code":0,"stack":[["tvm.Slice","%s"]]} }
                 """.formatted(walletBoc).replaceAll("\\s+", "");
-        String walletData = """
-                {"ok":true,"result":{"exit_code":0,"stack":[["num","0x2540be400"]]}}
-                """;
 
-        for (int i = 0; i < 3; i++) {
-            server.enqueue(new MockResponse()
-                    .setBody(walletAddrTemplate)
-                    .addHeader("Content-Type", "application/json"));
-        }
-        for (int i = 0; i < 3; i++) {
-            server.enqueue(new MockResponse().setBody(walletData).addHeader("Content-Type", "application/json"));
-        }
+        server.enqueue(new MockResponse().setBody(walletAddrResp).addHeader("Content-Type", "application/json"));
 
-        StepVerifier.create(jettonService.getBurnBalances(List.of(u1, u2, u3)).collectList())
-                .assertNext(list -> {
-                    assertThat(list).hasSize(3);
-                    var nanos = list.stream().map(UserBalance::balanceNano).sorted().collect(Collectors.toList());
-                    assertThat(nanos).containsExactly(
-                            new BigInteger("10000000000"),
-                            new BigInteger("10000000000"),
-                            new BigInteger("10000000000"));
-                    for (UserBalance ub : list) {
-                        assertThat(ub.balanceFormatted()).isEqualByComparingTo(new BigDecimal("10.000000000"));
-                    }
-                })
+        StepVerifier.create(jettonService.resolveJettonWallet(ANY_USER))
                 .verifyComplete();
     }
 }

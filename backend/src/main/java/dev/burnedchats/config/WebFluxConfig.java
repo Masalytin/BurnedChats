@@ -30,7 +30,7 @@ public class WebFluxConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(restRateLimitInterceptor)
-                .addPathPatterns("/api/auth/**", "/api/wallet/**", "/api/governance/**");
+                .addPathPatterns("/api/auth/**", "/api/wallet/**");
     }
 
     /**

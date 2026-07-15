@@ -29,7 +29,7 @@ public class AdaptiveDifficultyService {
     private final ObjectProvider<ReputationDifficultyResolver> reputationResolver;
 
     /**
-     * Optional Layer-2 seam — implemented by IMP-ASPOW-05 when staking bypass is enabled.
+     * Optional Layer-2 seam — implemented by IMP-ASPOW-05 when reputation discount is enabled.
      */
     public interface ReputationDifficultyResolver {
 

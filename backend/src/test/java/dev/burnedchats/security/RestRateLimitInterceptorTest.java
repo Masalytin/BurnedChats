@@ -84,7 +84,7 @@ class RestRateLimitInterceptorTest {
     @Test
     @DisplayName("exceeded limit: returns 429 with Retry-After")
     void exceededLimitReturns429() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/governance/active-proposals");
+        when(request.getRequestURI()).thenReturn("/api/wallet/jetton-wallet");
         when(request.getHeader("X-Forwarded-For")).thenReturn("198.51.100.5, 10.0.0.1");
         doThrow(new RateLimitException(Duration.ofSeconds(42)))
                 .when(rateLimitService)

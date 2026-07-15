@@ -46,12 +46,26 @@ class OpenApiExportTest {
             paths.add(fieldNames.next());
         }
 
-        assertThat(paths.size()).isGreaterThanOrEqualTo(20);
+        assertThat(paths.size()).isGreaterThanOrEqualTo(14);
         assertThat(paths).contains("/api/auth/nonce");
         assertThat(paths).contains("/api/health");
         assertThat(paths).anyMatch(path -> path.startsWith("/api/files/"));
-        assertThat(paths).anyMatch(path -> path.startsWith("/api/governance/"));
+        assertThat(paths).noneMatch(path -> path.startsWith("/api/governance/"));
+        assertThat(paths).noneMatch(path -> path.contains("/staking-profile"));
         assertThat(paths).noneMatch(path -> path.contains("dev-login"));
         assertThat(paths).noneMatch(path -> path.contains("/telegram/webhook"));
+    }
+
+    @Test
+    @DisplayName("removed governance and staking-profile routes return 404")
+    void removedTokenRoutesReturn404() throws Exception {
+        String sampleAddress = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
+        mockMvc.perform(get("/api/governance/active-proposals")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/governance/recent-proposals")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/governance/proposals/1")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/governance/voting-power").param("address", sampleAddress))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/wallet/staking-profile").param("address", sampleAddress))
+                .andExpect(status().isNotFound());
     }
 }

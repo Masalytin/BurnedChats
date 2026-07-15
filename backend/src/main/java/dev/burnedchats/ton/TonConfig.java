@@ -132,9 +132,6 @@ public class TonConfig {
          */
         public static class Addresses {
             private String jettonMaster = "";
-            private String stakingMaster = "";
-            private String governor = "";
-            private String treasury = "";
 
             public String getJettonMaster() {
                 return jettonMaster;
@@ -142,30 +139,6 @@ public class TonConfig {
 
             public void setJettonMaster(String jettonMaster) {
                 this.jettonMaster = jettonMaster;
-            }
-
-            public String getStakingMaster() {
-                return stakingMaster;
-            }
-
-            public void setStakingMaster(String stakingMaster) {
-                this.stakingMaster = stakingMaster;
-            }
-
-            public String getGovernor() {
-                return governor;
-            }
-
-            public void setGovernor(String governor) {
-                this.governor = governor;
-            }
-
-            public String getTreasury() {
-                return treasury;
-            }
-
-            public void setTreasury(String treasury) {
-                this.treasury = treasury;
             }
         }
     }

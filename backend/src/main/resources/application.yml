@@ -221,9 +221,6 @@ app:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
       jetton-master: ${BURN_JETTON_MASTER_ADDRESS:}
-      staking-master: ${BURN_STAKING_MASTER_ADDRESS:}
-      governor: ${BURN_GOVERNOR_ADDRESS:}
-      treasury: ${BURN_TREASURY_ADDRESS:}
 
 # Application info
 info:

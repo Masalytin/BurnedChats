@@ -22,7 +22,7 @@ import java.util.Map;
  * MVC interceptor applying Redis-backed rate limits to public REST surfaces.
  *
  * <p>Separate budgets for auth ({@code /api/auth/**}) and RPC-proxy routes
- * ({@code /api/wallet/**}, {@code /api/governance/**}). Keys are per client IP
+ * ({@code /api/wallet/**}). Keys are per client IP
  * with an optional identity suffix when {@code X-Auth-Token} is present.
  */
 @Slf4j
@@ -87,8 +87,7 @@ public class RestRateLimitInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/auth/") || "/api/auth".equals(path)) {
             return GROUP_AUTH;
         }
-        if (path.startsWith("/api/wallet/") || "/api/wallet".equals(path)
-                || path.startsWith("/api/governance/") || "/api/governance".equals(path)) {
+        if (path.startsWith("/api/wallet/") || "/api/wallet".equals(path)) {
             return GROUP_RPC;
         }
         return null;
