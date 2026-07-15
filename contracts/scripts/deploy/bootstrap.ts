@@ -2,14 +2,6 @@ import { Address, Contract, ContractProvider, Sender, toNano } from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
-import { Governor } from '../../wrappers/Governor';
-import { StakingLock } from '../../wrappers/StakingLock';
-import { StakingMaster } from '../../wrappers/StakingMaster';
-import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../../wrappers/StakingPool';
-import { Timelock } from '../../wrappers/Timelock';
-import { Treasury } from '../../wrappers/Treasury';
-import { Vesting } from '../../wrappers/Vesting';
-import { presetDurations, presetTotalNano, VESTING_PRESETS } from '../vesting/presets';
 import { saveDeployment } from './store';
 import type { DeploymentAddresses, DeploymentFile, MintAllocation } from './types';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from './wait';
@@ -18,31 +10,14 @@ const NANO = 10n ** 9n;
 const MAX_SUPPLY_NANO = 1000n * NANO;
 
 const DEPLOY_JETTON = toNano('0.2');
-const DEPLOY_TREASURY = toNano('0.15');
-const DEPLOY_POOL = toNano('0.25');
-const DEPLOY_LOCK = toNano('0.1');
-const DEPLOY_STAKING_MASTER = process.env.DEPLOY_STAKING_MASTER_NANO?.trim()
-    ? BigInt(process.env.DEPLOY_STAKING_MASTER_NANO.trim())
-    : toNano('50');
-const DEPLOY_GOVERNOR = toNano('0.55');
-const DEPLOY_TIMELOCK = toNano('0.12');
-const DEPLOY_VESTING = toNano('0.22');
 const MINT_FORWARD = 1n;
 const MINT_GAS = toNano('0.3');
 
+/** Fixed-supply mint split: 7 BURN developer, 993 BURN LP provision (IMP-TOKSIM-08 completes CloseMint + admin revoke). */
 export const MINT_ALLOCATIONS: MintAllocation[] = [
-    { label: 'Developer vesting', burnAmount: 7n, receiver: 'vestingDeveloper' },
-    { label: 'Community airdrop', burnAmount: 200n, receiver: 'airdropHolder' },
-    { label: 'Staking allocation vesting', burnAmount: 300n, receiver: 'vestingStakingAllocation' },
-    { label: 'Ecosystem vesting', burnAmount: 150n, receiver: 'vestingEcosystem' },
-    { label: 'Liquidity pool', burnAmount: 300n, receiver: 'liquidityHolder' },
-    { label: 'Reserve vesting', burnAmount: 43n, receiver: 'vestingReserve' },
+    { label: 'Developer allocation', burnAmount: 7n, receiver: 'developerHolder' },
+    { label: 'Liquidity pool provision', burnAmount: 993n, receiver: 'liquidityHolder' },
 ];
-
-/** Mint receivers not on master excluded list — bootstrap syncs fee config after mint (IMP-JETTON-FEE-03). */
-export const NON_EXCLUDED_MINT_RECEIVER_KEYS: ReadonlySet<MintAllocation['receiver']> = new Set([
-    'airdropHolder',
-]);
 
 function friendly(addr: Address, testnet: boolean): string {
     return addr.toString({ bounceable: true, testOnly: testnet, urlSafe: true });
@@ -94,39 +69,7 @@ function resolveMetadataUri(): string {
     return DEFAULT_JETTON_METADATA_URI;
 }
 
-function resolveMinProposalVp(): bigint {
-    const raw = process.env.INITIAL_MIN_PROPOSAL_VP?.trim();
-    if (raw) {
-        return BigInt(raw);
-    }
-    return 10_000_000n;
-}
-
-function resolveTimelockDelaySec(): bigint {
-    const raw = process.env.TIMELOCK_DELAY_SEC?.trim();
-    if (raw) {
-        return BigInt(raw);
-    }
-    return 86_400n;
-}
-
-function resolveBeneficiary(deployer: Address, presetId: keyof typeof VESTING_PRESETS, stakingPool: Address): Address {
-    if (presetId === 'staking-allocation') {
-        return stakingPool;
-    }
-    const envKey =
-        presetId === 'developer'
-            ? 'VESTING_BENEFICIARY_DEVELOPER'
-            : presetId === 'ecosystem'
-              ? 'VESTING_BENEFICIARY_ECOSYSTEM'
-              : presetId === 'reserve'
-                ? 'VESTING_BENEFICIARY_RESERVE'
-                : 'BENEFICIARY';
-    const raw = process.env[envKey]?.trim() || process.env.BENEFICIARY?.trim();
-    return raw ? Address.parse(raw) : deployer;
-}
-
-function resolveMultisigHolder(deployer: Address, envKey: string): Address {
+function resolveHolder(deployer: Address, envKey: string): Address {
     const raw = process.env[envKey]?.trim();
     return raw ? Address.parse(raw) : deployer;
 }
@@ -141,129 +84,6 @@ async function mintTo(
     const seqnoBefore = await getSenderSeqno(provider);
     await opened.sendMint(provider.sender(), receiver, amountNano, MINT_FORWARD, MINT_GAS);
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-}
-
-async function syncWalletFeeConfig(
-    provider: NetworkProvider,
-    master: BurnJettonMaster,
-    owner: Address,
-): Promise<void> {
-    const opened = provider.open(master);
-    const seqnoBefore = await getSenderSeqno(provider);
-    await opened.sendSyncFeeConfigToWallet(provider.sender(), owner);
-    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-}
-
-async function ensureWalletFeeConfigSynced(
-    provider: NetworkProvider,
-    master: BurnJettonMaster,
-    jettonMasterAddr: Address,
-    owner: Address,
-    testnet: boolean,
-    label: string,
-    force: boolean,
-): Promise<void> {
-    if (!force && (await isWalletFeeConfigSynced(provider, jettonMasterAddr, owner))) {
-        console.log(
-            `[deploy] skip syncWalletFeeConfig ${friendly(owner, testnet)} (${label}) — wallet already synced`,
-        );
-        return;
-    }
-    console.log(`[deploy] syncWalletFeeConfig ${friendly(owner, testnet)} (${label})`);
-    await syncWalletFeeConfig(provider, master, owner);
-}
-
-/**
- * On-chain idempotency probes used by `deployBurnStack`. Each probe answers
- * "is this post-deploy step already applied?" by reading contract state, so
- * a re-run after a transient `LITE_SERVER_NOTREADY` (or any other crash)
- * skips already-applied steps instead of blindly re-sending them. See
- * See contracts/deployments/README.md for bootstrap resilience notes.
- */
-async function isStakingMasterWired(
-    provider: NetworkProvider,
-    pool: StakingPool,
-    expectedMaster: Address,
-): Promise<boolean> {
-    const opened = provider.open(pool);
-    const wired = await opened.getGetMasterWired();
-    if (!wired) {
-        return false;
-    }
-    const current = await opened.getGetStakingMaster();
-    return current.equals(expectedMaster);
-}
-
-async function isMasterJettonWalletConfigured(
-    provider: NetworkProvider,
-    sm: StakingMaster,
-    expectedWallet: Address,
-): Promise<boolean> {
-    const opened = provider.open(sm);
-    const current = await opened.getGetStakingJettonWallet();
-    return current.equals(expectedWallet);
-}
-
-async function readStakingMasterGovernor(provider: NetworkProvider, sm: StakingMaster): Promise<Address> {
-    return await provider.open(sm).getGetGovernorAddr();
-}
-
-async function isFeeDestinationsConfigured(
-    provider: NetworkProvider,
-    master: BurnJettonMaster,
-    expectedPool: Address,
-    expectedTreasury: Address,
-): Promise<boolean> {
-    const opened = provider.open(master);
-    const fp = await opened.getGetFeeParams();
-    return (
-        fp.feeDestinationsActive === true &&
-        fp.stakingPoolOwner.equals(expectedPool) &&
-        fp.treasuryOwner.equals(expectedTreasury)
-    );
-}
-
-async function isHolderExcluded(
-    provider: NetworkProvider,
-    master: BurnJettonMaster,
-    holder: Address,
-): Promise<boolean> {
-    const opened = provider.open(master);
-    return await opened.getGetIsExcluded(holder);
-}
-
-/**
- * `getGetFeeConfigActive` reverts on uninitialized jetton wallets (they are
- * deployed lazily when the master sends the first sync). A throw therefore
- * means "wallet not yet synced" — caller should send the sync.
- */
-async function isWalletFeeConfigSynced(
-    provider: NetworkProvider,
-    jettonMasterAddr: Address,
-    owner: Address,
-): Promise<boolean> {
-    try {
-        const master = provider.open(BurnJettonMaster.fromAddress(jettonMasterAddr));
-        const walletAddr = await master.getGetWalletAddress(owner);
-        const wallet = provider.open(BurnJettonWallet.fromAddress(walletAddr));
-        return await wallet.getGetFeeConfigActive();
-    } catch {
-        return false;
-    }
-}
-
-async function isAdminTransferred(
-    provider: NetworkProvider,
-    master: BurnJettonMaster,
-    expectedAdmin: Address,
-): Promise<boolean> {
-    const opened = provider.open(master);
-    const data = await opened.getGetJettonData();
-    return data.adminAddress.equals(expectedAdmin);
-}
-
-async function readJettonTimelock(provider: NetworkProvider, master: BurnJettonMaster): Promise<Address> {
-    return await provider.open(master).getGetTimelockAddress();
 }
 
 async function ensureMint(
@@ -302,124 +122,32 @@ export type DeployResult = {
 };
 
 /**
- * Bootstrap deploy: the deployer wallet is only a temporary fee-setup authority for the
- * Jetton master — once fee destinations / exclusions are configured, `SetTimelock` hands
- * the `timelock` field to the on-chain Timelock contract so no EOA keeps governance control
- * (IMP-PREMNT-03). StakingLock/Treasury/Vesting take the Timelock contract as `timelock` at
- * init. `Timelock.governor` stays the deployer (mutual Governor↔Timelock fixed point is
- * unsolvable for deterministic addresses — see decision log P5-6-1-1-governance-bootstrap).
+ * Jetton-only bootstrap: deploy BurnJettonMaster and mint the fixed 7 / 993 split.
+ * CloseMint, LP burn, and admin revocation are handled in IMP-TOKSIM-08 runbook.
  */
 export async function deployBurnStack(
     provider: NetworkProvider,
-    opts: { contractsRoot: string; force: boolean; dryRun: boolean; governanceSliceOnly?: boolean },
+    opts: { contractsRoot: string; force: boolean; dryRun: boolean },
 ): Promise<DeployResult> {
     const testnet = provider.network() === 'testnet';
     const deployer = await resolveDeployer(provider);
     const metadataUri = resolveMetadataUri();
-    const minProposalVp = resolveMinProposalVp();
-    const timelockDelaySec = resolveTimelockDelaySec();
 
     console.log('[deploy] network', provider.network());
     console.log('[deploy] deployer', friendly(deployer, testnet));
     console.log('[deploy] metadata', metadataUri);
-    console.log('[deploy] governance bootstrap: deployer is temporary fee-setup authority, handed to Timelock at the end');
+    console.log('[deploy] jetton-only bootstrap (CloseMint + admin revoke → IMP-TOKSIM-08)');
 
     const content = BurnJettonMaster.jettonContentFromUri(metadataUri);
-    const jettonMasterInit = await BurnJettonMaster.fromInitDeployed(deployer, content, deployer);
+    const jettonMasterInit = await BurnJettonMaster.fromInitDeployed(deployer, content);
     const jettonMaster = new BurnJettonMaster(jettonMasterInit.address, jettonMasterInit.init);
 
-    const poolInit = await StakingPool.prepareInit({
-        bootstrapOwner: deployer,
-        jettonMinter: jettonMaster.address,
-        stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
-    });
-
-    // Timelock.governor stays the deployer (mutual Governor↔Timelock fixed point is
-    // unsolvable for deterministic Tact addresses — see P5-6-1-1). Its address depends
-    // only on the deployer, so it can be computed first and used as the immutable
-    // timelock-authority for StakingLock (IMP-PREMNT-03) without any address cycle.
-    const timelockInit = await Timelock.prepareInit(deployer);
-
-    const stakingLockInit = await StakingLock.prepareInit(timelockInit.address);
-    const stakingMasterInit = await StakingMaster.prepareInit(
-        poolInit.address,
-        jettonMaster.address,
-        stakingLockInit.address,
-        deployer,
-        deployer,
-    );
-
-    const treasuryInit = await Treasury.prepareInit(timelockInit.address, jettonMaster.address);
-
-    const governorInit = await Governor.prepareInit({
-        minProposalVp,
-        stakingMaster: stakingMasterInit.address,
-        stakingLock: stakingLockInit.address,
-        timelock: timelockInit.address,
-        timelockDelaySec,
-        treasury: treasuryInit.address,
-    });
-
-    const vestingStart = process.env.VESTING_START ? BigInt(process.env.VESTING_START) : BigInt(Math.floor(Date.now() / 1000));
-
-    const vestingDeveloperInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'developer', poolInit.address),
-        totalNano: presetTotalNano(VESTING_PRESETS.developer),
-        startUnix: vestingStart,
-        cliffSeconds: presetDurations(VESTING_PRESETS.developer).cliffSec,
-        vestingSeconds: presetDurations(VESTING_PRESETS.developer).vestingSec,
-        timelock: timelockInit.address,
-        jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-    });
-    const vestingEcosystemInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'ecosystem', poolInit.address),
-        totalNano: presetTotalNano(VESTING_PRESETS.ecosystem),
-        startUnix: vestingStart,
-        cliffSeconds: presetDurations(VESTING_PRESETS.ecosystem).cliffSec,
-        vestingSeconds: presetDurations(VESTING_PRESETS.ecosystem).vestingSec,
-        timelock: timelockInit.address,
-        jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-    });
-    const vestingReserveInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'reserve', poolInit.address),
-        totalNano: presetTotalNano(VESTING_PRESETS.reserve),
-        startUnix: vestingStart,
-        cliffSeconds: presetDurations(VESTING_PRESETS.reserve).cliffSec,
-        vestingSeconds: presetDurations(VESTING_PRESETS.reserve).vestingSec,
-        timelock: timelockInit.address,
-        jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-    });
-    const vestingStakingInit = await Vesting.prepareInit({
-        beneficiary: poolInit.address,
-        totalNano: presetTotalNano(VESTING_PRESETS['staking-allocation']),
-        startUnix: vestingStart,
-        cliffSeconds: presetDurations(VESTING_PRESETS['staking-allocation']).cliffSec,
-        vestingSeconds: presetDurations(VESTING_PRESETS['staking-allocation']).vestingSec,
-        timelock: timelockInit.address,
-        jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-    });
-
-    const airdropHolder = resolveMultisigHolder(deployer, 'AIRDROP_MULTISIG');
-    const liquidityHolder = resolveMultisigHolder(deployer, 'LIQUIDITY_MULTISIG');
+    const developerHolder = resolveHolder(deployer, 'DEVELOPER_HOLDER');
+    const liquidityHolder = resolveHolder(deployer, 'LIQUIDITY_MULTISIG');
 
     const addressBook: Record<keyof DeploymentAddresses, Address> = {
         jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-        treasuryJettonWallet: await BurnJettonMaster.predictWalletAddress(jettonMaster.address, treasuryInit.address),
-        stakingPool: poolInit.address,
-        stakingLock: stakingLockInit.address,
-        stakingMaster: stakingMasterInit.address,
-        governor: governorInit.address,
-        timelock: timelockInit.address,
-        vestingDeveloper: vestingDeveloperInit.address,
-        vestingEcosystem: vestingEcosystemInit.address,
-        vestingReserve: vestingReserveInit.address,
-        vestingStakingAllocation: vestingStakingInit.address,
-        airdropHolder,
+        developerHolder,
         liquidityHolder,
     };
 
@@ -429,79 +157,8 @@ export async function deployBurnStack(
             console.log(`  ${k}: ${friendly(v, testnet)}`);
         }
     } else {
-        const slice = opts.governanceSliceOnly === true;
-        if (!slice) {
-            await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
-            await deployIfNeeded(provider, treasuryInit, DEPLOY_TREASURY, 'Treasury', opts.force);
-            await deployIfNeeded(provider, poolInit, DEPLOY_POOL, 'StakingPool', opts.force);
-            await deployIfNeeded(provider, stakingLockInit, DEPLOY_LOCK, 'StakingLock', opts.force);
-        } else {
-            console.log('[deploy] governance slice — skip jetton/treasury/pool/lock redeploy');
-        }
-        await deployIfNeeded(provider, stakingMasterInit, DEPLOY_STAKING_MASTER, 'StakingMaster', opts.force);
+        await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
 
-        if (opts.force || !(await isStakingMasterWired(provider, poolInit, stakingMasterInit.address))) {
-            console.log('[deploy] wireStakingMaster');
-            const poolOpened = provider.open(poolInit);
-            const seqnoBefore = await getSenderSeqno(provider);
-            await poolOpened.sendWireStakingMaster(provider.sender(), stakingMasterInit.address);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            console.log('[deploy] skip wireStakingMaster — pool already wired to staking master');
-        }
-
-        const masterJw = await BurnJettonMaster.predictWalletAddress(jettonMaster.address, stakingMasterInit.address);
-        if (opts.force || !(await isMasterJettonWalletConfigured(provider, stakingMasterInit, masterJw))) {
-            console.log('[deploy] setMasterJettonWallet');
-            const seqnoBefore = await getSenderSeqno(provider);
-            await provider
-                .open(stakingMasterInit)
-                .sendSetMasterJettonWallet(provider.sender(), masterJw);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            console.log('[deploy] skip setMasterJettonWallet — staking master already configured');
-        }
-
-        await deployIfNeeded(provider, timelockInit, DEPLOY_TIMELOCK, 'Timelock', opts.force);
-        await deployIfNeeded(provider, governorInit, DEPLOY_GOVERNOR, 'Governor', opts.force);
-
-        // Re-point StakingMaster.governorAddr from the bootstrap placeholder (deployer) to the
-        // real Governor. Without this, GovernorVoteRelay is rejected ("Only governor") and votes
-        // never reach the Proposal child. One-shot: the contract refuses re-wiring once set.
-        const currentSmGovernor = await readStakingMasterGovernor(provider, stakingMasterInit);
-        if (currentSmGovernor.equals(governorInit.address)) {
-            console.log('[deploy] skip setGovernor — staking master already wired to governor');
-        } else if (currentSmGovernor.equals(deployer)) {
-            console.log(`[deploy] setGovernor on StakingMaster → ${friendly(governorInit.address, testnet)}`);
-            const seqnoBefore = await getSenderSeqno(provider);
-            await provider.open(stakingMasterInit).sendSetGovernor(provider.sender(), governorInit.address);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            throw new Error(
-                `[deploy] StakingMaster.governorAddr=${friendly(currentSmGovernor, testnet)} is neither the ` +
-                    `bootstrap deployer nor the target governor — cannot reconcile without redeploy`,
-            );
-        }
-
-        if (slice) {
-            console.log('[deploy] governance slice — skip vesting/mint/fee bootstrap');
-            addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
-                jettonMaster.address,
-                treasuryInit.address,
-            );
-        } else {
-        await deployIfNeeded(provider, vestingDeveloperInit, DEPLOY_VESTING, 'Vesting Developer', opts.force);
-        await deployIfNeeded(provider, vestingEcosystemInit, DEPLOY_VESTING, 'Vesting Ecosystem', opts.force);
-        await deployIfNeeded(provider, vestingReserveInit, DEPLOY_VESTING, 'Vesting Reserve', opts.force);
-        await deployIfNeeded(
-            provider,
-            vestingStakingInit,
-            DEPLOY_VESTING,
-            'Vesting StakingAllocation',
-            opts.force,
-        );
-
-        const masterOpened = provider.open(jettonMaster);
         let mintedNano = 0n;
         for (const alloc of MINT_ALLOCATIONS) {
             const receiver = addressBook[alloc.receiver];
@@ -519,127 +176,11 @@ export async function deployBurnStack(
         if (mintedNano !== MAX_SUPPLY_NANO) {
             throw new Error(`Mint allocation mismatch: expected ${MAX_SUPPLY_NANO}, got ${mintedNano}`);
         }
-
-        if (
-            opts.force ||
-            !(await isFeeDestinationsConfigured(
-                provider,
-                jettonMaster,
-                poolInit.address,
-                treasuryInit.address,
-            ))
-        ) {
-            console.log('[deploy] setFeeDestinations');
-            const seqnoBefore = await getSenderSeqno(provider);
-            await masterOpened.sendSetFeeDestinations(
-                provider.sender(),
-                poolInit.address,
-                treasuryInit.address,
-            );
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            console.log('[deploy] skip setFeeDestinations — already configured');
-        }
-
-        const excludedOwners: Address[] = [
-            treasuryInit.address,
-            poolInit.address,
-            stakingMasterInit.address,
-            vestingDeveloperInit.address,
-            vestingEcosystemInit.address,
-            vestingReserveInit.address,
-            vestingStakingInit.address,
-            liquidityHolder,
-        ];
-        for (const holder of excludedOwners) {
-            if (!opts.force && (await isHolderExcluded(provider, jettonMaster, holder))) {
-                console.log(`[deploy] skip addExcluded ${friendly(holder, testnet)} — already excluded`);
-                continue;
-            }
-            console.log(`[deploy] addExcluded ${friendly(holder, testnet)}`);
-            const seqnoBefore = await getSenderSeqno(provider);
-            await masterOpened.sendAddExcluded(provider.sender(), holder);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        }
-
-        for (const holder of excludedOwners) {
-            await ensureWalletFeeConfigSynced(
-                provider,
-                jettonMaster,
-                jettonMaster.address,
-                holder,
-                testnet,
-                'excluded holder',
-                opts.force,
-            );
-        }
-
-        for (const alloc of MINT_ALLOCATIONS) {
-            if (!NON_EXCLUDED_MINT_RECEIVER_KEYS.has(alloc.receiver)) {
-                continue;
-            }
-            const owner = addressBook[alloc.receiver];
-            await ensureWalletFeeConfigSynced(
-                provider,
-                jettonMaster,
-                jettonMaster.address,
-                owner,
-                testnet,
-                alloc.label,
-                opts.force,
-            );
-        }
-
-        if (opts.force || !(await isAdminTransferred(provider, jettonMaster, timelockInit.address))) {
-            console.log(`[deploy] changeOwner → Timelock (${friendly(timelockInit.address, testnet)})`);
-            const seqnoBefore = await getSenderSeqno(provider);
-            await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            console.log('[deploy] skip changeOwner — admin already Timelock');
-        }
-
-        // Final authority transfer: hand the jetton fee/exclusion/dynamic-burn governance
-        // (`timelock` field) from the deployer to the on-chain Timelock contract. This MUST
-        // run last — every fee-config setter above is gated by `sender() == timelock`, so the
-        // deployer has to keep that authority until setup is done. `SetTimelock` is guarded by
-        // the current timelock, so once flipped no EOA can change governance params (IMP-PREMNT-03).
-        const currentJettonTimelock = await readJettonTimelock(provider, jettonMaster);
-        if (currentJettonTimelock.equals(timelockInit.address)) {
-            console.log('[deploy] skip setTimelock — jetton timelock already Timelock contract');
-        } else if (currentJettonTimelock.equals(deployer)) {
-            console.log(`[deploy] setTimelock on jetton master → Timelock (${friendly(timelockInit.address, testnet)})`);
-            const seqnoBefore = await getSenderSeqno(provider);
-            await masterOpened.sendSetTimelock(provider.sender(), timelockInit.address);
-            await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-        } else {
-            throw new Error(
-                `[deploy] jetton master timelock=${friendly(currentJettonTimelock, testnet)} is neither the ` +
-                    `bootstrap deployer nor the target Timelock — cannot reconcile without redeploy`,
-            );
-        }
-
-        addressBook.treasuryJettonWallet = await BurnJettonMaster.predictWalletAddress(
-            jettonMaster.address,
-            treasuryInit.address,
-        );
-        }
     }
 
     const serialized: DeploymentAddresses = {
         jettonMaster: friendly(addressBook.jettonMaster, testnet),
-        treasury: friendly(addressBook.treasury, testnet),
-        treasuryJettonWallet: friendly(addressBook.treasuryJettonWallet, testnet),
-        stakingPool: friendly(addressBook.stakingPool, testnet),
-        stakingLock: friendly(addressBook.stakingLock, testnet),
-        stakingMaster: friendly(addressBook.stakingMaster, testnet),
-        governor: friendly(addressBook.governor, testnet),
-        timelock: friendly(addressBook.timelock, testnet),
-        vestingDeveloper: friendly(addressBook.vestingDeveloper, testnet),
-        vestingEcosystem: friendly(addressBook.vestingEcosystem, testnet),
-        vestingReserve: friendly(addressBook.vestingReserve, testnet),
-        vestingStakingAllocation: friendly(addressBook.vestingStakingAllocation, testnet),
-        airdropHolder: friendly(addressBook.airdropHolder, testnet),
+        developerHolder: friendly(addressBook.developerHolder, testnet),
         liquidityHolder: friendly(addressBook.liquidityHolder, testnet),
     };
 
@@ -649,14 +190,6 @@ export async function deployBurnStack(
         deployer: friendly(deployer, testnet),
         metadataUri,
         addresses: serialized,
-        bootstrap: {
-            // IMP-PREMNT-03: jetton fee/exclusion governance is handed to the Timelock
-            // contract at the end of bootstrap (SetTimelock), so no EOA retains control.
-            jettonTimelockIsDeployer: false,
-            timelockGovernorIsDeployer: true,
-            // setGovernor re-points the staking master to the real Governor during bootstrap.
-            stakingMasterGovernorIsDeployer: false,
-        },
     };
 
     const filePath = saveDeployment(opts.contractsRoot, deployment);

@@ -5,14 +5,13 @@ import { isDryRun, isForceRedeploy, applyBlueprintWalletAliases, loadDeployEnv, 
 import { syncAppConfigs } from './deploy/syncAppConfigs';
 
 /**
- * Full BURN stack deploy orchestrator (testnet/mainnet via Blueprint flags).
+ * Jetton-only BURN deploy orchestrator (testnet/mainnet via Blueprint flags).
  *
  * Env (`.env.testnet` / `.env.mainnet`, then `.env` — see `.env.example`):
  * - WALLET_MNEMONIC + WALLET_VERSION (Blueprint --mnemonic), or legacy MNEMONIC / MNEMONIC_TESTNET
  * - TONCENTER_API_KEY_TESTNET or TONCENTER_API_KEY
- * - JETTON_METADATA_URI (optional; default https://burnedchats.net/jetton-metadata.json — see deployments/README.md)
- * - INITIAL_MIN_PROPOSAL_VP (optional, default 0.01 BURN nano)
- * - AIRDROP_MULTISIG / LIQUIDITY_MULTISIG (optional, default deployer on testnet)
+ * - JETTON_METADATA_URI (optional; default https://burnedchats.net/jetton-metadata.json)
+ * - DEVELOPER_HOLDER / LIQUIDITY_MULTISIG (optional, default deployer on testnet)
  *
  * Flags:
  * - `--force` re-send deploy txs even when code is already live

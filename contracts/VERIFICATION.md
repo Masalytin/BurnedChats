@@ -68,17 +68,14 @@ deployed contract against its source:
 | Contract | Source | tact.config project |
 |----------|--------|---------------------|
 | BurnJettonMaster | `jetton/burn-jetton-master.tact` | `BurnJettonMaster` |
-| StakingPool | `staking/staking-pool.tact` | `StakingPool` |
-| StakingMaster | `staking/staking-master.tact` | `StakingMaster` |
-| Governor | `governance/governor.tact` | `Governor` |
-| Timelock | `governance/timelock.tact` | `Timelock` |
-| Treasury | `treasury/treasury.tact` | `Treasury` |
-| Vesting | `vesting/vesting.tact` | `Vesting` |
 
 > The Jetton **wallet** code (`jetton/burn-jetton-wallet.tact`) is deployed per holder
 > by the master; verify a representative wallet address if desired.
 
-### Current testnet deployment (from `deployments/testnet.json`, 2026-06-28)
+> **Legacy (removed IMP-TOKSIM-03):** Staking, governance, treasury, vesting contracts
+> are no longer in the repo. Old testnet addresses below are obsolete until IMP-TOKSIM-08 redeploy.
+
+### Legacy testnet deployment (pre-simplification, obsolete)
 
 | Contract | Testnet address |
 |----------|-----------------|

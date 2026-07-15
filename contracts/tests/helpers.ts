@@ -1,6 +1,5 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { Address, beginCell, Slice, toNano } from '@ton/core';
-import { storeStakeForward, type StakeForward } from '../build/StakingMaster/StakingMaster_StakingMaster';
+import { Address, toNano } from '@ton/core';
 import { expect } from '@jest/globals';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
@@ -26,16 +25,6 @@ export function netOf(amount: bigint): bigint {
     return amount - burnOf(amount);
 }
 
-/** Jetton forward_payload for staking master (`StakeForward` in ref, either-bit = 1). */
-export function stakeForwardPayload(tier: number): Slice {
-    const sf: StakeForward = { $$type: 'StakeForward', tier: BigInt(tier) };
-    return beginCell()
-        .storeUint(1, 1)
-        .storeRef(beginCell().store(storeStakeForward(sf)).endCell())
-        .endCell()
-        .asSlice();
-}
-
 /** Fixed sandbox clock for reproducible time-dependent tests. */
 export const SANDBOX_NOW = 1_700_000_000;
 
@@ -44,8 +33,6 @@ export type JettonDeployedContext = {
     deployer: SandboxContract<TreasuryContract>;
     userX: SandboxContract<TreasuryContract>;
     userY: SandboxContract<TreasuryContract>;
-    staking: SandboxContract<TreasuryContract>;
-    treasury: SandboxContract<TreasuryContract>;
     master: SandboxContract<BurnJettonMaster>;
 };
 
@@ -60,8 +47,6 @@ export async function deployJetton(): Promise<JettonDeployedContext> {
     const deployer = await blockchain.treasury('deployer');
     const userX = await blockchain.treasury('userX');
     const userY = await blockchain.treasury('userY');
-    const staking = await blockchain.treasury('stakingPool');
-    const treasury = await blockchain.treasury('treasury');
 
     const content = BurnJettonMaster.jettonContentFromUri('https://example.com/jetton/metadata.json');
     const m = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
@@ -75,7 +60,7 @@ export async function deployJetton(): Promise<JettonDeployedContext> {
         success: true,
     });
 
-    return { blockchain, deployer, userX, userY, staking, treasury, master };
+    return { blockchain, deployer, userX, userY, master };
 }
 
 export async function getWallet(

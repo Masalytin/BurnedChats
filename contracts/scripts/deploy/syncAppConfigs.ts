@@ -36,7 +36,7 @@ function upsertEnvLines(path: string, updates: Record<string, string>): void {
 
 function patchApplicationTestnet(repoRoot: string, addresses: DeploymentFile['addresses']): void {
     const path = resolve(repoRoot, 'backend/src/main/resources/application-testnet.yml');
-    const content = `# Testnet profile — sync addresses from contracts/deployments/testnet.json [P5-6-1-1]
+    const content = `# Testnet profile — sync addresses from contracts/deployments/testnet.json
 # Activate from env (NOT inside this file):
 #   SPRING_PROFILES_ACTIVE=prod,testnet
 # Do NOT add \`spring.profiles.active\` here — Spring Boot >= 2.4 rejects
@@ -55,9 +55,6 @@ app:
       ttl-seconds: \${TONCACHE_TTL_SECONDS:60}
     addresses:
       jetton-master: \${BURN_JETTON_MASTER_ADDRESS:${addresses.jettonMaster}}
-      staking-master: \${BURN_STAKING_MASTER_ADDRESS:${addresses.stakingMaster}}
-      governor: \${BURN_GOVERNOR_ADDRESS:${addresses.governor}}
-      treasury: \${BURN_TREASURY_ADDRESS:${addresses.treasury}}
 
 burnedchats:
   wallet-auth:
@@ -74,9 +71,6 @@ export function syncAppConfigs(repoRoot: string, deployment: DeploymentFile): vo
         VITE_TON_NETWORK: 'testnet',
         VITE_TON_RPC_URL: 'https://testnet.toncenter.com/api/v2',
         VITE_BURN_JETTON_MASTER: deployment.addresses.jettonMaster,
-        VITE_STAKING_MASTER: deployment.addresses.stakingMaster,
-        VITE_GOVERNOR_ADDRESS: deployment.addresses.governor,
-        VITE_TREASURY_ADDRESS: deployment.addresses.treasury,
     });
 
     console.log('[deploy] synced backend application-testnet.yml and frontend/.env.testnet');

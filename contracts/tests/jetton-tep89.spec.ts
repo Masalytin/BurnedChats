@@ -124,7 +124,7 @@ describe('BurnJetton TEP-89 wallet discovery', () => {
     });
 
     it('get_wallet_address getter matches discovery response for basechain owner', async () => {
-        const owner = ctx.staking.address;
+        const owner = ctx.userY.address;
         const getterWallet = await ctx.master.getGetWalletAddress(owner);
         const predicted = await BurnJettonMaster.predictWalletAddress(ctx.master.address, owner);
 
