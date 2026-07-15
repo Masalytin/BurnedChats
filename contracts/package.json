@@ -16,7 +16,7 @@
         "deploy:burn:testnet": "npm run build && blueprint run deploy --testnet --mnemonic",
         "deploy:burn:mainnet": "npm run build && blueprint run deploy --mainnet --mnemonic",
         "verify:deployment": "npm run build && blueprint run verify-deployment --testnet --mnemonic",
-        "verify:fee-split:testnet": "npm run build && blueprint run verify-fee-split-testnet --testnet --mnemonic",
+        "verify:burn:testnet": "npm run build && blueprint run verify-burn-testnet --testnet --mnemonic",
         "sync:fee:testnet": "npm run build && blueprint run syncFeeConfig --testnet --mnemonic",
         "sync:fee:mainnet": "npm run build && blueprint run syncFeeConfig --mainnet --mnemonic",
         "deploy:mainnet": "npm run build && blueprint run deployMainnet",

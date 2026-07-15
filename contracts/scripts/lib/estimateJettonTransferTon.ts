@@ -1,129 +1,95 @@
 import { toNano } from '@ton/core';
 
 /**
- * Gas constants synced with `contracts/jetton/burn-jetton-wallet.tact`.
- * Update together when tact constants or IMP-JETTON-GAS-02 gates change.
+ * Gas constants synced with `contracts/jetton/burn-jetton-wallet.tact`
+ * (burn-only transfer path, IMP-TOKSIM-02). Update together when the tact
+ * gate constants change.
+ *
+ * On-chain gate:
+ *   ctx.value > deliverTon + burnNotifyTon + gasTransferHeadroom
+ *   deliverTon = max(perInternalDeployTon,
+ *                    forwardTonAmount + fwd_fee + minTonsForStorage + 0.02)
  */
-export const MIN_TON_FEE_PATH_NANO = toNano('2.1');
-/** Target after IMP-JETTON-GAS-02 (current on-chain gate still uses fee-path minimum). */
-export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.65');
-export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
-/** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 decision log. */
-export const RECOMMENDED_FEE_PATH_WARM_NANO = toNano('2.3');
-export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
-
+/** Recipient delivery leg incl. cold jetton-wallet deploy (`perInternalDeployTon`). */
 export const PER_INTERNAL_DEPLOY_NANO = toNano('0.55');
+/** `JettonBurnNotification` leg to the master (`gasBurnNotifyTon`); absent when burn == 0. */
 export const BURN_NOTIFY_NANO = toNano('0.06');
-export const PROPAGATE_FEE_CONFIG_NANO = toNano('0.05');
-export const GAS_POOL_FORWARD_MIN_NANO = toNano('0.07');
-/** Treasury-leg JettonNotification forward floor (sync with gasTreasuryForwardMin in burn-jetton-wallet.tact). */
-export const GAS_TREASURY_FORWARD_MIN_NANO = toNano('0.01');
-export const GAS_POOL_TO_MASTER_ACCRUAL_NANO = toNano('0.06');
+/** Sender-wallet compute/forward headroom on the 2-msg path (`gasTransferHeadroom`). */
+export const TRANSFER_HEADROOM_NANO = toNano('0.05');
+/** `minTonsForStorage` in the wallet contract. */
 export const MIN_TONS_FOR_STORAGE_NANO = toNano('0.01');
-export const GAS_POOL_FORWARD_EPSILON_NANO = toNano('0.005');
+/** Fixed margin the contract adds to the forward-driven delivery estimate. */
+export const DELIVERY_MARGIN_NANO = toNano('0.02');
+
+/**
+ * Minimum attach with default (dust) forwardTonAmount:
+ * 0.55 + 0.06 + 0.05 = 0.66 TON; the gate is strict, so send at least +1 nano.
+ */
+export const MIN_TON_BURN_PATH_NANO =
+    PER_INTERNAL_DEPLOY_NANO + BURN_NOTIFY_NANO + TRANSFER_HEADROOM_NANO;
+
+/** Recommended attach — matches sandbox `TRANSFER_TON` (tests/helpers.ts). */
+export const RECOMMENDED_BURN_PATH_NANO = toNano('0.8');
 
 /** Sandbox / testnet forward fee per internal hop (see TX-5F37DA75-GAS-REPORT §3.1). */
 export const ESTIMATED_FORWARD_FEE_PER_HOP_NANO = 270_000n;
 
 export type JettonTransferGasEstimate = {
+    /** Smallest attach that passes the strict on-chain gate. */
     minimumNano: bigint;
     recommendedNano: bigint;
     breakdown: {
-        deployLegsNano: bigint;
+        /** Recipient `JettonTransferInternal` leg (deploy included). */
+        deliverNano: bigint;
+        /** `JettonBurnNotification` leg to the master. */
         burnNotifyNano: bigint;
-        propagateNano: bigint;
-        forwardNano: bigint;
+        /** Sender-wallet compute/forward headroom. */
+        headroomNano: bigint;
     };
 };
 
 export type EstimateJettonTransferTonParams = {
-    feePath: boolean;
     forwardTonAmount?: bigint;
-    /** Recipient (and typical repeat: pool/treasury) jetton wallets already deployed/active. */
-    recipientWalletDeployed?: boolean;
-    /** Off-chain hint: recipient JW has fee config; propagate is redundant (still sent on-chain). */
-    recipientFeeConfigActive?: boolean;
+    /** Transfer amount in nano-BURN; below 100 nano the 1% burn truncates to 0. */
+    amountNano?: bigint;
 };
 
-function recipientForwardCount(forwardTonAmount: bigint): bigint {
-    return forwardTonAmount > 0n ? 2n : 1n;
-}
+/** Hardcoded 1% burn (basis points) in burn-jetton-wallet.tact. */
+const BURN_BPS = 100n;
 
-function gateMinimumNano(
-    minTonPathNano: bigint,
-    forwardTonAmount: bigint,
-): bigint {
-    const recipientForwards = recipientForwardCount(forwardTonAmount);
-    return (
-        minTonPathNano +
+function deliverNano(forwardTonAmount: bigint): bigint {
+    const forwardDriven =
         forwardTonAmount +
-        recipientForwards * ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-        1n
-    );
-}
-
-function feePathBreakdown(
-    forwardTonAmount: bigint,
-    recipientFeeConfigActive: boolean,
-): JettonTransferGasEstimate['breakdown'] {
-    const deployLegsNano = 3n * PER_INTERNAL_DEPLOY_NANO;
-    const poolFwdNano =
-        GAS_POOL_FORWARD_MIN_NANO >
-        GAS_POOL_TO_MASTER_ACCRUAL_NANO +
-            ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-            MIN_TONS_FOR_STORAGE_NANO +
-            GAS_POOL_FORWARD_EPSILON_NANO
-            ? GAS_POOL_FORWARD_MIN_NANO
-            : GAS_POOL_TO_MASTER_ACCRUAL_NANO +
-              ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-              MIN_TONS_FOR_STORAGE_NANO +
-              GAS_POOL_FORWARD_EPSILON_NANO;
-
-    const treasFwdNano =
-        GAS_TREASURY_FORWARD_MIN_NANO >
-        ESTIMATED_FORWARD_FEE_PER_HOP_NANO + MIN_TONS_FOR_STORAGE_NANO + toNano('0.02')
-            ? GAS_TREASURY_FORWARD_MIN_NANO
-            : ESTIMATED_FORWARD_FEE_PER_HOP_NANO + MIN_TONS_FOR_STORAGE_NANO + toNano('0.02');
-
-    return {
-        deployLegsNano,
-        burnNotifyNano: BURN_NOTIFY_NANO,
-        propagateNano: recipientFeeConfigActive ? 0n : PROPAGATE_FEE_CONFIG_NANO,
-        forwardNano: forwardTonAmount + poolFwdNano + treasFwdNano,
-    };
-}
-
-function excludedPathBreakdown(forwardTonAmount: bigint): JettonTransferGasEstimate['breakdown'] {
-    return {
-        deployLegsNano: PER_INTERNAL_DEPLOY_NANO,
-        burnNotifyNano: 0n,
-        propagateNano: PROPAGATE_FEE_CONFIG_NANO,
-        forwardNano: forwardTonAmount,
-    };
+        ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
+        MIN_TONS_FOR_STORAGE_NANO +
+        DELIVERY_MARGIN_NANO;
+    return forwardDriven > PER_INTERNAL_DEPLOY_NANO ? forwardDriven : PER_INTERNAL_DEPLOY_NANO;
 }
 
 /**
- * Off-chain attach TON estimate for BURN `JettonTransfer`.
- * `recommendedNano` matches sandbox `TRANSFER_TON` on cold fee path; warm repeat uses lower attach.
+ * Off-chain attach TON estimate for a BURN `JettonTransfer` (single scenario:
+ * transfer with the hardcoded 1% burn). `recommendedNano` matches sandbox
+ * `TRANSFER_TON` (0.8) for default forward amounts and scales up with
+ * `forwardTonAmount`.
  */
 export function estimateJettonTransferTon(
-    params: EstimateJettonTransferTonParams,
+    params: EstimateJettonTransferTonParams = {},
 ): JettonTransferGasEstimate {
     const forwardTonAmount = params.forwardTonAmount ?? 0n;
-    const warm = params.recipientWalletDeployed === true;
-    const skipPropagateEstimate = params.recipientFeeConfigActive === true;
+    const burnsNothing = params.amountNano !== undefined && (params.amountNano * BURN_BPS) / 10000n === 0n;
 
-    if (params.feePath) {
-        return {
-            minimumNano: gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount),
-            recommendedNano: warm ? RECOMMENDED_FEE_PATH_WARM_NANO : RECOMMENDED_FEE_PATH_NANO,
-            breakdown: feePathBreakdown(forwardTonAmount, skipPropagateEstimate),
-        };
-    }
-
-    return {
-        minimumNano: gateMinimumNano(MIN_TON_EXCLUDED_PATH_NANO, forwardTonAmount),
-        recommendedNano: RECOMMENDED_EXCLUDED_PATH_NANO,
-        breakdown: excludedPathBreakdown(forwardTonAmount),
+    const breakdown = {
+        deliverNano: deliverNano(forwardTonAmount),
+        burnNotifyNano: burnsNothing ? 0n : BURN_NOTIFY_NANO,
+        headroomNano: TRANSFER_HEADROOM_NANO,
     };
+
+    // Strict gate (`>`): minimum passing attach is the gate sum + 1 nano.
+    const minimumNano =
+        breakdown.deliverNano + breakdown.burnNotifyNano + breakdown.headroomNano + 1n;
+    const withMargin = minimumNano + toNano('0.1');
+    const recommendedNano =
+        withMargin > RECOMMENDED_BURN_PATH_NANO ? withMargin : RECOMMENDED_BURN_PATH_NANO;
+
+    return { minimumNano, recommendedNano, breakdown };
 }

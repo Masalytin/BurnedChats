@@ -1,66 +1,61 @@
 import { toNano } from '@ton/core';
 import { describe, expect, it } from '@jest/globals';
 import {
-    MIN_TON_FEE_PATH_NANO,
-    RECOMMENDED_EXCLUDED_PATH_NANO,
-    RECOMMENDED_FEE_PATH_NANO,
-    RECOMMENDED_FEE_PATH_WARM_NANO,
+    BURN_NOTIFY_NANO,
+    MIN_TON_BURN_PATH_NANO,
+    PER_INTERNAL_DEPLOY_NANO,
+    RECOMMENDED_BURN_PATH_NANO,
+    TRANSFER_HEADROOM_NANO,
     estimateJettonTransferTon,
 } from '../scripts/lib/estimateJettonTransferTon';
 
 /** Matches contracts/tests/helpers.ts TRANSFER_TON (avoid importing helpers — sandbox types). */
-const TRANSFER_TON_NANO = toNano('3.5');
+const TRANSFER_TON_NANO = toNano('0.8');
 
-describe('IMP-JETTON-GAS-04 — estimateJettonTransferTon', () => {
-    it('fee path recommended matches sandbox TRANSFER_TON (3.5 TON)', () => {
-        const estimate = estimateJettonTransferTon({ feePath: true });
-        expect(estimate.recommendedNano).toBe(3_500_000_000n);
-        expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_NANO);
+describe('IMP-TOKSIM-02 — estimateJettonTransferTon (burn-only path)', () => {
+    it('recommended matches sandbox TRANSFER_TON (0.8 TON) for default forward', () => {
+        const estimate = estimateJettonTransferTon();
+        expect(estimate.recommendedNano).toBe(RECOMMENDED_BURN_PATH_NANO);
         expect(estimate.recommendedNano).toBe(TRANSFER_TON_NANO);
     });
 
-    it('fee path minimum is strictly greater than 2.1 TON gate', () => {
-        const estimate = estimateJettonTransferTon({ feePath: true });
-        expect(estimate.minimumNano).toBeGreaterThan(2_100_000_000n);
-        expect(estimate.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
+    it('minimum is strictly greater than the 0.66 TON contract gate', () => {
+        const estimate = estimateJettonTransferTon();
+        expect(MIN_TON_BURN_PATH_NANO).toBe(toNano('0.66'));
+        expect(estimate.minimumNano).toBeGreaterThan(MIN_TON_BURN_PATH_NANO);
+        expect(estimate.minimumNano).toBe(MIN_TON_BURN_PATH_NANO + 1n);
     });
 
-    it('excluded path recommended is at most 0.8 TON (GAS-02 target)', () => {
-        const estimate = estimateJettonTransferTon({ feePath: false });
-        expect(estimate.recommendedNano).toBeLessThanOrEqual(800_000_000n);
-        expect(estimate.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
+    it('breakdown sums the two-leg burn-only gate: deliver 0.55 + burn notify 0.06 + headroom 0.05', () => {
+        const estimate = estimateJettonTransferTon();
+        const { deliverNano, burnNotifyNano, headroomNano } = estimate.breakdown;
+        expect(deliverNano).toBe(PER_INTERNAL_DEPLOY_NANO);
+        expect(burnNotifyNano).toBe(BURN_NOTIFY_NANO);
+        expect(headroomNano).toBe(TRANSFER_HEADROOM_NANO);
+        expect(deliverNano + burnNotifyNano + headroomNano).toBe(toNano('0.66'));
     });
 
-    it('fee path breakdown sums planned out_msgs from TX-5F37DA75 §3.2', () => {
-        const estimate = estimateJettonTransferTon({ feePath: true, forwardTonAmount: 1n });
-        const { deployLegsNano, burnNotifyNano, propagateNano } = estimate.breakdown;
-        expect(deployLegsNano).toBe(toNano('1.65'));
-        expect(burnNotifyNano).toBe(toNano('0.06'));
-        expect(propagateNano).toBe(toNano('0.05'));
-        expect(deployLegsNano + burnNotifyNano + propagateNano).toBe(toNano('1.76'));
-    });
-
-    it('excluded path breakdown is single deploy + propagate', () => {
-        const estimate = estimateJettonTransferTon({ feePath: false });
-        expect(estimate.breakdown.deployLegsNano).toBe(toNano('0.55'));
+    it('dust amount (< 100 nano): burn-notify leg drops out of the estimate', () => {
+        const estimate = estimateJettonTransferTon({ amountNano: 99n });
         expect(estimate.breakdown.burnNotifyNano).toBe(0n);
-        expect(estimate.breakdown.propagateNano).toBe(toNano('0.05'));
+        expect(estimate.minimumNano).toBe(
+            PER_INTERNAL_DEPLOY_NANO + TRANSFER_HEADROOM_NANO + 1n,
+        );
     });
 
-    it('warm fee path recommends 2.3 TON when recipient wallet already deployed (GAS-06)', () => {
-        const estimate = estimateJettonTransferTon({ feePath: true, recipientWalletDeployed: true });
-        expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-        expect(estimate.recommendedNano).toBeLessThan(RECOMMENDED_FEE_PATH_NANO);
-        expect(estimate.recommendedNano).toBe(2_300_000_000n);
+    it('large forwardTonAmount drives the delivery leg and recommendation above defaults', () => {
+        const forward = toNano('1');
+        const estimate = estimateJettonTransferTon({ forwardTonAmount: forward });
+        expect(estimate.breakdown.deliverNano).toBeGreaterThan(forward);
+        expect(estimate.minimumNano).toBeGreaterThan(forward + BURN_NOTIFY_NANO);
+        expect(estimate.recommendedNano).toBeGreaterThan(RECOMMENDED_BURN_PATH_NANO);
+        expect(estimate.recommendedNano).toBeGreaterThan(estimate.minimumNano);
     });
 
-    it('skips propagate in breakdown when recipient fee config already active (off-chain hint)', () => {
-        const withPropagate = estimateJettonTransferTon({ feePath: true });
-        const skipPropagate = estimateJettonTransferTon({
-            feePath: true,
-            recipientFeeConfigActive: true,
-        });
-        expect(withPropagate.breakdown.propagateNano).toBe(toNano('0.05'));
-        expect(skipPropagate.breakdown.propagateNano).toBe(0n);
+    it('estimate stays a single scenario — no fee-path / excluded / resolve branches', () => {
+        const a = estimateJettonTransferTon();
+        const b = estimateJettonTransferTon({ amountNano: 100n * 10n ** 9n });
+        expect(a.minimumNano).toBe(b.minimumNano);
+        expect(a.recommendedNano).toBe(b.recommendedNano);
     });
 });
