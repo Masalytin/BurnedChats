@@ -8,7 +8,7 @@ import { Proposal } from '../wrappers/Proposal';
 import { Timelock } from '../wrappers/Timelock';
 import { Treasury } from '../wrappers/Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
-import { NANO_PER_BURN } from './helpers';
+import { NANO_PER_BURN, netOf } from './helpers';
 import { advanceTime, mintAndSyncUser, setupStakingEnvironment, stakeAs, StakingTestEnv } from './staking-helpers';
 
 const DAY = 86_400;
@@ -154,9 +154,10 @@ describe('Governance flash-stake regression (IMP-FAUDIT-F01 / F-2)', () => {
 
         // Attacker can still immediately unstake the Flexible stake (proving the flash path
         // existed) — but it bought them no governance weight.
+        // IMP-TOKSIM-01: the stake deposit burned 1% in transit, so only the net is staked.
         const unstakeTx = await env.stakingMaster.sendUnstakeJetton(attacker.getSender(), {
             tier: TIER_FLEXIBLE,
-            amount: flashAmount,
+            amount: netOf(flashAmount),
         });
         expect(unstakeTx.transactions).toHaveTransaction({ on: env.stakingMaster.address, success: true });
 

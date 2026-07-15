@@ -41,7 +41,7 @@ contract Treasury(
     /// bounce back — that would ping-pong with Timelock's generic receive() (RC-A / IMP-RELAY-04).
     /// External senders still get terminal cashback (Treasury is not a TON sink).
     inline fun treasury_jetton_wallet(): Address {
-        return contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()));
+        return contractAddress(initOf BurnJettonWallet(myAddress(), self.jetton_master, 0));
     }
 
     receive() {

@@ -13,7 +13,7 @@ import { Proposal_errors_backward } from '../build/Governor/Governor_Proposal';
 import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
 import { Treasury_errors_backward } from '../build/Treasury/Treasury_Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
-import { NANO_PER_BURN } from './helpers';
+import { NANO_PER_BURN, netOf } from './helpers';
 import {
     assertRelayFlowClean,
     countEmptyGovernorStakingHops,
@@ -244,13 +244,12 @@ function extractQueue(result: SendMessageResult, timelockAddr: Address) {
     return undefined;
 }
 
-/** Fund the treasury: credit `total_received` (mint forward → JettonNotification) and activate its wallet fee config. */
+/** Fund the treasury: credit `total_received` (mint forward → JettonNotification). */
 async function fundTreasury(
     env: GovEnv,
     treasury: SandboxContract<Treasury>,
     amountNano: bigint,
 ): Promise<void> {
-    await env.jettonMaster.sendAddExcluded(env.deployer.getSender(), treasury.address);
     await env.jettonMaster.sendMint(
         env.deployer.getSender(),
         treasury.address,
@@ -258,7 +257,6 @@ async function fundTreasury(
         toNano('0.1'),
         toNano('0.5'),
     );
-    await env.jettonMaster.sendSyncFeeConfigToWallet(env.deployer.getSender(), treasury.address);
     expect(await treasury.getGetTotalReceived()).toBe(amountNano);
 }
 
@@ -426,11 +424,12 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(rec!.amount).toBe(spendAmount);
             expect(rec!.proposalId).toBe(id);
 
-            // The recipient actually received the BURN jettons (excluded path → full amount).
+            // The recipient actually received the BURN jettons.
+            // IMP-TOKSIM-01: every transfer burns a hardcoded 1%, so the payout is net.
             const recipientWallet = env.blockchain.openContract(
                 BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(recipient.address)),
             );
-            expect((await recipientWallet.getGetWalletData()).balance).toBe(spendAmount);
+            expect((await recipientWallet.getGetWalletData()).balance).toBe(netOf(spendAmount));
 
             const treasuryJw = await env.jettonMaster.getGetWalletAddress(treasury.address);
             assertRelayFlowClean(execTx.transactions, {

@@ -4,6 +4,11 @@
 import "../jetton/burn-jetton-wallet";
 import "./staking-messages";
 
+/// TON StakingPool attaches on StakeFeeRewardsAccrue toward StakingMaster.
+/// (Moved from burn-jetton-wallet.tact by IMP-TOKSIM-01 — the jetton wallet no
+/// longer has staking legs.)
+const gasPoolToMasterAccrual: Int = ton("0.06");
+
 contract StakingPool(
     bootstrapOwner: Address,
     stakingMaster: Address,
@@ -19,7 +24,7 @@ contract StakingPool(
 
     inline fun jettonRewardsWalletAddr(): Address {
         return contractAddress(
-            initOf BurnJettonWallet(myAddress(), self.jettonMinter, 0, jettonWalletEmptyFeeConfig()),
+            initOf BurnJettonWallet(myAddress(), self.jettonMinter, 0),
         );
     }
 

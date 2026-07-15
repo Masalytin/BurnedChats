@@ -1,33 +1,40 @@
-import { beginCell, toNano } from '@ton/core';
+import { Address, beginCell, toNano } from '@ton/core';
 import { internal } from '@ton/sandbox';
 import {
     BurnJettonMaster_errors_backward,
     JettonTransferInternal,
-    type AddExcluded as AddExcludedMsg,
+    type ChangeOwner as ChangeOwnerMsg,
+    type JettonUpdateContent as JettonUpdateContentMsg,
     type Mint as MintMsg,
     type ProvideWalletAddress as ProvideWalletAddressMsg,
-    type SetAutoReduceParams as SetAutoReduceParamsMsg,
-    type SetFeeParams as SetFeeParamsMsg,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
-import { BurnJettonWallet_errors_backward, storeJettonBurnNotification } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
 import {
+    BurnJettonWallet_errors_backward,
+    storeJettonBurnNotification,
+} from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
+import {
+    burnOf,
     deployJetton,
     getWallet,
     MINT_TON,
     NANO_PER_BURN,
-    setupExcluded,
+    netOf,
     TRANSFER_TON,
-    TRANSFER_TON_EXCLUDED,
-    transferAndAssertFees,
+    transferAndAssertBurn,
     type JettonDeployedContext,
 } from './helpers';
-import { setupStakingEnvironment, stakeAs } from './staking-helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
-import { ACTIVITY_THRESHOLD_DEFAULT, LARGE_TX_THRESHOLD_10_BURN } from './fixtures/jetton-presets';
-import { Treasury } from '../wrappers/Treasury';
+import {
+    DUST_TRANSFER_BELOW_BURN_UNIT,
+    ODD_TRANSFER_NANO,
+    TRANSFER_100_BURN,
+} from './fixtures/jetton-presets';
 import '@ton/test-utils';
 
-describe('BurnJetton', () => {
+/** addr_std in basechain with an all-zero hash — nobody controls the private key. */
+const INACCESSIBLE_ADDRESS = new Address(0, Buffer.alloc(32, 0));
+
+describe('BurnJetton (pure 1% burn, IMP-TOKSIM-01)', () => {
     let ctx: JettonDeployedContext;
 
     beforeEach(async () => {
@@ -40,17 +47,13 @@ describe('BurnJetton', () => {
             expect(data.totalSupply).toBe(0n);
             expect(data.mintable).toBe(true);
             expect(data.adminAddress.equals(ctx.deployer.address)).toBe(true);
-            expect('timelockAddress' in data).toBe(false);
-
-            const timelock = await ctx.master.getGetTimelockAddress();
-            expect(timelock.equals(ctx.deployer.address)).toBe(true);
 
             const w1 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             const w2 = await ctx.master.getGetWalletAddress(ctx.userX.address);
             expect(w1.equals(w2)).toBe(true);
         });
 
-        it('get_jetton_data returns TEP-74 layout (5 fields, no timelock)', async () => {
+        it('get_jetton_data returns TEP-74 layout (5 fields, nothing extra)', async () => {
             const data = await ctx.master.getGetJettonData();
             const keys = Object.keys(data)
                 .filter((k) => k !== '$$type')
@@ -83,7 +86,7 @@ describe('BurnJetton', () => {
             expect(predicted).toBeDefined();
         });
 
-        it('mints, reads balance, transfers, updates supply', async () => {
+        it('mints, reads balance, transfers with 1% burn, updates supply', async () => {
             const amount = 100n * NANO_PER_BURN;
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, amount, 1n, MINT_TON);
 
@@ -91,9 +94,9 @@ describe('BurnJetton', () => {
             expect((await wx.getGetWalletData()).balance).toBe(amount);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(amount);
 
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+            const ten = 10n * NANO_PER_BURN;
             await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: 10n * NANO_PER_BURN,
+                jettonAmount: ten,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
                 value: TRANSFER_TON,
@@ -101,147 +104,76 @@ describe('BurnJetton', () => {
 
             expect((await wx.getGetWalletData()).balance).toBe(90n * NANO_PER_BURN);
             const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance > 0n).toBe(true);
+            expect((await wy.getGetWalletData()).balance).toBe(netOf(ten));
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(amount - burnOf(ten));
+        });
+
+        it('get_wallet_data exposes balance/owner/master/code', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, NANO_PER_BURN, 1n, MINT_TON);
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const wd = await wx.getGetWalletData();
+            expect(wd.balance).toBe(NANO_PER_BURN);
+            expect(wd.owner.equals(ctx.userX.address)).toBe(true);
+            expect(wd.minter.equals(ctx.master.address)).toBe(true);
+            expect(wd.code).toBeDefined();
         });
     });
 
-    describe('Bootstrap mint fee sync', () => {
-        it('non-excluded holder minted directly has fee config after SyncFeeConfigToWallet', async () => {
-            const amount = 50n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userY.address, amount, 1n, MINT_TON);
-
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(amount);
-            expect(await wy.getGetFeeConfigActive()).toBe(false);
-
-            const sync = await ctx.master.sendSyncFeeConfigToWallet(
-                ctx.deployer.getSender(),
-                ctx.userY.address,
-            );
-            expect(sync.transactions).toHaveTransaction({ success: true });
-            expect(await wy.getGetFeeConfigActive()).toBe(true);
-        });
-
-        it('excluded mint receiver sync is idempotent and does not change exclusion', async () => {
-            await setupExcluded(ctx, [ctx.staking.address]);
-            const amount = 10n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, amount, 1n, MINT_TON);
-
-            const ws = await getWallet(ctx, ctx.staking.address);
-            expect(await ctx.master.getGetIsExcluded(ctx.staking.address)).toBe(true);
-            expect(await ws.getGetFeeConfigActive()).toBe(false);
-
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
-            expect(await ws.getGetFeeConfigActive()).toBe(true);
-
-            const resync = await ctx.master.sendSyncFeeConfigToWallet(
-                ctx.deployer.getSender(),
-                ctx.staking.address,
-            );
-            expect(resync.transactions).toHaveTransaction({ success: true });
-            expect(await ws.getGetFeeConfigActive()).toBe(true);
-        });
-    });
-
-    describe('Fee distribution', () => {
+    describe('Burn semantics (hardcoded 1%)', () => {
         beforeEach(async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
-            // Deploy fee sink jetton wallets (required before balance getters in transferAndAssertFees).
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-        });
-
-        it('splits 1% across burn/staking/treasury for 100 BURN transfer', async () => {
-            const amount = 100n * NANO_PER_BURN;
-            const burn = (5n * NANO_PER_BURN) / 10n;
-            const staking = (3n * NANO_PER_BURN) / 10n;
-            const treasury = (2n * NANO_PER_BURN) / 10n;
-            await transferAndAssertFees(ctx, ctx.userX, ctx.userY.address, amount, burn, staking, treasury);
-        });
-
-        it('propagates fee config to recipient so they can transfer without sync', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const wy = await getWallet(ctx, ctx.userY.address);
-            const amount = 10n * NANO_PER_BURN;
-
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-
-            expect(await wy.getGetFeeConfigActive()).toBe(true);
-
-            const net = amount - (amount * 50n) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
-            expect((await wy.getGetWalletData()).balance).toBe(net);
-
-            await wy.sendTransfer(ctx.userY.getSender(), {
-                jettonAmount: 1n * NANO_PER_BURN,
-                destinationOwner: ctx.userX.address,
-                responseDestination: ctx.userY.address,
-                value: TRANSFER_TON,
-            });
-            expect((await wx.getGetWalletData()).balance).toBeGreaterThan(0n);
-        });
-
-        it('rounds fee parts so sum matches amount (odd nano)', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const amount = 10003n;
-            const b = (amount * 50n) / 10000n;
-            const s = (amount * 30n) / 10000n;
-            const t = (amount * 20n) / 10000n;
-            const n = amount - b - s - t;
-            expect(b + s + t + n).toBe(amount);
-
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(n);
-        });
-
-        it('fee-path JettonNotification credits Treasury.total_received on cold treasury JW', async () => {
-            const treasuryContract = ctx.blockchain.openContract(
-                await Treasury.prepareInit(ctx.deployer.address, ctx.master.address),
-            );
-            await treasuryContract.send(ctx.deployer.getSender(), { value: toNano('0.2') }, null);
-
-            const feeDest = await ctx.master.sendSetFeeDestinations(
+            await ctx.master.sendMint(
                 ctx.deployer.getSender(),
-                ctx.staking.address,
-                treasuryContract.address,
+                ctx.userX.address,
+                200n * NANO_PER_BURN,
+                1n,
+                MINT_TON,
             );
-            expect(feeDest.transactions).toHaveTransaction({ success: true });
+        });
 
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        it('transfer of 100 BURN burns exactly 1 BURN and delivers 99 BURN', async () => {
+            expect(burnOf(TRANSFER_100_BURN)).toBe(1n * NANO_PER_BURN);
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, TRANSFER_100_BURN);
+        });
 
-            expect(await treasuryContract.getGetTotalReceived()).toBe(0n);
+        it('wallet works immediately after deploy — no master push required', async () => {
+            // First hop: cold recipient wallet is deployed by the transfer itself.
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, 10n * NANO_PER_BURN);
+            // Second hop: fresh recipient can transfer right away, burn applies too.
+            await transferAndAssertBurn(ctx, ctx.userY, ctx.deployer.address, 1n * NANO_PER_BURN);
+        });
 
-            const amount = 100n * NANO_PER_BURN;
-            const expectedTreasury = (amount * 20n) / 10000n;
-            const treasuryJw = await ctx.master.getGetWalletAddress(treasuryContract.address);
+        it('odd nano amount: burn truncates, burn + net === amount', async () => {
+            expect(burnOf(ODD_TRANSFER_NANO)).toBe(100n);
+            expect(netOf(ODD_TRANSFER_NANO)).toBe(9_903n);
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, ODD_TRANSFER_NANO);
+        });
 
+        it('amount < 100 nano: burn = 0 (integer truncation), transfer succeeds in full', async () => {
+            expect(burnOf(DUST_TRANSFER_BELOW_BURN_UNIT)).toBe(0n);
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, DUST_TRANSFER_BELOW_BURN_UNIT);
+
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(DUST_TRANSFER_BELOW_BURN_UNIT);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+        });
+
+        it('transfer of 1 nano delivers 1 nano, burns nothing', async () => {
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, 1n);
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(1n);
+        });
+
+        it('explicit JettonBurn still deflates supply', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
-            const tx = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            const r = await wx.sendBurn(ctx.userX.getSender(), {
+                jettonAmount: 20n * NANO_PER_BURN,
+                value: toNano('0.08'),
             });
-            expect(tx.transactions).toHaveTransaction({ from: wx.address, success: true });
-            expect(tx.transactions).toHaveTransaction({
-                from: treasuryJw,
-                to: treasuryContract.address,
-                success: true,
-            });
-            expect(await treasuryContract.getGetTotalReceived()).toBe(expectedTreasury);
+            expect(r.transactions).toHaveTransaction({ success: true });
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - 20n * NANO_PER_BURN);
         });
     });
 
@@ -279,7 +211,7 @@ describe('BurnJetton', () => {
         });
     });
 
-    describe('Close mint (IMP-PREMNT-05)', () => {
+    describe('Close mint (irreversible)', () => {
         it('mint works before close', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(100n * NANO_PER_BURN);
@@ -296,17 +228,16 @@ describe('BurnJetton', () => {
             expect((await ctx.master.getGetJettonData()).mintable).toBe(true);
         });
 
-        it('admin closes mint irreversibly; mintable flips to false', async () => {
+        it('admin closes mint; mintable flips to false', async () => {
             const r = await ctx.master.sendCloseMint(ctx.deployer.getSender());
             expect(r.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
             expect((await ctx.master.getGetJettonData()).mintable).toBe(false);
         });
 
-        it('mint after close is rejected (even free space under cap after burn)', async () => {
+        it('mint after close is rejected even when burn freed cap space', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
             await ctx.master.sendCloseMint(ctx.deployer.getSender());
 
-            // Free up cap space via a burn, then prove mint is still refused.
             const wx = await getWallet(ctx, ctx.userX.address);
             await wx.sendBurn(ctx.userX.getSender(), { jettonAmount: 10n * NANO_PER_BURN, value: toNano('0.08') });
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(90n * NANO_PER_BURN);
@@ -326,95 +257,95 @@ describe('BurnJetton', () => {
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(90n * NANO_PER_BURN);
         });
 
-        it('burn keeps working after close (supply still deflates)', async () => {
+        it('transfers (and their burn leg) keep working after close', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
             await ctx.master.sendCloseMint(ctx.deployer.getSender());
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const burnRes = await wx.sendBurn(ctx.userX.getSender(), {
-                jettonAmount: 20n * NANO_PER_BURN,
-                value: toNano('0.08'),
-            });
-            expect(burnRes.transactions).toHaveTransaction({ success: true });
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(30n * NANO_PER_BURN);
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, 10n * NANO_PER_BURN);
             expect((await ctx.master.getGetJettonData()).mintable).toBe(false);
         });
     });
 
-    describe('Excluded addresses', () => {
-        it('fee = 0 when receiver is excluded; remove restores fees', async () => {
-            const minted = 100n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, minted, 1n, MINT_TON);
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const ten = 10n * NANO_PER_BURN;
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: ten,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
-            });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(ten);
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(minted);
-
-            await ctx.master.sendRemoveExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: ten,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            expect((await wy.getGetWalletData()).balance).toBe(
-                ten + ten - (ten * 50n) / 10000n - (ten * 30n) / 10000n - (ten * 20n) / 10000n,
+    describe('Admin revocation (ChangeOwner to inaccessible address)', () => {
+        beforeEach(async () => {
+            await ctx.master.sendMint(
+                ctx.deployer.getSender(),
+                ctx.userX.address,
+                100n * NANO_PER_BURN,
+                1n,
+                MINT_TON,
             );
+            const r = await ctx.master.sendChangeOwner(ctx.deployer.getSender(), INACCESSIBLE_ADDRESS);
+            expect(r.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
         });
 
-        it('fee = 0 when sender is excluded (e.g. staking pool)', async () => {
-            await setupExcluded(ctx, [ctx.staking.address]);
-            const minted = 50n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, minted, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
+        it('admin field points to the inaccessible address', async () => {
+            const data = await ctx.master.getGetJettonData();
+            expect(data.adminAddress.equals(INACCESSIBLE_ADDRESS)).toBe(true);
+        });
 
-            const wSt = await getWallet(ctx, ctx.staking.address);
-            const ten = 10n * NANO_PER_BURN;
-            await wSt.sendTransfer(ctx.staking.getSender(), {
-                jettonAmount: ten,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.staking.address,
-                value: TRANSFER_TON_EXCLUDED,
+        it('transfer path keeps working after revocation (burn applies)', async () => {
+            await transferAndAssertBurn(ctx, ctx.userX, ctx.userY.address, TRANSFER_100_BURN / 10n);
+        });
+
+        it('all admin ops from the former admin are rejected', async () => {
+            const mint = await ctx.master.sendMint(
+                ctx.deployer.getSender(),
+                ctx.userY.address,
+                NANO_PER_BURN,
+                1n,
+                MINT_TON,
+            );
+            expect(mint.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
             });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(ten);
-        });
 
-        it('excluded transfer passes with reduced attach (0.7 TON)', async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const amount = 1n * NANO_PER_BURN;
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+            const close = await ctx.master.sendCloseMint(ctx.deployer.getSender());
+            expect(close.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
             });
-            expect(r.transactions).toHaveTransaction({ success: true });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(amount);
+
+            const content: JettonUpdateContentMsg = {
+                $$type: 'JettonUpdateContent',
+                queryId: 0n,
+                content: beginCell().endCell(),
+            };
+            const upd = await ctx.master.send(ctx.deployer.getSender(), { value: toNano('0.02') }, content);
+            expect(upd.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+            });
+
+            const takeBack = await ctx.master.sendChangeOwner(ctx.deployer.getSender(), ctx.deployer.address);
+            expect(takeBack.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+            });
+            expect((await ctx.master.getGetJettonData()).adminAddress.equals(INACCESSIBLE_ADDRESS)).toBe(true);
+        });
+    });
+
+    describe('Immutability of the fee', () => {
+        it('ABI has no fee/excluded/timelock/dynamic-burn error strings left', async () => {
+            const masterErrors = Object.keys(BurnJettonMaster_errors_backward).join('|');
+            expect(masterErrors).not.toContain('Only timelock');
+            expect(masterErrors).not.toContain('excluded');
+            const walletErrors = Object.keys(BurnJettonWallet_errors_backward).join('|');
+            expect(walletErrors).not.toContain('Fee config');
+        });
+    });
+
+    describe('Gas gates (burn-only path)', () => {
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
         });
 
-        it('excluded transfer rejects insufficient attach (0.5 TON → exit 32113)', async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
+        it('rejects attach below the burn-path gate (0.5 TON)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
@@ -426,31 +357,9 @@ describe('BurnJetton', () => {
                 success: false,
                 exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
             });
-            expect(BurnJettonWallet_errors_backward['Insufficient amount of TON attached']).toBe(32113);
-        });
-    });
-
-    describe('Gas gates (IMP-JETTON-GAS-02)', () => {
-        beforeEach(async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
         });
 
-        it('fee path rejects attach below 2.1 TON gate (2.0 TON)', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: 1n * NANO_PER_BURN,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: toNano('2.0'),
-            });
-            expect(r.transactions).toHaveTransaction({
-                success: false,
-                exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
-            });
-        });
-
-        it('fee path passes with TRANSFER_TON (3.5 TON)', async () => {
+        it('passes with TRANSFER_TON (0.8 TON) — cold recipient deploy included', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
@@ -460,246 +369,33 @@ describe('BurnJetton', () => {
             });
             expect(r.transactions).toHaveTransaction({ success: true });
             const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
-        });
-    });
-
-    describe('Sender surplus return (IMP-JETTON-GAS-07)', () => {
-        const MIN_TONS_FOR_STORAGE = toNano('0.01');
-        const SURPLUS_EPSILON = toNano('0.02');
-
-        beforeEach(async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+            expect((await wy.getGetWalletData()).balance).toBe(netOf(1n * NANO_PER_BURN));
         });
 
-        it('fee path: sender JW keeps only storage minimum; owner receives bulk excess', async () => {
-            const amount = 100n * NANO_PER_BURN;
-            const burn = (5n * NANO_PER_BURN) / 10n;
-            const staking = (3n * NANO_PER_BURN) / 10n;
-            const treasury = (2n * NANO_PER_BURN) / 10n;
-            const net = amount - burn - staking - treasury;
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const wy = await getWallet(ctx, ctx.userY.address);
-            const stakeW = await getWallet(ctx, ctx.staking.address);
-            const treasW = await getWallet(ctx, ctx.treasury.address);
-            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
-            let recipientBefore = 0n;
-            try {
-                recipientBefore = (await wy.getGetWalletData()).balance;
-            } catch {
-                recipientBefore = 0n;
-            }
-            const stakeBefore = (await stakeW.getGetWalletData()).balance;
-            const treasBefore = (await treasW.getGetWalletData()).balance;
-            const ownerTonBefore = await ctx.userX.getBalance();
-
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
-
-            expect((await wy.getGetWalletData()).balance).toBe(recipientBefore + net);
-            expect((await stakeW.getGetWalletData()).balance).toBe(stakeBefore + staking);
-            expect((await treasW.getGetWalletData()).balance).toBe(treasBefore + treasury);
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - burn);
-
-            const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
-            expect(jwTonAfter).toBeLessThanOrEqual(MIN_TONS_FOR_STORAGE + SURPLUS_EPSILON);
-
-            const ownerDelta = (await ctx.userX.getBalance()) - ownerTonBefore;
-            const excessReturned = ownerDelta + TRANSFER_TON;
-            expect(excessReturned).toBeGreaterThanOrEqual(toNano('1.5'));
-        });
-
-        it('excluded path: surplus returned to response destination', async () => {
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
+        it('sender JW keeps only storage minimum; owner receives surplus', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const ownerTonBefore = await ctx.userX.getBalance();
-            const amount = 10n * NANO_PER_BURN;
 
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
-            });
-            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
-
-            const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
-            expect(jwTonAfter).toBeLessThanOrEqual(MIN_TONS_FOR_STORAGE + SURPLUS_EPSILON);
-
-            const ownerTonAfter = await ctx.userX.getBalance();
-            expect(ownerTonAfter - ownerTonBefore).toBeGreaterThan(0n);
-
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(amount);
-        });
-    });
-
-    describe('Warm wallet gas (IMP-JETTON-GAS-06)', () => {
-        beforeEach(async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-        });
-
-        it('first transfer to new recipient succeeds (cold deploy path)', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: 5n * NANO_PER_BURN,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
-            expect(await wy.getGetFeeConfigActive()).toBe(true);
-        });
-
-        it('repeat transfer to same recipient succeeds with warm-path attach floor', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: 5n * NANO_PER_BURN,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-
-            const warmAttach = toNano('2.3');
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: warmAttach,
+                value: TRANSFER_TON,
             });
             expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
-        });
-    });
 
-    describe('Dynamic burn', () => {
-        beforeEach(async () => {
-            await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), true);
-            await ctx.master.sendSetDynamicBurnThresholds(ctx.deployer.getSender(), {
-                largeTxThreshold: LARGE_TX_THRESHOLD_10_BURN,
-                activityThreshold: 100_000n,
-            });
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-        });
+            const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
+            expect(jwTonAfter).toBeLessThanOrEqual(toNano('0.01') + toNano('0.02'));
 
-        it('amount > 10 BURN adds +25 BPS to burn leg', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const amount = 11n * NANO_PER_BURN;
-            const burnBps = 75n;
-            const net = amount - (amount * burnBps) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(net);
-        });
-    });
-
-    describe('Dynamic burn activity bonus (tx_count > threshold)', () => {
-        it('applies +12 BPS after enough burn notifications on master', async () => {
-            await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), true);
-            await ctx.master.sendSetDynamicBurnThresholds(ctx.deployer.getSender(), {
-                largeTxThreshold: 1000n * NANO_PER_BURN,
-                activityThreshold: ACTIVITY_THRESHOLD_DEFAULT,
-            });
-
-            const minted = 300n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, minted, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            for (let i = 0; i < 101; i++) {
-                await wx.sendTransfer(ctx.userX.getSender(), {
-                    jettonAmount: 1n,
-                    destinationOwner: ctx.userY.address,
-                    responseDestination: ctx.userX.address,
-                    value: TRANSFER_TON,
-                });
-            }
-
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const amount = 5n * NANO_PER_BURN;
-            const burnBps = 62n;
-            const net = amount - (amount * burnBps) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-
-            const wy = await getWallet(ctx, ctx.userY.address);
-            const yBal = (await wy.getGetWalletData()).balance;
-            const from101nano = 101n;
-            expect(yBal).toBe(from101nano + net);
-        });
-    });
-
-    describe('Auto-reduce (low supply)', () => {
-        it('uses 10 / 6 / 4 BPS when totalSupply < 100 BURN', async () => {
-            const minted = 200n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, minted, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const wx = await getWallet(ctx, ctx.userX.address);
-            await wx.sendBurn(ctx.userX.getSender(), { jettonAmount: 101n * NANO_PER_BURN, value: toNano('0.08') });
-
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(99n * NANO_PER_BURN);
-            const eff = await ctx.master.getGetEffectiveFeeParams();
-            expect(eff.burnBps).toBe(10n);
-            expect(eff.stakingBps).toBe(6n);
-            expect(eff.treasuryBps).toBe(4n);
-
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-            const ten = 10n * NANO_PER_BURN;
-            const net = ten - (ten * 10n) / 10000n - (ten * 6n) / 10000n - (ten * 4n) / 10000n;
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: ten,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(net);
-        });
-
-        it('boundary: exactly 100 BURN supply keeps full fee', async () => {
-            const minted = 200n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, minted, 1n, MINT_TON);
-            const wx = await getWallet(ctx, ctx.userX.address);
-            await wx.sendBurn(ctx.userX.getSender(), { jettonAmount: 100n * NANO_PER_BURN, value: toNano('0.08') });
-
-            const eff = await ctx.master.getGetEffectiveFeeParams();
-            expect(eff.burnBps).toBe(50n);
-            expect(eff.stakingBps).toBe(30n);
-            expect(eff.treasuryBps).toBe(20n);
+            const ownerTonAfter = await ctx.userX.getBalance();
+            // Owner paid TRANSFER_TON but got the surplus back — net spend well below the attach.
+            expect(ownerTonBefore - ownerTonAfter).toBeLessThan(TRANSFER_TON);
         });
     });
 
     describe('Edge cases', () => {
         beforeEach(async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
         });
 
         it('rejects transfer with zero amount', async () => {
@@ -716,23 +412,10 @@ describe('BurnJetton', () => {
             });
         });
 
-        it('transfer of 1 nano preserves conservation', async () => {
-            const wx = await getWallet(ctx, ctx.userX.address);
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: 1n,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON,
-            });
-            const wy = await getWallet(ctx, ctx.userY.address);
-            expect((await wy.getGetWalletData()).balance).toBe(1n);
-        });
-
-        it('transfer to own address keeps conservation (fees routed out, net returns)', async () => {
+        it('transfer to own address keeps conservation (burn leg routed out, net returns)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const before = (await wx.getGetWalletData()).balance;
             const amount = 5n * NANO_PER_BURN;
-            const net = amount - (amount * 50n) / 10000n - (amount * 30n) / 10000n - (amount * 20n) / 10000n;
             await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: amount,
                 destinationOwner: ctx.userX.address,
@@ -740,7 +423,7 @@ describe('BurnJetton', () => {
                 value: TRANSFER_TON,
             });
             const after = (await wx.getGetWalletData()).balance;
-            expect(after).toBe(before - amount + net);
+            expect(after).toBe(before - amount + netOf(amount));
         });
 
         it('rejects second spend when balance insufficient', async () => {
@@ -763,10 +446,24 @@ describe('BurnJetton', () => {
                 exitCode: BurnJettonWallet_errors_backward['Incorrect balance after send'],
             });
         });
+
+        it('non-owner cannot spend from someone else’s wallet', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userY.getSender(), {
+                jettonAmount: NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userY.address,
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({
+                success: false,
+                exitCode: BurnJettonWallet_errors_backward['Incorrect sender'],
+            });
+        });
     });
 
     describe('Permissions', () => {
-        it('non-admin cannot Mint, SetFeeParams, AddExcluded, SetAutoReduceParams', async () => {
+        it('non-admin cannot Mint', async () => {
             const mintMessage: JettonTransferInternal = {
                 $$type: 'JettonTransferInternal',
                 queryId: 0n,
@@ -787,102 +484,41 @@ describe('BurnJetton', () => {
                 success: false,
                 exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
             });
-
-            const fee: SetFeeParamsMsg = {
-                $$type: 'SetFeeParams',
-                queryId: 0n,
-                burn_rate_bps: 40n,
-                staking_rate_bps: 40n,
-                treasury_rate_bps: 10n,
-            };
-            const feeRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, fee);
-            expect(feeRes.transactions).toHaveTransaction({
-                success: false,
-                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
-            });
-
-            const add: AddExcludedMsg = {
-                $$type: 'AddExcluded',
-                queryId: 0n,
-                address: ctx.userX.address,
-            };
-            const addRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, add);
-            expect(addRes.transactions).toHaveTransaction({
-                success: false,
-                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
-            });
-
-            const ar: SetAutoReduceParamsMsg = {
-                $$type: 'SetAutoReduceParams',
-                queryId: 0n,
-                threshold: 100n * NANO_PER_BURN,
-                low_burn_bps: 10n,
-                low_staking_bps: 6n,
-                low_treasury_bps: 4n,
-            };
-            const arRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, ar);
-            expect(arRes.transactions).toHaveTransaction({
-                success: false,
-                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
-            });
         });
 
-        it('SetTimelock: only the current timelock can hand over fee governance (IMP-PREMNT-03)', async () => {
-            // Non-timelock caller is rejected and the field is unchanged.
-            const rogue = await ctx.master.sendSetTimelock(ctx.userY.getSender(), ctx.userX.address);
-            expect(rogue.transactions).toHaveTransaction({
-                on: ctx.master.address,
-                success: false,
-                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
-            });
-            expect((await ctx.master.getGetTimelockAddress()).equals(ctx.deployer.address)).toBe(true);
-
-            // Current timelock (deployer in this fixture) transfers authority to a new controller.
-            const ok = await ctx.master.sendSetTimelock(ctx.deployer.getSender(), ctx.userX.address);
-            expect(ok.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
-            expect((await ctx.master.getGetTimelockAddress()).equals(ctx.userX.address)).toBe(true);
-
-            // The old timelock can no longer drive fee governance after the handover.
-            const stale: SetFeeParamsMsg = {
-                $$type: 'SetFeeParams',
+        it('non-admin cannot ChangeOwner or JettonUpdateContent', async () => {
+            const co: ChangeOwnerMsg = {
+                $$type: 'ChangeOwner',
                 queryId: 0n,
-                burn_rate_bps: 40n,
-                staking_rate_bps: 40n,
-                treasury_rate_bps: 10n,
+                newOwner: ctx.userY.address,
             };
-            const staleRes = await ctx.master.send(ctx.deployer.getSender(), { value: toNano('0.02') }, stale);
-            expect(staleRes.transactions).toHaveTransaction({
-                on: ctx.master.address,
+            const coRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, co);
+            expect(coRes.transactions).toHaveTransaction({
                 success: false,
-                exitCode: BurnJettonMaster_errors_backward['Only timelock'],
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
+            });
+
+            const upd: JettonUpdateContentMsg = {
+                $$type: 'JettonUpdateContent',
+                queryId: 0n,
+                content: beginCell().endCell(),
+            };
+            const updRes = await ctx.master.send(ctx.userY.getSender(), { value: toNano('0.02') }, upd);
+            expect(updRes.transactions).toHaveTransaction({
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Incorrect sender'],
             });
         });
     });
 
-    describe('bounce handlers (IMP-AUDIT-08)', () => {
-        beforeEach(async () => {
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-        });
-
+    describe('bounce handlers', () => {
         it('JettonBurnNotification bounce restores wallet balance without changing totalSupply', async () => {
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
             const wx = await getWallet(ctx, ctx.userX.address);
-            const burnLeg = 5n * NANO_PER_BURN;
             const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            const burnLeg = 5n * NANO_PER_BURN;
 
-            const xfer = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: burnLeg,
-                destinationOwner: ctx.userY.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
-            });
-            expect(xfer.transactions).toHaveTransaction({ from: wx.address, success: true });
-            expect((await wx.getGetWalletData()).balance).toBe(95n * NANO_PER_BURN);
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
-
+            // Synthetic bounced burn notification from master → wallet re-credits the leg.
             const notifyBody = beginCell()
                 .storeUint(0xffffffff, 32)
                 .store(
@@ -906,86 +542,8 @@ describe('BurnJetton', () => {
                 }),
             );
             expect(bounceTx.transactions).toHaveTransaction({ on: wx.address, success: true });
-            expect((await wx.getGetWalletData()).balance).toBe(100n * NANO_PER_BURN);
+            expect((await wx.getGetWalletData()).balance).toBe(105n * NANO_PER_BURN);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
-        });
-    });
-
-    describe('IMP-STKFEE-02 stale excluded snapshot', () => {
-        it('transfer to excluded destination with notify forward after stale sender sync is fee-exempt (live master check)', async () => {
-            const amount = 3n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.staking.address);
-            expect(await ctx.master.getGetIsExcluded(ctx.staking.address)).toBe(true);
-
-            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
-            const wx = await getWallet(ctx, ctx.userX.address);
-            const r = await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.staking.address,
-                responseDestination: ctx.userX.address,
-                forwardTonAmount: toNano('1'),
-                value: TRANSFER_TON,
-            });
-            expect(r.transactions).toHaveTransaction({ success: true });
-
-            const wSt = await getWallet(ctx, ctx.staking.address);
-            expect((await wSt.getGetWalletData()).balance).toBe(amount);
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
-        });
-
-        it('fresh snapshot: transfer to excluded destination remains fee-exempt', async () => {
-            const amount = 10n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.staking.address);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
-            const wx = await getWallet(ctx, ctx.userX.address);
-            await wx.sendTransfer(ctx.userX.getSender(), {
-                jettonAmount: amount,
-                destinationOwner: ctx.staking.address,
-                responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
-            });
-
-            const wSt = await getWallet(ctx, ctx.staking.address);
-            expect((await wSt.getGetWalletData()).balance).toBe(amount);
-            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
-        });
-
-        it('non-excluded transfer still charges 1% fee (direct fee path, no master hop)', async () => {
-            const amount = 100n * NANO_PER_BURN;
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
-            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-
-            const burn = (5n * NANO_PER_BURN) / 10n;
-            const staking = (3n * NANO_PER_BURN) / 10n;
-            const treasury = (2n * NANO_PER_BURN) / 10n;
-            await transferAndAssertFees(ctx, ctx.userX, ctx.userY.address, amount, burn, staking, treasury);
-        });
-
-        it('staking deposit with stale snapshot stakes full gross amount (3 BURN → 3 staked)', async () => {
-            const env = await setupStakingEnvironment();
-            const user = await env.blockchain.treasury('staker');
-            const amount = 3n * NANO_PER_BURN;
-
-            await env.jettonMaster.sendRemoveExcluded(env.deployer.getSender(), env.stakingMaster.address);
-            await env.jettonMaster.sendMint(env.deployer.getSender(), user.address, amount, 1n, MINT_TON);
-            await env.jettonMaster.sendSyncFeeConfigToWallet(env.deployer.getSender(), user.address);
-            await env.jettonMaster.sendAddExcluded(env.deployer.getSender(), env.stakingMaster.address);
-            expect(await env.jettonMaster.getGetIsExcluded(env.stakingMaster.address)).toBe(true);
-
-            const stakeRes = await stakeAs(env, user, 0, amount);
-            expect(stakeRes.transactions).toHaveTransaction({ success: true });
-
-            const stake = await env.stakingMaster.getGetStake(user.address, 0n);
-            expect(stake).not.toBeNull();
-            expect(stake!.amount).toBe(amount);
         });
     });
 });
@@ -1009,18 +567,6 @@ describe('IMP-RELAY-04 — BurnJettonMaster plain-TON relay', () => {
         expect(mintTx.transactions).toHaveTransaction({ success: true });
 
         assertRelayFlowClean(mintTx.transactions, {
-            partnerPairs: [[ctx.master.address, walletAddr]],
-        });
-    });
-
-    it('SyncFeeConfigToWallet has zero empty-body hops Master↔wallet', async () => {
-        await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, NANO_PER_BURN, 1n, MINT_TON);
-
-        const walletAddr = await ctx.master.getGetWalletAddress(ctx.userX.address);
-        const syncTx = await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
-        expect(syncTx.transactions).toHaveTransaction({ success: true });
-
-        assertRelayFlowClean(syncTx.transactions, {
             partnerPairs: [[ctx.master.address, walletAddr]],
         });
     });

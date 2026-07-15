@@ -56,11 +56,6 @@ describe('BurnJetton TEP-74 stack layout', () => {
         expect(stack.remaining).toBe(0);
     });
 
-    it('exposes timelock via get_timelock_address', async () => {
-        const timelock = await ctx.master.getGetTimelockAddress();
-        expect(timelock.equals(ctx.deployer.address)).toBe(true);
-    });
-
     it('low-level provider.get matches runGetMethod stack size', async () => {
         const provider = ctx.blockchain.provider(ctx.master.address);
         const { stack } = await provider.get('get_jetton_data', []);

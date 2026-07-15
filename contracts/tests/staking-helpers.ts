@@ -40,7 +40,10 @@ export async function wireMasterJettonWallet(
     expect(tx.transactions).toHaveTransaction({ success: true });
 }
 
-/** Deploy staking master's jetton wallet (if needed) and sync fee config so exclusions apply on JW routing. */
+/**
+ * Deploy staking master's jetton wallet via a 1-nano mint.
+ * IMP-TOKSIM-01: fee-config sync no longer exists — the wallet is live immediately.
+ */
 export async function primeStakingMasterJettonWallet(
     jettonMaster: SandboxContract<BurnJettonMaster>,
     deployer: SandboxContract<TreasuryContract>,
@@ -48,19 +51,19 @@ export async function primeStakingMasterJettonWallet(
 ) {
     const mintTx = await jettonMaster.sendMint(deployer.getSender(), stakingMaster.address, 1n, 1n, MINT_TON);
     expect(mintTx.transactions).toHaveTransaction({ success: true });
-    const syncTx = await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), stakingMaster.address);
-    expect(syncTx.transactions).toHaveTransaction({ success: true });
 }
 
+/**
+ * IMP-TOKSIM-01: fee destinations / excluded list removed from the jetton — the
+ * bootstrap reduces to priming the staking master's jetton wallet. Kept under the
+ * old name to minimize churn in suites deleted by IMP-TOKSIM-03.
+ */
 export async function bootstrapStakeFeesAndPrimeMaster(
     jettonMaster: SandboxContract<BurnJettonMaster>,
     deployer: SandboxContract<TreasuryContract>,
-    poolHolder: Address,
+    _poolHolder: Address,
     stakingMaster: SandboxContract<StakingMaster>,
 ) {
-    await jettonMaster.sendSetFeeDestinations(deployer.getSender(), poolHolder, deployer.address);
-    await jettonMaster.sendAddExcluded(deployer.getSender(), poolHolder);
-    await jettonMaster.sendAddExcluded(deployer.getSender(), stakingMaster.address);
     await primeStakingMasterJettonWallet(jettonMaster, deployer, stakingMaster);
 }
 
@@ -186,6 +189,7 @@ export function assertPendingRewardCloseToNano(actual: bigint, expectedNano: big
     expect(actual >= lo && actual <= hi).toBe(true);
 }
 
+/** IMP-TOKSIM-01: "sync" is a no-op now (no fee config); kept name to minimize churn. */
 export async function mintAndSyncUser(
     env: StakingTestEnv,
     user: SandboxContract<TreasuryContract>,
@@ -193,7 +197,6 @@ export async function mintAndSyncUser(
 ) {
     const { deployer, jettonMaster } = env;
     await jettonMaster.sendMint(deployer.getSender(), user.address, amountNano, 1n, MINT_TON);
-    await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), user.address);
 }
 
 /** Triggers staking-master emission tick via tiny Flexible unstake (requires active stake >= amount). */

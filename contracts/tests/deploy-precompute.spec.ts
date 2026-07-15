@@ -13,7 +13,7 @@ describe('deploy address layout (P5-6-1-1)', () => {
         const blockchain = await Blockchain.create();
         const deployer = await blockchain.treasury('deployer');
         const content = BurnJettonMaster.jettonContentFromUri('https://example.com/burn.json');
-        const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content, deployer.address);
+        const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
 
         const pool = await StakingPool.prepareInit({
             bootstrapOwner: deployer.address,
@@ -53,7 +53,7 @@ describe('deploy address layout (P5-6-1-1)', () => {
         const blockchain = await Blockchain.create();
         const deployer = await blockchain.treasury('deployer');
         const content = BurnJettonMaster.jettonContentFromUri('https://example.com/burn.json');
-        const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content, deployer.address);
+        const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content);
         const treasury = await Treasury.prepareInit(deployer.address, jetton.address);
 
         const predicted = await BurnJettonMaster.predictWalletAddress(jetton.address, treasury.address);

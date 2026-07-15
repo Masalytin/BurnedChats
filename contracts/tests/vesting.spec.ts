@@ -3,7 +3,7 @@ import { expect } from '@jest/globals';
 import '@ton/test-utils';
 
 import { Vesting } from '../wrappers/Vesting';
-import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, setupExcluded } from './helpers';
+import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, netOf, SANDBOX_NOW } from './helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 
 const DEPLOY_TON = toNano('0.2');
@@ -92,7 +92,7 @@ describe('Vesting (P5-3-3-1)', () => {
         expect(r.transactions).toHaveTransaction({ success: false });
     });
 
-    it('beneficiary receives excluded transfer on Release after full vest', async () => {
+    it('beneficiary receives net transfer (1% burn) on Release after full vest', async () => {
         const ctx = await deployJetton();
         const { blockchain, deployer, master, treasury } = ctx;
         const beneficiary = await blockchain.treasury('benefix');
@@ -113,9 +113,7 @@ describe('Vesting (P5-3-3-1)', () => {
         const v = blockchain.openContract(vest);
         await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
 
-        await setupExcluded(ctx, [v.address]);
         await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
-        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
 
         const r0 = await v.beneficiaryRelease(beneficiary.getSender());
         expect(r0.transactions).toHaveTransaction({ success: false });
@@ -125,8 +123,9 @@ describe('Vesting (P5-3-3-1)', () => {
         const r1 = await v.beneficiaryRelease(beneficiary.getSender());
         expect(r1.transactions).toHaveTransaction({ success: true });
 
+        // IMP-TOKSIM-01: every transfer burns 1%, vesting payouts included.
         const bWallet = await getWallet(ctx, beneficiary.address);
-        expect((await bWallet.getGetWalletData()).balance).toBe(totalNano);
+        expect((await bWallet.getGetWalletData()).balance).toBe(netOf(totalNano));
         expect(await v.getGetReleasedAmount()).toBe(totalNano);
     });
 
@@ -151,17 +150,16 @@ describe('Vesting (P5-3-3-1)', () => {
 
         const v = blockchain.openContract(vest);
         await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
-        await setupExcluded(ctx, [v.address]);
         await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
-        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
 
         const bad = await v.timelockEmergencyRevoke(wrong.getSender());
         expect(bad.transactions).toHaveTransaction({ success: false });
 
         await v.timelockEmergencyRevoke(deployer.getSender());
 
+        // IMP-TOKSIM-01: the revoke transfer to treasury burns 1% as well.
         const tWallet = await getWallet(ctx, treasury.address);
-        expect((await tWallet.getGetWalletData()).balance).toBeGreaterThanOrEqual(totalNano);
+        expect((await tWallet.getGetWalletData()).balance).toBeGreaterThanOrEqual(netOf(totalNano));
 
         blockchain.now = SANDBOX_NOW + 500_000;
         const emptyRel = await v.beneficiaryRelease(beneficiary.getSender());
@@ -191,9 +189,7 @@ describe('IMP-RELAY-04 — Vesting plain-TON relay', () => {
         const v = blockchain.openContract(vest);
         await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
 
-        await setupExcluded(ctx, [v.address]);
         await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
-        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
 
         blockchain.now = SANDBOX_NOW + 10_000;
 
@@ -226,9 +222,7 @@ describe('IMP-RELAY-04 — Vesting plain-TON relay', () => {
 
         const v = blockchain.openContract(vest);
         await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
-        await setupExcluded(ctx, [v.address]);
         await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
-        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
 
         const vestJw = await master.getGetWalletAddress(v.address);
         const revokeTx = await v.timelockEmergencyRevoke(deployer.getSender());

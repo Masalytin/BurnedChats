@@ -48,7 +48,7 @@ contract Vesting(
 
     inline fun jetton_wallet_addr(): Address {
         return contractAddress(
-            initOf BurnJettonWallet(myAddress(), self.jetton_master, 0, jettonWalletEmptyFeeConfig()),
+            initOf BurnJettonWallet(myAddress(), self.jetton_master, 0),
         );
     }
 

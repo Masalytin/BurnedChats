@@ -20,7 +20,7 @@ export class BurnJettonWallet extends BurnJettonWalletBase {
             destinationOwner: Address;
             responseDestination: Address;
             forwardTonAmount?: bigint;
-            /** TEP-74 either-cell forward payload (staking uses ref with `StakeForward`). */
+            /** TEP-74 either-cell forward payload. */
             forwardPayload?: Slice;
             value: bigint;
         },
