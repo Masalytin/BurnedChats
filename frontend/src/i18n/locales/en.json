@@ -23,13 +23,11 @@
       "errorAboveMax": "Maximum is {{max}}"
     }
   },
-
   "nav": {
     "home": "Home",
     "wallet": "Wallet",
     "settings": "Settings"
   },
-
   "settings": {
     "title": "Settings",
     "languageLabel": "App language",
@@ -102,7 +100,6 @@
       "debugPanel": "Debug panel"
     }
   },
-
   "status": {
     "online": "online",
     "offline": "offline",
@@ -110,7 +107,6 @@
     "connecting": "connecting",
     "reconnecting": "Reconnecting..."
   },
-
   "home": {
     "sectionSearch": "Start a Secure Chat",
     "searchPlaceholder": "@username, Telegram ID, Internal ID, or wallet",
@@ -126,14 +122,11 @@
     "featureBurnDesc": "Destroy all traces of your conversation with one tap.",
     "burnSection": {
       "title": "BURN Token",
-      "subtitle": "Stake for rewards and shape the protocol through on-chain governance.",
-      "staking": "Staking",
-      "stakingDesc": "Lock BURN to earn rewards and boost voting power.",
-      "governance": "Governance",
-      "governanceDesc": "Vote on proposals and create new ones."
+      "subtitle": "A deflationary meme jetton — 1% burns on every transfer.",
+      "burn": "On-chain burn",
+      "burnDesc": "1% of every transfer is destroyed forever."
     }
   },
-
   "walletLogin": {
     "title": "Burned Chats",
     "subtitle": "Connect your TON wallet to sign in from your browser.",
@@ -152,7 +145,6 @@
     "errorTimeout": "Connection timed out. Check your network and try again.",
     "errorNetwork": "Could not reach the server. Check your connection and API URL."
   },
-
   "accountLinking": {
     "sectionTitle": "Linked accounts",
     "sectionSubtitle": "Connect Telegram and your TON wallet to the same account.",
@@ -174,7 +166,6 @@
     "conflict": "This Telegram account or wallet is already linked elsewhere.",
     "retryLoad": "Try again"
   },
-
   "errors": {
     "rootTitle": "Something went wrong",
     "rootMessage": "The app hit an unexpected error. Reload the page, copy technical details, or send us a report.",
@@ -184,13 +175,7 @@
     "report": "Report",
     "dismiss": "Dismiss (dev)"
   },
-
   "wallet": {
-    "segment": {
-      "wallet": "Wallet",
-      "staking": "Staking",
-      "governance": "Governance"
-    },
     "connectWallet": "Connect Wallet",
     "connectWalletAria": "Connect TON wallet",
     "openWalletAria": "Open wallet, address {{address}}, BURN {{balance}}{{gramSuffix}}",
@@ -294,317 +279,6 @@
     "errorTitle": "Wallet unavailable",
     "errorRetry": "Try again"
   },
-
-  "staking": {
-    "tierFlexible": "Flexible",
-    "tierSilver": "Silver",
-    "tierGold": "Gold",
-    "tierDiamond": "Diamond",
-    "lockFlexible": "Flexible",
-    "lock6m": "6 months",
-    "lock1y": "1 year",
-    "lock3y": "3 years",
-    "unlocksIn": "Unlocks in {{parts}}",
-    "unlocked": "Unlocked",
-    "timePartYear_one": "1 year",
-    "timePartYear_other": "{{count}} years",
-    "timePartMonth_one": "1 month",
-    "timePartMonth_other": "{{count}} months",
-    "timePartDay_one": "1 day",
-    "timePartDay_other": "{{count}} days",
-    "timePartHour_one": "1 hour",
-    "timePartHour_other": "{{count}} hours",
-    "multiplierShort": "{{value}}× VP",
-    "back": "Back",
-    "pageTitle": "Staking",
-    "notConfiguredTitle": "Staking will be available soon",
-    "notConfiguredHint": "On-chain contracts are not configured in this environment yet. Addresses are filled in after testnet deployment.",
-    "connectHint": "Connect your TON wallet to view positions and stake BURN.",
-    "connectWallet": "Connect wallet",
-    "retry": "Retry",
-    "headerTotalStaked": "Total staked",
-    "headerTotalVp": "Voting power",
-    "headerPending": "Pending rewards",
-    "emptyTitle": "Start earning rewards",
-    "emptyHint": "Stake your BURN to join the rewards pool. Pick a tier that matches how long you can lock tokens.",
-    "emptyCta": "Stake into Diamond",
-    "timelineAria": "Unlock timeline",
-    "timelineEmpty": "No active locks. Flexible tier or unlocked positions do not appear here.",
-    "timelineTitle": "Unlock timeline",
-    "tiersSection": "Tiers",
-    "positionAmount": "Staked",
-    "positionStarted": "Since",
-    "positionReward": "Pending reward",
-    "positionUnlock": "Unlock",
-    "noStakeTier": "You have no stake in this tier yet.",
-    "stakeMore": "Stake more",
-    "unstake": "Unstake",
-    "unstakeDisabledTip": "Locked until {{when}}",
-    "claim": "Claim",
-    "stakeInto": "Stake into {{tier}}",
-    "rewardsTitle": "Rewards",
-    "rewardsEmpty": "No pending rewards right now.",
-    "claiming": "Claiming…",
-    "claimTier": "Claim",
-    "claimAll": "Claim all",
-    "claimHistoryTitle": "Recent claims",
-    "claimHistoryEmpty": "Claims you confirm in this app will appear here (last 10).",
-    "claimHistoryRow": "{{tier}} · {{time}}",
-    "stakeModalTitle": "Stake BURN",
-    "modalClose": "Close",
-    "stakeSuccess": "Stake transaction sent.",
-    "done": "Done",
-    "stakeSigning": "Confirm in your wallet…",
-    "stakePickTier": "Choose a tier",
-    "tierPickHint": "+{{mult}}× VP · {{lock}}",
-    "amountLabel": "Amount (BURN)",
-    "max": "Max",
-    "walletBalance": "Wallet balance: {{amount}}",
-    "amountSliderAria": "Stake amount percentage of balance",
-    "lockConfirm": "Your tokens will be locked until {{date}}. You cannot unstake earlier.",
-    "indicativeApy": "Indicative APY ~{{pct}}%",
-    "stakeConfirm": "Stake & sign",
-    "amountInvalid": "Enter a valid amount.",
-    "amountPositive": "Amount must be greater than zero.",
-    "amountOverBalance": "Amount exceeds wallet balance.",
-    "tonBalanceLabel": "{{symbol}}: {{amount}}",
-    "tonGasDepositHint": "~{{attach}} {{symbol}} is attached for network gas; unused {{symbol}} returns to your wallet.",
-    "insufficientTonForStake": "Keep at least ~{{attach}} {{symbol}} in your wallet to stake.",
-    "stakeNetWithFee": "Will stake: ≈{{net}} (1% transfer fee: {{fee}})",
-    "unstakeTitle": "Unstake {{tier}}",
-    "unstakeAvailable": "Available to unstake: {{amount}}",
-    "unstakeLockMeta": "Lock policy: {{lock}}",
-    "unstakeClaimFirst": "You have pending rewards ({{amount}}). Claim first so nothing is left on-chain before unstaking.",
-    "goClaim": "Go to claim",
-    "unstakeAmountLabel": "Amount to unstake (BURN)",
-    "unstakeConfirm": "Unstake & sign",
-    "unstakeSigning": "Confirm in your wallet…",
-    "unstakeLockedUntil": "Unstake unlocks {{date}} ({{rel}}).",
-    "unstakeLocked": "This position is still locked.",
-    "unstakeOverStake": "Amount exceeds your stake.",
-    "txFailed": "Transaction was not completed.",
-    "noJettonWallet": "You don't have a BURN token wallet yet. Receive some BURN to your address first, then try again.",
-    "claimFailed": "Claim failed",
-    "claimSuccess": "Claim submitted",
-    "claimAllSuccess": "All claims submitted",
-    "stakeFailed": "Stake failed",
-    "unstakeFailed": "Unstake failed",
-    "calculator": {
-      "title": "APY calculator",
-      "tabOverview": "Overview",
-      "tabCalculator": "Calculator",
-      "mainTabsAria": "Staking sections",
-      "phaseGroup": "Reward phase",
-      "phase1": "Phase 1 (pool allocation)",
-      "phase2": "Phase 2 (tx fees only)",
-      "phase2Disclaimer": "After year 3, only transaction fees fund staking rewards. Indicative APY is usually much lower than during Phase 1.",
-      "activityLabel": "Network activity (Phase 2)",
-      "activity": {
-        "low": "Low",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "amountLabel": "Stake amount (BURN)",
-      "amountTooltip": "Hypothetical amount you stake in this tier. Your share of the tier and APY depend on total tier TVL (illustrative baseline from TOKENOMICS plus any position you already have in that tier).",
-      "amountHint": "Slider uses your wallet balance when connected; otherwise up to {{max}}.",
-      "amountSliderAria": "Calculator stake amount as percentage of max",
-      "tierLabel": "Tier",
-      "tierTooltip": "Each tier receives a fixed share of daily pool emission; higher tiers earn more but require a longer lock.",
-      "needAmount": "Enter a stake amount to see estimates.",
-      "minAmount": "Use at least {{min}} for a meaningful APY estimate.",
-      "apy": "Indicative APY",
-      "apyTooltip": "Annualized from estimated daily rewards. Illustrative only — see TOKENOMICS for assumptions.",
-      "shareTier": "Your share of this tier",
-      "shareTierTooltip": "Your stake as a fraction of total tier stake after your deposit (scenario model).",
-      "rewardDay": "Est. reward / day",
-      "rewardDayTooltip": "Pool emission × tier reward share × your fraction of tier stake.",
-      "rewardMonth": "Est. / month",
-      "rewardMonthTooltip": "Approximation: yearly estimate ÷ 12.",
-      "rewardYear": "Est. / year",
-      "rewardYearTooltip": "Daily reward × 365.",
-      "noEmission": "No pool emission for this scenario.",
-      "chartTitle": "Compare tiers (same amount)",
-      "chartAria": "Bar chart of indicative APY by tier",
-      "modalNeedAmount": "Enter an amount to see indicative APY and reward estimates.",
-      "modalShare": "Tier share {{pct}}%",
-      "modalDay": "≈ {{amount}} / day",
-      "modalMonth": "≈ {{amount}} / month",
-      "modalYear": "≈ {{amount}} / year"
-    }
-  },
-
-  "governance": {
-    "proposalType": {
-      "parameterChange": "Parameter",
-      "featurePriority": "Feature",
-      "treasurySpend": "Treasury",
-      "emergency": "Emergency",
-      "unknown": "Unknown type"
-    },
-    "proposalState": {
-      "active": "Active",
-      "succeeded": "Passed",
-      "defeated": "Defeated",
-      "queued": "Queued",
-      "executed": "Executed",
-      "cancelled": "Cancelled",
-      "unknown": "Unknown"
-    },
-    "pageTitle": "Governance",
-    "notConfiguredTitle": "Governance will be available soon",
-    "notConfiguredHint": "Governor and related contracts are not configured in this environment yet. Addresses are filled in after testnet deployment.",
-    "yourVp": "Your voting power",
-    "vpUnavailable": "Connect wallet to see VP",
-    "vpLoading": "Loading voting power…",
-    "vpError": "Could not load voting power.",
-    "vpLockHint": "Live stake total. Vote weight uses locked stake (see proposal for exact weight).",
-    "backToList": "All proposals",
-    "tabActive": "Active",
-    "tabRecent": "Recent",
-    "tabMyVotes": "My votes",
-    "tabMyProposals": "My proposals",
-    "sortNewest": "Newest",
-    "sortMostVoted": "Most voted",
-    "sortEndingSoon": "Ending soon",
-    "sortLabel": "Sort",
-    "emptyActive": "No active proposals right now.",
-    "emptyRecent": "No recent proposals loaded.",
-    "emptyMyVotes": "You have not voted on any proposals in this list.",
-    "emptyMyProposals": "You have not created any proposals in this list.",
-    "emptyCreateCta": "Create first proposal",
-    "loadingList": "Loading proposals…",
-    "loadingDetail": "Loading proposal…",
-    "errorLoad": "Could not load governance data.",
-    "retry": "Retry",
-    "refresh": "Refresh",
-    "detailTimeline": "Timeline",
-    "ended": "Ended",
-    "endsIn": "Ends in {{parts}}",
-    "timePartDay_one": "1 day",
-    "timePartDay_other": "{{count}} days",
-    "timePartHour_one": "1 hour",
-    "timePartHour_other": "{{count}} hours",
-    "timePartMinute_one": "1 min",
-    "timePartMinute_other": "{{count}} min",
-    "progressFor": "For",
-    "progressAgainst": "Against",
-    "progressQuorum": "Quorum",
-    "progressThreshold": "Threshold",
-    "progressVotesCast": "Votes cast",
-    "openProposal": "Open proposal {{id}}",
-    "newProposal": "New proposal",
-    "payloadParameterLine": "Change parameter on {{target}} — method #{{method}}.",
-    "payloadArgsNote": "Arguments attached as an extra cell (see explorer for raw data).",
-    "payloadFeatureBody": "Feature description",
-    "payloadCid": "Content reference",
-    "payloadTreasury": "Spend {{amount}} from treasury to {{recipient}}.",
-    "payloadTreasuryReason": "Reason",
-    "payloadEmergency": "Emergency parameter change on {{target}} — method #{{method}}.",
-    "payloadEmergencyReason": "Emergency reason",
-    "voteFor": "Vote FOR",
-    "voteAgainst": "Vote AGAINST",
-    "voteDisabledNeedWallet": "Connect wallet to vote",
-    "voteDisabledEnded": "Voting ended",
-    "voteNotOpenYet": "Voting has not opened yet",
-    "voteOpensIn": "Voting opens in {{parts}}",
-    "voteAlready": "You voted {{side}} with {{vp}} VP.",
-    "voteSideFor": "FOR",
-    "voteSideAgainst": "AGAINST",
-    "votesSummary": "{{forAmount}} for · {{againstAmount}} against",
-    "timelineCreated": "Created",
-    "timelineVoting": "Voting",
-    "timelineFinalized": "Finalized",
-    "timelineQueued": "Queued",
-    "timelineExecuted": "Executed",
-    "timelineTimelockEta": "Executable {{remaining}}",
-    "timelockSectionTitle": "Timelock",
-    "queueProposal": "Queue proposal",
-    "queueSubmitting": "Queueing…",
-    "queueSuccess": "Proposal queued in timelock",
-    "queueFail": "Could not queue proposal",
-    "executeProposal": "Execute proposal",
-    "executeSubmitting": "Executing…",
-    "executeSuccess": "Proposal execution submitted",
-    "executeFail": "Could not execute proposal",
-    "executeWaiting": "Timelock active — executable {{remaining}}",
-    "timelockDisabledNeedWallet": "Connect wallet to queue or execute",
-    "voteModalTitle": "Confirm vote",
-    "voteModalSide": "You are voting {{side}}",
-    "voteModalVp": "Your effective voting power",
-    "voteModalFinalWarning": "Your vote is final and cannot be changed.",
-    "voteModalConfirm": "Confirm vote",
-    "voteModalCancel": "Cancel",
-    "voteModalSending": "Sending transaction…",
-    "voteFlexibleNoVp": "Flexible stake does not count for governance votes — only for rewards. Your vote would not be recorded.",
-    "voteFlexibleHint": "Stake in a locked tier (Silver or higher) that unlocks after this proposal ends.",
-    "voteFlexibleOpenStaking": "Open staking",
-    "voteSubmitted": "Transaction sent — confirming on chain…",
-    "voteConfirming": "Confirming on chain…",
-    "voteConfirmingHint": "Your wallet accepted the transaction. Waiting for the vote to appear on chain.",
-    "voteConfirmed": "Vote recorded on chain",
-    "voteNotRecorded": "Vote not recorded on chain yet. Check this proposal again in a few minutes.",
-    "voteSuccess": "Vote submitted",
-    "voteFail": "Vote failed",
-    "createStepType": "Type",
-    "createStepForm": "Details",
-    "createStepReview": "Review",
-    "createChooseType": "Choose proposal type",
-    "createTypeHintParameter": "Adjust protocol parameters via controlled contract calls.",
-    "createTypeHintFeature": "Prioritize a product feature with a written rationale.",
-    "createTypeHintTreasury": "Spend treasury BURN to a recipient with an on-chain reason.",
-    "createTypeHintEmergency": "Fast-track parameter change — use only for incidents.",
-    "createNext": "Continue",
-    "createBack": "Back",
-    "createSubmit": "Submit proposal",
-    "createSubmitting": "Submitting…",
-    "createStakeMore": "You need at least {{minVp}} VP to create a proposal (on-chain minimum). Stake more BURN to participate.",
-    "createVpOk": "Your VP meets the on-chain minimum (≥ {{minVp}}).",
-    "createVpLoading": "Loading on-chain proposal threshold…",
-    "createTitleFeature": "Short title",
-    "createTitlePlaceholder": "Max {{max}} characters",
-    "createDescriptionFeature": "Full description (Markdown supported)",
-    "createCidOptional": "Optional IPFS CID / content id",
-    "createTreasury": "Treasury address",
-    "treasuryLockedHint": "Fixed protocol treasury — spend proposals always target this contract.",
-    "createRecipient": "Recipient TON address",
-    "createAmount": "Amount (BURN)",
-    "createReason": "Reason",
-    "createTarget": "Target contract",
-    "createMethodId": "Method id (uint32)",
-    "createArgsCell": "Optional argument cell (Base64 BOC)",
-    "createEmergencyReason": "Emergency justification",
-    "createReviewPayload": "Payload preview",
-    "createSuccess": "Proposal transaction sent",
-    "createFail": "Could not create proposal",
-    "targetJetton": "Jetton master",
-    "targetStaking": "Staking master",
-    "targetStakingLock": "Staking lock",
-    "targetGovernor": "Governor",
-    "targetTreasury": "Treasury",
-    "targetCustom": "Custom address",
-    "customAddressLabel": "Contract address",
-    "ariaProposalTabs": "Proposal filters",
-    "ariaSortProposals": "Sort proposals",
-    "ariaVoteProgress": "Voting results bar chart",
-    "ariaModalVote": "Confirm governance vote",
-    "validation": {
-      "invalidAddress": "Enter a valid TON address.",
-      "required": "This field is required.",
-      "invalidAmount": "Enter an amount greater than zero.",
-      "invalidMethodId": "Method id must be a non-negative number.",
-      "invalidArgs": "Argument cell must be valid Base64 BOC or hex.",
-      "treasuryNotConfigured": "Treasury is not configured in this environment.",
-      "treasuryMismatch": "Treasury address must match the protocol treasury."
-    },
-    "error": {
-      "connectWalletVote": "Connect wallet to vote.",
-      "connectWalletQueue": "Connect wallet to queue a proposal.",
-      "connectWalletExecute": "Connect wallet to execute a proposal.",
-      "connectWalletCreate": "Connect wallet to create a proposal.",
-      "voteEndTimeRequired": "Proposal end time is required to vote."
-    }
-  },
-
   "aria": {
     "refreshRooms": "Refresh rooms",
     "refreshSessions": "Refresh sessions",
@@ -612,7 +286,6 @@
     "scrollToTopRefresh": "Scroll to top and refresh",
     "closeDialog": "Close dialog"
   },
-
   "help": {
     "common": {
       "trigger": "What is this?"
@@ -692,7 +365,6 @@
       }
     }
   },
-
   "chatRequest": {
     "title": "Start Secure Chat",
     "subtitle": "Send an encrypted chat request",
@@ -722,7 +394,6 @@
       "DEFAULT": "An error occurred. Please try again"
     }
   },
-
   "chat": {
     "verifiedTitle": "Encrypted & Verified",
     "premiumTitle": "Premium user",
@@ -830,7 +501,6 @@
       "cancel": "Cancel"
     }
   },
-
   "files": {
     "preview": {
       "attach": "Attach file",
@@ -896,7 +566,6 @@
       "close": "Close"
     }
   },
-
   "burnDialog": {
     "title": "Burn this chat?",
     "description": "This will permanently destroy your chat with <1>{{name}}</1>.",
@@ -906,7 +575,6 @@
     "listSession": "Session connection",
     "confirmButton": "Burn Chat"
   },
-
   "incomingRequest": {
     "title": "Incoming Chat Request",
     "titleExpired": "Request Expired",
@@ -934,7 +602,6 @@
       "DEFAULT": "An error occurred. Please try again"
     }
   },
-
   "verification": {
     "titlePending": "Verify Connection",
     "titleWaiting": "Verify Connection",
@@ -960,7 +627,6 @@
     "connectionLost": "No connection — your confirmation wasn't sent.",
     "helpText": "Ask your peer to read their fingerprint symbols over a voice call or in person. If they match, press \"Fingerprint Matches\"."
   },
-
   "handshake": {
     "title": "Establishing Secure Connection",
     "subtitle": "Exchanging encryption keys...",
@@ -1033,13 +699,11 @@
       "DEFAULT": "An unexpected error occurred."
     }
   },
-
   "pendingRequest": {
     "title": "Waiting for response",
     "cancelButton": "Cancel Request",
     "errorRejected": "Your chat request was declined"
   },
-
   "userSearch": {
     "searching": "Searching...",
     "startChat": "Start Secure Chat",
@@ -1055,19 +719,16 @@
       "DEFAULT": "An error occurred. Please try again"
     }
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Session burned",
     "backgroundBurnMessage": "Encryption keys were cleared because the app stayed in the background too long. Open the room from the list — as owner, restore encryption manually; as a member, wait for the owner to restore the key."
   },
-
   "panic": {
     "countdown": "Burning everything in {{seconds}}",
     "cancel": "Cancel",
     "toggle": "Panic gesture",
     "toggleHint": "Long-press the BurnedChats logo on the home screen to burn all data. You have 3 seconds to undo."
   },
-
   "room": {
     "sectionMyRooms": "My Rooms",
     "emptyRooms": "No rooms yet",
@@ -1079,7 +740,6 @@
     },
     "burned": "Burned",
     "left": "Left",
-
     "create": {
       "title": "Create Room",
       "nameLabel": "Room name (optional)",
@@ -1104,7 +764,6 @@
       "errorWeak": "Password is too weak",
       "errorNetwork": "Network error. Please try again"
     },
-
     "join": {
       "title": "Join Room",
       "subtitle": "Enter the room password to continue",
@@ -1127,7 +786,6 @@
       "errorRejected": "Your join request was declined by the owner",
       "errorNetwork": "Network error. Please try again"
     },
-
     "requests": {
       "title": "Join Requests",
       "empty": "No pending requests",
@@ -1136,7 +794,6 @@
       "approvedNotice": "Request approved",
       "rejectedNotice": "Request rejected"
     },
-
     "chat": {
       "fallbackPeer": "Member",
       "noAccess": "No access",
@@ -1164,7 +821,6 @@
       "keyLoadError": "Failed to load encryption key",
       "ephemeralBadge": "Disappearing messages"
     },
-
     "recovery": {
       "neededToast": "Encryption keys were cleared. Restore encryption to continue.",
       "modalTitle": "Restore room encryption",
@@ -1178,7 +834,6 @@
       "errorParseFailed": "Unexpected server response. Try again.",
       "errorRekeyFailed": "Encryption restore failed. Try again."
     },
-
     "manage": {
       "title": "Room Settings",
       "nameLabel": "Room name",
@@ -1272,7 +927,6 @@
       "relativeHours": "{{count}} h",
       "relativeDays": "{{count}} d"
     },
-
     "invite": {
       "expiresIn": "Expires in {{time}}",
       "usesLeft": "{{used}}/{{max}} uses",
@@ -1300,22 +954,18 @@
       "limitErrorBelowMin": "Minimum is {{min}}",
       "limitErrorAboveMax": "Maximum is {{max}}"
     },
-
     "kicked": {
       "title": "Removed from room",
       "message": "You were removed from the room",
       "offlineMessage": "You no longer have access to this room"
     },
-
     "subscribeDenied": "You no longer have access to this room",
-
     "burn": {
       "title": "Burn this room?",
       "description": "This will permanently destroy the room and all its messages.",
       "warning": "All messages, encryption keys, and member list will be erased for everyone. This action cannot be undone.",
       "confirmButton": "Burn Room"
     },
-
     "leave": {
       "title": "Leave room?",
       "description": "You will no longer have access to this room's messages.",
@@ -1323,7 +973,6 @@
       "confirmButton": "Leave"
     }
   },
-
   "sessionCard": {
     "statusPending": "Pending...",
     "statusHandshake": "Connecting...",
@@ -1332,7 +981,6 @@
     "statusBurned": "Burned",
     "online": "online"
   },
-
   "antispam": {
     "pow": {
       "securing": "Securing your request…",
@@ -1349,7 +997,6 @@
       "retry": "Try again"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "Verification was rejected. Please try again.",
@@ -1359,7 +1006,6 @@
       "failed": "Verification failed. Please try again."
     }
   },
-
   "joinLanding": {
     "title": "You're invited to a room",
     "subtitle": "Choose how you'd like to join",

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo, Suspense, type ReactNode } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate, Routes, Route } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { AuthContextProvider } from './auth';
 import { AuthType } from './auth/types';
@@ -60,11 +60,6 @@ import { DebugPanel, debugLog } from './components/DebugPanel';
 import { HomePage } from './pages/HomePage';
 import { WalletPage } from './pages/WalletPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { CreateProposal } from './components/Governance/CreateProposal';
-import { ProposalDetail } from './components/Governance/ProposalDetail';
-import { ProposalList } from './components/Governance/ProposalList';
-import { GovernancePage } from './pages/GovernancePage';
-import { StakingPage } from './pages/StakingPage';
 import { LazyWalletProvider } from './components/Wallet/LazyWalletProvider';
 import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
@@ -277,7 +272,7 @@ function AppContent() {
   useEffect(() => {
     if (environment !== 'telegram') return;
     const p = location.pathname;
-    if (p.startsWith('/app/governance') || p.startsWith('/app/staking') || p.startsWith('/app/wallet')) {
+    if (p.startsWith('/app/wallet')) {
       setTelegramWalletChromeRequested(true);
     }
   }, [environment, location.pathname]);
@@ -1103,11 +1098,7 @@ function AppContent() {
 
   const activeTabId = useMemo((): TabId => {
     const path = location.pathname;
-    if (
-      path.startsWith('/app/wallet') ||
-      path.startsWith('/app/governance') ||
-      path === '/app/staking'
-    ) {
+    if (path.startsWith('/app/wallet')) {
       return 'wallet';
     }
     if (path.startsWith('/app/settings')) {
@@ -1126,8 +1117,6 @@ function AppContent() {
     const path = location.pathname;
     return (
       path.startsWith('/app/wallet') ||
-      path.startsWith('/app/governance') ||
-      path === '/app/staking' ||
       path.startsWith('/app/settings')
     );
   }, [location.pathname]);
@@ -2926,34 +2915,6 @@ function AppContent() {
       ) : null}
     </>
   );
-
-  if (location.pathname.startsWith('/app/governance')) {
-    return wrapWalletProvider(
-      <>
-        <Layout bottomNav={layoutBottomNav}>
-          <Routes>
-            <Route path="governance" element={<GovernancePage />}>
-              <Route index element={<ProposalList />} />
-              <Route path="new" element={<CreateProposal />} />
-              <Route path=":proposalId" element={<ProposalDetail />} />
-            </Route>
-          </Routes>
-        </Layout>
-        {debugPanelElement}
-      </>
-    );
-  }
-
-  if (location.pathname === '/app/staking') {
-    return wrapWalletProvider(
-      <>
-        <Layout bottomNav={layoutBottomNav}>
-          <StakingPage showSegmentBar />
-        </Layout>
-        {debugPanelElement}
-      </>
-    );
-  }
 
   if (location.pathname.startsWith('/app/wallet')) {
     return wrapWalletProvider(

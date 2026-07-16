@@ -1,4 +1,4 @@
-/** Shared Ton Center RPC URL / API key resolution (BURN, TON balance, staking, …). */
+/** Shared Ton Center RPC URL / API key resolution (BURN, TON balance, …). */
 
 export function resolveIsTestNet(): boolean {
   const raw = String(import.meta.env.VITE_TON_NETWORK ?? 'testnet').toLowerCase();

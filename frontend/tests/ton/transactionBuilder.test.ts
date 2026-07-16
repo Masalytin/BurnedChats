@@ -1,18 +1,9 @@
-import { Address, Cell, beginCell, toNano } from '@ton/core';
+import { Address, Cell, toNano } from '@ton/core';
 import { TonConnectUIError, type TonConnectUI } from '@tonconnect/ui';
 import { describe, expect, it, vi } from 'vitest';
 import { sendTonTransaction } from '@/ton/connector';
-import { STAKE_FEE_PATH_ATTACHED_TON, STAKE_FORWARD_TON, estimateStakeTon } from '@/ton/estimateStakeTon';
 import type { TransactionMessage } from '@/ton/types';
-import {
-  buildClaimMsg,
-  buildCreateProposalMsg,
-  buildJettonTransferMsg,
-  buildStakeMsg,
-  buildUnstakeMsg,
-  buildVoteMsg,
-  VOTE_ATTACHED_TON,
-} from '@/ton/transactionBuilder';
+import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 
 /** Placeholder basechain user-friendly address for layout tests. */
 const ADDR = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
@@ -60,98 +51,6 @@ describe('transactionBuilder payload encoding', () => {
     const responseDest = s.loadMaybeAddress();
     expect(responseDest?.equals(senderWallet)).toBe(true);
     expect(responseDest?.equals(recipientWallet)).toBe(false);
-  });
-
-  it('buildStakeMsg with feePath attaches fee-path TON (stakeTx default, IMP-STKGATE-02)', () => {
-    const userWallet = Address.parse(`0:${'33'.repeat(32)}`);
-    const stakeEstimate = estimateStakeTon({ feePath: true });
-    const msg = buildStakeMsg({
-      stakingMaster: ADDR,
-      userJettonWallet: ADDR,
-      amount: 5n * 10n ** 9n,
-      tier: 2,
-      responseAddress: userWallet,
-      feePath: true,
-    });
-    expect(msg.amount).toBe(String(STAKE_FEE_PATH_ATTACHED_TON));
-    expect(BigInt(msg.amount)).toBe(stakeEstimate.recommendedNano);
-    expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(stakeEstimate.minimumNano);
-    const s = firstBocCellBase64(msg.payload).beginParse();
-    expect(s.loadUint(32)).toBe(0x0f8a7ea5);
-    s.loadUintBig(64);
-    s.loadCoins();
-    s.loadAddress();
-    const responseDest = s.loadMaybeAddress();
-    expect(responseDest?.equals(userWallet)).toBe(true);
-    expect(s.loadBit()).toBe(false);
-    // forward_ton_amount must fund StakingMaster GasForwardStakeJetton (3.5) + pool legs.
-    expect(s.loadCoins()).toBe(STAKE_FORWARD_TON);
-    expect(s.preloadUint(1)).toBe(1);
-    expect(s.loadUint(1)).toBe(1);
-    const fwdRef = s.loadRef();
-    const inner = fwdRef.beginParse();
-    expect(inner.loadUint(32)).toBe(0x5a020010);
-    expect(inner.loadUint(8)).toBe(2);
-  });
-
-  it('buildUnstakeMsg encodes UnstakeJetton (0x5a020002)', () => {
-    const msg = buildUnstakeMsg({ stakingMaster: ADDR, tier: 1, amount: 10n ** 9n });
-    const s = firstBocCellBase64(msg.payload).beginParse();
-    expect(s.loadUint(32)).toBe(0x5a020002);
-    s.loadUintBig(64);
-    expect(s.loadUint(8)).toBe(1);
-    expect(s.loadCoins()).toBe(10n ** 9n);
-  });
-
-  it('buildClaimMsg encodes ClaimRewards (0x5a020003)', () => {
-    const msg = buildClaimMsg({ stakingMaster: ADDR, tier: 3 });
-    const s = firstBocCellBase64(msg.payload).beginParse();
-    expect(s.loadUint(32)).toBe(0x5a020003);
-    s.loadUintBig(64);
-    expect(s.loadUint(8)).toBe(3);
-  });
-
-  it('buildVoteMsg encodes CastVote (0x5a040102)', () => {
-    const msg = buildVoteMsg({
-      governor: ADDR,
-      proposalId: 7n,
-      support: true,
-      claimedVp: 12345n,
-    });
-    const s = firstBocCellBase64(msg.payload).beginParse();
-    expect(s.loadUint(32)).toBe(0x5a040102);
-    s.loadUintBig(64);
-    expect(s.loadUintBig(64)).toBe(7n);
-    expect(s.loadBit()).toBe(true);
-    expect(s.loadIntBig(257)).toBe(12345n);
-  });
-
-  it('buildVoteMsg attaches GasVoteAttach (0.18 TON) per governor.tact', () => {
-    const msg = buildVoteMsg({
-      governor: ADDR,
-      proposalId: 1n,
-      support: true,
-      claimedVp: 1n,
-    });
-    expect(BigInt(msg.amount)).toBe(VOTE_ATTACHED_TON);
-    expect(BigInt(msg.amount)).toBe(toNano('0.18'));
-  });
-
-  it('buildCreateProposalMsg encodes CreateProposal (0x5a040101)', () => {
-    const payload = beginCell().storeUint(42, 8).endCell();
-    const msg = buildCreateProposalMsg({
-      governor: ADDR,
-      proposalType: 2,
-      payload,
-      claimedVp: 50_000n,
-    });
-    const s = firstBocCellBase64(msg.payload).beginParse();
-    expect(s.loadUint(32)).toBe(0x5a040101);
-    s.loadUintBig(64);
-    expect(s.loadUint(32)).toBe(2);
-    const ref = s.loadRef();
-    expect(ref.beginParse().loadUint(8)).toBe(42);
-    expect(s.loadIntBig(257)).toBe(50_000n);
   });
 });
 

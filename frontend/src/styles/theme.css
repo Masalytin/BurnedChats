@@ -44,7 +44,7 @@
   --bc-error-muted: rgba(255, 68, 68, 0.15);
   --bc-destructive: var(--tg-theme-destructive-text-color, #ff4444);
 
-  /* Governance vote progress */
+  /* Vote progress palette (reusable) */
   --bc-progress-for: #2ecc71;
   --bc-progress-for-end: #27ae60;
   --bc-progress-against: #e74c3c;
@@ -156,11 +156,6 @@
   --bc-toggle-travel: 1.25rem;    /* 20px */
   --bc-toggle-thumb-bg: #ffffff;
 
-  /* Staking tier icon tones */
-  --bc-tier-diamond: var(--bc-text-link);
-  --bc-tier-gold: var(--bc-brand-secondary);
-  --bc-tier-silver: var(--bc-text-secondary);
-  --bc-tier-flexible: var(--bc-success);
 
   /* Accent surface tint (selected chips, theme pills) */
   --bc-accent-muted: rgba(255, 107, 53, 0.12);

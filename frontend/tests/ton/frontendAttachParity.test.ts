@@ -1,27 +1,8 @@
-import { Address, Cell, toNano } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 import { describe, expect, it } from 'vitest';
 
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
-import { STAKE_ATTACHED_TON, estimateStakeTon } from '@/ton/estimateStakeTon';
-import {
-  buildClaimMsg,
-  buildJettonTransferMsg,
-  buildStakeMsg,
-  buildUnstakeMsg,
-  buildVoteMsg,
-  VOTE_ATTACHED_TON,
-} from '@/ton/transactionBuilder';
-
-/** Mirrors `GasPayRewards` in staking-master.tact. */
-const GAS_PAY_REWARDS_NANO = toNano('3.5');
-/** Mirrors `GasToPool` in staking-master.tact. */
-const GAS_TO_POOL_NANO = toNano('0.06');
-/** Mirrors `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
-const GAS_VOTE_ATTACH_NANO = toNano('0.18');
-/** `require(context().value >= …)` in UnstakeJetton handler. */
-const UNSTAKE_MIN_ATTACH_NANO = GAS_PAY_REWARDS_NANO + GAS_TO_POOL_NANO + toNano('0.08');
-/** `require(context().value >= …)` in ClaimRewards handler. */
-const CLAIM_MIN_ATTACH_NANO = GAS_PAY_REWARDS_NANO + toNano('0.06');
+import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 
@@ -46,8 +27,6 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
   const userWallet = Address.parse(`0:${'11'.repeat(32)}`);
   const recipientWallet = Address.parse(`0:${'22'.repeat(32)}`);
   const userJettonWallet = Address.parse(`0:${'33'.repeat(32)}`);
-  const stakingMaster = Address.parse(`0:${'44'.repeat(32)}`);
-  const governor = Address.parse(`0:${'55'.repeat(32)}`);
 
   describe('transferBurn (burnToken.ts) — IMP-WTX-02 must not regress', () => {
     it('excess routes to sender TON wallet, not recipient', () => {
@@ -76,54 +55,6 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
         attachedTon: estimate.recommendedNano,
       });
       expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(estimate.minimumNano);
-    });
-  });
-
-  describe('stakeTx (staking.ts) via buildStakeMsg', () => {
-    it('excess routes to user wallet with excluded-path attach from estimateStakeTon', () => {
-      const stakeEstimate = estimateStakeTon({ feePath: false });
-      const msg = buildStakeMsg({
-        stakingMaster,
-        userJettonWallet,
-        amount: 5n * 10n ** 9n,
-        tier: 2,
-        responseAddress: userWallet,
-      });
-      const { destination, responseDestination } = decodeJettonTransferRouting(msg.payload);
-      expect(destination.equals(stakingMaster)).toBe(true);
-      expect(responseDestination?.equals(userWallet)).toBe(true);
-      expect(responseDestination?.equals(stakingMaster)).toBe(false);
-      expect(BigInt(msg.amount)).toBe(STAKE_ATTACHED_TON);
-      expect(BigInt(msg.amount)).toBe(stakeEstimate.recommendedNano);
-      expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(stakeEstimate.minimumNano);
-    });
-  });
-
-  describe('vote (governance.ts) via buildVoteMsg', () => {
-    it('attach equals on-chain GasVoteAttach (0.18 TON)', () => {
-      const msg = buildVoteMsg({
-        governor,
-        proposalId: 42n,
-        support: false,
-        claimedVp: 999n,
-      });
-      expect(BigInt(msg.amount)).toBe(VOTE_ATTACHED_TON);
-      expect(BigInt(msg.amount)).toBe(GAS_VOTE_ATTACH_NANO);
-      expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(GAS_VOTE_ATTACH_NANO);
-    });
-  });
-
-  describe('unstakeTx / claimTx — native attach vs staking-master gates', () => {
-    it('unstake attach covers GasPayRewards + GasToPool + 0.08', () => {
-      const msg = buildUnstakeMsg({ stakingMaster, tier: 1, amount: 10n ** 9n });
-      expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(UNSTAKE_MIN_ATTACH_NANO);
-      expect(BigInt(msg.amount)).toBe(toNano('4.2'));
-    });
-
-    it('claim attach covers GasPayRewards + 0.06', () => {
-      const msg = buildClaimMsg({ stakingMaster, tier: 3 });
-      expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(CLAIM_MIN_ATTACH_NANO);
-      expect(BigInt(msg.amount)).toBe(toNano('4'));
     });
   });
 });

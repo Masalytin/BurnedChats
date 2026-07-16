@@ -23,13 +23,11 @@
       "errorAboveMax": "Максимум — {{max}}"
     }
   },
-
   "nav": {
     "home": "Главная",
     "wallet": "Кошелёк",
     "settings": "Настройки"
   },
-
   "settings": {
     "title": "Настройки",
     "languageLabel": "Язык приложения",
@@ -102,7 +100,6 @@
       "debugPanel": "Панель отладки"
     }
   },
-
   "status": {
     "online": "в сети",
     "offline": "не в сети",
@@ -110,7 +107,6 @@
     "connecting": "подключение",
     "reconnecting": "Переподключение..."
   },
-
   "home": {
     "sectionSearch": "Начать защищённый чат",
     "searchPlaceholder": "@username, Telegram ID, Internal ID или кошелёк",
@@ -126,14 +122,11 @@
     "featureBurnDesc": "Уничтожьте все следы переписки одним нажатием.",
     "burnSection": {
       "title": "Токен BURN",
-      "subtitle": "Стейкинг для наград и участие в управлении протоколом через on-chain governance.",
-      "staking": "Стейкинг",
-      "stakingDesc": "Заблокируйте BURN, чтобы получать награды и усилить voting power.",
-      "governance": "Governance",
-      "governanceDesc": "Голосуйте за proposals и создавайте новые."
+      "subtitle": "Дефляционный мем-джеттон — 1% сжигается при каждом переводе.",
+      "burn": "Сжигание on-chain",
+      "burnDesc": "1% каждого перевода уничтожается навсегда."
     }
   },
-
   "walletLogin": {
     "title": "Burned Chats",
     "subtitle": "Подключите TON-кошелёк, чтобы войти в браузере.",
@@ -152,7 +145,6 @@
     "errorTimeout": "Время ожидания истекло. Проверьте сеть и попробуйте ещё раз.",
     "errorNetwork": "Нет связи с сервером. Проверьте подключение и адрес API."
   },
-
   "accountLinking": {
     "sectionTitle": "Привязанные аккаунты",
     "sectionSubtitle": "Объедините Telegram и TON-кошелёк под одним профилем.",
@@ -174,7 +166,6 @@
     "conflict": "Этот Telegram или кошелёк уже привязан к другому аккаунту.",
     "retryLoad": "Повторить"
   },
-
   "errors": {
     "rootTitle": "Что-то пошло не так",
     "rootMessage": "Приложение столкнулось с ошибкой. Перезагрузите страницу, скопируйте технические данные или отправьте нам отчёт.",
@@ -184,13 +175,7 @@
     "report": "Сообщить",
     "dismiss": "Закрыть (dev)"
   },
-
   "wallet": {
-    "segment": {
-      "wallet": "Кошелёк",
-      "staking": "Стейкинг",
-      "governance": "Governance"
-    },
     "connectWallet": "Подключить кошелёк",
     "connectWalletAria": "Подключить TON-кошелёк",
     "openWalletAria": "Открыть кошелёк, адрес {{address}}, BURN {{balance}}{{gramSuffix}}",
@@ -294,332 +279,6 @@
     "errorTitle": "Кошелёк недоступен",
     "errorRetry": "Попробовать снова"
   },
-
-  "staking": {
-    "tierFlexible": "Гибкий",
-    "tierSilver": "Серебро",
-    "tierGold": "Золото",
-    "tierDiamond": "Алмаз",
-    "lockFlexible": "Гибкий",
-    "lock6m": "6 месяцев",
-    "lock1y": "1 год",
-    "lock3y": "3 года",
-    "unlocksIn": "Разблокировка через {{parts}}",
-    "unlocked": "Разблокировано",
-    "timePartYear_one": "1 год",
-    "timePartYear_few": "{{count}} года",
-    "timePartYear_many": "{{count}} лет",
-    "timePartYear_other": "{{count}} лет",
-    "timePartMonth_one": "1 месяц",
-    "timePartMonth_few": "{{count}} месяца",
-    "timePartMonth_many": "{{count}} месяцев",
-    "timePartMonth_other": "{{count}} месяцев",
-    "timePartDay_one": "1 день",
-    "timePartDay_few": "{{count}} дня",
-    "timePartDay_many": "{{count}} дней",
-    "timePartDay_other": "{{count}} дней",
-    "timePartHour_one": "1 час",
-    "timePartHour_few": "{{count}} часа",
-    "timePartHour_many": "{{count}} часов",
-    "timePartHour_other": "{{count}} часов",
-    "multiplierShort": "{{value}}× VP",
-    "back": "Назад",
-    "pageTitle": "Стейкинг",
-    "notConfiguredTitle": "Стейкинг скоро будет доступен",
-    "notConfiguredHint": "On-chain контракты в этой среде ещё не настроены. Адреса заполняются после деплоя в testnet.",
-    "connectHint": "Подключите TON-кошелёк, чтобы видеть позиции и стейкать BURN.",
-    "connectWallet": "Подключить кошелёк",
-    "retry": "Повторить",
-    "headerTotalStaked": "Всего в стейке",
-    "headerTotalVp": "Сила голоса",
-    "headerPending": "Ожидающие награды",
-    "emptyTitle": "Начните получать награды",
-    "emptyHint": "Застейкайте BURN, чтобы участвовать в пуле наград. Выберите тир по сроку блокировки.",
-    "emptyCta": "Стейк в Алмаз",
-    "timelineAria": "График разблокировки",
-    "timelineEmpty": "Нет активных блокировок. Гибкий тир или уже разблокированные позиции здесь не показываются.",
-    "timelineTitle": "Разблокировка",
-    "tiersSection": "Тиры",
-    "positionAmount": "В стейке",
-    "positionStarted": "С",
-    "positionReward": "Ожидаемая награда",
-    "positionUnlock": "Разблокировка",
-    "noStakeTier": "В этом тире у вас пока нет позиции.",
-    "stakeMore": "Добавить",
-    "unstake": "Вывести",
-    "unstakeDisabledTip": "Заблокировано до {{when}}",
-    "claim": "Забрать",
-    "stakeInto": "Стейк в {{tier}}",
-    "rewardsTitle": "Награды",
-    "rewardsEmpty": "Сейчас нет ожидающих наград.",
-    "claiming": "Получение…",
-    "claimTier": "Забрать",
-    "claimAll": "Забрать всё",
-    "claimHistoryTitle": "Недавние claim",
-    "claimHistoryEmpty": "Подтверждённые в приложении claim попадут сюда (последние 10).",
-    "claimHistoryRow": "{{tier}} · {{time}}",
-    "stakeModalTitle": "Стейк BURN",
-    "modalClose": "Закрыть",
-    "stakeSuccess": "Транзакция стейка отправлена.",
-    "done": "Готово",
-    "stakeSigning": "Подтвердите в кошельке…",
-    "stakePickTier": "Выберите тир",
-    "tierPickHint": "+{{mult}}× VP · {{lock}}",
-    "amountLabel": "Сумма (BURN)",
-    "max": "Макс",
-    "walletBalance": "Баланс кошелька: {{amount}}",
-    "amountSliderAria": "Доля баланса для стейка",
-    "lockConfirm": "Токены будут заблокированы до {{date}}. Досрочный вывод невозможен.",
-    "indicativeApy": "Ориентировочная APY ~{{pct}}%",
-    "stakeConfirm": "Стейк и подпись",
-    "amountInvalid": "Введите корректную сумму.",
-    "amountPositive": "Сумма должна быть больше нуля.",
-    "amountOverBalance": "Сумма превышает баланс кошелька.",
-    "tonBalanceLabel": "{{symbol}}: {{amount}}",
-    "tonGasDepositHint": "~{{attach}} {{symbol}} прикрепляется к сообщению на сетевой газ; неиспользованный {{symbol}} вернётся на ваш кошелёк.",
-    "insufficientTonForStake": "Держите на кошельке не менее ~{{attach}} {{symbol}} для стейка.",
-    "stakeNetWithFee": "К стейку: ≈{{net}} (комиссия перевода 1%: {{fee}})",
-    "unstakeTitle": "Вывод {{tier}}",
-    "unstakeAvailable": "Доступно к выводу: {{amount}}",
-    "unstakeLockMeta": "Политика блокировки: {{lock}}",
-    "unstakeClaimFirst": "Есть ожидающие награды ({{amount}}). Сначала заберите их, чтобы не потерять начисления при выводе.",
-    "goClaim": "К получению наград",
-    "unstakeAmountLabel": "Сумма вывода (BURN)",
-    "unstakeConfirm": "Вывод и подпись",
-    "unstakeSigning": "Подтвердите в кошельке…",
-    "unstakeLockedUntil": "Вывод с {{date}} ({{rel}}).",
-    "unstakeLocked": "Позиция ещё заблокирована.",
-    "unstakeOverStake": "Сумма больше вашего стейка.",
-    "txFailed": "Транзакция не выполнена.",
-    "noJettonWallet": "У вас ещё нет кошелька токена BURN. Получите BURN на свой адрес, затем повторите попытку.",
-    "claimFailed": "Не удалось получить награду",
-    "claimSuccess": "Claim отправлен",
-    "claimAllSuccess": "Все claim отправлены",
-    "stakeFailed": "Стейк не удался",
-    "unstakeFailed": "Вывод не удался",
-    "calculator": {
-      "title": "Калькулятор APY",
-      "tabOverview": "Обзор",
-      "tabCalculator": "Калькулятор",
-      "mainTabsAria": "Разделы стейкинга",
-      "phaseGroup": "Фаза наград",
-      "phase1": "Фаза 1 (аллокация пула)",
-      "phase2": "Фаза 2 (только комиссии)",
-      "phase2Disclaimer": "После 3-го года пул наград пополняется только комиссиями с транзакций. Ориентировочная APY, как правило, заметно ниже, чем в фазе 1.",
-      "activityLabel": "Активность сети (фаза 2)",
-      "activity": {
-        "low": "Низкая",
-        "medium": "Средняя",
-        "high": "Высокая"
-      },
-      "amountLabel": "Сумма стейка (BURN)",
-      "amountTooltip": "Условная сумма в выбранном тире. Доля в тире и APY зависят от TVL тира (базовый сценарий из TOKENOMICS плюс ваша текущая позиция в этом тире).",
-      "amountHint": "Слайдер привязан к балансу кошелька, если он подключён; иначе до {{max}}.",
-      "amountSliderAria": "Доля суммы для калькулятора от максимума",
-      "tierLabel": "Тир",
-      "tierTooltip": "Каждый тир получает фиксированную долю ежедневной эмиссии пула; выше тир — больше награда и дольше блокировка.",
-      "needAmount": "Введите сумму стейка, чтобы увидеть оценки.",
-      "minAmount": "Для осмысленной APY укажите не меньше {{min}}.",
-      "apy": "Ориентировочная APY",
-      "apyTooltip": "Годовая оценка из расчёта дневных наград. Только иллюстрация — см. TOKENOMICS.",
-      "shareTier": "Ваша доля в тире",
-      "shareTierTooltip": "Ваш стейк от суммарного стейка тира после пополнения (модельный сценарий).",
-      "rewardDay": "Оц. награда / день",
-      "rewardDayTooltip": "Эмиссия пула × доля тира × ваша доля внутри тира.",
-      "rewardMonth": "Оц. / месяц",
-      "rewardMonthTooltip": "Приближение: годовая оценка ÷ 12.",
-      "rewardYear": "Оц. / год",
-      "rewardYearTooltip": "Дневная награда × 365.",
-      "noEmission": "Для этого сценария эмиссия пула равна нулю.",
-      "chartTitle": "Сравнение тиров (одна сумма)",
-      "chartAria": "Столбчатая диаграмма ориентировочной APY по тирам",
-      "modalNeedAmount": "Введите сумму, чтобы увидеть ориентировочную APY и награды.",
-      "modalShare": "Доля в тире {{pct}}%",
-      "modalDay": "≈ {{amount}} / день",
-      "modalMonth": "≈ {{amount}} / месяц",
-      "modalYear": "≈ {{amount}} / год"
-    }
-  },
-
-  "governance": {
-    "proposalType": {
-      "parameterChange": "Параметр",
-      "featurePriority": "Функция",
-      "treasurySpend": "Казна",
-      "emergency": "ЧП",
-      "unknown": "Неизвестный тип"
-    },
-    "proposalState": {
-      "active": "Активно",
-      "succeeded": "Принято",
-      "defeated": "Отклонено",
-      "queued": "В очереди",
-      "executed": "Исполнено",
-      "cancelled": "Отменено",
-      "unknown": "Неизвестно"
-    },
-    "pageTitle": "Governance",
-    "notConfiguredTitle": "Governance скоро будет доступен",
-    "notConfiguredHint": "Governor и связанные контракты в этой среде ещё не настроены. Адреса заполняются после деплоя в testnet.",
-    "yourVp": "Ваша сила голоса",
-    "vpUnavailable": "Подключите кошелёк, чтобы видеть VP",
-    "vpLoading": "Загрузка силы голоса…",
-    "vpError": "Не удалось загрузить силу голоса.",
-    "vpLockHint": "Текущий стейк. Вес голоса учитывает только заблокированный стейк (точное значение — в карточке предложения).",
-    "backToList": "Все предложения",
-    "tabActive": "Активные",
-    "tabRecent": "Недавние",
-    "tabMyVotes": "Мои голоса",
-    "tabMyProposals": "Мои предложения",
-    "sortNewest": "Сначала новые",
-    "sortMostVoted": "Больше голосов",
-    "sortEndingSoon": "Скоро конец",
-    "sortLabel": "Сортировка",
-    "emptyActive": "Сейчас нет активных предложений.",
-    "emptyRecent": "Недавние предложения не загружены.",
-    "emptyMyVotes": "Вы не голосовали ни по одному предложению из этого списка.",
-    "emptyMyProposals": "У вас нет своих предложений в этом списке.",
-    "emptyCreateCta": "Создать первое предложение",
-    "loadingList": "Загрузка списка…",
-    "loadingDetail": "Загрузка предложения…",
-    "errorLoad": "Не удалось загрузить данные governance.",
-    "retry": "Повторить",
-    "refresh": "Обновить",
-    "detailTimeline": "Этапы",
-    "ended": "Завершено",
-    "endsIn": "Осталось {{parts}}",
-    "timePartDay_one": "1 день",
-    "timePartDay_few": "{{count}} дня",
-    "timePartDay_many": "{{count}} дней",
-    "timePartDay_other": "{{count}} дн.",
-    "timePartHour_one": "1 ч",
-    "timePartHour_few": "{{count}} ч",
-    "timePartHour_many": "{{count}} ч",
-    "timePartHour_other": "{{count}} ч",
-    "timePartMinute_one": "1 мин",
-    "timePartMinute_few": "{{count}} мин",
-    "timePartMinute_many": "{{count}} мин",
-    "timePartMinute_other": "{{count}} мин",
-    "progressFor": "За",
-    "progressAgainst": "Против",
-    "progressQuorum": "Кворум",
-    "progressThreshold": "Порог",
-    "progressVotesCast": "Подано голосов",
-    "openProposal": "Открыть предложение {{id}}",
-    "newProposal": "Новое предложение",
-    "payloadParameterLine": "Изменить параметр {{target}} — метод №{{method}}.",
-    "payloadArgsNote": "Аргументы упакованы в дополнительной ячейке (сырой вид — в эксплорере).",
-    "payloadFeatureBody": "Описание функции",
-    "payloadCid": "Ссылка на контент",
-    "payloadTreasury": "Потратить {{amount}} из казны на {{recipient}}.",
-    "payloadTreasuryReason": "Причина",
-    "payloadEmergency": "ЧП: изменение {{target}} — метод №{{method}}.",
-    "payloadEmergencyReason": "Обоснование ЧП",
-    "voteFor": "За",
-    "voteAgainst": "Против",
-    "voteDisabledNeedWallet": "Подключите кошелёк для голосования",
-    "voteDisabledEnded": "Голосование завершено",
-    "voteNotOpenYet": "Голосование ещё не открыто",
-    "voteOpensIn": "Голосование откроется через {{parts}}",
-    "voteAlready": "Вы проголосовали {{side}} с {{vp}} VP.",
-    "voteSideFor": "ЗА",
-    "voteSideAgainst": "ПРОТИВ",
-    "votesSummary": "{{forAmount}} за · {{againstAmount}} против",
-    "timelineCreated": "Создано",
-    "timelineVoting": "Голосование",
-    "timelineFinalized": "Итог",
-    "timelineQueued": "В очереди",
-    "timelineExecuted": "Исполнено",
-    "timelineTimelockEta": "Исполнение {{remaining}}",
-    "timelockSectionTitle": "Timelock",
-    "queueProposal": "Поставить в очередь",
-    "queueSubmitting": "Постановка в очередь…",
-    "queueSuccess": "Proposal поставлен в timelock",
-    "queueFail": "Не удалось поставить в очередь",
-    "executeProposal": "Исполнить proposal",
-    "executeSubmitting": "Исполнение…",
-    "executeSuccess": "Транзакция исполнения отправлена",
-    "executeFail": "Не удалось исполнить proposal",
-    "executeWaiting": "Timelock активен — исполнение {{remaining}}",
-    "timelockDisabledNeedWallet": "Подключите кошелёк для queue/execute",
-    "voteModalTitle": "Подтверждение голоса",
-    "voteModalSide": "Вы голосуете {{side}}",
-    "voteModalVp": "Ваша эффективная сила голоса",
-    "voteModalFinalWarning": "Голос окончательный и не может быть изменён.",
-    "voteModalConfirm": "Подтвердить",
-    "voteModalCancel": "Отмена",
-    "voteModalSending": "Отправка транзакции…",
-    "voteFlexibleNoVp": "Flexible-стейк не даёт права голоса в governance — только награды. Ваш голос не будет учтён.",
-    "voteFlexibleHint": "Застейкайте в locked-тире (Silver или выше) с разлоком после окончания этого proposal.",
-    "voteFlexibleOpenStaking": "Открыть стейкинг",
-    "voteSubmitted": "Транзакция отправлена — подтверждается в блокчейне…",
-    "voteConfirming": "Подтверждение в блокчейне…",
-    "voteConfirmingHint": "Кошелёк принял транзакцию. Ждём появления голоса on-chain.",
-    "voteConfirmed": "Голос учтён в блокчейне",
-    "voteNotRecorded": "Голос пока не учтён on-chain. Проверьте proposal через несколько минут.",
-    "voteSuccess": "Голос отправлен",
-    "voteFail": "Не удалось проголосовать",
-    "createStepType": "Тип",
-    "createStepForm": "Детали",
-    "createStepReview": "Проверка",
-    "createChooseType": "Выберите тип предложения",
-    "createTypeHintParameter": "Меняет параметры протокола через вызовы контрактов.",
-    "createTypeHintFeature": "Приоритизировать функцию продукта с текстом обоснования.",
-    "createTypeHintTreasury": "Потратить BURN из казны получателю с причиной в блокчейне.",
-    "createTypeHintEmergency": "Ускоренное изменение параметров — только для инцидентов.",
-    "createNext": "Далее",
-    "createBack": "Назад",
-    "createSubmit": "Отправить предложение",
-    "createSubmitting": "Отправка…",
-    "createStakeMore": "Нужно минимум {{minVp}} VP для создания предложения (on-chain минимум). Увеличьте стейк.",
-    "createVpOk": "Ваша VP достаточна для on-chain минимума (≥ {{minVp}}).",
-    "createVpLoading": "Загрузка on-chain порога для proposal…",
-    "createTitleFeature": "Краткий заголовок",
-    "createTitlePlaceholder": "Не более {{max}} символов",
-    "createDescriptionFeature": "Полное описание (поддерживается Markdown)",
-    "createCidOptional": "Необязательно: IPFS CID / id контента",
-    "createTreasury": "Адрес казны",
-    "treasuryLockedHint": "Фиксированный treasury протокола — spend-предложения всегда направляются в этот контракт.",
-    "treasuryLockedHint": "Фиксированный treasury протокола — spend-предложения всегда направляются в этот контракт.",
-    "createRecipient": "TON-адрес получателя",
-    "createAmount": "Сумма (BURN)",
-    "createReason": "Причина",
-    "createTarget": "Целевой контракт",
-    "createMethodId": "ID метода (uint32)",
-    "createArgsCell": "Необязательная ячейка аргументов (Base64 BOC)",
-    "createEmergencyReason": "Обоснование ЧП",
-    "createReviewPayload": "Предпросмотр payload",
-    "createSuccess": "Транзакция создания отправлена",
-    "createFail": "Не удалось создать предложение",
-    "targetJetton": "Jetton master",
-    "targetStaking": "Staking master",
-    "targetStakingLock": "Стейкинг-лок",
-    "targetGovernor": "Governor",
-    "targetTreasury": "Казна",
-    "targetCustom": "Свой адрес",
-    "customAddressLabel": "Адрес контракта",
-    "ariaProposalTabs": "Фильтры списка предложений",
-    "ariaSortProposals": "Сортировка списка предложений",
-    "ariaVoteProgress": "Диаграмма результатов голосования",
-    "ariaModalVote": "Подтверждение голоса governance",
-    "validation": {
-      "invalidAddress": "Введите корректный TON-адрес.",
-      "required": "Поле обязательно.",
-      "invalidAmount": "Сумма должна быть больше нуля.",
-      "invalidMethodId": "ID метода — неотрицательное число.",
-      "invalidArgs": "Ячейка аргументов должна быть валидным Base64 BOC или hex.",
-      "treasuryNotConfigured": "Казна не настроена в этом окружении.",
-      "treasuryMismatch": "Адрес казны должен совпадать с treasury протокола."
-    },
-    "error": {
-      "connectWalletVote": "Подключите кошелёк, чтобы голосовать.",
-      "connectWalletQueue": "Подключите кошелёк, чтобы поставить предложение в очередь.",
-      "connectWalletExecute": "Подключите кошелёк, чтобы исполнить предложение.",
-      "connectWalletCreate": "Подключите кошелёк, чтобы создать предложение.",
-      "voteEndTimeRequired": "Для голосования нужно время окончания предложения."
-    }
-  },
-
   "aria": {
     "refreshRooms": "Обновить комнаты",
     "refreshSessions": "Обновить сессии",
@@ -627,7 +286,6 @@
     "scrollToTopRefresh": "Наверх и обновить",
     "closeDialog": "Закрыть диалог"
   },
-
   "help": {
     "common": {
       "trigger": "Что это?"
@@ -707,7 +365,6 @@
       }
     }
   },
-
   "chatRequest": {
     "title": "Начать защищённый чат",
     "subtitle": "Отправить зашифрованную заявку на чат",
@@ -737,7 +394,6 @@
       "DEFAULT": "Произошла ошибка. Попробуйте ещё раз"
     }
   },
-
   "chat": {
     "verifiedTitle": "Зашифровано и верифицировано",
     "premiumTitle": "Премиум пользователь",
@@ -845,7 +501,6 @@
       "cancel": "Отмена"
     }
   },
-
   "files": {
     "preview": {
       "attach": "Прикрепить файл",
@@ -911,7 +566,6 @@
       "close": "Закрыть"
     }
   },
-
   "burnDialog": {
     "title": "Сжечь этот чат?",
     "description": "Это навсегда уничтожит ваш чат с <1>{{name}}</1>.",
@@ -921,7 +575,6 @@
     "listSession": "Соединение сессии",
     "confirmButton": "Сжечь чат"
   },
-
   "incomingRequest": {
     "title": "Входящий запрос на чат",
     "titleExpired": "Запрос истёк",
@@ -949,7 +602,6 @@
       "DEFAULT": "Произошла ошибка. Попробуйте ещё раз"
     }
   },
-
   "verification": {
     "titlePending": "Верификация соединения",
     "titleWaiting": "Верификация соединения",
@@ -975,7 +627,6 @@
     "connectionLost": "Нет соединения — ваше подтверждение не отправлено.",
     "helpText": "Попросите собеседника назвать символы отпечатка по голосовому звонку или лично. Если они совпадают — нажмите «Отпечатки совпадают»."
   },
-
   "handshake": {
     "title": "Установка защищённого соединения",
     "subtitle": "Обмен ключами шифрования...",
@@ -1050,13 +701,11 @@
       "DEFAULT": "Произошла непредвиденная ошибка."
     }
   },
-
   "pendingRequest": {
     "title": "Ожидание ответа",
     "cancelButton": "Отменить запрос",
     "errorRejected": "Ваш запрос на чат был отклонён"
   },
-
   "userSearch": {
     "searching": "Поиск...",
     "startChat": "Начать защищённый чат",
@@ -1072,19 +721,16 @@
       "DEFAULT": "Произошла ошибка. Попробуйте ещё раз"
     }
   },
-
   "lifecycle": {
     "backgroundBurnTitle": "Чат сгорел",
     "backgroundBurnMessage": "Ключи шифрования удалены — приложение слишком долго было в фоне. Откройте комнату из списка: как владелец — восстановите шифрование вручную; как участник — дождитесь, пока владелец восстановит ключ."
   },
-
   "panic": {
     "countdown": "Сжигаю всё через {{seconds}}",
     "cancel": "Отменить",
     "toggle": "Panic-жест",
     "toggleHint": "Долгое нажатие на логотип BurnedChats на главном экране сожжёт все данные. У вас будет 3 секунды на отмену."
   },
-
   "room": {
     "sectionMyRooms": "Мои комнаты",
     "emptyRooms": "Нет комнат",
@@ -1096,7 +742,6 @@
     },
     "burned": "Сожжена",
     "left": "Покинута",
-
     "create": {
       "title": "Создать комнату",
       "nameLabel": "Название (необязательно)",
@@ -1121,7 +766,6 @@
       "errorWeak": "Слишком слабый пароль",
       "errorNetwork": "Ошибка сети. Попробуйте ещё раз"
     },
-
     "join": {
       "title": "Войти в комнату",
       "subtitle": "Введите пароль комнаты, чтобы продолжить",
@@ -1144,7 +788,6 @@
       "errorRejected": "Владелец комнаты отклонил вашу заявку",
       "errorNetwork": "Ошибка сети. Попробуйте ещё раз"
     },
-
     "requests": {
       "title": "Заявки на вход",
       "empty": "Нет заявок",
@@ -1153,7 +796,6 @@
       "approvedNotice": "Заявка принята",
       "rejectedNotice": "Заявка отклонена"
     },
-
     "chat": {
       "fallbackPeer": "Участник",
       "noAccess": "Нет доступа",
@@ -1181,7 +823,6 @@
       "keyLoadError": "Не удалось загрузить ключ шифрования",
       "ephemeralBadge": "Исчезающие сообщения"
     },
-
     "recovery": {
       "neededToast": "Ключи шифрования удалены. Для продолжения нужно восстановить шифрование.",
       "modalTitle": "Восстановить шифрование комнаты",
@@ -1195,7 +836,6 @@
       "errorParseFailed": "Неожиданный ответ сервера. Попробуйте снова.",
       "errorRekeyFailed": "Не удалось восстановить шифрование. Попробуйте снова."
     },
-
     "manage": {
       "title": "Настройки комнаты",
       "nameLabel": "Название комнаты",
@@ -1289,7 +929,6 @@
       "relativeHours": "{{count}} ч",
       "relativeDays": "{{count}} д"
     },
-
     "invite": {
       "expiresIn": "Истекает через {{time}}",
       "usesLeft": "{{used}}/{{max}} использований",
@@ -1317,22 +956,18 @@
       "limitErrorBelowMin": "Минимум — {{min}}",
       "limitErrorAboveMax": "Максимум — {{max}}"
     },
-
     "kicked": {
       "title": "Удаление из комнаты",
       "message": "Вас удалили из комнаты",
       "offlineMessage": "У вас больше нет доступа к этой комнате"
     },
-
     "subscribeDenied": "У вас больше нет доступа к этой комнате",
-
     "burn": {
       "title": "Сжечь комнату?",
       "description": "Это навсегда уничтожит комнату и все её сообщения.",
       "warning": "Все сообщения, ключи шифрования и список участников будут удалены для всех. Это действие нельзя отменить.",
       "confirmButton": "Сжечь комнату"
     },
-
     "leave": {
       "title": "Покинуть комнату?",
       "description": "У вас больше не будет доступа к сообщениям этой комнаты.",
@@ -1340,7 +975,6 @@
       "confirmButton": "Покинуть"
     }
   },
-
   "sessionCard": {
     "statusPending": "Ожидание...",
     "statusHandshake": "Подключение...",
@@ -1349,7 +983,6 @@
     "statusBurned": "Сожжена",
     "online": "в сети"
   },
-
   "antispam": {
     "pow": {
       "securing": "Защищаем запрос…",
@@ -1368,7 +1001,6 @@
       "retry": "Повторить"
     }
   },
-
   "pow": {
     "errors": {
       "invalid": "Проверка отклонена. Попробуйте ещё раз.",
@@ -1378,7 +1010,6 @@
       "failed": "Проверка не удалась. Попробуйте ещё раз."
     }
   },
-
   "joinLanding": {
     "title": "Вас пригласили в комнату",
     "subtitle": "Выберите, как вы хотите присоединиться",

@@ -9,18 +9,12 @@ const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
 const stats = [
   { value: '1,000', label: 'Max supply' },
-  { value: '0.5%', label: 'Burned per transfer' },
+  { value: '1%', label: 'Burned per transfer' },
   { value: 'TON', label: 'Jetton (TEP-74)' },
-  { value: '0.7%', label: 'Dev allocation · 12-mo vesting' },
+  { value: 'Meme', label: 'No promised value' },
 ] as const;
 
-const feeSegments = [
-  { key: 'burn', width: 0.5, label: '0.5% burned', Icon: BurnIcon, tone: 'burn' },
-  { key: 'staking', width: 0.3, label: '0.3% staking', Icon: StakingIcon, tone: 'staking' },
-  { key: 'treasury', width: 0.2, label: '0.2% treasury', Icon: TreasuryIcon, tone: 'treasury' },
-] as const;
-
-const utilityChips = ['Staking', 'Governance', 'Rewards'] as const;
+const utilityChips = ['Deflationary', 'On-chain burn', 'On TON'] as const;
 
 export function BurnTokenSection() {
   const prefersReducedMotion = useReducedMotion();
@@ -87,26 +81,22 @@ export function BurnTokenSection() {
         viewport={{ once: true, amount: 0.3 }}
         variants={reveal}
       >
-        <p className="burn-token-fee-title">Every transfer splits 1%</p>
+        <p className="burn-token-fee-title">Every transfer burns 1%</p>
 
-        <div className="burn-token-fee-bar" role="img" aria-label="Fee split: 0.5% burned, 0.3% staking, 0.2% treasury, 99% to recipient">
-          {feeSegments.map((segment) => (
-            <div
-              key={segment.key}
-              className={`burn-token-fee-segment burn-token-fee-segment--${segment.tone}`}
-              style={{ width: `${segment.width}%` }}
-            />
-          ))}
+        <div
+          className="burn-token-fee-bar"
+          role="img"
+          aria-label="Fee: 1% burned, 99% to recipient"
+        >
+          <div className="burn-token-fee-segment burn-token-fee-segment--burn" style={{ width: '1%' }} />
           <div className="burn-token-fee-segment burn-token-fee-segment--recipient" style={{ width: '99%' }} />
         </div>
 
         <ul className="burn-token-fee-legend">
-          {feeSegments.map((segment) => (
-            <li key={segment.key} className="burn-token-fee-legend-item">
-              <segment.Icon />
-              <span>{segment.label}</span>
-            </li>
-          ))}
+          <li className="burn-token-fee-legend-item">
+            <BurnIcon />
+            <span>1% burned</span>
+          </li>
           <li className="burn-token-fee-legend-item burn-token-fee-legend-item--recipient">
             <span>99% to recipient</span>
           </li>
@@ -149,29 +139,6 @@ function BurnIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-    </svg>
-  );
-}
-
-function StakingIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="8" cy="8" r="6" />
-      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
-      <path d="M7 6h1v4" />
-      <path d="m16.71 13.88.7.71-2.82 2.82" />
-    </svg>
-  );
-}
-
-function TreasuryIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect width="20" height="14" x="2" y="5" rx="2" />
-      <path d="M2 10h20" />
-      <path d="M12 15v2" />
-      <path d="M6 15v2" />
-      <path d="M18 15v2" />
     </svg>
   );
 }
