@@ -33,7 +33,7 @@
 | Crypto | `src/crypto/` | `ecdh.ts`, `aes.ts`, `groupKey.ts`, `fileEncryption.ts`, `keyStore.ts`, `pow.ts`, `kdf.ts` |
 | STOMP | hooks + services | WebSocket client, event handlers (no separate `socket/` package) |
 | Rooms / DM UI | `components/Chat/`, `components/Room*` | Encrypted 1:1 and group rooms |
-| TON | `src/ton/`, wallet pages | TON Connect auth, jetton balance, staking, governance |
+| TON | `src/ton/`, wallet pages | TON Connect auth, BURN jetton balance and send |
 | i18n | `src/i18n/` | react-i18next; locales `en`, `ru`, `ar`, `de`, `es`, `fr`, `uk`, `zh-CN` |
 | Telegram SDK | `@twa-dev/sdk` via `hooks/useTelegram.ts` | Theme, haptics, initData |
 
@@ -48,12 +48,12 @@ Java 21, Spring Boot 3.3, WebFlux, STOMP over WebSocket (SockJS fallback), Lettu
 ```
 dev.burnedchats/
 ├── handler/          # STOMP @MessageMapping (Search, Session, Handshake, Message, Room, Burn, PoW, …)
-├── controller/       # REST: Health, Auth, File, Wallet, Governance, DevAuth (dev only)
+├── controller/       # REST: Health, Auth, File, Wallet, DevAuth (dev only)
 ├── service/          # Session lifecycle, rooms, files, burn cascade, rate limits, notifications
 ├── repository/       # Redis access (sessions, messages, rooms, files, identity, …)
 ├── security/         # Handshake auth, STOMP interceptors, wallet/Telegram validation, PoW
 ├── telegram/         # Webhook bot, BotMessageService, TelegramWebhookController
-├── ton/              # JettonService, StakingVerifier, GovernanceVerifier, TonProofVerifier
+├── ton/              # JettonService, TonProofVerifier, TonService
 ├── config/           # WebSocket, Redis, properties
 ├── model/ + dto/     # Domain models and wire DTOs
 └── messaging/        # StompUserMessenger (delivery by internalId)
@@ -65,7 +65,7 @@ dev.burnedchats/
 - Rendezvous: connect users by `internalId`, relay encrypted packets
 - Stores ciphertext blobs and metadata in Redis with TTL
 - Sends Telegram bot notifications **without** message content
-- Read-only TON contract queries for wallet/governance UI
+- Read-only TON RPC queries for wallet balance UI
 
 ### What the backend does not do
 
@@ -102,7 +102,10 @@ Production uses **webhook** mode (`BurnedChatsWebhookBot`, `POST /api/telegram/w
 
 ## TON contracts (`contracts/`)
 
-Tact contracts: BURN jetton (TEP-74), staking, governance, treasury, vesting. Deployed to **testnet**; not audited mainnet production. Backend exposes read-only REST (`/api/wallet/*`, `/api/governance/*`). Token design: [TOKENOMICS.md](./TOKENOMICS.md).
+Tact contracts: BURN jetton (TEP-74) with hardcoded 1% burn-on-transfer. Deployed to
+**testnet**; not audited mainnet production. Backend exposes read-only REST
+(`/api/wallet/burn-balance`, `/api/wallet/jetton-wallet`). Token design:
+[TOKENOMICS.md](./TOKENOMICS.md).
 
 ---
 

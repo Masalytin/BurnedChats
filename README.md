@@ -34,8 +34,8 @@ production-ready.
 - **1:1 chats and password rooms** — group E2EE with key rotation on membership changes;
   room passwords verified zero-knowledge (server stores salt + proof only).
 - **Encrypted media** — chunked AES-GCM for files and thumbnails.
-- **TON integration** — TON Connect wallet auth; Jetton (TEP-74) with staking, governance,
-  treasury, and vesting contracts (Tact + Sandbox tests, 80% coverage gate).
+- **TON integration** — TON Connect wallet auth; BURN jetton (TEP-74) with hardcoded 1%
+  burn-on-transfer (Tact + Sandbox tests, 80% coverage gate).
 - **Operations** — Docker Compose (dev / prod / SSL), Nginx TLS, Redis with TTL-only
   storage, Actuator + Prometheus metrics.
 - **Specifications** — API, security, and data models under [`docs/specs/`](docs/specs/).
@@ -54,7 +54,7 @@ flowchart LR
   BE["Backend relay<br/>Redis TTL<br/>ciphertext + metadata<br/>never plaintext"]
   RPC["TON RPC<br/>read-only"]
   WAL["TON Wallet"]
-  CHAIN["TON contracts<br/>BURN Jetton · Staking<br/>Governance · Treasury · Vesting"]
+  CHAIN["TON contracts<br/>BURN Jetton (1% burn)"]
 
   A <-->|"HTTPS + WSS/STOMP"| BE
   BE <-->|"webhook / notify<br/>no message content"| TG
@@ -171,13 +171,13 @@ Threat model: [`docs/specs/SECURITY.md`](docs/specs/SECURITY.md).
 
 ### BURN token disclaimer
 
-The `contracts/` directory contains a complete TON token stack (Jetton TEP-74 with
-transfer fee split, staking, governance, treasury, vesting). Parameters in
-[`docs/specs/TOKENOMICS.md`](docs/specs/TOKENOMICS.md) describe the **design**, not
-investment promises.
+The `contracts/` directory contains a simplified BURN jetton (TEP-74 with hardcoded 1%
+burn-on-transfer). Parameters in [`docs/specs/TOKENOMICS.md`](docs/specs/TOKENOMICS.md)
+describe **on-chain mechanics only**, not investment promises.
 
-**BURN has no monetary value and is not an investment.** Do not expect returns; there
-is no funded liquidity, no external audit, and no distribution program behind it.
+**BURN is a meme token with no stated monetary value and no expected return.** There is no
+staking yield, governance, treasury program, community airdrop, or product utility tied to
+holdings. Do not treat testnet deployment as a launched token or liquidity event.
 
 ---
 

@@ -56,10 +56,6 @@ summarized in the table.
 | `invite:{token}` | hash | until `expiresAt` | Invite token |
 | `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | TON RPC cache |
 | `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
-| `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
-| `ton:jetton:fees:v1:{wc}:{hex}` | string | 5min | Effective fee params |
-| `ton:staking:profile\|lock\|tiercfg:v1:{wc}:{hex}` | string | 30s / 1h | Staking cache |
-| `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal cache |
 | `health:test:{timestamp}` | string | 10s | Redis health probe |
 
 
@@ -303,18 +299,8 @@ Stable `runGetMethod` / `getAddressInformation` responses are cached in Redis wi
 | Key pattern | TTL | Value |
 |--------------|-----|----------|
 | `ton:jetton:balance:v1:{workchain}:{hex}` | 30 s | `BigInteger` BURN nano balance |
-| `ton:jetton:info:v1:{workchain}:{hex}` | 1 h | JSON `JettonInfo` master (`app.ton.addresses.jetton-master`) |
-| `ton:jetton:fees:v1:{workchain}:{hex}` | 5 min | JSON `EffectiveFeeParams` (`get_effective_fee_params`) |
 
 Address in the key suffix is normalized as `workchain:hex` (see `TonAddressBoc.normalizeKey`).
-
-### Staking (`StakingVerifier`)
-
-| Key pattern | TTL | Value |
-|--------------|-----|----------|
-| `ton:staking:profile:v1:{workchain}:{hex}` | 30 s | JSON `UserStakingProfile` |
-| `ton:staking:lock:v1:{workchain}:{hex}` | 1 h | `StakingLock` address for the given staking-master |
-| `ton:staking:tiercfg:v1:{workchain}:{hex}` | 1 h | Tier config cache read from lock contract |
 
 ---
 

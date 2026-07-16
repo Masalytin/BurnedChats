@@ -1,26 +1,38 @@
 # BURN Token — Tokenomics
 
-> Deflationary jetton design for the Burned Chats ecosystem. **Testnet only** — not a launched product or investment offer. See [README.md](../../README.md#project-status).
+> Simple deflationary meme jetton for the Burned Chats ecosystem. **Testnet only** — not a
+> launched product or investment offer. See [README.md](../../README.md#project-status).
 
-> **Terminology (as of June 2026):** **TON** — blockchain and ecosystem (The Open Network, TON Connect, TON RPC).
-> **GRAM** — native network coin for gas and fees (formerly Toncoin, ticker `TON`; no token migration).
+> **Terminology (as of June 2026):** **TON** — blockchain and ecosystem (The Open Network,
+> TON Connect, TON RPC). **GRAM** — native network coin for gas and fees (formerly Toncoin,
+> ticker `TON`; no token migration).
 
 ## Table of Contents
 
+- [Legal Disclaimer](#legal-disclaimer)
 - [Token Overview](#token-overview)
 - [Key Parameters](#key-parameters)
-- [Deflationary Mechanism](#deflationary-mechanism)
-- [Treasury](#treasury)
-- [Emission Distribution](#emission-distribution)
-- [Staking](#staking)
-- [BCID Fee Semantics](#bcid-fee-semantics)
-- [Utility](#utility)
-- [Governance](#governance)
+- [Burn Mechanism](#burn-mechanism)
+- [Supply and Distribution](#supply-and-distribution)
+- [Deployment Finalization](#deployment-finalization)
+- [DEX and Tax-Token Behavior](#dex-and-tax-token-behavior)
 - [Technical Architecture](#technical-architecture)
 - [Smart Contracts](#smart-contracts)
 - [BurnedChats Integration](#burnedchats-integration)
-- [Launch Plan](#launch-plan)
 - [Risks and Mitigation](#risks-and-mitigation)
+- [FAQ](#faq)
+
+---
+
+## Legal Disclaimer
+
+> **BURN is a meme token with no stated monetary value, investment promise, expected return,
+> governance rights, staking yield, treasury allocation, airdrop, or product utility beyond
+> optional wallet display in the Burned Chats Mini App.** This document describes on-chain
+> technical mechanics only. It is **not** an offer of securities, financial instruments, or
+> investment advice. Deployments on TON testnet are experimental engineering artifacts.
+> Any mainnet publication requires independent legal review by qualified counsel. **This text
+> is not legal advice.**
 
 ---
 
@@ -28,31 +40,19 @@
 
 ### Philosophy
 
-The name and mechanics of the **BURN** token align perfectly with the Burned Chats philosophy:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    🔥 BURN = PRIVACY + VALUE                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   Messages burn        →    Tokens are burned                    │
-│   Privacy grows        →    Scarcity increases                   │
-│   Trust strengthens    →    Value rises                          │
-│                                                                  │
-│   "The more active the usage — the more gets burned"             │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+The name **BURN** aligns with the Burned Chats brand: messages and data are ephemeral; the
+jetton applies a small automatic burn on every transfer. The token is **not** required to use
+the messenger and does not gate chat features.
 
 ### Why TON?
 
 | Advantage | Description |
-|--------------|----------|
+|-----------|-------------|
 | **Native integration** | TON is built into Telegram via @wallet |
 | **Instant transactions** | ~5 seconds to confirm |
 | **Low fees** | ~$0.01–0.05 per transaction (gas paid in native coin **GRAM**) |
 | **TON Connect** | Seamless authorization in Mini App |
-| **Jetton standard** | Proven token standard |
+| **Jetton standard** | Proven token standard (TEP-74) |
 | **Ecosystem** | DeDust, STON.fi, Tonkeeper |
 
 ---
@@ -66,430 +66,106 @@ The name and mechanics of the **BURN** token align perfectly with the Burned Cha
 │                                                                  │
 │   Name:               BURN                                       │
 │   Blockchain:         TON (The Open Network)                     │
-│   Native coin:        GRAM¹ (gas, network fees)                 │
-│   Standard:           Jetton (TEP-74)                            │
+│   Native coin:        GRAM¹ (gas, network fees)                  │
+│   Standard:           Jetton (TEP-74)                             │
 │   Decimals:           9                                          │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
-│   Maximum supply:          1,000 BURN                            │
+│   Fixed maximum supply:    1,000 BURN (after CloseMint)          │
 │   Minimum unit:            0.000000001 BURN (1 nano)             │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
-│   Burn Rate:               0.5% of each transaction              │
-│   Staking Pool Rate:       0.3% of each transaction              │
-│   Treasury Rate:           0.2% of each transaction              │
-│   Total Fee:               1.0% of each transaction              │
+│   Transfer burn fee:       1.0% (hardcoded, entire fee burned)   │
+│   Staking / Treasury:      removed (no fee split)                │
+│   Excluded addresses:      none (burn on every transfer)         │
+│   Dynamic burn / floor:    removed                               │
 │                                                                  │
 │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │                                                                  │
-│   Developer Allocation:    7 BURN (0.7%)                         │
+│   Developer allocation:    7 BURN (0.7%)                         │
+│   Liquidity provision:     993 BURN (99.3%) → DEX, LP burned     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-¹ **GRAM** — official post-rebrand ticker of the TON native coin (formerly Toncoin, ticker `TON`). The blockchain and ecosystem products are still called TON.
+¹ **GRAM** — official post-rebrand ticker of the TON native coin (formerly Toncoin, ticker
+`TON`). The blockchain and ecosystem products are still called TON.
 
 ---
 
-## Deflationary Mechanism
+## Burn Mechanism
 
-### Base mechanism (1% total fee, 0.5% burn)
-
-On every transaction:
+On every jetton transfer (P2P, contract, or DEX router path):
 
 ```
 Sender: 100 BURN
     │
-    ├── 0.5% → Burned forever 🔥          = 0.5 BURN
-    ├── 0.3% → Staking Pool 💰           = 0.3 BURN  
-    ├── 0.2% → Treasury 🏦               = 0.2 BURN
+    ├── 1.0% → Burned forever 🔥          = 1.0 BURN
     │
     └── Recipient receives:              = 99.0 BURN
 ```
 
-### Dynamic Burn (optional)
+- **Fee is hardcoded** at 1% (`burnBps = 100`); there is no admin-adjustable fee schedule.
+- **The full 1% is burned** — no staking pool, treasury, or protocol revenue leg.
+- **Rounding:** for amounts where `amount * 100 / 10000` truncates to zero, burn is zero and
+  the full amount is delivered (standard nano-token rounding).
+- **Supply decreases** on each burn via `JettonBurnNotification` on the master contract.
 
-```
-┌─────────────────────────────────────────┐
-│         DYNAMIC BURN MECHANISM          │
-├─────────────────────────────────────────┤
-│                                         │
-│  Base burn:                 0.5%        │
-│                                         │
-│  Large transaction bonus    +0.25%      │
-│  (>10 BURN)                             │
-│                                         │
-│  High network activity      +0.125%     │
-│  bonus                                  │
-│  (>100 tx/hour)                         │
-│                                         │
-│  ─────────────────────────────────      │
-│  Maximum burn:              ~0.875%     │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
-### Deflation forecast
-
-Calculation at base burn rate 0.5% and average transaction ~0.1 BURN:
-
-| Scenario | Transactions/day | Burned/year | Supply after 1 year |
-|----------|-----------------|-------------|------------------|
-| Low | 100 | ~18 BURN | ~982 BURN |
-| Medium | 500 | ~91 BURN | ~909 BURN |
-| High | 2000 | ~365 BURN | ~635 BURN |
-
-> **Important:** At high activity levels, supply can shrink by 35%+ per year. Actual deflation depends on transaction volume (volume × burn rate), not just transaction count. When supply < 100 BURN, burn rate automatically drops to 0.1% (see FAQ).
+There is no supply floor rule: the token can theoretically burn toward zero supply.
 
 ---
 
-## Treasury
+## Supply and Distribution
 
-Treasury is a separate smart contract that accumulates 0.2% of each transaction. It is an **excluded address** for fee mechanics (incoming transfers are not subject to additional burn/staking fees).
+Total supply at genesis: **1,000 BURN**, minted in two allocations:
 
-### Fund allocation
+| Recipient | Amount | % | Notes |
+|-----------|--------|---|-------|
+| **Developer** | 7 | 0.7% | Single mint to deployer wallet; no vesting contract |
+| **Liquidity** | 993 | 99.3% | Minted for DEX liquidity provision |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    TREASURY ALLOCATION                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. 🏗️ INFRASTRUCTURE                                            │
-│     ├── Hosting and servers (backend, Redis)                     │
-│     ├── TON RPC nodes and services                                 │
-│     ├── Domain names and SSL certificates                        │
-│     └── Monitoring and logging                                   │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  2. 🛡️ SECURITY                                                  │
-│     ├── Smart contract audits (external)                         │
-│     ├── Bug bounty program                                       │
-│     ├── Penetration testing                                      │
-│     └── Formal contract verification                             │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  3. 🤝 GRANTS                                                    │
-│     ├── Developer grants (feature expansion)                     │
-│     ├── Ecosystem partner grants (integrations)                  │
-│     └── Educational initiatives and documentation                │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Liquidity procedure (testnet runbook):**
 
-> **Distinction from Ecosystem allocation (150 BURN):** Ecosystem allocation is intended for large strategic partnerships and marketing campaigns (2-year vesting). Treasury funds operational expenses, audits, bug bounty, and targeted grants from the ongoing transaction fee stream — this allowed reducing Ecosystem allocation from 200 to 150 BURN, redirecting funds to the Liquidity Pool.
+1. Mint 993 BURN to a liquidity wallet.
+2. Add liquidity on a DEX (e.g. STON.fi / DeDust) paired with GRAM.
+3. **Burn all received LP tokens** to a burn address (irreversible liquidity lock).
+4. Expect ~1% burn on the liquidity deposit transfer (~9.93 BURN burned on entry) — this is
+   normal tax-token behavior.
 
-### Treasury spending
-
-Any Treasury spending requires governance voting (`Treasury Spend`: 20% VP quorum, 66% threshold, 7-day period). All stakers vote using the VP formula.
-
-Treasury Spend proposals must target the **canonical Treasury contract** wired in `Governor` at deploy time; the Governor rejects create payloads whose treasury address does not match. The Mini App pins the same address from `VITE_TREASURY_ADDRESS` (read-only in the form).
+No community airdrop, staking rewards pool, ecosystem reserve, treasury allocation, or BCID
+fee semantics apply to this token design.
 
 ---
 
-## Emission Distribution
+## Deployment Finalization
 
-### Allocation Chart
+After minting and liquidity steps:
 
-```
-Total Supply: 1,000 BURN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+| Step | Effect |
+|------|--------|
+| **`CloseMint`** | Irreversible; no further minting; fixed supply cap enforced |
+| **Admin revocation** | `ChangeOwner` to null/burn address; no further `JettonUpdateContent` or admin ops |
 
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                  │
-│  ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  20%        │
-│  Community Airdrop                           200 BURN            │
-│                                                                  │
-│  ██████████████████████████████░░░░░░░░░░░░░░░░░░░░  30%        │
-│  Staking Rewards Pool                        300 BURN            │
-│                                                                  │
-│  ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  15%        │
-│  Ecosystem Development                       150 BURN            │
-│                                                                  │
-│  ██████████████████████████████░░░░░░░░░░░░░░░░░░░░  30%        │
-│  Liquidity Pool (DEX)                        300 BURN            │
-│                                                                  │
-│  ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  4.3%       │
-│  Reserve                                      43 BURN            │
-│                                                                  │
-│  █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0.7%       │
-│  Developer                                     7 BURN            │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Distribution details
-
-| Category | Amount | % | Vesting | Purpose |
-|-----------|------------|---|---------|------------|
-| **Developer** | 7 | 0.7% | 12 months linear | Developer personal allocation |
-| **Community Airdrop** | 200 | 20% | — | Early BurnedChats users |
-| **Staking Rewards** | 300 | 30% | 3 years | Staking rewards (linear distribution) |
-| **Ecosystem** | 150 | 15% | 2 years | Grants, partnerships, marketing |
-| **Liquidity** | 300 | 30% | — | DEX pools (DeDust, STON.fi) |
-| **Reserve** | 43 | 4.3% | 3 years | Unforeseen expenses |
-
-### Vesting Schedule
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      VESTING TIMELINE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Month    0    6    12   18   24   30   36   48   60            │
-│          ─┬────┬────┬────┬────┬────┬────┬────┬────┬─            │
-│           │    │    │    │    │    │    │    │    │             │
-│  Airdrop  ████████████████████████████████████████  Immediate    │
-│           │    │    │    │    │    │    │    │    │             │
-│  Liquidity████████████████████████████████████████  Immediate (LP)│
-│           │    │    │    │    │    │    │    │    │             │
-│  Developer██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  Linear       │
-│           │    │    │    │    │    │    │    │    │  12 months │
-│           │    │    │    │    │    │    │    │    │             │
-│  Staking  ████████████████████████░░░░░░░░░░░░░░░░  Linear     │
-│           │    │    │    │    │    │    │    │    │  3 years    │
-│           │    │    │    │    │    │    │    │    │             │
-│  Ecosystem░░░░░░░░░░████████████████████████░░░░░░░  Linear      │
-│           │    │    │    │    │    │    │    │    │  2 years    │
-│           │    │    │    │    │    │    │    │    │             │
-│  Reserve  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░████████  After      │
-│           │    │    │    │    │    │    │    │    │  3 years    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+After these steps the jetton master and wallets are **immutable** on-chain. Verification scripts
+should assert `mintable = false`, expected `totalSupply`, and revoked admin.
 
 ---
 
-## Staking
+## DEX and Tax-Token Behavior
 
-### Tiered Staking System
+BURN is a **fee-on-transfer (tax) token**. DEX aggregators and pools may show warnings such as
+**"tax token"** because the pool receives ~1% less than the quoted input amount.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      STAKING TIERS                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  🥉 FLEXIBLE (no lock)                                             │
-│     ├── Reward share: 5%                                         │
-│     ├── Voting Power: 1.0x                                       │
-│     └── Unstake: instant                                         │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  🥈 SILVER (6 months)                                              │
-│     ├── Reward share: 10%                                        │
-│     ├── Voting Power: 1.5x                                       │
-│     └── Unstake: after lock period                               │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  🥇 GOLD (1 year)                                                 │
-│     ├── Reward share: 25%                                        │
-│     ├── Voting Power: 2.0x                                       │
-│     └── Unstake: after lock period                               │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  💎 DIAMOND (3 years)                                             │
-│     ├── Reward share: 60%                                        │
-│     ├── Voting Power: 3.0x (maximum)                           │
-│     ├── Bonuses: + Exclusive NFT Badge                           │
-│     ├── Early Access: Beta features                                │
-│     └── Unstake: after lock period                               │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Aspect | Behavior |
+|--------|----------|
+| Pool compatibility | STON.fi supports tax tokens up to 10% fee; 1% is within supported range |
+| Quote vs received | ~1% discrepancy between quoted and credited amount is expected |
+| Intermediate routing | Token may be unsuitable as a hop in multi-hop routes (acceptable for meme scope) |
+| Excluded DEX routers | **Not used** — excluding routers would disable burn on trading volume and require a permanent admin |
 
-> **APY is not fixed** — it depends on total staked tokens in each tier and the current distribution rate from the Staking Pool. Reward share is the portion of total reward distribution allocated to a tier.
-
-### Staking Pool dynamics
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  STAKING POOL DYNAMICS                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  PHASE 1 (year 0–3): Initial Allocation                          │
-│  ├── Source: 300 BURN distributed linearly                       │
-│  ├── Rate:     100 BURN/year = ~0.274 BURN/day                     │
-│  └── Additional: + 0.3% of each transaction volume               │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  PHASE 2 (year 3+): Self-sustaining                              │
-│  ├── Source: transaction fees only                               │
-│  ├── Rate: 0.3% × daily tx volume                                │
-│  └── Depends on network activity                                 │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  Distribution across tiers (always):                             │
-│  ├── 60% → Diamond  (3 years)                                    │
-│  ├── 25% → Gold     (1 year)                                     │
-│  ├── 10% → Silver   (6 months)                                   │
-│  └── 5%  → Flexible (no lock)                                    │
-│                                                                  │
-│  Within a tier — proportional to stake size                      │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Individual reward calculation
-
-```
-DailyReward(user) = TierShare × DailyPoolEmission × (UserStake / TotalTierStake)
-
-Where:
-├── TierShare           — 0.05 / 0.10 / 0.25 / 0.60 (Flexible/Silver/Gold/Diamond)
-├── DailyPoolEmission   — 0.274 BURN (phase 1) + tx_fees_today
-└── UserStake / TotalTierStake — user's share within their tier
-```
-
-### Indicative APY calculator (Phase 1, at different participation levels)
-
-Assumptions: 30% supply (300 BURN) staked, typical tier distribution (Diamond 30% / Gold 25% / Silver 25% / Flexible 20%), tx fees ignored.
-
-| Stake | Tier | Tier share of total stake | Indicative APY | Reward/year |
-|-------|-----|--------------------------|-------------------|-------------|
-| 10 BURN | Flexible | 60 BURN total | ~8% | ~0.83 BURN |
-| 10 BURN | Silver | 75 BURN total | ~13% | ~1.33 BURN |
-| 10 BURN | Gold | 75 BURN total | ~33% | ~3.33 BURN |
-| 10 BURN | Diamond | 90 BURN total | ~67% | ~6.67 BURN |
-
-> **Important:** Actual APY depends on how many tokens are staked in your tier. Fewer competitors means higher yield. After year 3 (initial allocation exhausted), APY is determined only by tx fees and drops substantially.
-
-### Staking Pool Wallet
-
-Staking Pool is a separate smart contract acting as an **excluded address** for fee mechanics: transfers from Staking Pool to users are not subject to repeated burn/staking/treasury fees. This allows rewards to be paid out without double taxation.
-
----
-
-## BCID Fee Semantics
-
-> BURN distribution for Burned Chats ID (BCID NFT profile) operations and alignment with the **standard 1% Jetton fee** on transfers.
-
-### Operation variants
-
-| Operation | Cost (user) | Distribution within BCID contract |
-|----------|---------------------------|--------------------------------------|
-| Mint BCID | 0.001 BURN (+ GRAM gas) | 50% burn / 30% staking / 20% treasury |
-| Rename | 0.001 BURN | 50% / 30% / 20% |
-| Avatar update | 0.0005 BURN | 50% / 30% / 20% |
-
-### Mechanics (Variant A — adopted)
-
-1. **BCID contract is included in Jetton Master excluded addresses**; the specific BCID address is added after on-chain deployment.
-2. User Jetton **transfer** to the BCID contract address is **not** subject to the standard 1% Jetton Wallet-level fee (sender/recipient excluded per master rules).
-3. BCID contract receives the **full** stated amount (e.g. 0.001 BURN for mint).
-4. Contract executes **outgoing** transfers per the 50/30/20 split (to excluded burn path / staking pool / treasury — without repeated Jetton fee).
-5. **Result:** 100% of BURN paid by product semantics goes to 50/30/20; no stacking of "1% Jetton on top" for mint/rename/avatar on BCID.
-
-### Edge cases
-
-- **Insufficient balance** — wallet rejects transfer before reaching the network.
-- **Insufficient GRAM for gas** on BCID contract — operation does not complete; user sees error in wallet / UI.
-- **Nickname collision** — resolved on-chain in nickname registry (see P3-3.1.2).
-
-### Rationale
-
-Variant A — adopted: BCID operations use the 50/30/20 split without stacking the standard 1% Jetton transfer fee.
-
----
-
-## Utility
-
-### Use Cases in BurnedChats
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    BURN TOKEN UTILITY                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. 🎁 REWARDS & INCENTIVES                                      │
-│     ├── Airdrop to early users                                   │
-│     ├── Referral program (invite friends)                        │
-│     ├── Bug report rewards                                       │
-│     ├── Contests and challenges                                  │
-│     └── Community activity                                       │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  2. 🗳️ GOVERNANCE                                                │
-│     ├── Voting on new features                                   │
-│     ├── Roadmap prioritization                                   │
-│     ├── Parameter changes (burn rate, tier shares,               │
-│     │   distribution rate)                                       │
-│     └── Treasury distribution                                    │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  3. 💎 STAKING BENEFITS                                          │
-│     ├── Passive income (dynamic APY)                             │
-│     ├── Voting Power for governance                              │
-│     ├── Exclusive NFT badges (Diamond)                           │
-│     └── Early access to beta features (Diamond)                  │
-│                                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  4. 🎨 COSMETICS & STATUS                                        │
-│     ├── Unique avatar frames                                     │
-│     ├── Animated burn effects                                    │
-│     ├── Exclusive notification sounds                            │
-│     └── "OG Holder" status for early adopters                    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Governance
-
-### Voting Power
-
-```
-Voting Power = Staked Amount × Time Multiplier
-
-Time Multipliers:
-├── Flexible:  1.0x
-├── 6 months:  1.5x
-├── 1 year:    2.0x
-└── 3 years:   3.0x
-
-Example:
-├── Alice: 10 BURN (3 years) → 10 × 3.0 = 30 VP
-├── Bob:   20 BURN (flexible) → 20 × 1.0 = 20 VP
-└── Alice has more influence despite a smaller stake
-```
-
-### Governance Proposals
-
-| Type | Quorum | Approval threshold | Voting period |
-|-----|--------|----------------|-------------------|
-| Parameter Change | 10% VP | 51% | 3 days |
-| Feature Priority | 5% VP | 51% | 7 days |
-| Treasury Spend | 20% VP | 66% | 7 days |
-| Emergency | 30% VP | 75% | 24 hours |
-
-### Proposal examples
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PROPOSAL #001: Reduce burn rate to 0.25%                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Type: Parameter Change                                          │
-│  Proposer: 0x1234...                                             │
-│  Required VP: 10%                                                │
-│  Current VP: 15.3% ✅                                             │
-│                                                                  │
-│  Votes:                                                          │
-│  ├── FOR:     62.4%  ████████████░░░░░░░░                        │
-│  └── AGAINST: 37.6%  ███████░░░░░░░░░░░░░                        │
-│                                                                  │
-│  Status: PASSED ✅                                                │
-│  Execution: In 48 hours                                          │
-└─────────────────────────────────────────────────────────────────┘
-```
+Users swapping on DEX should expect the UI warning and slightly lower effective amounts.
 
 ---
 
@@ -507,182 +183,112 @@ Example:
 │  │ (Mini App)  │   WSS   │ (Spring)    │        │             │ │
 │  └──────┬──────┘         └──────┬──────┘        └─────────────┘ │
 │         │                       │                                │
-│         │ TON Connect           │ Verify balance                 │
+│         │ TON Connect           │ Read-only balance RPC          │
 │         ▼                       ▼                                │
 │  ┌─────────────┐         ┌─────────────┐                        │
 │  │  TON Wallet │◄───────►│  TON RPC    │                        │
 │  │ (@wallet)   │         │  (toncenter)│                        │
 │  └──────┬──────┘         └─────────────┘                        │
 │         │                       ▲                                │
-│         │                       │                                │
 │         ▼                       │                                │
 │  ┌─────────────────────────────┴───────────────────────────────┐│
 │  │                      TON BLOCKCHAIN                          ││
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          ││
-│  │  │ BURN Jetton │  │  Staking    │  │  Governance │          ││
-│  │  │   Master    │  │   Pool      │  │   Contract  │          ││
-│  │  └─────────────┘  └─────────────┘  └─────────────┘          ││
+│  │  ┌─────────────────────────────────────────────────────┐    ││
+│  │  │ BURN Jetton Master + per-user Jetton Wallets         │    ││
+│  │  └─────────────────────────────────────────────────────┘    ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### New Frontend components
+### Frontend (`frontend/src/ton/`)
 
-```
-frontend/src/
-├── ton/
-│   ├── connector.ts           # TON Connect integration
-│   ├── burnToken.ts           # Jetton interaction
-│   ├── staking.ts             # Staking operations
-│   ├── governance.ts          # Voting
-│   └── wallet.ts              # Balance, history
-├── components/
-│   ├── Wallet/
-│   │   ├── WalletButton.tsx   # Connect button
-│   │   ├── Balance.tsx        # Balance display
-│   │   ├── SendModal.tsx      # Send tokens
-│   │   └── History.tsx        # Transaction history
-│   ├── Staking/
-│   │   ├── StakingDashboard.tsx
-│   │   ├── StakeModal.tsx
-│   │   ├── UnstakeModal.tsx
-│   │   └── RewardsCard.tsx
-│   └── Governance/
-│       ├── ProposalList.tsx
-│       ├── ProposalDetail.tsx
-│       ├── VoteModal.tsx
-│       └── CreateProposal.tsx
-├── hooks/
-│   ├── useTonConnect.ts
-│   ├── useBurnToken.ts
-│   ├── useStaking.ts
-│   └── useGovernance.ts
-└── types/
-    └── ton.ts
-```
+- `connector.ts` — TON Connect
+- `burnToken.ts` — balance, send, fee display ("1% will burn")
+- `wallet.ts` — wallet helpers
 
-### Backend changes
+Staking and governance UI modules were removed in token-simplification (IMP-TOKSIM-05).
 
-```
-backend/src/main/java/dev/burnedchats/
-├── ton/
-│   ├── TonService.java            # TON RPC client
-│   ├── JettonService.java         # BURN balance verification
-│   ├── StakingVerifier.java       # Staking verification
-│   └── dto/
-│       ├── WalletInfo.java
-│       └── StakingInfo.java
-└── config/
-    └── TonConfig.java             # TON configuration
-```
+### Backend (`backend/.../ton/`)
+
+- `TonService` — TON RPC client
+- `JettonService` — BURN balance and jetton-wallet address resolution
+- `TonProofVerifier` — wallet auth (independent of tokenomics)
+
+`StakingVerifier` and `GovernanceVerifier` were removed in IMP-TOKSIM-04.
 
 ---
 
 ## Smart Contracts
 
-### Contract structure
-
 ```
 contracts/
-├── jetton/
-│   ├── burn-jetton-master.fc      # Main token contract
-│   ├── burn-jetton-wallet.fc      # User wallet
-│   └── burn-logic.fc              # Deflation logic
-├── staking/
-│   ├── staking-master.fc          # Main staking contract
-│   ├── staking-pool.fc            # Rewards pool
-│   └── lock-contract.fc           # Time-lock contract
-├── governance/
-│   ├── governor.fc                # Main governance contract
-│   ├── proposal.fc                # Proposal contract
-│   └── timelock.fc                # Execution delay
+├── tact/
+│   ├── burn-jetton-master.tact    # Jetton master (TEP-74)
+│   └── burn-jetton-wallet.tact    # Wallet with hardcoded 1% burn
 ├── scripts/
-│   ├── deploy.ts                  # Deploy scripts
-│   ├── mint.ts                    # Minting
-│   └── verify.ts                  # Verification
+│   ├── deploy/                    # Bootstrap, mint, CloseMint, verify
+│   └── verify-burn-testnet.ts
 └── tests/
-    ├── jetton.spec.ts
-    ├── staking.spec.ts
-    └── governance.spec.ts
+    └── jetton-*.spec.ts
 ```
 
-> Contract source code and integration will appear in `contracts/` and the corresponding `frontend/src/ton/`, `backend/src/.../ton/` files during v1.5 implementation.
+Legacy staking, governance, treasury, and vesting trees were removed in IMP-TOKSIM-03;
+sources remain in git history for reference only.
 
 ---
 
 ## BurnedChats Integration
 
-### Integration components
+| Layer | Role |
+|-------|------|
+| **TON Connect** | Wallet authentication (`ton_proof`) — not tied to BURN holdings |
+| **Wallet UI** | Optional: show BURN balance and send with 1% burn preview |
+| **Backend REST** | `GET /api/wallet/burn-balance`, `GET /api/wallet/jetton-wallet` (read-only RPC cache) |
 
-**Backend:** `TonService` (TON RPC), `JettonService` (BURN balance), `StakingVerifier` (staking tier).
-
-**Frontend:** `useTonConnect` (wallet connection), `useBurnToken` (balance), `useStaking` (staking operations), `useGovernance` (voting).
+No staking tiers, governance voting, treasury spend flows, or product gating by token balance.
 
 ---
 
 ## Risks and Mitigation
 
 | Risk | Probability | Impact | Mitigation |
-|------|-------------|---------|-----------|
-| **Smart contract bug** | Medium | Critical | Audit, tests, bug bounty |
-| **Low liquidity** | Medium | High | Increased LP allocation (30%, 300 BURN) for DEX depth |
-| **Whale manipulation** | Medium | High | Low total supply (1000 BURN) itself makes mass buying expensive; large wallet monitoring |
-| **Regulatory issues** | Low | Critical | Utility token, not security |
-| **Low adoption** | Medium | High | Tied to real utility |
-| **TON network issues** | Low | High | Monitoring, fallback plans |
-| **Staking pool drain** | Low | High | Reward limits, vesting |
-
-### Contingency Plans
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  EMERGENCY PROCEDURES                                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. Critical Bug Found:                                          │
-│     ├── Pause contract (if possible)                             │
-│     ├── Notify community                                         │
-│     ├── Develop and test fix                                     │
-│     └── Deploy updated contract                                  │
-│                                                                  │
-│  2. Liquidity Crisis:                                            │
-│     ├── Use Reserve allocation (43 BURN)                         │
-│     ├── Buyback from Treasury and LP replenishment               │
-│     ├── Temporarily reduce staking distribution rate             │
-│     └── Partnerships for additional liquidity                    │
-│                                                                  │
-│  3. Whale Attack / Market Manipulation:                          │
-│     ├── Activate emergency governance                            │
-│     ├── Buyback & burn from Treasury                             │
-│     └── Coordinate with DEX on protective measures               │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+|------|-------------|--------|------------|
+| **Smart contract bug** | Medium | Critical | Tests, coverage gate, planned external audit before any mainnet |
+| **Low liquidity** | Medium | High | 99.3% supply directed to LP; LP tokens burned |
+| **DEX tax-token friction** | Medium | Medium | Documented; 1% within STON.fi tax-token support |
+| **Regulatory perception** | Medium | High | Meme-token disclaimer; no yield/governance/treasury promises |
+| **Whale concentration** | Medium | Medium | Low total supply (1000 BURN) |
+| **TON network issues** | Low | High | Monitoring, RPC fallbacks |
 
 ---
 
-## Success Metrics
+## FAQ
 
-### Launch Metrics (first month)
+### Why only 1,000 tokens?
 
-| Metric | Target |
-|---------|------|
-| Unique holders | > 500 |
-| Total staked | > 30% supply |
-| Daily transactions | > 100 |
-| Liquidity (DEX) | > $15,000 |
-| Active stakers | > 50 |
+Low supply keeps the experiment understandable and makes large-scale accumulation costly in
+relative terms. It is a design choice for a meme token, not an investment thesis.
 
-### Growth Metrics (6 months)
+### Why 0.7% developer allocation?
 
-| Metric | Target |
-|---------|------|
-| Unique holders | > 5,000 |
-| Total staked | > 50% supply |
-| Tokens burned | > 10% initial supply |
-| Daily active users | > 500 |
-| Governance participation | > 20% of stakers |
+Minimal dev slice (7 BURN) with no vesting contract — aligns deployer with a fixed-supply,
+immutable contract after `CloseMint` and admin revocation.
+
+### Can the burn rate or supply change?
+
+**No**, after deployment finalization (`CloseMint` + admin revocation). The 1% burn is
+hardcoded in the wallet contract; there is no governance or timelock path to alter parameters.
+
+### Does holding BURN unlock chat features?
+
+**No.** Burned Chats E2EE features do not depend on token ownership.
+
+### What happened to the previous full tokenomics design?
+
+An earlier testnet stack included staking, governance, treasury, vesting, and multi-leg fee
+splits. That design was superseded by token-simplification (2026-07); see git history and
+[ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
@@ -691,37 +297,3 @@ contracts/
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — technical architecture
 - [SECURITY.md](./SECURITY.md) — system security
 - [API.md](./API.md) — API specification
-
----
-
-## FAQ
-
-### Why only 1,000 tokens?
-
-Low emission creates:
-- Psychological value ("I own a whole token")
-- Natural scarcity
-- Simplicity of understanding (1 BURN = meaningful amount)
-
-### Why 0.7% developer allocation?
-
-- Demonstrates belief in the project
-- Minimal allocation size + 12-month linear vesting rules out "rug pull" possibility
-- Aligns interests with the community
-
-### What if supply becomes too small?
-
-When supply < 100 BURN:
-- Burn rate automatically drops to 0.1%
-- Staking rewards decrease proportionally
-- Token becomes a "collectible asset"
-
-### Can parameters be changed?
-
-Yes, through governance:
-- Burn rate (0.1% – 5%)
-- Staking pool distribution rate (linear distribution speed of 300 BURN initial allocation)
-- Tier reward shares (60/25/10/5 shares between Diamond/Gold/Silver/Flexible)
-- Treasury distribution
-
-All stakers vote with weight per the VP formula (see Governance section). Quorum and approval threshold requirements depend on proposal type (Parameter Change / Feature Priority / Treasury Spend / Emergency).

@@ -89,7 +89,7 @@ Compatibility: backend also accepts legacy header/query names `auth-type` / `aut
 | Endpoint/event | Limit | Window | Notes |
 |------------------|-------|------|------------|
 | REST `/api/auth/**` | 20 req | 1 min | `RestRateLimitInterceptor` (by IP / token) |
-| REST `/api/wallet/**`, `/api/governance/**` | 60 req | 1 min | same interceptor |
+| REST `/api/wallet/**` | 60 req | 1 min | same interceptor |
 | REST `/api/files/**` | — | — | **outside** REST interceptor; upload — separate bucket |
 | `POST /api/files/upload` | 10 req | 1 min | `FILE_UPLOAD` (`FileValidationService`) |
 | `SEARCH_USER` (`/app/search`) | 10 req | 1 min | `SEARCH` |
@@ -136,27 +136,22 @@ in both modes.
 Canonical REST paths, request bodies, response schemas, and HTTP status codes live in
 **[openapi.yaml](./openapi.yaml)**. Regenerate after controller changes:
 
-`ash
+```bash
 ./gradlew exportOpenApi   # from repository root
-`
+```
 
 ### Cross-cutting REST notes (not in OpenAPI)
 
-- **File upload/download** uses pplication/octet-stream for **client-encrypted**
+- **File upload/download** uses `application/octet-stream` for **client-encrypted**
   blobs; auth headers mirror the WebSocket handshake (see
   [REST (files): authentication](#rest-files-authentication) above).
-  ileSize in STOMP events is **plaintext** size; POST /api/files/upload size
+- `fileSize` in STOMP events is **plaintext** size; `POST /api/files/upload` size
   field is **ciphertext** bytes — see [Data Types](#data-types).
-- **Governance voting window:** GET /api/governance/active-proposals may return
-  ACTIVE during the on-chain **pre-vote** window (CANCEL_LAG = 3600 s). Voting
-  opens only when 
-ow >= startTime (creationTime + CANCEL_LAG). Casting before
-  startTime fails on-chain (exit 54220). Client must block UI until voting opens.
-- **Telegram webhook** (POST /api/telegram/webhook) is internal — excluded from
-  committed OpenAPI. Bot /burn command uses inline keyboard callbacks stored at
-  Redis ot:burn:nonce:{nonce} (TTL 60 s, one-time).
-- **Wallet TON proof** error codes (WalletProofException.Reason) and HTTP mapping
-  are in OpenAPI; session **secret answer** normalization (	rim → lowercase → SHA-256
+- **Telegram webhook** (`POST /api/telegram/webhook`) is internal — excluded from
+  committed OpenAPI. Bot `/burn` command uses inline keyboard callbacks stored at
+  Redis `bot:burn:nonce:{nonce}` (TTL 60 s, one-time).
+- **Wallet TON proof** error codes (`WalletProofException.Reason`) and HTTP mapping
+  are in OpenAPI; session **secret answer** normalization (`trim` → lowercase → SHA-256
   → Base64) is STOMP-side — see CREATE_SESSION below.
 
 ---
