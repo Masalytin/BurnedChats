@@ -4,6 +4,7 @@ import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { loadDeployEnv } from './deploy/env';
+import { resolveJettonMaster } from './deploy/manifest';
 import { loadDeployment } from './deploy/store';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from './deploy/wait';
 
@@ -268,7 +269,7 @@ export async function run(provider: NetworkProvider) {
         throw new Error('Missing deployments/testnet.json — run npm run deploy:burn:testnet first.');
     }
 
-    const jettonMaster = Address.parse(deployment.addresses.jettonMaster);
+    const jettonMaster = Address.parse(resolveJettonMaster(deployment));
     const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
 
     const burnTxEnv = process.env.BURN_TX_HASH?.trim();

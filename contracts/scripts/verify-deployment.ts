@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { loadDeployEnv } from './deploy/env';
+import { resolveJettonMaster } from './deploy/manifest';
 import { loadDeployment } from './deploy/store';
 
 const NANO = 10n ** 9n;
@@ -128,8 +129,11 @@ export async function run(provider: NetworkProvider) {
         throw new Error(`Missing deployments/${network}.json — run deploy.ts first`);
     }
 
-    const jettonMaster = Address.parse(deployment.addresses.jettonMaster);
-    const deployerAddr = Address.parse(deployment.deployer);
+    const jettonMaster = Address.parse(resolveJettonMaster(deployment));
+    const deployerAddr = provider.sender().address;
+    if (!deployerAddr) {
+        throw new Error('verify-deployment needs mnemonic wallet address to check admin revocation');
+    }
 
     const checks: CheckResult[] = [];
 
@@ -187,15 +191,13 @@ export async function run(provider: NetworkProvider) {
         ),
     );
 
-    const metadataUri =
-        deployment.metadataUri?.trim() ||
-        (() => {
-            try {
-                return decodeOffChainMetadataUri(jettonData.jettonContent);
-            } catch {
-                return '';
-            }
-        })();
+    const metadataUri = (() => {
+        try {
+            return decodeOffChainMetadataUri(jettonData.jettonContent);
+        } catch {
+            return '';
+        }
+    })();
     if (metadataUri) {
         checks.push(await checkMetadataUriAlive(metadataUri));
     } else {

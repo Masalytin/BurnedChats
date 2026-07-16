@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { parseDeploymentFile } from './manifest';
 import type { DeploymentFile } from './types';
 
 export function deploymentsPath(contractsRoot: string, network: 'testnet' | 'mainnet'): string {
@@ -11,7 +12,8 @@ export function loadDeployment(contractsRoot: string, network: 'testnet' | 'main
     if (!existsSync(filePath)) {
         return null;
     }
-    return JSON.parse(readFileSync(filePath, 'utf8')) as DeploymentFile;
+    const raw = JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
+    return parseDeploymentFile(raw);
 }
 
 export function saveDeployment(contractsRoot: string, data: DeploymentFile): string {

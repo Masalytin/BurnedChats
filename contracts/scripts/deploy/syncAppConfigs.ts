@@ -2,6 +2,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DeploymentFile } from './types';
 
+const LEGACY_ENV_KEYS = ['VITE_STAKING_MASTER', 'VITE_GOVERNOR_ADDRESS', 'VITE_TREASURY_ADDRESS'] as const;
+
 function upsertEnvLines(path: string, updates: Record<string, string>): void {
     const lines: string[] = existsSync(path) ? readFileSync(path, 'utf8').split('\n') : [];
     const keys = new Set(Object.keys(updates));
@@ -19,6 +21,9 @@ function upsertEnvLines(path: string, updates: Record<string, string>): void {
             continue;
         }
         const key = trimmed.slice(0, eq).trim();
+        if (LEGACY_ENV_KEYS.includes(key as (typeof LEGACY_ENV_KEYS)[number])) {
+            continue;
+        }
         if (keys.has(key)) {
             out.push(`${key}=${updates[key]}`);
             keys.delete(key);
@@ -34,9 +39,16 @@ function upsertEnvLines(path: string, updates: Record<string, string>): void {
     writeFileSync(path, `${out.join('\n').replace(/\n+$/, '')}\n`, 'utf8');
 }
 
-function patchApplicationTestnet(repoRoot: string, addresses: DeploymentFile['addresses']): void {
-    const path = resolve(repoRoot, 'backend/src/main/resources/application-testnet.yml');
-    const content = `# Testnet profile — sync addresses from contracts/deployments/testnet.json
+export function buildEnvUpdates(deployment: DeploymentFile): Record<string, string> {
+    return {
+        VITE_TON_NETWORK: 'testnet',
+        VITE_TON_RPC_URL: 'https://testnet.toncenter.com/api/v2',
+        VITE_BURN_JETTON_MASTER: deployment.jettonMaster,
+    };
+}
+
+export function patchApplicationTestnetContent(deployment: DeploymentFile): string {
+    return `# Testnet profile — sync addresses from contracts/deployments/testnet.json
 # Activate from env (NOT inside this file):
 #   SPRING_PROFILES_ACTIVE=prod,testnet
 # Do NOT add \`spring.profiles.active\` here — Spring Boot >= 2.4 rejects
@@ -54,24 +66,32 @@ app:
     cache:
       ttl-seconds: \${TONCACHE_TTL_SECONDS:60}
     addresses:
-      jetton-master: \${BURN_JETTON_MASTER_ADDRESS:${addresses.jettonMaster}}
+      jetton-master: \${BURN_JETTON_MASTER_ADDRESS:${deployment.jettonMaster}}
 
 burnedchats:
   wallet-auth:
     ton-api-base-url: \${BURNEDCHATS_TON_API_BASE_URL:https://testnet.toncenter.com/api/v2}
+
+# springdoc OpenAPI + Swagger UI (testnet staging — not prod-only deploy)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
 `;
-    writeFileSync(path, content, 'utf8');
+}
+
+function patchApplicationTestnet(repoRoot: string, deployment: DeploymentFile): void {
+    const path = resolve(repoRoot, 'backend/src/main/resources/application-testnet.yml');
+    writeFileSync(path, patchApplicationTestnetContent(deployment), 'utf8');
 }
 
 export function syncAppConfigs(repoRoot: string, deployment: DeploymentFile): void {
-    patchApplicationTestnet(repoRoot, deployment.addresses);
+    patchApplicationTestnet(repoRoot, deployment);
 
     const frontendEnv = resolve(repoRoot, 'frontend/.env.testnet');
-    upsertEnvLines(frontendEnv, {
-        VITE_TON_NETWORK: 'testnet',
-        VITE_TON_RPC_URL: 'https://testnet.toncenter.com/api/v2',
-        VITE_BURN_JETTON_MASTER: deployment.addresses.jettonMaster,
-    });
+    upsertEnvLines(frontendEnv, buildEnvUpdates(deployment));
 
-    console.log('[deploy] synced backend application-testnet.yml and frontend/.env.testnet');
+    console.log('[deploy] synced backend application-testnet.yml and frontend/.env.testnet (jetton-only)');
 }
+

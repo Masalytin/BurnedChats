@@ -1,27 +1,8 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-07-14",
-  "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260715-redeploy",
-  "addresses": {
-    "jettonMaster": "kQCPc6VXgbdbslo6Sed-zyqQvnPBP_2Fwr_gJabVhvhgnGJb",
-    "treasury": "kQBM17x78FocwM18ZqohMU9dr0dN5aWk-eKKJNJE7SBCPsZW",
-    "treasuryJettonWallet": "kQArOessnYygelf7WoFAqND1lnriAo4FQpytoAEnMPgSckxH",
-    "stakingPool": "kQBVsoMlRSglZbyEg5ssyThTVtlBcmAJzjDbypWj6KXCw0bF",
-    "stakingLock": "kQAlGLEoSO7VabHHDfgkF8sWem1dBCmpOIEqR_O0GKAcbSnJ",
-    "stakingMaster": "kQAhCcCJ_qYEMfOn8Q5JdRaZtA7lAFk-lwYjvRsogO5Lt6-U",
-    "governor": "kQDdVvbpVIOAvmGPrP9JMnjzDRe8MMFT0QugefFKD7kwjl8s",
-    "timelock": "kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT",
-    "vestingDeveloper": "kQAS3GTR9ZvO43V9l1a48cJzWmG2nf2RUffJcXkybeLO4Ijx",
-    "vestingEcosystem": "kQC2QFZ_0eZ5LukMve35clha6mD5jcSxTE8DYY8A_rslZXTo",
-    "vestingReserve": "kQDGkfTb1Ck-nwPKq-4ThWKJgK_6O9eqfxgImFdeh0hy1xHW",
-    "vestingStakingAllocation": "kQD80VQPc8RhUZRKNI7uUd7fcZUzNHggT2PH3F9ECWZb6McA",
-    "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-    "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
-  },
-  "bootstrap": {
-    "jettonTimelockIsDeployer": false,
-    "timelockGovernorIsDeployer": true,
-    "stakingMasterGovernorIsDeployer": false
-  }
+  "deployedAt": "PENDING_POST_DEPLOY",
+  "jettonMaster": "PENDING_POST_DEPLOY",
+  "totalSupplyAfterLpBurn": null,
+  "mintClosed": false,
+  "adminRevoked": false
 }

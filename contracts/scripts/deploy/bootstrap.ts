@@ -2,18 +2,15 @@ import { Address, Contract, ContractProvider, Sender, toNano } from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
+import { buildBootstrapManifest } from './manifest';
 import { saveDeployment } from './store';
-import type { DeploymentAddresses, DeploymentFile, MintAllocation } from './types';
+import type { DeploymentFile, MintAllocation } from './types';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from './wait';
 
 const NANO = 10n ** 9n;
 const MAX_SUPPLY_NANO = 1000n * NANO;
 
-const DEPLOY_JETTON = toNano('0.2');
-const MINT_FORWARD = 1n;
-const MINT_GAS = toNano('0.3');
-
-/** Fixed-supply mint split: 7 BURN developer, 993 BURN LP provision (IMP-TOKSIM-08 completes CloseMint + admin revoke). */
+/** Fixed-supply mint split: 7 BURN developer, 993 BURN LP provision. */
 export const MINT_ALLOCATIONS: MintAllocation[] = [
     { label: 'Developer allocation', burnAmount: 7n, receiver: 'developerHolder' },
     { label: 'Liquidity pool provision', burnAmount: 993n, receiver: 'liquidityHolder' },
@@ -86,6 +83,10 @@ async function mintTo(
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
 }
 
+const MINT_FORWARD = 1n;
+const MINT_GAS = toNano('0.3');
+const DEPLOY_JETTON = toNano('0.2');
+
 async function ensureMint(
     provider: NetworkProvider,
     master: BurnJettonMaster,
@@ -122,8 +123,8 @@ export type DeployResult = {
 };
 
 /**
- * Jetton-only bootstrap: deploy BurnJettonMaster and mint the fixed 7 / 993 split.
- * CloseMint, LP burn, and admin revocation are handled in IMP-TOKSIM-08 runbook.
+ * Jetton-only bootstrap (steps 1–3): deploy BurnJettonMaster, mint 7 + 993 BURN.
+ * Steps 4–6 (LP pool, CloseMint, admin revoke) are separate scripts — see deployments/README.md.
  */
 export async function deployBurnStack(
     provider: NetworkProvider,
@@ -136,7 +137,7 @@ export async function deployBurnStack(
     console.log('[deploy] network', provider.network());
     console.log('[deploy] deployer', friendly(deployer, testnet));
     console.log('[deploy] metadata', metadataUri);
-    console.log('[deploy] jetton-only bootstrap (CloseMint + admin revoke → IMP-TOKSIM-08)');
+    console.log('[deploy] jetton-only bootstrap (steps 1–3 only; LP/CloseMint/revoke → separate scripts)');
 
     const content = BurnJettonMaster.jettonContentFromUri(metadataUri);
     const jettonMasterInit = await BurnJettonMaster.fromInitDeployed(deployer, content);
@@ -145,24 +146,18 @@ export async function deployBurnStack(
     const developerHolder = resolveHolder(deployer, 'DEVELOPER_HOLDER');
     const liquidityHolder = resolveHolder(deployer, 'LIQUIDITY_MULTISIG');
 
-    const addressBook: Record<keyof DeploymentAddresses, Address> = {
-        jettonMaster: jettonMaster.address,
-        developerHolder,
-        liquidityHolder,
-    };
-
     if (opts.dryRun) {
         console.log('[deploy] dry-run only — computed addresses:');
-        for (const [k, v] of Object.entries(addressBook)) {
-            console.log(`  ${k}: ${friendly(v, testnet)}`);
-        }
+        console.log(`  jettonMaster: ${friendly(jettonMaster.address, testnet)}`);
+        console.log(`  developerHolder: ${friendly(developerHolder, testnet)}`);
+        console.log(`  liquidityHolder: ${friendly(liquidityHolder, testnet)}`);
     } else {
         await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
 
         let mintedNano = 0n;
         for (const alloc of MINT_ALLOCATIONS) {
-            const receiver = addressBook[alloc.receiver];
             mintedNano += alloc.burnAmount * NANO;
+            const receiver = alloc.receiver === 'developerHolder' ? developerHolder : liquidityHolder;
             await ensureMint(
                 provider,
                 jettonMaster,
@@ -178,22 +173,14 @@ export async function deployBurnStack(
         }
     }
 
-    const serialized: DeploymentAddresses = {
-        jettonMaster: friendly(addressBook.jettonMaster, testnet),
-        developerHolder: friendly(addressBook.developerHolder, testnet),
-        liquidityHolder: friendly(addressBook.liquidityHolder, testnet),
-    };
-
-    const deployment: DeploymentFile = {
+    const deployment = buildBootstrapManifest({
         network: testnet ? 'testnet' : 'mainnet',
-        deployedAt: new Date().toISOString().slice(0, 10),
-        deployer: friendly(deployer, testnet),
-        metadataUri,
-        addresses: serialized,
-    };
+        jettonMaster: friendly(jettonMaster.address, testnet),
+    });
 
     const filePath = saveDeployment(opts.contractsRoot, deployment);
     console.log('[deploy] saved', filePath);
+    console.log('[deploy] next: LP pool (manual STON.fi) → npm run close-mint:testnet → npm run revoke-admin:testnet');
     return { filePath, deployment };
 }
 
@@ -209,8 +196,7 @@ export async function readJettonWalletBalance(
         const data = await wallet.getGetWalletData();
         return data.balance;
     } catch {
-        // TEP-74 jetton wallets deploy lazily on first transfer/mint. Until then
-        // the wallet address has no code (get_wallet_data → exit_code -13).
         return 0n;
     }
 }
+
