@@ -1,20 +1,17 @@
 import { Address, beginCell, Cell } from '@ton/core';
 
 import { firstStackSliceCellB64, type JettonWalletResolveDeps } from '@/ton/jettonWalletResolve';
-import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { defaultFetch, resolveApiKey, resolveIsTestNet, resolveRpcBaseUrl } from '@/ton/rpc';
 
 export type RecipientJettonPreflight = {
   jettonWalletAddress: string | null;
   walletDeployed: boolean;
-  feeConfigActive: boolean;
 };
 
 /** Cold-path fallback when RPC fails or recipient is unknown. */
 export const RECIPIENT_PREFLIGHT_COLD: RecipientJettonPreflight = {
   jettonWalletAddress: null,
   walletDeployed: false,
-  feeConfigActive: false,
 };
 
 /** Stack entry Ton Center `[type, value]` pair. */
@@ -29,39 +26,6 @@ type AddressInformationBody = {
 function addressToSliceStackBoc(userAddress: string): string {
   const addr = Address.parse(userAddress.trim());
   return beginCell().storeAddress(addr).endCell().toBoc({ idx: false }).toString('base64');
-}
-
-function parseStackSlots(stack: unknown): StackSlot[] {
-  if (!Array.isArray(stack)) {
-    return [];
-  }
-  const out: StackSlot[] = [];
-  for (const row of stack) {
-    if (Array.isArray(row) && row.length >= 2 && typeof row[0] === 'string' && typeof row[1] === 'string') {
-      out.push([row[0], row[1]]);
-    }
-  }
-  return out;
-}
-
-function isTonBoolTrue(hex: string): boolean {
-  const n = parseTonCenterNum(hex);
-  if (n === -1n) {
-    return true;
-  }
-  // TON `Bool` true is -1 (two's complement uint64).
-  const mask64 = (1n << 64n) - 1n;
-  return (n & mask64) === mask64;
-}
-
-function firstStackBool(stack: unknown): boolean {
-  const slots = parseStackSlots(stack);
-  for (const [t, v] of slots) {
-    if (t === 'num') {
-      return isTonBoolTrue(v);
-    }
-  }
-  return false;
 }
 
 function decodeAddressFromSliceBoc(b64: string, testOnly: boolean): string {
@@ -188,14 +152,6 @@ async function resolveRecipientJettonWalletAddress(
   return resolved;
 }
 
-async function readFeeConfigActive(jettonWallet: string, deps: JettonWalletResolveDeps): Promise<boolean> {
-  const result = await postRunGetMethod(deps.rpcBaseUrl, jettonWallet, 'get_fee_config_active', [], deps.fetchImpl, deps.apiKey);
-  if (!result || result.exitCode !== 0) {
-    return false;
-  }
-  return firstStackBool(result.stackUnknown);
-}
-
 /** Default deps from Vite env (testable via overrides). */
 export function createRecipientPreflightDeps(overrides?: Partial<JettonWalletResolveDeps>): JettonWalletResolveDeps | null {
   const jettonMaster = (overrides?.jettonMaster ?? import.meta.env.VITE_BURN_JETTON_MASTER ?? '').trim();
@@ -211,8 +167,8 @@ export function createRecipientPreflightDeps(overrides?: Partial<JettonWalletRes
 }
 
 /**
- * Best-effort recipient jetton wallet probe for warm-path TON attach.
- * On RPC failure returns cold-path defaults (3.5 TON estimate in UI).
+ * Best-effort recipient jetton wallet probe for TON attach estimation.
+ * On RPC failure returns cold-path defaults.
  */
 export async function preflightRecipientJetton(
   recipientOwner: string,
@@ -235,9 +191,8 @@ export async function preflightRecipientJetton(
 
   const state = await fetchAccountState(jettonWalletAddress, deps);
   if (state !== 'active') {
-    return { jettonWalletAddress, walletDeployed: false, feeConfigActive: false };
+    return { jettonWalletAddress, walletDeployed: false };
   }
 
-  const feeConfigActive = await readFeeConfigActive(jettonWalletAddress, deps);
-  return { jettonWalletAddress, walletDeployed: true, feeConfigActive };
+  return { jettonWalletAddress, walletDeployed: true };
 }

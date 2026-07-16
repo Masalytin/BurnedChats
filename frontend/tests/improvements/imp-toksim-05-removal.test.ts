@@ -39,9 +39,8 @@ describe('IMP-TOKSIM-05 — staking/governance removal', () => {
   it('types/ton.ts has no staking/governance domain types', () => {
     const tonTypes = readSrc('types/ton.ts');
     expect(tonTypes).not.toMatch(/StakingTier|StakeInfo|ProposalType|ProposalState|UserVote|ProposalProgress/);
-    expect(tonTypes).toMatch(/EffectiveFeeParams/);
-    expect(tonTypes).toMatch(/stakingBps/);
-    expect(tonTypes).toMatch(/treasuryBps/);
+    expect(tonTypes).not.toMatch(/EffectiveFeeParams|stakingBps|treasuryBps/);
+    expect(tonTypes).toMatch(/BURN_TRANSFER_FEE_BPS/);
   });
 
   it('BurnTokenSection promotes 1% burn without staking/treasury fee split', () => {

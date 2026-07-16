@@ -4,24 +4,15 @@ import { Address } from '@ton/core';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import { useTonConnect } from '@/hooks/useTonConnect';
-import {
-  ESTIMATED_NET_FEE_MAX_NANO,
-  estimateBurnTransferTon,
-} from '@/ton/estimateBurnTransferTon';
-import {
-  createExcludedPreflightDeps,
-  isExcludedBurnHolder,
-} from '@/ton/excludedTransferPreflight';
+import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import {
   createRecipientPreflightDeps,
   preflightRecipientJetton,
-  type RecipientJettonPreflight,
 } from '@/ton/recipientJettonPreflight';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { parseBurn } from '@/utils/format';
 
 import {
-  DEFAULT_WALLET_FEE_PARAMS,
   FeeBreakdown,
   grossFromNetRecipientAmount,
   splitBurnFees,
@@ -36,7 +27,7 @@ export type { ApplyMaxBurnAmountResult } from './sendModalGasReserve';
 export interface SendModalProps {
   isOpen: boolean;
   onClose: () => void;
-  burn: Pick<UseBurnToken, 'balance' | 'feeParams' | 'transfer' | 'transferProgress'>;
+  burn: Pick<UseBurnToken, 'balance' | 'transfer' | 'transferProgress'>;
   onSent?: () => void;
 }
 
@@ -78,94 +69,30 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   const [debouncedNano, setDebouncedNano] = useState(0n);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
-  const [recipientPreflight, setRecipientPreflight] = useState<RecipientJettonPreflight | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
-  const [senderExcluded, setSenderExcluded] = useState(false);
-  const [recipientExcluded, setRecipientExcluded] = useState(false);
-  const [excludedPreflightLoading, setExcludedPreflightLoading] = useState(false);
   const [tonReserveHintVisible, setTonReserveHintVisible] = useState(false);
-
-  const recipientFeeConfigActive = recipientPreflight?.feeConfigActive === true;
-  const recipientWalletDeployed = recipientPreflight?.walletDeployed === true;
-  const excludedTransfer = senderExcluded || recipientExcluded;
-  const gasPreflightLoading = preflightLoading || excludedPreflightLoading;
-  const effectiveFeeParams = burn.feeParams ?? DEFAULT_WALLET_FEE_PARAMS;
 
   const gasEstimate = useMemo(
     () =>
       estimateBurnTransferTon({
-        feePath: !excludedTransfer,
-        recipientWalletDeployed: excludedTransfer ? false : recipientWalletDeployed,
-        recipientFeeConfigActive: excludedTransfer ? false : recipientFeeConfigActive,
+        amountNano: debouncedNano > 0n ? debouncedNano : undefined,
       }),
-    [excludedTransfer, recipientFeeConfigActive, recipientWalletDeployed],
+    [debouncedNano],
   );
   const tonGas = useMemo(
     () => ({
       attachedNano: gasEstimate.recommendedNano,
-      estimatedNetFeeNano: ESTIMATED_NET_FEE_MAX_NANO,
       breakdown: gasEstimate.breakdown,
-      path: (excludedTransfer ? 'excluded' : recipientWalletDeployed ? 'warm' : 'cold') as
-        | 'cold'
-        | 'warm'
-        | 'excluded',
-      excludedPath: excludedTransfer,
-      propagateSkippedHint: recipientFeeConfigActive,
-      preflightLoading: gasPreflightLoading,
+      preflightLoading,
     }),
-    [
-      excludedTransfer,
-      gasEstimate.breakdown,
-      gasEstimate.recommendedNano,
-      gasPreflightLoading,
-      recipientFeeConfigActive,
-      recipientWalletDeployed,
-    ],
+    [gasEstimate.breakdown, gasEstimate.recommendedNano, preflightLoading],
   );
 
   const isUsernameRecipient = recipient.trim().startsWith('@');
 
   useEffect(() => {
-    const addr = walletAddress?.trim();
-    if (!isOpen || !addr) {
-      setSenderExcluded(false);
-      setExcludedPreflightLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    const deps = createExcludedPreflightDeps();
-    if (!deps) {
-      setSenderExcluded(false);
-      setExcludedPreflightLoading(false);
-      return;
-    }
-
-    setExcludedPreflightLoading(true);
-    void isExcludedBurnHolder(addr, deps)
-      .then((excluded) => {
-        if (!cancelled) {
-          setSenderExcluded(excluded);
-          setExcludedPreflightLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSenderExcluded(false);
-          setExcludedPreflightLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, walletAddress]);
-
-  useEffect(() => {
     const r = recipient.trim();
     if (!r || isUsernameRecipient || !isPlainTonAddress(r)) {
-      setRecipientPreflight(null);
-      setRecipientExcluded(false);
       setPreflightLoading(false);
       return;
     }
@@ -173,34 +100,23 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     let cancelled = false;
     const timerId = window.setTimeout(() => {
       const recipientDeps = createRecipientPreflightDeps();
-      const excludedDeps = createExcludedPreflightDeps();
       if (!recipientDeps) {
-        setRecipientPreflight(null);
-        setRecipientExcluded(false);
         setPreflightLoading(false);
         return;
       }
 
       setPreflightLoading(true);
-      void (async () => {
-        try {
-          const [result, recipientIsExcluded] = await Promise.all([
-            preflightRecipientJetton(r, recipientDeps),
-            excludedDeps ? isExcludedBurnHolder(r, excludedDeps) : Promise.resolve(false),
-          ]);
+      void preflightRecipientJetton(r, recipientDeps)
+        .then(() => {
           if (!cancelled) {
-            setRecipientPreflight(result);
-            setRecipientExcluded(recipientIsExcluded);
             setPreflightLoading(false);
           }
-        } catch {
+        })
+        .catch(() => {
           if (!cancelled) {
-            setRecipientPreflight(null);
-            setRecipientExcluded(false);
             setPreflightLoading(false);
           }
-        }
-      })();
+        });
     }, 300);
 
     return () => {
@@ -293,35 +209,25 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
     return Math.min(10000, Math.max(0, Math.round(v)));
   }, [maxNano, parsedAmountNano]);
 
-  const syncRecipientAmountFromGross = useCallback(
-    (grossValue: string) => {
-      const grossNano = tryParseBurnNano(grossValue);
-      if (grossNano === null) {
-        setRecipientAmount('');
-        return;
-      }
-      const netNano = excludedTransfer
-        ? grossNano
-        : splitBurnFees(grossNano, effectiveFeeParams).recipientGets;
-      setRecipientAmount(nanoToAmountString(netNano));
-    },
-    [effectiveFeeParams, excludedTransfer],
-  );
+  const syncRecipientAmountFromGross = useCallback((grossValue: string) => {
+    const grossNano = tryParseBurnNano(grossValue);
+    if (grossNano === null) {
+      setRecipientAmount('');
+      return;
+    }
+    const netNano = splitBurnFees(grossNano).recipientGets;
+    setRecipientAmount(nanoToAmountString(netNano));
+  }, []);
 
-  const syncGrossAmountFromNet = useCallback(
-    (netValue: string) => {
-      const netNano = tryParseBurnNano(netValue);
-      if (netNano === null) {
-        setAmount('');
-        return;
-      }
-      const grossNano = excludedTransfer
-        ? netNano
-        : grossFromNetRecipientAmount(netNano, effectiveFeeParams);
-      setAmount(nanoToAmountString(grossNano));
-    },
-    [effectiveFeeParams, excludedTransfer],
-  );
+  const syncGrossAmountFromNet = useCallback((netValue: string) => {
+    const netNano = tryParseBurnNano(netValue);
+    if (netNano === null) {
+      setAmount('');
+      return;
+    }
+    const grossNano = grossFromNetRecipientAmount(netNano);
+    setAmount(nanoToAmountString(grossNano));
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -345,8 +251,6 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
   }, [
     amount,
     amountInputMode,
-    effectiveFeeParams,
-    excludedTransfer,
     isOpen,
     recipientAmount,
     syncGrossAmountFromNet,
@@ -560,7 +464,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
                 aria-describedby="wallet-send-recipient-amount-hint"
               />
               <p id="wallet-send-recipient-amount-hint" className={styles.feeHint}>
-                {excludedTransfer ? t('wallet.fieldAmountNetExcludedHint') : t('wallet.fieldAmountNetHint')}
+                {t('wallet.fieldAmountNetHint')}
               </p>
             </div>
 
@@ -577,7 +481,7 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
               />
             </div>
 
-            <FeeBreakdown amountNano={debouncedNano} feeParams={burn.feeParams} tonGas={tonGas} />
+            <FeeBreakdown amountNano={debouncedNano} tonGas={tonGas} />
 
             {(submitError || validationError) && !isUsernameRecipient ? (
               <p className={styles.errorText} role="alert">

@@ -2,6 +2,9 @@
  * Frontend TON / BURN token shared types (jetton UX).
  */
 
+/** Hardcoded 1% burn fee on every BURN transfer (basis points). */
+export const BURN_TRANSFER_FEE_BPS = 100;
+
 /** One row derived from Ton Center jetton-wallet activity + optional decoded fields. */
 export interface BurnTransaction {
   hash: string;
@@ -9,13 +12,6 @@ export interface BurnTransaction {
   amount: bigint;
   counterparty: string;
   timestamp: number;
-  fee: { burn: bigint; staking: bigint; treasury: bigint } | null;
+  fee: { burn: bigint } | null;
   status: 'pending' | 'confirmed' | 'failed';
-}
-
-/** On-chain dynamic fee splits (basis points). */
-export interface EffectiveFeeParams {
-  burnBps: number;
-  stakingBps: number;
-  treasuryBps: number;
 }

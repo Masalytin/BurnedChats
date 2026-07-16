@@ -6,10 +6,7 @@ import {
   canAffordGasReserve,
   tryApplyMaxBurnAmount,
 } from '@/components/Wallet/sendModalGasReserve';
-import {
-  RECOMMENDED_FEE_PATH_WARM_NANO,
-  estimateBurnTransferTon,
-} from '@/ton/estimateBurnTransferTon';
+import { RECOMMENDED_BURN_PATH_NANO, estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 
 function formatTonAmount(nano: bigint): string {
   const nanosPerTon = 10n ** 9n;
@@ -18,23 +15,23 @@ function formatTonAmount(nano: bigint): string {
   return frac.length ? `${intPart}.${frac}` : `${intPart}`;
 }
 
-describe('IMP-JETTON-GAS-10 — SendModal MAX TON reserve', () => {
-  const warmRecommended = estimateBurnTransferTon({
-    feePath: true,
-    recipientWalletDeployed: true,
-  }).recommendedNano;
+describe('IMP-TOKSIM-06 — SendModal MAX TON reserve', () => {
+  const recommended = estimateBurnTransferTon().recommendedNano;
 
-  it('canAffordGasReserve rejects 1 TON when warm attach is 2.3 TON', () => {
-    expect(warmRecommended).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-    expect(canAffordGasReserve(1_000_000_000n, warmRecommended)).toBe(false);
-    expect(canAffordGasReserve(2_300_000_000n, warmRecommended)).toBe(true);
+  it('recommended attach is 0.8 TON from gas profile', () => {
+    expect(recommended).toBe(RECOMMENDED_BURN_PATH_NANO);
+  });
+
+  it('canAffordGasReserve rejects 0.5 TON when attach is 0.8 TON', () => {
+    expect(canAffordGasReserve(500_000_000n, recommended)).toBe(false);
+    expect(canAffordGasReserve(800_000_000n, recommended)).toBe(true);
   });
 
   it('tryApplyMaxBurnAmount blocks silent MAX when TON is below recommended attach', () => {
     const result = tryApplyMaxBurnAmount({
       maxNano: 5_000_000_000n,
-      tonBalanceNano: 1_000_000_000n,
-      recommendedNano: warmRecommended,
+      tonBalanceNano: 500_000_000n,
+      recommendedNano: recommended,
     });
     expect(result.applied).toBe(false);
     expect(result.showTonReserveHint).toBe(true);
@@ -43,29 +40,19 @@ describe('IMP-JETTON-GAS-10 — SendModal MAX TON reserve', () => {
   it('tryApplyMaxBurnAmount applies full BURN when TON covers attach', () => {
     const result = tryApplyMaxBurnAmount({
       maxNano: 5_000_000_000n,
-      tonBalanceNano: 3_000_000_000n,
-      recommendedNano: warmRecommended,
+      tonBalanceNano: 1_000_000_000n,
+      recommendedNano: recommended,
     });
     expect(result.applied).toBe(true);
     expect(result.showTonReserveHint).toBe(false);
   });
 
-  it('slider 100% guard matches MAX — insufficient TON shows hint, no apply', () => {
-    const at100 = tryApplyMaxBurnAmount({
-      maxNano: 10n ** 12n,
-      tonBalanceNano: 1_000_000_000n,
-      recommendedNano: warmRecommended,
-    });
-    expect(at100.applied).toBe(false);
-    expect(at100.showTonReserveHint).toBe(true);
-  });
-
   it('en/ru sendMaxTonReserveHint mentions attach amount', () => {
-    const attach = formatTonAmount(warmRecommended);
+    const attach = formatTonAmount(recommended);
     const enHint = en.wallet.sendMaxTonReserveHint.replace('{{attach}}', attach);
     const ruHint = ru.wallet.sendMaxTonReserveHint.replace('{{attach}}', attach);
-    expect(enHint).toContain('2.3');
-    expect(ruHint).toContain('2.3');
+    expect(enHint).toContain('0.8');
+    expect(ruHint).toContain('0.8');
     expect(ruHint.toLowerCase()).toMatch(/залог|ton/);
   });
 });

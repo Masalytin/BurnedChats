@@ -17,8 +17,8 @@ import { canAffordGasReserve } from './sendModalGasReserve';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
-/** Minimum native attach for any BURN transfer (excluded path). */
-const MIN_GRAM_FOR_SEND_NANO = estimateBurnTransferTon({ feePath: false }).recommendedNano;
+/** Minimum native attach for any BURN transfer (recommended burn-only path). */
+const MIN_GRAM_FOR_SEND_NANO = estimateBurnTransferTon().recommendedNano;
 
 export interface BalanceProps {
   burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch'>;

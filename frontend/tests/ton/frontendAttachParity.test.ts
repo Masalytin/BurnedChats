@@ -30,7 +30,7 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
 
   describe('transferBurn (burnToken.ts) — IMP-WTX-02 must not regress', () => {
     it('excess routes to sender TON wallet, not recipient', () => {
-      const attach = estimateBurnTransferTon({ feePath: false }).recommendedNano;
+      const attach = estimateBurnTransferTon().recommendedNano;
       const msg = buildJettonTransferMsg({
         jettonWallet: userJettonWallet,
         recipient: recipientWallet,
@@ -45,8 +45,8 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
       expect(BigInt(msg.amount)).toBe(attach);
     });
 
-    it('fee-path attach meets estimateBurnTransferTon minimum', () => {
-      const estimate = estimateBurnTransferTon({ feePath: true });
+    it('burn-only attach meets estimateBurnTransferTon minimum', () => {
+      const estimate = estimateBurnTransferTon({ amountNano: 1_000_000_000n });
       const msg = buildJettonTransferMsg({
         jettonWallet: userJettonWallet,
         recipient: recipientWallet,

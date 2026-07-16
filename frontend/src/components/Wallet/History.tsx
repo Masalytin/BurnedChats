@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownLeft, ArrowUpRight, Flame, Gift, Building2, Coins, Inbox } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Flame, Gift, Inbox } from 'lucide-react';
 
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { BurnTransaction } from '@/types/ton';
@@ -40,20 +40,10 @@ function formatFee(fee: BurnTransaction['fee']): ReactNode {
   if (!fee) return '—';
   const iconProps = { size: 12, strokeWidth: 2.2, 'aria-hidden': true as const };
   return (
-    <>
-      <span className={styles.txFeePart}>
-        <Flame {...iconProps} />
-        {formatBurn(fee.burn)}
-      </span>
-      <span className={styles.txFeePart}>
-        <Coins {...iconProps} />
-        {formatBurn(fee.staking)}
-      </span>
-      <span className={styles.txFeePart}>
-        <Building2 {...iconProps} />
-        {formatBurn(fee.treasury)}
-      </span>
-    </>
+    <span className={styles.txFeePart}>
+      <Flame {...iconProps} />
+      {formatBurn(fee.burn)}
+    </span>
   );
 }
 

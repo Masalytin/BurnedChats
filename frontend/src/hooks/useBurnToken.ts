@@ -4,13 +4,12 @@ import {
   BurnTokenError,
   getBurnBalance,
   getBurnHistory,
-  getEffectiveFeeParams,
   transferBurn,
   type TransferParams,
   type TransferProgressPayload,
 } from '@/ton/burnToken';
 import type { TxResult } from '@/ton/types';
-import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+import type { BurnTransaction } from '@/types/ton';
 
 import { useTonConnect } from './useTonConnect';
 
@@ -24,7 +23,6 @@ export interface UseBurnToken {
   /** True during refetch when a balance snapshot is already on screen. */
   isRefreshing: boolean;
   error: Error | null;
-  feeParams: EffectiveFeeParams | null;
   refetch(): Promise<void>;
   transfer(params: TransferParams): Promise<TxResult>;
   /** Progress through signing + Ton Center confirmation polling. */
@@ -32,7 +30,7 @@ export interface UseBurnToken {
 }
 
 /**
- * BURN balance / history / fee params with 30s polling when the document is visible.
+ * BURN balance / history with 30s polling when the document is visible.
  * WebSocket real-time updates are not wired (optional in Phase 5 — backend/SSE can replace polling later).
  */
 export function useBurnToken(): UseBurnToken {
@@ -40,7 +38,6 @@ export function useBurnToken(): UseBurnToken {
 
   const [balance, setBalance] = useState<bigint | null>(null);
   const [history, setHistory] = useState<BurnTransaction[]>([]);
-  const [feeParams, setFeeParams] = useState<EffectiveFeeParams | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -62,18 +59,12 @@ export function useBurnToken(): UseBurnToken {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
-  const loadHistoryAndFees = useCallback(async (addr: string) => {
-    const [historyResult, feesResult] = await Promise.allSettled([
-      getBurnHistory(addr, 50),
-      getEffectiveFeeParams(),
-    ]);
-    if (historyResult.status === 'fulfilled') {
-      setHistory(historyResult.value);
-    } else {
+  const loadHistory = useCallback(async (addr: string) => {
+    try {
+      const rows = await getBurnHistory(addr, 50);
+      setHistory(rows);
+    } catch {
       setHistory([]);
-    }
-    if (feesResult.status === 'fulfilled') {
-      setFeeParams(feesResult.value);
     }
   }, []);
 
@@ -81,7 +72,6 @@ export function useBurnToken(): UseBurnToken {
     if (!walletAddress) {
       setBalance(null);
       setHistory([]);
-      setFeeParams(null);
       setError(null);
       setIsLoading(false);
       setIsRefreshing(false);
@@ -112,8 +102,8 @@ export function useBurnToken(): UseBurnToken {
       setIsRefreshing(false);
     }
 
-    void loadHistoryAndFees(walletAddress);
-  }, [walletAddress, loadHistoryAndFees]);
+    void loadHistory(walletAddress);
+  }, [walletAddress, loadHistory]);
 
   useEffect(() => {
     void load();
@@ -175,7 +165,6 @@ export function useBurnToken(): UseBurnToken {
     isLoading,
     isRefreshing,
     error,
-    feeParams,
     refetch: load,
     transfer,
     transferProgress,

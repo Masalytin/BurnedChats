@@ -4,19 +4,11 @@ import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
-import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+import type { BurnTransaction } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
-import {
-  createExcludedPreflightDeps,
-  isExcludedTransfer,
-} from '@/ton/excludedTransferPreflight';
-import {
-  createRecipientPreflightDeps,
-  preflightRecipientJetton,
-} from '@/ton/recipientJettonPreflight';
 
-export type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
+export type { BurnTransaction } from '@/types/ton';
 
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 /** TEP-74 jetton wallet → jetton wallet delivery (`JettonInternalTransfer`). */
@@ -308,51 +300,6 @@ export async function getBurnBalance(address: string, deps?: BurnTokenDeps): Pro
   return fetchBurnBalanceNanoRpc(address, r);
 }
 
-async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<EffectiveFeeParams> {
-  const master = resolveJettonMaster(deps.jettonMaster);
-  const { exitCode, stackUnknown } = await postRunGetMethod(
-    deps.rpcBaseUrl,
-    master,
-    'get_effective_fee_params',
-    [],
-    deps.fetchImpl,
-    deps.apiKey,
-  );
-  if (exitCode !== 0) {
-    return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
-  }
-  const slots = parseStackSlots(stackUnknown);
-  const nums: bigint[] = [];
-  for (const [t, v] of slots) {
-    if (t === 'num') {
-      nums.push(parseTonCenterNum(v));
-    }
-  }
-  if (nums.length < 3) {
-    return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
-  }
-  return {
-    burnBps: Number(nums[0]),
-    stakingBps: Number(nums[1]),
-    treasuryBps: Number(nums[2]),
-  };
-}
-
-/**
- * Dynamic fee params from jetton master `get_effective_fee_params` (fallback: TOKENOMICS static split).
- */
-export async function getEffectiveFeeParams(deps?: BurnTokenDeps): Promise<EffectiveFeeParams> {
-  const r = resolveDeps(deps);
-  try {
-    return await fetchEffectiveFeeParamsRpc(r);
-  } catch (e) {
-    if (e instanceof BurnTokenError && e.code === 'NETWORK_ERROR') {
-      return { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
-    }
-    throw e;
-  }
-}
-
 interface TonCenterTx {
   utime?: number;
   transaction_id?: { lt?: string; hash?: string };
@@ -627,30 +574,8 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
 
   let attachedTon = params.attachedTon;
   if (attachedTon === undefined) {
-    const preflightDeps = createRecipientPreflightDeps({
-      rpcBaseUrl: r.rpcBaseUrl,
-      jettonMaster: resolveJettonMaster(r.jettonMaster),
-      apiKey: r.apiKey,
-      fetchImpl: r.fetchImpl,
-    });
-    const excludedDeps = createExcludedPreflightDeps({
-      rpcBaseUrl: r.rpcBaseUrl,
-      jettonMaster: resolveJettonMaster(r.jettonMaster),
-      apiKey: r.apiKey,
-      fetchImpl: r.fetchImpl,
-    });
-    const preflight =
-      preflightDeps !== null
-        ? await preflightRecipientJetton(params.recipient.trim(), preflightDeps)
-        : { jettonWalletAddress: null, walletDeployed: false, feeConfigActive: false };
-    const excluded =
-      excludedDeps !== null
-        ? await isExcludedTransfer(params.walletAddress, params.recipient.trim(), excludedDeps)
-        : false;
     attachedTon = estimateBurnTransferTon({
-      feePath: !excluded,
-      recipientWalletDeployed: excluded ? false : preflight.walletDeployed,
-      recipientFeeConfigActive: excluded ? false : preflight.feeConfigActive,
+      amountNano: params.amount,
     }).recommendedNano;
   }
 

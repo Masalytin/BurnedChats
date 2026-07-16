@@ -5,8 +5,8 @@ import type { TransactionMessage } from './types';
 /** TEP-74 jetton transfer opcode (`JettonTransfer` in burn-jetton-wallet.tact). */
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 
-/** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
-export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
+/** Recommended burn-only attach (sandbox TRANSFER_TON). Override via `attachedTon`. */
+export const BURN_TRANSFER_ATTACHED_TON = toNano('0.8');
 
 function emptyForwardPayloadSlice(): Slice {
   return beginCell().storeUint(0, 1).endCell().asSlice();
@@ -60,7 +60,7 @@ export function buildJettonTransferMsg(params: {
     forwardTonAmount,
     forwardPayload,
   });
-  /** Dynamic warm/cold attach from {@link estimateBurnTransferTon}; defaults to cold 3.5 TON. */
+  /** Attach from {@link estimateBurnTransferTon}; defaults to recommended 0.8 TON. */
   const attached = params.attachedTon ?? BURN_TRANSFER_ATTACHED_TON;
   return {
     address: params.jettonWallet.toString(),

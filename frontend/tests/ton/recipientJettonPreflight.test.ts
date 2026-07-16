@@ -62,12 +62,11 @@ describe('preflightRecipientJetton', () => {
     const result = await preflightRecipientJetton(RECIPIENT, deps(fetchImpl));
 
     expect(result.walletDeployed).toBe(false);
-    expect(result.feeConfigActive).toBe(false);
     expect(result.jettonWalletAddress).toBe(RECIPIENT_JW);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it('returns warm preflight when JW active and fee config active', async () => {
+  it('returns walletDeployed true when JW is active (no fee-config probe)', async () => {
     const sliceB64 = addressToSliceStackBoc(RECIPIENT_JW);
     const fetchImpl = vi
       .fn()
@@ -82,12 +81,6 @@ describe('preflightRecipientJetton', () => {
           ok: true,
           result: { balance: '1000000', state: 'active' },
         }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          ok: true,
-          result: { exit_code: 0, stack: [['num', '0xffffffffffffffff']] },
-        }),
       );
 
     const result = await preflightRecipientJetton(RECIPIENT, deps(fetchImpl));
@@ -95,8 +88,8 @@ describe('preflightRecipientJetton', () => {
     expect(result).toEqual({
       jettonWalletAddress: RECIPIENT_JW,
       walletDeployed: true,
-      feeConfigActive: true,
     });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it('returns cold fallback when get_wallet_address fails', async () => {
@@ -115,54 +108,5 @@ describe('preflightRecipientJetton', () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'));
     const result = await preflightRecipientJetton(RECIPIENT, deps(fetchImpl));
     expect(result).toEqual(RECIPIENT_PREFLIGHT_COLD);
-  });
-});
-
-describe('warm attach estimate from preflight', () => {
-  it('maps warm preflight to 2.3 TON recommended attach', async () => {
-    const { estimateBurnTransferTon, RECOMMENDED_FEE_PATH_WARM_NANO } = await import(
-      '@/ton/estimateBurnTransferTon'
-    );
-
-    const estimate = estimateBurnTransferTon({
-      feePath: true,
-      recipientWalletDeployed: true,
-      recipientFeeConfigActive: true,
-    });
-
-    expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-    expect(estimate.recommendedNano).toBe(2_300_000_000n);
-  });
-
-  it('maps cold preflight to 3.5 TON recommended attach', async () => {
-    const { estimateBurnTransferTon, RECOMMENDED_FEE_PATH_NANO } = await import(
-      '@/ton/estimateBurnTransferTon'
-    );
-
-    const estimate = estimateBurnTransferTon({
-      feePath: true,
-      recipientWalletDeployed: false,
-      recipientFeeConfigActive: false,
-    });
-
-    expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_NANO);
-    expect(estimate.recommendedNano).toBe(3_500_000_000n);
-  });
-});
-
-describe('transferBurn attach parity', () => {
-  it('buildJettonTransferMsg uses UI warm attach when provided', async () => {
-    const { Address: TonAddress } = await import('@ton/core');
-    const { buildJettonTransferMsg } = await import('@/ton/transactionBuilder');
-    const addr = TonAddress.parse(RECIPIENT);
-
-    const msg = buildJettonTransferMsg({
-      jettonWallet: addr,
-      recipient: addr,
-      amount: 1_000_000_000n,
-      attachedTon: 2_300_000_000n,
-    });
-
-    expect(msg.amount).toBe('2300000000');
   });
 });
