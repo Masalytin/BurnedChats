@@ -14,10 +14,33 @@ export interface DeploymentAddresses {
 export interface DeploymentFile {
   network: 'testnet' | 'mainnet';
   deployedAt: string;
-  addresses: DeploymentAddresses;
+  /** Jetton-only manifest (IMP-TOKSIM-08) */
+  jettonMaster?: string;
+  totalSupplyAfterLpBurn?: string | null;
+  mintClosed?: boolean;
+  adminRevoked?: boolean;
+  /** Legacy full-stack manifest */
+  addresses?: DeploymentAddresses;
   deployer?: string;
   metadataUri?: string;
   [key: string]: unknown;
+}
+
+function normalizeAddresses(parsed: DeploymentFile): DeploymentAddresses {
+  const jettonMaster =
+    parsed.jettonMaster?.trim() ||
+    parsed.addresses?.jettonMaster?.trim() ||
+    '';
+  if (!jettonMaster) {
+    throw new Error('Deployment file missing jettonMaster');
+  }
+  return {
+    jettonMaster,
+    stakingMaster: parsed.addresses?.stakingMaster ?? '',
+    governor: parsed.addresses?.governor ?? '',
+    treasury: parsed.addresses?.treasury ?? '',
+    ...parsed.addresses,
+  };
 }
 
 export function deploymentFilePath(network: 'testnet' | 'mainnet', contractsRoot = getContractsRoot()): string {
@@ -42,10 +65,8 @@ export function parseDeploymentJson(raw: string, expectedNetwork?: 'testnet' | '
   if (expectedNetwork && parsed.network !== expectedNetwork) {
     throw new Error(`Deployment file network mismatch: expected ${expectedNetwork}, got ${parsed.network}`);
   }
-  if (!parsed.addresses || typeof parsed.addresses !== 'object') {
-    throw new Error('Deployment file missing addresses object');
-  }
-  return parsed;
+  const addresses = normalizeAddresses(parsed);
+  return { ...parsed, addresses };
 }
 
 export interface DeploymentAddressRow {

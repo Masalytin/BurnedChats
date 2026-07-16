@@ -81,7 +81,7 @@ read_jetton_master_from_deployments() {
     return 1
   fi
   if command -v jq >/dev/null 2>&1; then
-    jq -r '.addresses.jettonMaster // empty' "$DEPLOYMENTS_JSON"
+    jq -r '.jettonMaster // .addresses.jettonMaster // empty' "$DEPLOYMENTS_JSON"
     return 0
   fi
   grep -o '"jettonMaster"[[:space:]]*:[[:space:]]*"[^"]*"' "$DEPLOYMENTS_JSON" \

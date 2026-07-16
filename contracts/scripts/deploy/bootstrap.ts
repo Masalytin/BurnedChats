@@ -95,26 +95,28 @@ async function ensureMint(
     receiver: Address,
     testnet: boolean,
     force: boolean,
+    priorNanoOnReceiver: bigint,
 ): Promise<void> {
-    const expected = alloc.burnAmount * NANO;
+    const amountNano = alloc.burnAmount * NANO;
+    const cumulativeExpected = priorNanoOnReceiver + amountNano;
     if (!force) {
         const balance = await readJettonWalletBalance(provider, jettonMasterAddr, receiver);
-        if (balance === expected) {
+        if (balance === cumulativeExpected) {
             console.log(
-                `[deploy] skip mint ${alloc.label} — already ${expected} BURN nano on ${friendly(receiver, testnet)}`,
+                `[deploy] skip mint ${alloc.label} — already ${cumulativeExpected} BURN nano cumulative on ${friendly(receiver, testnet)}`,
             );
             return;
         }
-        if (balance !== 0n) {
+        if (balance !== priorNanoOnReceiver) {
             throw new Error(
                 `[deploy] mint refused for ${alloc.label}: receiver ${friendly(receiver, testnet)} ` +
-                    `balance ${balance} ≠ 0 and ≠ ${expected}. Re-running deploy after a partial mint ` +
-                    `would over-mint and break MAX_SUPPLY invariant. Reconcile manually before retrying.`,
+                    `balance ${balance} ≠ prior ${priorNanoOnReceiver} and ≠ cumulative ${cumulativeExpected}. ` +
+                    `Reconcile manually before retrying.`,
             );
         }
     }
     console.log(`[deploy] mint ${alloc.burnAmount} BURN → ${alloc.label} (${friendly(receiver, testnet)})`);
-    await mintTo(provider, master, receiver, expected);
+    await mintTo(provider, master, receiver, amountNano);
 }
 
 export type DeployResult = {
@@ -155,9 +157,12 @@ export async function deployBurnStack(
         await deployIfNeeded(provider, jettonMaster, DEPLOY_JETTON, 'BurnJettonMaster', opts.force);
 
         let mintedNano = 0n;
+        const mintedPerReceiver = new Map<string, bigint>();
         for (const alloc of MINT_ALLOCATIONS) {
             mintedNano += alloc.burnAmount * NANO;
             const receiver = alloc.receiver === 'developerHolder' ? developerHolder : liquidityHolder;
+            const receiverKey = receiver.toRawString();
+            const priorNano = mintedPerReceiver.get(receiverKey) ?? 0n;
             await ensureMint(
                 provider,
                 jettonMaster,
@@ -166,7 +171,9 @@ export async function deployBurnStack(
                 receiver,
                 testnet,
                 opts.force,
+                priorNano,
             );
+            mintedPerReceiver.set(receiverKey, priorNano + alloc.burnAmount * NANO);
         }
         if (mintedNano !== MAX_SUPPLY_NANO) {
             throw new Error(`Mint allocation mismatch: expected ${MAX_SUPPLY_NANO}, got ${mintedNano}`);
@@ -199,4 +206,4 @@ export async function readJettonWalletBalance(
         return 0n;
     }
 }
-
+

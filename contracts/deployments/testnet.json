@@ -1,7 +1,7 @@
 {
   "network": "testnet",
-  "deployedAt": "PENDING_POST_DEPLOY",
-  "jettonMaster": "PENDING_POST_DEPLOY",
+  "deployedAt": "2026-07-16",
+  "jettonMaster": "kQDyVgA8s775FONcp1tbgOJHJRptvcjxtjwsXTARS5LDuZrh",
   "totalSupplyAfterLpBurn": null,
   "mintClosed": false,
   "adminRevoked": false

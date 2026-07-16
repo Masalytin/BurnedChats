@@ -124,6 +124,11 @@ update_and_restart() {
     log_info "Pulling latest changes..."
     cd "$PROJECT_DIR"
     git pull origin master
+
+    if [ -f "$PROJECT_DIR/contracts/deployments/testnet.json" ] && [ -f "$ENV_FILE" ]; then
+        log_info "Syncing BURN_JETTON_MASTER_ADDRESS from deployments/testnet.json..."
+        node "$PROJECT_DIR/scripts/ops/update-prod-burn-addresses.mjs" "$PROJECT_DIR"
+    fi
     
     log_info "Rebuilding and restarting services..."
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build

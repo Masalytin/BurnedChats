@@ -1,9 +1,9 @@
-# Testnet profile — sync addresses from contracts/deployments/testnet.json [IMP-TOKSIM-08]
+# Testnet profile — sync addresses from contracts/deployments/testnet.json
 # Activate from env (NOT inside this file):
 #   SPRING_PROFILES_ACTIVE=prod,testnet
 # Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects
 # it in profile-specific resources (IMP-TESTNET-PROFILE-01).
-# Last deploy sync: PENDING_POST_DEPLOY
+# Last deploy sync: 2026-07-16T11:51:35.114Z
 
 app:
   ton:
@@ -16,7 +16,7 @@ app:
     cache:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
-      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:PENDING_POST_DEPLOY}
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQDyVgA8s775FONcp1tbgOJHJRptvcjxtjwsXTARS5LDuZrh}
 
 burnedchats:
   wallet-auth:
