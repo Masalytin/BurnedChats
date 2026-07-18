@@ -135,6 +135,9 @@ class ApiContractsDriftCheckerTest {
     @DisplayName("committed artifacts match fresh export on clean tree")
     void committedArtifactsMatchFreshExport() throws IOException {
         Path repoRoot = Path.of(System.getProperty("user.dir")).getParent();
+        if (repoRoot == null) {
+            throw new IllegalStateException("user.dir parent (repo root) must not be null");
+        }
         Path openApi = repoRoot.resolve("docs/specs/openapi.yaml");
         Path stompRoutes = repoRoot.resolve("docs/specs/stomp-routes.json");
 
