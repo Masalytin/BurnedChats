@@ -303,6 +303,94 @@ export async function verifyExcludedEventStructure(
     return checks;
 }
 
+export type JettonHistorySample = {
+    amountNano: bigint;
+    direction: 'in' | 'out';
+    /** Inbound net after full-stack fee (0.5/0.3/0.2) when amount is pre-fee size. */
+    netNano?: bigint;
+    eventId?: string;
+};
+
+/**
+ * Sample recent JettonTransfer actions for an owner (readonly wallet-balance checks).
+ * Net uses full-stack fee bps (50/30/20), not TOKSIM 1%-burn.
+ */
+export async function fetchJettonTransferHistorySample(
+    host: string,
+    owner: Address,
+    opts: { jettonMaster?: Address; limit?: number } = {},
+): Promise<JettonHistorySample[]> {
+    const limit = opts.limit ?? 15;
+    const accountId = owner.toString({ urlSafe: true, bounceable: true });
+    const url = `${host}/v2/accounts/${accountId}/events?limit=${limit}`;
+    const body = await tonapiFetchJson<{ events?: TonapiEvent[] }>(url);
+    const masterNorm = opts.jettonMaster
+        ? opts.jettonMaster.toString({ urlSafe: true, bounceable: true })
+        : undefined;
+    const ownerNorm = owner.toString({ urlSafe: true, bounceable: true });
+    const out: JettonHistorySample[] = [];
+
+    for (const event of body.events ?? []) {
+        for (const action of event.actions ?? []) {
+            if (action.type !== 'JettonTransfer' || !action.JettonTransfer) {
+                continue;
+            }
+            const jt = action.JettonTransfer as {
+                amount?: string;
+                recipient?: { address?: string };
+                jetton?: { address?: string };
+            };
+            const jettonAddr = jt.jetton?.address;
+            if (masterNorm && jettonAddr) {
+                try {
+                    const parsed = Address.parse(jettonAddr).toString({
+                        urlSafe: true,
+                        bounceable: true,
+                    });
+                    if (parsed !== masterNorm) {
+                        continue;
+                    }
+                } catch {
+                    continue;
+                }
+            }
+            const amountRaw = jt.amount;
+            if (!amountRaw) {
+                continue;
+            }
+            let amountNano: bigint;
+            try {
+                amountNano = BigInt(amountRaw);
+            } catch {
+                continue;
+            }
+            if (amountNano <= 0n) {
+                continue;
+            }
+
+            const recipient = jt.recipient?.address
+                ? Address.parse(jt.recipient.address).toString({
+                      urlSafe: true,
+                      bounceable: true,
+                  })
+                : '';
+            const direction: 'in' | 'out' = recipient === ownerNorm ? 'in' : 'out';
+            // Full-stack fee: inbound net ≈ amount − 1% total (50+30+20 bps).
+            const netNano =
+                direction === 'in' ? amountNano - (amountNano * 100n) / 10000n : undefined;
+
+            out.push({
+                amountNano,
+                direction,
+                netNano,
+                eventId: event.event_id,
+            });
+        }
+    }
+
+    return out;
+}
+
 export async function checkTonapiJettonIndexed(
     network: 'testnet' | 'mainnet',
     jettonMaster: Address,
