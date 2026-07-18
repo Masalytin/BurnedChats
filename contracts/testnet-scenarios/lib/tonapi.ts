@@ -18,6 +18,13 @@ export type TonapiOutMsg = {
 export type TonapiTransaction = {
     hash: string;
     out_msgs?: TonapiOutMsg[];
+    in_msg?: {
+        source?: { address?: string } | string;
+        destination?: { address?: string } | string;
+        value?: number | string;
+        op_code?: string;
+    };
+    utime?: number;
 };
 
 export type TonapiJettonTransfer = {
@@ -268,6 +275,97 @@ export async function fetchJettonTransferHistorySample(
     }
 
     return out;
+}
+
+function normalizeAccountAddress(raw: string | { address?: string } | undefined): string {
+    if (!raw) {
+        return '';
+    }
+    const addr = typeof raw === 'string' ? raw : (raw.address ?? '');
+    if (!addr) {
+        return '';
+    }
+    try {
+        return Address.parse(addr).toString({ urlSafe: true, bounceable: true });
+    } catch {
+        return addr;
+    }
+}
+
+/** Account TON balance in nanotons (tonapi, with shared retry). */
+export async function fetchAccountBalanceNano(account: Address): Promise<bigint> {
+    const accountId = account.toString({ urlSafe: true, bounceable: true });
+    const body = await tonapiFetchJson<{ balance?: string | number }>(
+        `${TONAPI_HOST}/v2/accounts/${accountId}`,
+    );
+    if (body.balance === undefined || body.balance === null) {
+        throw new Error(`tonapi account missing balance: ${accountId}`);
+    }
+    return BigInt(body.balance);
+}
+
+/** Recent blockchain transactions for an account (newest first). */
+export async function fetchAccountTransactions(
+    account: Address,
+    limit = 10,
+): Promise<TonapiTransaction[]> {
+    const accountId = account.toString({ urlSafe: true, bounceable: true });
+    const body = await tonapiFetchJson<{ transactions?: TonapiTransaction[] }>(
+        `${TONAPI_HOST}/v2/blockchain/accounts/${accountId}/transactions?limit=${limit}`,
+    );
+    return body.transactions ?? [];
+}
+
+/**
+ * Approximate sandbox `transactions.length` for a plain-TON → master cashback:
+ * the master's receiving tx plus its immediate out_msgs (cashback).
+ * Retries while the sender→master tx is not yet indexed.
+ */
+export async function resolvePlainTonCashbackHops(
+    master: Address,
+    sender: Address,
+): Promise<number> {
+    const senderNorm = sender.toString({ urlSafe: true, bounceable: true });
+    for (let attempt = 1; attempt <= TONAPI_RETRIES; attempt += 1) {
+        const txs = await fetchAccountTransactions(master, 10);
+        const match = txs.find((tx) => {
+            const src = normalizeAccountAddress(tx.in_msg?.source);
+            return src === senderNorm;
+        });
+        if (match) {
+            return 1 + (match.out_msgs?.length ?? 0);
+        }
+        if (attempt < TONAPI_RETRIES) {
+            await sleep(TONAPI_RETRY_DELAY_MS);
+        }
+    }
+    throw new Error(
+        `tonapi: no master tx from sender ${senderNorm} after ${TONAPI_RETRIES} attempts (indexer lag?)`,
+    );
+}
+
+/**
+ * Poll sender balance until cashback lands (lost < sent) or attempts exhausted.
+ */
+export async function waitForCashbackBalance(input: {
+    sender: Address;
+    balanceBefore: bigint;
+    sentNano: bigint;
+    attempts?: number;
+    sleepMs?: number;
+}): Promise<bigint> {
+    const attempts = input.attempts ?? TONAPI_RETRIES;
+    const sleepMs = input.sleepMs ?? TONAPI_RETRY_DELAY_MS;
+    let latest = await fetchAccountBalanceNano(input.sender);
+    for (let i = 0; i < attempts; i += 1) {
+        const lost = input.balanceBefore - latest;
+        if (lost < input.sentNano) {
+            return latest;
+        }
+        await sleep(sleepMs);
+        latest = await fetchAccountBalanceNano(input.sender);
+    }
+    return latest;
 }
 
 export async function checkTonapiJettonIndexed(jettonMaster: Address): Promise<CheckResult> {
