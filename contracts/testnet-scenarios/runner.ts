@@ -8,11 +8,13 @@
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadDeployEnv, resolveMnemonic } from '../scripts/deploy/env';
+import { applyBlueprintWalletAliases, loadDeployEnv, resolveMnemonic } from '../scripts/deploy/env';
+import type { NetworkProvider } from '@ton/blueprint';
 import { allChecksPass } from './lib/checks';
 import { computeDeploymentFingerprint } from './lib/fingerprint';
 import { loadManifest } from './lib/manifest';
 import { assertNotMainnetRequest, assertTestnetOnly } from './lib/network-guard';
+import { createTestnetNetworkProvider } from './lib/provider';
 import { defaultScenariosDir, discoverScenarios, isDestructive, orderByDependsOn } from './registry';
 import { formatStdoutSummary, writeReportJson, defaultReportsDir } from './report';
 import {
@@ -190,6 +192,7 @@ export function assertTestnetEnvReady(contractsRoot: string): void {
         throw new Error(`Missing ${envPath} — create .env.testnet with testnet mnemonic before live runs`);
     }
     loadDeployEnv(contractsRoot);
+    applyBlueprintWalletAliases();
     if (!resolveMnemonic()) {
         throw new Error(
             'Missing mnemonic in .env.testnet (WALLET_MNEMONIC / MNEMONIC_TESTNET / MNEMONIC)',
@@ -297,8 +300,12 @@ export async function executeRun(opts: {
     scenarios?: Scenario[];
     statePath?: string;
     reportsDir?: string;
+    /** Injected provider (unit tests); otherwise SilentUI + mnemonic bootstrap. */
+    provider?: NetworkProvider;
     /** When true, skip .env.testnet / mnemonic fail-fast (unit tests). */
     skipEnvCheck?: boolean;
+    /** When true, skip NetworkProvider bootstrap (unit tests with injected stub). */
+    skipProvider?: boolean;
 }): Promise<{ report?: Report; listOutput?: string; reportPath?: string }> {
     const { contractsRoot, cli } = opts;
 
@@ -329,12 +336,20 @@ export async function executeRun(opts: {
     let state = loadState(statePath, deploymentFingerprint);
 
     const selected = selectScenarios(scenarios, cli, state);
+    let provider = opts.provider;
+    if (!provider && !opts.skipProvider) {
+        provider = await createTestnetNetworkProvider(contractsRoot);
+    }
+    if (!provider) {
+        throw new Error('NetworkProvider required for scenario runs (pass provider or disable skipProvider)');
+    }
     const ctx: ScenarioContext = {
         network: 'testnet',
         contractsRoot,
         manifestKind: cli.manifest,
         manifest,
         deploymentFingerprint,
+        provider,
     };
 
     const started = new Date().toISOString();

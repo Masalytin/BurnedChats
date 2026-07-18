@@ -1,7 +1,8 @@
 /**
- * Full-stack live testnet scenario harness types (IMP-TNFS-02).
+ * Full-stack live testnet scenario harness types (IMP-TNFS-02 / IMP-TNFS-03).
  * Canon: fee 0.5% burn + 0.3% staking + 0.2% treasury — not TOKSIM pure-1%-burn.
  */
+import type { NetworkProvider } from '@ton/blueprint';
 
 export type ManifestKind = 'shared' | 'lab';
 
@@ -51,6 +52,8 @@ export type ScenarioContext = {
     manifestKind: ManifestKind;
     manifest: FullStackManifest;
     deploymentFingerprint: string;
+    /** Blueprint provider — bootstrapped once per runner invocation (IMP-TNFS-03). */
+    provider: NetworkProvider;
 };
 
 export type Scenario = {
