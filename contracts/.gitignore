@@ -18,6 +18,10 @@ package.ts
 deployments/*.bak*
 deployments/*.bak-*
 
+# Full-stack testnet scenario runner (IMP-TNFS-02)
+reports/
+.testnet-scenario-state.json
+
 # IDEA files
 .idea
 
