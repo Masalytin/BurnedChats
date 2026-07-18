@@ -18,6 +18,10 @@ package.ts
 deployments/*.bak*
 deployments/*.bak-*
 
+# Live testnet scenario runner (local skip-state + generated reports)
+testnet-scenarios/reports/
+testnet-scenarios/.testnet-scenario-state.json
+
 # IDEA files
 .idea
 

@@ -9,17 +9,18 @@ export default tseslint.config(
         ignores: ['build/**', 'node_modules/**', 'dist/**'],
     },
     {
-        files: ['tests/**/*.ts'],
+        files: ['tests/**/*.ts', 'testnet-scenarios/**/*.ts'],
         languageOptions: {
             globals: globals.jest,
         },
     },
     {
-        files: ['scripts/**/*.ts', 'tests/**/*.ts'],
+        files: ['scripts/**/*.ts', 'tests/**/*.ts', 'testnet-scenarios/**/*.ts'],
         rules: {
             'no-console': 'off',
         },
     },
+
     {
         rules: {
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
