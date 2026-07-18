@@ -1,0 +1,35 @@
+{
+  "network": "testnet",
+  "role": "lab",
+  "deployedAt": "2026-07-19",
+  "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
+  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260719-tnfs-lab",
+  "lab": {
+    "timelockDelaySec": 60,
+    "vestingStartUnix": 1784412701,
+    "deployStakingMasterNano": "10000000000",
+    "mintableAdmin": true,
+    "notes": "Shortened TIMELOCK_DELAY_SEC=60; mint open (admin=Timelock after bootstrap); StakingMaster funded with 10 TON (not default 50). Do not syncAppConfigs / do not point Mini App here."
+  },
+  "addresses": {
+    "jettonMaster": "kQDxqGBiipBwlCUDti4sk9KVtcPWdl38ERXoscRFeN_lGdKB",
+    "treasury": "kQD8XehbNprfoQPVgdntImmwGfifqa1tjH_naZSZbUJXTUR_",
+    "treasuryJettonWallet": "kQCo38MM7zp6fmA3nka6a0aF1wa8oVliHNjUAz_uw6nZf8Me",
+    "stakingPool": "kQBytscrwzkD_UO65sMak_VLdVk6pVWc5rlKlRSDcLHV7LC5",
+    "stakingLock": "kQAlGLEoSO7VabHHDfgkF8sWem1dBCmpOIEqR_O0GKAcbSnJ",
+    "stakingMaster": "kQAuJM25AXMln0Hh5rRn2gg_GR5CyuZIOWoehDfPGVe0UBwK",
+    "governor": "kQA_XfDAbp1TMYiIULZuA7LG8oGULX_XqQ50KmBzq8cQgEot",
+    "timelock": "kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT",
+    "vestingDeveloper": "kQAn54hDSUFl-d0gXP60eFUqrqKD0I5APgebFnwSJXic-IzO",
+    "vestingEcosystem": "kQBBKnnDQkwuu4B6A9fDjK9QMpZ7UZ0oF8mV7exVEwGcHd5d",
+    "vestingReserve": "kQCVSHTHyEGcQsOpFNZCNfysBxDCC121koy6uyyA_Z_y1Tc9",
+    "vestingStakingAllocation": "kQBpSWZLgOBjoHk5B3-1B_e23NFTwIS0Eo_KOgNdXsSAMv6U",
+    "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
+    "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
+  },
+  "bootstrap": {
+    "jettonTimelockIsDeployer": false,
+    "timelockGovernorIsDeployer": true,
+    "stakingMasterGovernorIsDeployer": false
+  }
+}
