@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 import { loadDeployEnv, resolveMnemonic } from '../scripts/deploy/env';
 import { loadDeployment } from '../scripts/deploy/store';
 import { allChecksOk } from './lib/checks';
+import {
+    isScenarioSkipError,
+    skipResultFromError,
+} from './lib/destructive-preflight';
 import { fingerprintFromDeployment } from './lib/fingerprint';
 import { assertTestnet } from './lib/network-guard';
 import { createTestnetNetworkProvider } from './lib/provider';
@@ -153,6 +157,10 @@ async function runOne(
             error: ok ? undefined : 'one or more checks failed',
         };
     } catch (err) {
+        if (isScenarioSkipError(err)) {
+            // Preflight N/A (e.g. mintable=false) — do not fail the whole run, do not record as pass.
+            return skipResultFromError(scenario.id, err, Date.now() - started);
+        }
         const message = err instanceof Error ? err.message : String(err);
         return {
             id: scenario.id,
