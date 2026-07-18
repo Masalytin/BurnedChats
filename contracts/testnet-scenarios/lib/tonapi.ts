@@ -20,9 +20,16 @@ export type TonapiTransaction = {
     out_msgs?: TonapiOutMsg[];
 };
 
+export type TonapiJettonTransfer = {
+    amount?: string;
+    jetton?: { address?: string };
+    sender?: { address?: string };
+    recipient?: { address?: string };
+};
+
 export type TonapiEventAction = {
     type?: string;
-    JettonTransfer?: { amount?: string };
+    JettonTransfer?: TonapiJettonTransfer;
     base_transactions?: string[];
 };
 
@@ -182,6 +189,85 @@ export async function verifyBurnEvent(eventId: string): Promise<CheckResult[]> {
 
     checks.push(assertCheck(true, `burn tx: ${tonviewerTxUrl(eventId)}`));
     return checks;
+}
+
+export type JettonHistorySample = {
+    amountNano: bigint;
+    direction: 'in' | 'out';
+    netNano?: bigint;
+    eventId: string;
+};
+
+/**
+ * Sample recent JettonTransfer actions for an owner, optionally filtered to one jetton master.
+ * Returns [] when tonapi has no matching history (caller should emit an explicit N/A check).
+ */
+export async function fetchJettonTransferHistorySample(
+    owner: Address,
+    opts: { jettonMaster?: Address; limit?: number } = {},
+): Promise<JettonHistorySample[]> {
+    const accountId = owner.toString({ urlSafe: true, bounceable: true });
+    const limit = opts.limit ?? 10;
+    const url = `${TONAPI_HOST}/v2/accounts/${accountId}/events?limit=${limit}`;
+    const body = await tonapiFetchJson<{ events?: TonapiEvent[] }>(url);
+    const masterNorm = opts.jettonMaster
+        ? opts.jettonMaster.toString({ urlSafe: true, bounceable: true })
+        : undefined;
+    const ownerNorm = owner.toString({ urlSafe: true, bounceable: true });
+    const out: JettonHistorySample[] = [];
+
+    for (const event of body.events ?? []) {
+        for (const action of event.actions ?? []) {
+            if (action.type !== 'JettonTransfer' || !action.JettonTransfer) {
+                continue;
+            }
+            const jt = action.JettonTransfer;
+            const jettonAddr = jt.jetton?.address;
+            if (masterNorm && jettonAddr) {
+                try {
+                    const parsed = Address.parse(jettonAddr).toString({
+                        urlSafe: true,
+                        bounceable: true,
+                    });
+                    if (parsed !== masterNorm) {
+                        continue;
+                    }
+                } catch {
+                    continue;
+                }
+            }
+            const amountRaw = jt.amount;
+            if (!amountRaw) {
+                continue;
+            }
+            let amountNano: bigint;
+            try {
+                amountNano = BigInt(amountRaw);
+            } catch {
+                continue;
+            }
+            if (amountNano <= 0n) {
+                continue;
+            }
+
+            const recipient = jt.recipient?.address
+                ? Address.parse(jt.recipient.address).toString({ urlSafe: true, bounceable: true })
+                : '';
+            const direction: 'in' | 'out' = recipient === ownerNorm ? 'in' : 'out';
+            // Hardcoded 1% burn: inbound net ≈ amount − burn when amount is the pre-burn transfer size.
+            const netNano =
+                direction === 'in' ? amountNano - (amountNano * 100n) / 10000n : undefined;
+
+            out.push({
+                amountNano,
+                direction,
+                netNano,
+                eventId: event.event_id,
+            });
+        }
+    }
+
+    return out;
 }
 
 export async function checkTonapiJettonIndexed(jettonMaster: Address): Promise<CheckResult> {

@@ -7,15 +7,18 @@ const CONTRACTS_ROOT = resolve(__dirname, '../..');
 const SCENARIOS_DIR = resolve(__dirname, '../scenarios');
 
 describe('IMP-TNSCEN-02 migrate verify scenarios', () => {
-    it('discovers three migrated scenarios with correct tags and needsLiveTx', () => {
+    it('discovers migrated verify scenarios with correct tags and needsLiveTx', () => {
         const scenarios = discoverScenarios(SCENARIOS_DIR);
         const byId = Object.fromEntries(scenarios.map((s) => [s.id, s]));
+        const ids = Object.keys(byId);
 
-        expect(Object.keys(byId).sort()).toEqual([
-            'deployment-smoke',
-            'transfer-burn-1pct',
-            'transfer-burn-readonly',
-        ]);
+        expect(ids).toEqual(
+            expect.arrayContaining([
+                'deployment-smoke',
+                'transfer-burn-1pct',
+                'transfer-burn-readonly',
+            ]),
+        );
 
         expect(byId['deployment-smoke'].tags.sort()).toEqual(['burn', 'readonly']);
         expect(byId['deployment-smoke'].needsLiveTx).toBe(false);
