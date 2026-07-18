@@ -1,18 +1,12 @@
 import { Address, Cell } from '@ton/core';
-import { resolve } from 'node:path';
-import type { NetworkProvider } from '@ton/blueprint';
-import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
-import { loadDeployEnv } from './deploy/env';
-import { resolveJettonMaster } from './deploy/manifest';
-import { loadDeployment } from './deploy/store';
+import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
+import { resolveJettonMaster } from '../../scripts/deploy/manifest';
+import { assertCheck } from '../lib/checks';
+import { checkTonapiJettonIndexed } from '../lib/tonapi';
+import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 const NANO = 10n ** 9n;
 const MAX_SUPPLY_NANO = 1000n * NANO;
-
-type CheckResult = { ok: boolean; message: string };
-
-const TONAPI_RETRIES = 3;
-const TONAPI_RETRY_DELAY_MS = 5_000;
 
 /**
  * TEP-74 field set of the burn-only master's `get_jetton_data` (IMP-TOKSIM-02).
@@ -26,13 +20,7 @@ const EXPECTED_JETTON_DATA_KEYS = [
     'totalSupply',
 ];
 
-function assertCheck(ok: boolean, message: string): CheckResult {
-    return { ok, message };
-}
-
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
+type MetadataJson = { name?: unknown; symbol?: unknown; decimals?: unknown };
 
 /** Decode TEP-64 off-chain metadata URI from on-chain jetton content cell. */
 function decodeOffChainMetadataUri(content: Cell): string {
@@ -43,8 +31,6 @@ function decodeOffChainMetadataUri(content: Cell): string {
     }
     return slice.loadRef().beginParse().loadStringTail();
 }
-
-type MetadataJson = { name?: unknown; symbol?: unknown; decimals?: unknown };
 
 async function checkMetadataUriAlive(uri: string): Promise<CheckResult> {
     try {
@@ -71,73 +57,15 @@ async function checkMetadataUriAlive(uri: string): Promise<CheckResult> {
     }
 }
 
-async function checkTonapiJettonIndexed(
-    network: 'testnet' | 'mainnet',
-    jettonMaster: Address,
-): Promise<CheckResult> {
-    if (process.env.VERIFY_SKIP_TONAPI === '1') {
-        return assertCheck(true, 'tonapi jetton indexability (skipped via VERIFY_SKIP_TONAPI=1)');
-    }
-
-    const host = network === 'testnet' ? 'https://testnet.tonapi.io' : 'https://tonapi.io';
-    const masterStr = jettonMaster.toString({ urlSafe: true, bounceable: true });
-    const url = `${host}/v2/jettons/${masterStr}`;
-
-    for (let attempt = 1; attempt <= TONAPI_RETRIES; attempt += 1) {
-        try {
-            const res = await fetch(url);
-            const body = (await res.json()) as { error?: string; metadata?: unknown; symbol?: string };
-            if (body.error === 'entity not found') {
-                if (attempt < TONAPI_RETRIES) {
-                    await sleep(TONAPI_RETRY_DELAY_MS);
-                    continue;
-                }
-                return assertCheck(false, `tonapi jetton not indexed after ${TONAPI_RETRIES} attempts: ${url}`);
-            }
-            const indexed = res.ok && (body.metadata != null || typeof body.symbol === 'string');
-            return assertCheck(
-                indexed,
-                indexed
-                    ? `tonapi jetton indexed (${url})`
-                    : `tonapi jetton response missing metadata/symbol: ${url}`,
-            );
-        } catch (err) {
-            if (attempt < TONAPI_RETRIES) {
-                await sleep(TONAPI_RETRY_DELAY_MS);
-                continue;
-            }
-            const msg = err instanceof Error ? err.message : String(err);
-            return assertCheck(false, `tonapi jetton fetch failed (${url}): ${msg}`);
-        }
-    }
-
-    return assertCheck(false, `tonapi jetton check exhausted retries: ${url}`);
-}
-
-/**
- * Post-runbook verification of the burn-only BURN jetton (IMP-TOKSIM-02):
- * mintable=false after CloseMint, supply below cap (LP-provision burn),
- * admin revoked, TEP-74 getter set without fee/excluded fields.
- */
-export async function run(provider: NetworkProvider) {
-    const contractsRoot = resolve(__dirname, '..');
-    loadDeployEnv(contractsRoot);
-
-    const network = provider.network() === 'testnet' ? 'testnet' : 'mainnet';
-    const deployment = loadDeployment(contractsRoot, network);
-    if (!deployment) {
-        throw new Error(`Missing deployments/${network}.json — run deploy.ts first`);
-    }
-
-    const jettonMaster = Address.parse(resolveJettonMaster(deployment));
-    const deployerAddr = provider.sender().address;
+async function run(ctx: ScenarioContext): Promise<CheckResult[]> {
+    const jettonMaster = Address.parse(resolveJettonMaster(ctx.deployment));
+    const deployerAddr = ctx.provider.sender().address;
     if (!deployerAddr) {
-        throw new Error('verify-deployment needs mnemonic wallet address to check admin revocation');
+        throw new Error('deployment-smoke needs mnemonic wallet address to check admin revocation');
     }
 
     const checks: CheckResult[] = [];
-
-    const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
+    const master = ctx.provider.open(BurnJettonMaster.fromAddress(jettonMaster));
     const jettonData = await master.getGetJettonData();
 
     checks.push(
@@ -204,20 +132,18 @@ export async function run(provider: NetworkProvider) {
         checks.push(assertCheck(false, 'metadata URI unavailable (deployment file + on-chain content)'));
     }
 
-    checks.push(await checkTonapiJettonIndexed(network, jettonMaster));
-
-    let failed = 0;
-    console.log(`[verify-deployment] network=${network} file=deployments/${network}.json`);
-    for (const c of checks) {
-        const mark = c.ok ? 'OK' : 'FAIL';
-        console.log(`  [${mark}] ${c.message}`);
-        if (!c.ok) {
-            failed += 1;
-        }
-    }
-
-    if (failed > 0) {
-        throw new Error(`verify-deployment failed (${failed} checks)`);
-    }
-    console.log('[verify-deployment] all checks passed');
+    checks.push(await checkTonapiJettonIndexed(jettonMaster));
+    return checks;
 }
+
+const scenario: Scenario = {
+    id: 'deployment-smoke',
+    title: 'Deployment smoke (post-bootstrap)',
+    description:
+        'Testnet-only equivalent of former verify-deployment: supply, mintable, admin, TEP-74 keys, wallet predict, metadata, tonapi index.',
+    tags: ['readonly', 'burn'],
+    needsLiveTx: false,
+    run,
+};
+
+export default scenario;

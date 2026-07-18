@@ -1,3 +1,4 @@
+import type { NetworkProvider } from '@ton/blueprint';
 import type { DeploymentFile } from '../scripts/deploy/types';
 
 /** Single assertion outcome from a scenario (or shared check helper). */
@@ -10,8 +11,7 @@ export type ScenarioStatus = 'pass' | 'fail' | 'skip' | 'error';
 
 /**
  * Runtime context passed to scenario `run`.
- * NetworkProvider / TonClient wiring lands with scenario migration (IMP-TNSCEN-02);
- * harness v1 validates env + deployment and exposes deployment metadata.
+ * Provider is bootstrapped by the runner (IMP-TNSCEN-02) via createTestnetNetworkProvider.
  */
 export type ScenarioContext = {
     contractsRoot: string;
@@ -20,6 +20,7 @@ export type ScenarioContext = {
     fingerprint: string;
     deployment: DeploymentFile;
     force: boolean;
+    provider: NetworkProvider;
 };
 
 export type Scenario = {

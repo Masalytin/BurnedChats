@@ -5,6 +5,7 @@ import { loadDeployment } from '../scripts/deploy/store';
 import { allChecksOk } from './lib/checks';
 import { fingerprintFromDeployment } from './lib/fingerprint';
 import { assertTestnet } from './lib/network-guard';
+import { createTestnetNetworkProvider } from './lib/provider';
 import { discoverScenarios, formatScenarioList, selectScenarios } from './registry';
 import { buildReport, printStdoutSummary, writeReportJson } from './report';
 import {
@@ -203,6 +204,13 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     }
 
     const started = new Date().toISOString();
+    console.log('[testnet-scenarios] network=testnet');
+    console.log(`[testnet-scenarios] master=${deployment.jettonMaster}`);
+    console.log(`[testnet-scenarios] fingerprint=${fingerprint}`);
+    console.log(`[testnet-scenarios] selected=${selected.map((s) => s.id).join(', ')}`);
+    console.log('[testnet-scenarios] bootstrapping NetworkProvider (testnet + mnemonic)…');
+    const provider = await createTestnetNetworkProvider();
+
     const ctx: ScenarioContext = {
         contractsRoot: CONTRACTS_ROOT,
         network: 'testnet',
@@ -210,12 +218,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         fingerprint,
         deployment,
         force: Boolean(filter.force),
+        provider,
     };
-
-    console.log('[testnet-scenarios] network=testnet');
-    console.log(`[testnet-scenarios] master=${deployment.jettonMaster}`);
-    console.log(`[testnet-scenarios] fingerprint=${fingerprint}`);
-    console.log(`[testnet-scenarios] selected=${selected.map((s) => s.id).join(', ')}`);
 
     const results: ScenarioRunResult[] = [];
     for (const scenario of selected) {

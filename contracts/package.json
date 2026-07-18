@@ -20,8 +20,9 @@
         "close-mint:mainnet": "npm run build && blueprint run close-mint --mainnet --mnemonic",
         "revoke-admin:testnet": "npm run build && blueprint run revoke-admin --testnet --mnemonic",
         "revoke-admin:mainnet": "npm run build && blueprint run revoke-admin --mainnet --mnemonic",
-        "verify:deployment": "npm run build && blueprint run verify-deployment --testnet --mnemonic",
-        "verify:burn:testnet": "npm run build && blueprint run verify-burn-testnet --testnet --mnemonic",
+        "verify:deployment": "npm run testnet:scenarios -- --scenario deployment-smoke",
+        "verify:burn:testnet": "npm run testnet:scenarios -- --scenario transfer-burn-1pct",
+        "verify:burn:readonly": "npm run testnet:scenarios -- --scenario transfer-burn-readonly",
         "verify": "npm run build && blueprint run verifyContract",
         "testnet:scenarios": "ts-node --transpile-only testnet-scenarios/runner.ts",
         "release": "blueprint pack && npm publish --access public"
