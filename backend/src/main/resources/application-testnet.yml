@@ -3,7 +3,7 @@
 #   SPRING_PROFILES_ACTIVE=prod,testnet
 # Do NOT add `spring.profiles.active` here — Spring Boot >= 2.4 rejects
 # it in profile-specific resources (IMP-TESTNET-PROFILE-01).
-# Last deploy sync: 2026-07-14T22:53:35.151Z
+# Last deploy sync: 2026-07-18T14:06:35.385Z
 
 app:
   ton:
@@ -16,19 +16,11 @@ app:
     cache:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:
-      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQCPc6VXgbdbslo6Sed-zyqQvnPBP_2Fwr_gJabVhvhgnGJb}
-      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQAhCcCJ_qYEMfOn8Q5JdRaZtA7lAFk-lwYjvRsogO5Lt6-U}
-      governor: ${BURN_GOVERNOR_ADDRESS:kQDdVvbpVIOAvmGPrP9JMnjzDRe8MMFT0QugefFKD7kwjl8s}
-      treasury: ${BURN_TREASURY_ADDRESS:kQBM17x78FocwM18ZqohMU9dr0dN5aWk-eKKJNJE7SBCPsZW}
+      jetton-master: ${BURN_JETTON_MASTER_ADDRESS:kQBwPTcB643D2OVjXvQQUSHlRKM_xr50e6dKAqgMf3VCDRCt}
+      staking-master: ${BURN_STAKING_MASTER_ADDRESS:kQDnYgUHNZO4M7FTXa_S1XJ5bP_V_RBU4NdsF-a5qZ3DK_YP}
+      governor: ${BURN_GOVERNOR_ADDRESS:kQDuI1JduQ8DO5Z97scv7Qe2ZYABn6A6GyaZ0rgMHdjP90Pm}
+      treasury: ${BURN_TREASURY_ADDRESS:kQD-G7-Ux8zAJCRfIqhGatT1beo8e5PVQ65-AEPtWqGyIiIY}
 
 burnedchats:
   wallet-auth:
     ton-api-base-url: ${BURNEDCHATS_TON_API_BASE_URL:https://testnet.toncenter.com/api/v2}
-
-# springdoc OpenAPI + Swagger UI (testnet staging — not prod-only deploy)
-springdoc:
-  api-docs:
-    enabled: true
-  swagger-ui:
-    enabled: true
-
