@@ -50,10 +50,10 @@ describe('IMP-TNFS-08 treasury pack — discovery & tags', () => {
         }
     });
 
-    it('does NOT register fs-treasury-spend-via-timelock (IMP-TNFS-09A)', () => {
-        expect(byId.get('fs-treasury-spend-via-timelock')).toBeUndefined();
+    it('registers fs-treasury-spend-via-timelock (added by IMP-TNFS-09A)', () => {
+        expect(byId.get('fs-treasury-spend-via-timelock')).toBeDefined();
         const ids = scenarios.map((s) => s.id);
-        expect(ids).not.toContain('fs-treasury-spend-via-timelock');
+        expect(ids).toContain('fs-treasury-spend-via-timelock');
     });
 
     it('tags match DESIGN; needsLiveTx; not destructive', () => {
@@ -94,8 +94,9 @@ describe('IMP-TNFS-08 treasury pack — discovery & tags', () => {
             expect(byTag).toContain(id);
             expect(byAll).toContain(id);
         }
-        expect(byTag).not.toContain('fs-treasury-spend-via-timelock');
-        expect(byAll).not.toContain('fs-treasury-spend-via-timelock');
+        // spend-via-timelock is registered by IMP-TNFS-09A (also tagged treasury)
+        expect(byTag).toContain('fs-treasury-spend-via-timelock');
+        expect(byAll).toContain('fs-treasury-spend-via-timelock');
     });
 
     it('does not register TOKSIM / TNSCEN / pure-1%-burn ids', () => {
