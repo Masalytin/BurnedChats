@@ -42,16 +42,24 @@ Beyond on-chain supply/balance/admin checks, `verify-deployment.ts` also:
    `https://{testnet.}tonapi.io/v2/jettons/{jettonMaster}` must not return
    `{"error":"entity not found"}`; response must include `metadata` or `symbol`.
    Retries 3× with 5 s delay (tonapi indexing lag after deploy).
+   **Soft N/A (IMP-TNFS-F05):** if every on-chain fingerprint check already passed
+   and tonapi still reports index lag after retries, the check becomes soft N/A
+   with reason `tonapi-index-lag` (scenario does **not** hard-fail). On-chain
+   mismatches still fail the run. This does not replace manual tip sync
+   (`IMP-TNFS-01`).
 
-Skip tonapi when outbound HTTP is unavailable (e.g. CI sandbox):
+Skip tonapi when outbound HTTP is unavailable (e.g. CI sandbox), or to force-skip
+the index check:
 
 ```bash
+SKIP_TONAPI_INDEX=1 npm run verify:deployment
+# equivalent legacy alias:
 VERIFY_SKIP_TONAPI=1 npm run verify:deployment
 ```
 
 Metadata HTTP check still runs unless verify is pointed at a deployment without network.
-On a fresh redeploy, allow up to ~15 s for the tonapi retry loop before treating index
-lag as failure.
+On a fresh redeploy, allow up to ~15 s for the tonapi retry loop; persistent lag
+after that is soft N/A when on-chain checks are green (see above).
 
 ### Jetton metadata (`JETTON_METADATA_URI`)
 

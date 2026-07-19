@@ -8,8 +8,13 @@ import { StakingMaster } from '../../wrappers/StakingMaster';
 import { Timelock } from '../../wrappers/Timelock';
 import { MINT_ALLOCATIONS } from '../../scripts/deploy/bootstrap';
 import { VESTING_PRESETS, presetTotalNano } from '../../scripts/vesting/presets';
-import { check } from '../lib/checks';
+import { allChecksPass, check } from '../lib/checks';
 import { readJettonWalletBalance } from '../lib/balances';
+import {
+    applyTonapiIndexSoftFail,
+    shouldSkipTonapiIndex,
+    skippedTonapiIndexCheck,
+} from '../lib/fingerprint';
 import { checkTonapiJettonIndexed } from '../lib/tonapi';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
@@ -246,7 +251,15 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         );
     }
 
-    checks.push(await checkTonapiJettonIndexed('testnet', jettonMaster));
+    // Tonapi index is best-effort for live-green: lag must not hard-fail a healthy tip
+    // (IMP-TNFS-F05). On-chain mismatches still fail the scenario.
+    const onChainAllOk = allChecksPass(checks);
+    if (shouldSkipTonapiIndex()) {
+        checks.push(skippedTonapiIndexCheck());
+    } else {
+        const tonapi = await checkTonapiJettonIndexed('testnet', jettonMaster);
+        checks.push(applyTonapiIndexSoftFail(onChainAllOk, tonapi));
+    }
     return checks;
 }
 
