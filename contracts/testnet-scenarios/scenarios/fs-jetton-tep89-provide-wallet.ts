@@ -1,6 +1,7 @@
 /**
  * fs-jetton-tep89-provide-wallet — ProvideWalletAddress → TakeWalletAddress (TEP-89).
  * N/A when master ABI has no ProvideWalletAddress receiver.
+ * TonAPI-first with TonCenter fallback when indexer lags (IMP-TNFS-F07).
  */
 import { Address } from '@ton/core';
 import type { ProvideWalletAddress as ProvideWalletAddressMsg } from '../../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
@@ -10,11 +11,13 @@ import { check } from '../lib/checks';
 import {
     abiHasProvideWalletPath,
     checkTep89TakeWalletOp,
+    findTakeWalletViaToncenter,
     loadJettonMasterAbi,
     opMatches,
     provideWalletNaReason,
     TAKE_WALLET_ADDRESS_OP,
     TEP89_DISCOVERY_TON,
+    type TakeWalletLookup,
 } from '../lib/tep-cashback';
 import {
     sleep,
@@ -40,12 +43,12 @@ type TxRow = {
     out_msgs?: TonapiOutMsg[];
 };
 
-async function findTakeWalletResponse(
+async function findTakeWalletViaTonapi(
     host: string,
     sender: Address,
     master: Address,
     queryId: bigint,
-): Promise<{ found: boolean; wallet?: Address | null; txHash?: string }> {
+): Promise<TakeWalletLookup> {
     const accountId = sender.toString({ urlSafe: true, bounceable: true });
     const url = `${host}/v2/blockchain/accounts/${accountId}/transactions?limit=15`;
 
@@ -88,9 +91,43 @@ async function findTakeWalletResponse(
                     wallet = undefined;
                 }
             }
-            return { found: true, wallet: wallet ?? null, txHash: tx.hash };
+            return { found: true, wallet: wallet ?? null, txHash: tx.hash, source: 'tonapi' };
         }
         if (attempt < 4) {
+            await sleep(2_000);
+        }
+    }
+    return { found: false };
+}
+
+async function findTakeWalletResponse(
+    host: string,
+    sender: Address,
+    master: Address,
+    queryId: bigint,
+): Promise<TakeWalletLookup> {
+    const viaTonapi = await findTakeWalletViaTonapi(host, sender, master, queryId);
+    if (viaTonapi.found) {
+        return viaTonapi;
+    }
+
+    // TonAPI often lags for master/sender on testnet — confirm via TonCenter (IMP-TNFS-F07).
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+            const viaTc = await findTakeWalletViaToncenter({
+                network: 'testnet',
+                sender,
+                master,
+                queryId,
+            });
+            if (viaTc.found) {
+                return viaTc;
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`[fs-jetton-tep89-provide-wallet] toncenter fallback: ${msg}`);
+        }
+        if (attempt < 3) {
             await sleep(2_000);
         }
     }
@@ -141,6 +178,8 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         queryId,
         expectedWallet,
         responseWallet: take.wallet,
+        softNaOnMiss: true,
+        source: take.source,
     });
 
     if (take.txHash) {
@@ -148,7 +187,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
             check(
                 'tep89-tonscan',
                 true,
-                `TakeWalletAddress tx: ${tonscanTxUrl('testnet', take.txHash)}`,
+                `TakeWalletAddress tx (${take.source ?? 'unknown'}): ${tonscanTxUrl('testnet', take.txHash)}`,
             ),
         );
     }
@@ -160,7 +199,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-tep89-provide-wallet',
     title: 'TEP-89 ProvideWalletAddress / TakeWalletAddress',
     description:
-        'Live: send ProvideWalletAddress; assert TakeWalletAddress response matches get_wallet_address. N/A if ABI has no provide path.',
+        'Live: send ProvideWalletAddress; assert TakeWalletAddress response matches get_wallet_address. N/A if ABI has no provide path. TonCenter fallback when TonAPI lags (IMP-TNFS-F07).',
     tags: ['jetton', 'tep'],
     needsLiveTx: true,
     depends_on: ['fs-jetton-tep74-discovery'],

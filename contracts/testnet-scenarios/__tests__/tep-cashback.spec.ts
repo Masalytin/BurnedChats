@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { resolve } from 'node:path';
-import { Address, toNano } from '@ton/core';
+import { Address, beginCell, toNano } from '@ton/core';
 import { defaultScenariosDir, discoverScenarios, isDestructive } from '../registry';
 import { selectScenarios } from '../runner';
 import { emptyState } from '../state';
@@ -16,9 +16,12 @@ import {
     loadJettonMasterTact,
     NA_CASHBACK_PATH_ABSENT,
     NA_PROVIDE_PATH_ABSENT,
+    NA_TEP89_INDEX_LAG,
+    parseTakeWalletAddressBody,
     PLAIN_TON_CASHBACK_MAX_GAS_LOSS,
     PLAIN_TON_CASHBACK_SEND,
     provideWalletNaReason,
+    TAKE_WALLET_ADDRESS_OP_NUM,
 } from '../lib/tep-cashback';
 
 const CONTRACTS_ROOT = resolve(__dirname, '../..');
@@ -212,6 +215,31 @@ describe('IMP-TNFS-06 check helpers', () => {
         });
         expect(missing.some((c) => !c.ok)).toBe(true);
         expect(missing.some((c) => c.message.includes('no TakeWalletAddress'))).toBe(true);
+    });
+
+    it('tep89 take-wallet: soft N/A on miss when indexer lag (IMP-TNFS-F07)', () => {
+        const soft = checkTep89TakeWalletOp({
+            foundTakeWalletOp: false,
+            queryId: 9001n,
+            softNaOnMiss: true,
+        });
+        expect(soft.every((c) => c.ok)).toBe(true);
+        expect(soft.some((c) => c.message.includes(NA_TEP89_INDEX_LAG))).toBe(true);
+        expect(soft.some((c) => c.message.includes('tonapi-index-lag'))).toBe(true);
+    });
+
+    it('parseTakeWalletAddressBody reads queryId + wallet', () => {
+        const wallet = ownerA;
+        const cell = beginCell()
+            .storeUint(TAKE_WALLET_ADDRESS_OP_NUM, 32)
+            .storeUint(9001n, 64)
+            .storeAddress(wallet)
+            .storeBit(false)
+            .endCell();
+        const parsed = parseTakeWalletAddressBody(cell);
+        expect(parsed).not.toBeNull();
+        expect(parsed!.queryId).toBe(9001n);
+        expect(parsed!.wallet!.equals(wallet)).toBe(true);
     });
 
     it('plain-ton cashback: pass on gas-bounded loss; fail when attach drained', () => {

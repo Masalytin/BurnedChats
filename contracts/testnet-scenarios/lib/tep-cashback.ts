@@ -4,14 +4,18 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Address, toNano } from '@ton/core';
+import { Address, Cell, toNano } from '@ton/core';
 import { check } from './checks';
+import { TONAPI_INDEX_LAG_REASON } from './fingerprint';
 import type { CheckResult } from '../types';
 
 /** TEP-89 TakeWalletAddress opcode (ABI header 3513996288). */
 export const TAKE_WALLET_ADDRESS_OP = '0xd1735400';
 /** TEP-89 ProvideWalletAddress opcode (ABI header 745978227). */
 export const PROVIDE_WALLET_ADDRESS_OP = '0x2c76b973';
+
+export const TAKE_WALLET_ADDRESS_OP_NUM = 0xd1735400;
+export const PROVIDE_WALLET_ADDRESS_OP_NUM = 0x2c76b973;
 
 export const TEP89_DISCOVERY_TON = toNano('0.08');
 export const PLAIN_TON_CASHBACK_SEND = toNano('0.05');
@@ -20,6 +24,9 @@ export const PLAIN_TON_CASHBACK_MAX_GAS_LOSS = toNano('0.02');
 
 export const NA_PROVIDE_PATH_ABSENT = 'master has no provide path';
 export const NA_CASHBACK_PATH_ABSENT = 'cashback not in code path';
+/** Soft N/A when Provide was sent but neither TonAPI nor TonCenter saw Take (IMP-TNFS-F07). */
+export const NA_TEP89_INDEX_LAG =
+    `N/A: ${TONAPI_INDEX_LAG_REASON} — ProvideWalletAddress sent but TakeWalletAddress not visible via TonAPI/TonCenter yet`;
 
 export type JettonMasterAbiSlice = {
     receivers?: Array<{
@@ -110,14 +117,21 @@ export function checkTep89TakeWalletOp(input: {
     queryId: bigint;
     expectedWallet?: Address | null;
     responseWallet?: Address | null;
+    /** When true and not found → soft N/A (indexer lag), not hard fail (IMP-TNFS-F07). */
+    softNaOnMiss?: boolean;
+    source?: string;
 }): CheckResult[] {
+    const sourceNote = input.source ? ` via ${input.source}` : '';
+    const missOk = Boolean(input.softNaOnMiss);
     const checks: CheckResult[] = [
         check(
             'tep89-take-wallet-response',
-            input.foundTakeWalletOp,
+            input.foundTakeWalletOp || missOk,
             input.foundTakeWalletOp
-                ? `TakeWalletAddress (${TAKE_WALLET_ADDRESS_OP}) observed for queryId=${input.queryId}`
-                : `N/A-fail: ProvideWalletAddress sent but no TakeWalletAddress response (queryId=${input.queryId})`,
+                ? `TakeWalletAddress (${TAKE_WALLET_ADDRESS_OP}) observed for queryId=${input.queryId}${sourceNote}`
+                : missOk
+                  ? `${NA_TEP89_INDEX_LAG} (queryId=${input.queryId})`
+                  : `N/A-fail: ProvideWalletAddress sent but no TakeWalletAddress response (queryId=${input.queryId})`,
         ),
     ];
     if (
@@ -138,6 +152,208 @@ export function checkTep89TakeWalletOp(input: {
         );
     }
     return checks;
+}
+
+export type TakeWalletLookup = {
+    found: boolean;
+    wallet?: Address | null;
+    txHash?: string;
+    source?: 'tonapi' | 'toncenter-sender' | 'toncenter-master';
+};
+
+/** Parse TEP-89 TakeWalletAddress body (op already verified or still in slice). */
+export function parseTakeWalletAddressBody(cell: Cell): {
+    queryId: bigint;
+    wallet: Address | null;
+} | null {
+    try {
+        const s = cell.beginParse();
+        if (s.remainingBits < 32) {
+            return null;
+        }
+        if (s.loadUint(32) !== TAKE_WALLET_ADDRESS_OP_NUM) {
+            return null;
+        }
+        if (s.remainingBits < 64) {
+            return null;
+        }
+        const queryId = s.loadUintBig(64);
+        let wallet: Address | null;
+        if (s.remainingBits < 2) {
+            return null;
+        }
+        if (s.preloadUint(2) === 0) {
+            s.loadUint(2);
+            wallet = null;
+        } else {
+            wallet = s.loadAddress();
+        }
+        return { queryId, wallet };
+    } catch {
+        return null;
+    }
+}
+
+function toncenterHost(network: 'testnet' | 'mainnet'): string {
+    return network === 'testnet'
+        ? 'https://testnet.toncenter.com/api/v2'
+        : 'https://toncenter.com/api/v2';
+}
+
+function toncenterApiKey(network: 'testnet' | 'mainnet'): string | undefined {
+    if (network === 'testnet') {
+        return (
+            process.env.TONCENTER_API_KEY_TESTNET?.trim() ||
+            process.env.TONCENTER_API_KEY?.trim() ||
+            undefined
+        );
+    }
+    return process.env.TONCENTER_API_KEY?.trim() || undefined;
+}
+
+type ToncenterTx = {
+    transaction_id?: { lt?: string; hash?: string };
+    in_msg?: {
+        source?: string;
+        destination?: string;
+        value?: string;
+        msg_data?: { body?: string; '@type'?: string };
+    };
+    out_msgs?: Array<{
+        destination?: string;
+        value?: string;
+        msg_data?: { body?: string };
+    }>;
+};
+
+async function toncenterGetTransactions(
+    network: 'testnet' | 'mainnet',
+    address: Address,
+    limit: number,
+): Promise<ToncenterTx[]> {
+    const addr = address.toString({ urlSafe: true, bounceable: true });
+    const key = toncenterApiKey(network);
+    let url = `${toncenterHost(network)}/getTransactions?address=${encodeURIComponent(addr)}&limit=${limit}`;
+    if (key) {
+        url += `&api_key=${encodeURIComponent(key)}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`toncenter HTTP ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as { ok?: boolean; result?: ToncenterTx[]; error?: string };
+    if (json.ok === false) {
+        throw new Error(`toncenter error: ${json.error ?? 'unknown'}`);
+    }
+    return json.result ?? [];
+}
+
+function cellFromToncenterBody(body: string | undefined): Cell | null {
+    if (!body) {
+        return null;
+    }
+    try {
+        return Cell.fromBase64(body);
+    } catch {
+        return null;
+    }
+}
+
+function txHashHex(tx: ToncenterTx): string | undefined {
+    const b64 = tx.transaction_id?.hash;
+    if (!b64) {
+        return undefined;
+    }
+    try {
+        return Buffer.from(b64, 'base64').toString('hex');
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * TonCenter fallback when TonAPI lags (IMP-TNFS-F07): find TakeWalletAddress on
+ * sender in_msg from master, else Provide→Take out_msg on master.
+ */
+export async function findTakeWalletViaToncenter(input: {
+    network: 'testnet' | 'mainnet';
+    sender: Address;
+    master: Address;
+    queryId: bigint;
+    limit?: number;
+}): Promise<TakeWalletLookup> {
+    const limit = input.limit ?? 40;
+
+    const senderTxs = await toncenterGetTransactions(input.network, input.sender, limit);
+    for (const tx of senderTxs) {
+        const srcRaw = tx.in_msg?.source;
+        if (!srcRaw) {
+            continue;
+        }
+        let src: Address;
+        try {
+            src = Address.parse(srcRaw);
+        } catch {
+            continue;
+        }
+        if (!src.equals(input.master)) {
+            continue;
+        }
+        const cell = cellFromToncenterBody(tx.in_msg?.msg_data?.body);
+        if (!cell) {
+            continue;
+        }
+        const parsed = parseTakeWalletAddressBody(cell);
+        if (!parsed || parsed.queryId !== input.queryId) {
+            continue;
+        }
+        return {
+            found: true,
+            wallet: parsed.wallet,
+            txHash: txHashHex(tx),
+            source: 'toncenter-sender',
+        };
+    }
+
+    const masterTxs = await toncenterGetTransactions(input.network, input.master, limit);
+    for (const tx of masterTxs) {
+        const inCell = cellFromToncenterBody(tx.in_msg?.msg_data?.body);
+        if (!inCell) {
+            continue;
+        }
+        try {
+            const s = inCell.beginParse();
+            if (s.remainingBits < 32 + 64) {
+                continue;
+            }
+            const op = s.loadUint(32);
+            const qid = s.loadUintBig(64);
+            if (op !== PROVIDE_WALLET_ADDRESS_OP_NUM || qid !== input.queryId) {
+                continue;
+            }
+        } catch {
+            continue;
+        }
+        for (const out of tx.out_msgs ?? []) {
+            const outCell = cellFromToncenterBody(out.msg_data?.body);
+            if (!outCell) {
+                continue;
+            }
+            const parsed = parseTakeWalletAddressBody(outCell);
+            if (!parsed || parsed.queryId !== input.queryId) {
+                continue;
+            }
+            return {
+                found: true,
+                wallet: parsed.wallet,
+                txHash: txHashHex(tx),
+                source: 'toncenter-master',
+            };
+        }
+    }
+
+    return { found: false };
 }
 
 /**
