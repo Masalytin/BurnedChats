@@ -18,7 +18,11 @@ import {
 } from './treasury';
 import type { CheckResult, ScenarioContext } from '../types';
 
-/** Matches governor.tact CANCEL_LAG (IMP-PREMNT-08). */
+/**
+ * Production / shared default pre-vote window (IMP-PREMNT-08).
+ * Lab tip may bake a shorter `cancelLagSec` at Governor.init (IMP-TNFS-F02) —
+ * prefer `resolveCancelLagSec(ctx)` for path estimates.
+ */
 export const CANCEL_LAG_SEC = 3600;
 
 /** ProposalType.ParameterChange (governance-payload.tact). */
@@ -39,9 +43,8 @@ export const PS_CANCELLED = 5n;
 export const NA_NEEDS_LAB_SHORT_TIMERS = 'needs-lab-short-timers';
 
 /**
- * Lab tip only shortens Governor.timelockDelaySec (manifest lab.timelockDelaySec=60).
- * ProposalConfigs still use production periods (Treasury: 7d) and CANCEL_LAG is
- * hardcoded 3600s — full propose→execute from scratch exceeds a short live budget.
+ * Lab tip N/A when on-chain timers still exceed GOV_MAX_WAIT_SEC for a fresh
+ * propose→vote→queue→execute path (should be rare after IMP-TNFS-F02 short tip).
  */
 export const NA_LAB_TIMERS_NOT_SHORTENED = 'lab-gov-timers-not-shortened';
 
@@ -153,6 +156,32 @@ export async function readProposalConfig(ctx: ScenarioContext, proposalType: num
     return gov.getGetProposalConfig(BigInt(proposalType));
 }
 
+/**
+ * Resolve cancel-lag seconds for the tip under test.
+ * Order: on-chain `get_cancel_lag` → manifest `lab.cancelLagSec` → production default.
+ */
+export async function resolveCancelLagSec(ctx: ScenarioContext): Promise<number> {
+    if (ctx.provider) {
+        try {
+            const gov = openGovernor(ctx);
+            const onChain = await gov.getGetCancelLag();
+            if (typeof onChain === 'bigint' || typeof onChain === 'number') {
+                const n = Number(onChain);
+                if (Number.isFinite(n) && n > 0) {
+                    return n;
+                }
+            }
+        } catch {
+            // Shared tip may still run pre-F02 Governor bytecode without the getter.
+        }
+    }
+    const fromManifest = Number(ctx.manifest?.lab?.cancelLagSec ?? 0);
+    if (Number.isFinite(fromManifest) && fromManifest > 0) {
+        return fromManifest;
+    }
+    return CANCEL_LAG_SEC;
+}
+
 export async function readProposalCount(ctx: ScenarioContext): Promise<bigint> {
     return openGovernor(ctx).getGetProposalCount();
 }
@@ -218,23 +247,35 @@ export async function naWhenGovTimeDependent(ctx: ScenarioContext): Promise<stri
         }
     }
 
-    // Fresh path estimate: CANCEL_LAG + voting period + timelock delay.
+    // Fresh path estimate: cancelLag + voting period + timelock delay.
     try {
         if (ctx.provider) {
             const cfg = await readProposalConfig(ctx, TYPE_TREASURY);
-            const fullPath = CANCEL_LAG_SEC + Number(cfg.period) + Number(cfg.timelockDelay);
+            const cancelLag = await resolveCancelLagSec(ctx);
+            const fullPath = cancelLag + Number(cfg.period) + Number(cfg.timelockDelay);
             if (fullPath <= maxWait) {
                 return null;
             }
             return NA_LAB_TIMERS_NOT_SHORTENED;
         }
     } catch {
-        // Unit tests may omit provider — use manifest lab.timelockDelaySec only as a hint.
+        // Unit tests may omit provider — use manifest lab short-timer fields as a hint.
     }
 
     const labDelay = Number(ctx.manifest?.lab?.timelockDelaySec ?? 0);
-    // Without provider we cannot read proposalConfigs; only Governor delay is shortened on lab.
-    // Treat as not-shortened unless an explicit override opts into long waits.
+    const labCancel = Number(ctx.manifest?.lab?.cancelLagSec ?? 0);
+    const labPeriod = Number(ctx.manifest?.lab?.proposalPeriodSec ?? 0);
+    const labPropDelay = Number(ctx.manifest?.lab?.proposalTimelockDelaySec ?? 0);
+    // After IMP-TNFS-F02: lab manifest documents short cancelLag + proposal timers.
+    if (
+        labCancel > 0 &&
+        labPeriod > 0 &&
+        labPropDelay >= 0 &&
+        labCancel + labPeriod + labPropDelay <= maxWait
+    ) {
+        return null;
+    }
+    // Legacy escape: only Governor delay shortened + huge wait budget.
     if (labDelay > 0 && labDelay <= maxWait && maxWait >= CANCEL_LAG_SEC + 86_400) {
         return null;
     }
@@ -336,10 +377,13 @@ export function checkProposeCreated(input: {
     startTime: bigint;
     endTime: bigint;
     createdAtApprox: number;
+    /** Tip cancel-lag (lab may be short); defaults to production 3600. */
+    cancelLagSec?: number;
 }): CheckResult[] {
+    const cancelLag = input.cancelLagSec ?? CANCEL_LAG_SEC;
     const inCancelWindow =
         input.startTime > BigInt(input.createdAtApprox) &&
-        input.startTime <= BigInt(input.createdAtApprox + CANCEL_LAG_SEC + 120);
+        input.startTime <= BigInt(input.createdAtApprox + cancelLag + 120);
     return [
         check(
             'proposal-count-incremented',
@@ -356,7 +400,7 @@ export function checkProposeCreated(input: {
         check(
             'cancel-lag-window',
             inCancelWindow && input.endTime > input.startTime,
-            `start=${input.startTime} end=${input.endTime} (CANCEL_LAG=${CANCEL_LAG_SEC}s)`,
+            `start=${input.startTime} end=${input.endTime} (CANCEL_LAG=${cancelLag}s)`,
         ),
     ];
 }

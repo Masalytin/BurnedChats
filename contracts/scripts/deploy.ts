@@ -13,11 +13,32 @@ import { syncAppConfigs } from './deploy/syncAppConfigs';
  * - JETTON_METADATA_URI (optional; default https://burnedchats.net/jetton-metadata.json — see deployments/README.md)
  * - INITIAL_MIN_PROPOSAL_VP (optional, default 0.01 BURN nano)
  * - AIRDROP_MULTISIG / LIQUIDITY_MULTISIG (optional, default deployer on testnet)
+ * - LAB_GOV_SHORT_TIMERS=1 — lab tip only: short proposalConfigs + cancelLag at Governor.init
+ *   (see RUNBOOK-redeploy §B). When set, syncAppConfigs is skipped unless FORCE_SYNC_APP_CONFIGS=1.
+ * - LAB_CANCEL_LAG_SEC / LAB_PROPOSAL_PERIOD_SEC / LAB_PROPOSAL_TIMELOCK_DELAY_SEC (lab defaults 30/60/60)
  *
  * Flags:
  * - `--force` re-send deploy txs even when code is already live
  * - `--dry-run` compute addresses + write deployments JSON without sending txs
  */
+function isLabGovShortTimers(): boolean {
+    const raw = process.env.LAB_GOV_SHORT_TIMERS?.trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+function shouldSyncAppConfigs(): boolean {
+    const force = process.env.FORCE_SYNC_APP_CONFIGS?.trim().toLowerCase();
+    if (force === '1' || force === 'true' || force === 'yes') {
+        return true;
+    }
+    // Hard ban: never point Mini App / backend testnet env at a lab tip.
+    if (isLabGovShortTimers()) {
+        return false;
+    }
+    const skip = process.env.SKIP_SYNC_APP_CONFIGS?.trim().toLowerCase();
+    return !(skip === '1' || skip === 'true' || skip === 'yes');
+}
+
 export async function run(provider: NetworkProvider) {
     const contractsRoot = resolve(__dirname, '..');
     const repoRoot = resolve(contractsRoot, '..');
@@ -35,12 +56,25 @@ export async function run(provider: NetworkProvider) {
         );
     }
 
+    if (isLabGovShortTimers()) {
+        console.log(
+            '[deploy] LAB_GOV_SHORT_TIMERS=1 — short proposalConfigs/cancelLag; syncAppConfigs SKIPPED (lab tip)',
+        );
+    }
+
     const { deployment } = await deployBurnStack(provider, {
         contractsRoot,
         force: isForceRedeploy(),
         dryRun: isDryRun(),
     });
 
-    syncAppConfigs(repoRoot, deployment);
+    if (shouldSyncAppConfigs()) {
+        syncAppConfigs(repoRoot, deployment);
+    } else {
+        console.log(
+            '[deploy] syncAppConfigs skipped (lab short timers or SKIP_SYNC_APP_CONFIGS). ' +
+                'Restore shared tip JSON manually if this deploy overwrote deployments/testnet.json.',
+        );
+    }
     console.log('[deploy] complete');
 }

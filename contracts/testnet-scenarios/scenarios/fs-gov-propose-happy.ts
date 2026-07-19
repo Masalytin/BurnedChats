@@ -4,7 +4,6 @@
 import { Address } from '@ton/core';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import {
-    CANCEL_LAG_SEC,
     TYPE_TREASURY,
     checkProposeCreated,
     fetchVotingPower,
@@ -12,6 +11,7 @@ import {
     naWhenGovPropose,
     openGovernor,
     openProposal,
+    resolveCancelLagSec,
     resolveGovActor,
     resolveSpendRecipient,
     SPEND_AMOUNT_HAPPY,
@@ -44,6 +44,8 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     const countBefore = await gov.getGetProposalCount();
 
+    const cancelLagSec = await resolveCancelLagSec(ctx);
+
     // Idempotent: a prior proposal from this pack already exists.
     if (countBefore > 0n) {
         const id = countBefore - 1n;
@@ -52,7 +54,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
             const proposal = openProposal(provider, addr);
             const startTime = await proposal.getGetStartTime();
             const endTime = await proposal.getGetEndTime();
-            const createdApprox = Number(startTime) - CANCEL_LAG_SEC;
+            const createdApprox = Number(startTime) - cancelLagSec;
             return checkProposeCreated({
                 countBefore: countBefore - 1n,
                 countAfter: countBefore,
@@ -60,6 +62,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
                 startTime,
                 endTime,
                 createdAtApprox: createdApprox,
+                cancelLagSec,
             }).map((c) =>
                 c.name === 'proposal-count-incremented'
                     ? {
@@ -102,6 +105,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         startTime,
         endTime,
         createdAtApprox,
+        cancelLagSec,
     });
 }
 

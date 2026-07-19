@@ -48,6 +48,9 @@ function proposalCfg(
     };
 }
 
+/** Production default pre-vote cancel window (IMP-PREMNT-08). */
+export const DEFAULT_CANCEL_LAG_SEC = 3600n;
+
 /** Default quorum/threshold/voting-period/timelock per TOKENOMICS (P5-3-1-2). */
 export function defaultGovernorProposalConfigs(): Dictionary<number, ProposalConfig> {
     const day = 86400n;
@@ -56,6 +59,24 @@ export function defaultGovernorProposalConfigs(): Dictionary<number, ProposalCon
     d.set(1, proposalCfg(5n, 51n, 7n * day, 1n * day));
     d.set(2, proposalCfg(20n, 66n, 7n * day, 2n * day));
     d.set(3, proposalCfg(30n, 75n, 1n * day, 0n));
+    return d;
+}
+
+/**
+ * Lab-only short proposalConfigs (IMP-TNFS-F02).
+ * Keeps production quorum/threshold anti-brick mins; shortens period + per-type
+ * timelockDelay so CANCEL_LAG + period + delay fits GOV_MAX_WAIT_SEC (default 180).
+ */
+export function labShortGovernorProposalConfigs(
+    periodSec: bigint = 60n,
+    timelockDelaySec: bigint = 60n,
+): Dictionary<number, ProposalConfig> {
+    const d = Dictionary.empty(Dictionary.Keys.Uint(32), dictValueParserProposalConfig());
+    // Same quorum/threshold as production defaults; Emergency keeps delay 0.
+    d.set(0, proposalCfg(10n, 51n, periodSec, timelockDelaySec));
+    d.set(1, proposalCfg(5n, 51n, periodSec, timelockDelaySec));
+    d.set(2, proposalCfg(20n, 66n, periodSec, timelockDelaySec));
+    d.set(3, proposalCfg(30n, 75n, periodSec, 0n));
     return d;
 }
 
@@ -68,6 +89,8 @@ export class Governor extends GovernorBase {
         timelockDelaySec: bigint;
         treasury: Address;
         proposalConfigs?: Dictionary<number, ProposalConfig>;
+        /** Pre-vote cancel window; production default 3600. Lab tip may pass shorter. */
+        cancelLagSec?: bigint;
     }): Promise<Governor> {
         const raw = await GovernorBase.fromInit(
             0n,
@@ -80,6 +103,7 @@ export class Governor extends GovernorBase {
             params.stakingLock,
             params.timelock,
             params.timelockDelaySec,
+            params.cancelLagSec ?? DEFAULT_CANCEL_LAG_SEC,
             params.treasury,
         );
         return new Governor(raw.address, raw.init);

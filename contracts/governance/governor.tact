@@ -11,28 +11,28 @@ const GV_ACTIVE: Int = 0;
 /// Mirrors `Proposal.PS_CANCELLED` — reserved id whose phase-1 snapshot round-trip bounced.
 const GV_CANCELLED: Int = 5;
 
-/// Pre-vote window between proposal creation and voting start (IMP-PREMNT-08).
-/// During `[creation, creation + CANCEL_LAG)` the proposer may cancel the
-/// proposal (`Proposal.receive(ProposalCancel)` requires `now() < startTime`);
-/// once it elapses, voting opens and cancellation is no longer possible.
-/// Without this lag `startTime == creation`, which makes the cancel window
-/// unreachable (every cancel returns "Too late"). Mirrors the standard Governor
-/// `votingDelay`: it shifts voting start but keeps the voting period length
-/// (`endTime = startTime + cfg.period`) intact.
-const CANCEL_LAG: Int = 3600; // 1 hour
-
 /// Vote gas budget (IMP-GOVOTE-04 / AD-2). Source of truth — mirror in `Governor.ts` and
 /// `frontend/src/ton/transactionBuilder.ts`.
 /// Minimum voter attachment for `CastVote`: full relay chain (Governor → StakingMaster →
 /// Proposal) via `SendRemainingValue`, plus compute on each hop and terminal voter refund.
 const GasVoteAttach: Int = ton("0.18");
 
+/// Pre-vote window between proposal creation and voting start (IMP-PREMNT-08).
+/// During `[creation, creation + cancelLagSec)` the proposer may cancel the
+/// proposal (`Proposal.receive(ProposalCancel)` requires `now() < startTime`);
+/// once it elapses, voting opens and cancellation is no longer possible.
+/// Without this lag `startTime == creation`, which makes the cancel window
+/// unreachable (every cancel returns "Too late"). Mirrors the standard Governor
+/// `votingDelay`: it shifts voting start but keeps the voting period length
+/// (`endTime = startTime + cfg.period`) intact.
+/// Production / shared tip init: 3600. Lab tip may pass a shorter value at
+/// `Governor.init` (IMP-TNFS-F02) — not mutable via `TimelockSetProposalConfig`.
 contract Governor(
     proposalCount: Int as uint64,
     proposals: map<Int as uint64, Address>,
     proposalStateById: map<Int as uint64, Int as uint8>,
     /// Voting-window end time per proposal id — same value written into Proposal.init
-    /// (`now() + CANCEL_LAG + period`). Carried into `GovernorVoteRelay.voteEndTime` so
+    /// (`now() + cancelLagSec + period`). Carried into `GovernorVoteRelay.voteEndTime` so
     /// StakingMaster can gate vote weight by lock without reading Proposal storage
     /// (IMP-FAUDIT-F01 / F-2).
     proposalEndTimeById: map<Int as uint64, Int as uint64>,
@@ -42,6 +42,8 @@ contract Governor(
     stakingLock: Address,
     timelock: Address,
     timelockDelaySec: Int as uint64,
+    /// Pre-vote cancel window (seconds). Immutable after init.
+    cancelLagSec: Int as uint64,
     treasury: Address,
 ) {
     /// Skip cashback for governance relay partners — plain TON ping-pong caused
@@ -141,7 +143,7 @@ contract Governor(
         /// Single `now()` so Proposal.init endTime and the Governor-side lock-gate
         /// map stay bit-identical (IMP-FAUDIT-F01).
         let createdAt = now();
-        let startTime = createdAt + CANCEL_LAG;
+        let startTime = createdAt + self.cancelLagSec;
         let endTime = startTime + msg.period;
 
         let ini =
@@ -319,6 +321,10 @@ contract Governor(
 
     get fun get_timelock_delay(): Int {
         return self.timelockDelaySec;
+    }
+
+    get fun get_cancel_lag(): Int {
+        return self.cancelLagSec;
     }
 
     get fun get_treasury(): Address {

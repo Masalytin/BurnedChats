@@ -161,6 +161,22 @@ describe('IMP-TNFS-09A naWhen policy', () => {
             }
         }
     });
+
+    it('naWhenGovTimeDependent allows lab when manifest documents F02 short timers', async () => {
+        const labCtx = {
+            manifestKind: 'lab',
+            manifest: {
+                lab: {
+                    timelockDelaySec: 60,
+                    cancelLagSec: 30,
+                    proposalPeriodSec: 60,
+                    proposalTimelockDelaySec: 60,
+                },
+                addresses: {},
+            },
+        } as unknown as ScenarioContext;
+        expect(await naWhenGovTimeDependent(labCtx)).toBeNull();
+    });
 });
 
 describe('IMP-TNFS-09A check helpers', () => {

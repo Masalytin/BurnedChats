@@ -2,7 +2,11 @@ import { Address, Contract, ContractProvider, Sender, toNano } from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
-import { Governor } from '../../wrappers/Governor';
+import {
+    DEFAULT_CANCEL_LAG_SEC,
+    Governor,
+    labShortGovernorProposalConfigs,
+} from '../../wrappers/Governor';
 import { StakingLock } from '../../wrappers/StakingLock';
 import { StakingMaster } from '../../wrappers/StakingMaster';
 import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../../wrappers/StakingPool';
@@ -108,6 +112,30 @@ function resolveTimelockDelaySec(): bigint {
         return BigInt(raw);
     }
     return 86_400n;
+}
+
+/** Lab-only short gov timers (IMP-TNFS-F02). Never enable for shared tip redeploy. */
+function isLabGovShortTimers(): boolean {
+    const raw = process.env.LAB_GOV_SHORT_TIMERS?.trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+function resolvePositiveSecEnv(name: string, fallback: bigint): bigint {
+    const raw = process.env[name]?.trim();
+    if (raw && /^\d+$/.test(raw)) {
+        const n = BigInt(raw);
+        if (n > 0n) {
+            return n;
+        }
+    }
+    return fallback;
+}
+
+function resolveCancelLagSec(): bigint {
+    if (isLabGovShortTimers()) {
+        return resolvePositiveSecEnv('LAB_CANCEL_LAG_SEC', 30n);
+    }
+    return DEFAULT_CANCEL_LAG_SEC;
 }
 
 function resolveBeneficiary(deployer: Address, presetId: keyof typeof VESTING_PRESETS, stakingPool: Address): Address {
@@ -318,11 +346,28 @@ export async function deployBurnStack(
     const metadataUri = resolveMetadataUri();
     const minProposalVp = resolveMinProposalVp();
     const timelockDelaySec = resolveTimelockDelaySec();
+    const cancelLagSec = resolveCancelLagSec();
+    const labShortTimers = isLabGovShortTimers();
+    const labProposalPeriodSec = labShortTimers
+        ? resolvePositiveSecEnv('LAB_PROPOSAL_PERIOD_SEC', 60n)
+        : 0n;
+    const labProposalTimelockDelaySec = labShortTimers
+        ? resolvePositiveSecEnv('LAB_PROPOSAL_TIMELOCK_DELAY_SEC', 60n)
+        : 0n;
+    const proposalConfigs = labShortTimers
+        ? labShortGovernorProposalConfigs(labProposalPeriodSec, labProposalTimelockDelaySec)
+        : undefined;
 
     console.log('[deploy] network', provider.network());
     console.log('[deploy] deployer', friendly(deployer, testnet));
     console.log('[deploy] metadata', metadataUri);
     console.log('[deploy] governance bootstrap: deployer is temporary fee-setup authority, handed to Timelock at the end');
+    console.log(
+        `[deploy] cancelLagSec=${cancelLagSec}` +
+            (labShortTimers
+                ? ` LAB_GOV_SHORT_TIMERS period=${labProposalPeriodSec} proposalTimelockDelay=${labProposalTimelockDelaySec}`
+                : ' (production defaults for proposalConfigs)'),
+    );
 
     const content = BurnJettonMaster.jettonContentFromUri(metadataUri);
     const jettonMasterInit = await BurnJettonMaster.fromInitDeployed(deployer, content, deployer);
@@ -357,7 +402,9 @@ export async function deployBurnStack(
         stakingLock: stakingLockInit.address,
         timelock: timelockInit.address,
         timelockDelaySec,
+        cancelLagSec,
         treasury: treasuryInit.address,
+        proposalConfigs,
     });
 
     const vestingStart = process.env.VESTING_START ? BigInt(process.env.VESTING_START) : BigInt(Math.floor(Date.now() / 1000));
