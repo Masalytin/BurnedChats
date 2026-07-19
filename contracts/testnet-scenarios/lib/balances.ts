@@ -73,7 +73,7 @@ export async function assertSenderFeePreflight(
     const excluded = await master.getGetIsExcluded(sender);
     if (excluded) {
         throw new Error(
-            `FEE_TEST_SENDER ${sender.toString()} is fee-excluded on master — use a non-excluded smoke wallet.`,
+            `FEE_TEST_SENDER / Actor A ${sender.toString()} is fee-excluded on master — use a non-excluded TEST_ACTOR_MNEMONIC wallet.`,
         );
     }
 

@@ -14,7 +14,11 @@ import { StakingLock } from '../../wrappers/StakingLock';
 import { StakingMaster } from '../../wrappers/StakingMaster';
 import { StakingPool } from '../../wrappers/StakingPool';
 import { check } from './checks';
-import { NANO_PER_BURN, parseEnvAddress, readJettonWalletBalance } from './balances';
+import { NANO_PER_BURN, readJettonWalletBalance } from './balances';
+import {
+    naWhenMnemonicNotTestActor,
+    resolveTestActorAddress,
+} from './test-actor';
 import type { CheckResult, ScenarioContext } from '../types';
 
 /** Matches StakingMaster.MinStakeNano (0.01 BURN). */
@@ -40,6 +44,10 @@ export const NA_NO_OPEN_STAKE = 'no open stake';
 export const NA_ZERO_PENDING = 'emission unfunded / zero pending';
 export const NA_NO_PAUSE_KNOB = 'no pause knob in deployment';
 export const NA_TIER_NO_LOCK = 'tier has no lock / N/A in code';
+export {
+    NA_TEST_ACTOR_MISMATCH,
+    NA_TEST_ACTOR_UNSET,
+} from './test-actor';
 
 export type StakingAbiSlice = {
     receivers?: Array<{
@@ -62,18 +70,18 @@ export function stakeForwardPayload(tier: number): Slice {
         .asSlice();
 }
 
+/** Stake sender = Actor A (FEE_TEST_SENDER / TEST_ACTOR / mnemonic-injected) or airdrop fallback. */
 export function resolveStaker(ctx: ScenarioContext): Address {
-    const fromEnv = parseEnvAddress('STAKE_TEST_SENDER', 'FEE_TEST_SENDER', 'BURN_SMOKE_TEST_OWNER');
-    if (fromEnv) {
-        return fromEnv;
+    return resolveTestActorAddress(ctx);
+}
+
+/** N/A when Blueprint signer ≠ resolved staker (replaces mnemonic≠airdrop hard-fail). */
+export function naWhenStakerSenderReady(ctx: ScenarioContext): string | null {
+    try {
+        return naWhenMnemonicNotTestActor(ctx, resolveStaker(ctx));
+    } catch {
+        return NA_INSUFFICIENT_BURN;
     }
-    const airdrop = ctx.manifest.addresses.airdropHolder;
-    if (!airdrop) {
-        throw new Error(
-            'no stake-test sender (set STAKE_TEST_SENDER / FEE_TEST_SENDER or airdropHolder in manifest)',
-        );
-    }
-    return Address.parse(airdrop);
 }
 
 export function requireStakingPoolAddr(ctx: ScenarioContext): Address {
@@ -249,6 +257,10 @@ export async function naWhenInsufficientBurn(
     ctx: ScenarioContext,
     need: bigint = STAKE_AMOUNT_HAPPY,
 ): Promise<string | null> {
+    const senderNa = naWhenStakerSenderReady(ctx);
+    if (senderNa) {
+        return senderNa;
+    }
     try {
         const staker = resolveStaker(ctx);
         const jettonMaster = Address.parse(ctx.manifest.addresses.jettonMaster);
@@ -266,6 +278,10 @@ export async function naWhenNoOpenStake(
     ctx: ScenarioContext,
     tier: number = FLEXIBLE_TIER,
 ): Promise<string | null> {
+    const senderNa = naWhenStakerSenderReady(ctx);
+    if (senderNa) {
+        return senderNa;
+    }
     const staker = resolveStaker(ctx);
     const stakingMaster = Address.parse(ctx.manifest.addresses.stakingMaster);
     const amt = await readStakeAmount(ctx.provider, stakingMaster, staker, tier);
@@ -276,6 +292,10 @@ export async function naWhenZeroPending(
     ctx: ScenarioContext,
     tier: number = FLEXIBLE_TIER,
 ): Promise<string | null> {
+    const senderNa = naWhenStakerSenderReady(ctx);
+    if (senderNa) {
+        return senderNa;
+    }
     const staker = resolveStaker(ctx);
     const stakingMasterAddr = Address.parse(ctx.manifest.addresses.stakingMaster);
     const master = openStakingMaster(ctx);

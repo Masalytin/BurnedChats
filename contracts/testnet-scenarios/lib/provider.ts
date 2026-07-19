@@ -6,6 +6,7 @@ import { Address } from '@ton/core';
 import { createNetworkProvider, type NetworkProvider, type UIProvider } from '@ton/blueprint';
 import type { Args } from '@ton/blueprint';
 import { applyBlueprintWalletAliases, loadDeployEnv } from '../../scripts/deploy/env';
+import { applyTestActorForScenarios } from './test-actor';
 
 export class SilentUIProvider implements UIProvider {
     write(message: string): void {
@@ -56,6 +57,9 @@ function testnetMnemonicArgs(): Args {
  */
 export async function createTestnetNetworkProvider(contractsRoot: string): Promise<NetworkProvider> {
     loadDeployEnv(contractsRoot);
+    applyBlueprintWalletAliases();
+    // Prefer Actor A as Blueprint signer when TEST_ACTOR_MNEMONIC is set (IMP-TNFS-F06).
+    await applyTestActorForScenarios();
     applyBlueprintWalletAliases();
     // Ensure blueprint argv-based network file selection also sees testnet
     if (!process.argv.includes('--testnet')) {

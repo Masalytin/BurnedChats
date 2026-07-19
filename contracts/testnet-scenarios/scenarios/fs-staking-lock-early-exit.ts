@@ -10,6 +10,7 @@ import {
     lockDurationNaReason,
     MIN_STAKE_NANO,
     naWhenInsufficientBurn,
+    naWhenStakerSenderReady,
     openStakingLock,
     openStakingMaster,
     readStakeAmount,
@@ -21,6 +22,10 @@ import {
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 export async function naWhen(ctx: ScenarioContext): Promise<string | null> {
+    const senderNa = naWhenStakerSenderReady(ctx);
+    if (senderNa) {
+        return senderNa;
+    }
     const lock = openStakingLock(ctx);
     let duration = 0n;
     try {
@@ -48,7 +53,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const staker = resolveStaker(ctx);
     const walletSender = provider.sender().address;
     if (!walletSender || !walletSender.equals(staker)) {
-        throw new Error('Mnemonic wallet must equal stake sender for lock early-exit.');
+        throw new Error(
+            `Blueprint signer must equal Actor A stake sender ${staker.toString()} (set TEST_ACTOR_MNEMONIC).`,
+        );
     }
 
     const stakingMasterAddr = Address.parse(manifest.addresses.stakingMaster);

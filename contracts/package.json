@@ -18,6 +18,7 @@
         "verify:deployment": "npm run testnet:scenarios -- --scenario fs-ops-deployment-fingerprint",
         "verify:fee-split:testnet": "npm run testnet:scenarios -- --scenario fs-jetton-fee-split",
         "testnet:scenarios": "ts-node --transpile-only testnet-scenarios/runner.ts",
+        "fund:test-wallets": "ts-node --transpile-only scripts/fund-test-wallets.ts",
         "sync:fee:testnet": "npm run build && blueprint run syncFeeConfig --testnet --mnemonic",
         "sync:fee:mainnet": "npm run build && blueprint run syncFeeConfig --mainnet --mnemonic",
         "deploy:mainnet": "npm run build && blueprint run deployMainnet",

@@ -26,12 +26,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const { provider, manifest } = ctx;
     const staker = resolveStaker(ctx);
     const walletSender = provider.sender().address;
-    if (!walletSender) {
-        throw new Error('Blueprint mnemonic wallet address unavailable.');
-    }
-    if (!walletSender.equals(staker)) {
+    if (!walletSender || !walletSender.equals(staker)) {
+        // naWhen should have returned NA_TEST_ACTOR_* — safety net only.
         throw new Error(
-            `Mnemonic wallet ${walletSender.toString()} must equal stake sender ${staker.toString()}.`,
+            `Blueprint signer must equal Actor A stake sender ${staker.toString()} (set TEST_ACTOR_MNEMONIC).`,
         );
     }
 

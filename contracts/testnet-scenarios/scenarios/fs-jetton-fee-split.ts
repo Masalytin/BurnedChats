@@ -17,6 +17,11 @@ import {
     readFeeConfigActive,
     readJettonWalletBalance,
 } from '../lib/balances';
+import { resolveFeeTestSender } from '../lib/matrix-checks';
+import {
+    naWhenMnemonicNotTestActor,
+    NA_TEST_ACTOR_UNSET,
+} from '../lib/test-actor';
 import {
     fetchLatestJettonTransferEvent,
     tonapiHost,
@@ -27,19 +32,21 @@ import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 const TRANSFER_TON = toNano('3.5');
 
-function resolveSender(ctx: ScenarioContext): Address {
-    return (
-        parseEnvAddress('FEE_TEST_SENDER', 'BURN_SMOKE_TEST_OWNER') ??
-        Address.parse(ctx.manifest.addresses.airdropHolder!)
-    );
-}
-
 export async function naWhen(ctx: ScenarioContext): Promise<string | null> {
-    const jettonMaster = Address.parse(ctx.manifest.addresses.jettonMaster);
-    const sender = resolveSender(ctx);
-    if (!ctx.manifest.addresses.airdropHolder && !parseEnvAddress('FEE_TEST_SENDER', 'BURN_SMOKE_TEST_OWNER')) {
-        return 'no fee-test sender (set FEE_TEST_SENDER or airdropHolder in manifest)';
+    let sender: Address;
+    try {
+        sender = resolveFeeTestSender(ctx);
+    } catch {
+        return NA_TEST_ACTOR_UNSET;
     }
+    const senderNa = naWhenMnemonicNotTestActor(ctx, sender);
+    if (senderNa) {
+        return senderNa;
+    }
+    if (!parseEnvAddress('FEE_TEST_RECIPIENT')) {
+        return 'FEE_TEST_RECIPIENT not set';
+    }
+    const jettonMaster = Address.parse(ctx.manifest.addresses.jettonMaster);
     const active = await readFeeConfigActive(ctx.provider, jettonMaster, sender);
     if (!active) {
         return `fee config inactive (exit ${EXIT_FEE_CONFIG_INACTIVE}) — run sync:fee:testnet or redeploy`;
@@ -54,7 +61,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
     const checks: CheckResult[] = [];
 
-    const sender = resolveSender(ctx);
+    const sender = resolveFeeTestSender(ctx);
     const recipient = parseEnvAddress('FEE_TEST_RECIPIENT');
     if (!recipient) {
         throw new Error(
@@ -63,12 +70,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     const walletSender = provider.sender().address;
-    if (!walletSender) {
-        throw new Error('Blueprint mnemonic wallet address unavailable.');
-    }
-    if (!walletSender.equals(sender)) {
+    if (!walletSender || !walletSender.equals(sender)) {
         throw new Error(
-            `Mnemonic wallet ${walletSender.toString()} must equal FEE_TEST_SENDER ${sender.toString()} for live transfer.`,
+            `Blueprint signer must equal Actor A FEE_TEST_SENDER ${sender.toString()} (set TEST_ACTOR_MNEMONIC).`,
         );
     }
 

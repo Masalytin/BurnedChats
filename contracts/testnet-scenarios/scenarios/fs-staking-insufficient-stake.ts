@@ -26,7 +26,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const staker = resolveStaker(ctx);
     const walletSender = provider.sender().address;
     if (!walletSender || !walletSender.equals(staker)) {
-        throw new Error('Mnemonic wallet must equal stake sender for insufficient-stake.');
+        throw new Error(
+            `Blueprint signer must equal Actor A stake sender ${staker.toString()} (set TEST_ACTOR_MNEMONIC).`,
+        );
     }
 
     const stakingMaster = Address.parse(manifest.addresses.stakingMaster);

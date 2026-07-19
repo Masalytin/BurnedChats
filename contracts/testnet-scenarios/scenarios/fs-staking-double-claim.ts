@@ -8,6 +8,7 @@ import { readJettonWalletBalance } from '../lib/balances';
 import {
     FLEXIBLE_TIER,
     NA_ZERO_PENDING,
+    naWhenStakerSenderReady,
     openStakingMaster,
     readPendingReward,
     resolveStaker,
@@ -21,6 +22,10 @@ import type { CheckResult, Scenario, ScenarioContext } from '../types';
  * the next attempt pays 0.
  */
 export async function naWhen(ctx: ScenarioContext): Promise<string | null> {
+    const senderNa = naWhenStakerSenderReady(ctx);
+    if (senderNa) {
+        return senderNa;
+    }
     try {
         resolveStaker(ctx);
         return null;
@@ -34,7 +39,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const staker = resolveStaker(ctx);
     const walletSender = provider.sender().address;
     if (!walletSender || !walletSender.equals(staker)) {
-        throw new Error('Mnemonic wallet must equal stake sender for double-claim.');
+        throw new Error(
+            `Blueprint signer must equal Actor A stake sender ${staker.toString()} (set TEST_ACTOR_MNEMONIC).`,
+        );
     }
 
     const stakingMasterAddr = Address.parse(manifest.addresses.stakingMaster);

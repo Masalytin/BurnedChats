@@ -13,6 +13,7 @@ import {
     NANO_PER_BURN,
     parseEnvAddress,
 } from './balances';
+import { resolveTestActorAddress } from './test-actor';
 import type { CheckResult, ScenarioContext } from '../types';
 
 /** Full-stack fee basis points (matches BurnJettonMaster init / TOKENOMICS). */
@@ -50,20 +51,10 @@ export function totalFeeOf(amount: bigint): bigint {
     return burnOf(amount) + stakingOf(amount) + treasuryOf(amount);
 }
 
+/** Fee sender = Actor A (injected from TEST_ACTOR_MNEMONIC) or airdrop fallback. */
 export function resolveFeeTestSender(ctx: ScenarioContext): Address {
-    const fromEnv = parseEnvAddress('FEE_TEST_SENDER', 'BURN_SMOKE_TEST_OWNER');
-    if (fromEnv) {
-        return fromEnv;
-    }
-    const airdrop = ctx.manifest.addresses.airdropHolder;
-    if (!airdrop) {
-        throw new Error(
-            'no fee-test sender (set FEE_TEST_SENDER or airdropHolder in manifest)',
-        );
-    }
-    return Address.parse(airdrop);
+    return resolveTestActorAddress(ctx);
 }
-
 export function requireFeeTestRecipient(): Address {
     const recipient = parseEnvAddress('FEE_TEST_RECIPIENT');
     if (!recipient) {
