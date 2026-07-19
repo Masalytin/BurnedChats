@@ -1,6 +1,19 @@
 # Deployment manifests
 
-`testnet.json` / `mainnet.json` are written by `contracts/scripts/deploy.ts` after a successful deploy.
+| File | Role |
+|------|------|
+| `testnet.json` | **Shared tip** — canonical testnet addresses for Mini App / backend / frontend. Written by `deploy:burn:testnet` (+ `syncAppConfigs`). |
+| `testnet-lab.json` | **Lab tip** — separate stack for destructive scenarios and short-timer governance. Tracked; **never** synced into app env. |
+| `mainnet.json` | Mainnet tip (production). |
+
+`testnet.json` / `mainnet.json` are written by `contracts/scripts/deploy.ts` after a successful deploy. Lab is produced via backup→deploy→copy→restore (see private `RUNBOOK-redeploy.md`); the live runner selects it with:
+
+```bash
+npm run testnet:scenarios -- --manifest lab …
+# default --manifest shared → testnet.json
+```
+
+**Do not point Mini App / `syncAppConfigs` at lab.** App configs always follow `testnet.json`.
 
 ```bash
 cd contracts

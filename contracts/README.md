@@ -69,7 +69,9 @@ need a separate manual build before `npm run deploy:burn:testnet` and siblings.
 ```bash
 npm run deploy:burn:testnet   # full BURN stack — WALLET_MNEMONIC in .env.testnet
 npm run deploy:burn:mainnet   # mainnet — use .env.mainnet, never commit secrets
-npm run verify:deployment     # post-deploy checks (testnet)
+npm run verify:deployment     # alias → fs-ops-deployment-fingerprint (see Live testnet scenarios)
+npm run verify:fee-split:testnet  # alias → fs-jetton-fee-split (0.5/0.3/0.2)
+npm run testnet:scenarios     # full-stack live scenario CLI
 npm run deploy:testnet        # legacy BurnPlaceholder only (interactive wallet picker)
 npm run deploy:mainnet        # legacy BurnPlaceholder only
 npm run verify                # verifier instructions + env check
@@ -91,6 +93,44 @@ Interactive runner (pick any script under `scripts/`):
 npm run build   # required if .tact changed or build/ absent
 npx blueprint run
 ```
+
+## Live testnet scenarios (`testnet:scenarios`)
+
+Opt-in full-stack live harness under `testnet-scenarios/` (fee **0.5 / 0.3 / 0.2**, staking, treasury, governance, vesting). Not run in CI. Requires `.env.testnet` + funded mnemonic. Private ops runbook: `BurnedChats-dev` → `docs/improvements/full-stack-testnet-scenarios/RUNBOOK.md`.
+
+```bash
+npm run testnet:scenarios -- --list
+npm run testnet:scenarios -- --scenario fs-jetton-fee-split
+npm run testnet:scenarios -- --tag staking
+npm run testnet:scenarios -- --all              # never includes destructive
+npm run testnet:scenarios -- --failed-only
+npm run testnet:scenarios -- --force
+npm run testnet:scenarios -- --manifest lab --tag destructive
+```
+
+| Flag | Notes |
+|------|--------|
+| `--list` / `--scenario` / `--tag` / `--all` / `--failed-only` / `--force` | Filters + skip control |
+| `--manifest shared\|lab` | `deployments/testnet.json` (default) vs `testnet-lab.json` |
+| Destructive | **Excluded from `--all`**. Use `--tag destructive` or `--scenario <id>` on **lab** only |
+
+### Thin `verify:*` aliases
+
+Muscle-memory wrappers (logic lives in scenarios; Q6=A):
+
+| Script | Scenario |
+|--------|----------|
+| `npm run verify:deployment` | `fs-ops-deployment-fingerprint` |
+| `npm run verify:fee-split:testnet` | `fs-jetton-fee-split` |
+
+### Lab vs shared (hard rule)
+
+| Tip | File | Mini App / `syncAppConfigs` |
+|-----|------|-------------------------------|
+| **Shared** | `deployments/testnet.json` | **Always** — backend/frontend testnet env |
+| **Lab** | `deployments/testnet-lab.json` | **Never** — destructive + short-timer gov only |
+
+Do **not** point the Mini App at lab. Details: [`deployments/README.md`](deployments/README.md).
 
 ## CI
 
