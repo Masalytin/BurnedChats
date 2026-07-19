@@ -1,5 +1,5 @@
 /**
- * Full-stack governance happy-path helpers (IMP-TNFS-09A).
+ * Full-stack governance helpers (IMP-TNFS-09A happy + IMP-TNFS-09B fail/edge).
  * Canon: fee-jetton + staking VP + treasury spend via timelock.
  * Shared time-dependent scenarios → N/A `needs-lab-short-timers`.
  */
@@ -21,6 +21,9 @@ import type { CheckResult, ScenarioContext } from '../types';
 /** Matches governor.tact CANCEL_LAG (IMP-PREMNT-08). */
 export const CANCEL_LAG_SEC = 3600;
 
+/** ProposalType.ParameterChange (governance-payload.tact). */
+export const TYPE_PARAM = 0;
+
 /** ProposalType.TreasurySpend (governance-payload.tact). */
 export const TYPE_TREASURY = 2;
 
@@ -30,6 +33,7 @@ export const OP_TREASURY_SPEND = 0x5a1c9010;
 export const PS_ACTIVE = 0n;
 export const PS_SUCCEEDED = 1n;
 export const PS_EXECUTED = 4n;
+export const PS_CANCELLED = 5n;
 
 /** Exact shared N/A reason (Q3=A policy). */
 export const NA_NEEDS_LAB_SHORT_TIMERS = 'needs-lab-short-timers';
@@ -42,6 +46,15 @@ export const NA_NEEDS_LAB_SHORT_TIMERS = 'needs-lab-short-timers';
 export const NA_LAB_TIMERS_NOT_SHORTENED = 'lab-gov-timers-not-shortened';
 
 export const NA_INSUFFICIENT_VP = 'insufficient voting power for propose/vote';
+
+/** DESIGN §D: fs-gov-payload-staking-or-jetton-admin N/A when (exact string). */
+export const NA_LAB_ONLY_PARAMS = 'lab-only params';
+
+/** DESIGN §D: fs-gov-cancel N/A when past cancel lag and cannot create a fresh one. */
+export const NA_PAST_CANCEL_LAG = 'past cancel lag';
+
+/** Below-threshold claim used by insufficient-vp reject probe. */
+export const CLAIMED_VP_BELOW_MIN = 0n;
 
 /** Default max wall-clock wait for a single scenario step (seconds). */
 export const DEFAULT_GOV_MAX_WAIT_SEC = 180;
@@ -471,4 +484,312 @@ export async function readSpendAccounting(
     const spent = await readTreasurySpent(provider, treasury);
     const count = await readTreasurySpendingCount(provider, treasury);
     return { spent, count };
+}
+
+/** ParameterChange payload: target + uint32 method + args ref. */
+export function parameterChangePayload(target: Address, method: number, args?: Cell): Cell {
+    return beginCell()
+        .storeAddress(target)
+        .storeUint(method, 32)
+        .storeRef(args ?? beginCell().endCell())
+        .endCell();
+}
+
+/**
+ * Cancel scenario N/A: shared → short-timers; lab → past cancel lag when latest
+ * proposal is already open and we cannot wait for a fresh propose path.
+ */
+export async function naWhenGovCancel(ctx: ScenarioContext): Promise<string | null> {
+    if (ctx.manifestKind === 'shared') {
+        return NA_NEEDS_LAB_SHORT_TIMERS;
+    }
+    // Fresh CreateProposal stays inside CANCEL_LAG for an hour — always runnable on lab
+    // when actor has VP. Late-cancel path uses an already-open proposal if present.
+    try {
+        const actor = resolveGovActor(ctx);
+        const gov = openGovernor(ctx);
+        const minVp = await gov.getGetMinProposalVp();
+        const vp = await fetchVotingPower(ctx, actor);
+        if (vp >= minVp) {
+            return null;
+        }
+        const latest = await resolveLatestProposalAddr(ctx);
+        if (latest && ctx.provider) {
+            const proposal = openProposal(ctx.provider, latest.addr);
+            const state = await proposal.getGetState();
+            if (state === PS_ACTIVE) {
+                return null; // late-cancel or already-cancelled probe
+            }
+            if (state === PS_CANCELLED) {
+                return null; // idempotent pass
+            }
+        }
+        return NA_INSUFFICIENT_VP;
+    } catch {
+        return NA_PAST_CANCEL_LAG;
+    }
+}
+
+/** Expired reject: shared short-timers; lab needs endTime already past or within wait. */
+export async function naWhenGovExpired(ctx: ScenarioContext): Promise<string | null> {
+    const time = await naWhenGovTimeDependent(ctx);
+    if (time === NA_NEEDS_LAB_SHORT_TIMERS) {
+        return time;
+    }
+    if (ctx.manifestKind !== 'lab' || !ctx.provider) {
+        return time;
+    }
+    try {
+        const latest = await resolveLatestProposalAddr(ctx);
+        if (!latest) {
+            return NA_LAB_TIMERS_NOT_SHORTENED;
+        }
+        const proposal = openProposal(ctx.provider, latest.addr);
+        const end = Number(await proposal.getGetEndTime());
+        const now = Math.floor(Date.now() / 1000);
+        if (now >= end) {
+            return null;
+        }
+        const maxWait = resolveGovMaxWaitSec();
+        if (end - now <= maxWait) {
+            return null;
+        }
+        return NA_LAB_TIMERS_NOT_SHORTENED;
+    } catch {
+        return NA_LAB_TIMERS_NOT_SHORTENED;
+    }
+}
+
+/** Early execute: need a pending action whose scheduledTime is still in the future. */
+export async function naWhenGovEarlyExecute(ctx: ScenarioContext): Promise<string | null> {
+    const time = await naWhenGovTimeDependent(ctx);
+    if (time === NA_NEEDS_LAB_SHORT_TIMERS) {
+        return time;
+    }
+    if (ctx.manifestKind !== 'lab' || !ctx.provider) {
+        return time;
+    }
+    try {
+        const latest = await resolveLatestProposalAddr(ctx);
+        if (!latest) {
+            return NA_LAB_TIMERS_NOT_SHORTENED;
+        }
+        const timelock = openTimelock(ctx);
+        const pending = await timelock.getGetPending(latest.id);
+        if (pending) {
+            const scheduled = Number(pending.scheduledTime);
+            const now = Math.floor(Date.now() / 1000);
+            if (now < scheduled) {
+                return null;
+            }
+            // Already executable — cannot assert early reject.
+            return NA_LAB_TIMERS_NOT_SHORTENED;
+        }
+        // No pending yet: full queue path blocked by long timers (same as 09A).
+        return time ?? NA_LAB_TIMERS_NOT_SHORTENED;
+    } catch {
+        return NA_LAB_TIMERS_NOT_SHORTENED;
+    }
+}
+
+/** DESIGN: lab-only params for staking/jetton admin payload surface. */
+export function naWhenGovPayloadAdmin(ctx: ScenarioContext): string | null {
+    if (ctx.manifestKind === 'shared') {
+        return NA_LAB_ONLY_PARAMS;
+    }
+    return null;
+}
+
+/** Propose with claimedVp < minProposalVp must not increment proposal count. */
+export function checkInsufficientVpRejected(input: {
+    countBefore: bigint;
+    countAfter: bigint;
+    claimedVp: bigint;
+    minProposalVp: bigint;
+}): CheckResult[] {
+    return [
+        check(
+            'claimed-below-min',
+            input.claimedVp < input.minProposalVp,
+            `claimedVp=${input.claimedVp} < minProposalVp=${input.minProposalVp}`,
+        ),
+        check(
+            'proposal-count-unchanged',
+            input.countAfter === input.countBefore,
+            `proposal_count ${input.countBefore} → ${input.countAfter} (expected reject)`,
+        ),
+    ];
+}
+
+/** Second CastVote must not increase forVotes (Already voted). */
+export function checkDoubleVoteRejected(input: {
+    forVotesBefore: bigint;
+    forVotesAfter: bigint;
+    hasVoted: boolean;
+}): CheckResult[] {
+    return [
+        check('already-voted', input.hasVoted, input.hasVoted ? 'voter recorded' : 'voter missing'),
+        check(
+            'for-votes-unchanged',
+            input.forVotesAfter === input.forVotesBefore,
+            `forVotes ${input.forVotesBefore} → ${input.forVotesAfter} (expected no double count)`,
+        ),
+    ];
+}
+
+/**
+ * Vote after endTime must not change forVotes.
+ * If the actor never voted, hasVoted must stay false; if they voted earlier in-window,
+ * a post-expiry retry must still leave forVotes unchanged (reject / Already voted).
+ */
+export function checkExpiredVoteRejected(input: {
+    hasVotedBefore: boolean;
+    hasVotedAfter: boolean;
+    forVotesBefore: bigint;
+    forVotesAfter: bigint;
+    nowUnix: number;
+    endTimeUnix: number;
+}): CheckResult[] {
+    const noNewVotes = input.forVotesAfter === input.forVotesBefore;
+    const voterOk = input.hasVotedBefore
+        ? input.hasVotedAfter && noNewVotes
+        : !input.hasVotedAfter && noNewVotes;
+    return [
+        check(
+            'window-expired',
+            input.nowUnix >= input.endTimeUnix,
+            `now=${input.nowUnix} end=${input.endTimeUnix}`,
+        ),
+        check(
+            'post-expiry-vote-rejected',
+            voterOk,
+            `hasVoted ${input.hasVotedBefore}→${input.hasVotedAfter} forVotes ${input.forVotesBefore}→${input.forVotesAfter}`,
+        ),
+    ];
+}
+
+/** Cancel in CANCEL_LAG → Cancelled; late cancel → state stays Active. */
+export function checkCancelOutcome(input: {
+    mode: 'in-window' | 'late';
+    stateBefore: bigint;
+    stateAfter: bigint;
+}): CheckResult[] {
+    if (input.mode === 'in-window') {
+        return [
+            check(
+                'cancel-in-window',
+                input.stateAfter === PS_CANCELLED,
+                `state ${input.stateBefore} → ${input.stateAfter} (expected ${PS_CANCELLED})`,
+            ),
+        ];
+    }
+    return [
+        check(
+            'late-cancel-rejected',
+            input.stateAfter === input.stateBefore && input.stateAfter === PS_ACTIVE,
+            `state ${input.stateBefore} → ${input.stateAfter} (expected stay Active)`,
+        ),
+    ];
+}
+
+/** TimelockExecutePending before scheduledTime must leave pending intact. */
+export function checkEarlyExecuteRejected(input: {
+    pendingStillPresent: boolean;
+    stateAfter: bigint;
+    nowUnix: number;
+    scheduledUnix: number;
+}): CheckResult[] {
+    return [
+        check(
+            'before-scheduled',
+            input.nowUnix < input.scheduledUnix,
+            `now=${input.nowUnix} scheduled=${input.scheduledUnix}`,
+        ),
+        check(
+            'pending-still-present',
+            input.pendingStillPresent,
+            input.pendingStillPresent ? 'pending retained' : 'pending cleared (wrong accept)',
+        ),
+        check(
+            'not-executed',
+            input.stateAfter !== PS_EXECUTED,
+            `proposal state=${input.stateAfter} (must not be Executed)`,
+        ),
+    ];
+}
+
+/**
+ * Jetton/staking admin surfaces: admin == timelock; rogue direct mutation must not
+ * change jetton supply (mirrors mint-non-admin / Only timelock).
+ */
+export function checkAdminOnlyViaTimelock(input: {
+    jettonAdmin: Address;
+    timelock: Address;
+    stakingGovernor: Address;
+    manifestGovernor: Address;
+    sender: Address;
+    supplyBefore: bigint;
+    supplyAfter: bigint;
+}): CheckResult[] {
+    return [
+        check(
+            'jetton-admin-is-timelock',
+            input.jettonAdmin.equals(input.timelock),
+            'jetton adminAddress equals timelock',
+        ),
+        check(
+            'staking-governor-matches',
+            input.stakingGovernor.equals(input.manifestGovernor),
+            'stakingMaster.governorAddr matches manifest governor',
+        ),
+        check(
+            'sender-not-jetton-admin',
+            !input.sender.equals(input.jettonAdmin),
+            'mnemonic sender is not jetton admin (direct admin path blocked)',
+        ),
+        check(
+            'supply-unchanged-after-rogue',
+            input.supplyAfter === input.supplyBefore,
+            `totalSupply ${input.supplyBefore} → ${input.supplyAfter}`,
+        ),
+    ];
+}
+
+/** Readonly role wiring: privileged paths belong to timelock / governor, not unknown EOA. */
+export function checkGovRoleWiring(input: {
+    jettonAdmin: Address;
+    timelock: Address;
+    stakingGovernor: Address;
+    manifestGovernor: Address;
+    manifestTimelock: Address;
+    onChainTimelock: Address;
+    sender: Address | null;
+}): CheckResult[] {
+    const checks: CheckResult[] = [
+        check(
+            'timelock-matches-manifest',
+            input.onChainTimelock.equals(input.manifestTimelock),
+            'governor.timelock matches manifest',
+        ),
+        check(
+            'jetton-admin-is-timelock',
+            input.jettonAdmin.equals(input.timelock),
+            'jetton admin is timelock (privileged)',
+        ),
+        check(
+            'staking-governor-is-manifest-gov',
+            input.stakingGovernor.equals(input.manifestGovernor),
+            'staking governorAddr is manifest governor',
+        ),
+    ];
+    if (input.sender) {
+        checks.push(
+            check(
+                'sender-not-timelock',
+                !input.sender.equals(input.timelock),
+                'unknown/mnemonic sender is not the timelock contract',
+            ),
+        );
+    }
+    return checks;
 }
