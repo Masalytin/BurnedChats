@@ -61,6 +61,13 @@ Metadata HTTP check still runs unless verify is pointed at a deployment without 
 On a fresh redeploy, allow up to ~15 s for the tonapi retry loop; persistent lag
 after that is soft N/A when on-chain checks are green (see above).
 
+**Human explorer (ops):** prefer **[testnet.tonscan.org](https://testnet.tonscan.org)** /
+[tonscan.org](https://tonscan.org) for manual address/tx checks. Scenario report
+links use the same hosts (`tonscanTxUrl` / `tonscanAddressUrl` in
+`testnet-scenarios/lib/tonapi.ts`). Tonviewer is optional/legacy only — do not
+treat it as primary. This does **not** change the TonAPI JSON host
+(`testnet.tonapi.io` / `tonapi.io`) used for index/event fetch above.
+
 ### Jetton metadata (`JETTON_METADATA_URI`)
 
 Deploy embeds a TEP-64 off-chain URI into `BurnJettonMaster` content. If `JETTON_METADATA_URI`

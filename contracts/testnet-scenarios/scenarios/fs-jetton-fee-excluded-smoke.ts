@@ -10,7 +10,7 @@ import { parseEnvAddress, readJettonWalletBalance, TRANSFER_AMOUNT } from '../li
 import {
     fetchLatestAccountEvent,
     tonapiHost,
-    tonviewerTxUrl,
+    tonscanTxUrl,
     verifyExcludedEventStructure,
 } from '../lib/tonapi';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
@@ -45,9 +45,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     checks.push(...historical);
     checks.push(
         check(
-            'excluded-tonviewer',
+            'excluded-tonscan',
             true,
-            `excluded tx: ${tonviewerTxUrl('testnet', excludedTxEnv)}`,
+            `excluded tx: ${tonscanTxUrl('testnet', excludedTxEnv)}`,
         ),
     );
 
@@ -92,9 +92,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
                 checks.push(...liveExcluded);
                 checks.push(
                     check(
-                        'live-excluded-tonviewer',
+                        'live-excluded-tonscan',
                         true,
-                        `live excluded tx: ${tonviewerTxUrl('testnet', latest.event_id)}`,
+                        `live excluded tx: ${tonscanTxUrl('testnet', latest.event_id)}`,
                     ),
                 );
             }

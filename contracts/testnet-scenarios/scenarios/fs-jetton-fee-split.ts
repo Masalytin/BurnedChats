@@ -25,7 +25,7 @@ import {
 import {
     fetchLatestJettonTransferEvent,
     tonapiHost,
-    tonviewerTxUrl,
+    tonscanTxUrl,
     verifyFeeSplitEventStructure,
 } from '../lib/tonapi';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
@@ -156,9 +156,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     checks.push(...eventChecks);
     checks.push(
         check(
-            'tonviewer-url',
+            'tonscan-url',
             true,
-            `fee-split tx: ${tonviewerTxUrl('testnet', feeSplitEventId)}`,
+            `fee-split tx: ${tonscanTxUrl('testnet', feeSplitEventId)}`,
         ),
     );
 

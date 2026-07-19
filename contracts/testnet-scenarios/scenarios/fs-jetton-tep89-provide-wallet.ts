@@ -20,7 +20,7 @@ import {
     sleep,
     tonapiFetchJson,
     tonapiHost,
-    tonviewerTxUrl,
+    tonscanTxUrl,
     type TonapiOutMsg,
 } from '../lib/tonapi';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
@@ -146,9 +146,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     if (take.txHash) {
         checks.push(
             check(
-                'tep89-tonviewer',
+                'tep89-tonscan',
                 true,
-                `TakeWalletAddress tx: ${tonviewerTxUrl('testnet', take.txHash)}`,
+                `TakeWalletAddress tx: ${tonscanTxUrl('testnet', take.txHash)}`,
             ),
         );
     }

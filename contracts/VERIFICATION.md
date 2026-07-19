@@ -1,8 +1,8 @@
 # Contract Source Verification (TON)
 
-> How to publish and verify the BURN contract sources so explorers (tonviewer /
-> tonscan) and wallets show a **"source verified"** badge and let anyone read the
-> exact code running on-chain.
+> How to publish and verify the BURN contract sources so explorers (**tonscan**
+> preferred; tonviewer optional/legacy) and wallets show a **"source verified"**
+> badge and let anyone read the exact code running on-chain.
 
 ## Why verify
 
@@ -120,9 +120,11 @@ Then, per contract:
 
 ## Confirm it worked
 
-- Open the address on **[testnet.tonviewer.com](https://testnet.tonviewer.com)** (or
-  `tonviewer.com` for mainnet) → the contract should show a **verified / source
+- Open the address on **[testnet.tonscan.org](https://testnet.tonscan.org)** (or
+  `tonscan.org` for mainnet) → the contract should show a **verified / source
   available** indicator and let you browse the code.
+  - Legacy/optional: [testnet.tonviewer.com](https://testnet.tonviewer.com) /
+    `tonviewer.com` — not required for ops; prefer tonscan when explorers disagree.
 - Cross-check the on-chain `code hash` equals the hash of your local `build/` output.
 
 ## Mainnet notes

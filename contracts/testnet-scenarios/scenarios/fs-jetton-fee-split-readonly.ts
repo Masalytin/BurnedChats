@@ -3,7 +3,7 @@
  */
 import { FEE_SPLIT_EXPECTED } from '../lib/balances';
 import { check } from '../lib/checks';
-import { tonapiHost, tonviewerTxUrl, verifyFeeSplitEventStructure } from '../lib/tonapi';
+import { tonapiHost, tonscanTxUrl, verifyFeeSplitEventStructure } from '../lib/tonapi';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 export async function naWhen(_ctx: ScenarioContext): Promise<string | null> {
@@ -20,9 +20,9 @@ export async function runChecks(_ctx: ScenarioContext): Promise<CheckResult[]> {
     const checks = await verifyFeeSplitEventStructure(host, feeSplitEventId, FEE_SPLIT_EXPECTED);
     checks.push(
         check(
-            'tonviewer-url',
+            'tonscan-url',
             true,
-            `fee-split readonly tx: ${tonviewerTxUrl('testnet', feeSplitEventId)}`,
+            `fee-split readonly tx: ${tonscanTxUrl('testnet', feeSplitEventId)}`,
         ),
     );
     return checks;

@@ -45,9 +45,16 @@ export function tonapiHost(network: 'testnet' | 'mainnet'): string {
     return network === 'testnet' ? 'https://testnet.tonapi.io' : 'https://tonapi.io';
 }
 
-export function tonviewerTxUrl(network: 'testnet' | 'mainnet', hash: string): string {
-    const host = network === 'testnet' ? 'https://testnet.tonviewer.com' : 'https://tonviewer.com';
-    return `${host}/transaction/${hash}`;
+/** Human explorer TX URL (ops reports). Prefer tonscan; TonAPI host is separate (`tonapiHost`). */
+export function tonscanTxUrl(network: 'testnet' | 'mainnet', hash: string): string {
+    const host = network === 'testnet' ? 'https://testnet.tonscan.org' : 'https://tonscan.org';
+    return `${host}/tx/${hash}`;
+}
+
+/** Human explorer address URL for manual ops checks. */
+export function tonscanAddressUrl(network: 'testnet' | 'mainnet', address: string): string {
+    const host = network === 'testnet' ? 'https://testnet.tonscan.org' : 'https://tonscan.org';
+    return `${host}/address/${address}`;
 }
 
 export async function tonapiFetchJson<T>(url: string): Promise<T> {
