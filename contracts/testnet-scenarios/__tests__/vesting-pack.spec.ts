@@ -6,9 +6,11 @@ import {
     DESTRUCTIVE_VESTING_IDS,
     NA_NO_VESTING,
     NA_REVOKE_DISABLED,
+    NA_REVOKE_NEEDS_REDEPLOY,
     NA_SHARED_DESTRUCTIVE,
     TIMELOCK_TARGET_GAS,
     VESTING_RELEASE_TON,
+    VESTING_REVOKE_EXECUTE_TON,
     VESTING_SCENARIO_IDS,
     checkBeforeCliffRejected,
     checkLinearClaim,
@@ -212,11 +214,14 @@ describe('IMP-TNFS-10 vesting helpers — vested_amount / N/A policy', () => {
         expect(NA_SHARED_DESTRUCTIVE.length).toBeGreaterThan(10);
         expect(NA_NO_VESTING.length).toBeGreaterThan(10);
         expect(NA_REVOKE_DISABLED.length).toBeGreaterThan(10);
+        expect(NA_REVOKE_NEEDS_REDEPLOY.length).toBeGreaterThan(10);
     });
 
-    it('revoke path disabled while Timelock gas < Vesting.ReleaseTon', () => {
+    it('IMP-TNFS-F03: revoke path enabled via Timelock relay (not fixed TIMELOCK_TARGET_GAS)', () => {
+        // Ordinary execute budget is still below ReleaseTon — product path uses relay.
         expect(TIMELOCK_TARGET_GAS).toBeLessThan(VESTING_RELEASE_TON);
-        expect(isRevokePathDisabled()).toBe(true);
+        expect(VESTING_REVOKE_EXECUTE_TON).toBeGreaterThanOrEqual(VESTING_RELEASE_TON);
+        expect(isRevokePathDisabled()).toBe(false);
     });
 
     it('lab tip artifact exists with vesting addresses (destructive pack prerequisite)', () => {

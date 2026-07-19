@@ -1,6 +1,7 @@
 /**
  * fs-vesting-emergency-revoke — VestEmergencyRevoke via Timelock (authorized path).
- * DESTRUCTIVE. Excluded from --all. Shared tip always N/A; N/A if revoke path disabled / no vesting.
+ * DESTRUCTIVE. Excluded from --all. Shared tip always N/A; N/A if no vesting / nothing to revoke.
+ * Requires lab Timelock tip with VestEmergencyRevoke relay (IMP-TNFS-F03).
  */
 import {
     checkEmergencyRevoke,
@@ -73,7 +74,7 @@ export const scenario: Scenario = {
     title: 'Vesting emergency revoke (lab)',
     description:
         'DESTRUCTIVE (lab): VestEmergencyRevoke via Timelock authorized path; remaining locked moved to treasury. ' +
-        'Excluded from --all. Shared tip N/A; N/A if revoke path disabled / no vesting.',
+        'Excluded from --all. Shared tip N/A; needs F03 Timelock relay tip on lab for live pass.',
     tags: ['vesting', 'admin', 'destructive'],
     needsLiveTx: true,
     destructive: true,

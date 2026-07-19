@@ -11,15 +11,20 @@ const TIMELOCK_MIN_DELAY_SEC: Int = 86400;
 /// deploy) than a plain parameter call, so they get a dedicated relay path below.
 const TREASURY_SPEND_METHOD: Int = 0x5a1c9010;
 
+/// Opcode of `Vesting.VestEmergencyRevoke` (vesting.tact). Needs ≥ Vesting.ReleaseTon
+/// (3.5 TON) for the outbound excluded jetton transfer — same relay pattern as treasury
+/// spend so default TIMELOCK_TARGET_GAS is not raised for every target (IMP-TNFS-F03).
+const VEST_EMERGENCY_REVOKE_METHOD: Int = 0x5a060002;
+
 /// Fixed budget for `ProposalMarkExecuted` back to the Proposal contract.
 const TIMELOCK_MARK_EXECUTED_GAS: Int = ton("0.04");
 
-/// Default attach for non-treasury target actions (parameter/emergency/feature),
-/// preserved from the original behaviour.
+/// Default attach for ordinary target actions (parameter/feature/other emergency),
+/// preserved from the original behaviour. Not used for treasury-spend or vesting revoke.
 const TIMELOCK_TARGET_GAS: Int = ton("0.12");
 
 /// TON kept on the Timelock when relaying the executor-provided budget to a
-/// treasury-spend target (covers Timelock storage rent for the pending map).
+/// high-value target (covers Timelock storage rent for the pending map).
 const TIMELOCK_STORAGE_RESERVE: Int = ton("0.05");
 
 struct PendingAction {
@@ -82,12 +87,13 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
             body: ProposalMarkExecuted { queryId: msg.queryId }.toCell(),
         });
 
-        if (action.method == TREASURY_SPEND_METHOD) {
-            /// Treasury-spend cannot run on a fixed 0.12 TON: it must fund the
-            /// downstream jetton-wallet excluded gate (~0.65 TON) plus a recipient
-            /// wallet deploy. Relay the executor-provided budget end-to-end instead
-            /// of paying from Timelock's (storage-only) balance. `SendIgnoreErrors`
-            /// is intentionally dropped here so a failed dispatch is not masked.
+        if (action.method == TREASURY_SPEND_METHOD || action.method == VEST_EMERGENCY_REVOKE_METHOD) {
+            /// High-value targets cannot run on a fixed 0.12 TON:
+            /// - TreasurySpend: jetton-wallet excluded gate (~0.65 TON) + recipient deploy
+            /// - VestEmergencyRevoke: Vesting.ReleaseTon (3.5 TON) for excluded transfer
+            /// Relay the executor-provided budget end-to-end instead of paying from
+            /// Timelock's (storage-only) balance. `SendIgnoreErrors` is intentionally
+            /// dropped here so a failed dispatch is not masked.
             nativeReserve(TIMELOCK_STORAGE_RESERVE, ReserveAtMost);
             message(MessageParameters {
                 to: action.target,

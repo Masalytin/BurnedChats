@@ -43,13 +43,24 @@ export class Timelock extends TimelockBase {
         return this.send(provider, via, { value: toNano('0.06') }, msg);
     }
 
-    async sendExecutePending(provider: ContractProvider, via: Sender, proposalId: bigint, queryId: bigint = 0n) {
+    /**
+     * @param value Optional attach. Default 0.25 TON covers ordinary TIMELOCK_TARGET_GAS
+     * executes. For treasury-spend / VestEmergencyRevoke relay paths, pass a budget that
+     * funds the downstream gate (e.g. ≥ Vesting.ReleaseTon + mark-executed + storage reserve).
+     */
+    async sendExecutePending(
+        provider: ContractProvider,
+        via: Sender,
+        proposalId: bigint,
+        queryId: bigint = 0n,
+        value: bigint = toNano('0.25'),
+    ) {
         const msg: TimelockExecutePending = {
             $$type: 'TimelockExecutePending',
             queryId,
             proposalId,
         };
-        return this.send(provider, via, { value: toNano('0.25') }, msg);
+        return this.send(provider, via, { value }, msg);
     }
 
     async sendCancel(provider: ContractProvider, via: Sender, proposalId: bigint, queryId: bigint = 0n) {

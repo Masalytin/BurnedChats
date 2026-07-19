@@ -23,8 +23,16 @@ export const OP_VEST_EMERGENCY_REVOKE = 0x5a060002n;
 
 /** Matches Vesting.ReleaseTon — outbound JettonTransfer attach. */
 export const VESTING_RELEASE_TON = toNano('3.5');
-/** Known Timelock.TIMELOCK_TARGET_GAS (governance/timelock.tact). */
+/**
+ * Known Timelock.TIMELOCK_TARGET_GAS for ordinary (non-relay) executes.
+ * VestEmergencyRevoke uses the Timelock value-forward relay (IMP-TNFS-F03), not this constant.
+ */
 export const TIMELOCK_TARGET_GAS = toNano('0.12');
+/**
+ * Executor attach for TimelockExecutePending when method is VestEmergencyRevoke.
+ * Funds mark-executed (0.04) + storage reserve (0.05) + ReleaseTon (3.5) + compute margin.
+ */
+export const VESTING_REVOKE_EXECUTE_TON = toNano('3.8');
 
 /** Tiny attach for reject probes (bounce before jetton transfer). */
 export const REJECT_PROBE_TON = toNano('0.2');
@@ -32,8 +40,15 @@ export const REJECT_PROBE_TON = toNano('0.2');
 export const NA_NO_VESTING = 'no vesting in manifest';
 export const NA_SHARED_DESTRUCTIVE =
     'destructive vesting emergency-revoke must not run against shared tip — use --manifest lab (or explicit --tag destructive on lab)';
+/**
+ * Historical N/A string (IMP-TNFS-10). Retired for tips with Timelock revoke relay (IMP-TNFS-F03).
+ * Kept for report catalog / old JSON compatibility — harness no longer returns it on new tip.
+ */
 export const NA_REVOKE_DISABLED =
     'revoke path disabled (Timelock TIMELOCK_TARGET_GAS < Vesting.ReleaseTon — cannot fund VestEmergencyRevoke via authorized Timelock execute)';
+/** Lab tip still running pre-F03 Timelock code (no VestEmergencyRevoke relay). */
+export const NA_REVOKE_NEEDS_REDEPLOY =
+    'vesting emergency-revoke requires lab tip with Timelock VestEmergencyRevoke relay (IMP-TNFS-F03) — redeploy lab Timelock before live revoke';
 export const NA_BEFORE_CLIFF_OR_FULLY_CLAIMED = 'before cliff / fully claimed';
 export const NA_NOTHING_TO_REVOKE = 'nothing to revoke (remaining locked = 0)';
 export const NA_NO_BEFORE_CLIFF_VAULT = 'no vesting vault still before cliff';
@@ -161,9 +176,13 @@ export function naWhenSharedDestructive(ctx: ScenarioContext): string | null {
     return null;
 }
 
-/** True when Timelock cannot fund Vesting.ReleaseTon on execute. */
+/**
+ * Pre-F03 gate: fixed TIMELOCK_TARGET_GAS could not fund ReleaseTon.
+ * Post-F03 Timelock relays executor value for VestEmergencyRevoke — path is enabled
+ * whenever the tip includes that code. Always false for the new tip constants.
+ */
 export function isRevokePathDisabled(): boolean {
-    return TIMELOCK_TARGET_GAS < VESTING_RELEASE_TON;
+    return false;
 }
 
 export function openVesting(provider: NetworkProvider, address: Address) {
@@ -287,8 +306,9 @@ function nextProposalId(): bigint {
 }
 
 /**
- * Authorized VestEmergencyRevoke: Timelock governor queues delay=0 then executes.
- * Note: current TIMELOCK_TARGET_GAS (0.12) < ReleaseTon (3.5) — live may fail until Timelock gas fix.
+ * Authorized VestEmergencyRevoke: Timelock governor queues delay=0 then executes
+ * with a relay budget (≥ ReleaseTon + mark-executed + storage reserve).
+ * Requires tip Timelock that relays VestEmergencyRevoke (IMP-TNFS-F03).
  */
 export async function sendEmergencyRevokeViaTimelock(
     ctx: ScenarioContext,
@@ -304,7 +324,7 @@ export async function sendEmergencyRevokeViaTimelock(
     const proposalId = nextProposalId();
     const body = buildVestEmergencyRevokeBody();
     console.log(
-        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=0 vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
+        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=0 value=${VESTING_REVOKE_EXECUTE_TON} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
     );
 
     let seqnoBefore = await getSenderSeqno(provider);
@@ -319,7 +339,13 @@ export async function sendEmergencyRevokeViaTimelock(
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
 
     seqnoBefore = await getSenderSeqno(provider);
-    await tl.sendExecutePending(tlProvider, provider.sender(), proposalId);
+    await tl.sendExecutePending(
+        tlProvider,
+        provider.sender(),
+        proposalId,
+        0n,
+        VESTING_REVOKE_EXECUTE_TON,
+    );
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
 }
 
@@ -573,9 +599,8 @@ export async function naWhenEmergencyRevoke(ctx: ScenarioContext): Promise<strin
     if (no) {
         return no;
     }
-    if (isRevokePathDisabled()) {
-        return NA_REVOKE_DISABLED;
-    }
+    // Gas underfund gate retired (IMP-TNFS-F03 relay). Stale lab tip without the
+    // VestEmergencyRevoke relay will fail live checks — ops redeploy, not N/A here.
     const states = await loadAllVaultStates(ctx);
     const withRemaining = states.find((s) => s.schedule.totalAmount - s.schedule.releasedAmount > 0n);
     if (!withRemaining) {
