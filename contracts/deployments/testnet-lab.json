@@ -1,31 +1,21 @@
 {
   "network": "testnet",
-  "role": "lab",
   "deployedAt": "2026-07-20",
   "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260720-tnfs-lab",
-  "lab": {
-    "timelockDelaySec": 60,
-    "cancelLagSec": 30,
-    "proposalPeriodSec": 60,
-    "proposalTimelockDelaySec": 60,
-    "deployStakingMasterNano": "10000000000",
-    "mintableAdmin": true,
-    "notes": "IMP-TNFS-F02: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; mint open (admin=Timelock); StakingMaster funded with 10 TON. Do not syncAppConfigs / do not point Mini App here."
-  },
+  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260720-tnfs-lab-f03",
   "addresses": {
-    "jettonMaster": "kQDq33w0iLsMrMsuWHPb3kY1GjCIQctqDxvc4o-P76rxMOU3",
-    "treasury": "kQAVAHHokgusBpVs73DbzjWbNFHPFWlmluAj15s3oHkgiDUa",
-    "treasuryJettonWallet": "kQBErZFqh3fz0w37IP3snqhtIMwgdlc7PpIi4j0UnJ5QRByC",
-    "stakingPool": "kQC7eFM_2rVP6CPsVOunamBbQFkh6H-djSA4JFxpAWYaRLCF",
-    "stakingLock": "kQAlGLEoSO7VabHHDfgkF8sWem1dBCmpOIEqR_O0GKAcbSnJ",
-    "stakingMaster": "kQBglHcHeZN-MRd-vOnhwzCqt4OlSyCLulfyJSGEcIYHJ6PY",
-    "governor": "kQAbCyavxj1vZTE0Gq0k_z6nEwg7WeniVxy937knL-ZjWlLj",
-    "timelock": "kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT",
-    "vestingDeveloper": "kQCpn_2wtHMTYiZOvn5C736FSaCzKs12sDwdoQlROTFwpLID",
-    "vestingEcosystem": "kQC9J60cMVGs0pvmKrAXjhdI6XtdDtkYZ2Y0DXwKiCPyOK9L",
-    "vestingReserve": "kQATIx-pD1C097Jiqg-pqqg7DlS6A9qQRLwQYrksacIvfVMf",
-    "vestingStakingAllocation": "kQBLSp0n5CiwxfxASasbl3_lwu4cqF-EPvcvhqR02lDeq-sr",
+    "jettonMaster": "kQDQ_n0j0gzIjb4xZMZ0zP6xu2IP-tWG7XCxRHPawr1Vr5ha",
+    "treasury": "kQDQS9DJQWtdPlE891pe1V4EddyN6Sf0x_Pz0PvgR58niSOQ",
+    "treasuryJettonWallet": "kQCAU58qPf8kZ8yJt2oe4agIlbo47eq4QRU12rEqnOs4wMAm",
+    "stakingPool": "kQCW1S0xKtWhnSq-ClopvGm2pWlXRxKGRT5BmYiWQ8mFO-z7",
+    "stakingLock": "kQCv4S3toPd1T__oDNfsp-kMY9sIBtJWZm7RGZYTbuKmeL42",
+    "stakingMaster": "kQBmkM_xe-12_YjfTqUBeh3JnqR8PttyPALYHBwcr_0rykiN",
+    "governor": "kQBdSw2wI8nKRwJZG5cCjmwe7pFtvNwYLRgqmgSzY3BnoFc8",
+    "timelock": "kQBUDNWkXc7HvJNyQBs9usfTXV3g1shyuYjNK0ZpOVby5DNl",
+    "vestingDeveloper": "kQC20RIfb8sLvvEKi42JHFANddmHvJVS9XPbDbs0c0ke02Uy",
+    "vestingEcosystem": "kQBskDDdemEhiQsYZrG0dlPiQLOvSwgVkq5F9G0O3cdqH-9e",
+    "vestingReserve": "kQDZmTqp9AQ03jCdXbAP9iOIWOpnTTwGXUtLrkxbJWPAaL1O",
+    "vestingStakingAllocation": "kQB1xzvrrkmWrkveRqrIUDnMKxRoN619TpZEIhAfTDa_CEcm",
     "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
     "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
   },
@@ -33,5 +23,15 @@
     "jettonTimelockIsDeployer": false,
     "timelockGovernorIsDeployer": true,
     "stakingMasterGovernorIsDeployer": false
+  },
+  "role": "lab",
+  "lab": {
+    "timelockDelaySec": 60,
+    "cancelLagSec": 30,
+    "proposalPeriodSec": 60,
+    "proposalTimelockDelaySec": 60,
+    "mintableAdmin": true,
+    "deployStakingMasterNano": "10000000000",
+    "notes": "IMP-TNFS-F02+F03: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; Timelock includes VestEmergencyRevoke relay (F03); mint open (admin=Timelock); StakingMaster funded with 10 TON. Do not syncAppConfigs / do not point Mini App here."
   }
 }
