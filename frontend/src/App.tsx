@@ -136,6 +136,9 @@ function canModerateRoom(role: RoomRole): boolean {
 /** Matches RoomManageView default expiry preset `7d` (unlimited uses). */
 const ROOM_CHAT_SHARE_INVITE_EXPIRES_IN_SECONDS = 7 * 24 * 3600;
 
+/** Survives StrictMode remount so app-open-count increments once per JS load (IMP-TGUX-05). */
+let homeScreenOpenCountedThisLoad = false;
+
 function resolveActiveRoomRole(
   hookRole: RoomRole | null,
   room: { role: RoomRole } | undefined,
@@ -200,6 +203,9 @@ function AppContent() {
     openTelegramLink,
     showScanQrPopup,
     closeScanQrPopup,
+    showConfirm,
+    addToHomeScreen,
+    checkHomeScreenStatus,
     startParam,
     close,
   } = useTelegram();
@@ -1723,6 +1729,80 @@ function AppContent() {
     setHeaderColor('secondary_bg_color');
     setBottomBarColor('secondary_bg_color');
   }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor, setBottomBarColor]);
+
+  // Soft prompt: after N=5 opens, offer add-to-home-screen once (IMP-TGUX-05).
+  // Counter + refusal flag live in localStorage only — never WebApp.CloudStorage.
+  useEffect(() => {
+    if (!isReady || !isInTelegram) return;
+
+    const OPEN_COUNT_KEY = 'app-open-count';
+    const PROMPTED_KEY = 'home-screen-prompted';
+    const OPEN_THRESHOLD = 5;
+
+    let openCount = 0;
+    try {
+      if (!homeScreenOpenCountedThisLoad) {
+        homeScreenOpenCountedThisLoad = true;
+        const raw = localStorage.getItem(OPEN_COUNT_KEY);
+        openCount = Math.max(0, parseInt(raw ?? '0', 10) || 0) + 1;
+        localStorage.setItem(OPEN_COUNT_KEY, String(openCount));
+      } else {
+        openCount = Math.max(0, parseInt(localStorage.getItem(OPEN_COUNT_KEY) ?? '0', 10) || 0);
+      }
+    } catch {
+      return;
+    }
+
+    if (openCount < OPEN_THRESHOLD) return;
+
+    let alreadyPrompted = false;
+    try {
+      alreadyPrompted = localStorage.getItem(PROMPTED_KEY) === '1';
+    } catch {
+      return;
+    }
+    if (alreadyPrompted) return;
+
+    let cancelled = false;
+    void (async () => {
+      const status = await checkHomeScreenStatus();
+      if (cancelled) return;
+
+      if (status === 'unsupported' || status === 'added') {
+        try {
+          localStorage.setItem(PROMPTED_KEY, '1');
+        } catch {
+          // ignore quota / private mode
+        }
+        return;
+      }
+
+      const accepted = await showConfirm(t('settings.homeScreen.prompt'));
+      if (cancelled) return;
+
+      // Remember after the dialog closes (accept or refuse) so StrictMode cleanup
+      // can still retry if the first attempt was aborted before the user answered.
+      try {
+        localStorage.setItem(PROMPTED_KEY, '1');
+      } catch {
+        // ignore quota / private mode
+      }
+      if (accepted) {
+        addToHomeScreen();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isReady,
+    isInTelegram,
+    checkHomeScreenStatus,
+    showConfirm,
+    addToHomeScreen,
+    t,
+  ]);
 
   /** True after we've seen `isAuthenticated` — used to distinguish cold start vs logout. */
   const wasAuthenticatedRef = useRef(false);

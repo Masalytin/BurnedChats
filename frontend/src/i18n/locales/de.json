@@ -1042,6 +1042,11 @@
     "developer": {
       "version": "App-Version",
       "debugPanel": "Debug-Panel"
+    },
+    "homeScreen": {
+      "add": "Zum Startbildschirm hinzufügen",
+      "addHint": "Shortcut für schnellen Zugriff anheften",
+      "prompt": "Burned Chats zum Startbildschirm hinzufügen für schnelleren Zugriff?"
     }
   },
   "walletLogin": {

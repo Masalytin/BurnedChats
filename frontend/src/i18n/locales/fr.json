@@ -982,6 +982,11 @@
       "debugPanel": "Panneau de débogage",
       "version": "Version de l'application"
     },
+    "homeScreen": {
+      "add": "Ajouter à l'écran d'accueil",
+      "addHint": "Épingler un raccourci pour un accès en un tap",
+      "prompt": "Ajouter Burned Chats à l'écran d'accueil pour un accès plus rapide ?"
+    },
     "languageLabel": "Langue de l'application",
     "notifications": {
       "haptics": "Retour haptique",

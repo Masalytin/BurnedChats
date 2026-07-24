@@ -982,6 +982,11 @@
       "debugPanel": "Panel de depuración",
       "version": "Versión de la app"
     },
+    "homeScreen": {
+      "add": "Añadir a la pantalla de inicio",
+      "addHint": "Fija un acceso directo para abrir con un toque",
+      "prompt": "¿Añadir Burned Chats a la pantalla de inicio para un acceso más rápido?"
+    },
     "languageLabel": "Idioma de la app",
     "notifications": {
       "haptics": "Retroalimentación háptica",

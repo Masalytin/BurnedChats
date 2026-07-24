@@ -100,6 +100,11 @@
     "developer": {
       "version": "App version",
       "debugPanel": "Debug panel"
+    },
+    "homeScreen": {
+      "add": "Add to home screen",
+      "addHint": "Pin a shortcut for one-tap access",
+      "prompt": "Add Burned Chats to your home screen for quicker access?"
     }
   },
 

@@ -982,6 +982,11 @@
       "debugPanel": "调试面板",
       "version": "应用版本"
     },
+    "homeScreen": {
+      "add": "添加到主屏幕",
+      "addHint": "固定快捷方式，一键打开",
+      "prompt": "将 Burned Chats 添加到主屏幕以便更快打开？"
+    },
     "languageLabel": "应用语言",
     "notifications": {
       "haptics": "触觉反馈",

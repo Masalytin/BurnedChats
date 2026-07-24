@@ -21,6 +21,14 @@ export interface TelegramChat {
   photo_url?: string;
 }
 
+/** Bot API 8.0+ home-screen shortcut status from `checkHomeScreenStatus`. */
+export type HomeScreenStatus = 'unsupported' | 'unknown' | 'added' | 'missed';
+
+type WebAppWithHomeScreen = typeof WebApp & {
+  addToHomeScreen?: () => void;
+  checkHomeScreenStatus?: (callback?: (status: HomeScreenStatus) => void) => void;
+};
+
 interface UseTelegramReturn {
   /** WebApp SDK instance (null if not ready) */
   webApp: typeof WebApp | null;
@@ -83,6 +91,16 @@ interface UseTelegramReturn {
   requestWriteAccess: () => Promise<boolean>;
   /** Request user's contact */
   requestContact: () => Promise<boolean>;
+  /**
+   * Prompt to add Mini App shortcut to the device home screen (Bot API 8.0+).
+   * No-op when unsupported or outside Telegram.
+   */
+  addToHomeScreen: () => void;
+  /**
+   * Home-screen shortcut status (Bot API 8.0+).
+   * Returns `'unsupported'` when the API / version is unavailable.
+   */
+  checkHomeScreenStatus: () => Promise<HomeScreenStatus>;
   /** Trigger impact haptic feedback */
   impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
   /** Trigger notification haptic feedback */
@@ -290,6 +308,64 @@ export function useTelegram(): UseTelegramReturn {
     });
   }, []);
 
+  // Home screen shortcuts (Bot API 8.0+)
+  const addToHomeScreen = useCallback(() => {
+    if (!isInTelegram) {
+      return;
+    }
+    try {
+      if (!WebApp.isVersionAtLeast('8.0')) {
+        return;
+      }
+    } catch {
+      return;
+    }
+    const webApp = WebApp as WebAppWithHomeScreen;
+    if (typeof webApp.addToHomeScreen !== 'function') {
+      return;
+    }
+    try {
+      webApp.addToHomeScreen();
+    } catch {
+      // ignore — client may reject the call
+    }
+  }, [isInTelegram]);
+
+  const checkHomeScreenStatus = useCallback((): Promise<HomeScreenStatus> => {
+    if (!isInTelegram) {
+      return Promise.resolve('unsupported');
+    }
+    try {
+      if (!WebApp.isVersionAtLeast('8.0')) {
+        return Promise.resolve('unsupported');
+      }
+    } catch {
+      return Promise.resolve('unsupported');
+    }
+    const webApp = WebApp as WebAppWithHomeScreen;
+    if (typeof webApp.checkHomeScreenStatus !== 'function') {
+      return Promise.resolve('unsupported');
+    }
+    return new Promise((resolve) => {
+      try {
+        webApp.checkHomeScreenStatus!((status) => {
+          if (
+            status === 'unsupported' ||
+            status === 'unknown' ||
+            status === 'added' ||
+            status === 'missed'
+          ) {
+            resolve(status);
+            return;
+          }
+          resolve('unsupported');
+        });
+      } catch {
+        resolve('unsupported');
+      }
+    });
+  }, [isInTelegram]);
+
   // Haptic feedback shortcuts
   const impactOccurred = useCallback((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => {
     if (isInTelegram && areHapticsEnabled()) {
@@ -335,6 +411,8 @@ export function useTelegram(): UseTelegramReturn {
     openTelegramLink,
     requestWriteAccess,
     requestContact,
+    addToHomeScreen,
+    checkHomeScreenStatus,
     impactOccurred,
     notificationOccurred,
     selectionChanged,

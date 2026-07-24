@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast';
 import { AccountLinking } from '../components/Settings/AccountLinking';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
 import { burnAll } from '../crypto/keyStore';
-import { useTelegram } from '../hooks/useTelegram';
+import { useTelegram, type HomeScreenStatus } from '../hooks/useTelegram';
 import {
   DEADMAN_PERIOD_DAYS,
   DEFAULT_DEADMAN_PERIOD_DAYS,
@@ -150,10 +150,11 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const { t, i18n } = useTranslation();
   const toast = useToast();
-  const { showConfirm } = useTelegram();
+  const { showConfirm, addToHomeScreen, checkHomeScreenStatus } = useTelegram();
   const { prefs, setPref } = usePreferences();
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [isClearingKeys, setIsClearingKeys] = useState(false);
+  const [homeScreenStatus, setHomeScreenStatus] = useState<HomeScreenStatus | null>(null);
   const [selectedPeriodDays, setSelectedPeriodDays] = useState<DeadmanPeriodDays>(
     DEFAULT_DEADMAN_PERIOD_DAYS,
   );
@@ -177,6 +178,26 @@ export function SettingsPage({
       setWipeIdentity(deadman.deadman.wipeIdentity);
     }
   }, [deadman?.deadman?.periodDays, deadman?.deadman?.wipeIdentity, deadman?.deadman]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void checkHomeScreenStatus().then((status) => {
+      if (!cancelled) {
+        setHomeScreenStatus(status);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkHomeScreenStatus]);
+
+  const showHomeScreenRow =
+    homeScreenStatus === 'missed' || homeScreenStatus === 'unknown';
+
+  const handleAddToHomeScreen = useCallback(() => {
+    addToHomeScreen();
+    void checkHomeScreenStatus().then(setHomeScreenStatus);
+  }, [addToHomeScreen, checkHomeScreenStatus]);
 
   const buildDeadmanRequest = useCallback(
     (overrides: Partial<SetDeadmanRequest> & Pick<SetDeadmanRequest, 'enabled'>): SetDeadmanRequest => ({
@@ -349,6 +370,29 @@ export function SettingsPage({
             />
           </div>
         </div>
+        {showHomeScreenRow ? (
+          <div className="settings-section__card settings-rows">
+            <button
+              type="button"
+              className="settings-row"
+              onClick={handleAddToHomeScreen}
+              style={{
+                width: '100%',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                font: 'inherit',
+                textAlign: 'start',
+                color: 'inherit',
+              }}
+            >
+              <div className="settings-row__text">
+                <span className="settings-row__label">{t('settings.homeScreen.add')}</span>
+                <p className="settings-row__description">{t('settings.homeScreen.addHint')}</p>
+              </div>
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section className="settings-section">
