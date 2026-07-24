@@ -1162,7 +1162,9 @@
       "mutedBanner": "You have been muted and cannot send messages",
       "readOnlyBanner": "This room is read-only — only the owner can post",
       "keyLoadError": "Failed to load encryption key",
-      "ephemeralBadge": "Disappearing messages"
+      "ephemeralBadge": "Disappearing messages",
+      "shareInvite": "Share invite",
+      "shareInviteError": "Could not create invite link. Try again."
     },
 
     "recovery": {

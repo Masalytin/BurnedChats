@@ -498,7 +498,9 @@
       "errorMuted": "Vous avez été mis en sourdine dans ce salon et ne pouvez pas envoyer de messages",
       "errorReadOnly": "Ce salon est en lecture seule — seul le propriétaire peut publier",
       "mutedBanner": "Vous avez été mis en sourdine et ne pouvez pas envoyer de messages",
-      "readOnlyBanner": "Ce salon est en lecture seule — seul le propriétaire peut publier"
+      "readOnlyBanner": "Ce salon est en lecture seule — seul le propriétaire peut publier",
+      "shareInvite": "Partager l'invitation",
+      "shareInviteError": "Impossible de créer le lien d'invitation. Réessayez."
     },
     "recovery": {
       "neededToast": "Les clés de chiffrement ont été effacées. Restaurez le chiffrement pour continuer.",

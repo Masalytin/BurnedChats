@@ -793,7 +793,9 @@
       "errorMuted": "Sie wurden in diesem Raum stummgeschaltet und können keine Nachrichten senden",
       "errorReadOnly": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten",
       "mutedBanner": "Sie wurden stummgeschaltet und können keine Nachrichten senden",
-      "readOnlyBanner": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten"
+      "readOnlyBanner": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten",
+      "shareInvite": "Einladung teilen",
+      "shareInviteError": "Einladungslink konnte nicht erstellt werden. Bitte erneut versuchen."
     },
     "recovery": {
       "neededToast": "Verschlüsselungsschlüssel wurden gelöscht. Stellen Sie die Verschlüsselung wieder her, um fortzufahren.",

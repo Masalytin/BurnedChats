@@ -71,6 +71,7 @@ import type { LinkedAccountsCredentials } from './components/Settings/LinkedAcco
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import {
   buildTelegramInviteDeepLink,
+  buildTelegramShareUrl,
   clearPendingInviteToken,
   parseInviteFragment,
   readPendingInviteToken,
@@ -92,6 +93,7 @@ import {
   hasGroupKey,
   isHandshakeComplete,
 } from './crypto/keyStore';
+import { formatShortRoomId, resolveRoomDisplayName } from './crypto/groupKey';
 import { PreferencesProvider, usePreferences } from './preferences';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
@@ -129,6 +131,9 @@ type AppView =
 function canModerateRoom(role: RoomRole): boolean {
   return role === 'owner' || role === 'admin';
 }
+
+/** Matches RoomManageView default expiry preset `7d` (unlimited uses). */
+const ROOM_CHAT_SHARE_INVITE_EXPIRES_IN_SECONDS = 7 * 24 * 3600;
 
 function resolveActiveRoomRole(
   hookRole: RoomRole | null,
@@ -191,6 +196,7 @@ function AppContent() {
     setHeaderColor,
     setBottomBarColor,
     notificationOccurred,
+    openTelegramLink,
     startParam,
     close,
   } = useTelegram();
@@ -1335,11 +1341,87 @@ function AppContent() {
     revokeInvite(activeRoomChat.roomId, token);
   }, [activeRoomChat, revokeInvite]);
 
+  // IMP-TGUX-02: header share shortcut — pending create + session reuse cache
+  const shareInvitePendingRef = useRef(false);
+  const lastShareInviteByRoomRef = useRef<{ roomId: string; url: string } | null>(null);
+  const [isShareInviteLoading, setIsShareInviteLoading] = useState(false);
+
+  const openRoomInviteSharePicker = useCallback(
+    async (url: string, roomId: string, nameEncrypted?: string | null, nameIv?: string | null) => {
+      const displayTitle = await resolveRoomDisplayName(roomId, nameEncrypted, nameIv);
+      const roomTitle =
+        displayTitle === formatShortRoomId(roomId) ? null : displayTitle;
+      const text = roomTitle
+        ? t('room.invite.shareMessage', { title: roomTitle })
+        : t('room.invite.shareMessageGeneric');
+      openTelegramLink(buildTelegramShareUrl(url, text));
+    },
+    [openTelegramLink, t],
+  );
+
+  const handleShareInviteFromChat = useCallback(() => {
+    if (!activeRoomChat || isShareInviteLoading) return;
+    const roomId = activeRoomChat.roomId;
+    const cached = lastShareInviteByRoomRef.current;
+    if (cached?.roomId === roomId) {
+      const activeRoom = myRooms.find(r => r.roomId === roomId);
+      void openRoomInviteSharePicker(
+        cached.url,
+        roomId,
+        activeRoom?.nameEncrypted,
+        activeRoom?.nameIv,
+      );
+      return;
+    }
+    shareInvitePendingRef.current = true;
+    setIsShareInviteLoading(true);
+    getInviteLink(roomId, { expiresInSeconds: ROOM_CHAT_SHARE_INVITE_EXPIRES_IN_SECONDS });
+  }, [
+    activeRoomChat,
+    getInviteLink,
+    isShareInviteLoading,
+    myRooms,
+    openRoomInviteSharePicker,
+  ]);
+
   useEffect(() => {
-    if (inviteUrl && activeRoomChat && currentView === 'room-manage') {
+    if (!inviteUrl || !activeRoomChat) return;
+
+    if (currentView === 'room-manage') {
       refreshInvites(activeRoomChat.roomId);
     }
-  }, [inviteUrl, activeRoomChat, currentView, refreshInvites]);
+
+    if (shareInvitePendingRef.current && currentView === 'room-chat') {
+      shareInvitePendingRef.current = false;
+      setIsShareInviteLoading(false);
+      lastShareInviteByRoomRef.current = {
+        roomId: activeRoomChat.roomId,
+        url: inviteUrl,
+      };
+      refreshInvites(activeRoomChat.roomId);
+      const activeRoom = myRooms.find(r => r.roomId === activeRoomChat.roomId);
+      void openRoomInviteSharePicker(
+        inviteUrl,
+        activeRoomChat.roomId,
+        activeRoom?.nameEncrypted,
+        activeRoom?.nameIv,
+      );
+    }
+  }, [
+    inviteUrl,
+    activeRoomChat,
+    currentView,
+    refreshInvites,
+    myRooms,
+    openRoomInviteSharePicker,
+  ]);
+
+  useEffect(() => {
+    if (!inviteError || !shareInvitePendingRef.current) return;
+    shareInvitePendingRef.current = false;
+    setIsShareInviteLoading(false);
+    toast.error(t('room.chat.shareInviteError'), { duration: 4000 });
+  }, [inviteError, t, toast]);
 
   // Handle burn room from manage view (P2-4.3.2 / P2-4.3.3)
   const handleBurnRoom = useCallback(() => {
@@ -3293,6 +3375,12 @@ function AppContent() {
             }}
             onManage={isRoomModerator ? handleOpenRoomManage : undefined}
             onLeave={!isRoomOwner ? handleLeaveRoom : undefined}
+            onShareInvite={
+              isRoomModerator && environment === 'telegram'
+                ? handleShareInviteFromChat
+                : undefined
+            }
+            isShareInviteLoading={isShareInviteLoading}
             syncMessagesRef={roomSyncMessagesRef}
             roomReadOnly={roomReadOnly}
             isCurrentUserMuted={myInternalId != null && isRoomMemberMuted(myInternalId)}

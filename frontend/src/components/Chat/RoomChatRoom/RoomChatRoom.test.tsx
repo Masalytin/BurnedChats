@@ -7,6 +7,7 @@ import i18n from '@/i18n';
 import { ToastProvider } from '@/components/Toast';
 import { RoomChatRoom } from './RoomChatRoom';
 import * as keyStore from '@/crypto/keyStore';
+import { getEnvironment } from '@/env/detector';
 import type { RekeyStatus } from '@/hooks/useRekeyRoom';
 
 const ROOM_ID = 'room-recovery-test';
@@ -23,6 +24,14 @@ vi.mock('@/crypto/groupKey', () => ({
   formatShortRoomId: (id: string) => id.slice(0, 8),
   resolveRoomDisplayName: vi.fn(() => Promise.resolve('Test Room')),
 }));
+
+vi.mock('@/env/detector', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/env/detector')>();
+  return {
+    ...actual,
+    getEnvironment: vi.fn(() => 'browser'),
+  };
+});
 
 vi.mock('@/hooks/useRoomMessages', () => ({
   useRoomMessages: vi.fn(() => ({
@@ -162,5 +171,78 @@ describe('RoomChatRoom key recovery placeholder (IMP-RKR-05)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: i18n.t('room.chat.retryKey') }));
     expect(onRequestKey).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RoomChatRoom share invite shortcut (IMP-TGUX-02)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(keyStore.hasGroupKey).mockReturnValue(true);
+    vi.mocked(getEnvironment).mockReturnValue('telegram');
+    void i18n.changeLanguage('en');
+  });
+
+  it('shows share button for owner in Telegram and invokes onShareInvite', () => {
+    const onShareInvite = vi.fn();
+    renderRoomChatRoom({
+      isOwner: true,
+      onShareInvite,
+      onManage: vi.fn(),
+    });
+
+    const shareBtn = screen.getByRole('button', { name: i18n.t('room.chat.shareInvite') });
+    fireEvent.click(shareBtn);
+    expect(onShareInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows share button for admin (canBypassReadOnly) in Telegram', () => {
+    renderRoomChatRoom({
+      isOwner: false,
+      canBypassReadOnly: true,
+      onShareInvite: vi.fn(),
+      onManage: vi.fn(),
+    });
+
+    expect(
+      screen.getByRole('button', { name: i18n.t('room.chat.shareInvite') }),
+    ).toBeTruthy();
+  });
+
+  it('hides share button for regular member even when handler is passed', () => {
+    renderRoomChatRoom({
+      isOwner: false,
+      canBypassReadOnly: false,
+      onShareInvite: vi.fn(),
+    });
+
+    expect(
+      screen.queryByRole('button', { name: i18n.t('room.chat.shareInvite') }),
+    ).toBeNull();
+  });
+
+  it('hides share button in browser environment', () => {
+    vi.mocked(getEnvironment).mockReturnValue('browser');
+    renderRoomChatRoom({
+      isOwner: true,
+      onShareInvite: vi.fn(),
+      onManage: vi.fn(),
+    });
+
+    expect(
+      screen.queryByRole('button', { name: i18n.t('room.chat.shareInvite') }),
+    ).toBeNull();
+  });
+
+  it('disables share button while loading', () => {
+    renderRoomChatRoom({
+      isOwner: true,
+      onShareInvite: vi.fn(),
+      isShareInviteLoading: true,
+      onManage: vi.fn(),
+    });
+
+    const shareBtn = screen.getByRole('button', { name: i18n.t('room.chat.shareInvite') });
+    expect((shareBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(shareBtn.getAttribute('aria-busy')).toBe('true');
   });
 });

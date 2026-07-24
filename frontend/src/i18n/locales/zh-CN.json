@@ -498,7 +498,9 @@
       "errorMuted": "您在此房间已被禁言，无法发送消息",
       "errorReadOnly": "此房间为只读模式 — 仅所有者可发帖",
       "mutedBanner": "您已被禁言，无法发送消息",
-      "readOnlyBanner": "此房间为只读模式 — 仅所有者可发帖"
+      "readOnlyBanner": "此房间为只读模式 — 仅所有者可发帖",
+      "shareInvite": "分享邀请",
+      "shareInviteError": "无法创建邀请链接。请重试。"
     },
     "recovery": {
       "neededToast": "加密密钥已清除。请恢复加密以继续。",

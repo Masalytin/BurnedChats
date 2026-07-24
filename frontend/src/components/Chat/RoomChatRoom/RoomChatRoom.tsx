@@ -9,6 +9,7 @@ import {
   LogOut,
   MicOff,
   Settings,
+  Share2,
   Timer,
 } from 'lucide-react';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
@@ -29,6 +30,7 @@ import { useToast } from '@/components/Toast';
 import { hasGroupKey } from '@/crypto/keyStore';
 import type { RekeyStatus } from '@/hooks/useRekeyRoom';
 import { formatShortRoomId, resolveRoomDisplayName } from '@/crypto/groupKey';
+import { getEnvironment } from '@/env/detector';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
 import type {
@@ -73,6 +75,10 @@ interface RoomChatRoomProps {
   onBack?: () => void;
   onManage?: () => void;
   onLeave?: () => void;
+  /** Owner/admin shortcut: create default invite and open Telegram share picker */
+  onShareInvite?: () => void;
+  /** True while the share-invite create request is in flight */
+  isShareInviteLoading?: boolean;
   /**
    * Out-ref populated with the hook's `syncMessages` function so parents
    * (AppContent) can trigger an offline-queue sync from outside the component,
@@ -114,6 +120,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onBack,
   onManage,
   onLeave,
+  onShareInvite,
+  isShareInviteLoading = false,
   syncMessagesRef,
   roomReadOnly = false,
   isCurrentUserMuted = false,
@@ -578,9 +586,29 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     </div>
   );
 
-  const hasHeaderRight = onManage != null || onLeave != null;
+  const showShareInvite =
+    (isOwner || canBypassReadOnly) &&
+    getEnvironment() === 'telegram' &&
+    onShareInvite != null;
+  const hasHeaderRight = onManage != null || onLeave != null || showShareInvite;
   const headerRight = hasHeaderRight ? (
     <>
+      {showShareInvite && (
+        <button
+          type="button"
+          className={`chat-screen-icon-btn room-chat-room-share${isShareInviteLoading ? ' room-chat-room-share--loading' : ''}`}
+          onClick={onShareInvite}
+          disabled={isShareInviteLoading}
+          aria-busy={isShareInviteLoading || undefined}
+          aria-label={t('room.chat.shareInvite')}
+        >
+          {isShareInviteLoading ? (
+            <span className="room-chat-room-share__spinner" aria-hidden />
+          ) : (
+            <Share2 size={20} strokeWidth={2} aria-hidden />
+          )}
+        </button>
+      )}
       {onManage && (
         <button
           type="button"

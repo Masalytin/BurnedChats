@@ -498,7 +498,9 @@
       "errorMuted": "Has sido silenciado en esta sala y no puedes enviar mensajes",
       "errorReadOnly": "Esta sala es de solo lectura — solo el propietario puede publicar",
       "mutedBanner": "Has sido silenciado y no puedes enviar mensajes",
-      "readOnlyBanner": "Esta sala es de solo lectura — solo el propietario puede publicar"
+      "readOnlyBanner": "Esta sala es de solo lectura — solo el propietario puede publicar",
+      "shareInvite": "Compartir invitación",
+      "shareInviteError": "No se pudo crear el enlace de invitación. Inténtalo de nuevo."
     },
     "recovery": {
       "neededToast": "Las claves de cifrado se borraron. Restaura el cifrado para continuar.",
