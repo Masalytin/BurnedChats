@@ -26,6 +26,16 @@ export function buildTelegramInviteDeepLink(token: string): string {
   return `${base}/app?startapp=invite_${token}`;
 }
 
+/**
+ * Build a Telegram native share URL (`t.me/share/url`) for an invite link.
+ * Share text is assembled client-side only (may include decrypted room title).
+ */
+export function buildTelegramShareUrl(inviteUrl: string, text?: string): string {
+  const encodedUrl = encodeURIComponent(inviteUrl);
+  const encodedText = encodeURIComponent(text ?? '');
+  return `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
+}
+
 export function stashPendingInviteToken(token: string): void {
   sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, token);
 }

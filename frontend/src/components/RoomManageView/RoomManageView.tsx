@@ -11,6 +11,7 @@ import {
   MicOff,
   Pencil,
   Settings,
+  Share2,
   Shield,
   ShieldBan,
   ShieldMinus,
@@ -20,6 +21,9 @@ import {
   Users,
   Volume2,
 } from 'lucide-react';
+import { getEnvironment } from '../../env/detector';
+import { useTelegram } from '../../hooks/useTelegram';
+import { buildTelegramShareUrl } from '../../utils/inviteLink';
 import {
   ROOM_TTL_PRESETS,
   ROOM_TTL_CUSTOM_MIN_SECONDS,
@@ -179,10 +183,14 @@ interface InviteRowProps {
   onCopy: (url: string) => void;
   onRevoke: (token: string) => void;
   copiedUrl: string | null;
+  /** Decrypted room title for share text; null when title is unavailable. */
+  roomTitle: string | null;
 }
 
-function InviteRow({ invite, onCopy, onRevoke, copiedUrl }: InviteRowProps) {
+function InviteRow({ invite, onCopy, onRevoke, copiedUrl, roomTitle }: InviteRowProps) {
   const { t } = useTranslation();
+  const { openTelegramLink, impactOccurred } = useTelegram();
+  const showShare = getEnvironment() === 'telegram';
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
     Math.max(0, Math.floor((invite.expiresAt - Date.now()) / 1000)),
   );
@@ -197,6 +205,14 @@ function InviteRow({ invite, onCopy, onRevoke, copiedUrl }: InviteRowProps) {
   const usesLabel = isUnlimitedUses(invite.maxUses)
     ? t('room.invite.usesUnlimited', { used: invite.usedCount })
     : t('room.invite.usesLeft', { used: invite.usedCount, max: invite.maxUses });
+
+  const handleShare = useCallback(() => {
+    const text = roomTitle
+      ? t('room.invite.shareMessage', { title: roomTitle })
+      : t('room.invite.shareMessageGeneric');
+    impactOccurred('light');
+    openTelegramLink(buildTelegramShareUrl(invite.url, text));
+  }, [impactOccurred, invite.url, openTelegramLink, roomTitle, t]);
 
   return (
     <li className="room-manage-invite-row">
@@ -218,6 +234,17 @@ function InviteRow({ invite, onCopy, onRevoke, copiedUrl }: InviteRowProps) {
           <CopyButtonIcon />
           {copiedUrl === invite.url ? t('common.copied') : t('common.copy')}
         </button>
+        {showShare && (
+          <button
+            type="button"
+            className="room-manage-invite__share"
+            onClick={handleShare}
+            aria-label={t('room.invite.share')}
+          >
+            <Share2 size={16} aria-hidden="true" />
+            {t('room.invite.share')}
+          </button>
+        )}
         <button
           type="button"
           className="room-manage-invite-row__revoke"
@@ -1136,6 +1163,9 @@ export const RoomManageView = memo(function RoomManageView({
                       onCopy={handleCopyInviteUrl}
                       onRevoke={handleRevokeInvite}
                       copiedUrl={copiedInviteUrl}
+                      roomTitle={
+                        displayTitle === formatShortRoomId(roomId) ? null : displayTitle
+                      }
                     />
                   ))}
                 </ul>

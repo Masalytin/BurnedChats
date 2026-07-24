@@ -642,6 +642,9 @@
       "limitErrorNaN": "请输入有效数字",
       "limitErrorNotInteger": "请输入整数",
       "revoke": "撤销",
+      "share": "分享",
+      "shareMessage": "加入我的 Burned Chats 房间：{{title}}",
+      "shareMessageGeneric": "加入我的 Burned Chats 房间",
       "usesLeft": "已用 {{used}}/{{max}} 次",
       "usesUnlimited": "已用 {{used}} 次 · 无限制"
     },

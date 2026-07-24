@@ -264,6 +264,40 @@
   background: var(--bc-success);
 }
 
+.room-manage-invite__share {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  background: var(--bc-button-secondary-bg);
+  color: var(--bc-button-secondary-text);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-sm);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    opacity var(--bc-transition-fast),
+    background-color var(--bc-transition-fast),
+    transform var(--bc-transition-fast);
+  flex-shrink: 0;
+}
+
+.room-manage-invite__share:hover {
+  opacity: 0.9;
+}
+
+.room-manage-invite__share:active {
+  transform: scale(0.97);
+}
+
+.room-manage-invite__share:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
 /* ============================================
  * Invite list & create form (IMP-ROOM-08)
  * ============================================ */

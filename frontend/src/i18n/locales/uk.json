@@ -642,6 +642,9 @@
       "limitErrorNaN": "Введіть число",
       "limitErrorNotInteger": "Лише ціле число",
       "revoke": "Відкликати",
+      "share": "Поділитися",
+      "shareMessage": "Приєднуйся до кімнати Burned Chats: {{title}}",
+      "shareMessageGeneric": "Приєднуйся до кімнати Burned Chats",
       "usesLeft": "{{used}}/{{max}} використань",
       "usesUnlimited": "{{used}} вик. · без ліміту"
     },

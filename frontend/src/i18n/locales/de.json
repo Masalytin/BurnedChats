@@ -937,6 +937,9 @@
       "limitErrorNaN": "Geben Sie eine gültige Zahl ein",
       "limitErrorNotInteger": "Verwenden Sie eine ganze Zahl",
       "revoke": "Widerrufen",
+      "share": "Teilen",
+      "shareMessage": "Tritt meinem Burned Chats-Raum bei: {{title}}",
+      "shareMessageGeneric": "Tritt meinem Burned Chats-Raum bei",
       "usesLeft": "{{used}}/{{max}} Nutzungen",
       "usesUnlimited": "{{used}} Nutzungen · unbegrenzt"
     },

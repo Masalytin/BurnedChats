@@ -642,6 +642,9 @@
       "limitErrorNaN": "Introduce un número válido",
       "limitErrorNotInteger": "Usa un número entero",
       "revoke": "Revocar",
+      "share": "Compartir",
+      "shareMessage": "Únete a mi sala de Burned Chats: {{title}}",
+      "shareMessageGeneric": "Únete a mi sala de Burned Chats",
       "usesLeft": "{{used}}/{{max}} usos",
       "usesUnlimited": "{{used}} usos · ilimitado"
     },

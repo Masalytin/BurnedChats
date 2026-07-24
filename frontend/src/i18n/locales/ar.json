@@ -646,6 +646,9 @@
       "limitErrorNaN": "أدخل رقمًا صالحًا",
       "limitErrorNotInteger": "استخدم عددًا صحيحًا",
       "revoke": "إلغاء",
+      "share": "مشاركة",
+      "shareMessage": "انضم إلى غرفة Burned Chats الخاصة بي: {{title}}",
+      "shareMessageGeneric": "انضم إلى غرفة Burned Chats الخاصة بي",
       "usesLeft": "{{used}}/{{max}} استخدام",
       "usesUnlimited": "{{used}} استخدام · بلا حد"
     },
