@@ -639,7 +639,7 @@ public class MessageHandler {
                     boolean sent = telegramBot.sendNotificationWithButton(
                             recipientTelegramId,
                             notificationText,
-                            sessionId
+                            "dm_" + sessionId
                     );
                     if (sent) {
                         LOG.info("Telegram notification sent to offline recipient {}: sessionId={}",

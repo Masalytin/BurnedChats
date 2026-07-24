@@ -165,7 +165,7 @@ public class SessionHandler {
                     boolean sent = telegramBot.sendNotificationWithButton(
                             recipientTelegramId,
                             notificationText,
-                            sessionId
+                            "dm_" + sessionId
                     );
 
                     if (sent) {

@@ -15,8 +15,6 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
@@ -214,26 +212,11 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     }
 
     private InlineKeyboardMarkup buildMiniAppKeyboard(String deepLinkParam, String langCode) {
-        String miniAppUrl = telegramProperties.getMiniApp().getUrl();
-
-        if (deepLinkParam != null && !deepLinkParam.isEmpty()) {
-            miniAppUrl = miniAppUrl + "?startParam=" + deepLinkParam;
-        }
-
-        InlineKeyboardButton miniAppButton = InlineKeyboardButton.builder()
-                .text(botMessages.get("bot.start.button", langCode))
-                .webApp(new WebAppInfo(miniAppUrl))
-                .build();
-
-        List<InlineKeyboardButton> row = new ArrayList<>();
-        row.add(miniAppButton);
-
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-        keyboard.add(row);
-
-        return InlineKeyboardMarkup.builder()
-                .keyboard(keyboard)
-                .build();
+        return MiniAppKeyboard.build(
+                telegramProperties.getBot().getUsername(),
+                telegramProperties.getMiniApp().getUrl(),
+                deepLinkParam,
+                botMessages.get("bot.start.button", langCode));
     }
 
     private void handleHelpCommand(long chatId, String langCode) throws TelegramApiException {

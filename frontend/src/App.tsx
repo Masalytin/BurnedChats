@@ -98,6 +98,12 @@ import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
 import { completeUserExit } from './utils/completeUserExit';
 import { shouldRefreshHomeData } from './utils/shouldRefreshHomeData';
+import {
+  parseDmStartParam,
+  parseRoomStartParam,
+  resolveDmDeepLink,
+  resolveRoomDeepLink,
+} from './utils/telegramStartParam';
 import { disconnectTonConnect } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -827,6 +833,10 @@ function AppContent() {
   // the deep-link effect from re-firing (and resetting state) on WS reconnect.
   const inviteSetupTokenRef = useRef<string | null>(null);
 
+  // IMP-TGUX-03: notification deep links (dm_ / room_) — one-shot per param
+  const dmSetupSessionRef = useRef<string | null>(null);
+  const roomSetupIdRef = useRef<string | null>(null);
+
   // Web invite route (/join#invite_{token}) — IMP-WEBINVITE-02
   const isJoinRoute = location.pathname === '/join';
   const [joinRouteToken, setJoinRouteToken] = useState<string | null>(null);
@@ -1524,6 +1534,65 @@ function AppContent() {
       }
     })();
   }, [environment, isReady, notificationOccurred, startParam, t, toast]);
+
+  // Notification deep link: dm_{sessionId} → resume chat or show incoming request (IMP-TGUX-03)
+  useEffect(() => {
+    if (!isReady || !isConnected) return;
+    const sessionId = parseDmStartParam(startParam);
+    if (!sessionId) return;
+    if (dmSetupSessionRef.current === sessionId) return;
+    if (isLoadingSessions) return;
+
+    const target = resolveDmDeepLink(
+      sessionId,
+      activeSessions.map((s) => s.sessionId),
+      incomingRequests.map((r) => r.id),
+    );
+    // miss: stay on home silently; do not consume — pending requests may arrive
+    // after active-sessions load finishes (no dedicated loading flag for them).
+    if (target.kind === 'miss') return;
+
+    if (target.kind === 'incoming') {
+      const request = incomingRequests.find((r) => r.id === sessionId);
+      if (!request) return;
+      dmSetupSessionRef.current = sessionId;
+      setActiveIncomingRequest(request);
+      setCurrentView('incoming-request');
+      return;
+    }
+
+    dmSetupSessionRef.current = sessionId;
+    setResumingSessionId(sessionId);
+    resumeSession(sessionId);
+  }, [
+    isReady,
+    isConnected,
+    startParam,
+    isLoadingSessions,
+    activeSessions,
+    incomingRequests,
+    resumeSession,
+  ]);
+
+  // Notification deep link: room_{roomId} → open if member, else ignore (IMP-TGUX-03)
+  useEffect(() => {
+    if (!isReady || !isConnected) return;
+    const roomId = parseRoomStartParam(startParam);
+    if (!roomId) return;
+    if (roomSetupIdRef.current === roomId) return;
+    if (isLoadingRooms) return;
+
+    const target = resolveRoomDeepLink(roomId, myRoomIds);
+    // non-member (or unknown room): ignore silently after rooms loaded
+    if (target.kind === 'ignore') {
+      roomSetupIdRef.current = roomId;
+      return;
+    }
+
+    roomSetupIdRef.current = roomId;
+    setActiveRoomChat({ roomId, epoch: 0 });
+    setCurrentView('room-chat');
+  }, [isReady, isConnected, startParam, isLoadingRooms, myRoomIds]);
 
   // Initialize Mini App chrome only in Telegram.
   useEffect(() => {
