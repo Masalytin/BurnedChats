@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, t
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
+import { useTelegram } from '../hooks/useTelegram';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
 import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
 import { RoomCard } from '../components/RoomCard';
@@ -45,6 +46,8 @@ interface HomePageProps {
   burningSessionId?: string | null;
   /** Callback when user clicks "Create Room" */
   onCreateRoom?: () => void;
+  /** Join a room by scanning an invite QR (Telegram ≥ 6.4) */
+  onJoinViaQr?: () => void;
   /** List of rooms user participates in (P2-4.1.2) */
   rooms?: RoomListEntry[];
   /** Whether the rooms list is loading */
@@ -89,6 +92,7 @@ export function HomePage({
   onBurnSession,
   burningSessionId = null,
   onCreateRoom,
+  onJoinViaQr,
   rooms = [],
   isLoadingRooms = false,
   onRoomClick,
@@ -97,8 +101,10 @@ export function HomePage({
   panicBrandRef,
 }: HomePageProps) {
   const { t } = useTranslation();
+  const { canScanQr } = useTelegram();
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
+  const showJoinViaQr = canScanQr && onJoinViaQr != null;
 
   // Show FAB after scrolling down 150px (scroll container is .layout-main)
   useEffect(() => {
@@ -305,7 +311,7 @@ export function HomePage({
       <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
         <div className="home-section-header">
           <h3 className="home-section-title">{t('room.sectionMyRooms')}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--bc-spacing-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--bc-spacing-xs)' }}>
             <button
               type="button"
               className={`home-refresh-btn${isLoadingRooms ? ' home-refresh-btn--spinning' : ''}`}
@@ -316,6 +322,16 @@ export function HomePage({
             >
               <RefreshIcon size={16} />
             </button>
+            {showJoinViaQr && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isConnected}
+                onClick={onJoinViaQr}
+              >
+                {t('home.joinViaQr')}
+              </Button>
+            )}
             <Button
               variant="primary"
               size="sm"

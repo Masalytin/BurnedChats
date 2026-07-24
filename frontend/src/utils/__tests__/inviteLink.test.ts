@@ -5,6 +5,7 @@ import {
   buildTelegramShareUrl,
   clearPendingInviteToken,
   parseInviteFragment,
+  parseInviteUrl,
   PENDING_INVITE_TOKEN_KEY,
   readPendingInviteToken,
   stashPendingInviteToken,
@@ -27,6 +28,30 @@ describe('parseInviteFragment', () => {
   it('returns null for wrong prefix', () => {
     expect(parseInviteFragment('#join_abc')).toBeNull();
     expect(parseInviteFragment('#invite_')).toBeNull();
+  });
+});
+
+describe('parseInviteUrl', () => {
+  it('parses web join fragment URL', () => {
+    expect(parseInviteUrl('https://app.burnedchats.dev/join#invite_abc')).toBe('abc');
+    expect(parseInviteUrl('https://example.com/join#invite_tok99')).toBe('tok99');
+  });
+
+  it('parses t.me startapp deep link', () => {
+    expect(parseInviteUrl('https://t.me/BurnedChatsBot/app?startapp=invite_abc')).toBe('abc');
+    expect(parseInviteUrl('t.me/Bot/app?startapp=invite_xyz')).toBe('xyz');
+  });
+
+  it('parses bare invite_ token / fragment', () => {
+    expect(parseInviteUrl('invite_bare')).toBe('bare');
+    expect(parseInviteUrl('#invite_bare')).toBe('bare');
+  });
+
+  it('returns null for non-invite text', () => {
+    expect(parseInviteUrl('')).toBeNull();
+    expect(parseInviteUrl('https://example.com/other')).toBeNull();
+    expect(parseInviteUrl('https://t.me/Bot/app?startapp=dm_123')).toBeNull();
+    expect(parseInviteUrl('not a qr')).toBeNull();
   });
 });
 

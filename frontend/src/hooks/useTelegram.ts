@@ -54,6 +54,15 @@ interface UseTelegramReturn {
       text?: string;
     }>;
   }) => Promise<string | null>;
+  /**
+   * Open Telegram QR scanner (Bot API 6.4+).
+   * Resolves scanned text, or null when unsupported / unavailable.
+   */
+  showScanQrPopup: (text?: string) => Promise<string | null>;
+  /** Close the Telegram QR scanner popup if open */
+  closeScanQrPopup: () => void;
+  /** True when running in Telegram with QR scan API (≥ 6.4) */
+  canScanQr: boolean;
   /** Close the Mini App */
   close: () => void;
   /** Expand to full height */
@@ -157,6 +166,66 @@ export function useTelegram(): UseTelegramReturn {
     return Promise.resolve(result ? 'ok' : null);
   }, [isInTelegram]);
 
+  type WebAppWithScanQr = typeof WebApp & {
+    showScanQrPopup?: (
+      params: { text?: string },
+      callback?: (text: string) => boolean | void,
+    ) => void;
+    closeScanQrPopup?: () => void;
+  };
+
+  const canScanQr = useMemo(() => {
+    if (!isInTelegram) {
+      return false;
+    }
+    try {
+      return WebApp.isVersionAtLeast('6.4');
+    } catch {
+      return false;
+    }
+  }, [isInTelegram]);
+
+  const showScanQrPopup = useCallback((text?: string): Promise<string | null> => {
+    if (!canScanQr) {
+      return Promise.resolve(null);
+    }
+    const webApp = WebApp as WebAppWithScanQr;
+    if (typeof webApp.showScanQrPopup !== 'function') {
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (value: string | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      try {
+        webApp.showScanQrPopup(
+          { text: text ?? '' },
+          (scanned) => {
+            settle(scanned && scanned.length > 0 ? scanned : null);
+            return true; // close scanner after first result
+          },
+        );
+      } catch {
+        settle(null);
+      }
+    });
+  }, [canScanQr]);
+
+  const closeScanQrPopup = useCallback(() => {
+    if (!canScanQr) {
+      return;
+    }
+    const webApp = WebApp as WebAppWithScanQr;
+    try {
+      webApp.closeScanQrPopup?.();
+    } catch {
+      // ignore — popup may already be closed
+    }
+  }, [canScanQr]);
+
   // App lifecycle
   const close = useCallback(() => {
     WebApp.close();
@@ -253,6 +322,9 @@ export function useTelegram(): UseTelegramReturn {
     showAlert,
     showConfirm,
     showPopup,
+    showScanQrPopup,
+    closeScanQrPopup,
+    canScanQr,
     close,
     expand,
     setClosingConfirmation,

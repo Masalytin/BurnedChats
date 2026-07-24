@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   ChevronRight,
   ClipboardList,
@@ -10,6 +11,7 @@ import {
   Link,
   MicOff,
   Pencil,
+  QrCode,
   Settings,
   Share2,
   Shield,
@@ -182,12 +184,13 @@ interface InviteRowProps {
   invite: RoomInvite;
   onCopy: (url: string) => void;
   onRevoke: (token: string) => void;
+  onShowQr: (invite: RoomInvite) => void;
   copiedUrl: string | null;
   /** Decrypted room title for share text; null when title is unavailable. */
   roomTitle: string | null;
 }
 
-function InviteRow({ invite, onCopy, onRevoke, copiedUrl, roomTitle }: InviteRowProps) {
+function InviteRow({ invite, onCopy, onRevoke, onShowQr, copiedUrl, roomTitle }: InviteRowProps) {
   const { t } = useTranslation();
   const { openTelegramLink, impactOccurred } = useTelegram();
   const showShare = getEnvironment() === 'telegram';
@@ -214,6 +217,11 @@ function InviteRow({ invite, onCopy, onRevoke, copiedUrl, roomTitle }: InviteRow
     openTelegramLink(buildTelegramShareUrl(invite.url, text));
   }, [impactOccurred, invite.url, openTelegramLink, roomTitle, t]);
 
+  const handleShowQr = useCallback(() => {
+    impactOccurred('light');
+    onShowQr(invite);
+  }, [impactOccurred, invite, onShowQr]);
+
   return (
     <li className="room-manage-invite-row">
       <div className="room-manage-invite-row__info">
@@ -233,6 +241,15 @@ function InviteRow({ invite, onCopy, onRevoke, copiedUrl, roomTitle }: InviteRow
         >
           <CopyButtonIcon />
           {copiedUrl === invite.url ? t('common.copied') : t('common.copy')}
+        </button>
+        <button
+          type="button"
+          className="room-manage-invite__qr"
+          onClick={handleShowQr}
+          aria-label={t('room.invite.qr')}
+        >
+          <QrCode size={16} aria-hidden="true" />
+          {t('room.invite.qr')}
         </button>
         {showShare && (
           <button
@@ -493,6 +510,7 @@ export const RoomManageView = memo(function RoomManageView({
   const isModerator = myRole === 'owner' || myRole === 'admin';
 
   const [copiedInviteUrl, setCopiedInviteUrl] = useState<string | null>(null);
+  const [qrInvite, setQrInvite] = useState<RoomInvite | null>(null);
   const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [bansExpanded, setBansExpanded] = useState(false);
@@ -822,6 +840,14 @@ export const RoomManageView = memo(function RoomManageView({
   const handleRevokeInvite = useCallback((token: string) => {
     onRevokeInvite?.(token);
   }, [onRevokeInvite]);
+
+  const handleShowInviteQr = useCallback((invite: RoomInvite) => {
+    setQrInvite(invite);
+  }, []);
+
+  const handleCloseInviteQr = useCallback(() => {
+    setQrInvite(null);
+  }, []);
 
   const handleBurnClick = useCallback(() => {
     setShowBurnConfirm(true);
@@ -1162,6 +1188,7 @@ export const RoomManageView = memo(function RoomManageView({
                       invite={invite}
                       onCopy={handleCopyInviteUrl}
                       onRevoke={handleRevokeInvite}
+                      onShowQr={handleShowInviteQr}
                       copiedUrl={copiedInviteUrl}
                       roomTitle={
                         displayTitle === formatShortRoomId(roomId) ? null : displayTitle
@@ -1621,6 +1648,37 @@ export const RoomManageView = memo(function RoomManageView({
         confirmLabel={t('room.manage.transferConfirmButton')}
         variant="destructive"
       />
+
+      {/* Invite QR overlay (client-side only — qrcode.react) */}
+      {qrInvite && (
+        <div
+          className="room-manage-qr-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="room-manage-qr-title"
+          onClick={handleCloseInviteQr}
+        >
+          <div
+            className="room-manage-qr-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="room-manage-qr-title" className="room-manage-qr-dialog__title">
+              {t('room.invite.qrTitle')}
+            </h3>
+            <div className="room-manage-qr-dialog__code" aria-hidden="true">
+              <QRCodeSVG value={qrInvite.url} size={200} level="M" />
+            </div>
+            <p className="room-manage-qr-dialog__caption">
+              {displayTitle === formatShortRoomId(roomId)
+                ? t('room.invite.qrCaptionGeneric')
+                : t('room.invite.qrCaption', { title: displayTitle })}
+            </p>
+            <Button variant="secondary" onClick={handleCloseInviteQr} fullWidth>
+              {t('common.cancel')}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Burn confirmation overlay */}
       {showBurnConfirm && (

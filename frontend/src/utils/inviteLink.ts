@@ -19,6 +19,60 @@ export function parseInviteFragment(hash: string): string | null {
   return token.length > 0 ? token : null;
 }
 
+/**
+ * Extract invite token from a scanned / pasted invite URL or raw startapp value.
+ * Supports web `{domain}/join#invite_{token}` and t.me `?startapp=invite_{token}`.
+ */
+export function parseInviteUrl(text: string): string | null {
+  if (!text) {
+    return null;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // Bare `invite_{token}` / `#invite_{token}` (e.g. start_param value)
+  const bare = parseInviteFragment(trimmed);
+  if (bare) {
+    return bare;
+  }
+
+  try {
+    const withProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)
+      ? trimmed
+      : `https://${trimmed}`;
+    const url = new URL(withProtocol);
+
+    const fromHash = parseInviteFragment(url.hash);
+    if (fromHash) {
+      return fromHash;
+    }
+
+    const startapp = url.searchParams.get('startapp');
+    if (startapp) {
+      const fromStartapp = parseInviteFragment(startapp);
+      if (fromStartapp) {
+        return fromStartapp;
+      }
+    }
+  } catch {
+    // Fall through to regex fallbacks for malformed-but-recognizable strings.
+  }
+
+  const hashMatch = trimmed.match(/#invite_([A-Za-z0-9_-]+)/);
+  if (hashMatch?.[1]) {
+    return hashMatch[1];
+  }
+
+  const startappMatch = trimmed.match(/[?&]startapp=invite_([A-Za-z0-9_-]+)/);
+  if (startappMatch?.[1]) {
+    return startappMatch[1];
+  }
+
+  return null;
+}
+
 /** Build Telegram Mini App deep link for the given invite token. */
 export function buildTelegramInviteDeepLink(token: string): string {
   const botUrl = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';

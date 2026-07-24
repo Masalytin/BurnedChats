@@ -74,6 +74,7 @@ import {
   buildTelegramShareUrl,
   clearPendingInviteToken,
   parseInviteFragment,
+  parseInviteUrl,
   readPendingInviteToken,
   stashPendingInviteToken,
 } from './utils/inviteLink';
@@ -197,6 +198,8 @@ function AppContent() {
     setBottomBarColor,
     notificationOccurred,
     openTelegramLink,
+    showScanQrPopup,
+    closeScanQrPopup,
     startParam,
     close,
   } = useTelegram();
@@ -1591,6 +1594,42 @@ function AppContent() {
       setJoinLoginBusy(false);
     }
   }, [login, toast, t]);
+
+  /** Scan invite QR via Telegram camera → existing join-room flow (IMP-TGUX-04) */
+  const handleJoinViaQr = useCallback(async () => {
+    const scanned = await showScanQrPopup(t('home.scanQrHint'));
+    if (scanned == null) {
+      return;
+    }
+
+    const token = parseInviteUrl(scanned);
+    if (!token) {
+      closeScanQrPopup();
+      toast.error(t('home.scanQrUnrecognized'));
+      return;
+    }
+
+    closeScanQrPopup();
+
+    if (inviteSetupTokenRef.current !== token) {
+      inviteSetupTokenRef.current = token;
+      resetJoinRoom();
+      setInviteToken(token);
+      setCurrentView('join-room');
+    }
+
+    if (isConnected) {
+      loadInviteInfo(token);
+    }
+  }, [
+    showScanQrPopup,
+    closeScanQrPopup,
+    t,
+    toast,
+    resetJoinRoom,
+    isConnected,
+    loadInviteInfo,
+  ]);
 
   // Telegram Mini App completes wallet ↔ Telegram linking (start_param lt_<challenge>)
   useEffect(() => {
@@ -3501,6 +3540,7 @@ function AppContent() {
           onBurnSession={handleBurnSessionRequest}
           burningSessionId={burningSessionId}
           onCreateRoom={handleCreateRoom}
+          onJoinViaQr={handleJoinViaQr}
           rooms={myRooms}
           isLoadingRooms={isLoadingRooms}
           onRoomClick={handleRoomClick}
