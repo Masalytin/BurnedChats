@@ -280,8 +280,20 @@ public class RoomHandler {
         LOG.info("GET_INVITE_INFO requested: internalId={}", requester.internalId());
 
         inviteTokenService.resolveRoomByToken(request.getInviteToken())
+                .flatMap(room -> roomMembersRepository.isMember(room.getId(), requester.internalId())
+                        .map(isMember -> new RoomMembership(room, Boolean.TRUE.equals(isMember))))
                 .subscribe(
-                        room -> {
+                        membership -> {
+                            Room room = membership.room();
+                            if (membership.isMember()) {
+                                stompUserMessenger.convertAndSendToUser(
+                                        (AppPrincipal) principal,
+                                        INVITE_INFO_DESTINATION,
+                                        RoomInviteInfoEvent.alreadyMember(room.getId()));
+                                LOG.info("ROOM_INVITE_INFO already member: roomId={}, internalId={}",
+                                        room.getId(), requester.internalId());
+                                return;
+                            }
                             boolean hasPassword = room.getPasswordProofHash() != null
                                     && !room.getPasswordProofHash().isBlank();
                             String salt = room.getSalt() != null ? room.getSalt() : "";
@@ -289,7 +301,7 @@ public class RoomHandler {
                                     (AppPrincipal) principal,
                                     INVITE_INFO_DESTINATION,
                                     RoomInviteInfoEvent.success(salt, room.getJoinMode().name(), hasPassword)
-                        );
+                            );
                             LOG.info("ROOM_INVITE_INFO sent: roomId={}, internalId={}, hasPassword={}",
                                     room.getId(), requester.internalId(), hasPassword);
                         },
@@ -302,9 +314,12 @@ public class RoomHandler {
                                     (AppPrincipal) principal,
                                     INVITE_INFO_DESTINATION,
                                     RoomInviteInfoEvent.error(code)
-                        );
+                            );
                         }
             );
+    }
+
+    private record RoomMembership(Room room, boolean isMember) {
     }
 
     @MessageMapping("/room.requestJoin")

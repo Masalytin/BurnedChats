@@ -619,6 +619,14 @@ function AppContent() {
       setActiveRoomChat({ roomId, epoch: 0 });
       setCurrentView('room-chat');
     },
+    onAlreadyMember: (roomId) => {
+      // Invite deep-link for a room the user already belongs to — open chat, skip join form.
+      toast.info(t('room.join.errorAlreadyMember'));
+      resetJoinRoom();
+      setInviteToken(null);
+      setActiveRoomChat({ roomId, epoch: 0 });
+      setCurrentView('room-chat');
+    },
     onRejected: () => {
       notificationOccurred('error');
       toast.info('Your join request was rejected.');

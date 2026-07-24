@@ -60,6 +60,8 @@ interface ServerInviteInfoEvent {
   joinMode?: string;
   hasPassword?: boolean;
   error?: string;
+  /** Present when error is ALREADY_MEMBER — client should open the room. */
+  roomId?: string;
 }
 
 interface ServerJoinApprovedEvent {
@@ -82,6 +84,8 @@ interface UseJoinRoomOptions {
   unsubscribe: (destination: string) => void;
   publish: (destination: string, body: unknown) => void;
   onApproved?: (roomId: string) => void;
+  /** Invite opened by a user who is already a member — navigate into the room. */
+  onAlreadyMember?: (roomId: string) => void;
   onRejected?: (roomId: string) => void;
   onError?: (error: JoinRoomErrorCode) => void;
 }
@@ -118,6 +122,7 @@ export function useJoinRoom({
   unsubscribe,
   publish,
   onApproved,
+  onAlreadyMember,
   onRejected,
   onError,
 }: UseJoinRoomOptions): UseJoinRoomReturn {
@@ -131,10 +136,12 @@ export function useJoinRoom({
 
   // Stable refs for callbacks — avoids re-subscribing on every render
   const onApprovedRef = useRef(onApproved);
+  const onAlreadyMemberRef = useRef(onAlreadyMember);
   const onRejectedRef = useRef(onRejected);
   const onErrorRef = useRef(onError);
   useEffect(() => {
     onApprovedRef.current = onApproved;
+    onAlreadyMemberRef.current = onAlreadyMember;
     onRejectedRef.current = onRejected;
     onErrorRef.current = onError;
   });
@@ -155,6 +162,16 @@ export function useJoinRoom({
           hasPassword: data.hasPassword ?? true,
           error: null,
         }));
+      } else if (data.error === 'ALREADY_MEMBER' && data.roomId) {
+        // Already in the room — skip join form and let the parent open chat.
+        setResult({
+          status: 'approved',
+          joinMode: null,
+          hasPassword: true,
+          roomId: data.roomId,
+          error: null,
+        });
+        onAlreadyMemberRef.current?.(data.roomId);
       } else {
         const code = (data.error ?? 'INTERNAL_ERROR') as JoinRoomErrorCode;
         setResult({ status: 'error', joinMode: null, hasPassword: true, roomId: null, error: code });

@@ -975,6 +975,8 @@ On success the client receives `salt`, `joinMode`, and **`hasPassword`** (boolea
 
 Errors (without revealing room data): `INVALID_TOKEN`, `INVITE_EXPIRED`, `INVITE_EXHAUSTED`.
 
+If the caller is **already a member** of the resolved room, the server responds with `success: false`, `error: ALREADY_MEMBER`, and **`roomId`** (UUID). The client must open that room chat instead of showing the join / request form. `roomId` is returned only in this case (the caller already knows the room).
+
 ---
 
 ### REQUEST_JOIN_ROOM
