@@ -85,6 +85,32 @@ Production: `BurnedChatsWebhookBot` + `TelegramWebhookController` at `POST /api/
 
 Localized strings: `BotMessageService` + `backend/src/main/resources/i18n/messages_*.properties`.
 
+### Inline mode (invite card)
+
+Used only for **pre-filled** invite sharing from the Mini App — not as a room catalog.
+
+| Item | Detail |
+|------|--------|
+| Client entry | `WebApp.switchInlineQuery('invite_{token}', ['users','groups'])` via `useTelegram` (Bot API 6.7+) |
+| UI | Room manage invite row: «Send as card» (hidden when unsupported) |
+| Query format | Exactly `invite_{token}` where `{token}` is 64 hex chars (same as invite links) |
+| Bot answer | One `InlineQueryResultArticle`: generic localized title/description/message + URL `https://t.me/{bot}/app?startapp=invite_{token}` |
+| Invalid / empty query | Empty results + localized results button (`start_parameter=open`, text «Open Burned Chats» / RU equivalent; Bot API successor of `switch_pm_text`) |
+| Cache | `cache_time=300`, `is_personal=false` (generic, cacheable) |
+| Rate limit | `RateLimitType.INLINE_QUERY` (30 / min per Telegram user id) |
+| Handlers | `BurnedChatsWebhookBot` (prod) and `BurnedChatsBot` (dev long polling) → `InlineQueryService` |
+
+**Zero-knowledge:** the server never looks up the token in Redis on inline query and **never** puts a room title (or any E2E-encrypted field) into the article. Token existence is validated at join.
+
+#### BotFather (manual — required once per bot)
+
+1. Open [@BotFather](https://t.me/BotFather) → select the bot.
+2. **Bot Settings → Inline Mode → Turn on**.
+3. Set inline placeholder, e.g. `invite_…` or `Share a room invite from the app`.
+4. Optional: Inline feedback can stay off (we do not use `chosen_inline_result`).
+
+Without this step, clients receive no inline results even if the server answers correctly.
+
 ### initData validation
 
 `TelegramAuthService` (and wallet path in `WalletAuthStrategy`):

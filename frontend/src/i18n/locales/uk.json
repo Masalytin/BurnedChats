@@ -648,6 +648,7 @@
       "limitErrorNotInteger": "Лише ціле число",
       "revoke": "Відкликати",
       "share": "Поділитися",
+      "sendAsCard": "Надіслати карткою",
       "qr": "QR",
       "qrTitle": "QR-код запрошення",
       "qrCaption": "{{title}}",

@@ -40,15 +40,18 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     private final TelegramProperties telegramProperties;
     private final BotMessageService botMessages;
     private final BotBurnCommandService burnCommandService;
+    private final InlineQueryService inlineQueryService;
 
     public BurnedChatsBot(
             TelegramProperties telegramProperties,
             BotMessageService botMessages,
-            BotBurnCommandService burnCommandService) {
+            BotBurnCommandService burnCommandService,
+            InlineQueryService inlineQueryService) {
         super(telegramProperties.getBot().getToken());
         this.telegramProperties = telegramProperties;
         this.botMessages = botMessages;
         this.burnCommandService = burnCommandService;
+        this.inlineQueryService = inlineQueryService;
     }
 
     /**
@@ -92,6 +95,11 @@ public class BurnedChatsBot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         try {
+            if (update.hasInlineQuery()) {
+                execute(inlineQueryService.answer(update.getInlineQuery()));
+                return;
+            }
+
             if (update.hasCallbackQuery()) {
                 handleCallbackQuery(update.getCallbackQuery());
                 return;

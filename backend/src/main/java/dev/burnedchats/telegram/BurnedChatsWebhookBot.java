@@ -43,6 +43,7 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     private final TelegramProperties telegramProperties;
     private final BotMessageService botMessages;
     private final BotBurnCommandService burnCommandService;
+    private final InlineQueryService inlineQueryService;
 
     @Getter
     private final String botPath;
@@ -50,11 +51,13 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
     public BurnedChatsWebhookBot(
             TelegramProperties telegramProperties,
             BotMessageService botMessages,
-            BotBurnCommandService burnCommandService) {
+            BotBurnCommandService burnCommandService,
+            InlineQueryService inlineQueryService) {
         super(telegramProperties.getBot().getToken());
         this.telegramProperties = telegramProperties;
         this.botMessages = botMessages;
         this.burnCommandService = burnCommandService;
+        this.inlineQueryService = inlineQueryService;
         this.botPath = telegramProperties.getBot().getWebhook().getPath();
     }
 
@@ -99,6 +102,10 @@ public class BurnedChatsWebhookBot extends TelegramWebhookBot {
 
     @Override
     public BotApiMethod<?> onWebhookUpdateReceived(Update update) {
+        if (update.hasInlineQuery()) {
+            return inlineQueryService.answer(update.getInlineQuery());
+        }
+
         if (update.hasCallbackQuery()) {
             return handleCallbackQuery(update.getCallbackQuery());
         }

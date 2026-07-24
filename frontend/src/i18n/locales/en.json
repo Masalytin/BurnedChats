@@ -1289,6 +1289,7 @@
       "usesUnlimited": "{{used}} uses · unlimited",
       "revoke": "Revoke",
       "share": "Share",
+      "sendAsCard": "Send as card",
       "qr": "QR",
       "qrTitle": "Invite QR code",
       "qrCaption": "{{title}}",

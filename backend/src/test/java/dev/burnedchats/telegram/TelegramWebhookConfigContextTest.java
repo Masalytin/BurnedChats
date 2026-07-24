@@ -40,7 +40,8 @@ class TelegramWebhookConfigContextTest {
                 when(botMessages.get(anyString(), anyString())).thenReturn("cmd");
                 return botMessages;
             })
-            .withBean(BotBurnCommandService.class, () -> mock(BotBurnCommandService.class));
+            .withBean(BotBurnCommandService.class, () -> mock(BotBurnCommandService.class))
+            .withBean(InlineQueryService.class, () -> mock(InlineQueryService.class));
 
     @Test
     @DisplayName("ApplicationReadyEvent invokes registerWebhook without argument type mismatch")

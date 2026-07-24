@@ -29,6 +29,13 @@ type WebAppWithHomeScreen = typeof WebApp & {
   checkHomeScreenStatus?: (callback?: (status: HomeScreenStatus) => void) => void;
 };
 
+/** Chat types for {@code WebApp.switchInlineQuery} (Bot API 6.7+). */
+export type SwitchInlineChatType = 'users' | 'bots' | 'groups' | 'channels';
+
+type WebAppWithSwitchInline = typeof WebApp & {
+  switchInlineQuery?: (query: string, chooseChatTypes?: SwitchInlineChatType[]) => void;
+};
+
 interface UseTelegramReturn {
   /** WebApp SDK instance (null if not ready) */
   webApp: typeof WebApp | null;
@@ -101,6 +108,13 @@ interface UseTelegramReturn {
    * Returns `'unsupported'` when the API / version is unavailable.
    */
   checkHomeScreenStatus: () => Promise<HomeScreenStatus>;
+  /**
+   * Open Telegram chat picker and insert an inline query (Bot API 6.7+ with chat types).
+   * No-op when unsupported or outside Telegram.
+   */
+  switchInlineQuery: (query: string, chatTypes?: SwitchInlineChatType[]) => void;
+  /** True when running in Telegram with switchInlineQuery + choose_chat_types (≥ 6.7) */
+  canSwitchInlineQuery: boolean;
   /** Trigger impact haptic feedback */
   impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
   /** Trigger notification haptic feedback */
@@ -366,6 +380,44 @@ export function useTelegram(): UseTelegramReturn {
     });
   }, [isInTelegram]);
 
+  // Inline query share (Bot API 6.7+ choose_chat_types) — IMP-TGUX-06
+  const canSwitchInlineQuery = useMemo(() => {
+    if (!isInTelegram) {
+      return false;
+    }
+    try {
+      if (!WebApp.isVersionAtLeast('6.7')) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+    const webApp = WebApp as WebAppWithSwitchInline;
+    return typeof webApp.switchInlineQuery === 'function';
+  }, [isInTelegram]);
+
+  const switchInlineQuery = useCallback(
+    (query: string, chatTypes?: SwitchInlineChatType[]) => {
+      if (!canSwitchInlineQuery) {
+        return;
+      }
+      const webApp = WebApp as WebAppWithSwitchInline;
+      if (typeof webApp.switchInlineQuery !== 'function') {
+        return;
+      }
+      try {
+        if (chatTypes && chatTypes.length > 0) {
+          webApp.switchInlineQuery(query, chatTypes);
+        } else {
+          webApp.switchInlineQuery(query);
+        }
+      } catch {
+        // ignore — client may reject the call
+      }
+    },
+    [canSwitchInlineQuery],
+  );
+
   // Haptic feedback shortcuts
   const impactOccurred = useCallback((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => {
     if (isInTelegram && areHapticsEnabled()) {
@@ -413,6 +465,8 @@ export function useTelegram(): UseTelegramReturn {
     requestContact,
     addToHomeScreen,
     checkHomeScreenStatus,
+    switchInlineQuery,
+    canSwitchInlineQuery,
     impactOccurred,
     notificationOccurred,
     selectionChanged,

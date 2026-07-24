@@ -120,7 +120,13 @@ public class RateLimitService {
          * Failed room-password proof attempts — overridden by
          * {@code rate-limit.room-password-fail.*} (SECURITY.md: 5 / 10 min).
          */
-        ROOM_PASSWORD_FAIL(5, Duration.ofMinutes(10));
+        ROOM_PASSWORD_FAIL(5, Duration.ofMinutes(10)),
+
+        /**
+         * Telegram bot {@code inline_query} answers (IMP-TGUX-06).
+         * Keyed by Telegram user id; prevents inline-query flood.
+         */
+        INLINE_QUERY(30, Duration.ofMinutes(1));
 
         private final int defaultMaxRequests;
         private final Duration defaultWindow;

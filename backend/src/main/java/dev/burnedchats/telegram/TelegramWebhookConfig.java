@@ -46,6 +46,7 @@ public class TelegramWebhookConfig {
     private final TelegramProperties telegramProperties;
     private final BotMessageService botMessages;
     private final BotBurnCommandService burnCommandService;
+    private final InlineQueryService inlineQueryService;
 
     /**
      * Creates the webhook bot bean.
@@ -61,7 +62,8 @@ public class TelegramWebhookConfig {
             LOG.warn("Set TELEGRAM_BOT_TOKEN environment variable.");
         }
 
-        return new BurnedChatsWebhookBot(telegramProperties, botMessages, burnCommandService);
+        return new BurnedChatsWebhookBot(
+                telegramProperties, botMessages, burnCommandService, inlineQueryService);
     }
 
     /**

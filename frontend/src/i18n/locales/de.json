@@ -943,6 +943,7 @@
       "limitErrorNotInteger": "Verwenden Sie eine ganze Zahl",
       "revoke": "Widerrufen",
       "share": "Teilen",
+      "sendAsCard": "Als Karte senden",
       "qr": "QR",
       "qrTitle": "Einladungs-QR-Code",
       "qrCaption": "{{title}}",

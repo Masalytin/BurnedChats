@@ -648,6 +648,7 @@
       "limitErrorNotInteger": "Utilisez un nombre entier",
       "revoke": "Révoquer",
       "share": "Partager",
+      "sendAsCard": "Envoyer en carte",
       "qr": "QR",
       "qrTitle": "QR d'invitation",
       "qrCaption": "{{title}}",

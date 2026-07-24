@@ -192,8 +192,14 @@ interface InviteRowProps {
 
 function InviteRow({ invite, onCopy, onRevoke, onShowQr, copiedUrl, roomTitle }: InviteRowProps) {
   const { t } = useTranslation();
-  const { openTelegramLink, impactOccurred } = useTelegram();
+  const {
+    openTelegramLink,
+    impactOccurred,
+    switchInlineQuery,
+    canSwitchInlineQuery,
+  } = useTelegram();
   const showShare = getEnvironment() === 'telegram';
+  const showSendAsCard = showShare && canSwitchInlineQuery;
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
     Math.max(0, Math.floor((invite.expiresAt - Date.now()) / 1000)),
   );
@@ -216,6 +222,11 @@ function InviteRow({ invite, onCopy, onRevoke, onShowQr, copiedUrl, roomTitle }:
     impactOccurred('light');
     openTelegramLink(buildTelegramShareUrl(invite.url, text));
   }, [impactOccurred, invite.url, openTelegramLink, roomTitle, t]);
+
+  const handleSendAsCard = useCallback(() => {
+    impactOccurred('light');
+    switchInlineQuery(`invite_${invite.token}`, ['users', 'groups']);
+  }, [impactOccurred, invite.token, switchInlineQuery]);
 
   const handleShowQr = useCallback(() => {
     impactOccurred('light');
@@ -260,6 +271,17 @@ function InviteRow({ invite, onCopy, onRevoke, onShowQr, copiedUrl, roomTitle }:
           >
             <Share2 size={16} aria-hidden="true" />
             {t('room.invite.share')}
+          </button>
+        )}
+        {showSendAsCard && (
+          <button
+            type="button"
+            className="room-manage-invite__share"
+            onClick={handleSendAsCard}
+            aria-label={t('room.invite.sendAsCard')}
+          >
+            <Share2 size={16} aria-hidden="true" />
+            {t('room.invite.sendAsCard')}
           </button>
         )}
         <button

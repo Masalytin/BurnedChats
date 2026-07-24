@@ -652,6 +652,7 @@
       "limitErrorNotInteger": "استخدم عددًا صحيحًا",
       "revoke": "إلغاء",
       "share": "مشاركة",
+      "sendAsCard": "إرسال كبطاقة",
       "qr": "QR",
       "qrTitle": "رمز QR للدعوة",
       "qrCaption": "{{title}}",

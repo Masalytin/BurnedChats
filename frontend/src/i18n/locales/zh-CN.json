@@ -648,6 +648,7 @@
       "limitErrorNotInteger": "请输入整数",
       "revoke": "撤销",
       "share": "分享",
+      "sendAsCard": "以卡片发送",
       "qr": "二维码",
       "qrTitle": "邀请二维码",
       "qrCaption": "{{title}}",
