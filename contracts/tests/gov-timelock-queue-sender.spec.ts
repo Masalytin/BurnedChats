@@ -29,8 +29,10 @@ import { mnemonicNew } from '@ton/crypto';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
 import {
+    TIMELOCK_MIN_DELAY_SEC,
     assertGovernorMatchesDeployer,
     assertTimelockGovernorSender,
+    clampTimelockQueueDelay,
     resolveDeployerMnemonic,
     resolveDeployerSender,
 } from '../testnet-scenarios/lib/gov';
@@ -256,5 +258,32 @@ describe('IMP-TNFS-F16 — resolveDeployerSender', () => {
         process.env.WALLET_VERSION = 'v3r2';
         const ctx = stubCtx(stubNetworkProvider({ seqno: () => seqnoStack(0n) }));
         await expect(resolveDeployerSender(ctx)).rejects.toThrow(/Unsupported WALLET_VERSION/);
+    });
+});
+
+describe('IMP-TNFS-F17 — clampTimelockQueueDelay', () => {
+    // timelock.tact: require(msg.delay == 0 || msg.delay >= TIMELOCK_MIN_DELAY_SEC)
+    it('mirrors the contract constant (24 h)', () => {
+        expect(TIMELOCK_MIN_DELAY_SEC).toBe(86_400n);
+    });
+
+    it('keeps 0 unchanged (immediately executable — emergency path)', () => {
+        expect(clampTimelockQueueDelay(0n)).toBe(0n);
+    });
+
+    it('clamps the lab short-timer delay 60 → 0', () => {
+        expect(clampTimelockQueueDelay(60n)).toBe(0n);
+    });
+
+    it('clamps the last invalid value 86399 → 0', () => {
+        expect(clampTimelockQueueDelay(86_399n)).toBe(0n);
+    });
+
+    it('keeps the contract minimum 86400 unchanged', () => {
+        expect(clampTimelockQueueDelay(86_400n)).toBe(86_400n);
+    });
+
+    it('keeps values above the minimum unchanged (90000)', () => {
+        expect(clampTimelockQueueDelay(90_000n)).toBe(90_000n);
     });
 });

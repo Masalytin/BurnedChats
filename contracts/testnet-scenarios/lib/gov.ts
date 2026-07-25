@@ -229,6 +229,30 @@ export async function readPendingAction(
     return parsePendingActionTuple(t);
 }
 
+// ─── Timelock queue delay clamp — IMP-TNFS-F17 ──────────────────────────────
+
+/**
+ * Mirror of `timelock.tact` `TIMELOCK_MIN_DELAY_SEC` (COMPILE-TIME constant,
+ * not lab-tunable): `receive(TimelockQueue)` requires
+ * `msg.delay == 0 || msg.delay >= TIMELOCK_MIN_DELAY_SEC` ("Delay too short").
+ */
+export const TIMELOCK_MIN_DELAY_SEC = 86_400n;
+
+/**
+ * Clamp a Governor-configured timelock delay to a contract-valid value.
+ * Lab short-timer tips bake `timelockDelaySec=60` into the Governor config,
+ * but the Timelock's gate only accepts 0 (immediately executable — sandbox
+ * "Emergency proposal" path) or ≥ 24 h; anything in between bounces on
+ * "Delay too short" (live 2026-07-25 16:30 — deployer seqno grew, no
+ * pending). `0 < delay < TIMELOCK_MIN_DELAY_SEC` → 0n; otherwise unchanged.
+ */
+export function clampTimelockQueueDelay(delay: bigint): bigint {
+    if (delay > 0n && delay < TIMELOCK_MIN_DELAY_SEC) {
+        return 0n;
+    }
+    return delay;
+}
+
 // ─── Deployer (Timelock.governor) sender — IMP-TNFS-F16 ─────────────────────
 //
 // `timelock.tact` `receive(TimelockQueue)` requires `sender() == self.governor`.

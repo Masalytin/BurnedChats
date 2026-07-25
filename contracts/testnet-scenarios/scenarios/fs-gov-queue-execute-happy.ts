@@ -19,6 +19,7 @@ import {
     TYPE_TREASURY,
     assertTimelockGovernorSender,
     checkQueueExecute,
+    clampTimelockQueueDelay,
     naWhenGovTimeDependent,
     openProposal,
     parseTreasurySpendPayload,
@@ -95,7 +96,11 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
         let pending = await readPendingAction(provider, timelockAddr, latest.id);
         if (!pending) {
-            const delay = await proposal.getGetTimelockDelay();
+            // IMP-TNFS-F17: the Timelock's compile-time gate only accepts
+            // delay == 0 or ≥ TIMELOCK_MIN_DELAY_SEC (24 h) — the lab
+            // short-timer Governor config (60 s) bounces on "Delay too
+            // short", so clamp to the immediately-executable 0.
+            const delay = clampTimelockQueueDelay(await proposal.getGetTimelockDelay());
             const proposalType = await proposal.getGetProposalType();
             const payload = await proposal.getGetPayload();
             if (Number(proposalType) !== TYPE_TREASURY) {
