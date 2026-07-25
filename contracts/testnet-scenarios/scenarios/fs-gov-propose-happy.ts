@@ -14,6 +14,7 @@ import {
     resolveCancelLagSec,
     resolveGovActor,
     resolveSpendRecipient,
+    resolveUsableProposal,
     SPEND_AMOUNT_HAPPY,
     SPEND_REASON,
     treasurySpendPayload,
@@ -46,32 +47,31 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     const cancelLagSec = await resolveCancelLagSec(ctx);
 
-    // Idempotent: a prior proposal from this pack already exists.
-    if (countBefore > 0n) {
-        const id = countBefore - 1n;
-        const addr = await gov.getGetProposal(id);
-        if (addr) {
-            const proposal = openProposal(provider, addr);
-            const startTime = await proposal.getGetStartTime();
-            const endTime = await proposal.getGetEndTime();
-            const createdApprox = Number(startTime) - cancelLagSec;
-            return checkProposeCreated({
-                countBefore: countBefore - 1n,
-                countAfter: countBefore,
-                proposalAddr: addr,
-                startTime,
-                endTime,
-                createdAtApprox: createdApprox,
-                cancelLagSec,
-            }).map((c) =>
-                c.name === 'proposal-count-incremented'
-                    ? {
-                          ...c,
-                          message: `${c.message} (idempotent — latest proposal id=${id})`,
-                      }
-                    : c,
-            );
-        }
+    // Idempotent: reuse only a proposal the rest of the pack can still use
+    // (Active with a live voting window, or Succeeded). A Cancelled/Executed/
+    // Defeated latest must fall through to a fresh CreateProposal (IMP-TNFS-F13).
+    const reusable = await resolveUsableProposal(ctx, 'reusable');
+    if (reusable) {
+        const proposal = openProposal(provider, reusable.addr);
+        const startTime = await proposal.getGetStartTime();
+        const endTime = await proposal.getGetEndTime();
+        const createdApprox = Number(startTime) - cancelLagSec;
+        return checkProposeCreated({
+            countBefore: countBefore - 1n,
+            countAfter: countBefore,
+            proposalAddr: reusable.addr,
+            startTime,
+            endTime,
+            createdAtApprox: createdApprox,
+            cancelLagSec,
+        }).map((c) =>
+            c.name === 'proposal-count-incremented'
+                ? {
+                      ...c,
+                      message: `${c.message} (idempotent — reusable proposal id=${reusable.id}, state=${reusable.state})`,
+                  }
+                : c,
+        );
     }
 
     const claimedVp = await fetchVotingPower(ctx, actor);

@@ -43,6 +43,7 @@ export const OP_TREASURY_SPEND = 0x5a1c9010;
 
 export const PS_ACTIVE = 0n;
 export const PS_SUCCEEDED = 1n;
+export const PS_DEFEATED = 2n;
 export const PS_EXECUTED = 4n;
 export const PS_CANCELLED = 5n;
 
@@ -294,6 +295,89 @@ export async function resolveLatestProposalAddr(
         return null;
     }
     return { id, addr };
+}
+
+/** Max proposals scanned from the latest downward by `resolveUsableProposal`. */
+export const PROPOSAL_SCAN_DEPTH = 10;
+
+/**
+ * What the caller intends to do with the selected proposal (IMP-TNFS-F13):
+ * - `votable`    — CastVote target: Active with the voting window not yet over
+ *                  (pre-window Active counts — the caller waits for startTime).
+ * - `reusable`   — propose-happy idempotent reuse: votable Active or Succeeded.
+ *                  Cancelled/Executed/Defeated must fall through to a fresh
+ *                  CreateProposal.
+ * - `executable` — queue/execute path: Executed (caller's idempotent pass),
+ *                  Succeeded (queue → execute), or any Active (caller waits for
+ *                  endTime and finalizes — expired-unfinalized is advanceable).
+ */
+export type UsableProposalWant = 'votable' | 'reusable' | 'executable';
+
+export type UsableProposal = { id: bigint; addr: Address; state: bigint };
+
+/**
+ * Pure selection predicate behind `resolveUsableProposal` — exported for unit
+ * tests. Terminal states (Cancelled=5, Defeated=2, and Executed=4 unless the
+ * caller treats Executed as idempotent success) are never usable.
+ */
+export function isProposalUsable(input: {
+    want: UsableProposalWant;
+    state: bigint;
+    /** Voting-window end (unix); only consulted for Active proposals. */
+    endTimeUnix: bigint;
+    nowUnix: number;
+}): boolean {
+    const { want, state, endTimeUnix, nowUnix } = input;
+    if (state === PS_ACTIVE) {
+        if (want === 'executable') {
+            return true;
+        }
+        return BigInt(nowUnix) < endTimeUnix;
+    }
+    if (state === PS_SUCCEEDED) {
+        return want === 'reusable' || want === 'executable';
+    }
+    if (state === PS_EXECUTED) {
+        return want === 'executable';
+    }
+    return false;
+}
+
+/**
+ * State-aware proposal selection (IMP-TNFS-F13). Scans proposals from the
+ * latest (`id = count-1`) downward, at most `depth` entries, returning the
+ * first one usable for `want`. Fixes the re-run defect where `fs-gov-cancel`
+ * leaves the LATEST proposal Cancelled and blind `resolveLatestProposalAddr`
+ * callers vote / queue against it (live report
+ * `2026-07-25T14-42-13-176Z-tag_governance.json`).
+ */
+export async function resolveUsableProposal(
+    ctx: ScenarioContext,
+    want: UsableProposalWant,
+    opts?: { depth?: number; nowUnix?: number },
+): Promise<UsableProposal | null> {
+    const gov = openGovernor(ctx);
+    const count = await gov.getGetProposalCount();
+    if (count <= 0n) {
+        return null;
+    }
+    const depth = BigInt(opts?.depth ?? PROPOSAL_SCAN_DEPTH);
+    const nowUnix = opts?.nowUnix ?? Math.floor(Date.now() / 1000);
+    const lowest = count > depth ? count - depth : 0n;
+    for (let id = count - 1n; id >= lowest; id -= 1n) {
+        const addr = await gov.getGetProposal(id);
+        if (!addr) {
+            continue;
+        }
+        const proposal = openProposal(ctx.provider, addr);
+        const state = await proposal.getGetState();
+        // Fetch the window only for Active — terminal states short-circuit.
+        const endTimeUnix = state === PS_ACTIVE ? await proposal.getGetEndTime() : 0n;
+        if (isProposalUsable({ want, state, endTimeUnix, nowUnix })) {
+            return { id, addr, state };
+        }
+    }
+    return null;
 }
 
 /**

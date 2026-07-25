@@ -20,7 +20,7 @@ import {
     parseTreasurySpendPayload,
     readPendingAction,
     resolveGovMaxWaitSec,
-    resolveLatestProposalAddr,
+    resolveUsableProposal,
     timelockAddress,
     timelockContract,
     waitForProposalState,
@@ -40,9 +40,14 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         throw new Error('Blueprint mnemonic wallet address unavailable.');
     }
 
-    const latest = await resolveLatestProposalAddr(ctx);
+    // IMP-TNFS-F13: state-aware selection — a Cancelled/Defeated latest (e.g.
+    // left behind by fs-gov-cancel) must not fail the scenario when an earlier
+    // Executed/Succeeded/Active proposal exists.
+    const latest = await resolveUsableProposal(ctx, 'executable');
     if (!latest) {
-        throw new Error('No proposal found — run fs-gov-propose-happy first.');
+        throw new Error(
+            'No usable (non-terminal) proposal found — run fs-gov-propose-happy → fs-gov-vote-happy first.',
+        );
     }
 
     const proposal = openProposal(provider, latest.addr);
