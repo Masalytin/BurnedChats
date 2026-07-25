@@ -75,6 +75,33 @@ describe('deploy env', () => {
         expect(process.env.WALLET_MNEMONIC).toBe('explicit');
     });
 
+    it('strips quotes AND trailing comment from quoted values (IMP-TNFS-F09 identity drift)', () => {
+        // `VAR="..." # comment` used to keep the literal quotes in the value;
+        // for TEST_ACTOR_MNEMONIC that polluted the first/last mnemonic words
+        // and shifted the derived Actor A wallet address on live.
+        process.argv = ['node', 'blueprint', 'run', 'deploy', '--testnet', '--mnemonic'];
+        const saved = process.env.TEST_ACTOR_MNEMONIC;
+        delete process.env.TEST_ACTOR_MNEMONIC;
+        try {
+            writeFileSync(
+                join(tempRoot, '.env.testnet'),
+                'TEST_ACTOR_MNEMONIC="alpha beta gamma" # tonkeeper-style seed\n' +
+                    "MNEMONIC_TESTNET='quoted words' # single quotes too\n",
+            );
+
+            initDeployEnv(tempRoot);
+
+            expect(process.env.TEST_ACTOR_MNEMONIC).toBe('alpha beta gamma');
+            expect(process.env.MNEMONIC_TESTNET).toBe('quoted words');
+        } finally {
+            if (saved === undefined) {
+                delete process.env.TEST_ACTOR_MNEMONIC;
+            } else {
+                process.env.TEST_ACTOR_MNEMONIC = saved;
+            }
+        }
+    });
+
     it('strips inline comments from env values', () => {
         process.argv = ['node', 'blueprint', 'run', 'deploy', '--testnet', '--mnemonic'];
         writeFileSync(

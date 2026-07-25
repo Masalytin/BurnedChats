@@ -5,7 +5,14 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Address, beginCell, toNano, type Slice } from '@ton/core';
+import {
+    Address,
+    beginCell,
+    toNano,
+    TupleBuilder,
+    type Slice,
+    type TupleReader,
+} from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { storeStakeForward } from '../../build/StakingMaster/StakingMaster_StakingMaster';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
@@ -118,18 +125,103 @@ export function openStakingLock(ctx: ScenarioContext) {
     return ctx.provider.open(new StakingLock(requireStakingLockAddr(ctx)));
 }
 
+/** get_stake record (StakeInfoView fields). */
+export type StakeRecordView = {
+    amount: bigint;
+    tier: bigint;
+    startTime: bigint;
+    lastClaimTime: bigint;
+    unlockTime: bigint;
+};
+
+/**
+ * Read one Int field from a getter tuple, tolerating both well-formed
+ * `TupleItem` objects and the RAW values `@ton/ton` TonClient (toncenter API
+ * v2 — Blueprint's default client) produces for NESTED tuples: its
+ * `parseStackEntry` unwraps nested tuple elements to plain bigint instead of
+ * `{ type: 'int', value }`, so `TupleReader.readBigNumber()` throws
+ * "Not a number" for every non-null `get_stake` result (IMP-TNFS-F09 root
+ * cause — live stake records looked missing while they existed on-chain).
+ */
+export function readGetterIntFlexible(item: unknown, field: string): bigint {
+    if (typeof item === 'bigint') {
+        return item;
+    }
+    if (typeof item === 'number' && Number.isSafeInteger(item)) {
+        return BigInt(item);
+    }
+    if (typeof item === 'string' && /^-?\d+$/.test(item)) {
+        return BigInt(item);
+    }
+    if (item !== null && typeof item === 'object') {
+        const t = item as { type?: unknown; value?: unknown };
+        if (t.type === 'int' && typeof t.value === 'bigint') {
+            return t.value;
+        }
+    }
+    throw new Error(`get_stake: cannot read ${field} from stack item: ${String(item)}`);
+}
+
+/** Parse the 5-field StakeInfoView getter tuple (well-formed or toncenter-v2-shaped). */
+export function parseStakeRecordTuple(t: TupleReader): StakeRecordView {
+    return {
+        amount: readGetterIntFlexible(t.pop(), 'amount'),
+        tier: readGetterIntFlexible(t.pop(), 'tier'),
+        startTime: readGetterIntFlexible(t.pop(), 'startTime'),
+        lastClaimTime: readGetterIntFlexible(t.pop(), 'lastClaimTime'),
+        unlockTime: readGetterIntFlexible(t.pop(), 'unlockTime'),
+    };
+}
+
+/**
+ * Read `get_stake(owner, tier)` directly (bypasses the generated wrapper whose
+ * `readBigNumber` chokes on TonClient-v2 nested tuples). Throws on real errors.
+ */
+export async function readStakeRecord(
+    provider: NetworkProvider,
+    stakingMaster: Address,
+    owner: Address,
+    tier: number,
+): Promise<StakeRecordView | null> {
+    const args = new TupleBuilder();
+    args.writeAddress(owner);
+    args.writeNumber(BigInt(tier));
+    const res = await provider.provider(stakingMaster).get('get_stake', args.build());
+    const t = res.stack.readTupleOpt();
+    if (!t) {
+        return null;
+    }
+    return parseStakeRecordTuple(t);
+}
+
+/** True for get-method execution failures (uninit account, node-side exit codes). */
+export function isGetMethodExecutionError(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    return /exit_?code|unable to execute get method|non-active contract/i.test(msg);
+}
+
+/**
+ * Stake amount for (owner, tier); 0 when there is no record.
+ *
+ * Get-method EXECUTION failures (uninit master on a fresh tip, transient node
+ * exit codes) still degrade to 0 so naWhen* guards keep working. PARSE failures
+ * now propagate: the old catch-all turned the IMP-TNFS-F09 client parse bug
+ * into a silent "stake = 0", which live looked like lost user funds.
+ */
 export async function readStakeAmount(
     provider: NetworkProvider,
     stakingMaster: Address,
     owner: Address,
     tier: number,
 ): Promise<bigint> {
-    const master = provider.open(new StakingMaster(stakingMaster));
     try {
-        const stake = await master.getGetStake(owner, BigInt(tier));
-        return stake?.amount ?? 0n;
-    } catch {
-        return 0n;
+        const record = await readStakeRecord(provider, stakingMaster, owner, tier);
+        return record?.amount ?? 0n;
+    } catch (err) {
+        if (isGetMethodExecutionError(err)) {
+            return 0n;
+        }
+        throw err;
     }
 }
 

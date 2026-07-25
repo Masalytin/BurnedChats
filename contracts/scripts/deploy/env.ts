@@ -14,8 +14,17 @@ function parseEnvLine(rawLine: string): { key: string; val: string } | undefined
     }
     const key = line.slice(0, eq).trim();
     let val = line.slice(eq + 1).trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
+    const quote = val[0];
+    if (quote === '"' || quote === "'") {
+        // Quoted value: take everything up to the CLOSING quote and drop the
+        // rest (inline comment). The old `startsWith && endsWith` check failed
+        // for `VAR="..." # comment` and kept the literal quotes in the value —
+        // for TEST_ACTOR_MNEMONIC that silently shifted the derived wallet
+        // address (IMP-TNFS-F09 identity drift).
+        const end = val.indexOf(quote, 1);
+        if (end > 0) {
+            val = val.slice(1, end);
+        }
     } else {
         const hashIdx = val.indexOf('#');
         if (hashIdx >= 0) {
