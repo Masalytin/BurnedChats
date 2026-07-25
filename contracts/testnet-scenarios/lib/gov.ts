@@ -15,9 +15,21 @@ import type { NetworkProvider } from '@ton/blueprint';
 import { Governor } from '../../wrappers/Governor';
 import { Proposal } from '../../wrappers/Proposal';
 import { Timelock } from '../../wrappers/Timelock';
+import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import { check } from './checks';
-import { parseEnvAddress } from './balances';
-import { readGetterIntFlexible, resolveStaker } from './staking';
+import { parseEnvAddress, readJettonWalletBalance } from './balances';
+import {
+    isGetMethodExecutionError,
+    LOCKED_TIER,
+    NA_INSUFFICIENT_BURN,
+    readGetterIntFlexible,
+    readStakeRecord,
+    requireStakingLockAddr,
+    resolveStaker,
+    sendStakeJettons,
+    STAKE_AMOUNT_HAPPY,
+    type StakeRecordView,
+} from './staking';
 import {
     readTreasurySpent,
     readTreasurySpendingCount,
@@ -275,6 +287,222 @@ export async function resolveCancelLagSec(ctx: ScenarioContext): Promise<number>
         return fromManifest;
     }
     return CANCEL_LAG_SEC;
+}
+
+// ─── Locked-beyond voting power (IMP-TNFS-F15) ──────────────────────────────
+//
+// Flash-stake protection (IMP-FAUDIT-F01 / F-2): the StakingMaster
+// `GovernorVoteRelay` receiver counts ONLY stakes with
+// `unlockTime > voteEndTime` (strictly greater) — Flexible tier
+// (`unlockTime == startTime`) always yields zero effective VP and the relay
+// bounces with "Zero effective vp". Vote scenarios must hold a locked-tier
+// stake covering the voting window before casting.
+
+/** Tier bounds mirrored from staking-master.tact (`MinTier` / `MaxTier`). */
+export const GOV_MIN_TIER = 0;
+export const GOV_MAX_TIER = 3;
+
+/** Safety margin added to the estimated voteEndTime of a fresh proposal. */
+export const LOCKED_VP_END_MARGIN_SEC = 600;
+
+/** Poll budget for the tier-1 stake record to surface after StakeForward. */
+const LOCKED_STAKE_POLL_ATTEMPTS = 12;
+const LOCKED_STAKE_POLL_SLEEP_MS = 5_000;
+
+/**
+ * Pure mirror of `computeOwnerVotingPowerLockedBeyond` (staking-master.tact):
+ * Σ `amount × multiplier / 100` over stakes with `amount > 0` AND
+ * `unlockTime > voteEndTime` (STRICT — a stake unlocking exactly at
+ * voteEndTime does not count). `multipliers` is the on-chain tier table
+ * (multiplier ×100, e.g. Silver 150 = 1.5x).
+ */
+export function computeLockedBeyondVp(
+    records: ReadonlyArray<StakeRecordView>,
+    multipliers: ReadonlyMap<bigint, bigint>,
+    voteEndTime: bigint,
+): bigint {
+    let sum = 0n;
+    for (const record of records) {
+        if (record.amount > 0n && record.unlockTime > voteEndTime) {
+            const multiplier = multipliers.get(record.tier);
+            if (multiplier == null) {
+                throw new Error(
+                    `computeLockedBeyondVp: missing multiplier for tier ${record.tier}`,
+                );
+            }
+            sum += (record.amount * multiplier) / 100n;
+        }
+    }
+    return sum;
+}
+
+/** StakingLock address: on-chain governor `get_staking_lock` → manifest fallback. */
+export async function resolveStakingLockAddr(ctx: ScenarioContext): Promise<Address> {
+    try {
+        const res = await ctx.provider
+            .provider(governorAddress(ctx))
+            .get('get_staking_lock', []);
+        return readGetterAddressFlexible(res.stack.pop(), 'governor.stakingLock');
+    } catch {
+        return requireStakingLockAddr(ctx);
+    }
+}
+
+/**
+ * On-chain tier multiplier table via StakingLock `get_tier_multiplier`
+ * (never hardcoded — Timelock can retune tiers at runtime).
+ */
+export async function readTierMultipliers(
+    ctx: ScenarioContext,
+    stakingLock: Address,
+): Promise<Map<bigint, bigint>> {
+    const multipliers = new Map<bigint, bigint>();
+    for (let tier = GOV_MIN_TIER; tier <= GOV_MAX_TIER; tier += 1) {
+        const args = new TupleBuilder();
+        args.writeNumber(BigInt(tier));
+        const res = await ctx.provider
+            .provider(stakingLock)
+            .get('get_tier_multiplier', args.build());
+        multipliers.set(
+            BigInt(tier),
+            readGetterIntFlexible(res.stack.pop(), `tier_multiplier[${tier}]`),
+        );
+    }
+    return multipliers;
+}
+
+/**
+ * All existing stake records of `owner` across tiers 0..3 via the tolerant
+ * `readStakeRecord` (IMP-TNFS-F09 toncenter-v2 shapes). Get-method EXECUTION
+ * failures degrade to "no record" (same policy as `readStakeAmount`); parse
+ * failures propagate.
+ */
+export async function readActorStakeRecords(
+    ctx: ScenarioContext,
+    owner: Address,
+): Promise<StakeRecordView[]> {
+    const stakingMaster = Address.parse(ctx.manifest.addresses.stakingMaster);
+    const records: StakeRecordView[] = [];
+    for (let tier = GOV_MIN_TIER; tier <= GOV_MAX_TIER; tier += 1) {
+        try {
+            const record = await readStakeRecord(ctx.provider, stakingMaster, owner, tier);
+            if (record) {
+                records.push(record);
+            }
+        } catch (err) {
+            if (!isGetMethodExecutionError(err)) {
+                throw err;
+            }
+        }
+    }
+    return records;
+}
+
+/**
+ * Conservative voteEndTime for a proposal created "now": a fresh proposal's
+ * window ends at `createdAt + cancelLag + votingPeriod`, plus a margin for
+ * clock drift / propose latency. A tier-1 lock (180 d) clears this by orders
+ * of magnitude — the margin only guards near-expiry legacy stakes.
+ */
+export async function estimateFreshVoteEndTime(ctx: ScenarioContext): Promise<bigint> {
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const cancelLag = await resolveCancelLagSec(ctx);
+    const cfg = await readProposalConfig(ctx, TYPE_TREASURY);
+    return BigInt(nowUnix + cancelLag + Number(cfg.period) + LOCKED_VP_END_MARGIN_SEC);
+}
+
+/**
+ * Ensure the gov actor holds locked-beyond VP covering a proposal window that
+ * ends at `minVoteEndTime` (estimated for a fresh proposal when omitted).
+ * Idempotent: an existing stake with sufficient `unlockTime` sends nothing.
+ * Otherwise stakes `STAKE_AMOUNT_HAPPY` into `LOCKED_TIER` (Silver) and polls
+ * the stake state until the locked VP turns positive — state-based
+ * verification, because V5R1 wallets silently skip underfunded actions
+ * (seqno grows, internal never sent — IMP-TNFS-F10).
+ *
+ * Returns the locked-beyond VP now held.
+ */
+export async function ensureLockedVotingPower(
+    ctx: ScenarioContext,
+    opts?: { minVoteEndTime?: bigint },
+): Promise<bigint> {
+    const actor = resolveGovActor(ctx);
+    const voteEndTime = opts?.minVoteEndTime ?? (await estimateFreshVoteEndTime(ctx));
+    const stakingLock = await resolveStakingLockAddr(ctx);
+    const multipliers = await readTierMultipliers(ctx, stakingLock);
+
+    const existingVp = computeLockedBeyondVp(
+        await readActorStakeRecords(ctx, actor),
+        multipliers,
+        voteEndTime,
+    );
+    if (existingVp > 0n) {
+        return existingVp;
+    }
+
+    const jettonMaster = Address.parse(ctx.manifest.addresses.jettonMaster);
+    const balance = await readJettonWalletBalance(ctx.provider, jettonMaster, actor);
+    if (balance < STAKE_AMOUNT_HAPPY) {
+        throw new Error(
+            `${NA_INSUFFICIENT_BURN}: locked-tier (tier ${LOCKED_TIER}) stake needs ` +
+                `${STAKE_AMOUNT_HAPPY} nano BURN, actor has ${balance}`,
+        );
+    }
+
+    const seqnoBefore = await getSenderSeqno(ctx.provider);
+    await sendStakeJettons(ctx, {
+        amount: STAKE_AMOUNT_HAPPY,
+        tier: LOCKED_TIER,
+        staker: actor,
+    });
+    await waitForSenderSeqnoIncrement(ctx.provider, seqnoBefore);
+
+    let vp = 0n;
+    for (let attempt = 0; attempt < LOCKED_STAKE_POLL_ATTEMPTS; attempt += 1) {
+        vp = computeLockedBeyondVp(
+            await readActorStakeRecords(ctx, actor),
+            multipliers,
+            voteEndTime,
+        );
+        if (vp > 0n) {
+            return vp;
+        }
+        await sleepMs(LOCKED_STAKE_POLL_SLEEP_MS);
+    }
+    throw new Error(
+        `locked-tier stake (tier ${LOCKED_TIER}, ${STAKE_AMOUNT_HAPPY} nano BURN) did not ` +
+            `surface as locked-beyond VP within ` +
+            `${(LOCKED_STAKE_POLL_ATTEMPTS * LOCKED_STAKE_POLL_SLEEP_MS) / 1000}s — ` +
+            `check StakeForward path / actor TON balance (V5R1 silent skip).`,
+    );
+}
+
+/**
+ * Honest N/A (card item 5 — no blanket-N/A): when the actor has zero
+ * locked-beyond VP AND cannot fund the locked-tier stake, surface the
+ * existing insufficient-BURN reason instead of failing mid-run. Read errors
+ * degrade to null so `run()` reports the real failure loudly.
+ */
+export async function naWhenLockedVpUnfundable(ctx: ScenarioContext): Promise<string | null> {
+    try {
+        const actor = resolveGovActor(ctx);
+        const voteEndTime = await estimateFreshVoteEndTime(ctx);
+        const stakingLock = await resolveStakingLockAddr(ctx);
+        const multipliers = await readTierMultipliers(ctx, stakingLock);
+        const vp = computeLockedBeyondVp(
+            await readActorStakeRecords(ctx, actor),
+            multipliers,
+            voteEndTime,
+        );
+        if (vp > 0n) {
+            return null;
+        }
+        const jettonMaster = Address.parse(ctx.manifest.addresses.jettonMaster);
+        const balance = await readJettonWalletBalance(ctx.provider, jettonMaster, actor);
+        return balance < STAKE_AMOUNT_HAPPY ? NA_INSUFFICIENT_BURN : null;
+    } catch {
+        return null;
+    }
 }
 
 export async function readProposalCount(ctx: ScenarioContext): Promise<bigint> {

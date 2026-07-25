@@ -6,6 +6,12 @@
  * fs-gov-cancel left the latest Cancelled), the scenario creates a fresh one
  * itself — mirroring fs-gov-cancel's ensureCancellableProposal pattern — so
  * the governance tag stays re-runnable regardless of scenario ordering.
+ *
+ * IMP-TNFS-F15: flash-stake protection (IMP-FAUDIT-F01) only counts stakes
+ * with `unlockTime > voteEndTime` toward the relayed vote — a Flexible-only
+ * actor gets "Zero effective vp". `ensureLockedVotingPower` opens a
+ * locked-tier stake BEFORE the proposal is ensured, so a fresh proposal's
+ * totalVp quorum snapshot already includes it.
  */
 import { Address } from '@ton/core';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
@@ -14,9 +20,11 @@ import {
     SPEND_AMOUNT_HAPPY,
     TYPE_TREASURY,
     checkVoteRecorded,
+    ensureLockedVotingPower,
     fetchVotingPower,
     governorContract,
     naWhenGovTimeDependent,
+    naWhenLockedVpUnfundable,
     openProposal,
     resolveGovActor,
     resolveGovMaxWaitSec,
@@ -30,7 +38,12 @@ import { sleepMs } from '../lib/treasury';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 export async function naWhen(ctx: ScenarioContext): Promise<string | null> {
-    return naWhenGovTimeDependent(ctx);
+    const time = await naWhenGovTimeDependent(ctx);
+    if (time) {
+        return time;
+    }
+    // Honest N/A: zero locked-beyond VP and no BURN to fund the locked stake.
+    return naWhenLockedVpUnfundable(ctx);
 }
 
 /**
@@ -80,6 +93,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     if (!sender || !sender.equals(actor)) {
         throw new Error('Mnemonic wallet must equal gov actor for CastVote.');
     }
+
+    // Locked-tier stake BEFORE the proposal is ensured: a fresh proposal's
+    // totalVp quorum snapshot then already includes the locked VP (IMP-TNFS-F15).
+    await ensureLockedVotingPower(ctx);
 
     const target = await ensureVotableProposal(ctx);
 
