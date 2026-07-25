@@ -1,8 +1,10 @@
 /**
  * Jetton balance / fee-config helpers + full-stack fee constants (0.5/0.3/0.2).
+ * Also: signer TON balance preflight policy (IMP-TNFS-F10).
  */
-import { Address } from '@ton/core';
+import { Address, fromNano } from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
+import type { ScenarioBudget } from '../types';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
 import { readJettonWalletBalance as readBalanceFromBootstrap } from '../../scripts/deploy/bootstrap';
@@ -29,6 +31,35 @@ export const FEE_SPLIT_EXPECTED = {
     staking: EXPECTED_STAKING,
     treasury: EXPECTED_TREASURY,
 } as const;
+
+// ─── Signer TON balance preflight (IMP-TNFS-F10) ────────────────────────────
+
+/** Exact N/A reason key when the signer cannot fund the scenario's declared attach budget. */
+export const NA_INSUFFICIENT_SENDER_TON = 'insufficient-sender-ton';
+
+/**
+ * Pure preflight policy: compare the signer's live TON balance against the
+ * scenario's declared budget. Returns the N/A reason (with how much is
+ * needed) or null when funded. Guards against the V5R1 silent action-skip:
+ * a wallet whose balance cannot cover the attach accepts the external and
+ * bumps seqno but never sends the internal (live 2026-07-23,
+ * fs-vesting-emergency-revoke: 3.8 TON attach on a ~2.1 TON balance).
+ */
+export function insufficientSenderTonReason(input: {
+    budget: ScenarioBudget;
+    balance: bigint;
+    address?: string;
+}): string | null {
+    if (input.balance >= input.budget.minTon) {
+        return null;
+    }
+    const at = input.address ? ` at ${input.address}` : '';
+    return (
+        `${NA_INSUFFICIENT_SENDER_TON}: need ≥ ${fromNano(input.budget.minTon)} TON ` +
+        `(${input.budget.signer} signer), have ${fromNano(input.balance)} TON${at} — ` +
+        `top up before re-running (V5R1 silently skips underfunded actions)`
+    );
+}
 
 export function parseEnvAddress(...keys: string[]): Address | undefined {
     for (const key of keys) {

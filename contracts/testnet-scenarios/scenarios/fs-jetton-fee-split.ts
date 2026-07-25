@@ -172,6 +172,8 @@ export const scenario: Scenario = {
         'Send 1 BURN fee-bearing transfer; assert recipient 0.99, burn 0.005, staking 0.003, treasury 0.002.',
     tags: ['jetton', 'fee'],
     needsLiveTx: true,
+    // 3.5 TON fee-path attach + fee margin (IMP-TNFS-F10 preflight).
+    budget: { signer: 'actor', minTon: TRANSFER_TON + toNano('0.2') },
     depends_on: ['fs-ops-deployment-fingerprint'],
     naWhen,
     run: runChecks,

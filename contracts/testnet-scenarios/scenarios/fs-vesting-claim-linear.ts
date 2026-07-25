@@ -1,6 +1,7 @@
 /**
  * fs-vesting-claim-linear — after cliff, claim ≤ vested_amount(now); beneficiary wallet ↑.
  */
+import { toNano } from '@ton/core';
 import {
     checkLinearClaim,
     loadAllVaultStates,
@@ -101,6 +102,8 @@ export const scenario: Scenario = {
         'N/A when before cliff / fully claimed / sender ≠ beneficiary.',
     tags: ['vesting'],
     needsLiveTx: true,
+    // 3.5 TON VestRelease attach + fee margin (IMP-TNFS-F10 preflight).
+    budget: { signer: 'actor', minTon: VESTING_RELEASE_TON + toNano('0.2') },
     depends_on: ['fs-vesting-smoke'],
     naWhen,
     run: runChecks,

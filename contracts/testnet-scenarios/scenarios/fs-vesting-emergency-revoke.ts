@@ -3,6 +3,7 @@
  * DESTRUCTIVE. Excluded from --all. Shared tip always N/A; N/A if no vesting / nothing to revoke.
  * Requires lab Timelock tip with VestEmergencyRevoke relay (IMP-TNFS-F03).
  */
+import { toNano } from '@ton/core';
 import {
     checkEmergencyRevoke,
     loadAllVaultStates,
@@ -11,6 +12,7 @@ import {
     readJettonWalletBalance,
     sendEmergencyRevokeViaTimelock,
     sleepMs,
+    VESTING_REVOKE_EXECUTE_TON,
 } from '../lib/vesting';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
@@ -78,6 +80,10 @@ export const scenario: Scenario = {
     tags: ['vesting', 'admin', 'destructive'],
     needsLiveTx: true,
     destructive: true,
+    // 3.8 TON execute attach + queue leg / fees margin. Live 2026-07-23: a
+    // ~2.1 TON governor wallet SILENTLY SKIPPED the 3.8 attach (V5R1) — the
+    // runner now preflights this budget (IMP-TNFS-F10).
+    budget: { signer: 'deploy', minTon: VESTING_REVOKE_EXECUTE_TON + toNano('0.5') },
     depends_on: ['fs-vesting-smoke'],
     naWhen,
     run: runChecks,

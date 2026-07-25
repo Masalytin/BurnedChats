@@ -6,15 +6,21 @@
  *   npm run testnet:scenarios -- --manifest lab --tag destructive
  *   npm run testnet:scenarios -- --all
  */
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { applyBlueprintWalletAliases, loadDeployEnv, resolveMnemonic } from '../scripts/deploy/env';
 import type { NetworkProvider } from '@ton/blueprint';
+import { insufficientSenderTonReason } from './lib/balances';
 import { allChecksPass } from './lib/checks';
 import { computeDeploymentFingerprint } from './lib/fingerprint';
 import { loadManifest } from './lib/manifest';
 import { assertNotMainnetRequest, assertTestnetOnly } from './lib/network-guard';
-import { createTestnetNetworkProvider } from './lib/provider';
+import {
+    createTestnetNetworkProvider,
+    isUninitAccountError,
+    NA_ACCOUNT_NOT_INITIALIZED,
+    readLiveTonBalance,
+} from './lib/provider';
 import { defaultScenariosDir, discoverScenarios, isDestructive, orderByDependsOn } from './registry';
 import { formatStdoutSummary, writeReportJson, defaultReportsDir } from './report';
 import {
@@ -41,6 +47,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     let scenarioId: string | undefined;
     let tag: string | undefined;
     let force = false;
+    let forceLock = false;
     let manifest: ManifestKind = 'shared';
     let requestedMainnet = false;
 
@@ -52,6 +59,10 @@ export function parseCliArgs(argv: string[]): CliOptions {
         }
         if (a === '--force') {
             force = true;
+            continue;
+        }
+        if (a === '--force-lock') {
+            forceLock = true;
             continue;
         }
         if (a === '--list') {
@@ -107,7 +118,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
         );
     }
 
-    return { mode, scenarioId, tag, force, manifest, requestedMainnet };
+    return { mode, scenarioId, tag, force, forceLock, manifest, requestedMainnet };
 }
 
 function printHelp(): void {
@@ -120,6 +131,7 @@ Usage:
   npm run testnet:scenarios -- --all
   npm run testnet:scenarios -- --failed-only
   npm run testnet:scenarios -- --force
+  npm run testnet:scenarios -- --force-lock
   npm run testnet:scenarios -- --manifest shared|lab   (default: shared)
 
 Notes:
@@ -127,6 +139,10 @@ Notes:
   - destructive only via --tag destructive or --scenario <id>
   - reports: contracts/reports/*.json (gitignored)
   - state: contracts/.testnet-scenario-state.json (gitignored)
+  - single-runner lock: contracts/reports/.runner.lock; a second live runner
+    refuses to start while the lock pid is alive (--force-lock to take over)
+  - npm on Windows swallows flags after "--": invoke directly via
+    npx ts-node --transpile-only testnet-scenarios/runner.ts <flags>
 `);
 }
 
@@ -200,6 +216,103 @@ export function assertTestnetEnvReady(contractsRoot: string): void {
     }
 }
 
+// ─── Single-runner lock (IMP-TNFS-F10) ──────────────────────────────────────
+// RUNBOOK requires one live runner, but nothing enforced it: two overlapping
+// runs (2026-07-23, after a Tee-pipe failure) raced seqno and overwrote
+// reports. Lock file lives in contracts/reports/ precisely because that dir
+// is gitignored.
+
+export const RUNNER_LOCK_FILE = '.runner.lock';
+
+export type RunnerLockInfo = { pid: number; startedAt: string };
+
+export function runnerLockPath(reportsDir: string): string {
+    return resolve(reportsDir, RUNNER_LOCK_FILE);
+}
+
+function defaultIsPidAlive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (err) {
+        // EPERM: process exists but belongs to someone else — still alive.
+        return (err as NodeJS.ErrnoException).code === 'EPERM';
+    }
+}
+
+function readLockInfo(path: string): RunnerLockInfo | null {
+    try {
+        const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<RunnerLockInfo>;
+        if (typeof parsed.pid === 'number') {
+            return {
+                pid: parsed.pid,
+                startedAt: typeof parsed.startedAt === 'string' ? parsed.startedAt : 'unknown',
+            };
+        }
+    } catch {
+        // Corrupt/unreadable lock → treated as stale below.
+    }
+    return null;
+}
+
+/**
+ * Acquire the single-runner lock or throw with a clear message.
+ * Policy: live pid → refuse (unless --force-lock); dead pid or corrupt lock →
+ * warn and take over. Release only removes the lock if it is still ours.
+ */
+export function acquireRunnerLock(
+    reportsDir: string,
+    opts: { forceLock: boolean; pid?: number; isPidAlive?: (pid: number) => boolean } = {
+        forceLock: false,
+    },
+): { path: string; release: () => void } {
+    const path = runnerLockPath(reportsDir);
+    const pid = opts.pid ?? process.pid;
+    const isPidAlive = opts.isPidAlive ?? defaultIsPidAlive;
+
+    if (existsSync(path)) {
+        const existing = readLockInfo(path);
+        const existingAlive = existing !== null && existing.pid !== pid && isPidAlive(existing.pid);
+        if (existingAlive && !opts.forceLock) {
+            throw new Error(
+                `Another scenario runner is already live: pid=${existing.pid} started=${existing.startedAt} ` +
+                    `(lock ${path}). Concurrent runners race wallet seqno and overwrite reports/state — ` +
+                    `wait for it to finish, or re-run with --force-lock if it is truly gone. ` +
+                    `Invoke directly (npm swallows flags): ` +
+                    `npx ts-node --transpile-only testnet-scenarios/runner.ts <filter> --force-lock`,
+            );
+        }
+        if (existingAlive) {
+            console.warn(
+                `[runner-lock] --force-lock: taking over LIVE lock pid=${existing.pid} started=${existing.startedAt}`,
+            );
+        } else {
+            console.warn(
+                `[runner-lock] stale lock (pid=${existing?.pid ?? '?'} dead or lock unreadable) — taking over`,
+            );
+        }
+    }
+
+    mkdirSync(reportsDir, { recursive: true });
+    const info: RunnerLockInfo = { pid, startedAt: new Date().toISOString() };
+    writeFileSync(path, `${JSON.stringify(info, null, 2)}\n`, 'utf8');
+
+    let released = false;
+    return {
+        path,
+        release: () => {
+            if (released) {
+                return;
+            }
+            released = true;
+            // Only unlink if the lock is still ours (a takeover may have replaced it).
+            if (existsSync(path) && readLockInfo(path)?.pid === pid) {
+                unlinkSync(path);
+            }
+        },
+    };
+}
+
 function formatList(scenarios: Scenario[]): string {
     if (scenarios.length === 0) {
         return 'No scenarios registered (scenarios/ is empty — add fs-* files in later cards).';
@@ -216,7 +329,7 @@ function formatList(scenarios: Scenario[]): string {
     return lines.join('\n');
 }
 
-async function runOne(
+export async function runOne(
     scenario: Scenario,
     ctx: ScenarioContext,
     state: RunnerState,
@@ -237,7 +350,57 @@ async function runOne(
         };
     }
 
-    const naReason = scenario.naWhen ? await scenario.naWhen(ctx) : undefined;
+    let naReason: string | null | undefined;
+    try {
+        naReason = scenario.naWhen ? await scenario.naWhen(ctx) : undefined;
+        // Balance preflight (IMP-TNFS-F10): V5R1 silently skips actions whose
+        // attach exceeds the balance — check the declared budget up front.
+        if (!naReason && scenario.budget) {
+            const signer = ctx.provider.sender().address;
+            if (signer) {
+                const balance = await readLiveTonBalance(ctx.provider, signer);
+                naReason = insufficientSenderTonReason({
+                    budget: scenario.budget,
+                    balance,
+                    address: signer.toString({ urlSafe: true, bounceable: true }),
+                });
+            }
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (isUninitAccountError(err)) {
+            // Fresh actor wallets / undeployed children are a legitimate state
+            // during preflight probes — explicit N/A, not FAIL (IMP-TNFS-F10).
+            return {
+                result: {
+                    id: scenario.id,
+                    title: scenario.title,
+                    status: 'na',
+                    durationMs: 0,
+                    checks: [],
+                    naReason: `${NA_ACCOUNT_NOT_INITIALIZED} (${message})`,
+                },
+                state,
+            };
+        }
+        // Other preflight failures fail this scenario (recorded, never skipped)
+        // instead of crashing the whole run loop.
+        const next = recordScenarioResult(state, scenario.id, {
+            status: 'fail',
+            ts: new Date().toISOString(),
+        });
+        return {
+            result: {
+                id: scenario.id,
+                title: scenario.title,
+                status: 'fail',
+                durationMs: 0,
+                checks: [],
+                error: `preflight failed: ${message}`,
+            },
+            state: next,
+        };
+    }
     if (naReason) {
         return {
             result: {
@@ -331,51 +494,59 @@ export async function executeRun(opts: {
         manifestNetwork: manifest.network,
     });
 
-    const deploymentFingerprint = computeDeploymentFingerprint(manifest);
-    const statePath = opts.statePath ?? defaultStatePath(contractsRoot);
-    let state = loadState(statePath, deploymentFingerprint);
-
-    const selected = selectScenarios(scenarios, cli, state);
-    let provider = opts.provider;
-    if (!provider && !opts.skipProvider) {
-        provider = await createTestnetNetworkProvider(contractsRoot);
-    }
-    if (!provider) {
-        throw new Error('NetworkProvider required for scenario runs (pass provider or disable skipProvider)');
-    }
-    const ctx: ScenarioContext = {
-        network: 'testnet',
-        contractsRoot,
-        manifestKind: cli.manifest,
-        manifest,
-        deploymentFingerprint,
-        provider,
-    };
-
-    const started = new Date().toISOString();
-    const results: ScenarioRunResult[] = [];
-    for (const scenario of selected) {
-        const { result, state: next } = await runOne(scenario, ctx, state, cli.force);
-        state = next;
-        results.push(result);
-    }
-    const finished = new Date().toISOString();
-
-    saveState(statePath, state);
-
-    const report: Report = {
-        network: 'testnet',
-        manifestKind: cli.manifest,
-        fingerprint: deploymentFingerprint,
-        filter: filterLabel(cli),
-        started,
-        finished,
-        scenarios: results,
-    };
-
+    // Single-runner lock (IMP-TNFS-F10): refuse to overlap a live run.
     const reportsDir = opts.reportsDir ?? defaultReportsDir(contractsRoot);
-    const reportPath = writeReportJson(reportsDir, report);
-    return { report, reportPath };
+    const lock = acquireRunnerLock(reportsDir, { forceLock: cli.forceLock });
+    try {
+        const deploymentFingerprint = computeDeploymentFingerprint(manifest);
+        const statePath = opts.statePath ?? defaultStatePath(contractsRoot);
+        let state = loadState(statePath, deploymentFingerprint);
+
+        const selected = selectScenarios(scenarios, cli, state);
+        let provider = opts.provider;
+        if (!provider && !opts.skipProvider) {
+            provider = await createTestnetNetworkProvider(contractsRoot);
+        }
+        if (!provider) {
+            throw new Error(
+                'NetworkProvider required for scenario runs (pass provider or disable skipProvider)',
+            );
+        }
+        const ctx: ScenarioContext = {
+            network: 'testnet',
+            contractsRoot,
+            manifestKind: cli.manifest,
+            manifest,
+            deploymentFingerprint,
+            provider,
+        };
+
+        const started = new Date().toISOString();
+        const results: ScenarioRunResult[] = [];
+        for (const scenario of selected) {
+            const { result, state: next } = await runOne(scenario, ctx, state, cli.force);
+            state = next;
+            results.push(result);
+        }
+        const finished = new Date().toISOString();
+
+        saveState(statePath, state);
+
+        const report: Report = {
+            network: 'testnet',
+            manifestKind: cli.manifest,
+            fingerprint: deploymentFingerprint,
+            filter: filterLabel(cli),
+            started,
+            finished,
+            scenarios: results,
+        };
+
+        const reportPath = writeReportJson(reportsDir, report);
+        return { report, reportPath };
+    } finally {
+        lock.release();
+    }
 }
 
 async function main(): Promise<void> {

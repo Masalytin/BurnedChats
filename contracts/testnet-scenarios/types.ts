@@ -56,6 +56,20 @@ export type ScenarioContext = {
     provider: NetworkProvider;
 };
 
+/**
+ * Declared TON attach budget for a live scenario (IMP-TNFS-F10).
+ * V5R1 wallets SILENTLY SKIP an action whose attach exceeds the balance
+ * (external accepted, seqno grows, internal never sent) — the runner
+ * preflights the signer's live TON balance against `minTon` and returns
+ * N/A `insufficient-sender-ton` instead of an inscrutable downstream FAIL.
+ */
+export type ScenarioBudget = {
+    /** Which wallet is expected to fund the attaches ('actor' = Actor A, 'deploy' = deploy/governor wallet). */
+    signer: 'actor' | 'deploy';
+    /** Minimum live TON balance (nano) the signer must hold before the scenario runs. */
+    minTon: bigint;
+};
+
 export type Scenario = {
     id: string;
     title: string;
@@ -65,6 +79,8 @@ export type Scenario = {
     /** When true (or tags includes "destructive"), excluded from --all. */
     destructive?: boolean;
     depends_on?: string[];
+    /** Declared attach budget — runner preflights signer TON balance (IMP-TNFS-F10). */
+    budget?: ScenarioBudget;
     /** Return a reason string to mark N/A / skipped without running. */
     naWhen?: (ctx: ScenarioContext) => string | null | undefined | Promise<string | null | undefined>;
     run: (ctx: ScenarioContext) => Promise<CheckResult[]>;
@@ -112,6 +128,8 @@ export type CliOptions = {
     scenarioId?: string;
     tag?: string;
     force: boolean;
+    /** Take over a live single-runner lock (IMP-TNFS-F10). */
+    forceLock: boolean;
     manifest: ManifestKind;
     /** Raw argv included --mainnet (hard-fail before run). */
     requestedMainnet: boolean;

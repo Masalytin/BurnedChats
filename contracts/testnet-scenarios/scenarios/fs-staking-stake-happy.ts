@@ -1,7 +1,7 @@
 /**
  * fs-staking-stake-happy — stake via JettonNotification+StakeForward (Flexible tier).
  */
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import { readJettonWalletBalance } from '../lib/balances';
 import {
@@ -14,6 +14,7 @@ import {
     resolveStaker,
     sendStakeJettons,
     STAKE_AMOUNT_HAPPY,
+    STAKE_ATTACHED_TON,
     waitForStakeAtLeast,
 } from '../lib/staking';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
@@ -95,6 +96,8 @@ export const scenario: Scenario = {
         'Stake via JettonNotification+StakeForward into Flexible tier; assert stake map + pool total updated.',
     tags: ['staking'],
     needsLiveTx: true,
+    // Peak attach ≈ 5.85 TON per deposit + fee margin (IMP-TNFS-F10 preflight).
+    budget: { signer: 'actor', minTon: STAKE_ATTACHED_TON + toNano('0.2') },
     depends_on: ['fs-staking-master-smoke', 'fs-jetton-fee-split'],
     naWhen,
     run: runChecks,
