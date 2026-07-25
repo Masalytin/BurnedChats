@@ -8,8 +8,9 @@ import {
     checkEarlyExecuteRejected,
     naWhenGovEarlyExecute,
     openProposal,
-    openTimelock,
+    readPendingAction,
     resolveLatestProposalAddr,
+    timelockAddress,
     timelockContract,
 } from '../lib/gov';
 import { sleepMs } from '../lib/treasury';
@@ -31,8 +32,8 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         throw new Error('No proposal found — run fs-gov-vote-happy / queue path first.');
     }
 
-    const timelock = openTimelock(ctx);
-    const pending = await timelock.getGetPending(latest.id);
+    const timelockAddr = timelockAddress(ctx);
+    const pending = await readPendingAction(provider, timelockAddr, latest.id);
     if (!pending) {
         throw new Error(
             `No timelock pending for id=${latest.id} — queue a proposal before early-execute probe.`,
@@ -59,7 +60,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
     await sleepMs(5_000);
 
-    const pendingAfter = await timelock.getGetPending(latest.id);
+    const pendingAfter = await readPendingAction(provider, timelockAddr, latest.id);
     const stateAfter = await proposal.getGetState();
 
     return checkEarlyExecuteRejected({

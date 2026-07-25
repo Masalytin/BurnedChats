@@ -3,14 +3,21 @@
  * Canon: fee-jetton + staking VP + treasury spend via timelock.
  * Shared time-dependent scenarios → N/A `needs-lab-short-timers`.
  */
-import { Address, beginCell, Cell, toNano } from '@ton/core';
+import {
+    Address,
+    beginCell,
+    Cell,
+    toNano,
+    TupleBuilder,
+    type TupleReader,
+} from '@ton/core';
 import type { NetworkProvider } from '@ton/blueprint';
 import { Governor } from '../../wrappers/Governor';
 import { Proposal } from '../../wrappers/Proposal';
 import { Timelock } from '../../wrappers/Timelock';
 import { check } from './checks';
 import { parseEnvAddress } from './balances';
-import { resolveStaker } from './staking';
+import { readGetterIntFlexible, resolveStaker } from './staking';
 import {
     readTreasurySpent,
     readTreasurySpendingCount,
@@ -89,10 +96,6 @@ export function openGovernor(ctx: ScenarioContext) {
     return ctx.provider.open(new Governor(governorAddress(ctx)));
 }
 
-export function openTimelock(ctx: ScenarioContext) {
-    return ctx.provider.open(new Timelock(timelockAddress(ctx)));
-}
-
 export function openProposal(provider: NetworkProvider, addr: Address) {
     return provider.open(new Proposal(addr));
 }
@@ -117,6 +120,97 @@ export function timelockContract(ctx: ScenarioContext): {
 export async function fetchVotingPower(ctx: ScenarioContext, owner: Address): Promise<bigint> {
     const { contract, contractProvider } = governorContract(ctx);
     return contract.fetchVotingPower(contractProvider, owner);
+}
+
+/** Timelock `get_pending` view (PendingAction fields, wrapper-independent). */
+export type PendingActionView = {
+    proposalId: bigint;
+    proposalContract: Address;
+    target: Address;
+    method: bigint;
+    args: Cell;
+    scheduledTime: bigint;
+    executed: boolean;
+};
+
+/**
+ * Extract the Cell payload from a getter tuple element, tolerating both
+ * well-formed `TupleItem` objects (`{ type: 'cell' | 'slice', cell }`) and
+ * the RAW shape `@ton/ton` TonClient (toncenter API v2) produces for NESTED
+ * tuple elements: its `parseStackEntry` returns a bare `Cell` for both
+ * `tvm.cell` and `tvm.slice` entries (addresses arrive as slices → bare
+ * Cell). Same client bug family as IMP-TNFS-F09 `get_stake`.
+ */
+function getterTupleItemCell(item: unknown): Cell | null {
+    if (item instanceof Cell) {
+        return item;
+    }
+    if (item !== null && typeof item === 'object') {
+        const t = item as { type?: unknown; cell?: unknown };
+        if (
+            (t.type === 'cell' || t.type === 'slice' || t.type === 'builder') &&
+            t.cell instanceof Cell
+        ) {
+            return t.cell;
+        }
+    }
+    return null;
+}
+
+/** Address field: stored as a slice in getter tuples (bare Cell on toncenter v2). */
+export function readGetterAddressFlexible(item: unknown, field: string): Address {
+    const cell = getterTupleItemCell(item);
+    if (cell) {
+        return cell.beginParse().loadAddress();
+    }
+    throw new Error(`get_pending: cannot read address ${field} from stack item: ${String(item)}`);
+}
+
+export function readGetterCellFlexible(item: unknown, field: string): Cell {
+    const cell = getterTupleItemCell(item);
+    if (cell) {
+        return cell;
+    }
+    throw new Error(`get_pending: cannot read cell ${field} from stack item: ${String(item)}`);
+}
+
+/** Bool field: TVM ints (-1 true / 0 false), raw bigint on toncenter v2. */
+export function readGetterBoolFlexible(item: unknown, field: string): boolean {
+    return readGetterIntFlexible(item, field) !== 0n;
+}
+
+/** Parse the 7-field PendingAction getter tuple (well-formed or toncenter-v2-shaped). */
+export function parsePendingActionTuple(t: TupleReader): PendingActionView {
+    return {
+        proposalId: readGetterIntFlexible(t.pop(), 'pending.proposalId'),
+        proposalContract: readGetterAddressFlexible(t.pop(), 'pending.proposalContract'),
+        target: readGetterAddressFlexible(t.pop(), 'pending.target'),
+        method: readGetterIntFlexible(t.pop(), 'pending.method'),
+        args: readGetterCellFlexible(t.pop(), 'pending.args'),
+        scheduledTime: readGetterIntFlexible(t.pop(), 'pending.scheduledTime'),
+        executed: readGetterBoolFlexible(t.pop(), 'pending.executed'),
+    };
+}
+
+/**
+ * Read `get_pending(id)` directly (bypasses the generated wrapper whose
+ * `loadTuplePendingAction` chokes on TonClient-v2 nested tuples — same mine
+ * as IMP-TNFS-F09 `get_stake`, fixed here per IMP-TNFS-F12). Throws on real
+ * errors; returns null when no action is queued for `id`.
+ */
+export async function readPendingAction(
+    provider: NetworkProvider,
+    timelock: Address,
+    id: bigint,
+): Promise<PendingActionView | null> {
+    const args = new TupleBuilder();
+    args.writeNumber(id);
+    const res = await provider.provider(timelock).get('get_pending', args.build());
+    const t = res.stack.readTupleOpt();
+    if (!t) {
+        return null;
+    }
+    return parsePendingActionTuple(t);
 }
 
 export function resolveGovActor(ctx: ScenarioContext): Address {
@@ -618,8 +712,7 @@ export async function naWhenGovEarlyExecute(ctx: ScenarioContext): Promise<strin
         if (!latest) {
             return NA_LAB_TIMERS_NOT_SHORTENED;
         }
-        const timelock = openTimelock(ctx);
-        const pending = await timelock.getGetPending(latest.id);
+        const pending = await readPendingAction(ctx.provider, timelockAddress(ctx), latest.id);
         if (pending) {
             const scheduled = Number(pending.scheduledTime);
             const now = Math.floor(Date.now() / 1000);

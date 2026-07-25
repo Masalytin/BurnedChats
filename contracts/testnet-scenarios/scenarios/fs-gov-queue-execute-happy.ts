@@ -17,10 +17,11 @@ import {
     checkQueueExecute,
     naWhenGovTimeDependent,
     openProposal,
-    openTimelock,
     parseTreasurySpendPayload,
+    readPendingAction,
     resolveGovMaxWaitSec,
     resolveLatestProposalAddr,
+    timelockAddress,
     timelockContract,
     waitForProposalState,
     waitUntilUnix,
@@ -45,7 +46,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     const proposal = openProposal(provider, latest.addr);
-    const timelock = openTimelock(ctx);
+    const timelockAddr = timelockAddress(ctx);
     const maxWait = resolveGovMaxWaitSec();
 
     let state = await proposal.getGetState();
@@ -75,7 +76,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     if (state === PS_SUCCEEDED) {
-        let pending = await timelock.getGetPending(latest.id);
+        let pending = await readPendingAction(provider, timelockAddr, latest.id);
         if (!pending) {
             const delay = await proposal.getGetTimelockDelay();
             const proposalType = await proposal.getGetProposalType();
@@ -105,7 +106,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
             });
             await waitForSenderSeqnoIncrement(provider, seqnoQ);
             await sleepMs(3_000);
-            pending = await timelock.getGetPending(latest.id);
+            pending = await readPendingAction(provider, timelockAddr, latest.id);
             if (!pending) {
                 throw new Error(`TimelockQueue did not create pending for id=${latest.id}`);
             }
@@ -133,7 +134,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     const stateAfter = await waitForProposalState(provider, latest.addr, PS_EXECUTED);
-    const pendingAfter = await timelock.getGetPending(latest.id);
+    const pendingAfter = await readPendingAction(provider, timelockAddr, latest.id);
 
     return checkQueueExecute({
         stateAfter,
