@@ -2,7 +2,7 @@
  * IMP-TNFS-F09 — live staking "stake record missing" defect reproduction.
  *
  * Live facts (lab tip 01bb596f, 2026-07-23, see decision log
- * IMP-TNFS-F09-root-cause-client-tuple-parse.md):
+ * IMP-TNFS-F09-root-cause-live-stake-record.md):
  *  - the on-chain stake record EXISTS: toncenter runMethod get_stake(staker, 0)
  *    returns (10_020_000_000, 0, 1784827805, 1784828020, 1784828020);
  *  - the harness read it as 0 anyway, because `@ton/ton` TonClient (toncenter
