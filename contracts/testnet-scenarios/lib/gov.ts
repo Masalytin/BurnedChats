@@ -9,8 +9,11 @@ import {
     Cell,
     toNano,
     TupleBuilder,
+    type Sender,
     type TupleReader,
 } from '@ton/core';
+import { mnemonicToPrivateKey } from '@ton/crypto';
+import { WalletContractV4, WalletContractV5R1 } from '@ton/ton';
 import type { NetworkProvider } from '@ton/blueprint';
 import { Governor } from '../../wrappers/Governor';
 import { Proposal } from '../../wrappers/Proposal';
@@ -224,6 +227,168 @@ export async function readPendingAction(
         return null;
     }
     return parsePendingActionTuple(t);
+}
+
+// ─── Deployer (Timelock.governor) sender — IMP-TNFS-F16 ─────────────────────
+//
+// `timelock.tact` `receive(TimelockQueue)` requires `sender() == self.governor`.
+// On the lab tip `Timelock.governor` is the DEPLOYER EOA (bootstrap
+// constraint), while the runner signs as Actor A since IMP-TNFS-F06 — a queue
+// external from Actor A is accepted (seqno grows) but the internal bounces on
+// "Only governor" and no pending appears. Queue (and the execute attach) must
+// be signed by the deploy wallet, whose mnemonic `applyTestActorForScenarios`
+// preserves in `DEPLOY_WALLET_MNEMONIC` before swapping `WALLET_MNEMONIC`.
+
+/** Poll budget for the deployer wallet's seqno after a queue/execute send. */
+const DEPLOYER_SEQNO_POLL_ATTEMPTS = 20;
+const DEPLOYER_SEQNO_POLL_SLEEP_MS = 3_000;
+
+export type DeployerSender = {
+    sender: Sender;
+    address: Address;
+    getSeqno: () => Promise<number>;
+    waitSeqnoIncrement: (fromSeqno: number) => Promise<void>;
+};
+
+/**
+ * Deploy-wallet mnemonic resolution (pure — exported for unit tests; pass a
+ * custom env only in tests). Prefers `DEPLOY_WALLET_MNEMONIC` (preserved by
+ * `applyTestActorForScenarios` before the Actor A swap); falls back to
+ * `WALLET_MNEMONIC`, which is still the deploy wallet when no swap happened.
+ * If a swap DID happen and only the fallback is set, the derived address is
+ * Actor A and `assertTimelockGovernorSender` rejects it loudly downstream.
+ * Never logs or returns anything derived from the words besides the words
+ * themselves — callers must not print them.
+ */
+export function resolveDeployerMnemonic(
+    env: { DEPLOY_WALLET_MNEMONIC?: string; WALLET_MNEMONIC?: string } = process.env,
+): string {
+    const preserved = env.DEPLOY_WALLET_MNEMONIC?.trim();
+    if (preserved) {
+        return preserved;
+    }
+    const original = env.WALLET_MNEMONIC?.trim();
+    if (original) {
+        return original;
+    }
+    throw new Error(
+        'DEPLOY_WALLET_MNEMONIC / WALLET_MNEMONIC unset — cannot build the deployer ' +
+            '(Timelock.governor) sender for TimelockQueue. Set the deploy wallet mnemonic ' +
+            'in .env.testnet.',
+    );
+}
+
+function makeDeployerSender(
+    rawSender: Sender,
+    address: Address,
+    getSeqno: () => Promise<number>,
+): DeployerSender {
+    // `@ton/ton` wallet `sender()` omits `address` on the returned Sender —
+    // fill it in so wrapper send paths relying on `via.address` keep working.
+    const sender: Sender = { address, send: (args) => rawSender.send(args) };
+    return {
+        sender,
+        address,
+        getSeqno,
+        waitSeqnoIncrement: async (fromSeqno: number) => {
+            for (let i = 1; i <= DEPLOYER_SEQNO_POLL_ATTEMPTS; i += 1) {
+                try {
+                    const current = await getSeqno();
+                    if (current > fromSeqno) {
+                        return;
+                    }
+                } catch {
+                    // Transient node error — keep polling (axios interceptor
+                    // in blueprint.config.ts already retries common 5xx).
+                }
+                await sleepMs(DEPLOYER_SEQNO_POLL_SLEEP_MS);
+            }
+            throw new Error(
+                `deployer wallet ${address.toString({ urlSafe: true, bounceable: true })} ` +
+                    `seqno did not advance from ${fromSeqno} after ` +
+                    `${DEPLOYER_SEQNO_POLL_ATTEMPTS} attempts`,
+            );
+        },
+    };
+}
+
+/**
+ * Build the deploy wallet + Sender from `DEPLOY_WALLET_MNEMONIC` using the
+ * same `WALLET_*` knobs as Blueprint / Actor A derivation (`lib/test-actor.ts`
+ * `deriveWalletAddressFromMnemonic`). The wallet is opened through the
+ * scenario's Blueprint provider, so seqno reads share the retry pipeline.
+ * NEVER prints or persists the mnemonic.
+ */
+export async function resolveDeployerSender(ctx: ScenarioContext): Promise<DeployerSender> {
+    const words = resolveDeployerMnemonic().split(/\s+/).filter(Boolean);
+    if (words.length < 12) {
+        throw new Error('deployer mnemonic must be at least 12 words');
+    }
+    const keyPair = await mnemonicToPrivateKey(words);
+    const version = (process.env.WALLET_VERSION?.trim() || 'v5r1').toLowerCase();
+    if (version === 'v5r1') {
+        const networkGlobalId = Number(process.env.WALLET_NETWORK_ID ?? '-3');
+        const subwalletNumber = Number(process.env.SUBWALLET_NUMBER ?? '0');
+        const wallet = WalletContractV5R1.create({
+            publicKey: keyPair.publicKey,
+            walletId: {
+                networkGlobalId,
+                context: {
+                    workchain: 0,
+                    subwalletNumber,
+                    walletVersion: 'v5r1',
+                },
+            },
+        });
+        const opened = ctx.provider.open(wallet);
+        return makeDeployerSender(opened.sender(keyPair.secretKey), wallet.address, () =>
+            opened.getSeqno(),
+        );
+    }
+    if (version === 'v4r2' || version === 'v4') {
+        const walletId = process.env.WALLET_ID?.trim() ? Number(process.env.WALLET_ID) : undefined;
+        const wallet = WalletContractV4.create({
+            workchain: 0,
+            publicKey: keyPair.publicKey,
+            walletId,
+        });
+        const opened = ctx.provider.open(wallet);
+        return makeDeployerSender(opened.sender(keyPair.secretKey), wallet.address, () =>
+            opened.getSeqno(),
+        );
+    }
+    throw new Error(
+        `Unsupported WALLET_VERSION=${version} for deployer sender derivation (use v5r1 or v4r2)`,
+    );
+}
+
+/** On-chain `Timelock.get_governor` (tolerant read — toncenter-v2 shapes ok). */
+export async function readTimelockGovernor(ctx: ScenarioContext): Promise<Address> {
+    const res = await ctx.provider.provider(timelockAddress(ctx)).get('get_governor', []);
+    return readGetterAddressFlexible(res.stack.pop(), 'timelock.governor');
+}
+
+/**
+ * Pure governor gate — exported for unit tests. The mismatch error names both
+ * addresses (address strings only — no secrets).
+ */
+export function assertGovernorMatchesDeployer(onChainGovernor: Address, deployer: Address): void {
+    if (!onChainGovernor.equals(deployer)) {
+        throw new Error(
+            'Timelock.governor mismatch — refusing to send TimelockQueue from a non-governor wallet.\n' +
+                `  on-chain governor: ${onChainGovernor.toString({ urlSafe: true, bounceable: true })}\n` +
+                `  derived deployer : ${deployer.toString({ urlSafe: true, bounceable: true })}\n` +
+                'Check DEPLOY_WALLET_MNEMONIC / WALLET_VERSION / WALLET_NETWORK_ID / SUBWALLET_NUMBER.',
+        );
+    }
+}
+
+/** Gate before sending TimelockQueue: derived deployer must be the on-chain governor. */
+export async function assertTimelockGovernorSender(
+    ctx: ScenarioContext,
+    deployer: Address,
+): Promise<void> {
+    assertGovernorMatchesDeployer(await readTimelockGovernor(ctx), deployer);
 }
 
 export function resolveGovActor(ctx: ScenarioContext): Address {

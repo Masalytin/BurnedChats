@@ -1,8 +1,11 @@
 /**
  * fs-gov-queue-execute-happy — finalize → timelock queue → execute after delay.
  *
- * Bootstrap constraint: Timelock.governor = deployer EOA, so queue/execute are
- * sent by the mnemonic wallet (mirrors sandbox governance.spec.ts replay).
+ * Bootstrap constraint: Timelock.governor = deployer EOA, so queue (and the
+ * execute attach) are signed by the DEPLOY wallet rebuilt from
+ * DEPLOY_WALLET_MNEMONIC (IMP-TNFS-F16) — the runner's Blueprint signer is
+ * Actor A since IMP-TNFS-F06 and its TimelockQueue bounces on "Only governor"
+ * (external accepted, seqno grows, no pending). Finalize stays with Actor A.
  */
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import { Treasury } from '../../wrappers/Treasury';
@@ -14,11 +17,13 @@ import {
     PS_EXECUTED,
     PS_SUCCEEDED,
     TYPE_TREASURY,
+    assertTimelockGovernorSender,
     checkQueueExecute,
     naWhenGovTimeDependent,
     openProposal,
     parseTreasurySpendPayload,
     readPendingAction,
+    resolveDeployerSender,
     resolveGovMaxWaitSec,
     resolveUsableProposal,
     timelockAddress,
@@ -81,6 +86,13 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     if (state === PS_SUCCEEDED) {
+        // IMP-TNFS-F16: TimelockQueue requires sender() == Timelock.governor
+        // (the deploy wallet on the lab tip). Build the deployer sender and
+        // gate on the on-chain governor BEFORE sending anything — missing
+        // mnemonic or a mismatch is a loud fail, not a silent skip.
+        const deployer = await resolveDeployerSender(ctx);
+        await assertTimelockGovernorSender(ctx, deployer.address);
+
         let pending = await readPendingAction(provider, timelockAddr, latest.id);
         if (!pending) {
             const delay = await proposal.getGetTimelockDelay();
@@ -100,8 +112,8 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
             });
 
             const { contract, contractProvider } = timelockContract(ctx);
-            const seqnoQ = await getSenderSeqno(provider);
-            await contract.sendQueue(contractProvider, provider.sender(), {
+            const seqnoQ = await deployer.getSeqno();
+            await contract.sendQueue(contractProvider, deployer.sender, {
                 proposalId: latest.id,
                 proposalContract: latest.addr,
                 target: parsed.treasury,
@@ -109,9 +121,15 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
                 args,
                 delay,
             });
-            await waitForSenderSeqnoIncrement(provider, seqnoQ);
+            await deployer.waitSeqnoIncrement(seqnoQ);
+            // State-based verification: seqno growth alone proves nothing
+            // (V5R1 silent skip / "Only governor" bounce — IMP-TNFS-F10/F16).
             await sleepMs(3_000);
             pending = await readPendingAction(provider, timelockAddr, latest.id);
+            for (let attempt = 0; attempt < 5 && !pending; attempt += 1) {
+                await sleepMs(5_000);
+                pending = await readPendingAction(provider, timelockAddr, latest.id);
+            }
             if (!pending) {
                 throw new Error(`TimelockQueue did not create pending for id=${latest.id}`);
             }
@@ -126,15 +144,15 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         }
 
         const { contract, contractProvider } = timelockContract(ctx);
-        const seqnoE = await getSenderSeqno(provider);
+        const seqnoE = await deployer.getSeqno();
         // Treasury spend needs PREMNT-07-sized attach (wrapper default 0.25 is too low).
         await contract.send(
             contractProvider,
-            provider.sender(),
+            deployer.sender,
             { value: EXECUTE_ATTACH_TON },
             { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: latest.id },
         );
-        await waitForSenderSeqnoIncrement(provider, seqnoE);
+        await deployer.waitSeqnoIncrement(seqnoE);
         await sleepMs(8_000);
     }
 
