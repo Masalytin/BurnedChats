@@ -19,6 +19,7 @@ import {
     readJettonAdminState,
 } from '../lib/jetton-admin';
 import { openStakingMaster } from '../lib/staking';
+import { applyAdminRevokedNa } from './fs-gov-role-checks';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
 export function naWhen(ctx: ScenarioContext): string | null {
@@ -68,15 +69,22 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     const after = await pollUntil(ctx, (s) => s.totalSupply === before.totalSupply, 6, 1_500);
 
-    return checkAdminOnlyViaTimelock({
-        jettonAdmin: before.admin,
-        timelock,
-        stakingGovernor,
-        manifestGovernor,
-        sender,
-        supplyBefore: before.totalSupply,
-        supplyAfter: after.totalSupply,
-    });
+    // Used lab tip (IMP-TNFS-F14): admin revoked to zero address is expected
+    // state — `jetton-admin-is-timelock` softens to N/A `lab-tip-admin-revoked`.
+    // The rogue-mint probe above remains meaningful (supply must stay unchanged).
+    return applyAdminRevokedNa(
+        checkAdminOnlyViaTimelock({
+            jettonAdmin: before.admin,
+            timelock,
+            stakingGovernor,
+            manifestGovernor,
+            sender,
+            supplyBefore: before.totalSupply,
+            supplyAfter: after.totalSupply,
+        }),
+        before.admin,
+        ctx.manifestKind,
+    );
 }
 
 export const scenario: Scenario = {

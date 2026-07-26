@@ -1,5 +1,12 @@
 /**
  * fs-ops-deployment-fingerprint — migrated from scripts/verify-deployment.ts
+ *
+ * Used-lab-tip tolerances (IMP-TNFS-F14): the lab tip has legitimately "aged"
+ * through destructive/live runs — supply burned by fee legs, vesting vaults
+ * drained by emergency-revoke, airdrop distributed, jetton admin revoked to
+ * the zero address. On the LAB manifest those are expected states, tolerated
+ * as `used-lab-tip tolerance` (balances/supply ≤ initial) or soft N/A
+ * (`lab-tip-admin-revoked`). The SHARED manifest stays strict.
  */
 import { Address, Cell } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
@@ -16,10 +23,84 @@ import {
     skippedTonapiIndexCheck,
 } from '../lib/fingerprint';
 import { checkTonapiJettonIndexed } from '../lib/tonapi';
-import type { CheckResult, Scenario, ScenarioContext } from '../types';
+import { NA_LAB_TIP_ADMIN_REVOKED, isJettonAdminRevoked } from './fs-gov-role-checks';
+import type { CheckResult, ManifestKind, Scenario, ScenarioContext } from '../types';
 
 const NANO = 10n ** 9n;
 const MAX_SUPPLY_NANO = 1000n * NANO;
+
+/** Message prefix marking a lab-only used-tip tolerance (IMP-TNFS-F14). */
+export const USED_LAB_TIP_TOLERANCE = 'used-lab-tip tolerance';
+
+/**
+ * Total supply: shared → strict equality with the initial 1000 BURN mint;
+ * lab → `0 < supply ≤ initial` (fee legs burn supply irreversibly on the
+ * used tip — 999.701 vs 1000 observed live 2026-07-25).
+ */
+export function checkTotalSupplyForTip(kind: ManifestKind, totalSupply: bigint): CheckResult {
+    if (kind === 'lab') {
+        return check(
+            'total-supply',
+            totalSupply > 0n && totalSupply <= MAX_SUPPLY_NANO,
+            `${USED_LAB_TIP_TOLERANCE}: total supply ${totalSupply} ≤ initial ` +
+                `${MAX_SUPPLY_NANO} (fee legs burn supply on the used tip)`,
+        );
+    }
+    return check(
+        'total-supply',
+        totalSupply === MAX_SUPPLY_NANO,
+        `total supply = ${totalSupply} (expected ${MAX_SUPPLY_NANO})`,
+    );
+}
+
+/**
+ * Allocation holder balance: shared → strict equality with the bootstrap
+ * mint; lab → `balance ≤ initial` (vesting vaults drained by
+ * emergency-revoke, airdrop distributed to actors on the used tip).
+ */
+export function checkHolderBalanceForTip(
+    kind: ManifestKind,
+    name: string,
+    label: string,
+    balance: bigint,
+    expected: bigint,
+): CheckResult {
+    if (kind === 'lab') {
+        return check(
+            name,
+            balance <= expected,
+            `${USED_LAB_TIP_TOLERANCE}: ${label} balance ${balance} ≤ initial ${expected} ` +
+                '(vault drain / distribution allowed on the used tip)',
+        );
+    }
+    return check(name, balance === expected, `${label}: balance ${balance} (expected ${expected})`);
+}
+
+/**
+ * Jetton admin: shared → must be the Timelock; lab with admin irreversibly
+ * revoked to the zero address → soft N/A `lab-tip-admin-revoked` (same
+ * check-level `ok:true + "N/A: …"` pattern as tonapi-index-lag, IMP-TNFS-F05).
+ */
+export function checkJettonAdminForTip(
+    kind: ManifestKind,
+    admin: Address,
+    timelock: Address,
+): CheckResult {
+    if (kind === 'lab' && isJettonAdminRevoked(admin)) {
+        return check(
+            'jetton-admin',
+            true,
+            `N/A: ${NA_LAB_TIP_ADMIN_REVOKED} — jetton admin irreversibly revoked to zero ` +
+                'address (destructive fs-jetton-revoke-admin, 2026-07-23); timelock-admin ' +
+                'assertion not applicable on this used lab tip',
+        );
+    }
+    return check(
+        'jetton-admin',
+        admin.equals(timelock),
+        `jetton admin is Timelock (${admin.toString()})`,
+    );
+}
 
 function decodeOffChainMetadataUri(content: Cell): string {
     const slice = content.beginParse();
@@ -79,13 +160,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const checks: CheckResult[] = [];
     const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
     const jettonData = await master.getGetJettonData();
-    checks.push(
-        check(
-            'total-supply',
-            jettonData.totalSupply === MAX_SUPPLY_NANO,
-            `total supply = ${jettonData.totalSupply} (expected ${MAX_SUPPLY_NANO})`,
-        ),
-    );
+    checks.push(checkTotalSupplyForTip(ctx.manifestKind, jettonData.totalSupply));
 
     const feeParams = await master.getGetFeeParams();
     checks.push(
@@ -121,10 +196,12 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         const expected = alloc.burnAmount * NANO;
         const balance = await readJettonWalletBalance(provider, jettonMaster, owner);
         checks.push(
-            check(
+            checkHolderBalanceForTip(
+                ctx.manifestKind,
                 `mint-${alloc.label}`,
-                balance === expected,
-                `${alloc.label}: balance ${balance} (expected ${expected})`,
+                alloc.label,
+                balance,
+                expected,
             ),
         );
     }
@@ -187,9 +264,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     const admin = jettonData.adminAddress;
-    checks.push(
-        check('jetton-admin', admin.equals(timelock), `jetton admin is Timelock (${admin.toString()})`),
-    );
+    checks.push(checkJettonAdminForTip(ctx.manifestKind, admin, timelock));
 
     const jettonTimelock = await master.getGetTimelockAddress();
     if (bootstrap.jettonTimelockIsDeployer) {
@@ -227,10 +302,12 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         requireAddr(a, 'vestingDeveloper'),
     );
     checks.push(
-        check(
+        checkHolderBalanceForTip(
+            ctx.manifestKind,
             'vesting-dev-balance',
-            vestingDevBalance === vestingDeveloperExpected,
-            `vesting developer vault balance ${vestingDevBalance}`,
+            'vesting developer vault',
+            vestingDevBalance,
+            vestingDeveloperExpected,
         ),
     );
 
