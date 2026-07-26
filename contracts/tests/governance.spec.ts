@@ -1,4 +1,4 @@
-import { SandboxContract, SendMessageResult, TreasuryContract } from '@ton/sandbox';
+import { Blockchain, SandboxContract, SendMessageResult, TreasuryContract } from '@ton/sandbox';
 import { Address, beginCell, Cell, toNano } from '@ton/core';
 import { expect } from '@jest/globals';
 import '@ton/test-utils';
@@ -13,7 +13,7 @@ import { Proposal_errors_backward } from '../build/Governor/Governor_Proposal';
 import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
 import { Treasury_errors_backward } from '../build/Treasury/Treasury_Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
-import { NANO_PER_BURN } from './helpers';
+import { NANO_PER_BURN, SANDBOX_NOW } from './helpers';
 import {
     assertRelayFlowClean,
     countEmptyGovernorStakingHops,
@@ -125,6 +125,25 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
 
     expect((await stakingMaster.getGetGovernorAddr()).equals(deployer.address)).toBe(true);
     return { ...env, timelock, governor, treasuryAddress };
+}
+
+/**
+ * Minimal Timelock-only sandbox (no staking/governor stack). The deployer acts
+ * as `Timelock.governor` — same wiring as `setupGovernance` — so `sendQueue` /
+ * `sendExecutePending` can be driven directly. Enough for the queue-delay and
+ * eta gates (IMP-TNFS-F18), which never touch the Proposal state machine.
+ */
+async function setupTimelockOnly(): Promise<{
+    blockchain: Blockchain;
+    deployer: SandboxContract<TreasuryContract>;
+    timelock: SandboxContract<Timelock>;
+}> {
+    const blockchain = await Blockchain.create();
+    blockchain.now = SANDBOX_NOW;
+    const deployer = await blockchain.treasury('deployer');
+    const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
+    await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
+    return { blockchain, deployer, timelock };
 }
 
 /** Mint + stake a user so they carry on-chain voting power. */
@@ -1005,5 +1024,123 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
                 [treasury.address, treasuryJw],
             ],
         });
+    });
+});
+
+/**
+ * IMP-TNFS-F18 — sandbox coverage of the Timelock delay-wait path.
+ *
+ * The lab governor declares timelockDelaySec=60, which the scenario harness
+ * clamps 60→0 (IMP-TNFS-F17), so LIVE runs never exercise the 24h wait. These
+ * tests are the only place the real delay semantics are verified:
+ *  - full queue → early-reject → execute flow on the contract minimum (24h);
+ *  - the `Delay too short` gate (0 < delay < TIMELOCK_MIN_DELAY_SEC) that broke
+ *    the 2026-07-25 live run and motivated the F17 clamp;
+ *  - the eta boundary: `now() >= scheduledTime` admits execution at exactly eta.
+ */
+describe('Timelock delay gates (IMP-TNFS-F18)', () => {
+    it('single flow: queue (24h) → early execute bounces keeping pending → execute past eta succeeds', async () => {
+        const env = await setupGovernance('https://example.com/gov-tnfs-f18-flow.json');
+        const voter = await env.blockchain.treasury('tnfs-f18-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('tnfs-f18-target');
+        const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 0x18));
+        await castVote(env, voter, id, true);
+        advanceTime(env.blockchain, 3 * DAY + 1);
+        const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
+        expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
+        const queued = extractQueue(finalizeTx, env.timelock.address)!;
+        expect(queued.delay).toBe(BigInt(DAY));
+
+        const queueTx = await env.timelock.sendQueue(env.deployer.getSender(), {
+            proposalId: queued.proposalId,
+            proposalContract: queued.proposalContract,
+            target: queued.target,
+            method: queued.method,
+            args: queued.args,
+            delay: queued.delay,
+        });
+        expect(queueTx.transactions).toHaveTransaction({ on: env.timelock.address, success: true });
+        const pendingBefore = await env.timelock.getGetPending(id);
+        expect(pendingBefore).not.toBeNull();
+
+        // Immediate execute attempt: eta is a full day away.
+        const earlyTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
+        expect(earlyTx.transactions).toHaveTransaction({
+            on: env.timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Not yet executable'],
+        });
+        // The bounce must not consume the pending action or move the proposal.
+        const pendingAfter = await env.timelock.getGetPending(id);
+        expect(pendingAfter).not.toBeNull();
+        expect(pendingAfter!.scheduledTime).toBe(pendingBefore!.scheduledTime);
+        expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
+
+        advanceTime(env.blockchain, DAY + 1);
+        const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
+        expect(execTx.transactions).toHaveTransaction({ on: env.timelock.address, success: true });
+        expect(execTx.transactions).toHaveTransaction({ on: proposal.address, success: true });
+        expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+        expect(await env.timelock.getGetPending(id)).toBeNull();
+    });
+
+    it('queue gate: 0 < delay < 24h bounces with Delay too short and creates no pending; 24h is accepted', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('tnfs-f18-gate-proposal');
+        const target = await blockchain.treasury('tnfs-f18-gate-target');
+        const queueParams = {
+            proposalId: 1n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: 0x1234n,
+            args: beginCell().endCell(),
+        };
+
+        // Lab value (60s, broke the 2026-07-25 live run) and the last invalid
+        // value below TIMELOCK_MIN_DELAY_SEC.
+        for (const delay of [60n, BigInt(DAY - 1)]) {
+            const tx = await timelock.sendQueue(deployer.getSender(), { ...queueParams, delay });
+            expect(tx.transactions).toHaveTransaction({
+                on: timelock.address,
+                success: false,
+                exitCode: Timelock_errors_backward['Delay too short'],
+            });
+            expect(await timelock.getGetPending(queueParams.proposalId)).toBeNull();
+        }
+
+        // The contract minimum itself passes the gate.
+        const okTx = await timelock.sendQueue(deployer.getSender(), { ...queueParams, delay: BigInt(DAY) });
+        expect(okTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        const pending = await timelock.getGetPending(queueParams.proposalId);
+        expect(pending).not.toBeNull();
+        expect(pending!.scheduledTime).toBe(BigInt(SANDBOX_NOW + DAY));
+    });
+
+    it('eta boundary: execute at exactly now == scheduledTime succeeds', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('tnfs-f18-eta-proposal');
+        const target = await blockchain.treasury('tnfs-f18-eta-target');
+
+        const queueTx = await timelock.sendQueue(deployer.getSender(), {
+            proposalId: 7n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: 0x18n,
+            args: beginCell().endCell(),
+            delay: BigInt(DAY),
+        });
+        expect(queueTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        const pending = await timelock.getGetPending(7n);
+        expect(pending).not.toBeNull();
+
+        // Land the clock exactly on eta — the contract gate is now() >= scheduledTime.
+        advanceTime(blockchain, DAY);
+        expect(BigInt(blockchain.now!)).toBe(pending!.scheduledTime);
+
+        const execTx = await timelock.sendExecutePending(deployer.getSender(), 7n);
+        expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        expect(await timelock.getGetPending(7n)).toBeNull();
     });
 });
