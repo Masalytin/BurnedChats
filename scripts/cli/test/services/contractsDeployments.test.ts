@@ -23,7 +23,6 @@ const sampleDeploymentJson = `{
     "vestingDeveloper": "EQVestingDev",
     "vestingEcosystem": "EQVestingEco",
     "vestingReserve": "EQVestingReserve",
-    "vestingStakingAllocation": "EQVestingStake",
     "airdropHolder": "EQAirdrop",
     "liquidityHolder": "EQLiquidity"
   }

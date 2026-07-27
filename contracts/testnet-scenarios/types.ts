@@ -29,6 +29,7 @@ export type FullStackAddresses = {
     vestingDeveloper?: string;
     vestingEcosystem?: string;
     vestingReserve?: string;
+    /** Pre-IMP-MNAUD-F01 stacks only — post-F01 deploys mint the staking allocation to the pool. */
     vestingStakingAllocation?: string;
     [key: string]: string | undefined;
 };

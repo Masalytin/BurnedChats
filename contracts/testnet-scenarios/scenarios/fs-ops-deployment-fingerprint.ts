@@ -174,6 +174,13 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         check('fee-destinations-active', feeParams.feeDestinationsActive === true, 'fee destinations active'),
     );
 
+    // Pre-F01 manifests deployed a staking-allocation vesting vault; post-F01 stacks
+    // mint the 300 BURN emission reserve directly to the StakingPool jetton wallet
+    // (IMP-MNAUD-F01 mint-to-pool) and the manifest has no `vestingStakingAllocation`.
+    const legacyStakingVesting = a.vestingStakingAllocation
+        ? Address.parse(a.vestingStakingAllocation)
+        : null;
+
     const excludedTargets: Array<[string, Address]> = [
         ['treasury', treasury],
         ['stakingPool', stakingPool],
@@ -181,9 +188,11 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         ['vestingDeveloper', requireAddr(a, 'vestingDeveloper')],
         ['vestingEcosystem', requireAddr(a, 'vestingEcosystem')],
         ['vestingReserve', requireAddr(a, 'vestingReserve')],
-        ['vestingStakingAllocation', requireAddr(a, 'vestingStakingAllocation')],
         ['liquidityHolder', requireAddr(a, 'liquidityHolder')],
     ];
+    if (legacyStakingVesting) {
+        excludedTargets.push(['vestingStakingAllocation', legacyStakingVesting]);
+    }
 
     for (const [label, holder] of excludedTargets) {
         const excluded = await master.getGetIsExcluded(holder);
@@ -191,17 +200,53 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     for (const alloc of MINT_ALLOCATIONS) {
-        const key = alloc.receiver;
-        const owner = requireAddr(a, key);
+        const isStakingReserve = alloc.receiver === 'stakingPool';
+        if (isStakingReserve && !legacyStakingVesting) {
+            // Post-F01: the pool wallet holds reserve + stakes + fee accruals − payouts,
+            // so a fixed balance check is meaningless — the emission-reserve invariants
+            // below cover this allocation instead.
+            continue;
+        }
+        // On legacy stacks the staking allocation was minted to the vesting vault.
+        const owner = isStakingReserve ? legacyStakingVesting! : requireAddr(a, alloc.receiver);
+        const label = isStakingReserve ? 'Staking allocation vesting (legacy)' : alloc.label;
         const expected = alloc.burnAmount * NANO;
         const balance = await readJettonWalletBalance(provider, jettonMaster, owner);
         checks.push(
             checkHolderBalanceForTip(
                 ctx.manifestKind,
-                `mint-${alloc.label}`,
-                alloc.label,
+                `mint-${label}`,
+                label,
                 balance,
                 expected,
+            ),
+        );
+    }
+
+    // Post-F01 invariants: the emission reserve must be fully registered on the
+    // StakingMaster (physical backing relayed via EmissionReserveFunded at bootstrap),
+    // and the pool wallet must still cover the unemitted remainder of the reserve.
+    if (!legacyStakingVesting) {
+        const stakingReserve = MINT_ALLOCATIONS.find((x) => x.receiver === 'stakingPool');
+        const expectedFunded = (stakingReserve?.burnAmount ?? 0n) * NANO;
+        const smForEmission = provider.open(StakingMaster.fromAddress(stakingMaster));
+        const funded = await smForEmission.getGetEmissionFunded();
+        checks.push(
+            check(
+                'emission-funded',
+                funded === expectedFunded,
+                `StakingMaster emissionFunded ${funded} (expected ${expectedFunded}, mint-to-pool IMP-MNAUD-F01)`,
+            ),
+        );
+        const emitted = await smForEmission.getGetEmittedSoFar();
+        const poolWalletBalance = await readJettonWalletBalance(provider, jettonMaster, stakingPool);
+        const unemitted = funded > emitted ? funded - emitted : 0n;
+        checks.push(
+            check(
+                'emission-reserve-backing',
+                poolWalletBalance >= unemitted,
+                `pool jetton wallet ${poolWalletBalance} covers unemitted reserve ${unemitted} ` +
+                    `(funded ${funded} − emitted ${emitted})`,
             ),
         );
     }

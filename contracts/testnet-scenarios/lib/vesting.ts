@@ -57,6 +57,12 @@ export const NA_SENDER_IS_BENEFICIARY = 'mnemonic wallet is beneficiary — cann
 export const NA_CANNOT_ACT_AS_TIMELOCK_GOVERNOR =
     'sender is not Timelock governor — cannot perform authorized VestEmergencyRevoke path';
 
+/**
+ * Manifest keys probed for vesting vaults. All are optional — `listVestingEntries`
+ * skips absent keys. `vestingStakingAllocation` exists only on pre-F01 stacks:
+ * post-IMP-MNAUD-F01 deployments mint the staking allocation directly to the
+ * StakingPool jetton wallet and have no such vault.
+ */
 export const VESTING_ADDRESS_KEYS = [
     'vestingDeveloper',
     'vestingEcosystem',
@@ -261,6 +267,8 @@ export async function resolvePreferredVault(
             developer: 'vestingDeveloper',
             ecosystem: 'vestingEcosystem',
             reserve: 'vestingReserve',
+            // Pre-F01 stacks only; on post-F01 manifests the key is absent and the
+            // lookup falls through to the first available vault below.
             'staking-allocation': 'vestingStakingAllocation',
             staking: 'vestingStakingAllocation',
         };

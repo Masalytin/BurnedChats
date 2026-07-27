@@ -236,7 +236,9 @@ describe('IMP-TNFS-10 vesting helpers — vested_amount / N/A policy', () => {
         expect(lab.addresses?.vestingDeveloper).toBeTruthy();
         expect(lab.addresses?.vestingEcosystem).toBeTruthy();
         expect(lab.addresses?.vestingReserve).toBeTruthy();
-        expect(lab.addresses?.vestingStakingAllocation).toBeTruthy();
+        // vestingStakingAllocation is intentionally NOT asserted: pre-F01 lab tips
+        // have it, post-IMP-MNAUD-F01 redeploys mint the staking allocation directly
+        // to the StakingPool and the key is absent from the manifest.
     });
 });
 
