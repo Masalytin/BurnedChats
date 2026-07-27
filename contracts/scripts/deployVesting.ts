@@ -2,9 +2,11 @@ import { NetworkProvider } from '@ton/blueprint';
 import { deployVestingAllocation } from './vesting/deployAllocation';
 
 /**
- * Parametric deploy: set `VESTING_ALLOC` to developer | ecosystem | reserve | staking-allocation,
+ * Parametric deploy: set `VESTING_ALLOC` to developer | ecosystem | reserve,
  * or pass the allocation name as first non-flag argument after script name:
- * `npx blueprint run deployVesting --testnet staking-allocation`
+ * `npx blueprint run deployVesting --testnet reserve`
+ * (The staking allocation is not vested — it is minted directly to the StakingPool
+ * jetton wallet during bootstrap, IMP-MNAUD-F01.)
  */
 export async function run(provider: NetworkProvider) {
     let arg = process.env.VESTING_ALLOC?.trim();

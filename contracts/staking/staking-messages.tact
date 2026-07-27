@@ -17,6 +17,22 @@ message(0x5a020010) StakeForward {
     tier: Int as uint8;
 }
 
+/// Forward payload marking a jetton deposit into the pool wallet as emission-reserve funding
+/// (TEP-74 forward_payload ref). Distinguishes the Phase-1 reward mint (IMP-MNAUD-F01
+/// mint-to-pool design) from ordinary staking-fee arrivals, which accrue immediately.
+message(0x5a020011) EmissionFundForward {
+    queryId: Int as uint64;
+}
+
+/// Pool → Master: `amount` reward jettons physically arrived at the pool jetton wallet with an
+/// `EmissionFundForward` payload. This is the ONLY path that raises `emissionFunded` — the
+/// notification chain (pool JW → pool → master) guarantees real physical backing
+/// (IMP-MNAUD-F01: no assert-based funding).
+message(0x5a010018) EmissionReserveFunded {
+    queryId: Int as uint64;
+    amount: Int as coins;
+}
+
 message(0x5a010010) IncrementTotalStake {
     queryId: Int as uint64;
     tier: Int as uint8;

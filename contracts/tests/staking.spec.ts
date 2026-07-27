@@ -4,7 +4,7 @@ import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { StakingLock, TIER_DIAMOND_SECONDS, TIER_GOLD_SECONDS, TIER_SILVER_SECONDS } from '../wrappers/StakingLock';
 import { StakingMaster } from '../wrappers/StakingMaster';
-import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
+import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { StakingLock_errors_backward } from '../build/StakingMaster/StakingMaster_StakingLock';
 import { StakingPool_errors_backward } from '../build/StakingPool/StakingPool_StakingPool';
@@ -14,6 +14,7 @@ import {
     advanceTime,
     assertPendingRewardCloseToNano,
     bootstrapStakeFeesAndPrimeMaster,
+    fundEmissionReserveViaMint,
     jettonStakeToMaster,
     MIN_STAKE_NANO,
     mintAndSyncUser,
@@ -570,8 +571,16 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
         await bootstrapStakeFeesAndPrimeMaster(jettonMaster, deployer, poolBase.address, stakingMaster);
 
         await jettonMaster.sendMint(deployer.getSender(), poolBase.address, 50n * NANO_PER_BURN, 1n, MINT_TON);
-        // IMP-PREMNT-04: emission only accrues up to the funded reserve; back the full budget.
-        await stakingMaster.sendFundEmissionReserve(deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
+        // IMP-PREMNT-04/IMP-MNAUD-F01: emission only accrues up to the funded reserve;
+        // back the full budget by minting to the pool with the EmissionFundForward payload.
+        await jettonMaster.sendMint(
+            deployer.getSender(),
+            poolBase.address,
+            TOTAL_EMISSION_BUDGET_NANO,
+            toNano('0.1'),
+            MINT_TON,
+            emissionFundForwardPayload(),
+        );
         await jettonMaster.sendMint(deployer.getSender(), alice.address, 20n * NANO_PER_BURN, 1n, MINT_TON);
         await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), alice.address);
 
@@ -952,8 +961,9 @@ describe('Staking integration & coverage (P5-2-2-4)', () => {
                 1n,
                 MINT_TON,
             );
-            // IMP-PREMNT-04: fund the full emission budget so the schedule can emit to its cap.
-            await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
+            // IMP-PREMNT-04/IMP-MNAUD-F01: fund the full emission budget (mint-to-pool)
+            // so the schedule can emit to its cap.
+            await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
             await mintAndSyncUser(env, flex, MIN_STAKE_NANO * 2n);
             await mintAndSyncUser(env, silver, MIN_STAKE_NANO);
             await mintAndSyncUser(env, gold, MIN_STAKE_NANO);
@@ -1315,6 +1325,76 @@ describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
             to: sender.address,
             success: true,
         });
+    });
+});
+
+describe('IMP-MNAUD-F01 — mint-to-pool emission funding (physical backing)', () => {
+    it('mint-to-pool funding → tickEmission accrues → claim pays real jettons from the funded reserve; principal untouched', async () => {
+        const env = await setupStakingEnvironment('https://example.com/imp-mnaud-f01-e2e.json');
+        const user = await env.blockchain.treasury('mnaud-f01-user');
+
+        // 1. Fund the emission reserve the bootstrap way: mint 300 BURN directly to the
+        //    pool's jetton wallet with the EmissionFundForward payload.
+        const fund = await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
+        expect(fund.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: true,
+        });
+        expect(await env.stakingMaster.getGetEmissionFunded()).toBe(TOTAL_EMISSION_BUDGET_NANO);
+
+        // Physical backing: the reserve jettons actually sit in the pool's wallet, while
+        // pool_balance bookkeeping stays untouched (emission unlocks it via ticks only).
+        const poolJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.pool.getGetJettonRewardsWallet()),
+        );
+        expect((await poolJw.getGetWalletData()).balance).toBe(TOTAL_EMISSION_BUDGET_NANO);
+        expect(await env.pool.getGetPoolBalance()).toBe(0n);
+
+        // 2. Stake and let the emission schedule run.
+        const principal = 10n * NANO_PER_BURN;
+        await mintAndSyncUser(env, user, principal);
+        await stakeAs(env, user, 0, principal);
+        expect(await env.pool.getGetPoolBalance()).toBe(principal);
+
+        const elapsed = 600n;
+        advanceTime(env.blockchain, Number(elapsed));
+
+        // 3. Claim ticks emission and must pay REAL jettons out of the funded reserve.
+        //    Flexible is the only occupied tier → it earns its 5% slice (IMP-FAUDIT-F03).
+        const expectedFlexSlice = (elapsed * EMISSION_NANO_PER_SEC * 5n) / 100n;
+        const userJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+        );
+        const userBalBefore = (await userJw.getGetWalletData()).balance;
+
+        const claim = await env.stakingMaster.sendClaimRewards(user.getSender(), { tier: 0 });
+        expect(claim.transactions).toHaveTransaction({ success: true });
+
+        const emitted = await env.stakingMaster.getGetEmittedSoFar();
+        assertPendingRewardCloseToNano(emitted, expectedFlexSlice, 10n);
+
+        const paid = (await userJw.getGetWalletData()).balance - userBalBefore;
+        assertPendingRewardCloseToNano(paid, expectedFlexSlice, 10n);
+        expect(paid).toBeGreaterThan(0n);
+        expect(await env.stakingMaster.getGetPendingReward(user.address, 0n)).toBe(0n);
+
+        // 4. Stakers' principal is not spent by the emission payout: the stake body is
+        //    intact and the pool's wallet still covers principal + unspent reserve.
+        expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(principal);
+        expect((await poolJw.getGetWalletData()).balance).toBe(
+            TOTAL_EMISSION_BUDGET_NANO + principal - paid,
+        );
+        // pool_balance bookkeeping: principal + emitted credit − reward paid out.
+        expect(await env.pool.getGetPoolBalance()).toBe(principal + emitted - paid);
+
+        // 5. Full principal exit still works after the emission payout.
+        const unstake = await env.stakingMaster.sendUnstakeJetton(user.getSender(), {
+            tier: 0,
+            amount: principal,
+        });
+        expect(unstake.transactions).toHaveTransaction({ success: true });
+        const finalBal = (await userJw.getGetWalletData()).balance;
+        expect(finalBal).toBeGreaterThanOrEqual(userBalBefore + paid + principal);
     });
 });
 

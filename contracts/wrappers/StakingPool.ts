@@ -3,14 +3,33 @@ import {
     IncrementTotalStake,
     StakingPool as StakingPoolBase,
     WireStakingMaster,
+    storeEmissionFundForward,
     type CreditPoolBalance,
     type PayRewards,
     type PayUnstake,
     type RelayStakeFeeAccrual,
 } from '../build/StakingPool/StakingPool_StakingPool';
-import { Address, ContractProvider, Dictionary, Sender, toNano } from '@ton/core';
+import { Address, beginCell, ContractProvider, Dictionary, Sender, Slice, toNano } from '@ton/core';
 
 export const STAKING_PLACEHOLDER_MASTER = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+
+/**
+ * TEP-74 forward_payload marking a jetton deposit into the pool wallet as emission-reserve
+ * funding (`EmissionFundForward` in ref, either-bit = 1). Attach to the bootstrap mint of the
+ * 300 BURN staking allocation so the pool relays `EmissionReserveFunded` to the master
+ * (IMP-MNAUD-F01 mint-to-pool, physically-backed funding).
+ */
+export function emissionFundForwardPayload(queryId = 0n): Slice {
+    return beginCell()
+        .storeUint(1, 1)
+        .storeRef(
+            beginCell()
+                .store(storeEmissionFundForward({ $$type: 'EmissionFundForward', queryId }))
+                .endCell(),
+        )
+        .endCell()
+        .asSlice();
+}
 
 /** Fresh per-tier totals map matching StakingPool init serialization */
 export function emptyTierTotals(): Dictionary<number, bigint> {

@@ -5,7 +5,7 @@ import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { StakingLock } from '../wrappers/StakingLock';
 import { StakingMaster } from '../wrappers/StakingMaster';
-import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
+import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
 import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, stakeForwardPayload } from './helpers';
 
 /** Matches StakingMaster.MinStakeNano (0.01 BURN). */
@@ -184,6 +184,23 @@ export function assertPendingRewardCloseToNano(actual: bigint, expectedNano: big
     const lo = expectedNano > toleranceNano ? expectedNano - toleranceNano : 0n;
     const hi = expectedNano + toleranceNano;
     expect(actual >= lo && actual <= hi).toBe(true);
+}
+
+/**
+ * Fund the emission reserve the mint-to-pool way (IMP-MNAUD-F01): mint `amountNano`
+ * BURN directly to the pool's jetton wallet with an `EmissionFundForward` payload.
+ * The pool's JettonNotification handler relays `EmissionReserveFunded` to the master,
+ * which is the only path that raises `emissionFunded` (real physical backing).
+ */
+export async function fundEmissionReserveViaMint(env: StakingTestEnv, amountNano: bigint) {
+    return env.jettonMaster.sendMint(
+        env.deployer.getSender(),
+        env.poolAddress,
+        amountNano,
+        toNano('0.1'),
+        MINT_TON,
+        emissionFundForwardPayload(),
+    );
 }
 
 export async function mintAndSyncUser(

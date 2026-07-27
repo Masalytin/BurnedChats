@@ -9,7 +9,7 @@ import {
 } from '../../wrappers/Governor';
 import { StakingLock } from '../../wrappers/StakingLock';
 import { StakingMaster } from '../../wrappers/StakingMaster';
-import { StakingPool, STAKING_PLACEHOLDER_MASTER } from '../../wrappers/StakingPool';
+import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } from '../../wrappers/StakingPool';
 import { Timelock } from '../../wrappers/Timelock';
 import { Treasury } from '../../wrappers/Treasury';
 import { Vesting } from '../../wrappers/Vesting';
@@ -33,11 +33,18 @@ const DEPLOY_TIMELOCK = toNano('0.12');
 const DEPLOY_VESTING = toNano('0.22');
 const MINT_FORWARD = 1n;
 const MINT_GAS = toNano('0.3');
+/**
+ * Staking emission reserve mint (IMP-MNAUD-F01 mint-to-pool): the TEP-74 notification must
+ * carry enough TON for the pool handler + `EmissionReserveFunded` relay to the master
+ * (≥ gasPoolForwardMin 0.07 in burn-jetton-wallet.tact).
+ */
+const EMISSION_FUND_FORWARD_TON = toNano('0.1');
+const EMISSION_FUND_MINT_GAS = toNano('0.5');
 
 export const MINT_ALLOCATIONS: MintAllocation[] = [
     { label: 'Developer vesting', burnAmount: 7n, receiver: 'vestingDeveloper' },
     { label: 'Community airdrop', burnAmount: 200n, receiver: 'airdropHolder' },
-    { label: 'Staking allocation vesting', burnAmount: 300n, receiver: 'vestingStakingAllocation' },
+    { label: 'Staking emission reserve', burnAmount: 300n, receiver: 'stakingPool' },
     { label: 'Ecosystem vesting', burnAmount: 150n, receiver: 'vestingEcosystem' },
     { label: 'Liquidity pool', burnAmount: 300n, receiver: 'liquidityHolder' },
     { label: 'Reserve vesting', burnAmount: 43n, receiver: 'vestingReserve' },
@@ -138,10 +145,7 @@ function resolveCancelLagSec(): bigint {
     return DEFAULT_CANCEL_LAG_SEC;
 }
 
-function resolveBeneficiary(deployer: Address, presetId: keyof typeof VESTING_PRESETS, stakingPool: Address): Address {
-    if (presetId === 'staking-allocation') {
-        return stakingPool;
-    }
+function resolveBeneficiary(deployer: Address, presetId: keyof typeof VESTING_PRESETS): Address {
     const envKey =
         presetId === 'developer'
             ? 'VESTING_BENEFICIARY_DEVELOPER'
@@ -169,6 +173,10 @@ async function mintTo(
     const seqnoBefore = await getSenderSeqno(provider);
     await opened.sendMint(provider.sender(), receiver, amountNano, MINT_FORWARD, MINT_GAS);
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function syncWalletFeeConfig(
@@ -324,6 +332,77 @@ async function ensureMint(
     await mintTo(provider, master, receiver, expected);
 }
 
+/**
+ * Staking emission reserve funding (IMP-MNAUD-F01 mint-to-pool, owner decision 2026-07-27):
+ * mint 300 BURN directly to the StakingPool jetton wallet with an `EmissionFundForward`
+ * forward payload. The pool's JettonNotification handler relays `EmissionReserveFunded`
+ * to the StakingMaster, which is the ONLY path that raises `emissionFunded` — so the
+ * reserve accounting is backed by an actual jetton arrival, verified below by polling
+ * the master's `emission_funded` getter.
+ */
+async function ensureStakingEmissionMint(
+    provider: NetworkProvider,
+    master: BurnJettonMaster,
+    stakingMaster: StakingMaster,
+    alloc: MintAllocation,
+    poolAddr: Address,
+    testnet: boolean,
+    force: boolean,
+): Promise<void> {
+    const expected = alloc.burnAmount * NANO;
+    const smOpened = provider.open(stakingMaster);
+    const fundedBefore = await smOpened.getGetEmissionFunded();
+    if (!force && fundedBefore >= expected) {
+        console.log(
+            `[deploy] skip mint ${alloc.label} — emissionFunded=${fundedBefore} already covers ${expected}`,
+        );
+        return;
+    }
+    if (fundedBefore !== 0n) {
+        throw new Error(
+            `[deploy] mint refused for ${alloc.label}: emissionFunded=${fundedBefore} is neither 0 nor ` +
+                `≥ ${expected}. Partial funding state — reconcile manually before retrying.`,
+        );
+    }
+    const balance = await readJettonWalletBalance(provider, master.address, poolAddr);
+    if (balance !== 0n) {
+        throw new Error(
+            `[deploy] mint refused for ${alloc.label}: pool jetton wallet balance ${balance} ≠ 0 while ` +
+                `emissionFunded=0 — a previous mint landed but the EmissionReserveFunded relay did not. ` +
+                `Reconcile manually before retrying (re-minting would over-mint and break MAX_SUPPLY).`,
+        );
+    }
+    console.log(
+        `[deploy] mint ${alloc.burnAmount} BURN → ${alloc.label} (${friendly(poolAddr, testnet)}) with EmissionFundForward payload`,
+    );
+    const opened = provider.open(master);
+    const seqnoBefore = await getSenderSeqno(provider);
+    await opened.sendMint(
+        provider.sender(),
+        poolAddr,
+        expected,
+        EMISSION_FUND_FORWARD_TON,
+        EMISSION_FUND_MINT_GAS,
+        emissionFundForwardPayload(),
+    );
+    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+
+    // Physical-backing verification: emissionFunded must reflect the on-chain jetton arrival.
+    for (let attempt = 0; attempt < 12; attempt++) {
+        const funded = await smOpened.getGetEmissionFunded();
+        if (funded >= expected) {
+            console.log(`[deploy] emission reserve funded: emissionFunded=${funded}`);
+            return;
+        }
+        await sleep(5000);
+    }
+    throw new Error(
+        `[deploy] emission reserve funding NOT confirmed: emissionFunded on StakingMaster ` +
+            `(${friendly(stakingMaster.address, testnet)}) did not reach ${expected} after the mint. ` +
+            `Check that the pool is wired to the master and the EmissionReserveFunded relay landed.`,
+    );
+}
+
 export type DeployResult = {
     filePath: string;
     deployment: DeploymentFile;
@@ -410,7 +489,7 @@ export async function deployBurnStack(
     const vestingStart = process.env.VESTING_START ? BigInt(process.env.VESTING_START) : BigInt(Math.floor(Date.now() / 1000));
 
     const vestingDeveloperInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'developer', poolInit.address),
+        beneficiary: resolveBeneficiary(deployer, 'developer'),
         totalNano: presetTotalNano(VESTING_PRESETS.developer),
         startUnix: vestingStart,
         cliffSeconds: presetDurations(VESTING_PRESETS.developer).cliffSec,
@@ -420,7 +499,7 @@ export async function deployBurnStack(
         treasury: treasuryInit.address,
     });
     const vestingEcosystemInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'ecosystem', poolInit.address),
+        beneficiary: resolveBeneficiary(deployer, 'ecosystem'),
         totalNano: presetTotalNano(VESTING_PRESETS.ecosystem),
         startUnix: vestingStart,
         cliffSeconds: presetDurations(VESTING_PRESETS.ecosystem).cliffSec,
@@ -430,7 +509,7 @@ export async function deployBurnStack(
         treasury: treasuryInit.address,
     });
     const vestingReserveInit = await Vesting.prepareInit({
-        beneficiary: resolveBeneficiary(deployer, 'reserve', poolInit.address),
+        beneficiary: resolveBeneficiary(deployer, 'reserve'),
         totalNano: presetTotalNano(VESTING_PRESETS.reserve),
         startUnix: vestingStart,
         cliffSeconds: presetDurations(VESTING_PRESETS.reserve).cliffSec,
@@ -439,16 +518,8 @@ export async function deployBurnStack(
         jettonMaster: jettonMaster.address,
         treasury: treasuryInit.address,
     });
-    const vestingStakingInit = await Vesting.prepareInit({
-        beneficiary: poolInit.address,
-        totalNano: presetTotalNano(VESTING_PRESETS['staking-allocation']),
-        startUnix: vestingStart,
-        cliffSeconds: presetDurations(VESTING_PRESETS['staking-allocation']).cliffSec,
-        vestingSeconds: presetDurations(VESTING_PRESETS['staking-allocation']).vestingSec,
-        timelock: timelockInit.address,
-        jettonMaster: jettonMaster.address,
-        treasury: treasuryInit.address,
-    });
+    // Staking allocation is no longer vested: 300 BURN are minted directly to the
+    // StakingPool jetton wallet (see ensureStakingEmissionMint, IMP-MNAUD-F01).
 
     const airdropHolder = resolveMultisigHolder(deployer, 'AIRDROP_MULTISIG');
     const liquidityHolder = resolveMultisigHolder(deployer, 'LIQUIDITY_MULTISIG');
@@ -465,7 +536,6 @@ export async function deployBurnStack(
         vestingDeveloper: vestingDeveloperInit.address,
         vestingEcosystem: vestingEcosystemInit.address,
         vestingReserve: vestingReserveInit.address,
-        vestingStakingAllocation: vestingStakingInit.address,
         airdropHolder,
         liquidityHolder,
     };
@@ -540,19 +610,24 @@ export async function deployBurnStack(
         await deployIfNeeded(provider, vestingDeveloperInit, DEPLOY_VESTING, 'Vesting Developer', opts.force);
         await deployIfNeeded(provider, vestingEcosystemInit, DEPLOY_VESTING, 'Vesting Ecosystem', opts.force);
         await deployIfNeeded(provider, vestingReserveInit, DEPLOY_VESTING, 'Vesting Reserve', opts.force);
-        await deployIfNeeded(
-            provider,
-            vestingStakingInit,
-            DEPLOY_VESTING,
-            'Vesting StakingAllocation',
-            opts.force,
-        );
 
         const masterOpened = provider.open(jettonMaster);
         let mintedNano = 0n;
         for (const alloc of MINT_ALLOCATIONS) {
             const receiver = addressBook[alloc.receiver];
             mintedNano += alloc.burnAmount * NANO;
+            if (alloc.receiver === 'stakingPool') {
+                await ensureStakingEmissionMint(
+                    provider,
+                    jettonMaster,
+                    stakingMasterInit,
+                    alloc,
+                    receiver,
+                    testnet,
+                    opts.force,
+                );
+                continue;
+            }
             await ensureMint(
                 provider,
                 jettonMaster,
@@ -595,7 +670,6 @@ export async function deployBurnStack(
             vestingDeveloperInit.address,
             vestingEcosystemInit.address,
             vestingReserveInit.address,
-            vestingStakingInit.address,
             liquidityHolder,
         ];
         for (const holder of excludedOwners) {
@@ -685,7 +759,6 @@ export async function deployBurnStack(
         vestingDeveloper: friendly(addressBook.vestingDeveloper, testnet),
         vestingEcosystem: friendly(addressBook.vestingEcosystem, testnet),
         vestingReserve: friendly(addressBook.vestingReserve, testnet),
-        vestingStakingAllocation: friendly(addressBook.vestingStakingAllocation, testnet),
         airdropHolder: friendly(addressBook.airdropHolder, testnet),
         liquidityHolder: friendly(addressBook.liquidityHolder, testnet),
     };

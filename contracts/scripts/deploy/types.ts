@@ -10,7 +10,6 @@ export type DeploymentAddresses = {
     vestingDeveloper: string;
     vestingEcosystem: string;
     vestingReserve: string;
-    vestingStakingAllocation: string;
     airdropHolder: string;
     liquidityHolder: string;
 };
@@ -31,5 +30,6 @@ export type DeploymentFile = {
 export type MintAllocation = {
     label: string;
     burnAmount: bigint;
-    receiver: 'vestingDeveloper' | 'vestingEcosystem' | 'vestingReserve' | 'vestingStakingAllocation' | 'airdropHolder' | 'liquidityHolder';
+    /** `stakingPool` mints straight to the pool jetton wallet (emission reserve, IMP-MNAUD-F01). */
+    receiver: 'vestingDeveloper' | 'vestingEcosystem' | 'vestingReserve' | 'stakingPool' | 'airdropHolder' | 'liquidityHolder';
 };

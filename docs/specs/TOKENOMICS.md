@@ -227,7 +227,7 @@ Total Supply: 1,000 BURN
 |-----------|------------|---|---------|------------|
 | **Developer** | 7 | 0.7% | 12 months linear | Developer personal allocation |
 | **Community Airdrop** | 200 | 20% | — | Early BurnedChats users |
-| **Staking Rewards** | 300 | 30% | 3 years | Staking rewards (linear distribution) |
+| **Staking Rewards** | 300 | 30% | — (on-chain emission, 3 years) | Staking rewards (linear distribution) |
 | **Ecosystem** | 150 | 15% | 2 years | Grants, partnerships, marketing |
 | **Liquidity** | 300 | 30% | — | DEX pools (DeDust, STON.fi) |
 | **Reserve** | 43 | 4.3% | 3 years | Unforeseen expenses |
@@ -250,7 +250,7 @@ Total Supply: 1,000 BURN
 │           │    │    │    │    │    │    │    │    │  12 months │
 │           │    │    │    │    │    │    │    │    │             │
 │  Staking  ████████████████████████░░░░░░░░░░░░░░░░  Linear     │
-│           │    │    │    │    │    │    │    │    │  3 years    │
+│           │    │    │    │    │    │    │    │    │  3 years*   │
 │           │    │    │    │    │    │    │    │    │             │
 │  Ecosystem░░░░░░░░░░████████████████████████░░░░░░░  Linear      │
 │           │    │    │    │    │    │    │    │    │  2 years    │
@@ -260,6 +260,16 @@ Total Supply: 1,000 BURN
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **\* Staking Rewards are not held by a vesting contract.** The full 300 BURN
+> allocation is minted directly to the StakingPool's jetton wallet at TGE
+> (bootstrap mints with an `EmissionFundForward` payload; the pool relays
+> `EmissionReserveFunded` to the StakingMaster, so the emission reserve is
+> credited only when the jettons physically arrive). The 3-year linear release
+> is enforced **on-chain** by StakingMaster `tickEmission` math
+> (`EmissionNanoPerSec = 3170` nano/sec, capped by the funded reserve) — rewards
+> can never be distributed faster than the schedule, even though the tokens sit
+> in the pool wallet from day one.
 
 ---
 
@@ -313,7 +323,8 @@ Total Supply: 1,000 BURN
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  PHASE 1 (year 0–3): Initial Allocation                          │
-│  ├── Source: 300 BURN distributed linearly                       │
+│  ├── Source: 300 BURN minted to the pool wallet at TGE           │
+│  ├── Release: linear, enforced on-chain by tickEmission          │
 │  ├── Rate:     100 BURN/year = ~0.274 BURN/day                     │
 │  └── Additional: + 0.3% of each transaction volume               │
 │                                                                  │
@@ -631,7 +642,7 @@ contracts/
 | **Regulatory issues** | Low | Critical | Utility token, not security |
 | **Low adoption** | Medium | High | Tied to real utility |
 | **TON network issues** | Low | High | Monitoring, fallback plans |
-| **Staking pool drain** | Low | High | Reward limits, vesting |
+| **Staking pool drain** | Low | High | Reward limits, on-chain emission cap |
 
 ### Contingency Plans
 

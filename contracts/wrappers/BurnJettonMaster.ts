@@ -15,7 +15,7 @@ import {
     type SyncFeeConfigToWallet as SyncFeeConfigToWalletPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { BurnJettonWallet as BurnJettonWalletBase } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
-import { Address, beginCell, Cell, ContractProvider, Sender, toNano } from '@ton/core';
+import { Address, beginCell, Cell, ContractProvider, Sender, Slice, toNano } from '@ton/core';
 
 const NANO = 10n ** 9n;
 const EMPTY_WALLET_FEE_CONFIG = beginCell().endCell();
@@ -69,6 +69,8 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
 
     /**
      * Admin mints jettons to `receiver`'s jetton wallet (deploys wallet on first mint).
+     * Optional `forwardPayload` rides the TEP-74 notification (e.g. `emissionFundForwardPayload`
+     * for the staking emission reserve mint, IMP-MNAUD-F01).
      */
     async sendMint(
         provider: ContractProvider,
@@ -77,6 +79,7 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
         jettonAmount: bigint,
         forwardTonAmount: bigint,
         totalTonAmount: bigint,
+        forwardPayload?: Slice,
     ) {
         if (totalTonAmount <= forwardTonAmount) {
             throw new Error('totalTonAmount must exceed forwardTonAmount');
@@ -89,7 +92,7 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             sender: this.address,
             responseDestination: this.address,
             forwardTonAmount,
-            forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            forwardPayload: forwardPayload ?? beginCell().storeUint(0, 1).asSlice(),
         };
 
         const msg: MintPayload = {

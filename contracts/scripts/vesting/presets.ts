@@ -5,7 +5,7 @@ export const SECONDS_PER_MONTH = 30n * 24n * 3600n;
 
 export const NANO_PER_BURN = 10n ** 9n;
 
-export type VestingAllocationId = 'developer' | 'ecosystem' | 'reserve' | 'staking-allocation';
+export type VestingAllocationId = 'developer' | 'ecosystem' | 'reserve';
 
 export type VestingAllocationPreset = {
     id: VestingAllocationId;
@@ -16,12 +16,16 @@ export type VestingAllocationPreset = {
     vestingMonths: bigint;
 };
 
-/** TOKENOMICS allocations (P5-3-3-1). */
+/**
+ * TOKENOMICS allocations (P5-3-3-1). The 300 BURN staking allocation is NOT a vesting
+ * entry: it is minted directly to the StakingPool jetton wallet at bootstrap and the
+ * 3-year linear schedule is enforced on-chain by StakingMaster tickEmission math
+ * (IMP-MNAUD-F01 mint-to-pool, owner decision 2026-07-27).
+ */
 export const VESTING_PRESETS: Record<VestingAllocationId, VestingAllocationPreset> = {
     developer: { id: 'developer', totalBurn: 7n, cliffMonths: 0n, vestingMonths: 12n },
     ecosystem: { id: 'ecosystem', totalBurn: 150n, cliffMonths: 0n, vestingMonths: 24n },
     reserve: { id: 'reserve', totalBurn: 43n, cliffMonths: 36n, vestingMonths: 36n },
-    'staking-allocation': { id: 'staking-allocation', totalBurn: 300n, cliffMonths: 0n, vestingMonths: 36n },
 };
 
 export function presetTotalNano(p: VestingAllocationPreset): bigint {
@@ -35,9 +39,12 @@ export function presetDurations(p: VestingAllocationPreset): { cliffSec: bigint;
 }
 
 export function parseAllocationId(s: string): VestingAllocationId {
-    let k = s.trim().toLowerCase().replace(/_/g, '-');
-    if (k === 'staking allocation') {
-        k = 'staking-allocation';
+    const k = s.trim().toLowerCase().replace(/_/g, '-');
+    if (k === 'staking-allocation' || k === 'staking allocation' || k === 'staking') {
+        throw new Error(
+            'The staking allocation is no longer vested: 300 BURN are minted directly to the ' +
+                'StakingPool jetton wallet at bootstrap (IMP-MNAUD-F01 mint-to-pool).',
+        );
     }
     const key = k as VestingAllocationId;
     if (key in VESTING_PRESETS) {
@@ -46,14 +53,7 @@ export function parseAllocationId(s: string): VestingAllocationId {
     throw new Error(`Unknown vesting allocation "${s}". Use: ${Object.keys(VESTING_PRESETS).join(', ')}`);
 }
 
-export function beneficiaryForPreset(p: VestingAllocationId, env: NodeJS.ProcessEnv): Address {
-    if (p === 'staking-allocation') {
-        const raw = env.STAKING_POOL;
-        if (!raw) {
-            throw new Error('Set STAKING_POOL to the StakingPool contract address');
-        }
-        return Address.parse(raw);
-    }
+export function beneficiaryForPreset(_p: VestingAllocationId, env: NodeJS.ProcessEnv): Address {
     const b = env.BENEFICIARY;
     if (!b) {
         throw new Error('Set BENEFICIARY (friendly address) in .env');

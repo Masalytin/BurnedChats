@@ -32,13 +32,6 @@ message(0x5a020005) SetGovernor {
     governor: Address;
 }
 
-/// Bootstrap acknowledges that `amount` emission reward jettons have been minted to the
-/// pool wallet, raising the emission funding ceiling. Cumulative funding is capped at the
-/// Phase-1 emission budget. See IMP-PREMNT-04 decision log for the funding trust model.
-message(0x5a020006) FundEmissionReserve {
-    queryId: Int as uint64;
-    amount: Int as coins;
-}
 
 struct StakeInfoView {
     amount: Int as coins;
@@ -71,7 +64,9 @@ contract StakingMaster(
     emittedSoFar: Int as coins,
     /// Reward jettons actually provisioned to the pool to back linear emission.
     /// Emission can never accrue into `rewardPerShare` beyond this funded reserve, so the
-    /// pool never promises emission rewards it cannot pay. Funded via `FundEmissionReserve`.
+    /// pool never promises emission rewards it cannot pay. Raised ONLY via
+    /// `EmissionReserveFunded` relayed by the pool after reward jettons physically arrive at
+    /// the pool jetton wallet with an `EmissionFundForward` payload (IMP-MNAUD-F01).
     emissionFunded: Int as coins,
     /// Runtime tier table — synced from StakingLock (push model, IMP-AUDIT-03).
     tierConfigs: map<Int, TierConfig>,
@@ -510,16 +505,21 @@ contract StakingMaster(
         cashback(sender());
     }
 
-    /// Raises the emission funding ceiling after reward jettons are minted to the pool.
-    /// Bootstrap-gated; cumulative funding can never exceed the Phase-1 emission budget,
-    /// bounding the worst-case over-promise (see IMP-PREMNT-04 decision log).
-    receive(msg: FundEmissionReserve) {
-        require(sender() == self.bootstrapOwner, "Only bootstrap");
+    /// Raises the emission funding ceiling after reward jettons PHYSICALLY arrived at the pool
+    /// jetton wallet (IMP-MNAUD-F01 mint-to-pool). Only the pool may send this, and the pool
+    /// only sends it from its jetton-wallet notification handler — so `emissionFunded` can never
+    /// grow without real backing. Funding beyond the Phase-1 budget is clamped (excess jettons
+    /// stay in the pool wallet as a donation) rather than thrown, so an over-funding transfer
+    /// cannot break the notification chain. Remaining TON is absorbed (no cashback) to avoid
+    /// ping-pong with Pool's generic receive().
+    receive(msg: EmissionReserveFunded) {
+        require(sender() == self.pool, "Only pool");
         require(msg.amount > 0, "Bad amount");
         let next = self.emissionFunded + msg.amount;
-        require(next <= self.TotalEmissionNano, "Exceeds emission budget");
+        if (next > self.TotalEmissionNano) {
+            next = self.TotalEmissionNano;
+        }
         self.emissionFunded = next;
-        cashback(sender());
     }
 
     /// Jetton wallet notifies Master after incoming transfer; forward_payload carries `StakeForward`.

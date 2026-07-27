@@ -3,7 +3,6 @@
  *
  * Env (see `.env.example` pattern in repo):
  * - `BENEFICIARY` — vesting beneficiary (Developer / Ecosystem / Reserve EOA or contract owner).
- * - `STAKING_POOL` — required when allocation is staking-allocation (beneficiary = pool).
  * - `TIMELOCK` — Timelock for `EmergencyRevoke`.
  * - `TREASURY` — treasury TEP-74 owner (`EmergencyRevoke` sends remaining jettons here).
  * - `JETTON_MASTER` — deployed BURN master (friendly).

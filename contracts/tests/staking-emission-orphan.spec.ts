@@ -2,6 +2,7 @@ import { StakingMaster } from '../wrappers/StakingMaster';
 import {
     advanceTime,
     EMISSION_NANO_PER_SEC,
+    fundEmissionReserveViaMint,
     MIN_STAKE_NANO,
     mintAndSyncUser,
     setupStakingEnvironment,
@@ -29,7 +30,7 @@ describe('IMP-FAUDIT-F03 — emission orphan empty tiers', () => {
         const env = await setupStakingEnvironment('https://example.com/imp-faudit-f03-orphan.json');
         const user = await env.blockchain.treasury('orphan-flex');
 
-        await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
+        await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
 
         const principal = MIN_STAKE_NANO * 2n;
         await mintAndSyncUser(env, user, principal * 2n);
@@ -86,7 +87,7 @@ describe('IMP-FAUDIT-F03 — emission orphan empty tiers', () => {
         const alice = await env.blockchain.treasury('f03-alice');
         const bob = await env.blockchain.treasury('f03-bob');
 
-        await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
+        await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
 
         await mintAndSyncUser(env, alice, MIN_STAKE_NANO * 4n);
         await stakeAs(env, alice, 0, MIN_STAKE_NANO * 2n);

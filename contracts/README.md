@@ -81,8 +81,8 @@ npm run mint                  # placeholder until Jetton (P5-1-1-2)
 ### Manual `blueprint run` (no npm wrapper)
 
 `blueprint run` does **not** compile contracts. Scripts invoked directly — e.g.
-`deployVesting`, `deployVestingDeveloper`, `deployBurnPlaceholder`,
-`deployVestingStakingAllocation` — import wrappers from `build/`. After changing
+`deployVesting`, `deployVestingDeveloper`, `deployBurnPlaceholder` — import
+wrappers from `build/`. After changing
 `.tact` sources, on a fresh clone, or whenever `build/` is missing or stale, run
 **`npm run build`** before `npx blueprint run <ScriptName> …`, or deploy will fail
 with TypeScript errors (`TS2305`, `Cannot find module`).

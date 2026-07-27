@@ -30,10 +30,44 @@ contract StakingPool(
         }
     }
 
+    /// True when forward_payload carries an `EmissionFundForward` ref (emission-reserve funding
+    /// deposit, IMP-MNAUD-F01), not a staking-fee arrival or plain deposit.
+    inline fun hasEmissionFundForwardPayload(forwardPayload: Slice): Bool {
+        if (forwardPayload.preloadUint(1) != 1) {
+            return false;
+        }
+        let br = calculateSliceBitsAndRefs(forwardPayload);
+        if (br.refs != 1 || br.bits != 1) {
+            return false;
+        }
+        let inner = forwardPayload.preloadRef().beginParse();
+        return inner.preloadUint(32) == EmissionFundForward.opcode();
+    }
+
     /// Pool jetton wallet notifies Pool after incoming BURN (staking fee 0.3% or other deposits with notification).
     receive(msg: JettonNotification) {
         require(sender() == self.jettonRewardsWalletAddr(), "Only pool JW");
         require(msg.amount > 0, "Bad amount");
+
+        if (self.hasEmissionFundForwardPayload(msg.forwardPayload)) {
+            // Emission-reserve funding (IMP-MNAUD-F01 mint-to-pool): jettons physically arrived
+            // at the pool wallet — relay the amount so Master raises `emissionFunded`.
+            // pool_balance is NOT credited here: tickEmission credits it gradually as emission
+            // accrues (keeps `emittedSoFar == Σ CreditPoolBalance` and reward funding gated by
+            // the emission schedule instead of unlocking the whole reserve at once).
+            require(self.master_wired, "Pool master not wired");
+            message(MessageParameters {
+                to: self.stakingMaster,
+                value: gasPoolToMasterAccrual,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: EmissionReserveFunded {
+                    queryId: msg.queryId,
+                    amount: msg.amount,
+                }.toCell(),
+            });
+            return;
+        }
 
         self.pool_balance = self.pool_balance + msg.amount;
 

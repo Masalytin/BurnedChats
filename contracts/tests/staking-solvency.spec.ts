@@ -1,8 +1,11 @@
+import { beginCell, toNano } from '@ton/core';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
+import { storeEmissionReserveFunded } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { NANO_PER_BURN } from './helpers';
 import {
     advanceTime,
+    fundEmissionReserveViaMint,
     MIN_STAKE_NANO,
     mintAndSyncUser,
     setupStakingEnvironment,
@@ -53,7 +56,7 @@ describe('IMP-PREMNT-04 — staking pool solvency', () => {
 
             // Fund a tiny reserve far below what the elapsed time alone would emit.
             const reserve = 500_000n;
-            await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), reserve);
+            await fundEmissionReserveViaMint(env, reserve);
             expect(await env.stakingMaster.getGetEmissionFunded()).toBe(reserve);
 
             // 1000s * 3170 nano/s = 3_170_000 nano of time-based emission >> reserve.
@@ -70,28 +73,75 @@ describe('IMP-PREMNT-04 — staking pool solvency', () => {
             expect(await env.stakingMaster.getGetEmittedSoFar()).toBe(emitted);
         });
 
-        it('rejects FundEmissionReserve from a non-bootstrap caller and above the budget', async () => {
+        it('rejects EmissionReserveFunded not relayed by the pool and clamps funding at the budget', async () => {
             const env = await setupStakingEnvironment('https://example.com/imp-premnt-04-fundguard.json');
             const outsider = await env.blockchain.treasury('fund-outsider');
 
-            const rogue = await env.stakingMaster.sendFundEmissionReserve(outsider.getSender(), 100n);
+            // IMP-MNAUD-F01: a direct EmissionReserveFunded (no jettons moved) must be
+            // rejected — only the pool may relay it after a physical jetton arrival.
+            const rogueBody = beginCell()
+                .store(
+                    storeEmissionReserveFunded({
+                        $$type: 'EmissionReserveFunded',
+                        queryId: 0n,
+                        amount: 100n,
+                    }),
+                )
+                .endCell();
+            const rogue = await outsider.send({
+                to: env.stakingMaster.address,
+                value: toNano('0.2'),
+                body: rogueBody,
+            });
             expect(rogue.transactions).toHaveTransaction({
                 on: env.stakingMaster.address,
                 success: false,
-                exitCode: StakingMaster_errors_backward['Only bootstrap'],
+                exitCode: StakingMaster_errors_backward['Only pool'],
             });
             expect(await env.stakingMaster.getGetEmissionFunded()).toBe(0n);
 
-            await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
-            expect(await env.stakingMaster.getGetEmissionFunded()).toBe(TOTAL_EMISSION_BUDGET_NANO);
-
-            const overflow = await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), 1n);
-            expect(overflow.transactions).toHaveTransaction({
+            // Even the deployer (former bootstrap authority) cannot assert funding without jettons.
+            const deployerRogue = await env.deployer.send({
+                to: env.stakingMaster.address,
+                value: toNano('0.2'),
+                body: rogueBody,
+            });
+            expect(deployerRogue.transactions).toHaveTransaction({
                 on: env.stakingMaster.address,
                 success: false,
-                exitCode: StakingMaster_errors_backward['Exceeds emission budget'],
+                exitCode: StakingMaster_errors_backward['Only pool'],
+            });
+            expect(await env.stakingMaster.getGetEmissionFunded()).toBe(0n);
+
+            await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
+            expect(await env.stakingMaster.getGetEmissionFunded()).toBe(TOTAL_EMISSION_BUDGET_NANO);
+
+            // Over-funding does not throw (the notification chain must not break) — the
+            // extra deposit is clamped at the budget and stays in the pool wallet.
+            const overflow = await fundEmissionReserveViaMint(env, NANO_PER_BURN);
+            expect(overflow.transactions).toHaveTransaction({
+                on: env.stakingMaster.address,
+                success: true,
             });
             expect(await env.stakingMaster.getGetEmissionFunded()).toBe(TOTAL_EMISSION_BUDGET_NANO);
+        });
+
+        it('plain jetton arrival at the pool (no EmissionFundForward payload) does not raise emissionFunded', async () => {
+            const env = await setupStakingEnvironment('https://example.com/imp-mnaud-f01-plain.json');
+
+            const poolBalanceBefore = await env.pool.getGetPoolBalance();
+            await env.jettonMaster.sendMint(
+                env.deployer.getSender(),
+                env.poolAddress,
+                50n * NANO_PER_BURN,
+                toNano('0.1'),
+                toNano('0.25'),
+            );
+
+            // Plain deposit goes down the staking-fee accrual path: pool_balance grows,
+            // the emission reserve stays untouched.
+            expect(await env.stakingMaster.getGetEmissionFunded()).toBe(0n);
+            expect(await env.pool.getGetPoolBalance()).toBe(poolBalanceBefore + 50n * NANO_PER_BURN);
         });
     });
 
@@ -101,7 +151,7 @@ describe('IMP-PREMNT-04 — staking pool solvency', () => {
             const alice = await env.blockchain.treasury('zero-alice');
             const bob = await env.blockchain.treasury('zero-bob');
 
-            await env.stakingMaster.sendFundEmissionReserve(env.deployer.getSender(), TOTAL_EMISSION_BUDGET_NANO);
+            await fundEmissionReserveViaMint(env, TOTAL_EMISSION_BUDGET_NANO);
 
             await mintAndSyncUser(env, alice, MIN_STAKE_NANO * 4n);
             await stakeAs(env, alice, 0, MIN_STAKE_NANO * 2n);
