@@ -4,6 +4,7 @@ import '@ton/test-utils';
 
 import { Vesting } from '../wrappers/Vesting';
 import { Timelock } from '../wrappers/Timelock';
+import { Treasury } from '../wrappers/Treasury';
 import { storeVestEmergencyRevoke } from '../build/Vesting/Vesting_Vesting';
 import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, setupExcluded } from './helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
@@ -171,6 +172,57 @@ describe('Vesting (P5-3-3-1)', () => {
         blockchain.now = SANDBOX_NOW + 500_000;
         const emptyRel = await v.beneficiaryRelease(beneficiary.getSender());
         expect(emptyRel.transactions).toHaveTransaction({ success: false });
+    });
+
+    it('IMP-MNAUD-F02: EmergencyRevoke delivers JettonNotification and grows Treasury.total_received', async () => {
+        const ctx = await deployJetton();
+        const { blockchain, deployer, master } = ctx;
+        const beneficiary = await blockchain.treasury('mnaudF02-benef');
+        const start = BigInt(SANDBOX_NOW);
+        const totalNano = 50n * NANO_PER_BURN;
+
+        // Real Treasury contract (not an EOA stub) as the revoke destination.
+        const treasuryContract = blockchain.openContract(
+            await Treasury.prepareInit(deployer.address, master.address),
+        );
+        await treasuryContract.send(deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const vest = await Vesting.prepareInit({
+            beneficiary: beneficiary.address,
+            totalNano,
+            startUnix: start,
+            cliffSeconds: 0n,
+            vestingSeconds: 100_000n,
+            timelock: deployer.address,
+            jettonMaster: master.address,
+            treasury: treasuryContract.address,
+        });
+        const v = blockchain.openContract(vest);
+        await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
+        await setupExcluded(ctx, [v.address]);
+        await master.sendMint(deployer.getSender(), v.address, totalNano, 1n, MINT_TON);
+        await master.sendSyncFeeConfigToWallet(deployer.getSender(), v.address);
+
+        expect(await treasuryContract.getGetTotalReceived()).toBe(0n);
+
+        const treasuryJw = await master.getGetWalletAddress(treasuryContract.address);
+        const revokeTx = await v.timelockEmergencyRevoke(deployer.getSender());
+        expect(revokeTx.transactions).toHaveTransaction({ on: v.address, success: true });
+
+        // The forward floor must be enough for the treasury jetton wallet to actually
+        // deliver JettonNotification to the Treasury contract (1 nano was dropped).
+        expect(revokeTx.transactions).toHaveTransaction({
+            from: treasuryJw,
+            to: treasuryContract.address,
+            op: 0x7362d09c, // JettonNotification
+            success: true,
+        });
+
+        // Revoked amount is accounted, i.e. spendable via TreasurySpend later.
+        expect(await treasuryContract.getGetTotalReceived()).toBe(totalNano);
+        const tWallet = await getWallet(ctx, treasuryContract.address);
+        expect((await tWallet.getGetWalletData()).balance).toBe(totalNano);
+        expect(await v.getGetReleasedAmount()).toBe(totalNano);
     });
 
     it('IMP-TNFS-F03: Timelock relays executor value to fund VestEmergencyRevoke', async () => {

@@ -102,6 +102,10 @@ contract Vesting(
         require(remaining > 0, "Nothing to revoke");
         self.released_amount = self.total_amount;
 
+        // Forward at the documented treasury floor so the Treasury contract receives
+        // `JettonNotification` and `total_received` grows (MNAUD-2/C-2). A 1-nano
+        // forward is dropped on-chain (`cskip_no_gas`), leaving revoked jettons
+        // unaccounted and unspendable via `TreasurySpend`.
         message(MessageParameters {
             to: self.jetton_wallet_addr(),
             value: self.ReleaseTon,
@@ -113,7 +117,7 @@ contract Vesting(
                 destination: self.treasury,
                 responseDestination: self.treasury,
                 customPayload: null,
-                forwardTonAmount: 1,
+                forwardTonAmount: gasTreasuryForwardMin,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
         });
