@@ -127,6 +127,58 @@ function isLabGovShortTimers(): boolean {
     return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
+/**
+ * Mainnet supply-finalization gate (IMP-MNAUD-F05, owner decision): CloseMint +
+ * jetton-admin revoke are a MANDATORY step of the mainnet deploy flow, but they are
+ * irreversible, so the stage is explicit and OFF by default. Lab/testnet bootstraps
+ * keep mint open and admin = Timelock so destructive regression scenarios
+ * (fs-jetton-close-mint → fs-jetton-revoke-admin) can exercise the governed
+ * end-of-life path. The mainnet runbook enables this with MAINNET_FINALIZE=1.
+ */
+function isMainnetFinalize(): boolean {
+    const raw = process.env.MAINNET_FINALIZE?.trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+/**
+ * Dead-admin sentinel for the finalize-stage admin revoke (ChangeOwner target):
+ * addr_std, workchain 0, 256 zero bits. `BurnJettonMaster.admin` is a non-optional
+ * Address, so "revoked" means "owned by the unspendable zero address". Mirrors
+ * `REVOKED_ADMIN_ADDRESS` in testnet-scenarios/lib/jetton-admin.ts
+ * (fs-jetton-revoke-admin, destructive lab run 2026-07-23).
+ */
+export const REVOKED_ADMIN_ADDRESS = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+
+export type ExpectedOwnerBalance = { owner: Address; expectedNano: bigint; labels: string[] };
+
+/**
+ * Group mint allocations by resolved owner address. Several allocations may resolve
+ * to the same address (e.g. airdrop + liquidity both defaulting to the deployer on a
+ * lab run), where naive per-allocation balance checks would false-negative.
+ */
+export function aggregateExpectedBalancesByOwner(
+    allocations: readonly MintAllocation[],
+    resolveOwner: (receiver: MintAllocation['receiver']) => Address,
+): ExpectedOwnerBalance[] {
+    const byOwner = new Map<string, ExpectedOwnerBalance>();
+    for (const alloc of allocations) {
+        const owner = resolveOwner(alloc.receiver);
+        const key = owner.toRawString();
+        const entry = byOwner.get(key);
+        if (entry) {
+            entry.expectedNano += alloc.burnAmount * NANO;
+            entry.labels.push(alloc.label);
+        } else {
+            byOwner.set(key, {
+                owner,
+                expectedNano: alloc.burnAmount * NANO,
+                labels: [alloc.label],
+            });
+        }
+    }
+    return [...byOwner.values()];
+}
+
 function resolvePositiveSecEnv(name: string, fallback: bigint): bigint {
     const raw = process.env[name]?.trim();
     if (raw && /^\d+$/.test(raw)) {
@@ -403,6 +455,153 @@ async function ensureStakingEmissionMint(
     );
 }
 
+const FINALIZE_POLL_ATTEMPTS = 12;
+const FINALIZE_POLL_INTERVAL_MS = 5000;
+
+/**
+ * Mainnet supply finalization (IMP-MNAUD-F05, owner decision — fixed sequencing):
+ * full distribution (all MINT_ALLOCATIONS) → pool emission funding verified
+ * (`emissionFunded == 300 BURN`, IMP-MNAUD-F01) → `totalSupply == MAX_SUPPLY`
+ * → CloseMint → `mintable == false` → admin revoke (ChangeOwner → zero sentinel)
+ * → admin == sentinel. Every verification failure is a hard stop.
+ *
+ * Authority note: both `CloseMint` and `ChangeOwner` are gated by `sender() == admin`
+ * on the master, so this stage MUST run while the deployer is still admin. In finalize
+ * mode bootstrap therefore SKIPS the `changeOwner → Timelock` handover — the revoke
+ * supersedes it. If a previous non-finalize run already handed admin to the Timelock,
+ * the deploy wallet cannot act anymore and the only remaining path is governed
+ * (Governor proposal → Timelock → CloseMint / ChangeOwner, as exercised by
+ * fs-jetton-close-mint / fs-jetton-revoke-admin on lab) — this stage hard-stops
+ * with that message instead of guessing.
+ */
+async function finalizeSupply(
+    provider: NetworkProvider,
+    jettonMaster: BurnJettonMaster,
+    stakingMaster: StakingMaster,
+    addressBook: Record<keyof DeploymentAddresses, Address>,
+    deployer: Address,
+    timelockAddr: Address,
+    testnet: boolean,
+): Promise<void> {
+    console.log('[finalize] MAINNET_FINALIZE — closing mint and revoking jetton admin (irreversible)');
+
+    // Pre-verify 1: every allocation delivered, grouped by owner address (several
+    // allocations may share one receiver). Balances must EXACTLY match the mint plan —
+    // any transfer/stake activity between distribution and finalize is a hard stop.
+    const expected = aggregateExpectedBalancesByOwner(MINT_ALLOCATIONS, (r) => addressBook[r]);
+    for (const { owner, expectedNano, labels } of expected) {
+        const balance = await readJettonWalletBalance(provider, jettonMaster.address, owner);
+        if (balance !== expectedNano) {
+            throw new Error(
+                `[finalize] distribution NOT complete: ${friendly(owner, testnet)} (${labels.join(' + ')}) ` +
+                    `holds ${balance} BURN nano, expected ${expectedNano}. Refusing CloseMint — reconcile first.`,
+            );
+        }
+        console.log(`[finalize] allocation ok: ${labels.join(' + ')} — ${expectedNano} nano`);
+    }
+
+    // Pre-verify 2: staking emission reserve funded via the EmissionReserveFunded relay
+    // (IMP-MNAUD-F01) — the accounting counterpart of the pool wallet balance above.
+    const stakingAlloc = MINT_ALLOCATIONS.find((a) => a.receiver === 'stakingPool');
+    if (!stakingAlloc) {
+        throw new Error('[finalize] MINT_ALLOCATIONS has no stakingPool allocation — cannot verify emission funding');
+    }
+    const expectedFunded = stakingAlloc.burnAmount * NANO;
+    const funded = await provider.open(stakingMaster).getGetEmissionFunded();
+    if (funded !== expectedFunded) {
+        throw new Error(
+            `[finalize] emission reserve NOT verified: emissionFunded=${funded}, expected ${expectedFunded}. ` +
+                `Refusing CloseMint — the staking emission mint (IMP-MNAUD-F01) must complete first.`,
+        );
+    }
+    console.log(`[finalize] emission reserve ok: emissionFunded=${funded}`);
+
+    // Pre-verify 3: full supply minted. Burn only decreases totalSupply, so a mismatch
+    // means distribution is incomplete (or someone already burned) — reconcile manually.
+    const masterOpened = provider.open(jettonMaster);
+    let data = await masterOpened.getGetJettonData();
+    if (data.totalSupply !== MAX_SUPPLY_NANO) {
+        throw new Error(
+            `[finalize] totalSupply=${data.totalSupply} ≠ MAX_SUPPLY ${MAX_SUPPLY_NANO}. Refusing CloseMint.`,
+        );
+    }
+    console.log(`[finalize] totalSupply ok: ${data.totalSupply} == MAX_SUPPLY`);
+
+    // Step: CloseMint (idempotent — skipped when a previous finalize already applied it).
+    if (!data.mintable) {
+        console.log('[finalize] skip CloseMint — mintable already false');
+    } else if (data.adminAddress.equals(deployer)) {
+        console.log('[finalize] CloseMint');
+        const seqnoBefore = await getSenderSeqno(provider);
+        await masterOpened.sendCloseMint(provider.sender());
+        await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+        let closed = false;
+        for (let attempt = 0; attempt < FINALIZE_POLL_ATTEMPTS; attempt++) {
+            data = await masterOpened.getGetJettonData();
+            if (!data.mintable) {
+                closed = true;
+                break;
+            }
+            await sleep(FINALIZE_POLL_INTERVAL_MS);
+        }
+        if (!closed) {
+            throw new Error(
+                '[finalize] CloseMint NOT confirmed: mintable is still true after the transaction. ' +
+                    'Re-run bootstrap with MAINNET_FINALIZE=1 once the network settles.',
+            );
+        }
+        console.log('[finalize] verified mintable=false');
+    } else if (data.adminAddress.equals(timelockAddr)) {
+        throw new Error(
+            `[finalize] jetton admin is already the Timelock (${friendly(timelockAddr, testnet)}) — the deploy ` +
+                `wallet cannot CloseMint directly. A previous non-finalize bootstrap already handed the admin ` +
+                `over; the only remaining path is governed: Governor proposal → Timelock → CloseMint ` +
+                `(fs-jetton-close-mint flow). Finalization must run in the SAME bootstrap as distribution.`,
+        );
+    } else {
+        throw new Error(
+            `[finalize] jetton admin ${friendly(data.adminAddress, testnet)} is neither the deployer nor the ` +
+                `Timelock — cannot finalize. Reconcile the admin state manually.`,
+        );
+    }
+
+    // Step: admin revoke (ChangeOwner → dead sentinel). Must come AFTER CloseMint —
+    // once the admin is the sentinel, nobody can ever send CloseMint.
+    data = await masterOpened.getGetJettonData();
+    if (data.adminAddress.equals(REVOKED_ADMIN_ADDRESS)) {
+        console.log('[finalize] skip admin revoke — admin already the revoked sentinel');
+    } else if (data.adminAddress.equals(deployer)) {
+        console.log(`[finalize] revoke admin: ChangeOwner → ${friendly(REVOKED_ADMIN_ADDRESS, testnet)}`);
+        const seqnoBefore = await getSenderSeqno(provider);
+        await masterOpened.sendChangeOwner(provider.sender(), REVOKED_ADMIN_ADDRESS);
+        await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+        let revoked = false;
+        for (let attempt = 0; attempt < FINALIZE_POLL_ATTEMPTS; attempt++) {
+            data = await masterOpened.getGetJettonData();
+            if (data.adminAddress.equals(REVOKED_ADMIN_ADDRESS)) {
+                revoked = true;
+                break;
+            }
+            await sleep(FINALIZE_POLL_INTERVAL_MS);
+        }
+        if (!revoked) {
+            throw new Error(
+                '[finalize] admin revoke NOT confirmed: adminAddress did not become the revoked sentinel. ' +
+                    'Re-run bootstrap with MAINNET_FINALIZE=1 once the network settles.',
+            );
+        }
+        console.log('[finalize] verified admin == revoked sentinel');
+    } else {
+        throw new Error(
+            `[finalize] cannot revoke admin: current admin ${friendly(data.adminAddress, testnet)} is not the ` +
+                `deploy wallet. If admin is the Timelock, revoke requires a governed ChangeOwner ` +
+                `(fs-jetton-revoke-admin flow).`,
+        );
+    }
+
+    console.log('[finalize] supply finalized: mintable=false, jetton admin revoked (irreversible)');
+}
+
 export type DeployResult = {
     filePath: string;
     deployment: DeploymentFile;
@@ -415,6 +614,10 @@ export type DeployResult = {
  * (IMP-PREMNT-03). StakingLock/Treasury/Vesting take the Timelock contract as `timelock` at
  * init. `Timelock.governor` stays the deployer (mutual Governor↔Timelock fixed point is
  * unsolvable for deterministic addresses — see decision log P5-6-1-1-governance-bootstrap).
+ *
+ * MAINNET_FINALIZE=1 (IMP-MNAUD-F05) appends the irreversible supply finalization:
+ * verified distribution → CloseMint → admin revoke. Default (lab/testnet) keeps mint
+ * open and hands the jetton admin to the Timelock as before.
  */
 export async function deployBurnStack(
     provider: NetworkProvider,
@@ -427,6 +630,13 @@ export async function deployBurnStack(
     const timelockDelaySec = resolveTimelockDelaySec();
     const cancelLagSec = resolveCancelLagSec();
     const labShortTimers = isLabGovShortTimers();
+    const mainnetFinalize = isMainnetFinalize();
+    if (mainnetFinalize && opts.governanceSliceOnly === true) {
+        throw new Error(
+            '[deploy] MAINNET_FINALIZE=1 requires a full bootstrap run — the governance slice skips ' +
+                'distribution, so the finalization pre-checks cannot pass. Re-run without the slice.',
+        );
+    }
     const labProposalPeriodSec = labShortTimers
         ? resolvePositiveSecEnv('LAB_PROPOSAL_PERIOD_SEC', 60n)
         : 0n;
@@ -441,6 +651,11 @@ export async function deployBurnStack(
     console.log('[deploy] deployer', friendly(deployer, testnet));
     console.log('[deploy] metadata', metadataUri);
     console.log('[deploy] governance bootstrap: deployer is temporary fee-setup authority, handed to Timelock at the end');
+    console.log(
+        mainnetFinalize
+            ? '[deploy] MAINNET_FINALIZE=1 — supply finalization (CloseMint + admin revoke) will run at the end'
+            : '[deploy] supply finalization OFF (default) — mint stays open, jetton admin → Timelock',
+    );
     console.log(
         `[deploy] cancelLagSec=${cancelLagSec}` +
             (labShortTimers
@@ -539,6 +754,8 @@ export async function deployBurnStack(
         airdropHolder,
         liquidityHolder,
     };
+
+    let supplyFinalized = false;
 
     if (opts.dryRun) {
         console.log('[deploy] dry-run only — computed addresses:');
@@ -711,7 +928,11 @@ export async function deployBurnStack(
             );
         }
 
-        if (opts.force || !(await isAdminTransferred(provider, jettonMaster, timelockInit.address))) {
+        if (mainnetFinalize) {
+            // Finalize mode: CloseMint/ChangeOwner are admin-gated, so the deployer must
+            // stay admin until finalizeSupply runs. The revoke there supersedes this handover.
+            console.log('[deploy] skip changeOwner → Timelock — MAINNET_FINALIZE: admin is revoked after CloseMint');
+        } else if (opts.force || !(await isAdminTransferred(provider, jettonMaster, timelockInit.address))) {
             console.log(`[deploy] changeOwner → Timelock (${friendly(timelockInit.address, testnet)})`);
             const seqnoBefore = await getSenderSeqno(provider);
             await masterOpened.sendChangeOwner(provider.sender(), timelockInit.address);
@@ -737,6 +958,31 @@ export async function deployBurnStack(
             throw new Error(
                 `[deploy] jetton master timelock=${friendly(currentJettonTimelock, testnet)} is neither the ` +
                     `bootstrap deployer nor the target Timelock — cannot reconcile without redeploy`,
+            );
+        }
+
+        // Supply finalization (IMP-MNAUD-F05): last on-chain stage — after it the jetton
+        // master has no admin, so nothing else admin-gated can follow.
+        if (mainnetFinalize) {
+            await finalizeSupply(
+                provider,
+                jettonMaster,
+                stakingMasterInit,
+                addressBook,
+                deployer,
+                timelockInit.address,
+                testnet,
+            );
+            supplyFinalized = true;
+        } else if (!testnet) {
+            console.warn(
+                '[deploy] *** WARNING *** mainnet deploy finished WITHOUT supply finalization (IMP-MNAUD-F05):\n' +
+                    '[deploy] ***   - mint is still OPEN (mintable=true) — burned supply can be re-minted by the admin\n' +
+                    '[deploy] ***   - jetton admin is the Timelock, not revoked\n' +
+                    '[deploy] *** CloseMint + admin revoke are MANDATORY for mainnet. This run already handed the\n' +
+                    '[deploy] *** admin to the Timelock, so finalization now requires the governed path\n' +
+                    '[deploy] *** (Governor proposal → Timelock → CloseMint / ChangeOwner). For a direct finalize,\n' +
+                    '[deploy] *** the bootstrap must be run with MAINNET_FINALIZE=1 from the start.',
             );
         }
 
@@ -776,6 +1022,9 @@ export async function deployBurnStack(
             timelockGovernorIsDeployer: true,
             // setGovernor re-points the staking master to the real Governor during bootstrap.
             stakingMasterGovernorIsDeployer: false,
+            // IMP-MNAUD-F05: true only when the MAINNET_FINALIZE stage verified
+            // mintable=false and adminAddress == revoked sentinel in this run.
+            supplyFinalized,
         },
     };
 

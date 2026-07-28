@@ -16,6 +16,8 @@ import { syncAppConfigs } from './deploy/syncAppConfigs';
  * - LAB_GOV_SHORT_TIMERS=1 — lab tip only: short proposalConfigs + cancelLag at Governor.init
  *   (see RUNBOOK-redeploy §B). When set, syncAppConfigs is skipped unless FORCE_SYNC_APP_CONFIGS=1.
  * - LAB_CANCEL_LAG_SEC / LAB_PROPOSAL_PERIOD_SEC / LAB_PROPOSAL_TIMELOCK_DELAY_SEC (lab defaults 30/60/60)
+ * - MAINNET_FINALIZE=1 — MANDATORY for mainnet (IMP-MNAUD-F05): verified distribution →
+ *   CloseMint → jetton-admin revoke (irreversible). Never set for lab/testnet regression stacks.
  *
  * Flags:
  * - `--force` re-send deploy txs even when code is already live
