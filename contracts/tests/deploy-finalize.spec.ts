@@ -1,5 +1,5 @@
 import { Blockchain } from '@ton/sandbox';
-import { expect } from '@jest/globals';
+import '@ton/test-utils';
 import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import {
