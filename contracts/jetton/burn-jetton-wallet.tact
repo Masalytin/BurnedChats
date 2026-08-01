@@ -25,6 +25,10 @@ const walletStateInitCells: Int = 30;
 const walletStateInitBits: Int = 20000;
 /// Max excluded owner addresses on the exclusion list (gas bounded scan on transfer).
 const MAX_EXCLUDED_ADDRESSES: Int = 64;
+/// MNAUD-9/M-1 (IMP-MNAUD-F06): on-chain cap for the TOTAL transfer fee
+/// (burn + staking + treasury), uniform regardless of dynamicBurnEnabled.
+/// Matches the TOKENOMICS governance range ceiling of 5%.
+const MAX_TOTAL_FEE_BPS: Int = 500;
 
 struct BurnJettonData {
     totalSupply: Int;
@@ -320,7 +324,11 @@ inline fun computeDynamicBurnBps(cfg: DecodedFeeConfig, amount: Int): Int {
     let bps0 = cfg.burnBps;
     let bps1 = amount > cfg.largeTxThreshold ? bps0 + 25 : bps0;
     let bps2 = cfg.txCountSnapshot > cfg.activityThreshold ? bps1 + 12 : bps1;
-    return bps2 > cfg.maxBurnRateBps ? cfg.maxBurnRateBps : bps2;
+    // MNAUD-9/M-1: dynamic bonus must not push the effective total
+    // (burn + staking + treasury) above MAX_TOTAL_FEE_BPS. Base params already
+    // satisfy the cap (master-side SetFeeParams check), so burnBps <= headroom.
+    let burnCap = min(cfg.maxBurnRateBps, MAX_TOTAL_FEE_BPS - cfg.stakeBps - cfg.treasBps);
+    return bps2 > burnCap ? burnCap : bps2;
 }
 
 inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
@@ -523,7 +531,7 @@ contract BurnJettonWallet(
     receive(msg: JettonUpdateFeeConfig) {
         require(sender() == self.master, "Incorrect sender");
         require(
-            msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
+            msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= MAX_TOTAL_FEE_BPS,
             "Invalid fee bps",
         );
         let ext = packFeeConfigExtension(

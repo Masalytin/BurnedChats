@@ -696,6 +696,159 @@ describe('BurnJetton', () => {
         });
     });
 
+    describe('Fee cap 500 bps (IMP-MNAUD-F06, MNAUD-9/M-1)', () => {
+        async function expectFeeParams(burn: bigint, staking: bigint, treasury: bigint) {
+            const fp = await ctx.master.getGetFeeParams();
+            expect(fp.burnRateBps).toBe(burn);
+            expect(fp.stakingRateBps).toBe(staking);
+            expect(fp.treasuryRateBps).toBe(treasury);
+        }
+
+        it('rejects total 501 bps and keeps previous params', async () => {
+            const r = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 200n,
+                stakingBps: 200n,
+                treasuryBps: 101n,
+            });
+            expect(r.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid fee bps'],
+            });
+            await expectFeeParams(50n, 30n, 20n);
+        });
+
+        it('rejects blatant 100% fee (10000 bps burn)', async () => {
+            const r = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 10000n,
+                stakingBps: 0n,
+                treasuryBps: 0n,
+            });
+            expect(r.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid fee bps'],
+            });
+            await expectFeeParams(50n, 30n, 20n);
+        });
+
+        it('rejects a negative leg even when the sum is under the cap', async () => {
+            const r = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 600n,
+                stakingBps: -200n,
+                treasuryBps: 0n,
+            });
+            expect(r.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid fee bps'],
+            });
+            await expectFeeParams(50n, 30n, 20n);
+        });
+
+        it('accepts boundary total of exactly 500 bps', async () => {
+            const r = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 250n,
+                stakingBps: 150n,
+                treasuryBps: 100n,
+            });
+            expect(r.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
+            await expectFeeParams(250n, 150n, 100n);
+        });
+
+        it('accepts canonical 50/30/20 bps', async () => {
+            await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 250n,
+                stakingBps: 150n,
+                treasuryBps: 100n,
+            });
+            const r = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 50n,
+                stakingBps: 30n,
+                treasuryBps: 20n,
+            });
+            expect(r.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
+            await expectFeeParams(50n, 30n, 20n);
+        });
+
+        it('cap is uniform regardless of dynamicBurnEnabled', async () => {
+            await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), true);
+            const withDynamic = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 501n,
+                stakingBps: 0n,
+                treasuryBps: 0n,
+            });
+            expect(withDynamic.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid fee bps'],
+            });
+
+            await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), false);
+            const withoutDynamic = await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 501n,
+                stakingBps: 0n,
+                treasuryBps: 0n,
+            });
+            expect(withoutDynamic.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid fee bps'],
+            });
+            await expectFeeParams(50n, 30n, 20n);
+        });
+
+        it('SetAutoReduceParams enforces the same cap on low-supply params', async () => {
+            const over = await ctx.master.sendSetAutoReduceParams(ctx.deployer.getSender(), {
+                threshold: 100n * NANO_PER_BURN,
+                lowBurnBps: 300n,
+                lowStakingBps: 150n,
+                lowTreasuryBps: 51n,
+            });
+            expect(over.transactions).toHaveTransaction({
+                on: ctx.master.address,
+                success: false,
+                exitCode: BurnJettonMaster_errors_backward['Invalid low fee bps'],
+            });
+
+            const boundary = await ctx.master.sendSetAutoReduceParams(ctx.deployer.getSender(), {
+                threshold: 100n * NANO_PER_BURN,
+                lowBurnBps: 300n,
+                lowStakingBps: 150n,
+                lowTreasuryBps: 50n,
+            });
+            expect(boundary.transactions).toHaveTransaction({ on: ctx.master.address, success: true });
+        });
+
+        it('dynamic-burn bonus cannot push the effective total above 500 bps', async () => {
+            // Base 63 + 337 + 100 = 500 (cap boundary). The +25 large-tx bonus fits under
+            // maxBurnRateBps (100) but would make the effective total 525 without the
+            // total-cap clamp in computeDynamicBurnBps.
+            await ctx.master.sendSetFeeParams(ctx.deployer.getSender(), {
+                burnBps: 63n,
+                stakingBps: 337n,
+                treasuryBps: 100n,
+            });
+            await ctx.master.sendSetDynamicBurnEnabled(ctx.deployer.getSender(), true);
+            await ctx.master.sendSetDynamicBurnThresholds(ctx.deployer.getSender(), {
+                largeTxThreshold: 1n,
+                activityThreshold: ACTIVITY_THRESHOLD_DEFAULT,
+            });
+
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            const amount = 100n * NANO_PER_BURN;
+            // Burn headroom = 500 - 337 - 100 = 63 → bonus fully clamped away, total stays 500.
+            const burn = (amount * 63n) / 10000n;
+            const staking = (amount * 337n) / 10000n;
+            const treasury = (amount * 100n) / 10000n;
+            await transferAndAssertFees(ctx, ctx.userX, ctx.userY.address, amount, burn, staking, treasury);
+        });
+    });
+
     describe('Edge cases', () => {
         beforeEach(async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);

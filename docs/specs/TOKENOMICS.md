@@ -131,6 +131,8 @@ Sender: 100 BURN
 └─────────────────────────────────────────┘
 ```
 
+Dynamic bonuses are clamped on-chain: the effective total fee (burn + staking + treasury) can never exceed 500 bps (5%), whether dynamic burn is enabled or not (see FAQ).
+
 ### Deflation forecast
 
 Calculation at base burn rate 0.5% and average transaction ~0.1 BURN:
@@ -730,7 +732,7 @@ When supply < 100 BURN:
 ### Can parameters be changed?
 
 Yes, through governance:
-- Burn rate (0.1% – 5%)
+- Burn rate (0.1% – 5%). The 5% ceiling is enforced on-chain: the Jetton Master rejects any `SetFeeParams` / `SetAutoReduceParams` configuration where the total fee (burn + staking + treasury) exceeds `MAX_TOTAL_FEE_BPS` = 500 bps, and the dynamic-burn bonus is clamped so the effective total never exceeds the cap regardless of `dynamicBurnEnabled`
 - Staking pool distribution rate (linear distribution speed of 300 BURN initial allocation)
 - Tier reward shares (60/25/10/5 shares between Diamond/Gold/Silver/Flexible)
 - Treasury distribution

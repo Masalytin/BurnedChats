@@ -159,8 +159,13 @@ contract BurnJettonMaster(
 
     receive(msg: SetFeeParams) {
         require(sender() == self.timelock, "Only timelock");
+        // MNAUD-9/M-1: total fee capped at MAX_TOTAL_FEE_BPS (500 = 5%); negative
+        // legs are rejected so the sum check cannot be gamed into a confiscatory leg.
         require(
-            msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= 10000,
+            msg.burn_rate_bps >= 0 &&
+                msg.staking_rate_bps >= 0 &&
+                msg.treasury_rate_bps >= 0 &&
+                msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= MAX_TOTAL_FEE_BPS,
             "Invalid fee bps",
         );
         self.burnRateBps = msg.burn_rate_bps;
@@ -205,8 +210,13 @@ contract BurnJettonMaster(
 
     receive(msg: SetAutoReduceParams) {
         require(sender() == self.timelock, "Only timelock");
+        // MNAUD-9/M-1: low-supply params are an alternate effective-fee source —
+        // the uniform MAX_TOTAL_FEE_BPS cap applies to this path as well.
         require(
-            msg.low_burn_bps + msg.low_staking_bps + msg.low_treasury_bps <= 10000,
+            msg.low_burn_bps >= 0 &&
+                msg.low_staking_bps >= 0 &&
+                msg.low_treasury_bps >= 0 &&
+                msg.low_burn_bps + msg.low_staking_bps + msg.low_treasury_bps <= MAX_TOTAL_FEE_BPS,
             "Invalid low fee bps",
         );
         self.autoReduceThreshold = msg.threshold;
