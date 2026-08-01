@@ -5,7 +5,7 @@ import '@ton/test-utils';
 import { Vesting } from '../wrappers/Vesting';
 import { Timelock } from '../wrappers/Timelock';
 import { Treasury } from '../wrappers/Treasury';
-import { storeVestEmergencyRevoke } from '../build/Vesting/Vesting_Vesting';
+import { storeVestEmergencyRevoke, Vesting_errors_backward } from '../build/Vesting/Vesting_Vesting';
 import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, setupExcluded } from './helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 
@@ -274,21 +274,22 @@ describe('Vesting (P5-3-3-1)', () => {
         blockchain.now = Number(BigInt(blockchain.now!) + HIGH_VALUE_FLOOR);
 
         // Underfunded executor attach (~0.25) cannot cover ReleaseTon even via relay.
-        await timelock.sendExecutePending(deployer.getSender(), proposalId);
-        expect(await timelock.getGetPending(proposalId)).toBeNull();
+        // IMP-MNAUD-F08: the failed dispatch bounces back to the Timelock and
+        // re-arms the SAME pending action — no re-queue (fresh SUCCEEDED proposal)
+        // is needed any more, execute can simply be retried.
+        const underTx = await timelock.sendExecutePending(deployer.getSender(), proposalId);
+        expect(underTx.transactions).toHaveTransaction({
+            on: v.address,
+            success: false,
+            // Compute-phase gate — an action-phase failure would not bounce (no re-arm).
+            exitCode: Vesting_errors_backward['Insufficient gas for revoke'],
+        });
+        const rearmed = await timelock.getGetPending(proposalId);
+        expect(rearmed).not.toBeNull();
+        expect(rearmed!.executed).toBe(false);
         expect(await v.getGetReleasedAmount()).toBe(0n);
 
-        // Re-queue and execute with relay budget ≥ ReleaseTon + mark + storage.
-        await timelock.sendQueue(deployer.getSender(), {
-            proposalId,
-            proposalContract: proposalStub.address,
-            target: v.address,
-            method: BigInt(OP_VEST_EMERGENCY_REVOKE),
-            args: revokeBody,
-            delay: HIGH_VALUE_FLOOR,
-        });
-        blockchain.now = Number(BigInt(blockchain.now!) + HIGH_VALUE_FLOOR);
-
+        // Retry the same pending with relay budget ≥ ReleaseTon + mark + storage.
         const execTx = await timelock.sendExecutePending(
             deployer.getSender(),
             proposalId,
@@ -305,6 +306,11 @@ describe('Vesting (P5-3-3-1)', () => {
             success: true,
         });
         expect(await v.getGetReleasedAmount()).toBe(totalNano);
+
+        // Dispatched successfully — the entry stays as a non-re-executable tombstone.
+        const tombstone = await timelock.getGetPending(proposalId);
+        expect(tombstone).not.toBeNull();
+        expect(tombstone!.executed).toBe(true);
 
         const tWallet = await getWallet(ctx, treasury.address);
         expect((await tWallet.getGetWalletData()).balance).toBeGreaterThanOrEqual(totalNano);

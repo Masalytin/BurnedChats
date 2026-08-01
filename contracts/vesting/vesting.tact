@@ -98,6 +98,12 @@ contract Vesting(
 
     receive(msg: VestEmergencyRevoke) {
         require(sender() == self.timelock, "Only timelock");
+        /// Fail loudly in the COMPUTE phase when the Timelock relay under-funds the
+        /// revoke (IMP-MNAUD-F08): the ReleaseTon send below fails in the ACTION
+        /// phase on an under-funded call, and TON generates a bounce only for
+        /// compute-phase failures — an action-phase failure would leave the
+        /// Timelock's re-arm path blind. Mirrors Treasury's MIN_SPEND_FORWARD gate.
+        require(context().value >= self.ReleaseTon, "Insufficient gas for revoke");
         let remaining = self.total_amount - self.released_amount;
         require(remaining > 0, "Nothing to revoke");
         self.released_amount = self.total_amount;

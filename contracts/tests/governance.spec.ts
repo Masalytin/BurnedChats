@@ -1281,8 +1281,12 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
         }
 
         // delay == lab floor is accepted; early execute bounces; past eta it runs.
+        // IMP-MNAUD-F08: high-value args must be a well-formed op-prefixed body
+        // (op + queryId), and a successful dispatch keeps the entry as a
+        // non-re-executable tombstone instead of deleting it.
         const okTx = await timelock.sendQueue(deployer.getSender(), {
             ...queueParamsFor(proposalStub.address, target.address, method, 32n),
+            args: beginCell().storeUint(OP_TREASURY_SPEND, 32).storeUint(0, 64).endCell(),
             delay: LAB_FLOOR,
         });
         expect(okTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
@@ -1306,6 +1310,250 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
             toNano('1.6'),
         );
         expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
-        expect(await timelock.getGetPending(32n)).toBeNull();
+        const dispatched = await timelock.getGetPending(32n);
+        expect(dispatched).not.toBeNull();
+        expect(dispatched!.executed).toBe(true);
+    });
+});
+
+/**
+ * IMP-MNAUD-F08 — Timelock high-value dispatch re-arm (audit MNAUD-7/A-2).
+ *
+ * Pre-fix, TimelockExecutePending deleted the pending action and marked the
+ * proposal PS_EXECUTED BEFORE dispatching the target with bounce:false — a
+ * failed TreasurySpend / VestEmergencyRevoke (underfunded gate, downstream
+ * throw) was silently and irrecoverably lost (re-queue needs a fresh SUCCEEDED
+ * proposal, ProposalFinalize is once).
+ *
+ * Post-fix, a high-value pending entry is kept (flagged `executed`), the
+ * dispatch goes out with bounce:true and its queryId rewritten to the
+ * proposalId, and the bounce of a failed target transaction re-arms the entry
+ * (`executed` back to false) so execute can simply be retried. No bounce
+ * arrives when the target succeeded, so a dispatched entry can never re-arm
+ * into a double execution.
+ */
+describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
+    /** Well-formed high-value args: op-prefixed body with a queryId field. */
+    function treasurySpendArgsStub(): Cell {
+        return beginCell().storeUint(OP_TREASURY_SPEND, 32).storeUint(0, 64).endCell();
+    }
+
+    it('underfunded treasury-spend execute re-arms the pending action; retry pays out; success is replay-protected', async () => {
+        const env = await setupGovernance('https://example.com/gov-mnaud-f08-rearm.json');
+        const voter = await env.blockchain.treasury('mnaud-f08-voter');
+        await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
+
+        const treasury = env.blockchain.openContract(
+            await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+        );
+        await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+
+        const spendAmount = 5n * NANO_PER_BURN;
+        await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+        const recipient = await env.blockchain.treasury('mnaud-f08-recipient');
+        const { id, proposal } = await createProposal(
+            env,
+            voter,
+            TYPE_TREASURY,
+            treasurySpendPayload(treasury.address, recipient.address, spendAmount, 'rearm grant'),
+        );
+        await castVote(env, voter, id, true);
+
+        advanceTime(env.blockchain, 7 * DAY + 1);
+        const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
+        const queued = extractQueue(finalizeTx, env.timelock.address)!;
+        await env.timelock.sendQueue(env.deployer.getSender(), {
+            proposalId: queued.proposalId,
+            proposalContract: queued.proposalContract,
+            target: queued.target,
+            method: queued.method,
+            args: queued.args,
+            delay: queued.delay,
+        });
+        advanceTime(env.blockchain, 2 * DAY + 1);
+        const pendingBefore = await env.timelock.getGetPending(id);
+        expect(pendingBefore).not.toBeNull();
+
+        // Underfunded execute: 0.3 TON clears the Timelock bounce-payability
+        // floor (0.1) but fails Treasury's MIN_SPEND_FORWARD (1.0) gate — the
+        // permissionless-executor griefing shape from the audit finding.
+        const failExec = await env.timelock.send(
+            env.deployer.getSender(),
+            { value: toNano('0.3') },
+            { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
+        );
+        expect(failExec.transactions).toHaveTransaction({
+            on: treasury.address,
+            op: OP_TREASURY_SPEND,
+            success: false,
+            exitCode: Treasury_errors_backward['Insufficient gas for spend'],
+        });
+        // The failed dispatch bounced back to the Timelock and was processed.
+        expect(failExec.transactions).toHaveTransaction({
+            on: env.timelock.address,
+            inMessageBounced: true,
+            success: true,
+        });
+        // Nothing spent; the pending action was re-armed and stays re-executable.
+        expect(await treasury.getGetTotalSpent()).toBe(0n);
+        const rearmed = await env.timelock.getGetPending(id);
+        expect(rearmed).not.toBeNull();
+        expect(rearmed!.executed).toBe(false);
+        expect(rearmed!.scheduledTime).toBe(pendingBefore!.scheduledTime);
+        expect(rearmed!.args.equals(pendingBefore!.args)).toBe(true);
+        // Proposal-side PS_EXECUTED means "execution authorized & dispatched";
+        // the Timelock pending map is the source of truth for completion.
+        expect(await proposal.getGetState()).toBe(PS_EXECUTED);
+
+        // Retry the SAME pending with the PREMNT-07-sized budget → payout settles.
+        const okExec = await env.timelock.send(
+            env.deployer.getSender(),
+            { value: toNano('1.6') },
+            { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
+        );
+        expect(okExec.transactions).toHaveTransaction({
+            on: treasury.address,
+            op: OP_TREASURY_SPEND,
+            success: true,
+        });
+        expect(okExec.transactions).toHaveTransaction({ op: OP_JETTON_TRANSFER, success: true });
+        // The re-sent ProposalMarkExecuted is rejected by the already-Executed
+        // proposal — expected and harmless (bounce:false).
+        expect(okExec.transactions).toHaveTransaction({
+            on: proposal.address,
+            success: false,
+            exitCode: Proposal_errors_backward['Not succeeded'],
+        });
+        expect(await treasury.getGetTotalSpent()).toBe(spendAmount);
+        expect(await treasury.getGetSpendingCount()).toBe(1n);
+        const recipientWallet = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(recipient.address)),
+        );
+        expect((await recipientWallet.getGetWalletData()).balance).toBe(spendAmount);
+
+        // Success left a non-re-executable tombstone: replay bounces, no double spend.
+        const done = await env.timelock.getGetPending(id);
+        expect(done).not.toBeNull();
+        expect(done!.executed).toBe(true);
+        const replay = await env.timelock.send(
+            env.deployer.getSender(),
+            { value: toNano('1.6') },
+            { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
+        );
+        expect(replay.transactions).toHaveTransaction({
+            on: env.timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Already executed'],
+        });
+        expect(await treasury.getGetTotalSpent()).toBe(spendAmount);
+        expect(await treasury.getGetSpendingCount()).toBe(1n);
+    });
+
+    it('execute attach below the bounce-payability floor is rejected up front', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('mnaud-f08-floor-proposal');
+        const target = await blockchain.treasury('mnaud-f08-floor-target');
+
+        await timelock.sendQueue(deployer.getSender(), {
+            proposalId: 1n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: BigInt(OP_TREASURY_SPEND),
+            args: treasurySpendArgsStub(),
+            delay: BigInt(DAY),
+        });
+        advanceTime(blockchain, DAY + 1);
+
+        const tx = await timelock.sendExecutePending(deployer.getSender(), 1n, 0n, toNano('0.05'));
+        expect(tx.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Execute budget too low'],
+        });
+        const pending = await timelock.getGetPending(1n);
+        expect(pending).not.toBeNull();
+        expect(pending!.executed).toBe(false);
+    });
+
+    it('malformed high-value args (truncated or op mismatch) fail fast keeping the pending action', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('mnaud-f08-args-proposal');
+        const target = await blockchain.treasury('mnaud-f08-args-target');
+
+        // Truncated args: fewer than op(32) + queryId(64) bits → cell underflow.
+        await timelock.sendQueue(deployer.getSender(), {
+            proposalId: 1n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: BigInt(OP_TREASURY_SPEND),
+            args: beginCell().endCell(),
+            delay: BigInt(DAY),
+        });
+        // Op mismatch: method says TreasurySpend, args carry a different opcode.
+        await timelock.sendQueue(deployer.getSender(), {
+            proposalId: 2n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: BigInt(OP_TREASURY_SPEND),
+            args: beginCell().storeUint(0x1234, 32).storeUint(0, 64).endCell(),
+            delay: BigInt(DAY),
+        });
+        advanceTime(blockchain, DAY + 1);
+
+        const truncated = await timelock.sendExecutePending(deployer.getSender(), 1n);
+        expect(truncated.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: 9, // TVM cell underflow
+        });
+        const mismatch = await timelock.sendExecutePending(deployer.getSender(), 2n);
+        expect(mismatch.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Args method mismatch'],
+        });
+
+        for (const id of [1n, 2n]) {
+            const pending = await timelock.getGetPending(id);
+            expect(pending).not.toBeNull();
+            expect(pending!.executed).toBe(false);
+        }
+    });
+
+    it('governor can cancel a dispatched tombstone (storage cleanup), but not resurrect it', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('mnaud-f08-cancel-proposal');
+        // A sandbox treasury target accepts any message → dispatch succeeds, no bounce.
+        const target = await blockchain.treasury('mnaud-f08-cancel-target');
+
+        await timelock.sendQueue(deployer.getSender(), {
+            proposalId: 5n,
+            proposalContract: proposalStub.address,
+            target: target.address,
+            method: BigInt(OP_TREASURY_SPEND),
+            args: treasurySpendArgsStub(),
+            delay: BigInt(DAY),
+        });
+        advanceTime(blockchain, DAY + 1);
+
+        const execTx = await timelock.sendExecutePending(deployer.getSender(), 5n);
+        expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        expect(execTx.transactions).toHaveTransaction({ on: target.address, success: true });
+        const tombstone = await timelock.getGetPending(5n);
+        expect(tombstone).not.toBeNull();
+        expect(tombstone!.executed).toBe(true);
+
+        const cancelTx = await timelock.sendCancel(deployer.getSender(), 5n);
+        expect(cancelTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        expect(await timelock.getGetPending(5n)).toBeNull();
+
+        // Cleanup does not resurrect anything: execute is "Not queued" afterwards.
+        const gone = await timelock.sendExecutePending(deployer.getSender(), 5n);
+        expect(gone.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Not queued'],
+        });
     });
 });

@@ -171,7 +171,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     return checkQueueExecute({
         stateAfter,
-        pendingCleared: pendingAfter == null,
+        // IMP-MNAUD-F08: on a post-F08 tip a successful high-value execute keeps
+        // the pending entry as a non-re-executable (executed=true) tombstone;
+        // pre-F08 tips delete it. Both shapes mean "consumed".
+        pendingCleared: pendingAfter == null || pendingAfter.executed,
     });
 }
 

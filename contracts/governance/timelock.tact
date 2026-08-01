@@ -27,6 +27,15 @@ const TIMELOCK_TARGET_GAS: Int = ton("0.12");
 /// high-value target (covers Timelock storage rent for the pending map).
 const TIMELOCK_STORAGE_RESERVE: Int = ton("0.05");
 
+/// Executor TON floor for a high-value `TimelockExecutePending` (IMP-MNAUD-F08).
+/// The re-arm path below relies on the bounce of a failed dispatch actually
+/// arriving: a bounce is dropped when the failed target transaction has too
+/// little value left to pay the bounce forward fee. This floor guarantees the
+/// dispatched message always carries enough headroom (target gates throw within
+/// ~0.01 TON of compute), so "failure => bounce" holds. Honest executors attach
+/// far more anyway (Treasury spend gate ~1 TON, Vesting ReleaseTon 3.5 TON).
+const TIMELOCK_HIGH_VALUE_EXEC_MIN: Int = ton("0.1");
+
 struct PendingAction {
     proposalId: Int as uint64;
     proposalContract: Address;
@@ -95,11 +104,70 @@ contract Timelock(
         require(now() >= action.scheduledTime, "Not yet executable");
         require(!action.executed, "Already executed");
 
-        /// Free storage after scheduling outbound messages (TECH_NOTES).
+        if (action.method == TREASURY_SPEND_METHOD || action.method == VEST_EMERGENCY_REVOKE_METHOD) {
+            /// Bounce-payability floor — see TIMELOCK_HIGH_VALUE_EXEC_MIN.
+            require(context().value >= TIMELOCK_HIGH_VALUE_EXEC_MIN, "Execute budget too low");
+
+            /// IMP-MNAUD-F08 (audit MNAUD-7/A-2): a high-value pending action is KEPT
+            /// in the map, flagged `executed` (dispatched), instead of being deleted.
+            /// If the target aborts, the bounce of the dispatch below re-arms the
+            /// entry (`bounced()` receiver), so an approved treasury spend / vesting
+            /// revoke can never end up "executed but not performed" with no recovery
+            /// path. On success no bounce arrives and the entry stays a
+            /// non-re-executable tombstone (governor may TimelockCancel it away).
+            action.executed = true;
+            self.pendingActions.set(msg.proposalId, action);
+
+            /// Mark the proposal executed at dispatch time (fixed small budget from
+            /// the combined balance). On a re-armed retry this is re-sent and the
+            /// Proposal rejects it with "Not succeeded" — harmless (bounce:false):
+            /// proposal-side PS_EXECUTED means "execution authorized & dispatched";
+            /// the Timelock pending map is the source of truth for completion.
+            message(MessageParameters {
+                to: action.proposalContract,
+                value: TIMELOCK_MARK_EXECUTED_GAS,
+                mode: SendPayGasSeparately,
+                bounce: false,
+                body: ProposalMarkExecuted { queryId: msg.queryId }.toCell(),
+            });
+
+            /// A bounce only preserves the first 256 bits of the original body, so
+            /// rewrite the args' queryId field (bits 32..96) to the proposalId —
+            /// the bounce then self-identifies the entry to re-arm. High-value args
+            /// are op-prefixed message bodies (TreasurySpend / VestEmergencyRevoke),
+            /// enforced here; malformed args fail fast keeping the entry intact.
+            let argsSlice = action.args.beginParse();
+            let targetOp = argsSlice.loadUint(32);
+            require(targetOp == action.method, "Args method mismatch");
+            argsSlice.skipBits(64);
+            let outBody = beginCell()
+                .storeUint(targetOp, 32)
+                .storeUint(action.proposalId, 64)
+                .storeSlice(argsSlice)
+                .endCell();
+
+            /// High-value targets cannot run on a fixed 0.12 TON:
+            /// - TreasurySpend: jetton-wallet excluded gate (~0.65 TON) + recipient deploy
+            /// - VestEmergencyRevoke: Vesting.ReleaseTon (3.5 TON) for excluded transfer
+            /// Relay the executor-provided budget end-to-end instead of paying from
+            /// Timelock's (storage-only) balance. `SendIgnoreErrors` is intentionally
+            /// dropped here so a failed dispatch is not masked, and `bounce: true`
+            /// feeds the re-arm path above.
+            nativeReserve(TIMELOCK_STORAGE_RESERVE, ReserveAtMost);
+            message(MessageParameters {
+                to: action.target,
+                value: 0,
+                mode: SendRemainingBalance,
+                bounce: true,
+                body: outBody,
+            });
+            return;
+        }
+
+        /// Ordinary targets (parameter / feature / other emergency) keep the original
+        /// fire-and-forget semantics: free storage, mark, dispatch with a fixed budget.
         self.pendingActions.del(msg.proposalId);
 
-        /// Mark the proposal executed first (fixed small budget from the combined
-        /// balance, which already includes this message's value).
         message(MessageParameters {
             to: action.proposalContract,
             value: TIMELOCK_MARK_EXECUTED_GAS,
@@ -107,24 +175,6 @@ contract Timelock(
             bounce: false,
             body: ProposalMarkExecuted { queryId: msg.queryId }.toCell(),
         });
-
-        if (action.method == TREASURY_SPEND_METHOD || action.method == VEST_EMERGENCY_REVOKE_METHOD) {
-            /// High-value targets cannot run on a fixed 0.12 TON:
-            /// - TreasurySpend: jetton-wallet excluded gate (~0.65 TON) + recipient deploy
-            /// - VestEmergencyRevoke: Vesting.ReleaseTon (3.5 TON) for excluded transfer
-            /// Relay the executor-provided budget end-to-end instead of paying from
-            /// Timelock's (storage-only) balance. `SendIgnoreErrors` is intentionally
-            /// dropped here so a failed dispatch is not masked.
-            nativeReserve(TIMELOCK_STORAGE_RESERVE, ReserveAtMost);
-            message(MessageParameters {
-                to: action.target,
-                value: 0,
-                mode: SendRemainingBalance,
-                bounce: false,
-                body: action.args,
-            });
-            return;
-        }
 
         message(MessageParameters {
             to: action.target,
@@ -137,11 +187,43 @@ contract Timelock(
         cashback(sender());
     }
 
+    /// IMP-MNAUD-F08: bounced high-value dispatch → re-arm the pending action.
+    /// The only bounceable messages this contract ever sends are the high-value
+    /// dispatches above (mark / ordinary dispatch / cashback are bounce:false),
+    /// and their queryId was rewritten to the proposalId, so the truncated bounce
+    /// body carries `op(32) + proposalId(64)`. A bounce is generated by validators
+    /// only when the target transaction actually failed, so re-arming here can
+    /// never enable double execution of a succeeded action.
+    bounced(msg: Slice) {
+        if (msg.bits() < 96) {
+            return;
+        }
+        let op = msg.loadUint(32);
+        if (op != TREASURY_SPEND_METHOD && op != VEST_EMERGENCY_REVOKE_METHOD) {
+            return;
+        }
+        let proposalId = msg.loadUint(64);
+        let actionOpt = self.pendingActions.get(proposalId);
+        if (actionOpt == null) {
+            return;
+        }
+        let action = actionOpt!!;
+        if (sender() != action.target || !action.executed) {
+            return;
+        }
+        action.executed = false;
+        self.pendingActions.set(proposalId, action);
+        /// Absorb the bounced-back relay budget into the Timelock balance — the
+        /// executor of the retry provides a fresh budget.
+    }
+
     receive(msg: TimelockCancel) {
         require(sender() == self.governor, "Only governor");
         let actionOpt = self.pendingActions.get(msg.proposalId);
         require(actionOpt != null, "Not queued");
-        require(!actionOpt!!.executed, "Already executed");
+        /// IMP-MNAUD-F08: cancelling a dispatched (`executed`) entry is allowed —
+        /// it is the governor's storage-cleanup / explicit-disposal path now that
+        /// successful high-value dispatches keep their map entry as a tombstone.
         self.pendingActions.del(msg.proposalId);
         /// Absorb cancel relay remainder (IMP-RELAY-02 / RC-A).
     }
