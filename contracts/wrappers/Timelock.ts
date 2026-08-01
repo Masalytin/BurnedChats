@@ -11,9 +11,24 @@ export function emptyTimelockPendingMap() {
     return Dictionary.empty(Dictionary.Keys.BigUint(64), dictValueParserPendingAction());
 }
 
+/**
+ * Mainnet default for `Timelock.highValueDelayFloorSec` (24 h) — IMP-MNAUD-F03.
+ * High-value TimelockQueue methods (TreasurySpend / VestEmergencyRevoke) require
+ * `delay > 0 && delay >= floor`. Lab short-timer deploys pass a short floor
+ * explicitly (bootstrap.ts LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC).
+ */
+export const TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC = 86_400n;
+
 export class Timelock extends TimelockBase {
-    static async prepareInit(governor: Address): Promise<Timelock> {
-        const raw = await TimelockBase.fromInit(governor, emptyTimelockPendingMap());
+    static async prepareInit(
+        governor: Address,
+        highValueDelayFloorSec: bigint = TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC,
+    ): Promise<Timelock> {
+        const raw = await TimelockBase.fromInit(
+            governor,
+            highValueDelayFloorSec,
+            emptyTimelockPendingMap(),
+        );
         return new Timelock(raw.address, raw.init);
     }
 

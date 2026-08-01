@@ -233,7 +233,13 @@ describe('Vesting (P5-3-3-1)', () => {
         const start = BigInt(SANDBOX_NOW);
         const totalNano = 40n * NANO_PER_BURN;
 
-        const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
+        // IMP-MNAUD-F03: VestEmergencyRevoke is a high-value method — delay 0 is
+        // forbidden and the init-time floor applies. Use a lab-style short floor
+        // and wait it out before each execute.
+        const HIGH_VALUE_FLOOR = 60n;
+        const timelock = blockchain.openContract(
+            await Timelock.prepareInit(deployer.address, HIGH_VALUE_FLOOR),
+        );
         await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
         const vest = await Vesting.prepareInit({
@@ -263,8 +269,9 @@ describe('Vesting (P5-3-3-1)', () => {
             target: v.address,
             method: BigInt(OP_VEST_EMERGENCY_REVOKE),
             args: revokeBody,
-            delay: 0n,
+            delay: HIGH_VALUE_FLOOR,
         });
+        blockchain.now = Number(BigInt(blockchain.now!) + HIGH_VALUE_FLOOR);
 
         // Underfunded executor attach (~0.25) cannot cover ReleaseTon even via relay.
         await timelock.sendExecutePending(deployer.getSender(), proposalId);
@@ -278,8 +285,9 @@ describe('Vesting (P5-3-3-1)', () => {
             target: v.address,
             method: BigInt(OP_VEST_EMERGENCY_REVOKE),
             args: revokeBody,
-            delay: 0n,
+            delay: HIGH_VALUE_FLOOR,
         });
+        blockchain.now = Number(BigInt(blockchain.now!) + HIGH_VALUE_FLOOR);
 
         const execTx = await timelock.sendExecutePending(
             deployer.getSender(),

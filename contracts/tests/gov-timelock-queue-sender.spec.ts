@@ -35,6 +35,7 @@ import {
     clampTimelockQueueDelay,
     resolveDeployerMnemonic,
     resolveDeployerSender,
+    resolveHighValueQueueDelay,
 } from '../testnet-scenarios/lib/gov';
 import { deriveWalletAddressFromMnemonic } from '../testnet-scenarios/lib/test-actor';
 import type { ScenarioContext } from '../testnet-scenarios/types';
@@ -285,5 +286,32 @@ describe('IMP-TNFS-F17 — clampTimelockQueueDelay', () => {
 
     it('keeps values above the minimum unchanged (90000)', () => {
         expect(clampTimelockQueueDelay(90_000n)).toBe(90_000n);
+    });
+});
+
+describe('IMP-MNAUD-F03 — resolveHighValueQueueDelay', () => {
+    // timelock.tact high-value gate: require(delay > 0 && delay >= highValueDelayFloorSec)
+
+    it('pre-floor tip (floor null): falls back to the legacy F17 clamp', () => {
+        expect(resolveHighValueQueueDelay(0n, null)).toBe(0n);
+        expect(resolveHighValueQueueDelay(60n, null)).toBe(0n);
+        expect(resolveHighValueQueueDelay(86_400n, null)).toBe(86_400n);
+    });
+
+    it('floor tip: raises zero and below-floor delays to the floor (never returns 0)', () => {
+        expect(resolveHighValueQueueDelay(0n, 60n)).toBe(60n);
+        expect(resolveHighValueQueueDelay(30n, 60n)).toBe(60n);
+        expect(resolveHighValueQueueDelay(0n, 86_400n)).toBe(86_400n);
+    });
+
+    it('floor tip: keeps delays at/above the floor unchanged', () => {
+        expect(resolveHighValueQueueDelay(60n, 60n)).toBe(60n);
+        expect(resolveHighValueQueueDelay(86_400n, 86_400n)).toBe(86_400n);
+        expect(resolveHighValueQueueDelay(90_000n, 86_400n)).toBe(90_000n);
+    });
+
+    it('degenerate floor 0 still forbids zero delay (delay > 0 is a hard contract gate)', () => {
+        expect(resolveHighValueQueueDelay(0n, 0n)).toBe(1n);
+        expect(resolveHighValueQueueDelay(5n, 0n)).toBe(5n);
     });
 });

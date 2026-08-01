@@ -846,6 +846,52 @@ deferred.
 
 **Approach:** snapshot eligibility by tier lock, not full Compound-style prior-votes.
 
+### Timelock Authority and Governor Trust Model (mainnet)
+
+**Roles.** `Timelock.governor` is an immutable init field: the mutual
+Governor↔Timelock init fixed point is unsolvable for deterministic Tact
+addresses, so bootstrap deploys the Timelock with `governor =` the deploy
+authority. On **mainnet this address is a multisig** (owner decision
+2026-07-27, PARAMETERS_DECISION §2 option B), not a single-key EOA. There is
+deliberately **no `SetGovernor` handover** on the Timelock: the governor is
+fixed at init and never changes on-chain.
+
+**Residual powers under the governor key.** Even after supply finalization
+(CloseMint + jetton-admin revoke, IMP-MNAUD-F05), the Timelock governor can
+still queue and execute (subject to the delays below): jetton fee-config
+changes (via the jetton master `timelock` authority), treasury spends
+(`TreasurySpend`), vesting emergency revokes (`VestEmergencyRevoke`), and
+staking-parameter retunes. These are accepted residual powers, mitigated by
+(a) the multisig governor and (b) the high-value delay floor.
+
+**Arbitrary queue not bound to a proposal (accepted).** `TimelockQueue`
+verifies only `sender() == governor`; it does not verify that the queued
+`target/method/args` originate from a passed Governor proposal. This is an
+accepted trade-off: on mainnet every queue requires a multisig signature, and
+the pending action is publicly visible on-chain for the whole delay window,
+during which the multisig can `TimelockCancel` it.
+
+**High-value delay floor (IMP-MNAUD-F03 / audit MNAUD-3/H-2).**
+`TimelockQueue` splits the delay gate by method:
+
+- **High-value methods** — `TreasurySpend` (`0x5a1c9010`) and
+  `VestEmergencyRevoke` (`0x5a060002`): require
+  `delay > 0 && delay >= highValueDelayFloorSec`. `delay == 0` is always
+  rejected, so the zero-delay emergency path can never carry a treasury drain
+  or a vesting revoke.
+- **All other methods**: unchanged — `delay == 0` (emergency) or
+  `delay >= 86400` (compile-time `TIMELOCK_MIN_DELAY_SEC`).
+
+`highValueDelayFloorSec` is a Timelock **init parameter** (readable via
+`get_high_value_delay_floor`), not a compile-time constant: mainnet deploys
+use the 86400 (24 h) default, lab/testnet regression deploys pass a short
+floor (`LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC`, default = lab proposal timelock
+delay) so live scenarios actually queue with a real delay and wait it out.
+
+**Guarantee:** any treasury spend or vesting revoke is visible on-chain for at
+least the floor window (24 h on mainnet) before it can execute, giving the
+multisig time to cancel a compromised or mistaken action.
+
 ### Cashback Loop Between Auto-cashback Contracts (RC-2)
 
 **Vulnerability class:** two (or more) service contracts with unconditional or reflexive

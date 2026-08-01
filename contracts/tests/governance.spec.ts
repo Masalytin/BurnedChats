@@ -33,9 +33,10 @@ const PS_DEFEATED = 2n;
 const PS_EXECUTED = 4n;
 const PS_CANCELLED = 5n;
 
-// Canonical opcodes (governance-messages.tact / treasury.tact).
+// Canonical opcodes (governance-messages.tact / treasury.tact / vesting.tact).
 const OP_TIMELOCK_QUEUE = 0x5a040201;
 const OP_TREASURY_SPEND = 0x5a1c9010;
+const OP_VEST_EMERGENCY_REVOKE = 0x5a060002;
 const OP_JETTON_TRANSFER = 0xf8a7ea5;
 
 // ProposalType enum (governance-payload.tact).
@@ -131,9 +132,11 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
  * Minimal Timelock-only sandbox (no staking/governor stack). The deployer acts
  * as `Timelock.governor` — same wiring as `setupGovernance` — so `sendQueue` /
  * `sendExecutePending` can be driven directly. Enough for the queue-delay and
- * eta gates (IMP-TNFS-F18), which never touch the Proposal state machine.
+ * eta gates (IMP-TNFS-F18 / IMP-MNAUD-F03), which never touch the Proposal
+ * state machine. `highValueDelayFloorSec` defaults to the mainnet 24h floor;
+ * pass a short value to mirror a lab short-timer deploy.
  */
-async function setupTimelockOnly(): Promise<{
+async function setupTimelockOnly(highValueDelayFloorSec?: bigint): Promise<{
     blockchain: Blockchain;
     deployer: SandboxContract<TreasuryContract>;
     timelock: SandboxContract<Timelock>;
@@ -141,7 +144,9 @@ async function setupTimelockOnly(): Promise<{
     const blockchain = await Blockchain.create();
     blockchain.now = SANDBOX_NOW;
     const deployer = await blockchain.treasury('deployer');
-    const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address));
+    const timelock = blockchain.openContract(
+        await Timelock.prepareInit(deployer.address, highValueDelayFloorSec),
+    );
     await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
     return { blockchain, deployer, timelock };
 }
@@ -1031,8 +1036,10 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
  * IMP-TNFS-F18 — sandbox coverage of the Timelock delay-wait path.
  *
  * The lab governor declares timelockDelaySec=60, which the scenario harness
- * clamps 60→0 (IMP-TNFS-F17), so LIVE runs never exercise the 24h wait. These
- * tests are the only place the real delay semantics are verified:
+ * historically clamped 60→0 (IMP-TNFS-F17; since IMP-MNAUD-F03 the clamp only
+ * applies to non-high-value methods / pre-floor tips), so LIVE runs never
+ * exercise the 24h wait. These tests are the only place the real delay
+ * semantics are verified:
  *  - full queue → early-reject → execute flow on the contract minimum (24h);
  *  - the `Delay too short` gate (0 < delay < TIMELOCK_MIN_DELAY_SEC) that broke
  *    the 2026-07-25 live run and motivated the F17 clamp;
@@ -1142,5 +1149,163 @@ describe('Timelock delay gates (IMP-TNFS-F18)', () => {
         const execTx = await timelock.sendExecutePending(deployer.getSender(), 7n);
         expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
         expect(await timelock.getGetPending(7n)).toBeNull();
+    });
+});
+
+/**
+ * IMP-MNAUD-F03 — high-value delay floor (audit MNAUD-3/H-2, owner decision 2026-07-27).
+ *
+ * TimelockQueue distinguishes high-value methods (TreasurySpend / VestEmergencyRevoke):
+ * their delay must be > 0 AND >= `highValueDelayFloorSec` (init param — mainnet 86400,
+ * lab short floor), so the zero-delay emergency path can never carry a treasury drain
+ * or vesting revoke. Non-high-value methods keep the original semantics
+ * (delay == 0 || delay >= TIMELOCK_MIN_DELAY_SEC).
+ */
+describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
+    const HIGH_VALUE_METHODS: Array<[string, bigint]> = [
+        ['TreasurySpend', BigInt(OP_TREASURY_SPEND)],
+        ['VestEmergencyRevoke', BigInt(OP_VEST_EMERGENCY_REVOKE)],
+    ];
+
+    function queueParamsFor(
+        proposalContract: Address,
+        target: Address,
+        method: bigint,
+        proposalId: bigint,
+    ) {
+        return {
+            proposalId,
+            proposalContract,
+            target,
+            method,
+            args: beginCell().endCell(),
+        };
+    }
+
+    it('mainnet default floor (24h): delay 0 and 0 < delay < floor are rejected for high-value methods', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        expect(await timelock.getGetHighValueDelayFloor()).toBe(BigInt(DAY));
+
+        const proposalStub = await blockchain.treasury('mnaud-f03-proposal');
+        const target = await blockchain.treasury('mnaud-f03-target');
+
+        let proposalId = 1n;
+        for (const [, method] of HIGH_VALUE_METHODS) {
+            for (const delay of [0n, 60n, BigInt(DAY - 1)]) {
+                const tx = await timelock.sendQueue(deployer.getSender(), {
+                    ...queueParamsFor(proposalStub.address, target.address, method, proposalId),
+                    delay,
+                });
+                expect(tx.transactions).toHaveTransaction({
+                    on: timelock.address,
+                    success: false,
+                    exitCode: Timelock_errors_backward['High-value delay below floor'],
+                });
+                expect(await timelock.getGetPending(proposalId)).toBeNull();
+                proposalId += 1n;
+            }
+        }
+    });
+
+    it('mainnet default floor: delay == floor and delay > floor are accepted for high-value methods', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('mnaud-f03-ok-proposal');
+        const target = await blockchain.treasury('mnaud-f03-ok-target');
+
+        let proposalId = 10n;
+        for (const [, method] of HIGH_VALUE_METHODS) {
+            for (const delay of [BigInt(DAY), BigInt(2 * DAY)]) {
+                const tx = await timelock.sendQueue(deployer.getSender(), {
+                    ...queueParamsFor(proposalStub.address, target.address, method, proposalId),
+                    delay,
+                });
+                expect(tx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+                const pending = await timelock.getGetPending(proposalId);
+                expect(pending).not.toBeNull();
+                expect(pending!.scheduledTime).toBe(BigInt(blockchain.now!) + delay);
+                proposalId += 1n;
+            }
+        }
+    });
+
+    it('non-high-value methods keep the original gate: delay 0 accepted, short non-zero rejected', async () => {
+        const { blockchain, deployer, timelock } = await setupTimelockOnly();
+        const proposalStub = await blockchain.treasury('mnaud-f03-other-proposal');
+        const target = await blockchain.treasury('mnaud-f03-other-target');
+
+        // Emergency-style zero delay is still legal for non-high-value methods.
+        const zeroTx = await timelock.sendQueue(deployer.getSender(), {
+            ...queueParamsFor(proposalStub.address, target.address, 0x1234n, 20n),
+            delay: 0n,
+        });
+        expect(zeroTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        expect(await timelock.getGetPending(20n)).not.toBeNull();
+
+        // And the pre-existing TIMELOCK_MIN_DELAY_SEC gate still applies to non-zero delays.
+        const shortTx = await timelock.sendQueue(deployer.getSender(), {
+            ...queueParamsFor(proposalStub.address, target.address, 0x1234n, 21n),
+            delay: 60n,
+        });
+        expect(shortTx.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Delay too short'],
+        });
+        expect(await timelock.getGetPending(21n)).toBeNull();
+    });
+
+    it('lab short floor (60s): high-value queue respects the floor and the execute eta', async () => {
+        const LAB_FLOOR = 60n;
+        const { blockchain, deployer, timelock } = await setupTimelockOnly(LAB_FLOOR);
+        expect(await timelock.getGetHighValueDelayFloor()).toBe(LAB_FLOOR);
+
+        const proposalStub = await blockchain.treasury('mnaud-f03-lab-proposal');
+        const target = await blockchain.treasury('mnaud-f03-lab-target');
+        const method = BigInt(OP_TREASURY_SPEND);
+
+        // Below-floor (including zero) still bounces on the lab tip.
+        for (const [proposalId, delay] of [
+            [30n, 0n],
+            [31n, 30n],
+        ] as Array<[bigint, bigint]>) {
+            const tx = await timelock.sendQueue(deployer.getSender(), {
+                ...queueParamsFor(proposalStub.address, target.address, method, proposalId),
+                delay,
+            });
+            expect(tx.transactions).toHaveTransaction({
+                on: timelock.address,
+                success: false,
+                exitCode: Timelock_errors_backward['High-value delay below floor'],
+            });
+            expect(await timelock.getGetPending(proposalId)).toBeNull();
+        }
+
+        // delay == lab floor is accepted; early execute bounces; past eta it runs.
+        const okTx = await timelock.sendQueue(deployer.getSender(), {
+            ...queueParamsFor(proposalStub.address, target.address, method, 32n),
+            delay: LAB_FLOOR,
+        });
+        expect(okTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        const pending = await timelock.getGetPending(32n);
+        expect(pending).not.toBeNull();
+        expect(pending!.scheduledTime).toBe(BigInt(SANDBOX_NOW) + LAB_FLOOR);
+
+        const earlyTx = await timelock.sendExecutePending(deployer.getSender(), 32n);
+        expect(earlyTx.transactions).toHaveTransaction({
+            on: timelock.address,
+            success: false,
+            exitCode: Timelock_errors_backward['Not yet executable'],
+        });
+        expect(await timelock.getGetPending(32n)).not.toBeNull();
+
+        advanceTime(blockchain, Number(LAB_FLOOR));
+        const execTx = await timelock.sendExecutePending(
+            deployer.getSender(),
+            32n,
+            0n,
+            toNano('1.6'),
+        );
+        expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
+        expect(await timelock.getGetPending(32n)).toBeNull();
     });
 });

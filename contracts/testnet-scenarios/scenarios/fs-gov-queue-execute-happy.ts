@@ -19,13 +19,14 @@ import {
     TYPE_TREASURY,
     assertTimelockGovernorSender,
     checkQueueExecute,
-    clampTimelockQueueDelay,
     naWhenGovTimeDependent,
     openProposal,
     parseTreasurySpendPayload,
     readPendingAction,
+    readTimelockHighValueFloorSec,
     resolveDeployerSender,
     resolveGovMaxWaitSec,
+    resolveHighValueQueueDelay,
     resolveUsableProposal,
     timelockAddress,
     timelockContract,
@@ -96,11 +97,15 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
         let pending = await readPendingAction(provider, timelockAddr, latest.id);
         if (!pending) {
-            // IMP-TNFS-F17: the Timelock's compile-time gate only accepts
-            // delay == 0 or ≥ TIMELOCK_MIN_DELAY_SEC (24 h) — the lab
-            // short-timer Governor config (60 s) bounces on "Delay too
-            // short", so clamp to the immediately-executable 0.
-            const delay = clampTimelockQueueDelay(await proposal.getGetTimelockDelay());
+            // IMP-MNAUD-F03: TreasurySpend is a high-value method — on a floor
+            // tip the queue delay must be > 0 and ≥ the on-chain floor (lab
+            // deploys use a short floor, so the wait below fits GOV_MAX_WAIT).
+            // On a pre-floor tip this falls back to the F17 clamp (60 → 0).
+            const floorSec = await readTimelockHighValueFloorSec(provider, timelockAddr);
+            const delay = resolveHighValueQueueDelay(
+                await proposal.getGetTimelockDelay(),
+                floorSec,
+            );
             const proposalType = await proposal.getGetProposalType();
             const payload = await proposal.getGetPayload();
             if (Number(proposalType) !== TYPE_TREASURY) {

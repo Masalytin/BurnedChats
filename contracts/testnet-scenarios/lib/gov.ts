@@ -239,18 +239,62 @@ export async function readPendingAction(
 export const TIMELOCK_MIN_DELAY_SEC = 86_400n;
 
 /**
- * Clamp a Governor-configured timelock delay to a contract-valid value.
- * Lab short-timer tips bake `timelockDelaySec=60` into the Governor config,
- * but the Timelock's gate only accepts 0 (immediately executable — sandbox
- * "Emergency proposal" path) or ≥ 24 h; anything in between bounces on
- * "Delay too short" (live 2026-07-25 16:30 — deployer seqno grew, no
- * pending). `0 < delay < TIMELOCK_MIN_DELAY_SEC` → 0n; otherwise unchanged.
+ * Clamp a Governor-configured timelock delay to a contract-valid value for
+ * NON-high-value methods (and for high-value methods on pre-IMP-MNAUD-F03
+ * tips without the floor). Lab short-timer tips bake `timelockDelaySec=60`
+ * into the Governor config, but the Timelock's gate only accepts 0
+ * (immediately executable — sandbox "Emergency proposal" path) or ≥ 24 h;
+ * anything in between bounces on "Delay too short" (live 2026-07-25 16:30 —
+ * deployer seqno grew, no pending). `0 < delay < TIMELOCK_MIN_DELAY_SEC` → 0n;
+ * otherwise unchanged.
  */
 export function clampTimelockQueueDelay(delay: bigint): bigint {
     if (delay > 0n && delay < TIMELOCK_MIN_DELAY_SEC) {
         return 0n;
     }
     return delay;
+}
+
+// ─── High-value delay floor — IMP-MNAUD-F03 ─────────────────────────────────
+//
+// `timelock.tact` `receive(TimelockQueue)` since IMP-MNAUD-F03 splits the gate:
+// high-value methods (TreasurySpend 0x5a1c9010 / VestEmergencyRevoke 0x5a060002)
+// require `delay > 0 && delay >= highValueDelayFloorSec` (INIT parameter —
+// mainnet 86400, lab short floor), everything else keeps the legacy
+// `delay == 0 || delay >= TIMELOCK_MIN_DELAY_SEC` rule. Lab scenarios must
+// therefore queue high-value actions with a real (short) delay and wait it out.
+
+/**
+ * On-chain `Timelock.get_high_value_delay_floor` (IMP-MNAUD-F03), tolerant to
+ * toncenter-v2 stack shapes. Returns `null` on a pre-floor tip where the
+ * getter does not exist — callers fall back to the legacy F17 clamp rules.
+ */
+export async function readTimelockHighValueFloorSec(
+    provider: NetworkProvider,
+    timelock: Address,
+): Promise<bigint | null> {
+    try {
+        const res = await provider.provider(timelock).get('get_high_value_delay_floor', []);
+        return readGetterIntFlexible(res.stack.pop(), 'timelock.highValueDelayFloor');
+    } catch {
+        // Pre-IMP-MNAUD-F03 Timelock bytecode without the getter.
+        return null;
+    }
+}
+
+/**
+ * Contract-valid queue delay for a HIGH-VALUE method (TreasurySpend /
+ * VestEmergencyRevoke). Pure — exported for unit tests.
+ * - `floorSec == null` (pre-floor tip): legacy F17 clamp (0 or ≥ 24 h).
+ * - floor tip: `delay` raised to the floor when below it; zero is never
+ *   returned (`delay > 0` is a hard contract gate even when floor is 0).
+ */
+export function resolveHighValueQueueDelay(delay: bigint, floorSec: bigint | null): bigint {
+    if (floorSec == null) {
+        return clampTimelockQueueDelay(delay);
+    }
+    const floor = floorSec > 0n ? floorSec : 1n;
+    return delay >= floor ? delay : floor;
 }
 
 // ─── Deployer (Timelock.governor) sender — IMP-TNFS-F16 ─────────────────────

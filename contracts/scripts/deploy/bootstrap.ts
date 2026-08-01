@@ -10,7 +10,7 @@ import {
 import { StakingLock } from '../../wrappers/StakingLock';
 import { StakingMaster } from '../../wrappers/StakingMaster';
 import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } from '../../wrappers/StakingPool';
-import { Timelock } from '../../wrappers/Timelock';
+import { Timelock, TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC } from '../../wrappers/Timelock';
 import { Treasury } from '../../wrappers/Treasury';
 import { Vesting } from '../../wrappers/Vesting';
 import { presetDurations, presetTotalNano, VESTING_PRESETS } from '../vesting/presets';
@@ -646,6 +646,13 @@ export async function deployBurnStack(
     const proposalConfigs = labShortTimers
         ? labShortGovernorProposalConfigs(labProposalPeriodSec, labProposalTimelockDelaySec)
         : undefined;
+    // Timelock high-value delay floor (IMP-MNAUD-F03): TreasurySpend / VestEmergencyRevoke
+    // queues require delay > 0 && delay >= floor. Mainnet/shared deploys use the 24h default;
+    // lab short-timer deploys default the floor to the lab proposal timelock delay so the
+    // Governor-emitted queue delay always clears the floor and live regression can wait it out.
+    const timelockHighValueFloorSec = labShortTimers
+        ? resolvePositiveSecEnv('LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC', labProposalTimelockDelaySec)
+        : TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC;
 
     console.log('[deploy] network', provider.network());
     console.log('[deploy] deployer', friendly(deployer, testnet));
@@ -658,6 +665,7 @@ export async function deployBurnStack(
     );
     console.log(
         `[deploy] cancelLagSec=${cancelLagSec}` +
+            ` timelockHighValueFloorSec=${timelockHighValueFloorSec}` +
             (labShortTimers
                 ? ` LAB_GOV_SHORT_TIMERS period=${labProposalPeriodSec} proposalTimelockDelay=${labProposalTimelockDelaySec}`
                 : ' (production defaults for proposalConfigs)'),
@@ -677,7 +685,7 @@ export async function deployBurnStack(
     // unsolvable for deterministic Tact addresses — see P5-6-1-1). Its address depends
     // only on the deployer, so it can be computed first and used as the immutable
     // timelock-authority for StakingLock (IMP-PREMNT-03) without any address cycle.
-    const timelockInit = await Timelock.prepareInit(deployer);
+    const timelockInit = await Timelock.prepareInit(deployer, timelockHighValueFloorSec);
 
     const stakingLockInit = await StakingLock.prepareInit(timelockInit.address);
     const stakingMasterInit = await StakingMaster.prepareInit(

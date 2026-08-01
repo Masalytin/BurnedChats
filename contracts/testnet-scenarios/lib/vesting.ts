@@ -15,6 +15,13 @@ import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deplo
 import { check } from './checks';
 import { readJettonWalletBalance } from './balances';
 import { collectVestingAddresses } from './fingerprint';
+import {
+    readPendingAction,
+    readTimelockHighValueFloorSec,
+    resolveGovMaxWaitSec,
+    resolveHighValueQueueDelay,
+    waitUntilUnix,
+} from './gov';
 import type { CheckResult, ScenarioContext } from '../types';
 
 /** Matches vesting.tact VestRelease / VestEmergencyRevoke opcodes. */
@@ -314,9 +321,14 @@ function nextProposalId(): bigint {
 }
 
 /**
- * Authorized VestEmergencyRevoke: Timelock governor queues delay=0 then executes
- * with a relay budget (≥ ReleaseTon + mark-executed + storage reserve).
- * Requires tip Timelock that relays VestEmergencyRevoke (IMP-TNFS-F03).
+ * Authorized VestEmergencyRevoke: Timelock governor queues then executes with a
+ * relay budget (≥ ReleaseTon + mark-executed + storage reserve). Requires tip
+ * Timelock that relays VestEmergencyRevoke (IMP-TNFS-F03).
+ *
+ * IMP-MNAUD-F03: VestEmergencyRevoke is a high-value method — on a floor tip
+ * `delay == 0` is rejected, so the queue uses the on-chain floor (short on lab
+ * deploys) and the helper waits out the eta before executing. Pre-floor tips
+ * (getter missing) keep the legacy delay=0 fast path.
  */
 export async function sendEmergencyRevokeViaTimelock(
     ctx: ScenarioContext,
@@ -331,8 +343,10 @@ export async function sendEmergencyRevokeViaTimelock(
     const tlProvider = provider.provider(opts.timelock);
     const proposalId = nextProposalId();
     const body = buildVestEmergencyRevokeBody();
+    const floorSec = await readTimelockHighValueFloorSec(provider, opts.timelock);
+    const delay = resolveHighValueQueueDelay(0n, floorSec);
     console.log(
-        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=0 value=${VESTING_REVOKE_EXECUTE_TON} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
+        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=${delay} (floor=${floorSec ?? 'pre-F03 tip'}) value=${VESTING_REVOKE_EXECUTE_TON} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
     );
 
     let seqnoBefore = await getSenderSeqno(provider);
@@ -342,9 +356,35 @@ export async function sendEmergencyRevokeViaTimelock(
         target: opts.vault,
         method: OP_VEST_EMERGENCY_REVOKE,
         args: body,
-        delay: 0n,
+        delay,
     });
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+
+    if (delay > 0n) {
+        // State-based wait: read the actual scheduledTime instead of trusting the
+        // local clock, then wait out the floor within the scenario wait budget.
+        let pending = await readPendingAction(provider, opts.timelock, proposalId);
+        for (let attempt = 0; attempt < 5 && !pending; attempt += 1) {
+            await sleepMs(3_000);
+            pending = await readPendingAction(provider, opts.timelock, proposalId);
+        }
+        if (!pending) {
+            throw new Error(
+                `[${opts.label}] TimelockQueue did not create pending id=${proposalId} ` +
+                    `(delay=${delay}) — check governor sender / floor rules`,
+            );
+        }
+        const scheduled = Number(pending.scheduledTime);
+        const maxWait = resolveGovMaxWaitSec();
+        const ready = await waitUntilUnix(scheduled + 1, maxWait);
+        if (!ready) {
+            throw new Error(
+                `[${opts.label}] high-value delay floor ${delay}s exceeds wait budget ` +
+                    `${maxWait}s (executable at ${scheduled}) — lab tip should use a short ` +
+                    `LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC`,
+            );
+        }
+    }
 
     seqnoBefore = await getSenderSeqno(provider);
     await tl.sendExecutePending(

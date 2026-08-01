@@ -37,7 +37,18 @@ struct PendingAction {
     executed: Bool;
 }
 
-contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingAction>) {
+contract Timelock(
+    governor: Address,
+    /// Delay floor (seconds) enforced on high-value TimelockQueue methods (TreasurySpend /
+    /// VestEmergencyRevoke): their delay must be > 0 AND >= this floor, so the zero-delay
+    /// emergency path can never carry a treasury drain or vesting revoke (IMP-MNAUD-F03,
+    /// owner decision 2026-07-27). Init parameter — NOT a compile-time constant — because a
+    /// hard-coded 24h floor would make live lab regression of treasury-spend impossible:
+    /// mainnet deploys pass 86400 (24h), lab short-timer deploys pass a short floor
+    /// (same pattern as LAB_GOV_SHORT_TIMERS in bootstrap.ts).
+    highValueDelayFloorSec: Int as uint32,
+    pendingActions: map<Int as uint64, PendingAction>,
+) {
     /// Plain TON from Governor (queue / execute cashback) must not bounce back —
     /// that caused Timelock↔Governor loops (IMP-RELAY-02 / RC-A).
     receive() {
@@ -49,7 +60,17 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
     receive(msg: TimelockQueue) {
         require(sender() == self.governor, "Only governor");
         require(self.pendingActions.get(msg.proposalId) == null, "Already queued");
-        require(msg.delay == 0 || msg.delay >= TIMELOCK_MIN_DELAY_SEC, "Delay too short");
+        if (msg.method == TREASURY_SPEND_METHOD || msg.method == VEST_EMERGENCY_REVOKE_METHOD) {
+            /// High-value actions must stay publicly visible (and cancellable) for at least
+            /// the init-time floor before execution; delay == 0 is forbidden outright
+            /// (IMP-MNAUD-F03 / audit MNAUD-3/H-2).
+            require(
+                msg.delay > 0 && msg.delay >= self.highValueDelayFloorSec,
+                "High-value delay below floor",
+            );
+        } else {
+            require(msg.delay == 0 || msg.delay >= TIMELOCK_MIN_DELAY_SEC, "Delay too short");
+        }
 
         self.pendingActions.set(
             msg.proposalId,
@@ -135,5 +156,9 @@ contract Timelock(governor: Address, pendingActions: map<Int as uint64, PendingA
 
     get fun get_governor(): Address {
         return self.governor;
+    }
+
+    get fun get_high_value_delay_floor(): Int {
+        return self.highValueDelayFloorSec;
     }
 }
