@@ -8,7 +8,7 @@ import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } f
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { StakingLock_errors_backward } from '../build/StakingMaster/StakingMaster_StakingLock';
 import { StakingPool_errors_backward } from '../build/StakingPool/StakingPool_StakingPool';
-import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW } from './helpers';
+import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, stakeForwardPayload } from './helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 import {
     advanceTime,
@@ -1273,29 +1273,6 @@ describe('IMP-STKFEE-04 — sub-min net stuck funds', () => {
 });
 
 describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
-    it('rejects JettonNotification with insufficient forward TON (no stake recorded)', async () => {
-        const env = await setupStakingEnvironment('https://example.com/stake-gas01-lowfwd.json');
-        const user = await env.blockchain.treasury('low-fwd');
-        const amt = MIN_STAKE_NANO * 2n;
-        await mintAndSyncUser(env, user, amt);
-
-        const tx = await stakeAsWithForward(env, user, 0, amt, toNano('0.1'));
-        expect(tx.transactions).toHaveTransaction({
-            on: env.stakingMaster.address,
-            success: false,
-            exitCode: StakingMaster_errors_backward['Low TON stake'],
-        });
-        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
-        expect(await env.pool.getGetTotalStake(0n)).toBe(0n);
-
-        const masterJw = env.blockchain.openContract(
-            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
-        );
-        const jwBal = (await masterJw.getGetWalletData()).balance;
-        expect(jwBal).toBeGreaterThanOrEqual(amt);
-        expect(jwBal).toBeLessThan(amt + MIN_STAKE_NANO);
-    });
-
     it('accepts stake with sufficient forward TON (5 TON profile)', async () => {
         const env = await setupStakingEnvironment('https://example.com/stake-gas01-ok.json');
         const user = await env.blockchain.treasury('ok-fwd');
@@ -1325,6 +1302,153 @@ describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
             to: sender.address,
             success: true,
         });
+    });
+});
+
+describe('IMP-MNAUD-F09 — underfunded / rejected stake refunds jettons', () => {
+    /**
+     * minStakeNotifyTon (new stake) = GasForwardStakeJetton(3.5) + GasToPool*2(0.12) + 0.08 = 3.7 TON.
+     * Refund needs >= GasForwardStakeJetton (3.5). Window 3.5..3.7 refunds without recording stake.
+     */
+    const UNDERFUNDED_BUT_REFUNDABLE_FWD = toNano('3.55');
+
+    it('underfunded stake (≥ MinStake, forward TON in refund window) returns jettons; no stake recorded', async () => {
+        const env = await setupStakingEnvironment('https://example.com/mnaud-f09-underfund.json');
+        const user = await env.blockchain.treasury('mnaud-f09-under');
+        const amt = MIN_STAKE_NANO * 2n;
+        await mintAndSyncUser(env, user, amt);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const masterBefore = (await masterJw.getGetWalletData()).balance;
+
+        const tx = await stakeAsWithForward(env, user, 0, amt, UNDERFUNDED_BUT_REFUNDABLE_FWD);
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: true,
+        });
+        expect(tx.transactions).toHaveTransaction({
+            from: env.stakingMaster.address,
+            op: 0xf8a7ea5, // JettonTransferOut refund
+            success: true,
+        });
+
+        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
+        expect(await env.pool.getGetTotalStake(0n)).toBe(0n);
+
+        const userJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+        );
+        expect((await userJw.getGetWalletData()).balance).toBe(amt);
+        expect((await masterJw.getGetWalletData()).balance).toBe(masterBefore);
+    });
+
+    it('normal funded stake (5 TON forward) still records stake (regression)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/mnaud-f09-ok.json');
+        const user = await env.blockchain.treasury('mnaud-f09-ok');
+        const amt = MIN_STAKE_NANO * 3n;
+        await mintAndSyncUser(env, user, amt);
+
+        const tx = await stakeAs(env, user, 0, amt);
+        expect(tx.transactions).toHaveTransaction({ success: true });
+        expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(amt);
+        expect(await env.pool.getGetTotalStake(0n)).toBe(amt);
+    });
+
+    it('full-amount transfer without StakeForward refunds jettons (bad forward layout)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/mnaud-f09-badfwd.json');
+        const user = await env.blockchain.treasury('mnaud-f09-badfwd');
+        const amt = MIN_STAKE_NANO;
+        await mintAndSyncUser(env, user, amt);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const masterBefore = (await masterJw.getGetWalletData()).balance;
+
+        const userJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+        );
+        const tx = await userJw.sendTransfer(user.getSender(), {
+            jettonAmount: amt,
+            destinationOwner: env.stakingMaster.address,
+            responseDestination: user.address,
+            forwardTonAmount: toNano('5'),
+            forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+            value: toNano('10'),
+        });
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: true,
+        });
+        expect(tx.transactions).toHaveTransaction({
+            from: env.stakingMaster.address,
+            op: 0xf8a7ea5,
+            success: true,
+        });
+        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
+        expect((await userJw.getGetWalletData()).balance).toBe(amt);
+        expect((await masterJw.getGetWalletData()).balance).toBe(masterBefore);
+    });
+
+    it('out-of-range tier StakeForward refunds jettons (no stake recorded)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/mnaud-f09-badtier.json');
+        const user = await env.blockchain.treasury('mnaud-f09-badtier');
+        const amt = MIN_STAKE_NANO;
+        await mintAndSyncUser(env, user, amt);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const masterBefore = (await masterJw.getGetWalletData()).balance;
+
+        const userJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(user.address)),
+        );
+        const tx = await userJw.sendTransfer(user.getSender(), {
+            jettonAmount: amt,
+            destinationOwner: env.stakingMaster.address,
+            responseDestination: user.address,
+            forwardTonAmount: toNano('5'),
+            forwardPayload: stakeForwardPayload(255),
+            value: toNano('10'),
+        });
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: true,
+        });
+        expect(tx.transactions).toHaveTransaction({
+            from: env.stakingMaster.address,
+            op: 0xf8a7ea5,
+            success: true,
+        });
+        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
+        expect((await userJw.getGetWalletData()).balance).toBe(amt);
+        expect((await masterJw.getGetWalletData()).balance).toBe(masterBefore);
+    });
+
+    it('forward TON below GasForwardStakeJetton cannot refund (residual strand; Low TON return)', async () => {
+        const env = await setupStakingEnvironment('https://example.com/mnaud-f09-residual.json');
+        const user = await env.blockchain.treasury('mnaud-f09-residual');
+        const amt = MIN_STAKE_NANO * 2n;
+        await mintAndSyncUser(env, user, amt);
+
+        const tx = await stakeAsWithForward(env, user, 0, amt, toNano('0.1'));
+        expect(tx.transactions).toHaveTransaction({
+            on: env.stakingMaster.address,
+            success: false,
+            exitCode: StakingMaster_errors_backward['Low TON return'],
+        });
+        expect(await env.stakingMaster.getGetStake(user.address, 0n)).toBeNull();
+        expect(await env.pool.getGetTotalStake(0n)).toBe(0n);
+
+        const masterJw = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(env.stakingMaster.address)),
+        );
+        const jwBal = (await masterJw.getGetWalletData()).balance;
+        expect(jwBal).toBeGreaterThanOrEqual(amt);
+        expect(jwBal).toBeLessThan(amt + MIN_STAKE_NANO);
     });
 });
 

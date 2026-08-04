@@ -390,19 +390,16 @@ contract StakingMaster(
         return inner.preloadUint(32) == StakeForward.opcode();
     }
 
-    fun parseStakeTier(forwardPayload: Slice): Int {
-        require(forwardPayload.preloadUint(1) == 1, "Stake payload required");
-        let br = calculateSliceBitsAndRefs(forwardPayload);
-        require(br.refs == 1 && br.bits == 1, "Bad forward layout");
+    /// Extract `StakeForward.tier` from a payload already verified by `hasStakeForwardPayload`.
+    inline fun stakeForwardTier(forwardPayload: Slice): Int {
         let inner = forwardPayload.loadRef().beginParse();
-        let op = inner.preloadUint(32);
-        require(op == StakeForward.opcode(), "Bad stake opcode");
         let sf = StakeForward.fromSlice(inner);
-        self.assertTier(sf.tier);
         return sf.tier;
     }
 
-    /// Return sub-minimum stake jettons to the depositor (IMP-STKFEE-04 / V-1).
+    /// Return rejected-stake jettons to the depositor (IMP-STKFEE-04 sub-min / IMP-MNAUD-F09 underfunded & bad payload).
+    /// Requires `context().value >= GasForwardStakeJetton` for the outbound JettonTransfer; below that the
+    /// refund itself cannot be funded (residual stranding — see decision log).
     fun returnSubMinStakeJettons(amount: Int, recipient: Address, queryId: Int) {
         require(context().value >= self.GasForwardStakeJetton, "Low TON return");
         message(MessageParameters {
@@ -537,9 +534,23 @@ contract StakingMaster(
             return;
         }
 
-        let tierAsInt = self.parseStakeTier(msg.forwardPayload);
+        // Full-amount stake: JettonNotification arrives bounce:false — throwing strands tokens.
+        // Fail-closed acceptance checks refund principal instead of require (IMP-MNAUD-F09).
+        if (!self.hasStakeForwardPayload(msg.forwardPayload)) {
+            self.returnSubMinStakeJettons(msg.amount, msg.sender, msg.queryId);
+            return;
+        }
+
+        let tierAsInt = self.stakeForwardTier(msg.forwardPayload);
         let staker = msg.sender;
-        require(context().value >= self.minStakeNotifyTon(staker, tierAsInt), "Low TON stake");
+        if (tierAsInt < self.MinTier || tierAsInt > self.MaxTier || self.tierConfigs.get(tierAsInt) == null) {
+            self.returnSubMinStakeJettons(msg.amount, msg.sender, msg.queryId);
+            return;
+        }
+        if (context().value < self.minStakeNotifyTon(staker, tierAsInt)) {
+            self.returnSubMinStakeJettons(msg.amount, msg.sender, msg.queryId);
+            return;
+        }
 
         self.tickEmission();
 
