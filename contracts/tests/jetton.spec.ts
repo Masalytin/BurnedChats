@@ -462,6 +462,42 @@ describe('BurnJetton', () => {
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
         });
+
+        it('live-resolve: attach between excluded and fee floors rejects at wallet (IMP-MNAUD-F10)', async () => {
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const balanceBefore = (await wx.getGetWalletData()).balance;
+            // forward ≥ 1 TON → live-resolve; 1.7 TON clears old minTonExcludedPath (0.65)
+            // gate but not minTonFeePath (2.1) + forward + fwd fees → exit 32113, no debit.
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                forwardTonAmount: toNano('1'),
+                value: toNano('1.7'),
+            });
+            expect(r.transactions).toHaveTransaction({
+                success: false,
+                exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
+            });
+            expect((await wx.getGetWalletData()).balance).toBe(balanceBefore);
+        });
+
+        it('live-resolve: fee-path attach with forward≥1 still succeeds (IMP-MNAUD-F10)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            const wx = await getWallet(ctx, ctx.userX.address);
+            // attach must cover forward + minTonFeePath (+ fwd); 5 TON clears both gate and fee fanout.
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                forwardTonAmount: toNano('1'),
+                value: toNano('5'),
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
+        });
     });
 
     describe('Sender surplus return (IMP-JETTON-GAS-07)', () => {

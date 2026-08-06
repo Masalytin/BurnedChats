@@ -20,6 +20,11 @@ import '@ton/test-utils';
 
 /** Frontend excluded-path stake attach (IMP-STKFEE-03 / REPORT §3.3). */
 const STAKE_ATTACHED_TON = 5_850_540_001n;
+/**
+ * Cold / live-resolve stake attach after IMP-MNAUD-F10: wallet no longer treats
+ * live-resolve as excluded-path floor; need forward + minTonFeePath (2.1) headroom.
+ */
+const STAKE_ATTACHED_TON_LIVE_RESOLVE = toNano('8');
 const STAKE_FORWARD_TON = toNano('5');
 const STAKE_TIER = 2;
 
@@ -109,7 +114,7 @@ describe('IMP-STKGATE-03 — staking deposit from unsynced jetton wallet', () =>
             responseDestination: staker.address,
             forwardTonAmount: STAKE_FORWARD_TON,
             forwardPayload: stakeForwardPayload(STAKE_TIER),
-            value: STAKE_ATTACHED_TON,
+            value: STAKE_ATTACHED_TON_LIVE_RESOLVE,
         });
 
         expect(r.transactions).not.toHaveTransaction({
@@ -125,7 +130,7 @@ describe('IMP-STKGATE-03 — staking deposit from unsynced jetton wallet', () =>
         expect(await env.pool.getGetTotalStake(BigInt(STAKE_TIER))).toBeGreaterThan(0n);
     });
 
-    it('defense: fee-bearing live-resolve with excluded attach aborts before balance debit', async () => {
+    it('defense: under-gassed live-resolve rejects at wallet before balance debit (IMP-MNAUD-F10)', async () => {
         const env = await setupStakingEnvironment('https://example.com/stkgate-defense.json');
         const staker = await env.blockchain.treasury('staker');
         const recipient = await env.blockchain.treasury('recipient');
@@ -139,6 +144,8 @@ describe('IMP-STKGATE-03 — staking deposit from unsynced jetton wallet', () =>
         const userJw = await openUserWallet(env, staker);
         const balanceBefore = (await userJw.getGetWalletData()).balance;
 
+        // Excluded-path attach (≈5.85) with forward 5 TON: clears old cheap live-resolve
+        // gate, fails new minTonFeePath gate at wallet entry (no master strand).
         const r = await userJw.sendTransfer(staker.getSender(), {
             jettonAmount: amount,
             destinationOwner: recipient.address,
@@ -149,7 +156,7 @@ describe('IMP-STKGATE-03 — staking deposit from unsynced jetton wallet', () =>
 
         expect(r.transactions).toHaveTransaction({
             success: false,
-            exitCode: BurnJettonWallet_errors_backward['Insufficient TON for fee fanout'],
+            exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
         });
         expect((await userJw.getGetWalletData()).balance).toBe(balanceBefore);
     });

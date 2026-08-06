@@ -716,9 +716,11 @@ contract BurnJettonWallet(
         let ctx = context();
         let fwd = ctx.readForwardFee();
         let recipientForwards = 1 + sign(msg.forwardTonAmount);
-        let routesLiveResolve = !(senderExcludedLocal || destExcludedLocal)
-            && msg.forwardTonAmount >= minForwardForLiveExcludedCheck;
-        let minTonRequired = (senderExcludedLocal || destExcludedLocal || routesLiveResolve)
+        // Live-resolve (forward ≥ minForwardForLiveExcludedCheck, neither party
+        // locally excluded) may still execute the fee path after master resolve —
+        // require minTonFeePath so under-gassed attaches fail at wallet entry
+        // instead of stranding TON on master (MNAUD-10 / IMP-MNAUD-F10).
+        let minTonRequired = (senderExcludedLocal || destExcludedLocal)
             ? minTonExcludedPath
             : minTonFeePath;
         require(
