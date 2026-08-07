@@ -36,6 +36,10 @@ contract Governor(
     /// StakingMaster can gate vote weight by lock without reading Proposal storage
     /// (IMP-FAUDIT-F01 / F-2).
     proposalEndTimeById: map<Int as uint64, Int as uint64>,
+    /// O(1) reverse index Address → registered Proposal (IMP-MNAUD-F07 cheap half).
+    /// Updated in phase 2 alongside `proposals.set`; replaces O(n) foreach scan that
+    /// OOGed plain-TON cashback when the proposals map grew large.
+    knownProposals: map<Address, Bool>,
     proposalConfigs: map<Int as uint32, ProposalConfig>,
     minProposalVp: Int,
     stakingMaster: Address,
@@ -48,14 +52,9 @@ contract Governor(
 ) {
     /// Skip cashback for governance relay partners — plain TON ping-pong caused
     /// Governor↔StakingMaster (IMP-GOVOTE-02), Governor↔Timelock / Governor↔Proposal
-    /// execution loops (IMP-RELAY-02 / RC-A).
+    /// execution loops (IMP-RELAY-02 / RC-A). O(1) membership via `knownProposals`.
     inline fun isKnownProposal(addr: Address): Bool {
-        foreach (_, propAddr in self.proposals) {
-            if (propAddr == addr) {
-                return true;
-            }
-        }
-        return false;
+        return self.knownProposals.get(addr) != null;
     }
 
     receive() {
@@ -172,6 +171,8 @@ contract Governor(
         self.proposals.set(id, propAddr);
         self.proposalStateById.set(id, GV_ACTIVE);
         self.proposalEndTimeById.set(id, endTime);
+        /// Reverse index for O(1) cashback partner skip (IMP-MNAUD-F07).
+        self.knownProposals.set(propAddr, true);
 
         deploy(DeployParameters {
             value: ton("0.18"),
@@ -276,6 +277,11 @@ contract Governor(
 
     get fun get_proposal(id: Int): Address? {
         return self.proposals.get(id);
+    }
+
+    /// O(1) membership in the maintained Proposal reverse index (IMP-MNAUD-F07).
+    get fun get_is_known_proposal(addr: Address): Bool {
+        return self.isKnownProposal(addr);
     }
 
     get fun get_proposal_count(): Int {

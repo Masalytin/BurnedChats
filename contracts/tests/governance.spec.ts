@@ -20,6 +20,7 @@ import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMas
 import { NANO_PER_BURN, SANDBOX_NOW } from './helpers';
 import {
     assertRelayFlowClean,
+    countEmptyBodyHopsBetween,
     countEmptyGovernorStakingHops,
     countEmptyProposalStakingHops,
 } from './helpers/cashbackLoopAssert';
@@ -1747,5 +1748,95 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
             success: false,
             exitCode: Timelock_errors_backward['Not queued'],
         });
+    });
+});
+
+describe('IMP-MNAUD-F07 cheap half — O(1) knownProposals reverse index', () => {
+    it('registers Proposal addresses in knownProposals on create (O(1) lookup)', async () => {
+        const env = await setupGovernance('https://example.com/gov-mnaud-f07-index.json');
+        const proposer = await env.blockchain.treasury('mnaud-f07-index-proposer');
+        await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
+
+        const stranger = await env.blockchain.treasury('mnaud-f07-stranger');
+        expect(await env.governor.getGetIsKnownProposal(stranger.address)).toBe(false);
+
+        const target = await env.blockchain.treasury('mnaud-f07-index-target');
+        const { proposal: p1 } = await createProposal(
+            env,
+            proposer,
+            TYPE_PARAM,
+            paramPayload(target.address, 1),
+        );
+        expect(await env.governor.getGetIsKnownProposal(p1.address)).toBe(true);
+
+        const { proposal: p2 } = await createProposal(
+            env,
+            proposer,
+            TYPE_FEATURE,
+            featurePayload('mnaud-f07 second proposal'),
+        );
+        expect(await env.governor.getGetIsKnownProposal(p2.address)).toBe(true);
+        expect(await env.governor.getGetIsKnownProposal(stranger.address)).toBe(false);
+    });
+
+    it('plain TON from known Proposal to Governor skips cashback (no partner hop)', async () => {
+        const env = await setupGovernance('https://example.com/gov-mnaud-f07-cashback.json');
+        const proposer = await env.blockchain.treasury('mnaud-f07-cb-proposer');
+        await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
+
+        const target = await env.blockchain.treasury('mnaud-f07-cb-target');
+        const { proposal } = await createProposal(
+            env,
+            proposer,
+            TYPE_PARAM,
+            paramPayload(target.address, 1),
+        );
+        expect(await env.governor.getGetIsKnownProposal(proposal.address)).toBe(true);
+
+        const plainTx = await env.blockchain.sendMessage(
+            internal({
+                from: proposal.address,
+                to: env.governor.address,
+                value: toNano('0.05'),
+                bounce: true,
+                body: beginCell().endCell(),
+            }),
+        );
+        expect(plainTx.transactions).toHaveTransaction({ on: env.governor.address, success: true });
+        assertNoOutOfGas(plainTx.transactions);
+        // Correct skip: Governor absorbs. Incorrect cashback would emit empty body Governor → Proposal
+        // (the injected Proposal → Governor empty inbound must not be counted as a partner hop).
+        const cashbackToProposal = plainTx.transactions.some((tx) => {
+            const inMsg = tx.inMessage;
+            if (!inMsg || inMsg.info.type !== 'internal') return false;
+            return (
+                inMsg.info.src.equals(env.governor.address) &&
+                inMsg.info.dest.equals(proposal.address) &&
+                inMsg.body.bits.length === 0
+            );
+        });
+        expect(cashbackToProposal).toBe(false);
+        // Sanity: inbound empty still lands (counted by bidirectional helper), outbound does not.
+        expect(countEmptyBodyHopsBetween(plainTx.transactions, env.governor.address, proposal.address)).toBe(1);
+    });
+
+    it('plain TON from external sender still cashbacks from Governor', async () => {
+        const env = await setupGovernance('https://example.com/gov-mnaud-f07-ext-cb.json');
+        const external = await env.blockchain.treasury('mnaud-f07-external');
+
+        const plainTx = await env.governor.send(external.getSender(), { value: toNano('0.05') }, null);
+        expect(plainTx.transactions).toHaveTransaction({ on: env.governor.address, success: true });
+        // Cashback returns empty body to the external sender (not a relay partner).
+        expect(
+            plainTx.transactions.some((tx) => {
+                const inMsg = tx.inMessage;
+                if (!inMsg || inMsg.info.type !== 'internal') return false;
+                return (
+                    inMsg.info.src.equals(env.governor.address) &&
+                    inMsg.info.dest.equals(external.address) &&
+                    inMsg.body.bits.length === 0
+                );
+            }),
+        ).toBe(true);
     });
 });

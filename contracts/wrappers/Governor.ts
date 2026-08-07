@@ -33,6 +33,11 @@ export function emptyGovernorProposalEndTimeMap() {
     return Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.BigUint(64));
 }
 
+/** O(1) Proposal reverse index for cashback partner skip (IMP-MNAUD-F07). */
+export function emptyGovernorKnownProposalsMap() {
+    return Dictionary.empty(Dictionary.Keys.Address(), Dictionary.Values.Bool());
+}
+
 function proposalCfg(
     quorumPercent: bigint,
     thresholdPercent: bigint,
@@ -97,6 +102,7 @@ export class Governor extends GovernorBase {
             emptyGovernorProposalMap(),
             emptyGovernorProposalStateMap(),
             emptyGovernorProposalEndTimeMap(),
+            emptyGovernorKnownProposalsMap(),
             params.proposalConfigs ?? defaultGovernorProposalConfigs(),
             params.minProposalVp,
             params.stakingMaster,
