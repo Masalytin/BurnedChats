@@ -1,4 +1,4 @@
-import { Blockchain, SandboxContract, SendMessageResult, TreasuryContract } from '@ton/sandbox';
+import { Blockchain, SandboxContract, SendMessageResult, TreasuryContract, internal } from '@ton/sandbox';
 import { Address, beginCell, Cell, toNano } from '@ton/core';
 import { expect } from '@jest/globals';
 import '@ton/test-utils';
@@ -11,7 +11,11 @@ import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { loadTimelockQueue } from '../build/Governor/Governor_Governor';
 import { Proposal_errors_backward } from '../build/Governor/Governor_Proposal';
 import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
-import { Treasury_errors_backward } from '../build/Treasury/Treasury_Treasury';
+import {
+    Treasury_errors_backward,
+    storeJettonTransfer,
+    storeTreasurySpend,
+} from '../build/Treasury/Treasury_Treasury';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { NANO_PER_BURN, SANDBOX_NOW } from './helpers';
 import {
@@ -286,6 +290,77 @@ async function fundTreasury(
     expect(await treasury.getGetTotalReceived()).toBe(amountNano);
 }
 
+/** Deliver `TreasurySpend` as if from the Timelock (sandbox `sender()` = timelock). */
+async function deliverTreasurySpend(
+    env: GovEnv,
+    treasury: SandboxContract<Treasury>,
+    p: {
+        queryId: bigint;
+        recipient: Address;
+        amount: bigint;
+        reason: string;
+        proposalId: bigint;
+        value?: bigint;
+    },
+): Promise<SendMessageResult> {
+    return env.blockchain.sendMessage(
+        internal({
+            from: env.timelock.address,
+            to: treasury.address,
+            value: p.value ?? toNano('1.6'),
+            bounce: true,
+            body: beginCell()
+                .store(
+                    storeTreasurySpend({
+                        $$type: 'TreasurySpend',
+                        queryId: p.queryId,
+                        recipient: p.recipient,
+                        amount: p.amount,
+                        reason: p.reason,
+                        proposalId: p.proposalId,
+                    }),
+                )
+                .endCell(),
+        }),
+    );
+}
+
+/**
+ * Inject a bounced `JettonTransfer` into Treasury (IMP-MNAUD-F12).
+ * Body layout mirrors TON bounce truncation: `0xffffffff` + opcode + queryId + amount
+ * (Tact `bounced<JettonTransfer>` only loads those prefix fields).
+ */
+async function bounceTreasuryJettonTransfer(
+    env: GovEnv,
+    treasury: SandboxContract<Treasury>,
+    p: { queryId: bigint; amount: bigint; destination: Address },
+): Promise<SendMessageResult> {
+    const wallet = await env.jettonMaster.getGetWalletAddress(treasury.address);
+    return env.blockchain.sendMessage(
+        internal({
+            from: wallet,
+            to: treasury.address,
+            value: toNano('0.05'),
+            bounced: true,
+            body: beginCell()
+                .storeUint(0xffffffff, 32)
+                .store(
+                    storeJettonTransfer({
+                        $$type: 'JettonTransfer',
+                        queryId: p.queryId,
+                        amount: p.amount,
+                        destination: p.destination,
+                        responseDestination: p.destination,
+                        customPayload: null,
+                        forwardTonAmount: 0n,
+                        forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+                    }),
+                )
+                .endCell(),
+        }),
+    );
+}
+
 describe('Governance E2E (IMP-PREMNT-02)', () => {
     describe('Parameter proposal lifecycle (type 0)', () => {
         it('create → vote → finalize → succeeded, and Governor emits a TimelockQueue', async () => {
@@ -509,6 +584,123 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                 success: false,
                 exitCode: Treasury_errors_backward['Only timelock'],
             });
+        });
+
+        // IMP-MNAUD-F12: bounce must key rollback by queryId (not LIFO last log entry).
+        it('interleaved bounce of first JettonTransfer rolls back that spend (different amounts)', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-bounce-diff.json');
+            const treasury = env.blockchain.openContract(
+                await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+            );
+            await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+            await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+            const recipientA = await env.blockchain.treasury('bounce-diff-a');
+            const recipientB = await env.blockchain.treasury('bounce-diff-b');
+            const amountA = 3n * NANO_PER_BURN;
+            const amountB = 5n * NANO_PER_BURN;
+            const queryA = 111n;
+            const queryB = 222n;
+
+            const spendA = await deliverTreasurySpend(env, treasury, {
+                queryId: queryA,
+                recipient: recipientA.address,
+                amount: amountA,
+                reason: 'first',
+                proposalId: queryA,
+            });
+            expect(spendA.transactions).toHaveTransaction({
+                on: treasury.address,
+                op: OP_TREASURY_SPEND,
+                success: true,
+            });
+
+            const spendB = await deliverTreasurySpend(env, treasury, {
+                queryId: queryB,
+                recipient: recipientB.address,
+                amount: amountB,
+                reason: 'second',
+                proposalId: queryB,
+            });
+            expect(spendB.transactions).toHaveTransaction({
+                on: treasury.address,
+                op: OP_TREASURY_SPEND,
+                success: true,
+            });
+            expect(await treasury.getGetTotalSpent()).toBe(amountA + amountB);
+            expect(await treasury.getGetSpendingCount()).toBe(2n);
+
+            // Bounce the FIRST transfer after the second spend is already logged (LIFO would mismatch).
+            const bounceTx = await bounceTreasuryJettonTransfer(env, treasury, {
+                queryId: queryA,
+                amount: amountA,
+                destination: recipientA.address,
+            });
+            expect(bounceTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                inMessageBounced: true,
+                success: true,
+            });
+
+            expect(await treasury.getGetTotalSpent()).toBe(amountB);
+            expect(await treasury.getGetSpendingCount()).toBe(1n);
+            const remaining = (await treasury.getGetSpendingHistory()).get(0n);
+            expect(remaining).toBeDefined();
+            expect(remaining!.recipient.equals(recipientB.address)).toBe(true);
+            expect(remaining!.amount).toBe(amountB);
+            expect(remaining!.proposalId).toBe(queryB);
+            expect(remaining!.queryId).toBe(queryB);
+        });
+
+        it('interleaved equal-amount bounce removes the matching queryId entry (not LIFO)', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-bounce-eq.json');
+            const treasury = env.blockchain.openContract(
+                await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+            );
+            await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+            await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+            const recipientA = await env.blockchain.treasury('bounce-eq-a');
+            const recipientB = await env.blockchain.treasury('bounce-eq-b');
+            const amount = 5n * NANO_PER_BURN;
+            const queryA = 333n;
+            const queryB = 444n;
+
+            await deliverTreasurySpend(env, treasury, {
+                queryId: queryA,
+                recipient: recipientA.address,
+                amount,
+                reason: 'eq-first',
+                proposalId: queryA,
+            });
+            await deliverTreasurySpend(env, treasury, {
+                queryId: queryB,
+                recipient: recipientB.address,
+                amount,
+                reason: 'eq-second',
+                proposalId: queryB,
+            });
+            expect(await treasury.getGetSpendingCount()).toBe(2n);
+
+            const bounceTx = await bounceTreasuryJettonTransfer(env, treasury, {
+                queryId: queryA,
+                amount,
+                destination: recipientA.address,
+            });
+            expect(bounceTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                inMessageBounced: true,
+                success: true,
+            });
+
+            // LIFO would delete B and leave A; queryId match must leave B.
+            expect(await treasury.getGetTotalSpent()).toBe(amount);
+            expect(await treasury.getGetSpendingCount()).toBe(1n);
+            const remaining = (await treasury.getGetSpendingHistory()).get(0n);
+            expect(remaining).toBeDefined();
+            expect(remaining!.recipient.equals(recipientB.address)).toBe(true);
+            expect(remaining!.reason).toBe('eq-second');
+            expect(remaining!.queryId).toBe(queryB);
         });
     });
 

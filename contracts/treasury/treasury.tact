@@ -18,6 +18,10 @@ struct SpendRecord {
     reason: String;
     timestamp: Int as uint64;
     proposalId: Int as uint64;
+    /// Outbound `JettonTransfer.queryId` — bounce rollback key (IMP-MNAUD-F12).
+    /// Post-F08 Timelock rewrites high-value args queryId to proposalId before
+    /// dispatch, so for Timelock-delivered spends queryId == proposalId.
+    queryId: Int as uint64;
 }
 
 /// Timelock sends this body as `queueArgs` after a Treasury Spend proposal executes.
@@ -72,6 +76,16 @@ contract Treasury(
         /// See docs/specs/TOKENOMICS.md (treasury spend relay gas budget).
         require(context().value >= MIN_SPEND_FORWARD, "Insufficient gas for spend");
 
+        // Ambiguous bounce rollback if two open spends share a queryId.
+        let scan: Int = 0;
+        while (scan < self.spending_count) {
+            let existingOpt = self.spending_log.get(scan);
+            if (existingOpt != null) {
+                require(existingOpt!!.queryId != msg.queryId, "Duplicate spend queryId");
+            }
+            scan += 1;
+        }
+
         let idx = self.spending_count;
         self.spending_log.set(
             idx,
@@ -81,6 +95,7 @@ contract Treasury(
                 reason: msg.reason,
                 timestamp: now(),
                 proposalId: msg.proposalId,
+                queryId: msg.queryId,
             },
         );
         self.spending_count = idx + 1;
@@ -111,15 +126,37 @@ contract Treasury(
     }
 
     /// Jetton wallet bounced `JettonTransfer` (e.g. insufficient jetton balance) — roll back accounting.
+    /// Match by `queryId` (not LIFO): interleaved spends must not roll back the wrong entry
+    /// or throw on amount mismatch and permanently inflate `total_spent` (IMP-MNAUD-F12).
     bounced(msg: bounced<JettonTransfer>) {
         require(self.spending_count > 0, "Unexpected bounce");
-        let idx = self.spending_count - 1;
-        let recOpt = self.spending_log.get(idx);
+        let found: Int = -1;
+        let i: Int = 0;
+        while (i < self.spending_count) {
+            let candOpt = self.spending_log.get(i);
+            if (candOpt != null) {
+                if (candOpt!!.queryId == msg.queryId) {
+                    found = i;
+                }
+            }
+            i += 1;
+        }
+        require(found >= 0, "Bounce queryId unknown");
+        let recOpt = self.spending_log.get(found);
         require(recOpt != null, "Unexpected bounce log");
         let rec = recOpt!!;
         require(rec.amount == msg.amount, "Bounce amount mismatch");
-        self.spending_log.del(idx);
-        self.spending_count = idx;
+
+        // Swap-remove to keep indices dense: [0 .. spending_count) with no holes
+        // so getters/`spending_count` stay coherent after arbitrary-index delete.
+        let lastIdx = self.spending_count - 1;
+        if (found != lastIdx) {
+            let lastOpt = self.spending_log.get(lastIdx);
+            require(lastOpt != null, "Unexpected bounce log");
+            self.spending_log.set(found, lastOpt!!);
+        }
+        self.spending_log.del(lastIdx);
+        self.spending_count = lastIdx;
         self.total_spent -= rec.amount;
     }
 
