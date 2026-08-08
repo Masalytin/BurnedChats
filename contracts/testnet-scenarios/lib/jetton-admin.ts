@@ -14,6 +14,7 @@ import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deplo
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { Timelock } from '../../wrappers/Timelock';
 import { check } from './checks';
+import { resolveDeployerSender } from './gov';
 import { MAX_SUPPLY_NANO } from './matrix-checks';
 import type { CheckResult, ScenarioContext } from '../types';
 
@@ -185,10 +186,7 @@ export async function resolveAdminActor(
     state: JettonAdminState,
 ): Promise<AdminActor | null> {
     const sender = ctx.provider.sender().address;
-    if (!sender) {
-        return null;
-    }
-    if (state.admin.equals(sender)) {
+    if (sender && state.admin.equals(sender)) {
         return { mode: 'direct' };
     }
     if (!state.admin.equals(state.timelock)) {
@@ -196,8 +194,19 @@ export async function resolveAdminActor(
     }
     const tl = ctx.provider.open(Timelock.fromAddress(state.timelock));
     const governor = await tl.getGetGovernor();
-    if (governor.equals(sender)) {
+    // Blueprint signer is Actor A since IMP-TNFS-F06; Timelock.governor is the
+    // deploy wallet (IMP-TNFS-F16). Accept either for the gate — send path uses
+    // resolveDeployerSender when mode=timelock.
+    if (sender && governor.equals(sender)) {
         return { mode: 'timelock' };
+    }
+    try {
+        const deployer = await resolveDeployerSender(ctx);
+        if (governor.equals(deployer.address)) {
+            return { mode: 'timelock' };
+        }
+    } catch {
+        return null;
     }
     return null;
 }
@@ -289,29 +298,30 @@ export async function sendJettonAdminBody(
         return;
     }
 
-    const sender = provider.sender().address!;
-    // Wrapper instance (not TimelockBase.fromAddress) so sendQueue / sendExecutePending exist.
+    // IMP-TNFS-F16: queue/execute must be signed by Timelock.governor (deployer),
+    // not Blueprint Actor A.
+    const deployer = await resolveDeployerSender(ctx);
     const tl = new Timelock(state.timelock);
     const tlProvider = provider.provider(state.timelock);
     const proposalId = nextProposalId();
     console.log(
-        `[${label}] Timelock queue+execute proposalId=${proposalId} method=0x${method.toString(16)} delay=0`,
+        `[${label}] Timelock queue+execute proposalId=${proposalId} method=0x${method.toString(16)} delay=0 governor=${deployer.address.toString({ urlSafe: true, bounceable: true })}`,
     );
 
-    let seqnoBefore = await getSenderSeqno(provider);
-    await tl.sendQueue(tlProvider, provider.sender(), {
+    let seqnoBefore = await deployer.getSeqno();
+    await tl.sendQueue(tlProvider, deployer.sender, {
         proposalId,
-        proposalContract: sender, // dummy; mark-executed uses bounce:false
+        proposalContract: deployer.address, // dummy; mark-executed uses bounce:false
         target: state.jettonMaster,
         method,
         args: body,
         delay: 0n,
     });
-    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+    await deployer.waitSeqnoIncrement(seqnoBefore);
 
-    seqnoBefore = await getSenderSeqno(provider);
-    await tl.sendExecutePending(tlProvider, provider.sender(), proposalId);
-    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+    seqnoBefore = await deployer.getSeqno();
+    await tl.sendExecutePending(tlProvider, deployer.sender, proposalId);
+    await deployer.waitSeqnoIncrement(seqnoBefore);
 }
 
 export async function pollUntil(

@@ -18,6 +18,7 @@ import { collectVestingAddresses } from './fingerprint';
 import {
     readPendingAction,
     readTimelockHighValueFloorSec,
+    resolveDeployerSender,
     resolveGovMaxWaitSec,
     resolveHighValueQueueDelay,
     waitUntilUnix,
@@ -335,10 +336,8 @@ export async function sendEmergencyRevokeViaTimelock(
     opts: { vault: Address; timelock: Address; label: string },
 ): Promise<void> {
     const { provider } = ctx;
-    const sender = provider.sender().address;
-    if (!sender) {
-        throw new Error('Blueprint mnemonic wallet address unavailable.');
-    }
+    // IMP-TNFS-F16: Timelock.governor is deployer, not Blueprint Actor A.
+    const deployer = await resolveDeployerSender(ctx);
     const tl = new Timelock(opts.timelock);
     const tlProvider = provider.provider(opts.timelock);
     const proposalId = nextProposalId();
@@ -346,19 +345,19 @@ export async function sendEmergencyRevokeViaTimelock(
     const floorSec = await readTimelockHighValueFloorSec(provider, opts.timelock);
     const delay = resolveHighValueQueueDelay(0n, floorSec);
     console.log(
-        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=${delay} (floor=${floorSec ?? 'pre-F03 tip'}) value=${VESTING_REVOKE_EXECUTE_TON} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
+        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=${delay} (floor=${floorSec ?? 'pre-F03 tip'}) value=${VESTING_REVOKE_EXECUTE_TON} governor=${deployer.address.toString({ urlSafe: true, bounceable: true })} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
     );
 
-    let seqnoBefore = await getSenderSeqno(provider);
-    await tl.sendQueue(tlProvider, provider.sender(), {
+    let seqnoBefore = await deployer.getSeqno();
+    await tl.sendQueue(tlProvider, deployer.sender, {
         proposalId,
-        proposalContract: sender,
+        proposalContract: deployer.address,
         target: opts.vault,
         method: OP_VEST_EMERGENCY_REVOKE,
         args: body,
         delay,
     });
-    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+    await deployer.waitSeqnoIncrement(seqnoBefore);
 
     if (delay > 0n) {
         // State-based wait: read the actual scheduledTime instead of trusting the
@@ -386,15 +385,15 @@ export async function sendEmergencyRevokeViaTimelock(
         }
     }
 
-    seqnoBefore = await getSenderSeqno(provider);
+    seqnoBefore = await deployer.getSeqno();
     await tl.sendExecutePending(
         tlProvider,
-        provider.sender(),
+        deployer.sender,
         proposalId,
         0n,
         VESTING_REVOKE_EXECUTE_TON,
     );
-    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+    await deployer.waitSeqnoIncrement(seqnoBefore);
 }
 
 export async function sleepMs(ms: number): Promise<void> {
@@ -654,16 +653,22 @@ export async function naWhenEmergencyRevoke(ctx: ScenarioContext): Promise<strin
     if (!withRemaining) {
         return NA_NOTHING_TO_REVOKE;
     }
-    const sender = ctx.provider.sender().address;
-    if (!sender) {
-        return NA_CANNOT_ACT_AS_TIMELOCK_GOVERNOR;
-    }
     const tl = ctx.provider.open(Timelock.fromAddress(withRemaining.schedule.timelock));
     const governor = await tl.getGetGovernor();
-    if (!governor.equals(sender)) {
+    // Blueprint signer is Actor A; Timelock.governor is deployer (IMP-TNFS-F16).
+    const blueprint = ctx.provider.sender().address;
+    if (blueprint && governor.equals(blueprint)) {
+        return null;
+    }
+    try {
+        const deployer = await resolveDeployerSender(ctx);
+        if (governor.equals(deployer.address)) {
+            return null;
+        }
+    } catch {
         return NA_CANNOT_ACT_AS_TIMELOCK_GOVERNOR;
     }
-    return null;
+    return NA_CANNOT_ACT_AS_TIMELOCK_GOVERNOR;
 }
 
 export { readJettonWalletBalance };

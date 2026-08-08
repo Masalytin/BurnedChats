@@ -13,6 +13,7 @@ import type { NetworkProvider } from '@ton/blueprint';
 import { insufficientSenderTonReason } from './lib/balances';
 import { allChecksPass } from './lib/checks';
 import { computeDeploymentFingerprint } from './lib/fingerprint';
+import { resolveDeployerSender } from './lib/gov';
 import { loadManifest } from './lib/manifest';
 import { assertNotMainnetRequest, assertTestnetOnly } from './lib/network-guard';
 import {
@@ -355,8 +356,17 @@ export async function runOne(
         naReason = scenario.naWhen ? await scenario.naWhen(ctx) : undefined;
         // Balance preflight (IMP-TNFS-F10): V5R1 silently skips actions whose
         // attach exceeds the balance — check the declared budget up front.
+        // `signer: 'deploy'` must check Timelock.governor (DEPLOY_WALLET_MNEMONIC),
+        // not Blueprint Actor A (IMP-TNFS-F16).
         if (!naReason && scenario.budget) {
-            const signer = ctx.provider.sender().address;
+            let signer = ctx.provider.sender().address ?? null;
+            if (scenario.budget.signer === 'deploy') {
+                try {
+                    signer = (await resolveDeployerSender(ctx)).address;
+                } catch {
+                    // Unit stubs without deployer mnemonic keep Blueprint sender.
+                }
+            }
             if (signer) {
                 const balance = await readLiveTonBalance(ctx.provider, signer);
                 naReason = insufficientSenderTonReason({
