@@ -26,6 +26,13 @@ export async function naWhen(ctx: ScenarioContext): Promise<string | null> {
     return naWhenGovCancel(ctx);
 }
 
+/**
+ * Lab CANCEL_LAG is short (30s). Reusing a proposal with only a few seconds left
+ * races the cancel tx past `startTime` (live: exit "Too late", state stays Active
+ * while the harness still expected in-window → Cancelled).
+ */
+const IN_WINDOW_SLACK_SEC = 20;
+
 async function ensureCancellableProposal(ctx: ScenarioContext): Promise<{
     id: bigint;
     addr: Address;
@@ -45,12 +52,13 @@ async function ensureCancellableProposal(ctx: ScenarioContext): Promise<{
         if (state === PS_ACTIVE) {
             const start = Number(await proposal.getGetStartTime());
             const proposer = await proposal.getGetProposer();
-            if (now < start && proposer.equals(actor)) {
+            if (now + IN_WINDOW_SLACK_SEC < start && proposer.equals(actor)) {
                 return { id: latest.id, addr: latest.addr, mode: 'in-window' };
             }
             if (now >= start) {
                 return { id: latest.id, addr: latest.addr, mode: 'late' };
             }
+            // Inside the window but too close to start — fall through to a fresh propose.
         }
     }
 
@@ -67,7 +75,8 @@ async function ensureCancellableProposal(ctx: ScenarioContext): Promise<{
         claimedVp,
     });
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
-    await sleepMs(8_000);
+    // Indexing only — keep short so cancel stays inside CANCEL_LAG.
+    await sleepMs(5_000);
 
     const created = await resolveLatestProposalAddr(ctx);
     if (!created) {
@@ -99,6 +108,17 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         }));
     }
 
+    // Re-classify immediately before send — wall clock may have crossed startTime
+    // since ensureCancellableProposal (short lab CANCEL_LAG).
+    let mode = target.mode;
+    if (mode === 'in-window') {
+        const start = Number(await proposal.getGetStartTime());
+        const now = Math.floor(Date.now() / 1000);
+        if (now >= start) {
+            mode = 'late';
+        }
+    }
+
     const seqnoBefore = await getSenderSeqno(provider);
     await proposal.sendCancel(provider.sender());
     await waitForSenderSeqnoIncrement(provider, seqnoBefore);
@@ -106,7 +126,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     const stateAfter = await proposal.getGetState();
     return checkCancelOutcome({
-        mode: target.mode,
+        mode,
         stateBefore,
         stateAfter,
     });

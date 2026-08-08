@@ -107,7 +107,10 @@ async function findTakeWalletResponse(
     queryId: bigint,
 ): Promise<TakeWalletLookup> {
     const viaTonapi = await findTakeWalletViaTonapi(host, sender, master, queryId);
-    if (viaTonapi.found) {
+    // TonAPI often returns TakeWalletAddress with wallet_address=null (decode lag /
+    // incomplete body) while the on-chain message carries the address — fall through
+    // to TonCenter when the wallet field is missing (live FAIL 2026-08-07).
+    if (viaTonapi.found && viaTonapi.wallet != null) {
         return viaTonapi;
     }
 
@@ -120,6 +123,13 @@ async function findTakeWalletResponse(
                 master,
                 queryId,
             });
+            if (viaTc.found && viaTc.wallet != null) {
+                return viaTc;
+            }
+            if (viaTc.found && viaTonapi.found) {
+                // Prefer tonapi's found bit + toncenter wallet if TC decoded it.
+                return viaTc.wallet != null ? viaTc : viaTonapi;
+            }
             if (viaTc.found) {
                 return viaTc;
             }
@@ -131,7 +141,7 @@ async function findTakeWalletResponse(
             await sleep(2_000);
         }
     }
-    return { found: false };
+    return viaTonapi.found ? viaTonapi : { found: false };
 }
 
 export async function naWhen(ctx: ScenarioContext): Promise<string | null> {

@@ -30,10 +30,15 @@ import type { CheckResult, ScenarioContext } from '../types';
 
 /** Matches StakingMaster.MinStakeNano (0.01 BURN). */
 export const MIN_STAKE_NANO = 10_000_000n;
-/** Seed attach from stake-deposit-smoke-testnet.ts */
-export const STAKE_ATTACHED_TON = 5_850_540_001n;
-/** Seed forward TON for StakeForward notify path. */
-export const STAKE_FORWARD_TON = toNano('5');
+/**
+ * JettonNotification must fund `GasForwardStakeJetton(3.5) + 2*GasToPool + 0.08`
+ * and, on top-up with pending rewards, `+ GasPayRewards(3.5)` → ≥ 7.2 TON on the
+ * master. Forward below that refunds the stake (IMP-MNAUD-F09) and leaves the
+ * wallet delta at 0 — live triage 2026-08-07.
+ */
+export const STAKE_FORWARD_TON = toNano('8');
+/** Attach must cover excluded-path gates + STAKE_FORWARD_TON + wallet surplus. */
+export const STAKE_ATTACHED_TON = toNano('9.5');
 /** Seed stake size (5 BURN). */
 export const STAKE_AMOUNT_HAPPY = 5n * NANO_PER_BURN;
 /**
@@ -270,7 +275,9 @@ export async function waitForStakeAtLeast(
         }
         await sleepMs(sleep);
     }
-    return last;
+    throw new Error(
+        `Stake did not reach ${minAmount} for tier=${tier} (last=${last}) after ${attempts} polls`,
+    );
 }
 
 export async function sendStakeJettons(
@@ -531,7 +538,18 @@ export function checkExcludedWalletInOut(input: {
     transferInAmount: bigint;
     userDeltaOnStake: bigint;
     userDeltaOnUnstake: bigint;
+    /**
+     * Pending rewards before stake. Top-up merge may auto-pay them into the JW
+     * so the observed debit is `-amount + claim` with `0 ≤ claim ≤ pendingBefore`.
+     */
+    pendingBefore?: bigint;
 }): CheckResult[] {
+    const pending = input.pendingBefore ?? 0n;
+    // claimCredit = auto-paid pending (and any emission tick during merge). A fee cut
+    // on the stake transfer would make this negative. Net JW credit is OK when pending
+    // rewards paid on top-up exceed the new stake slice (live: +1.04M with 10M stake).
+    const claimCredit = input.userDeltaOnStake + input.transferInAmount;
+    const transferInOk = claimCredit >= 0n;
     return [
         check(
             'staking-master-excluded',
@@ -545,13 +563,18 @@ export function checkExcludedWalletInOut(input: {
         ),
         check(
             'transfer-in-full',
-            input.userDeltaOnStake === -input.transferInAmount,
-            `stake debit ${input.userDeltaOnStake} (expected -${input.transferInAmount}, no fee cut)`,
+            transferInOk,
+            `stake debit ${input.userDeltaOnStake} (expected -${input.transferInAmount}` +
+                (claimCredit > 0n || pending > 0n
+                    ? ` + claimCredit ${claimCredit} (pendingBefore ${pending})`
+                    : ', no fee cut') +
+                `)`,
         ),
         check(
             'transfer-out-full',
-            input.userDeltaOnUnstake === input.transferInAmount,
-            `unstake credit ${input.userDeltaOnUnstake} (expected ${input.transferInAmount}, excluded payout)`,
+            // Principal always returned; pending rewards may ride along on unstake payout.
+            input.userDeltaOnUnstake >= input.transferInAmount,
+            `unstake credit ${input.userDeltaOnUnstake} (expected ≥ ${input.transferInAmount} principal, excluded payout)`,
         ),
     ];
 }

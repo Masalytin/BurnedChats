@@ -27,11 +27,23 @@ export type TonapiTransaction = {
 export type TonapiEventAction = {
     type?: string;
     JettonTransfer?: { amount?: string; sender?: { address?: string } };
+    /** TonAPI labels fee-on-transfer BURN sends as FlawedJettonTransfer (lab 2026-08-08). */
+    FlawedJettonTransfer?: { amount?: string; sender?: { address?: string } };
     base_transactions?: string[];
 };
 
+function actionIsJettonTransferish(a: TonapiEventAction): boolean {
+    return (
+        (a.type === 'JettonTransfer' && !!a.JettonTransfer) ||
+        (a.type === 'FlawedJettonTransfer' && !!a.FlawedJettonTransfer) ||
+        a.type === 'FlawedJettonTransfer'
+    );
+}
+
 export type TonapiEvent = {
     event_id: string;
+    /** Unix seconds when tonapi recorded the event (used to ignore stale JettonTransfers). */
+    timestamp?: number;
     actions?: TonapiEventAction[];
     /** Legacy / alternate tonapi shape — prefer action.base_transactions. */
     base_transactions?: string[];
@@ -101,23 +113,57 @@ export async function fetchLatestAccountEvent(host: string, owner: Address): Pro
 export async function fetchLatestJettonTransferEvent(
     host: string,
     owner: Address,
+    opts?: {
+        notBeforeUnix?: number;
+        /** Event ids already known before the send — preferred over timestamp filter. */
+        excludeEventIds?: ReadonlySet<string>;
+        retries?: number;
+    },
 ): Promise<TonapiEvent | null> {
     const accountId = owner.toString({ urlSafe: true, bounceable: true });
-    const url = `${host}/v2/accounts/${accountId}/events?limit=10`;
-    for (let attempt = 1; attempt <= TONAPI_RETRIES; attempt += 1) {
+    const url = `${host}/v2/accounts/${accountId}/events?limit=15`;
+    const retries = opts?.retries ?? TONAPI_RETRIES + 3;
+    const notBefore = opts?.notBeforeUnix;
+    const exclude = opts?.excludeEventIds;
+    for (let attempt = 1; attempt <= retries; attempt += 1) {
         const body = await tonapiFetchJson<{ events?: TonapiEvent[] }>(url);
         const match =
-            body.events?.find((e) =>
-                e.actions?.some((a) => a.type === 'JettonTransfer' && a.JettonTransfer),
-            ) ?? null;
+            body.events?.find((e) => {
+                if (exclude?.has(e.event_id)) {
+                    return false;
+                }
+                // TonAPI sometimes omits `timestamp` — only apply the floor when present.
+                if (notBefore !== undefined && typeof e.timestamp === 'number' && e.timestamp < notBefore) {
+                    return false;
+                }
+                return e.actions?.some(actionIsJettonTransferish);
+            }) ?? null;
         if (match) {
             return match;
         }
-        if (attempt < TONAPI_RETRIES) {
+        if (attempt < retries) {
             await sleep(TONAPI_RETRY_DELAY_MS);
         }
     }
     return null;
+}
+
+/** Snapshot recent JettonTransfer / FlawedJettonTransfer event ids for freshness checks. */
+export async function listRecentJettonTransferEventIds(
+    host: string,
+    owner: Address,
+    limit = 15,
+): Promise<Set<string>> {
+    const accountId = owner.toString({ urlSafe: true, bounceable: true });
+    const url = `${host}/v2/accounts/${accountId}/events?limit=${limit}`;
+    const body = await tonapiFetchJson<{ events?: TonapiEvent[] }>(url);
+    const ids = new Set<string>();
+    for (const e of body.events ?? []) {
+        if (e.actions?.some(actionIsJettonTransferish)) {
+            ids.add(e.event_id);
+        }
+    }
+    return ids;
 }
 
 /** Tonapi nests base tx hashes under each action, not only at event root. */
@@ -187,12 +233,20 @@ export async function verifyFeeSplitEventStructure(
     checks.push(check('event-loaded', event.event_id === eventId, `tonapi event loaded (${eventId})`));
 
     const jettonActions =
-        event.actions?.filter((a) => a.type === 'JettonTransfer' && a.JettonTransfer) ?? [];
+        event.actions?.filter(
+            (a) =>
+                (a.type === 'JettonTransfer' && a.JettonTransfer) ||
+                a.type === 'FlawedJettonTransfer',
+        ) ?? [];
+    const flawedOnly =
+        jettonActions.length > 0 && jettonActions.every((a) => a.type === 'FlawedJettonTransfer');
     checks.push(
         check(
             'jetton-transfer-actions',
             jettonActions.length >= 1,
-            `event has JettonTransfer actions (count=${jettonActions.length})`,
+            flawedOnly
+                ? `event has FlawedJettonTransfer actions (count=${jettonActions.length}; tonapi fee-on-transfer label)`
+                : `event has JettonTransfer actions (count=${jettonActions.length})`,
         ),
     );
 

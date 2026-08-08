@@ -262,6 +262,77 @@ async function ensureWalletFeeConfigSynced(
 }
 
 /**
+ * `pushFeeConfigToOwner` does not deploy an uninit JW (no StateInit). Treasury never
+ * receives a mint, so bootstrap SyncFeeConfigToWallet is a no-op until the first fee
+ * leg deploys the wallet with an empty feeConfig — leaving spend transfers at exit
+ * 21507. Repair: excluded-path dust transfer from a funded holder triggers
+ * `requestRecipientFeeConfigSync` (lab triage 2026-08-07).
+ */
+async function repairInactiveFeeConfigViaDustTransfer(
+    provider: NetworkProvider,
+    jettonMasterAddr: Address,
+    fromOwner: Address,
+    toOwner: Address,
+    testnet: boolean,
+    label: string,
+): Promise<void> {
+    const dust = 1_000n; // 0.000001 BURN — enough to deploy/propagate, not supply-material
+    const master = provider.open(BurnJettonMaster.fromAddress(jettonMasterAddr));
+    const fromJwAddr = await master.getGetWalletAddress(fromOwner);
+    const fromJw = provider.open(BurnJettonWallet.fromAddress(fromJwAddr));
+    const bal = (await fromJw.getGetWalletData()).balance;
+    if (bal < dust) {
+        throw new Error(
+            `[deploy] cannot repair fee-config for ${friendly(toOwner, testnet)} (${label}): ` +
+                `source ${friendly(fromOwner, testnet)} BURN ${bal} < dust ${dust}`,
+        );
+    }
+    console.log(
+        `[deploy] dust-transfer fee-config repair → ${friendly(toOwner, testnet)} (${label})`,
+    );
+    const seqnoBefore = await getSenderSeqno(provider);
+    await fromJw.sendTransfer(provider.sender(), {
+        jettonAmount: dust,
+        destinationOwner: toOwner,
+        responseDestination: fromOwner,
+        forwardTonAmount: 1n,
+        value: toNano('1.0'),
+    });
+    await waitForSenderSeqnoIncrement(provider, seqnoBefore);
+    for (let i = 0; i < 10; i++) {
+        await sleep(2_000);
+        if (await isWalletFeeConfigSynced(provider, jettonMasterAddr, toOwner)) {
+            return;
+        }
+    }
+    throw new Error(
+        `[deploy] fee-config still inactive for ${friendly(toOwner, testnet)} (${label}) after dust repair`,
+    );
+}
+
+async function ensureAllFeeConfigsActive(
+    provider: NetworkProvider,
+    jettonMasterAddr: Address,
+    owners: { owner: Address; label: string }[],
+    repairFrom: Address,
+    testnet: boolean,
+): Promise<void> {
+    for (const { owner, label } of owners) {
+        if (await isWalletFeeConfigSynced(provider, jettonMasterAddr, owner)) {
+            continue;
+        }
+        await repairInactiveFeeConfigViaDustTransfer(
+            provider,
+            jettonMasterAddr,
+            repairFrom,
+            owner,
+            testnet,
+            label,
+        );
+    }
+}
+
+/**
  * On-chain idempotency probes used by `deployBurnStack`. Each probe answers
  * "is this post-deploy step already applied?" by reading contract state, so
  * a re-run after a transient `LITE_SERVER_NOTREADY` (or any other crash)
@@ -935,6 +1006,22 @@ export async function deployBurnStack(
                 opts.force,
             );
         }
+
+        // Hard-fail / repair wallets that SyncFeeConfigToWallet could not activate
+        // (uninit JW at sync time — notably treasury fee sink).
+        const feeConfigOwners: { owner: Address; label: string }[] = [
+            ...excludedOwners.map((owner) => ({ owner, label: 'excluded holder' })),
+            ...MINT_ALLOCATIONS.filter((a) => NON_EXCLUDED_MINT_RECEIVER_KEYS.has(a.receiver)).map(
+                (a) => ({ owner: addressBook[a.receiver], label: a.label }),
+            ),
+        ];
+        await ensureAllFeeConfigsActive(
+            provider,
+            jettonMaster.address,
+            feeConfigOwners,
+            deployer,
+            testnet,
+        );
 
         if (mainnetFinalize) {
             // Finalize mode: CloseMint/ChangeOwner are admin-gated, so the deployer must

@@ -164,8 +164,8 @@ describe('IMP-TNFS-07 staking pack — discovery & tags', () => {
 
 describe('IMP-TNFS-07 seed constants & Flexible tier choice', () => {
     it('reuses stake-deposit-smoke attach / forward / min-stake constants', () => {
-        expect(STAKE_ATTACHED_TON).toBe(5_850_540_001n);
-        expect(STAKE_FORWARD_TON).toBe(5_000_000_000n);
+        expect(STAKE_ATTACHED_TON).toBe(9_500_000_000n);
+        expect(STAKE_FORWARD_TON).toBe(8_000_000_000n);
         expect(STAKE_AMOUNT_HAPPY).toBe(5_000_000_000n);
         expect(MIN_STAKE_NANO).toBe(10_000_000n);
         expect(SUB_MIN_STAKE_NANO).toBe(MIN_STAKE_NANO - 1n);
@@ -310,6 +310,39 @@ describe('IMP-TNFS-07 check helpers', () => {
                 transferInAmount: MIN_STAKE_NANO,
                 userDeltaOnStake: -MIN_STAKE_NANO,
                 userDeltaOnUnstake: MIN_STAKE_NANO,
+            }).every((c) => c.ok),
+        ).toBe(true);
+
+        // Top-up auto-claim: debit is amount minus pending reward credit.
+        expect(
+            checkExcludedWalletInOut({
+                stakingMasterExcluded: true,
+                stakingPoolExcluded: true,
+                transferInAmount: 10_000_000n,
+                userDeltaOnStake: -9_983_199n,
+                userDeltaOnUnstake: 10_000_000n,
+                pendingBefore: 16_801n,
+            }).every((c) => c.ok),
+        ).toBe(true);
+        // Fee cut would push claimCredit negative.
+        expect(
+            checkExcludedWalletInOut({
+                stakingMasterExcluded: true,
+                stakingPoolExcluded: true,
+                transferInAmount: 10_000_000n,
+                userDeltaOnStake: -10_100_000n,
+                userDeltaOnUnstake: 10_000_000n,
+            }).some((c) => c.name === 'transfer-in-full' && !c.ok),
+        ).toBe(true);
+        // Large pending auto-claim can net-credit the JW on top-up.
+        expect(
+            checkExcludedWalletInOut({
+                stakingMasterExcluded: true,
+                stakingPoolExcluded: true,
+                transferInAmount: 10_000_000n,
+                userDeltaOnStake: 1_040_631n,
+                userDeltaOnUnstake: 10_000_000n,
+                pendingBefore: 1_200_000n,
             }).every((c) => c.ok),
         ).toBe(true);
 

@@ -1,7 +1,7 @@
 /**
  * fs-staking-jetton-wallet-inout — stake in / unstake out conserve excluded-fee rules.
  */
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import { readJettonWalletBalance } from '../lib/balances';
@@ -11,11 +11,13 @@ import {
     MIN_STAKE_NANO,
     naWhenInsufficientBurn,
     openStakingMaster,
+    readPendingReward,
     readStakeAmount,
     requireStakingPoolAddr,
     resolveStaker,
     sendStakeJettons,
     sleepMs,
+    STAKE_ATTACHED_TON,
     waitForStakeAtLeast,
 } from '../lib/staking';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
@@ -45,6 +47,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const stakingMasterExcluded = await jetton.getGetIsExcluded(stakingMasterAddr);
     const stakingPoolExcluded = await jetton.getGetIsExcluded(poolAddr);
 
+    // Top-up with pending rewards auto-claims into the JW (master merge path) —
+    // capture pending so transfer-in-full allows that credit (live −9983199 vs −10M).
+    const pendingBefore = await readPendingReward(provider, stakingMasterAddr, staker, tier);
+
     const walletBeforeStake = await readJettonWalletBalance(provider, jettonMasterAddr, staker);
     const stakeBefore = await readStakeAmount(provider, stakingMasterAddr, staker, tier);
 
@@ -71,6 +77,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         transferInAmount: amount,
         userDeltaOnStake,
         userDeltaOnUnstake,
+        pendingBefore,
     });
 }
 
@@ -84,6 +91,7 @@ export const scenario: Scenario = {
     depends_on: ['fs-staking-stake-happy'],
     naWhen,
     run: runChecks,
+    budget: { signer: 'actor', minTon: STAKE_ATTACHED_TON + toNano('0.2') },
 };
 
 export default scenario;

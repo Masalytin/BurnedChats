@@ -16,27 +16,28 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const data = await master.getGetJettonData();
     const fee = await master.getGetFeeParams();
 
+    // Dedup by owner address: post-F01 `stakingPool` is both a MINT_ALLOCATIONS
+    // receiver (emission reserve) and a fee sink — counting it twice falsely
+    // reports silent inflation (live FAIL: 1300B holders vs ~1000B supply).
+    const counted = new Set<string>();
     let knownBalancesSum = 0n;
-    for (const alloc of MINT_ALLOCATIONS) {
-        const raw = manifest.addresses[alloc.receiver];
-        if (!raw) {
-            continue;
-        }
-        const bal = await readJettonWalletBalance(provider, jettonMaster, Address.parse(raw));
-        knownBalancesSum += bal;
-    }
-
-    // Fee sink wallets also hold jettons from fee legs — include when present.
-    for (const key of ['stakingPool', 'treasury'] as const) {
+    const ownerKeys = [
+        ...MINT_ALLOCATIONS.map((a) => a.receiver),
+        'stakingPool',
+        'treasury',
+    ] as const;
+    for (const key of ownerKeys) {
         const raw = manifest.addresses[key];
         if (!raw) {
             continue;
         }
-        knownBalancesSum += await readJettonWalletBalance(
-            provider,
-            jettonMaster,
-            Address.parse(raw),
-        );
+        const owner = Address.parse(raw);
+        const id = owner.toRawString();
+        if (counted.has(id)) {
+            continue;
+        }
+        counted.add(id);
+        knownBalancesSum += await readJettonWalletBalance(provider, jettonMaster, owner);
     }
 
     return checkSupplyAccounting({
