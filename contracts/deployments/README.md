@@ -110,6 +110,40 @@ Without `LIQUIDITY_MULTISIG`, deployer becomes liquidity holder → `addExcluded
 wallet shows 100% to recipient (misleading «fee not working»). Use `BURN_SMOKE_TEST_OWNER` or a separate
 airdrop/non-excluded wallet for fee verification.
 
+### Timelock governor multisig (PARAMETERS §2 B)
+
+Owner decision 2026-08-08: on **mainnet** `Timelock.governor` is a multisig
+(not a single EOA). Bootstrap reads:
+
+| Env var | Required when | Purpose |
+|---------|---------------|---------|
+| `TIMELOCK_GOVERNOR` | `--mainnet` / `MAINNET_FINALIZE=1` | Multisig address → Timelock init `governor` |
+| `TIMELOCK_GOVERNOR_MULTISIG` | alias | Same as `TIMELOCK_GOVERNOR` |
+| `MULTISIG_KIND` | lab agent tests (optional) | Hint for future harness (`ton-multisig-v2`, …) |
+| `MULTISIG_THRESHOLD` | lab agent tests (optional) | e.g. `2` for 2-of-3 |
+| `MULTISIG_SIGNER_{1,2,3}_MNEMONIC` | lab agent tests | Throwaway **testnet** signer seeds (≥ threshold) |
+| `MULTISIG_SIGNER_{1,2,3}_ADDRESS` | optional | Override if address ≠ default V5R1 derivation |
+
+**Ordinary lab (current default):** leave `TIMELOCK_GOVERNOR` unset →
+`Timelock.governor =` deployer (`WALLET_MNEMONIC`). Scenario runner still signs
+Timelock queue/execute via `DEPLOY_WALLET_MNEMONIC` / deployer (IMP-TNFS-F16).
+
+**Lab tip with real multisig governor (agent can test without the owner online):**
+
+1. Deploy a **throwaway** testnet multisig (never mainnet keys / never prod signers).
+2. Set `TIMELOCK_GOVERNOR` + fill `MULTISIG_SIGNER_*_MNEMONIC` (≥ `MULTISIG_THRESHOLD`)
+   and `MULTISIG_THRESHOLD` / `MULTISIG_KIND` in `.env.testnet` (gitignored).
+3. Fund the multisig with testnet TON (queue/execute attaches).
+4. Redeploy lab (`LAB_GOV_SHORT_TIMERS=1`, `TIMELOCK_GOVERNOR` set). Confirm
+   `bootstrap.timelockGovernorIsDeployer=false` in `testnet-lab.json`.
+5. **Harness gap:** live scenarios do not yet wrap Timelock sends through a
+   multisig order — env keys above are reserved so an agent can implement that
+   path once the throwaway multisig + mnemonics are present. Until then only
+   address wiring / dry-run / unit tests exercise `TIMELOCK_GOVERNOR`.
+
+**Security:** do not put mainnet multisig signer mnemonics in `.env.testnet`.
+Secrets must never appear in `reports/*.json` or git commits (`.env*` is gitignored).
+
 See also `docs/specs/TOKENOMICS.md` § fee verification notes.
 
 Post-deploy fee-split regression:
