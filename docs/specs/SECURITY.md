@@ -850,9 +850,10 @@ deferred.
 
 **Roles.** `Timelock.governor` is an immutable init field: the mutual
 Governor↔Timelock init fixed point is unsolvable for deterministic Tact
-addresses, so bootstrap deploys the Timelock with `governor =` the deploy
-authority. On **mainnet this address is a multisig** (owner decision
-2026-07-27, PARAMETERS_DECISION §2 option B), not a single-key EOA. There is
+addresses, so bootstrap computes Timelock first from `(governor, floor)`. On
+**mainnet this address is a multisig** (owner decision confirmed 2026-08-08,
+PARAMETERS_DECISION §2 option B; env `TIMELOCK_GOVERNOR`), not a single-key
+EOA. Lab/testnet regression may keep `governor =` deployer. There is
 deliberately **no `SetGovernor` handover** on the Timelock: the governor is
 fixed at init and never changes on-chain.
 
@@ -884,12 +885,13 @@ during which the multisig can `TimelockCancel` it.
 
 `highValueDelayFloorSec` is a Timelock **init parameter** (readable via
 `get_high_value_delay_floor`), not a compile-time constant: mainnet deploys
-use the 86400 (24 h) default, lab/testnet regression deploys pass a short
-floor (`LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC`, default = lab proposal timelock
-delay) so live scenarios actually queue with a real delay and wait it out.
+use the 172800 (48 h) default (owner PARAMETERS_DECISION §1, 2026-08-08),
+lab/testnet regression deploys pass a short floor
+(`LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC`, default = lab proposal timelock delay)
+so live scenarios actually queue with a real delay and wait it out.
 
 **Guarantee:** any treasury spend or vesting revoke is visible on-chain for at
-least the floor window (24 h on mainnet) before it can execute, giving the
+least the floor window (48 h on mainnet) before it can execute, giving the
 multisig time to cancel a compromised or mistaken action.
 
 ### Cashback Loop Between Auto-cashback Contracts (RC-2)

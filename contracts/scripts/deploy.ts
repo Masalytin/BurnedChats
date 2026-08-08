@@ -13,6 +13,8 @@ import { syncAppConfigs } from './deploy/syncAppConfigs';
  * - JETTON_METADATA_URI (optional; default https://burnedchats.net/jetton-metadata.json — see deployments/README.md)
  * - INITIAL_MIN_PROPOSAL_VP (optional, default 0.01 BURN nano)
  * - AIRDROP_MULTISIG / LIQUIDITY_MULTISIG (optional, default deployer on testnet)
+ * - TIMELOCK_GOVERNOR (alias TIMELOCK_GOVERNOR_MULTISIG) — Timelock.governor address;
+ *   **required on mainnet / MAINNET_FINALIZE** (PARAMETERS §2 B: multisig). Lab omits → deployer.
  * - LAB_GOV_SHORT_TIMERS=1 — lab tip only: short proposalConfigs + cancelLag at Governor.init
  *   (see RUNBOOK-redeploy §B). When set, syncAppConfigs is skipped unless FORCE_SYNC_APP_CONFIGS=1.
  * - LAB_CANCEL_LAG_SEC / LAB_PROPOSAL_PERIOD_SEC / LAB_PROPOSAL_TIMELOCK_DELAY_SEC (lab defaults 30/60/60)

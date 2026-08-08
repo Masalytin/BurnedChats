@@ -216,6 +216,37 @@ function resolveMultisigHolder(deployer: Address, envKey: string): Address {
     return raw ? Address.parse(raw) : deployer;
 }
 
+/**
+ * Resolve `Timelock.governor` (PARAMETERS_DECISION §2 option B — owner 2026-08-08).
+ *
+ * - Lab / ordinary testnet: default = deployer EOA (live regression queues as deployer).
+ * - Mainnet or `MAINNET_FINALIZE=1`: `TIMELOCK_GOVERNOR` (alias
+ *   `TIMELOCK_GOVERNOR_MULTISIG`) is **required** — must be the deployed multisig.
+ *   Deployer may equal that address if the multisig itself is the deploy wallet.
+ *
+ * Exported for unit tests.
+ */
+export function resolveTimelockGovernor(
+    deployer: Address,
+    opts: { requireMultisig: boolean },
+): Address {
+    const raw =
+        process.env.TIMELOCK_GOVERNOR?.trim() ||
+        process.env.TIMELOCK_GOVERNOR_MULTISIG?.trim();
+    if (raw) {
+        return Address.parse(raw);
+    }
+    if (opts.requireMultisig) {
+        throw new Error(
+            '[deploy] TIMELOCK_GOVERNOR unset — mainnet requires a multisig address as ' +
+                'Timelock.governor (PARAMETERS_DECISION §2 option B). Set TIMELOCK_GOVERNOR ' +
+                '(or TIMELOCK_GOVERNOR_MULTISIG) to the multisig address before deploy. ' +
+                'Lab/testnet bootstraps may omit this and keep deployer as governor.',
+        );
+    }
+    return deployer;
+}
+
 async function mintTo(
     provider: NetworkProvider,
     master: BurnJettonMaster,
@@ -684,8 +715,10 @@ export type DeployResult = {
  * Jetton master — once fee destinations / exclusions are configured, `SetTimelock` hands
  * the `timelock` field to the on-chain Timelock contract so no EOA keeps governance control
  * (IMP-PREMNT-03). StakingLock/Treasury/Vesting take the Timelock contract as `timelock` at
- * init. `Timelock.governor` stays the deployer (mutual Governor↔Timelock fixed point is
- * unsolvable for deterministic addresses — see decision log P5-6-1-1-governance-bootstrap).
+ * init. `Timelock.governor` is immutable (no SetGovernor): mainnet requires a multisig via
+ * `TIMELOCK_GOVERNOR` (PARAMETERS §2 B); lab defaults to deployer. Mutual Governor↔Timelock
+ * address fixed point is unsolvable for deterministic Tact addresses (P5-6-1-1) — Timelock
+ * is computed first from (governor, floor), then wired into Governor/Treasury/Lock.
  *
  * MAINNET_FINALIZE=1 (IMP-MNAUD-F05) appends the irreversible supply finalization:
  * verified distribution → CloseMint → admin revoke. Default (lab/testnet) keeps mint
@@ -754,11 +787,19 @@ export async function deployBurnStack(
         stakingMasterPlaceholder: STAKING_PLACEHOLDER_MASTER,
     });
 
-    // Timelock.governor stays the deployer (mutual Governor↔Timelock fixed point is
-    // unsolvable for deterministic Tact addresses — see P5-6-1-1). Its address depends
-    // only on the deployer, so it can be computed first and used as the immutable
-    // timelock-authority for StakingLock (IMP-PREMNT-03) without any address cycle.
-    const timelockInit = await Timelock.prepareInit(deployer, timelockHighValueFloorSec);
+    // Timelock.governor is an immutable init field (no SetGovernor — IMP-MNAUD-F03).
+    // Mutual Governor↔Timelock address fixed point is unsolvable for deterministic Tact
+    // addresses (P5-6-1-1): Timelock is computed first from (governor, floor), then
+    // Governor/StakingLock/Treasury take that address. Mainnet governor = multisig
+    // (PARAMETERS §2 B); lab defaults to deployer for regression queue authority.
+    const timelockGovernor = resolveTimelockGovernor(deployer, {
+        requireMultisig: !testnet || mainnetFinalize,
+    });
+    console.log(
+        `[deploy] Timelock.governor=${friendly(timelockGovernor, testnet)}` +
+            (timelockGovernor.equals(deployer) ? ' (deployer)' : ' (TIMELOCK_GOVERNOR)'),
+    );
+    const timelockInit = await Timelock.prepareInit(timelockGovernor, timelockHighValueFloorSec);
 
     const stakingLockInit = await StakingLock.prepareInit(timelockInit.address);
     const stakingMasterInit = await StakingMaster.prepareInit(
@@ -1116,7 +1157,7 @@ export async function deployBurnStack(
             // IMP-PREMNT-03: jetton fee/exclusion governance is handed to the Timelock
             // contract at the end of bootstrap (SetTimelock), so no EOA retains control.
             jettonTimelockIsDeployer: false,
-            timelockGovernorIsDeployer: true,
+            timelockGovernorIsDeployer: timelockGovernor.equals(deployer),
             // setGovernor re-points the staking master to the real Governor during bootstrap.
             stakingMasterGovernorIsDeployer: false,
             // IMP-MNAUD-F05: true only when the MAINNET_FINALIZE stage verified
