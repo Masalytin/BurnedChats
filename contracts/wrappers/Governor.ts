@@ -60,8 +60,10 @@ export const DEFAULT_CANCEL_LAG_SEC = 3600n;
 export function defaultGovernorProposalConfigs(): Dictionary<number, ProposalConfig> {
     const day = 86400n;
     const d = Dictionary.empty(Dictionary.Keys.Uint(32), dictValueParserProposalConfig());
-    d.set(0, proposalCfg(10n, 51n, 3n * day, 1n * day));
-    d.set(1, proposalCfg(5n, 51n, 7n * day, 1n * day));
+    // Timelock delays: owner PARAMETERS_DECISION §1 (2026-08-08) → 48h for
+    // non-emergency types (matches Timelock high-value floor default).
+    d.set(0, proposalCfg(10n, 51n, 3n * day, 2n * day));
+    d.set(1, proposalCfg(5n, 51n, 7n * day, 2n * day));
     d.set(2, proposalCfg(20n, 66n, 7n * day, 2n * day));
     d.set(3, proposalCfg(30n, 75n, 1n * day, 0n));
     return d;

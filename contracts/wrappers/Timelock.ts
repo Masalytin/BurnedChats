@@ -12,12 +12,13 @@ export function emptyTimelockPendingMap() {
 }
 
 /**
- * Mainnet default for `Timelock.highValueDelayFloorSec` (24 h) — IMP-MNAUD-F03.
+ * Mainnet default for `Timelock.highValueDelayFloorSec` (48 h) — IMP-MNAUD-F03
+ * + owner PARAMETERS_DECISION §1 (2026-08-08): floor equals chosen Timelock delay.
  * High-value TimelockQueue methods (TreasurySpend / VestEmergencyRevoke) require
  * `delay > 0 && delay >= floor`. Lab short-timer deploys pass a short floor
  * explicitly (bootstrap.ts LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC).
  */
-export const TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC = 86_400n;
+export const TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC = 172_800n;
 
 export class Timelock extends TimelockBase {
     static async prepareInit(

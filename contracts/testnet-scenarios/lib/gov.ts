@@ -260,7 +260,7 @@ export function clampTimelockQueueDelay(delay: bigint): bigint {
 // `timelock.tact` `receive(TimelockQueue)` since IMP-MNAUD-F03 splits the gate:
 // high-value methods (TreasurySpend 0x5a1c9010 / VestEmergencyRevoke 0x5a060002)
 // require `delay > 0 && delay >= highValueDelayFloorSec` (INIT parameter —
-// mainnet 86400, lab short floor), everything else keeps the legacy
+// mainnet 172800 (48h), lab short floor), everything else keeps the legacy
 // `delay == 0 || delay >= TIMELOCK_MIN_DELAY_SEC` rule. Lab scenarios must
 // therefore queue high-value actions with a real (short) delay and wait it out.
 

@@ -56,7 +56,7 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
             stakingMaster: stakingMaster.address,
             stakingLock: stakingLock.address,
             timelock: timelock.address,
-            timelockDelaySec: BigInt(DAY),
+            timelockDelaySec: BigInt(2 * DAY),
             treasury: treasuryInit.address,
         }),
     );

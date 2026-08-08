@@ -118,7 +118,8 @@ function resolveTimelockDelaySec(): bigint {
     if (raw) {
         return BigInt(raw);
     }
-    return 86_400n;
+    // Owner PARAMETERS_DECISION §1 (2026-08-08): 48h mainnet default.
+    return 172_800n;
 }
 
 /** Lab-only short gov timers (IMP-TNFS-F02). Never enable for shared tip redeploy. */
@@ -718,9 +719,10 @@ export async function deployBurnStack(
         ? labShortGovernorProposalConfigs(labProposalPeriodSec, labProposalTimelockDelaySec)
         : undefined;
     // Timelock high-value delay floor (IMP-MNAUD-F03): TreasurySpend / VestEmergencyRevoke
-    // queues require delay > 0 && delay >= floor. Mainnet/shared deploys use the 24h default;
-    // lab short-timer deploys default the floor to the lab proposal timelock delay so the
-    // Governor-emitted queue delay always clears the floor and live regression can wait it out.
+    // queues require delay > 0 && delay >= floor. Mainnet/shared deploys use the 48h default
+    // (owner PARAMETERS_DECISION §1, 2026-08-08); lab short-timer deploys default the floor
+    // to the lab proposal timelock delay so the Governor-emitted queue delay always clears
+    // the floor and live regression can wait it out.
     const timelockHighValueFloorSec = labShortTimers
         ? resolvePositiveSecEnv('LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC', labProposalTimelockDelaySec)
         : TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC;

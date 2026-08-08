@@ -88,7 +88,7 @@ async function setupGovernance(uri: string, minProposalVp = 1n): Promise<GovEnv>
             stakingMaster: stakingMaster.address,
             stakingLock: stakingLock.address,
             timelock: timelock.address,
-            timelockDelaySec: BigInt(DAY),
+            timelockDelaySec: BigInt(2 * DAY),
             treasury: treasuryAddress,
         }),
     );
@@ -123,7 +123,7 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
             stakingMaster: stakingMaster.address,
             stakingLock: stakingLock.address,
             timelock: timelock.address,
-            timelockDelaySec: BigInt(DAY),
+            timelockDelaySec: BigInt(2 * DAY),
             treasury: treasuryAddress,
         }),
     );
@@ -138,7 +138,7 @@ async function setupGovernanceUnwired(uri: string, minProposalVp = 1n): Promise<
  * as `Timelock.governor` — same wiring as `setupGovernance` — so `sendQueue` /
  * `sendExecutePending` can be driven directly. Enough for the queue-delay and
  * eta gates (IMP-TNFS-F18 / IMP-MNAUD-F03), which never touch the Proposal
- * state machine. `highValueDelayFloorSec` defaults to the mainnet 24h floor;
+ * state machine. `highValueDelayFloorSec` defaults to the mainnet 48h floor;
  * pass a short value to mirror a lab short-timer deploy.
  */
 async function setupTimelockOnly(highValueDelayFloorSec?: bigint): Promise<{
@@ -392,7 +392,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(queued).toBeDefined();
             expect(queued!.target.equals(target.address)).toBe(true);
             expect(queued!.method).toBe(0x1234n);
-            expect(queued!.delay).toBe(BigInt(DAY));
+            expect(queued!.delay).toBe(BigInt(2 * DAY));
         });
 
         it('queue → wait → execute marks the proposal Executed', async () => {
@@ -424,7 +424,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(queueTx.transactions).toHaveTransaction({ on: env.timelock.address, success: true });
             expect(await env.timelock.getGetPending(id)).not.toBeNull();
 
-            advanceTime(env.blockchain, DAY + 1);
+            advanceTime(env.blockchain, 2 * DAY + 1);
             const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
             expect(execTx.transactions).toHaveTransaction({ on: env.timelock.address, success: true });
             expect(execTx.transactions).toHaveTransaction({ on: proposal.address, success: true });
@@ -1120,7 +1120,7 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
             partnerPairs: [[env.timelock.address, env.governor.address]],
         });
 
-        advanceTime(env.blockchain, DAY + 1);
+        advanceTime(env.blockchain, 2 * DAY + 1);
         const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
         expect(await proposal.getGetState()).toBe(PS_EXECUTED);
         assertRelayFlowClean(execTx.transactions, {
@@ -1233,13 +1233,13 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
  * applies to non-high-value methods / pre-floor tips), so LIVE runs never
  * exercise the 24h wait. These tests are the only place the real delay
  * semantics are verified:
- *  - full queue → early-reject → execute flow on the contract minimum (24h);
+ *  - full queue → early-reject → execute flow on the production Timelock delay (48h);
  *  - the `Delay too short` gate (0 < delay < TIMELOCK_MIN_DELAY_SEC) that broke
  *    the 2026-07-25 live run and motivated the F17 clamp;
  *  - the eta boundary: `now() >= scheduledTime` admits execution at exactly eta.
  */
 describe('Timelock delay gates (IMP-TNFS-F18)', () => {
-    it('single flow: queue (24h) → early execute bounces keeping pending → execute past eta succeeds', async () => {
+    it('single flow: queue (48h) → early execute bounces keeping pending → execute past eta succeeds', async () => {
         const env = await setupGovernance('https://example.com/gov-tnfs-f18-flow.json');
         const voter = await env.blockchain.treasury('tnfs-f18-voter');
         await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
@@ -1251,7 +1251,7 @@ describe('Timelock delay gates (IMP-TNFS-F18)', () => {
         const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
         expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
         const queued = extractQueue(finalizeTx, env.timelock.address)!;
-        expect(queued.delay).toBe(BigInt(DAY));
+        expect(queued.delay).toBe(BigInt(2 * DAY));
 
         const queueTx = await env.timelock.sendQueue(env.deployer.getSender(), {
             proposalId: queued.proposalId,
@@ -1265,7 +1265,7 @@ describe('Timelock delay gates (IMP-TNFS-F18)', () => {
         const pendingBefore = await env.timelock.getGetPending(id);
         expect(pendingBefore).not.toBeNull();
 
-        // Immediate execute attempt: eta is a full day away.
+        // Immediate execute attempt: eta is two days away.
         const earlyTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
         expect(earlyTx.transactions).toHaveTransaction({
             on: env.timelock.address,
@@ -1278,7 +1278,7 @@ describe('Timelock delay gates (IMP-TNFS-F18)', () => {
         expect(pendingAfter!.scheduledTime).toBe(pendingBefore!.scheduledTime);
         expect(await proposal.getGetState()).toBe(PS_SUCCEEDED);
 
-        advanceTime(env.blockchain, DAY + 1);
+        advanceTime(env.blockchain, 2 * DAY + 1);
         const execTx = await env.timelock.sendExecutePending(env.deployer.getSender(), id);
         expect(execTx.transactions).toHaveTransaction({ on: env.timelock.address, success: true });
         expect(execTx.transactions).toHaveTransaction({ on: proposal.address, success: true });
@@ -1349,9 +1349,9 @@ describe('Timelock delay gates (IMP-TNFS-F18)', () => {
  * IMP-MNAUD-F03 — high-value delay floor (audit MNAUD-3/H-2, owner decision 2026-07-27).
  *
  * TimelockQueue distinguishes high-value methods (TreasurySpend / VestEmergencyRevoke):
- * their delay must be > 0 AND >= `highValueDelayFloorSec` (init param — mainnet 86400,
- * lab short floor), so the zero-delay emergency path can never carry a treasury drain
- * or vesting revoke. Non-high-value methods keep the original semantics
+ * their delay must be > 0 AND >= `highValueDelayFloorSec` (init param — mainnet 172800 /
+ * 48h, lab short floor), so the zero-delay emergency path can never carry a treasury
+ * drain or vesting revoke. Non-high-value methods keep the original semantics
  * (delay == 0 || delay >= TIMELOCK_MIN_DELAY_SEC).
  */
 describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
@@ -1375,16 +1375,16 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
         };
     }
 
-    it('mainnet default floor (24h): delay 0 and 0 < delay < floor are rejected for high-value methods', async () => {
+    it('mainnet default floor (48h): delay 0 and 0 < delay < floor are rejected for high-value methods', async () => {
         const { blockchain, deployer, timelock } = await setupTimelockOnly();
-        expect(await timelock.getGetHighValueDelayFloor()).toBe(BigInt(DAY));
+        expect(await timelock.getGetHighValueDelayFloor()).toBe(BigInt(2 * DAY));
 
         const proposalStub = await blockchain.treasury('mnaud-f03-proposal');
         const target = await blockchain.treasury('mnaud-f03-target');
 
         let proposalId = 1n;
         for (const [, method] of HIGH_VALUE_METHODS) {
-            for (const delay of [0n, 60n, BigInt(DAY - 1)]) {
+            for (const delay of [0n, 60n, BigInt(DAY), BigInt(2 * DAY - 1)]) {
                 const tx = await timelock.sendQueue(deployer.getSender(), {
                     ...queueParamsFor(proposalStub.address, target.address, method, proposalId),
                     delay,
@@ -1407,7 +1407,7 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
 
         let proposalId = 10n;
         for (const [, method] of HIGH_VALUE_METHODS) {
-            for (const delay of [BigInt(DAY), BigInt(2 * DAY)]) {
+            for (const delay of [BigInt(2 * DAY), BigInt(3 * DAY)]) {
                 const tx = await timelock.sendQueue(deployer.getSender(), {
                     ...queueParamsFor(proposalStub.address, target.address, method, proposalId),
                     delay,
@@ -1654,9 +1654,9 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
             target: target.address,
             method: BigInt(OP_TREASURY_SPEND),
             args: treasurySpendArgsStub(),
-            delay: BigInt(DAY),
+            delay: BigInt(2 * DAY),
         });
-        advanceTime(blockchain, DAY + 1);
+        advanceTime(blockchain, 2 * DAY + 1);
 
         const tx = await timelock.sendExecutePending(deployer.getSender(), 1n, 0n, toNano('0.05'));
         expect(tx.transactions).toHaveTransaction({
@@ -1681,7 +1681,7 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
             target: target.address,
             method: BigInt(OP_TREASURY_SPEND),
             args: beginCell().endCell(),
-            delay: BigInt(DAY),
+            delay: BigInt(2 * DAY),
         });
         // Op mismatch: method says TreasurySpend, args carry a different opcode.
         await timelock.sendQueue(deployer.getSender(), {
@@ -1690,9 +1690,9 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
             target: target.address,
             method: BigInt(OP_TREASURY_SPEND),
             args: beginCell().storeUint(0x1234, 32).storeUint(0, 64).endCell(),
-            delay: BigInt(DAY),
+            delay: BigInt(2 * DAY),
         });
-        advanceTime(blockchain, DAY + 1);
+        advanceTime(blockchain, 2 * DAY + 1);
 
         const truncated = await timelock.sendExecutePending(deployer.getSender(), 1n);
         expect(truncated.transactions).toHaveTransaction({
@@ -1726,9 +1726,9 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
             target: target.address,
             method: BigInt(OP_TREASURY_SPEND),
             args: treasurySpendArgsStub(),
-            delay: BigInt(DAY),
+            delay: BigInt(2 * DAY),
         });
-        advanceTime(blockchain, DAY + 1);
+        advanceTime(blockchain, 2 * DAY + 1);
 
         const execTx = await timelock.sendExecutePending(deployer.getSender(), 5n);
         expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });

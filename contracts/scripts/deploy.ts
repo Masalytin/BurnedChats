@@ -17,7 +17,7 @@ import { syncAppConfigs } from './deploy/syncAppConfigs';
  *   (see RUNBOOK-redeploy §B). When set, syncAppConfigs is skipped unless FORCE_SYNC_APP_CONFIGS=1.
  * - LAB_CANCEL_LAG_SEC / LAB_PROPOSAL_PERIOD_SEC / LAB_PROPOSAL_TIMELOCK_DELAY_SEC (lab defaults 30/60/60)
  * - LAB_TIMELOCK_HIGH_VALUE_FLOOR_SEC — Timelock high-value delay floor (IMP-MNAUD-F03);
- *   lab default = LAB_PROPOSAL_TIMELOCK_DELAY_SEC, mainnet/shared always 86400 (24h)
+ *   lab default = LAB_PROPOSAL_TIMELOCK_DELAY_SEC, mainnet/shared always 172800 (48h)
  * - MAINNET_FINALIZE=1 — MANDATORY for mainnet (IMP-MNAUD-F05): verified distribution →
  *   CloseMint → jetton-admin revoke (irreversible). Never set for lab/testnet regression stacks.
  *

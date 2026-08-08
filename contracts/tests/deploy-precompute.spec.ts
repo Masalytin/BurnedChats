@@ -35,7 +35,7 @@ describe('deploy address layout (P5-6-1-1)', () => {
             stakingMaster: master.address,
             stakingLock: lock.address,
             timelock: timelock.address,
-            timelockDelaySec: 86_400n,
+            timelockDelaySec: 172_800n,
             treasury: treasury.address,
         });
 

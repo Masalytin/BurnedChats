@@ -53,8 +53,8 @@ contract Timelock(
     /// emergency path can never carry a treasury drain or vesting revoke (IMP-MNAUD-F03,
     /// owner decision 2026-07-27). Init parameter — NOT a compile-time constant — because a
     /// hard-coded 24h floor would make live lab regression of treasury-spend impossible:
-    /// mainnet deploys pass 86400 (24h), lab short-timer deploys pass a short floor
-    /// (same pattern as LAB_GOV_SHORT_TIMERS in bootstrap.ts).
+    /// mainnet deploys pass 172800 (48h — owner PARAMETERS_DECISION §1), lab short-timer
+    /// deploys pass a short floor (same pattern as LAB_GOV_SHORT_TIMERS in bootstrap.ts).
     highValueDelayFloorSec: Int as uint32,
     pendingActions: map<Int as uint64, PendingAction>,
 ) {
