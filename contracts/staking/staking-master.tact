@@ -812,13 +812,15 @@ contract StakingMaster(
     }
 
     /// IMP-AUDIT-02 — authoritative total-VP snapshot for governance quorum.
-    /// Only the wired Governor may request it. Computes the on-chain Σ VP and echoes the
-    /// pending proposal verbatim so the Governor deploys it with an un-spoofable quorum
-    /// denominator. The remaining value is forwarded back so phase 2 can fund the deploy.
+    /// Only the wired Governor may request it. Computes on-chain Σ VP and the proposer's
+    /// eligibility VP, then echoes the pending proposal so phase 2 can deploy with an
+    /// un-spoofable quorum denominator and minProposalVp gate (IMP-MNAUD-F07).
+    /// The remaining value is forwarded back so phase 2 can fund the deploy.
     receive(msg: RequestTotalVpSnapshot) {
         require(sender() == self.governorAddr, "Only governor");
 
         let totalVp = self.computeTotalVotingPower();
+        let proposerVp = self.computeOwnerVotingPower(msg.proposer);
 
         message(MessageParameters {
             to: self.governorAddr,
@@ -836,6 +838,7 @@ contract StakingMaster(
                 thresholdBps: msg.thresholdBps,
                 timelockDelay: msg.timelockDelay,
                 totalVp: totalVp,
+                proposerVp: proposerVp,
             }.toCell(),
         });
     }

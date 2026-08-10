@@ -825,18 +825,23 @@ aligned on **capital lock**, not live stake at relay moment.
    from StakingMaster `RequestTotalVpSnapshot` → `TotalVpSnapshotReply.totalVp`,
    computes `quorumRequired = totalVp × quorumPercent / 100` and deploys Proposal
    with this denominator.
-2. **Vote weight** on `CastVote` → `GovernorVoteRelay` computed as
+2. **Proposal eligibility (IMP-MNAUD-F07):** same snapshot reply carries
+   `proposerVp = computeOwnerVotingPower(proposer)`. Governor deploys only if
+   `proposerVp ≥ minProposalVp`; otherwise the reserved id is marked cancelled
+   (self-attested `CreateProposal.claimedVp` is only a cheap early filter).
+3. **Vote weight** on `CastVote` → `GovernorVoteRelay` computed as
    `min(claimedVp, Σ VP of stakes with unlockTime > proposal.endTime)`.
    StakingMaster uses `computeOwnerVotingPowerLockedBeyond(voter, voteEndTime)`;
    `voteEndTime` passed by Governor from map `proposalEndTimeById` (same
    `endTime` recorded in init Proposal).
-3. **Consequence:** Flexible tier (`durationSeconds = 0` → `unlockTime = startTime`)
+4. **Consequence:** Flexible tier (`durationSeconds = 0` → `unlockTime = startTime`)
    **does not grant voting rights** — capital can be withdrawn before vote ends.
    Nearest voting tier by default — Silver (lock ~180 days) with voting windows
    1–7 days.
 
 **What is closed:** path "post-snapshot stake in Flexible → vote → unstake" —
-capital-effective quorum capture without lock cost.
+capital-effective quorum capture without lock cost; and CreateProposal spam with
+inflated `claimedVp` but zero on-chain stake (eligibility gate).
 
 **Residual risk (conscious, not full Compound-style prior-votes):** address
 can stake **after** snapshot in locked tier (Silver+) and vote VP

@@ -15,7 +15,8 @@ message(0x5a040101) CreateProposal {
     queryId: Int as uint64;
     proposalType: Int as uint32;
     payload: Cell;
-    /// Proposer self-reported VP; must be ≥ minProposalVp. Used together with staking relay for votes.
+    /// Proposer self-reported VP; cheap early filter (≥ minProposalVp). Authoritative
+    /// eligibility is on-chain `proposerVp` in `TotalVpSnapshotReply` (IMP-MNAUD-F07 VP half).
     claimedVp: Int;
 }
 
@@ -36,9 +37,11 @@ message(0x5a040105) RequestTotalVpSnapshot {
     timelockDelay: Int as uint64;
 }
 
-/// StakingMaster → Governor: authoritative `totalVp` plus the echoed pending proposal.
+/// StakingMaster → Governor: authoritative `totalVp` plus the echoed pending proposal
+/// and the proposer's on-chain VP (IMP-MNAUD-F07 eligibility gate).
 /// The Governor authenticates the source (`sender() == stakingMaster`) and deploys the
-/// Proposal with `quorumRequired = totalVp * quorumPercent / 100`.
+/// Proposal with `quorumRequired = totalVp * quorumPercent / 100` only when
+/// `proposerVp >= minProposalVp`.
 message(0x5a040106) TotalVpSnapshotReply {
     queryId: Int as uint64;
     proposalId: Int as uint64;
@@ -50,6 +53,8 @@ message(0x5a040106) TotalVpSnapshotReply {
     thresholdBps: Int as uint16;
     timelockDelay: Int as uint64;
     totalVp: Int;
+    /// Σ voting power of `proposer` at snapshot time (`computeOwnerVotingPower`).
+    proposerVp: Int;
 }
 
 message(0x5a040102) CastVote {

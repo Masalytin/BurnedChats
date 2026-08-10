@@ -1751,6 +1751,53 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
     });
 });
 
+describe('IMP-MNAUD-F07 VP half — on-chain proposer eligibility', () => {
+    it('rejects CreateProposal when claimedVp is inflated but on-chain VP is below min', async () => {
+        const minVp = 50n * NANO_PER_BURN;
+        const env = await setupGovernance('https://example.com/gov-mnaud-f07-vp-reject.json', minVp);
+        // Seed totalVp > 0 so phase-2 totalVp gate is not the failure mode.
+        const whale = await env.blockchain.treasury('mnaud-f07-vp-whale');
+        await stakeForVp(env, whale, 3, 100n * NANO_PER_BURN);
+
+        const zeroVp = await env.blockchain.treasury('mnaud-f07-vp-zero');
+        const idBefore = await env.governor.getGetProposalCount();
+        const target = await env.blockchain.treasury('mnaud-f07-vp-reject-target');
+
+        const createTx = await env.governor.sendCreateProposal(zeroVp.getSender(), {
+            proposalType: TYPE_PARAM,
+            payload: paramPayload(target.address, 1),
+            claimedVp: minVp, // passes cheap claimed gate; on-chain VP is 0
+        });
+        expect(createTx.transactions).toHaveTransaction({ on: env.governor.address, success: true });
+        expect(createTx.transactions).toHaveTransaction({ on: env.stakingMaster.address, success: true });
+
+        expect(await env.governor.getGetProposalCount()).toBe(idBefore + 1n);
+        expect(await env.governor.getGetProposal(idBefore)).toBeNull();
+        expect(await env.governor.getGetProposalState(idBefore)).toBe(PS_CANCELLED);
+        expect(await env.governor.getGetIsKnownProposal(zeroVp.address)).toBe(false);
+    });
+
+    it('deploys Proposal when on-chain proposer VP meets minProposalVp', async () => {
+        const minVp = 50n * NANO_PER_BURN;
+        const env = await setupGovernance('https://example.com/gov-mnaud-f07-vp-ok.json', minVp);
+        const proposer = await env.blockchain.treasury('mnaud-f07-vp-ok-proposer');
+        await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
+
+        const onChain = await env.stakingMaster.getGetVotingPower(proposer.address);
+        expect(onChain).toBeGreaterThanOrEqual(minVp);
+
+        const { id, proposal } = await createProposal(
+            env,
+            proposer,
+            TYPE_PARAM,
+            paramPayload((await env.blockchain.treasury('mnaud-f07-vp-ok-target')).address, 1),
+        );
+        expect(await env.governor.getGetProposalState(id)).toBe(PS_ACTIVE);
+        expect(await env.governor.getGetIsKnownProposal(proposal.address)).toBe(true);
+        expect((await proposal.getGetProposer()).equals(proposer.address)).toBe(true);
+    });
+});
+
 describe('IMP-MNAUD-F07 cheap half — O(1) knownProposals reverse index', () => {
     it('registers Proposal addresses in knownProposals on create (O(1) lookup)', async () => {
         const env = await setupGovernance('https://example.com/gov-mnaud-f07-index.json');

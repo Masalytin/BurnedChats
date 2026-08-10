@@ -89,7 +89,8 @@ contract Governor(
         require(ctx.value >= ton("0.45"), "Need TON for deploy");
 
         /// Reserve the id now so concurrent creations never collide; the proposal entry
-        /// itself is recorded in phase 2 once the trusted snapshot returns.
+        /// itself is recorded in phase 2 once the trusted snapshot returns (and proposer
+        /// on-chain VP clears minProposalVp — IMP-MNAUD-F07).
         let id = self.proposalCount;
         self.proposalCount = id + 1;
 
@@ -124,17 +125,26 @@ contract Governor(
     }
 
     /// Phase 2 of proposal creation (IMP-AUDIT-02). Authenticated reply from the
-    /// StakingMaster carrying the on-chain total VP. Deploys the Proposal with a quorum
-    /// barrier derived from this trusted denominator, ignoring the proposer's claim.
+    /// StakingMaster carrying the on-chain total VP and proposer eligibility VP.
+    /// Deploys the Proposal with a quorum barrier derived from this trusted denominator.
+    /// IMP-MNAUD-F07: reject under-staked proposers even if `claimedVp` was inflated —
+    /// mark the reserved id cancelled (same tooling path as IMP-AUDIT-18 bounce).
     receive(msg: TotalVpSnapshotReply) {
         require(sender() == self.stakingMaster, "Bad snapshot source");
         require(msg.totalVp > 0, "Bad totalVp snapshot");
 
+        let id = msg.proposalId;
+
+        /// Soft-fail (no `require`): state must persist as CANCELLED; a failed require
+        /// would revert this write and leave a silent proposalCount gap.
+        if (msg.proposerVp < self.minProposalVp) {
+            self.proposalStateById.set(id, GV_CANCELLED);
+            return;
+        }
+
         /// Must be able to form a positive quorum barrier (integer VP units).
         let quorumRequired = self.quorumAbsFromSnapshot(msg.totalVp, msg.quorumPercent);
         require(quorumRequired > 0, "Vp snapshot too low for quorum");
-
-        let id = msg.proposalId;
 
         /// Fresh empty vote map — `initOf` requires explicit empty containers.
         let emptyVotes: map<Address, Int as uint8> = emptyMap();
