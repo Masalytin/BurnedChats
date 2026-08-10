@@ -1158,6 +1158,9 @@ export async function deployBurnStack(
             // contract at the end of bootstrap (SetTimelock), so no EOA retains control.
             jettonTimelockIsDeployer: false,
             timelockGovernorIsDeployer: timelockGovernor.equals(deployer),
+            // PARAMETERS §2 B: persist the on-chain Timelock.governor identity (EOA or multisig).
+            // Fingerprint must NOT confuse this with addresses.governor (the Governor contract).
+            timelockGovernor: friendly(timelockGovernor, testnet),
             // setGovernor re-points the staking master to the real Governor during bootstrap.
             stakingMasterGovernorIsDeployer: false,
             // IMP-MNAUD-F05: true only when the MAINNET_FINALIZE stage verified

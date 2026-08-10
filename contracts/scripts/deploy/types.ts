@@ -24,6 +24,8 @@ export type DeploymentFile = {
         jettonTimelockIsDeployer: boolean;
         timelockGovernorIsDeployer: boolean;
         stakingMasterGovernorIsDeployer: boolean;
+        /** Timelock.init governor address (deployer EOA or TIMELOCK_GOVERNOR multisig). */
+        timelockGovernor?: string;
         /** IMP-MNAUD-F05: MAINNET_FINALIZE stage applied — mintable=false, jetton admin revoked. */
         supplyFinalized?: boolean;
     };

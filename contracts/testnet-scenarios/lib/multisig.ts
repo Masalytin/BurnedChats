@@ -173,14 +173,24 @@ function cellToAddressArray(addrDict: Cell | null): Address[] {
 async function readMultisigData(
     ctx: ScenarioContext,
     multisig: Address,
-): Promise<{ nextOrderSeqno: bigint; threshold: number; signers: Address[] }> {
+): Promise<{ nextOrderSeqno: bigint; threshold: number; signers: Address[]; allowArbitrary: boolean }> {
     const { stack } = await ctx.provider.provider(multisig).get('get_multisig_data', []);
     const nextOrderSeqno = stack.readBigNumber();
     const threshold = Number(stack.readBigNumber());
     const signers = cellToAddressArray(stack.readCellOpt());
     // proposers cell — discard
     stack.readCellOpt();
-    return { nextOrderSeqno, threshold, signers };
+    // allowArbitrarySeqno tips expose nextOrderSeqno as -1 (or ≥ 2^255 as unsigned max).
+    const allowArbitrary = nextOrderSeqno < 0n || nextOrderSeqno >= 1n << 255n;
+    return { nextOrderSeqno, threshold, signers, allowArbitrary };
+}
+
+/** Pick a concrete order id — never pass -1 into get_order_address. */
+export function resolveNewOrderSeqno(nextOrderSeqno: bigint): bigint {
+    if (nextOrderSeqno < 0n || nextOrderSeqno >= 1n << 255n) {
+        return BigInt(Date.now()) * 1_000_000n + BigInt(Math.floor(Math.random() * 1_000_000));
+    }
+    return nextOrderSeqno;
 }
 
 async function readOrderAddress(
@@ -407,7 +417,7 @@ async function makeMultisigGovernorSender(
             throw new Error('multisig Timelock send requires a body cell');
         }
         const fresh = await readMultisigData(ctx, governor);
-        const orderSeqno = fresh.nextOrderSeqno;
+        const orderSeqno = resolveNewOrderSeqno(fresh.nextOrderSeqno);
         const orderAddr = await readOrderAddress(ctx, governor, orderSeqno);
         const action = packTransferAction({
             to: args.to,
@@ -480,32 +490,21 @@ async function makeMultisigGovernorSender(
     return {
         sender,
         address: governor,
-        getSeqno: async () => {
-            const { nextOrderSeqno } = await readMultisigData(ctx, governor);
-            // Prefer on-chain nextOrderSeqno; fall back to local completed count
-            // when the node lags right after execution.
-            return Math.max(Number(nextOrderSeqno), completedOrders);
-        },
+        getSeqno: async () => completedOrders,
         waitSeqnoIncrement: async (fromSeqno: number) => {
-            for (let i = 1; i <= SEQNO_POLL_ATTEMPTS; i += 1) {
-                try {
-                    const { nextOrderSeqno } = await readMultisigData(ctx, governor);
-                    if (Number(nextOrderSeqno) > fromSeqno || completedOrders > fromSeqno) {
-                        return;
-                    }
-                } catch {
-                    // transient
-                }
-                await sleepMs(SEQNO_POLL_SLEEP_MS);
-            }
-            // send() already waited for order execution — treat as soft-ok when
-            // completedOrders advanced locally even if get_multisig_data lags.
+            // send() already waits for order execution and increments completedOrders.
             if (completedOrders > fromSeqno) {
                 return;
             }
+            for (let i = 1; i <= SEQNO_POLL_ATTEMPTS; i += 1) {
+                if (completedOrders > fromSeqno) {
+                    return;
+                }
+                await sleepMs(SEQNO_POLL_SLEEP_MS);
+            }
             throw new Error(
                 `multisig ${governor.toString({ urlSafe: true, bounceable: true })} ` +
-                    `order seqno did not advance from ${fromSeqno}`,
+                    `completedOrders did not advance from ${fromSeqno}`,
             );
         },
     };

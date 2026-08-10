@@ -17,6 +17,7 @@ import {
     packNewOrderBody,
     packOrderApproveBody,
     packTransferAction,
+    resolveNewOrderSeqno,
     selectTimelockGovernorPath,
 } from '../lib/multisig';
 import '@ton/test-utils';
@@ -140,6 +141,21 @@ describe('IMP-MNAUD-F15 — ton-multisig-v2 message packing (offline)', () => {
 
     it('rejects unsupported MULTISIG_KIND via constant', () => {
         expect(NA_MULTISIG_KIND_UNSUPPORTED).toMatch(/ton-multisig-v2/);
+    });
+});
+
+describe('IMP-MNAUD-F15 — resolveNewOrderSeqno (allowArbitrarySeqno)', () => {
+    it('keeps sequential nextOrderSeqno when non-negative and below 2^255', () => {
+        expect(resolveNewOrderSeqno(7n)).toBe(7n);
+        expect(resolveNewOrderSeqno(0n)).toBe(0n);
+    });
+
+    it('replaces -1 / max-uint sentinel with a fresh positive id', () => {
+        const a = resolveNewOrderSeqno(-1n);
+        const b = resolveNewOrderSeqno((1n << 256n) - 1n);
+        expect(a > 0n).toBe(true);
+        expect(b > 0n).toBe(true);
+        expect(a).not.toBe(-1n);
     });
 });
 

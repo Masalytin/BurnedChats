@@ -268,9 +268,11 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         timelockGovernorIsDeployer?: boolean;
         stakingMasterGovernorIsDeployer?: boolean;
         jettonTimelockIsDeployer?: boolean;
+        timelockGovernor?: string;
     };
 
-    if (bootstrap.timelockGovernorIsDeployer) {
+    if (bootstrap.timelockGovernorIsDeployer !== false) {
+        // Default / ordinary lab: Timelock.governor == deployer EOA.
         checks.push(
             check(
                 'timelock-governor',
@@ -278,12 +280,23 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
                 'Timelock.governor is bootstrap deployer',
             ),
         );
+    } else if (bootstrap.timelockGovernor) {
+        // PARAMETERS §2 B / IMP-MNAUD-F15: Timelock.governor is multisig (or other
+        // non-deployer), NOT addresses.governor (the Governor contract).
+        const expectedGov = Address.parse(bootstrap.timelockGovernor);
+        checks.push(
+            check(
+                'timelock-governor',
+                tlGovernor.equals(expectedGov),
+                `Timelock.governor matches bootstrap.timelockGovernor (${bootstrap.timelockGovernor})`,
+            ),
+        );
     } else {
         checks.push(
             check(
                 'timelock-governor',
-                tlGovernor.equals(governor),
-                'Timelock.governor matches deployment governor',
+                false,
+                'timelockGovernorIsDeployer=false but bootstrap.timelockGovernor missing — cannot verify',
             ),
         );
     }

@@ -1,28 +1,29 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-08-07",
+  "deployedAt": "2026-08-10",
   "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260807-tnfs-lab",
+  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260810-tnfs-lab-multisig",
   "addresses": {
-    "jettonMaster": "kQD2OAfbfdV6zLSwbCcXEjGzqORAZJbQ-iJtksIf09_UhWQz",
-    "treasury": "kQDtAHOVbLcQJvhJ5brKXRXelRg7CjSmSJf2vahSszh8ehjO",
-    "treasuryJettonWallet": "kQCNufcfauNUJGm1MUpUA9GRT4hgqZs_ufzyzrvw5-DKYCMM",
-    "stakingPool": "kQD-o-chtfVvfDMp6z3P2ANqiVGKLpnI3fO3Jyoq8Qj7s1G6",
-    "stakingLock": "kQCsefDI84wnlX6FF69W5-D9YQ6NhmkEnAno3dBrElog3QPD",
-    "stakingMaster": "kQDK-AFsBWVRALSdJwpZceNg6N9QWNQ1dLhcy64ZDS5UCFCC",
-    "governor": "kQAmqb37pF3T-Xr9kGz1QZn2mLlGXhsU2jbks8NltwKpo7qL",
-    "timelock": "kQCRwHEGAYfEgg9-fGVE5PcN9g6-L33hMZn6TYg2lel9H27q",
-    "vestingDeveloper": "kQAIMxy3ECt8LNwxynDNFprEOWkM-_ddt0aTO_DEN3FvJnZ1",
-    "vestingEcosystem": "kQDxXdfF_eJRAGvWmS_4YPxSq9e8aKeHV8tGkXIzALfHfEAf",
-    "vestingReserve": "kQDfEAKA8AI0MsitxGW6eu9rpF2_fZGtp_d-m96tG3JwqWty",
+    "jettonMaster": "kQDGVxLfGLO1JFaHO7FDPYCJKWHUSlbAfvAMAjWLALS_Xk5g",
+    "treasury": "kQDe-lfwIMH_Zs7XhMJr2aLWpmnctHU_Pd27YrwZE_yGVq-N",
+    "treasuryJettonWallet": "kQBIxUwcRasuAnZHXjATpE-44vVf8qow8RsWrNh8jXZn0HuB",
+    "stakingPool": "kQAPgFSuJ-4XpDMxm9AQxu8_2LLa7Jvxtf3uHmk5wGQGgvA0",
+    "stakingLock": "kQBhVPntOamLE-mDlVNfqB9J83HoCtNKPo-rN-JU3uKGV-4i",
+    "stakingMaster": "kQBO-ORqOy777XpPYqL6-yj4nmNHm44kcO_lMJxut7R0QYRj",
+    "governor": "kQAtOyNooCNkyJVFaV6DA4hWzw9-Xp2BoKU-cRicNxpVWn4B",
+    "timelock": "kQDfHUtglLTmc0yxj8pD_LZqLHpOLqmHuz9cK-0dsCrCrQk-",
+    "vestingDeveloper": "kQCP3eR7kauoXMRxeDLrU_bYl9iRRb3PIBVxGtCClG_dKYGB",
+    "vestingEcosystem": "kQDjZdG1qM7visD1H8qMjd8OdSNXfWDZuJ2qL1eB1GTXDKI2",
+    "vestingReserve": "kQA-MuMw47RWU51agbnfhe7tPGGNX0ummrFBENMkldwlTpyc",
     "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
     "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
   },
   "bootstrap": {
     "jettonTimelockIsDeployer": false,
-    "timelockGovernorIsDeployer": true,
+    "timelockGovernorIsDeployer": false,
     "stakingMasterGovernorIsDeployer": false,
-    "supplyFinalized": false
+    "supplyFinalized": false,
+    "timelockGovernor": "kQCPr9HzVTPEq9p-Og3dHldHXtludcLX5se0WvxwRGybZaoG"
   },
   "role": "lab",
   "lab": {
@@ -31,8 +32,9 @@
     "proposalPeriodSec": 60,
     "proposalTimelockDelaySec": 60,
     "highValueDelayFloorSec": 60,
-    "mintableAdmin": false,
+    "mintableAdmin": true,
     "deployStakingMasterNano": "10000000000",
-    "notes": "IMP-TNFS-F02+F03+MNAUD-wave: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; Timelock highValueDelayFloorSec=60 (F03); mint-to-pool emission (F01, no vestingStakingAllocation); StakingMaster funded with 10 TON. Post-deploy 2026-08-08 destructive pack: CloseMint + admin revoke (mintable=false, admin=zero). Next full regression needs lab redeploy. Do not syncAppConfigs / do not point Mini App here."
+    "timelockGovernorMultisig": true,
+    "notes": "IMP-TNFS-F02+F03+MNAUD-F15: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; Timelock highValueDelayFloorSec=60 (F03); Timelock.governor=TIMELOCK_GOVERNOR multisig (PARAMETERS §2 B); mint-to-pool emission (F01); StakingMaster 10 TON. Mint open for destructive. Do not syncAppConfigs / do not point Mini App here."
   }
 }
