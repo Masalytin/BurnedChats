@@ -451,12 +451,13 @@ export function assertGovernorMatchesDeployer(onChainGovernor: Address, deployer
     }
 }
 
-/** Gate before sending TimelockQueue: derived deployer must be the on-chain governor. */
+/** Gate before sending TimelockQueue: `senderAddress` must equal on-chain governor
+ * (deploy EOA or multisig — callers pass `resolveTimelockGovernorSender(...).address`). */
 export async function assertTimelockGovernorSender(
     ctx: ScenarioContext,
-    deployer: Address,
+    senderAddress: Address,
 ): Promise<void> {
-    assertGovernorMatchesDeployer(await readTimelockGovernor(ctx), deployer);
+    assertGovernorMatchesDeployer(await readTimelockGovernor(ctx), senderAddress);
 }
 
 export function resolveGovActor(ctx: ScenarioContext): Address {

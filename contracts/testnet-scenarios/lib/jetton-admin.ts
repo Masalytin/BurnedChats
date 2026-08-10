@@ -15,6 +15,10 @@ import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { Timelock } from '../../wrappers/Timelock';
 import { check } from './checks';
 import { resolveDeployerSender } from './gov';
+import {
+    naWhenMultisigGovernorUnavailable,
+    resolveTimelockGovernorSender,
+} from './multisig';
 import { MAX_SUPPLY_NANO } from './matrix-checks';
 import type { CheckResult, ScenarioContext } from '../types';
 
@@ -195,14 +199,22 @@ export async function resolveAdminActor(
     const tl = ctx.provider.open(Timelock.fromAddress(state.timelock));
     const governor = await tl.getGetGovernor();
     // Blueprint signer is Actor A since IMP-TNFS-F06; Timelock.governor is the
-    // deploy wallet (IMP-TNFS-F16). Accept either for the gate — send path uses
-    // resolveDeployerSender when mode=timelock.
+    // deploy wallet or lab multisig (IMP-TNFS-F16 / IMP-MNAUD-F15). Accept any
+    // matching governor sender — send path uses resolveTimelockGovernorSender.
     if (sender && governor.equals(sender)) {
         return { mode: 'timelock' };
     }
     try {
         const deployer = await resolveDeployerSender(ctx);
         if (governor.equals(deployer.address)) {
+            return { mode: 'timelock' };
+        }
+        const msNa = await naWhenMultisigGovernorUnavailable(ctx, governor, deployer.address);
+        if (msNa) {
+            return null;
+        }
+        const govSender = await resolveTimelockGovernorSender(ctx);
+        if (governor.equals(govSender.address)) {
             return { mode: 'timelock' };
         }
     } catch {
@@ -298,30 +310,30 @@ export async function sendJettonAdminBody(
         return;
     }
 
-    // IMP-TNFS-F16: queue/execute must be signed by Timelock.governor (deployer),
-    // not Blueprint Actor A.
-    const deployer = await resolveDeployerSender(ctx);
+    // IMP-TNFS-F16 / IMP-MNAUD-F15: queue/execute via Timelock.governor
+    // (deployer EOA or throwaway multisig), not Blueprint Actor A.
+    const governor = await resolveTimelockGovernorSender(ctx);
     const tl = new Timelock(state.timelock);
     const tlProvider = provider.provider(state.timelock);
     const proposalId = nextProposalId();
     console.log(
-        `[${label}] Timelock queue+execute proposalId=${proposalId} method=0x${method.toString(16)} delay=0 governor=${deployer.address.toString({ urlSafe: true, bounceable: true })}`,
+        `[${label}] Timelock queue+execute proposalId=${proposalId} method=0x${method.toString(16)} delay=0 governor=${governor.address.toString({ urlSafe: true, bounceable: true })}`,
     );
 
-    let seqnoBefore = await deployer.getSeqno();
-    await tl.sendQueue(tlProvider, deployer.sender, {
+    let seqnoBefore = await governor.getSeqno();
+    await tl.sendQueue(tlProvider, governor.sender, {
         proposalId,
-        proposalContract: deployer.address, // dummy; mark-executed uses bounce:false
+        proposalContract: governor.address, // dummy; mark-executed uses bounce:false
         target: state.jettonMaster,
         method,
         args: body,
         delay: 0n,
     });
-    await deployer.waitSeqnoIncrement(seqnoBefore);
+    await governor.waitSeqnoIncrement(seqnoBefore);
 
-    seqnoBefore = await deployer.getSeqno();
-    await tl.sendExecutePending(tlProvider, deployer.sender, proposalId);
-    await deployer.waitSeqnoIncrement(seqnoBefore);
+    seqnoBefore = await governor.getSeqno();
+    await tl.sendExecutePending(tlProvider, governor.sender, proposalId);
+    await governor.waitSeqnoIncrement(seqnoBefore);
 }
 
 export async function pollUntil(

@@ -1,11 +1,10 @@
 /**
  * fs-gov-queue-execute-happy — finalize → timelock queue → execute after delay.
  *
- * Bootstrap constraint: Timelock.governor = deployer EOA, so queue (and the
- * execute attach) are signed by the DEPLOY wallet rebuilt from
- * DEPLOY_WALLET_MNEMONIC (IMP-TNFS-F16) — the runner's Blueprint signer is
- * Actor A since IMP-TNFS-F06 and its TimelockQueue bounces on "Only governor"
- * (external accepted, seqno grows, no pending). Finalize stays with Actor A.
+ * Timelock.governor is either the deploy EOA (ordinary lab) or a throwaway
+ * multisig (lab §2 B rehearsal, IMP-MNAUD-F15). Queue/execute use
+ * `resolveTimelockGovernorSender` — never Blueprint Actor A (IMP-TNFS-F16).
+ * Finalize stays with Actor A.
  */
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import { Treasury } from '../../wrappers/Treasury';
@@ -24,7 +23,6 @@ import {
     parseTreasurySpendPayload,
     readPendingAction,
     readTimelockHighValueFloorSec,
-    resolveDeployerSender,
     resolveGovMaxWaitSec,
     resolveHighValueQueueDelay,
     resolveUsableProposal,
@@ -33,6 +31,7 @@ import {
     waitForProposalState,
     waitUntilUnix,
 } from '../lib/gov';
+import { resolveTimelockGovernorSender } from '../lib/multisig';
 import { sleepMs } from '../lib/treasury';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
@@ -88,11 +87,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     }
 
     if (state === PS_SUCCEEDED) {
-        // IMP-TNFS-F16: TimelockQueue requires sender() == Timelock.governor
-        // (the deploy wallet on the lab tip). Build the deployer sender and
-        // gate on the on-chain governor BEFORE sending anything — missing
-        // mnemonic or a mismatch is a loud fail, not a silent skip.
-        const deployer = await resolveDeployerSender(ctx);
+        // IMP-TNFS-F16 / F15: TimelockQueue requires sender() == Timelock.governor
+        // (deploy EOA or multisig). Gate before sending — missing env / mismatch
+        // is a loud fail, not a silent skip.
+        const deployer = await resolveTimelockGovernorSender(ctx);
         await assertTimelockGovernorSender(ctx, deployer.address);
 
         let pending = await readPendingAction(provider, timelockAddr, latest.id);

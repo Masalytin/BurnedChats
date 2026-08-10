@@ -18,11 +18,15 @@ import { collectVestingAddresses } from './fingerprint';
 import {
     readPendingAction,
     readTimelockHighValueFloorSec,
-    resolveDeployerSender,
+    resolveDeployerSender, // kept for address probes; Timelock sends use multisig helper
     resolveGovMaxWaitSec,
     resolveHighValueQueueDelay,
     waitUntilUnix,
 } from './gov';
+import {
+    naWhenMultisigGovernorUnavailable,
+    resolveTimelockGovernorSender,
+} from './multisig';
 import type { CheckResult, ScenarioContext } from '../types';
 
 /** Matches vesting.tact VestRelease / VestEmergencyRevoke opcodes. */
@@ -336,8 +340,8 @@ export async function sendEmergencyRevokeViaTimelock(
     opts: { vault: Address; timelock: Address; label: string },
 ): Promise<void> {
     const { provider } = ctx;
-    // IMP-TNFS-F16: Timelock.governor is deployer, not Blueprint Actor A.
-    const deployer = await resolveDeployerSender(ctx);
+    // IMP-TNFS-F16 / IMP-MNAUD-F15: Timelock.governor is deployer EOA or lab multisig.
+    const governor = await resolveTimelockGovernorSender(ctx);
     const tl = new Timelock(opts.timelock);
     const tlProvider = provider.provider(opts.timelock);
     const proposalId = nextProposalId();
@@ -345,19 +349,19 @@ export async function sendEmergencyRevokeViaTimelock(
     const floorSec = await readTimelockHighValueFloorSec(provider, opts.timelock);
     const delay = resolveHighValueQueueDelay(0n, floorSec);
     console.log(
-        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=${delay} (floor=${floorSec ?? 'pre-F03 tip'}) value=${VESTING_REVOKE_EXECUTE_TON} governor=${deployer.address.toString({ urlSafe: true, bounceable: true })} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
+        `[${opts.label}] Timelock queue+execute proposalId=${proposalId} method=0x${OP_VEST_EMERGENCY_REVOKE.toString(16)} delay=${delay} (floor=${floorSec ?? 'pre-F03 tip'}) value=${VESTING_REVOKE_EXECUTE_TON} governor=${governor.address.toString({ urlSafe: true, bounceable: true })} vault=${opts.vault.toString({ urlSafe: true, bounceable: true })}`,
     );
 
-    let seqnoBefore = await deployer.getSeqno();
-    await tl.sendQueue(tlProvider, deployer.sender, {
+    let seqnoBefore = await governor.getSeqno();
+    await tl.sendQueue(tlProvider, governor.sender, {
         proposalId,
-        proposalContract: deployer.address,
+        proposalContract: governor.address,
         target: opts.vault,
         method: OP_VEST_EMERGENCY_REVOKE,
         args: body,
         delay,
     });
-    await deployer.waitSeqnoIncrement(seqnoBefore);
+    await governor.waitSeqnoIncrement(seqnoBefore);
 
     if (delay > 0n) {
         // State-based wait: read the actual scheduledTime instead of trusting the
@@ -385,15 +389,15 @@ export async function sendEmergencyRevokeViaTimelock(
         }
     }
 
-    seqnoBefore = await deployer.getSeqno();
+    seqnoBefore = await governor.getSeqno();
     await tl.sendExecutePending(
         tlProvider,
-        deployer.sender,
+        governor.sender,
         proposalId,
         0n,
         VESTING_REVOKE_EXECUTE_TON,
     );
-    await deployer.waitSeqnoIncrement(seqnoBefore);
+    await governor.waitSeqnoIncrement(seqnoBefore);
 }
 
 export async function sleepMs(ms: number): Promise<void> {
@@ -654,15 +658,28 @@ export async function naWhenEmergencyRevoke(ctx: ScenarioContext): Promise<strin
         return NA_NOTHING_TO_REVOKE;
     }
     const tl = ctx.provider.open(Timelock.fromAddress(withRemaining.schedule.timelock));
-    const governor = await tl.getGetGovernor();
-    // Blueprint signer is Actor A; Timelock.governor is deployer (IMP-TNFS-F16).
+    const onChainGovernor = await tl.getGetGovernor();
+    // Blueprint signer is Actor A; Timelock.governor is deployer EOA or multisig
+    // (IMP-TNFS-F16 / IMP-MNAUD-F15).
     const blueprint = ctx.provider.sender().address;
-    if (blueprint && governor.equals(blueprint)) {
+    if (blueprint && onChainGovernor.equals(blueprint)) {
         return null;
     }
     try {
         const deployer = await resolveDeployerSender(ctx);
-        if (governor.equals(deployer.address)) {
+        if (onChainGovernor.equals(deployer.address)) {
+            return null;
+        }
+        const msNa = await naWhenMultisigGovernorUnavailable(
+            ctx,
+            onChainGovernor,
+            deployer.address,
+        );
+        if (msNa) {
+            return msNa;
+        }
+        const govSender = await resolveTimelockGovernorSender(ctx);
+        if (onChainGovernor.equals(govSender.address)) {
             return null;
         }
     } catch {

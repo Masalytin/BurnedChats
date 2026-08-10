@@ -141,10 +141,13 @@ Timelock queue/execute via `DEPLOY_WALLET_MNEMONIC` / deployer (IMP-TNFS-F16).
    and also ensures the Order **librarian** (masterchain library) is active.
 4. Redeploy lab (`LAB_GOV_SHORT_TIMERS=1`, `TIMELOCK_GOVERNOR` set). Confirm
    `bootstrap.timelockGovernorIsDeployer=false` in `testnet-lab.json`.
-5. **Harness gap (IMP-MNAUD-F15):** live scenarios still send Timelock queue/execute via
-   deployer EOA (`resolveDeployerSender`). With a multisig tip that path bounces
-   «Only governor» until F15 wires order+approve. Env + throwaway deploy can be ready
-   before F15; do not claim live §2 B rehearsal until F15 lands.
+5. **Harness (IMP-MNAUD-F15):** `testnet-scenarios/lib/multisig.ts` —
+   `resolveTimelockGovernorSender` uses deployer EOA when `get_governor` equals
+   the deploy wallet; otherwise packs ton-multisig-v2 `new_order` + ≥threshold
+   `approve` and delivers Timelock queue/execute from the multisig. Incomplete
+   signer env → explicit N/A / loud error (no false-PASS). After setting
+   `TIMELOCK_GOVERNOR`, **redeploy** lab (`LAB_GOV_SHORT_TIMERS=1`) — Timelock
+   address changes with governor init.
 
 **Security:** do not put mainnet multisig signer mnemonics in `.env.testnet`.
 Secrets must never appear in `reports/*.json` or git commits (`.env*` is gitignored).
