@@ -618,7 +618,7 @@ contract BurnJettonWallet(
             perInternalDeployTon,
             treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
         );
-        let feeFanoutTonRequired = deliverTon + poolDeliverTon + treasDeliverTon + ton("0.06") + ton("0.05");
+        let feeFanoutTonRequired = deliverTon + poolDeliverTon + treasDeliverTon + ton("0.06") + ton("0.15");
         require(ctx.value >= feeFanoutTonRequired, "Insufficient TON for fee fanout");
 
         self.balance -= amount;
@@ -687,6 +687,11 @@ contract BurnJettonWallet(
         });
 
         requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination);
+        // IMP-MNAUD-F14: fee sinks are deployed with emptyCfg on first fanout —
+        // push feeConfig to pool/treasury JW so later spend/relay paths are not
+        // stuck at exit 21507 when bootstrap sync raced an uninit wallet.
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.poolOwner);
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.treasuryOwner);
         returnTransferSurplusToOwner(queryId, responseDestination, self.owner);
     }
 

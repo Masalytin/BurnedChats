@@ -330,12 +330,15 @@ contract BurnJettonMaster(
             excluded_head: self.excludedHead,
         };
 
-        message(MessageParameters {
-            body: cfg.toCell(),
-            to: getBurnJettonWalletByOwner(owner),
+        // IMP-MNAUD-F14: deploy with StateInit so SyncFeeConfigToWallet activates
+        // uninit wallets (treasury never receives a mint at bootstrap). Same init
+        // as mint; body is JettonUpdateFeeConfig (emptyCfg → active on receive).
+        deploy(DeployParameters {
             value: 0,
             bounce: false,
             mode: SendRemainingValue | SendIgnoreErrors,
+            body: cfg.toCell(),
+            init: getBurnJettonWalletInit(owner),
         });
     }
 

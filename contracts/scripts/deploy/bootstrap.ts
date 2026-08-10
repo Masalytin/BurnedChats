@@ -294,11 +294,9 @@ async function ensureWalletFeeConfigSynced(
 }
 
 /**
- * `pushFeeConfigToOwner` does not deploy an uninit JW (no StateInit). Treasury never
- * receives a mint, so bootstrap SyncFeeConfigToWallet is a no-op until the first fee
- * leg deploys the wallet with an empty feeConfig — leaving spend transfers at exit
- * 21507. Repair: excluded-path dust transfer from a funded holder triggers
- * `requestRecipientFeeConfigSync` (lab triage 2026-08-07).
+ * `pushFeeConfigToOwner` deploys JW with StateInit (IMP-MNAUD-F14). Dust repair
+ * remains defense-in-depth if sync still leaves a wallet inactive (node lag /
+ * underfunded sync attach). Hard-fails when repair cannot activate feeConfig.
  */
 async function repairInactiveFeeConfigViaDustTransfer(
     provider: NetworkProvider,

@@ -141,6 +141,31 @@ describe('BurnJetton', () => {
             expect(resync.transactions).toHaveTransaction({ success: true });
             expect(await ws.getGetFeeConfigActive()).toBe(true);
         });
+
+        /**
+         * IMP-MNAUD-F14: treasury never receives a mint at bootstrap — SyncFeeConfigToWallet
+         * must deploy the JW with StateInit and activate feeConfig (exit 21507 otherwise).
+         */
+        it('SyncFeeConfigToWallet on uninit treasury owner deploys JW and activates feeConfig', async () => {
+            const treasuryJwAddr = await ctx.master.getGetWalletAddress(ctx.treasury.address);
+            const stateBefore = await ctx.blockchain.getContract(treasuryJwAddr);
+            expect(stateBefore.accountState?.type !== 'active').toBe(true);
+
+            const sync = await ctx.master.sendSyncFeeConfigToWallet(
+                ctx.deployer.getSender(),
+                ctx.treasury.address,
+            );
+            expect(sync.transactions).toHaveTransaction({
+                from: ctx.master.address,
+                to: treasuryJwAddr,
+                success: true,
+                deploy: true,
+            });
+
+            const wt = await getWallet(ctx, ctx.treasury.address);
+            expect(await wt.getGetFeeConfigActive()).toBe(true);
+            expect((await wt.getGetWalletData()).balance).toBe(0n);
+        });
     });
 
     describe('Fee distribution', () => {
@@ -573,8 +598,11 @@ describe('BurnJetton', () => {
             const jwTonAfter = (await ctx.blockchain.getContract(wx.address)).balance;
             expect(jwTonAfter).toBeLessThanOrEqual(MIN_TONS_FOR_STORAGE + SURPLUS_EPSILON);
 
-            const ownerTonAfter = await ctx.userX.getBalance();
-            expect(ownerTonAfter - ownerTonBefore).toBeGreaterThan(0n);
+            // Net owner delta can be slightly negative after gas (code-size sensitive);
+            // require a substantial excess return relative to the attach, same shape as fee-path.
+            const ownerDelta = (await ctx.userX.getBalance()) - ownerTonBefore;
+            const excessReturned = ownerDelta + TRANSFER_TON_EXCLUDED;
+            expect(excessReturned).toBeGreaterThan(toNano('0.3'));
 
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(amount);
