@@ -61,7 +61,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const senderWalletAddr = await master.getGetWalletAddress(sender);
     const senderWallet = provider.open(BurnJettonWallet.fromAddress(senderWalletAddr));
 
-    // Strict `>` gate: attach exactly MIN_TON_FEE_PATH_NANO (2.1 TON) must reject.
+    // Strict `>` gate: attach exactly MIN_TON_FEE_PATH_NANO (2.05 TON) must reject.
     const attachNano = MIN_TON_FEE_PATH_NANO;
     console.log(
         `[fs-jetton-transfer-insufficient-gas] probing attach=${attachNano} nano (fee-path gate; expect reject)…`,
@@ -90,7 +90,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-transfer-insufficient-gas',
     title: 'Insufficient-gas transfer (expected reject)',
     description:
-        'Attach at fee-path gate (2.1 TON). Passes only when transfer is rejected/bounced and balances unchanged — never if recipient is credited.',
+        'Attach at fee-path gate (2.05 TON). Passes only when transfer is rejected/bounced and balances unchanged — never if recipient is credited.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-jetton-transfer-ok'],

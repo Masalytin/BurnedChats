@@ -166,7 +166,7 @@ npm run verify:fee-split:testnet
 User-facing BURN sends attach **3.5 TON** to each `JettonTransfer` message
 (`contracts/tests/helpers.ts` → `TRANSFER_TON`; frontend
 `BURN_TRANSFER_ATTACHED_TON` in `frontend/src/ton/transactionBuilder.ts`).
-The wallet contract requires strictly more than **2.1 TON** attached plus forward fees;
+The wallet contract requires strictly more than **2.05 TON** attached plus forward fees;
 see `contracts/jetton/burn-jetton-wallet.tact` and
 [TX-A2AC8E4F-FAIL-REPORT.md](../jetton-unknown-tonviewer-balances/TX-A2AC8E4F-FAIL-REPORT.md).
 

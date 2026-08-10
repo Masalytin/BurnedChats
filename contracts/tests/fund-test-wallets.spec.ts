@@ -74,9 +74,9 @@ describe('fund-test-wallets BURN-leg attach', () => {
         }
     });
 
-    it('default attach clears the fee-split path gate (minTonFeePath 2.1)', () => {
-        expect(MIN_TON_FEE_PATH).toBe(toNano('2.1'));
-        expect(MIN_TON_EXCLUDED_PATH).toBe(toNano('0.65'));
+    it('default attach clears the fee-split path gate (minTonFeePath 2.05)', () => {
+        expect(MIN_TON_FEE_PATH).toBe(toNano('2.05'));
+        expect(MIN_TON_EXCLUDED_PATH).toBe(toNano('0.58'));
         expect(DEFAULT_JETTON_TRANSFER_ATTACH).toBe(toNano('2.5'));
         expect(resolveJettonTransferAttach({})).toBe(DEFAULT_JETTON_TRANSFER_ATTACH);
         expect(DEFAULT_JETTON_TRANSFER_ATTACH).toBeGreaterThan(MIN_TON_FEE_PATH);

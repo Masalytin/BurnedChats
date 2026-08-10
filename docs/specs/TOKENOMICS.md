@@ -249,12 +249,17 @@ fee-exempt.
 2. **Consequence:** volume routed through excluded pools **skips** the 1% fee
    (no burn / staking / treasury cut on those legs). This is an intentional
    fee-bypass for AMM correctness — documented in [SECURITY.md](./SECURITY.md).
-3. **Gas attach is a separate constraint:** even excluded transfers require on-chain
-   `minTonExcludedPath` (≈ **0.65 TON** today); fee-path requires
-   `minTonFeePath` (≈ **2.1 TON**). Typical wallet/DEX defaults (~0.05–0.3 TON)
-   still fail. Burned Chats Mini App attaches ~**3.5 TON** (surplus refunded).
-   Lowering floors for native DEX routers is tracked as
-   **IMP-MNAUD-F16** (`.tact`, not this doc card).
+3. **Gas attach is a separate constraint (IMP-MNAUD-F16 measured floors):**
+   - Fee-path: on-chain `minTonFeePath` = **2.05 TON** (strict `>`; sandbox first
+     credit at ≈2.05 TON with cold recipient + fee fanout). Mini App / custom
+     routers should attach **~2.3–3.5 TON** (surplus refunded).
+   - Excluded-path (F04 DEX pools): `minTonExcludedPath` = **0.58 TON** (sandbox
+     first credit ≈0.58 TON with cold recipient). Partner integrations should
+     attach **≥ ~0.7 TON**.
+   - Typical wallet/DEX **defaults (~0.05–0.3 TON) still fail** — native
+     low-attach DEX UX requires a separate fanout redesign (warm `message()` vs
+     `deploy()`, or lower `perInternalDeployTon`) — see **IMP-MNAUD-F17**, not
+     this card.
 
 Do **not** add arbitrary DEX pools to the excluded list without Timelock
 governance; do **not** treat “$0.01–0.05” network fees as the Jetton attach cost.
@@ -665,7 +670,7 @@ contracts/
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|---------|-----------|
 | **Smart contract bug** | Medium | Critical | Audit, tests, bug bounty |
-| **Low liquidity** | Medium | High | 300 BURN LP allocation; seed only after F04 exclude + adequate attach (F16) |
+| **Low liquidity** | Medium | High | 300 BURN LP allocation; seed only after F04 exclude + adequate attach (F16 floors / F17 for low-attach) |
 | **Whale manipulation** | Medium | High | Low total supply (1000 BURN) itself makes mass buying expensive; large wallet monitoring |
 | **Regulatory issues** | Low | Critical | Utility token, not security |
 | **Low adoption** | Medium | High | Tied to real utility |
@@ -739,8 +744,10 @@ contracts/
 
 Yes, **after** governance excludes the pool addresses (fee-on-transfer otherwise
 breaks AMM balances). Excluded pool volume does **not** pay the 1% protocol fee.
-Transfers still need sufficient **TON attach** (excluded ≈0.65 TON floor today;
-Mini App uses ~3.5 TON). Native router UX with low attach is **IMP-MNAUD-F16**.
+Transfers still need sufficient **TON attach** (excluded floor **0.58 TON** on-chain /
+recommend ~0.7 TON; fee-path floor **2.05 TON** / Mini App ~3.5 TON). Native
+router UX with ~0.05–0.3 TON attach is **out of scope** until fanout redesign
+(**IMP-MNAUD-F17**).
 
 ### Why only 1,000 tokens?
 

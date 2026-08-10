@@ -5,7 +5,7 @@ import "../jetton/burn-jetton-wallet";
 
 /// Lower bound on TON that must accompany a `TreasurySpend` so the outgoing
 /// `JettonTransfer` clears the jetton-wallet excluded-path gate end-to-end
-/// (gate ~0.65 + recipient wallet deploy 0.55 + fee-config sync 0.05 + fwd/gas).
+/// (gate ~0.58 + recipient wallet deploy 0.55 + fee-config sync 0.05 + fwd/gas).
 /// Treasury is on the master excluded list (bootstrap), so the cheaper excluded
 /// path applies, but it still needs ~1 TON of headroom. The actual forwarded
 /// value is relayed from the inbound Timelock message (`SendRemainingValue`),

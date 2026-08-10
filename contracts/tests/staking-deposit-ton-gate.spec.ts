@@ -22,7 +22,7 @@ import '@ton/test-utils';
 const STAKE_ATTACHED_TON = 5_850_540_001n;
 /**
  * Cold / live-resolve stake attach after IMP-MNAUD-F10: wallet no longer treats
- * live-resolve as excluded-path floor; need forward + minTonFeePath (2.1) headroom.
+ * live-resolve as excluded-path floor; need forward + minTonFeePath (2.05) headroom.
  */
 const STAKE_ATTACHED_TON_LIVE_RESOLVE = toNano('8');
 const STAKE_FORWARD_TON = toNano('5');

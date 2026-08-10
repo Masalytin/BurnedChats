@@ -146,8 +146,8 @@ describe('IMP-TNFS-04 matrix check helpers — fee 0.5/0.3/0.2', () => {
         expect(fail.some((c) => !c.ok && c.message.includes('false-pass'))).toBe(true);
     });
 
-    it('insufficient-gas attach uses fee-path gate (2.1 TON), not TOKSIM burn-path', () => {
-        expect(MIN_TON_FEE_PATH_NANO).toBe(toNano('2.1'));
+    it('insufficient-gas attach uses fee-path gate (2.05 TON), not TOKSIM burn-path', () => {
+        expect(MIN_TON_FEE_PATH_NANO).toBe(toNano('2.05'));
         const checks = checkInsufficientGasOutcome({
             recipientDelta: 0n,
             senderJettonDelta: 0n,
@@ -156,7 +156,7 @@ describe('IMP-TNFS-04 matrix check helpers — fee 0.5/0.3/0.2', () => {
         expect(
             checks.some(
                 (c) =>
-                    c.message.includes('2.1') || c.message.includes(String(MIN_TON_FEE_PATH_NANO)),
+                    c.message.includes('2.05') || c.message.includes(String(MIN_TON_FEE_PATH_NANO)),
             ),
         ).toBe(true);
     });

@@ -461,7 +461,7 @@ describe('BurnJetton', () => {
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
         });
 
-        it('fee path rejects attach below 2.1 TON gate (2.0 TON)', async () => {
+        it('fee path rejects attach at/below 2.05 TON gate (2.0 TON)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
@@ -473,6 +473,24 @@ describe('BurnJetton', () => {
                 success: false,
                 exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
             });
+        });
+
+        it('fee path credits at F16 sandbox floor (2.05 TON + fwd clears gate+fanout)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.treasury.address);
+            const wx = await getWallet(ctx, ctx.userX.address);
+            // Strict `>` gate: attach slightly above minTonFeePath so fwd fees clear.
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('2.06'),
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
         });
 
         it('fee path passes with TRANSFER_TON (3.5 TON)', async () => {
@@ -491,8 +509,8 @@ describe('BurnJetton', () => {
         it('live-resolve: attach between excluded and fee floors rejects at wallet (IMP-MNAUD-F10)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const balanceBefore = (await wx.getGetWalletData()).balance;
-            // forward ≥ 1 TON → live-resolve; 1.7 TON clears old minTonExcludedPath (0.65)
-            // gate but not minTonFeePath (2.1) + forward + fwd fees → exit 32113, no debit.
+            // forward ≥ 1 TON → live-resolve; 1.7 TON clears minTonExcludedPath (0.58)
+            // gate but not minTonFeePath (2.05) + forward + fwd fees → exit 32113, no debit.
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,

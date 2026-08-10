@@ -4,11 +4,11 @@ import { toNano } from '@ton/core';
  * Gas constants synced with `contracts/jetton/burn-jetton-wallet.tact`.
  * Update together when tact constants or IMP-JETTON-GAS-02 gates change.
  */
-export const MIN_TON_FEE_PATH_NANO = toNano('2.1');
-/** Target after IMP-JETTON-GAS-02 (current on-chain gate still uses fee-path minimum). */
-export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.65');
+export const MIN_TON_FEE_PATH_NANO = toNano('2.05');
+/** Excluded-path gate (IMP-MNAUD-F16 sandbox first-green ≈ 0.58 TON). */
+export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.58');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
-/** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 decision log. */
+/** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 / F16 decision log. */
 export const RECOMMENDED_FEE_PATH_WARM_NANO = toNano('2.3');
 export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
 

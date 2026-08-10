@@ -63,7 +63,7 @@ export const RECOVERY_TIER = 0;
 export const UNSTAKE_ATTACH_TON = toNano('4.2');
 /**
  * BURN-leg attach: Actor A path is non-excluded → fee-split gate
- * minTonFeePath = 2.1 TON; 2.5 gives margin (live-confirmed, IMP-TNFS-F08).
+ * minTonFeePath = 2.05 TON; 2.5 gives margin (live-confirmed, IMP-TNFS-F08).
  */
 export const BURN_TRANSFER_ATTACH = toNano('2.5');
 /** TON left on the polluted wallet to pay the sweep's own gas/fwd fees. */

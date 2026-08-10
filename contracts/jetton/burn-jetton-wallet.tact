@@ -5,10 +5,12 @@ const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
 const perInternalDeployTon: Int = ton("0.55");
-/// Minimum TON attach gate for fee-split path (5 out_msgs; tune via IMP-JETTON-GAS-06 profiling).
-const minTonFeePath: Int = ton("2.1");
-/// Minimum TON attach gate for excluded sender/recipient bypass (1 deploy + propagate).
-const minTonExcludedPath: Int = ton("0.65");
+/// Minimum TON attach gate for fee-split path (5 out_msgs; F16 sandbox floor ~2.05 TON credit).
+/// Gate is strict `>`; Mini App / partners should attach ~2.3–3.5 TON (surplus refunded).
+const minTonFeePath: Int = ton("2.05");
+/// Minimum TON attach gate for excluded sender/recipient bypass (1 deploy + feeConfig sync).
+/// F16 sandbox first-green credit ≈ 0.58 TON (isolated chain). Still ≫ wallet/DEX default attach.
+const minTonExcludedPath: Int = ton("0.58");
 /// Forward TON at or above this threshold triggers live excluded resolution on master (staking deposits).
 const minForwardForLiveExcludedCheck: Int = ton("1");
 /// TON StakingPool attaches on StakeFeeRewardsAccrue (shared with staking-pool.tact).

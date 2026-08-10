@@ -7,7 +7,7 @@
  *     (Blueprint Sender silently rewrites bounce → TON bounced off the uninit
  *     actor wallet back to the source while the script reported success);
  *   - BURN leg attaches ≥ 2.5 TON (jetton wallet fee-split path gate
- *     minTonFeePath = 2.1 TON; the old 0.1 TON attach died live with exit
+ *     minTonFeePath = 2.05 TON; the old 0.1 TON attach died live with exit
  *     32113 "Insufficient amount of TON attached");
  *   - every leg is verified AFTER the send by re-reading the recipient
  *     balance through toncenter (bounce shows up as a zero delta);
@@ -33,7 +33,7 @@
  *   FUND_ACTOR_TON           — default 35 (full lab staking+gov run ≈ 30 TON live)
  *   FUND_ACTOR_BURN          — default 20
  *   FUND_RECIPIENT_TON       — default 0.05
- *   FUND_JETTON_ATTACH       — default 2.5 (must be ≥ 2.1 = minTonFeePath)
+ *   FUND_JETTON_ATTACH       — default 2.5 (must be ≥ 2.05 = minTonFeePath)
  */
 import { resolve } from 'node:path';
 import { Address, internal, SendMode, toNano } from '@ton/core';
@@ -53,15 +53,15 @@ import type { ManifestKind } from '../testnet-scenarios/types';
 
 // ─── Constants (exported for unit tests) ────────────────────────────────────
 
-/** Fee-split path gate in burn-jetton-wallet.tact (5 out_msgs). */
-export const MIN_TON_FEE_PATH = toNano('2.1');
+/** Fee-split path gate in burn-jetton-wallet.tact (5 out_msgs; IMP-MNAUD-F16). */
+export const MIN_TON_FEE_PATH = toNano('2.05');
 /** Excluded sender/recipient bypass gate (informational — Actor A must be non-excluded). */
-export const MIN_TON_EXCLUDED_PATH = toNano('0.65');
+export const MIN_TON_EXCLUDED_PATH = toNano('0.58');
 /**
  * Default BURN-leg attach. Actor A is non-excluded by design, so the transfer
- * takes the fee-split path and must clear minTonFeePath (2.1) plus forward
+ * takes the fee-split path and must clear minTonFeePath (2.05) plus forward
  * fees; 2.5 gives margin (live-confirmed 2026-07-23). The excluded path only
- * needs 0.65 but never applies here.
+ * needs ~0.58 but never applies here.
  */
 export const DEFAULT_JETTON_TRANSFER_ATTACH = toNano('2.5');
 /** Default Actor A TON budget: full lab staking+gov run consumed ≈ 30 TON live. */
@@ -140,7 +140,7 @@ export function resolveJettonTransferAttach(env: NodeJS.ProcessEnv = process.env
     const value = toNano(raw);
     if (value < MIN_TON_FEE_PATH) {
         throw new Error(
-            `FUND_JETTON_ATTACH=${raw} TON < minTonFeePath 2.1 TON — the non-excluded fee-split path ` +
+            `FUND_JETTON_ATTACH=${raw} TON < minTonFeePath 2.05 TON — the non-excluded fee-split path ` +
                 'rejects the transfer with exit 32113 (live 2026-07-23). Use ≥ 2.5.',
         );
     }
@@ -192,7 +192,7 @@ Env (never printed to stdout):
   FUND_ACTOR_TON               default 35 (full lab staking+gov run ≈ 30 TON)
   FUND_ACTOR_BURN              default 20
   FUND_RECIPIENT_TON           default 0.05
-  FUND_JETTON_ATTACH           default 2.5 (≥ 2.1 minTonFeePath; exit 32113 below)
+  FUND_JETTON_ATTACH           default 2.5 (≥ 2.05 minTonFeePath; exit 32113 below)
 
 Notes:
   - Manifest selects jetton tip under test (shared|lab). Do not syncAppConfigs lab→app.
@@ -274,7 +274,7 @@ function printPlan(
     console.log('  actor A      ', fmtAddr(plan.actor));
     console.log('  actor TON    ', plan.actorTon.toString(), 'nano (non-bounceable)');
     console.log('  actor BURN   ', plan.actorBurn.toString(), 'nano');
-    console.log('  BURN attach  ', plan.jettonAttach.toString(), 'nano (fee path ≥ 2.1 TON gate)');
+    console.log('  BURN attach  ', plan.jettonAttach.toString(), 'nano (fee path ≥ 2.05 TON gate)');
     console.log('  init actor?  ', plan.initActor);
     if (extras?.actorState) {
         console.log('  actor state  ', extras.actorState);

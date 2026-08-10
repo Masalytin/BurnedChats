@@ -147,7 +147,7 @@ contract Timelock(
                 .endCell();
 
             /// High-value targets cannot run on a fixed 0.12 TON:
-            /// - TreasurySpend: jetton-wallet excluded gate (~0.65 TON) + recipient deploy
+            /// - TreasurySpend: jetton-wallet excluded gate (~0.58 TON) + recipient deploy
             /// - VestEmergencyRevoke: Vesting.ReleaseTon (3.5 TON) for excluded transfer
             /// Relay the executor-provided budget end-to-end instead of paying from
             /// Timelock's (storage-only) balance. `SendIgnoreErrors` is intentionally

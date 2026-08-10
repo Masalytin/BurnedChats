@@ -19,9 +19,9 @@ describe('IMP-JETTON-GAS-04 — estimateJettonTransferTon', () => {
         expect(estimate.recommendedNano).toBe(TRANSFER_TON_NANO);
     });
 
-    it('fee path minimum is strictly greater than 2.1 TON gate', () => {
+    it('fee path minimum is strictly greater than 2.05 TON gate', () => {
         const estimate = estimateJettonTransferTon({ feePath: true });
-        expect(estimate.minimumNano).toBeGreaterThan(2_100_000_000n);
+        expect(estimate.minimumNano).toBeGreaterThan(2_050_000_000n);
         expect(estimate.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
     });
 
