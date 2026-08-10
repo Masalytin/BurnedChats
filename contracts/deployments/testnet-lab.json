@@ -32,9 +32,9 @@
     "proposalPeriodSec": 60,
     "proposalTimelockDelaySec": 60,
     "highValueDelayFloorSec": 60,
-    "mintableAdmin": true,
+    "mintableAdmin": false,
     "deployStakingMasterNano": "10000000000",
     "timelockGovernorMultisig": true,
-    "notes": "IMP-TNFS-F02+F03+MNAUD-F15: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; Timelock highValueDelayFloorSec=60 (F03); Timelock.governor=TIMELOCK_GOVERNOR multisig (PARAMETERS §2 B); mint-to-pool emission (F01); StakingMaster 10 TON. Mint open for destructive. Do not syncAppConfigs / do not point Mini App here."
+    "notes": "IMP-TNFS-F02+F03+MNAUD-F15: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; Timelock highValueDelayFloorSec=60 (F03); Timelock.governor=TIMELOCK_GOVERNOR multisig (PARAMETERS §2 B); mint-to-pool (F01); StakingMaster 10 TON. Post-deploy 2026-08-10 destructive pack PASS via multisig: CloseMint + admin revoke + vesting emergency-revoke (mintable=false, admin=zero). Next full regression needs lab redeploy. Do not syncAppConfigs / do not point Mini App here."
   }
 }
