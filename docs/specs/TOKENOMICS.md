@@ -50,7 +50,7 @@ The name and mechanics of the **BURN** token align perfectly with the Burned Cha
 |--------------|----------|
 | **Native integration** | TON is built into Telegram via @wallet |
 | **Instant transactions** | ~5 seconds to confirm |
-| **Low fees** | ~$0.01–0.05 per transaction (gas paid in native coin **GRAM**) |
+| **Low fees** | ~$0.01–0.05 **network** gas in native coin **GRAM** for ordinary TON txs — **not** the Jetton transfer attach required by BURN wallets (see [DEX / transfer attach](#dex-listing-and-transfer-attach-imp-mnaud-f04)) |
 | **TON Connect** | Seamless authorization in Mini App |
 | **Jetton standard** | Proven token standard |
 | **Ecosystem** | DeDust, STON.fi, Tonkeeper |
@@ -231,7 +231,33 @@ Total Supply: 1,000 BURN
 | **Community Airdrop** | 200 | 20% | — | Early BurnedChats users |
 | **Staking Rewards** | 300 | 30% | — (on-chain emission, 3 years) | Staking rewards (linear distribution) |
 | **Ecosystem** | 150 | 15% | 2 years | Grants, partnerships, marketing |
-| **Liquidity** | 300 | 30% | — | DEX pools (DeDust, STON.fi) |
+| **Liquidity** | 300 | 30% | — | DEX pools (DeDust, STON.fi) — **only after** governance-exclude of pool addresses (F04 path 2); see below |
+
+### DEX listing and transfer attach (IMP-MNAUD-F04)
+
+BURN is a **fee-on-transfer** Jetton: non-excluded transfers take 1% (0.5% burn /
+0.3% staking / 0.2% treasury), so the recipient receives **net**, not the
+full sent amount. That breaks naive AMM accounting if the pool is **not**
+fee-exempt.
+
+**Product decision (owner 2026-08-10, PARAMETERS §5.3 B + F04 path 2):**
+
+1. **Before seeding LP** on a public DEX, governance (Timelock) must
+   `AddExcluded` the pool contract address (and any related jetton-wallet owner
+   the pool uses as transfer endpoint, if distinct). Then sync feeConfig to
+   affected wallets.
+2. **Consequence:** volume routed through excluded pools **skips** the 1% fee
+   (no burn / staking / treasury cut on those legs). This is an intentional
+   fee-bypass for AMM correctness — documented in [SECURITY.md](./SECURITY.md).
+3. **Gas attach is a separate constraint:** even excluded transfers require on-chain
+   `minTonExcludedPath` (≈ **0.65 TON** today); fee-path requires
+   `minTonFeePath` (≈ **2.1 TON**). Typical wallet/DEX defaults (~0.05–0.3 TON)
+   still fail. Burned Chats Mini App attaches ~**3.5 TON** (surplus refunded).
+   Lowering floors for native DEX routers is tracked as
+   **IMP-MNAUD-F16** (`.tact`, not this doc card).
+
+Do **not** add arbitrary DEX pools to the excluded list without Timelock
+governance; do **not** treat “$0.01–0.05” network fees as the Jetton attach cost.
 | **Reserve** | 43 | 4.3% | 3 years | Unforeseen expenses |
 
 ### Vesting Schedule
@@ -639,7 +665,7 @@ contracts/
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|---------|-----------|
 | **Smart contract bug** | Medium | Critical | Audit, tests, bug bounty |
-| **Low liquidity** | Medium | High | Increased LP allocation (30%, 300 BURN) for DEX depth |
+| **Low liquidity** | Medium | High | 300 BURN LP allocation; seed only after F04 exclude + adequate attach (F16) |
 | **Whale manipulation** | Medium | High | Low total supply (1000 BURN) itself makes mass buying expensive; large wallet monitoring |
 | **Regulatory issues** | Low | Critical | Utility token, not security |
 | **Low adoption** | Medium | High | Tied to real utility |
@@ -708,6 +734,13 @@ contracts/
 ---
 
 ## FAQ
+
+### Can BURN trade on DeDust / STON.fi?
+
+Yes, **after** governance excludes the pool addresses (fee-on-transfer otherwise
+breaks AMM balances). Excluded pool volume does **not** pay the 1% protocol fee.
+Transfers still need sufficient **TON attach** (excluded ≈0.65 TON floor today;
+Mini App uses ~3.5 TON). Native router UX with low attach is **IMP-MNAUD-F16**.
 
 ### Why only 1,000 tokens?
 

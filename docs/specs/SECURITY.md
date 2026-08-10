@@ -944,6 +944,32 @@ recipient cannot bypass fee. Wallet authorized: sender jetton wallet == caller;
 
 Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
 
+### DEX pools as excluded addresses (IMP-MNAUD-F04)
+
+**Product:** public DEX liquidity (300 BURN allocation) is allowed only if pool
+endpoints are **governance-excluded** before LP seed — otherwise fee-on-transfer
+delivers `net` to the pool and breaks AMM reserves ([TOKENOMICS.md](./TOKENOMICS.md)).
+
+**Fee-bypass consequence:** once a pool (or its jetton-wallet owner) is on
+`excludedHead`, Jetton transfers where sender or recipient is that address take
+the **excluded path** (no 1% burn/staking/treasury split). Attackers cannot
+self-exclude: only Timelock/`AddExcluded` (jetton admin) mutates the list
+(≤64 entries). Removing a pool later (`RemoveExcluded`) restores fees but may
+desync AMM expectations — treat as high-care ops.
+
+**Gas is orthogonal:** excluded path still enforces `minTonExcludedPath` (≈0.65 TON);
+fee path enforces `minTonFeePath` (≈2.1 TON). Default wallet/DEX attaches
+(~0.05–0.3 TON) remain insufficient until **IMP-MNAUD-F16** or a custom high-attach
+router / Mini App path (~3.5 TON).
+
+**Ops checklist before seeding LP:**
+
+1. Deploy / identify pool transfer endpoint address(es).
+2. Timelock-queue `AddExcluded` for each; wait delay; execute.
+3. `SyncFeeConfigToWallet` / propagate so active wallets see the snapshot.
+4. Record addresses in mainnet custody / runbook (not deployer EOA).
+5. Only then transfer LP BURN into the pool.
+
 ---
 
 ## Rooms
