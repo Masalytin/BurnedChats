@@ -131,15 +131,20 @@ Timelock queue/execute via `DEPLOY_WALLET_MNEMONIC` / deployer (IMP-TNFS-F16).
 **Lab tip with real multisig governor (agent can test without the owner online):**
 
 1. Deploy a **throwaway** testnet multisig (never mainnet keys / never prod signers).
+   Helper (needs a local compile of [ton-blockchain/multisig-contract-v2](https://github.com/ton-blockchain/multisig-contract-v2)
+   → set `MULTISIG_V2_BUILD` to its `build/`):
+   `node -r dotenv/config scripts/deploy/deploy-throwaway-timelock-multisig.cjs dotenv_config_path=.env.testnet`
+   Env helpers / readiness: `scripts/deploy/multisig-env.ts` (+ `tests/multisig-env.spec.ts`).
 2. Set `TIMELOCK_GOVERNOR` + fill `MULTISIG_SIGNER_*_MNEMONIC` (≥ `MULTISIG_THRESHOLD`)
    and `MULTISIG_THRESHOLD` / `MULTISIG_KIND` in `.env.testnet` (gitignored).
-3. Fund the multisig with testnet TON (queue/execute attaches).
+3. Fund the multisig with testnet TON (queue/execute attaches) — the helper funds ~1.5 TON
+   and also ensures the Order **librarian** (masterchain library) is active.
 4. Redeploy lab (`LAB_GOV_SHORT_TIMERS=1`, `TIMELOCK_GOVERNOR` set). Confirm
    `bootstrap.timelockGovernorIsDeployer=false` in `testnet-lab.json`.
-5. **Harness gap:** live scenarios do not yet wrap Timelock sends through a
-   multisig order — env keys above are reserved so an agent can implement that
-   path once the throwaway multisig + mnemonics are present. Until then only
-   address wiring / dry-run / unit tests exercise `TIMELOCK_GOVERNOR`.
+5. **Harness gap (IMP-MNAUD-F15):** live scenarios still send Timelock queue/execute via
+   deployer EOA (`resolveDeployerSender`). With a multisig tip that path bounces
+   «Only governor» until F15 wires order+approve. Env + throwaway deploy can be ready
+   before F15; do not claim live §2 B rehearsal until F15 lands.
 
 **Security:** do not put mainnet multisig signer mnemonics in `.env.testnet`.
 Secrets must never appear in `reports/*.json` or git commits (`.env*` is gitignored).
