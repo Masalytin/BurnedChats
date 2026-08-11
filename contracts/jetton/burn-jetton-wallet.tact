@@ -8,8 +8,8 @@ const perInternalDeployTon: Int = ton("0.55");
 /// Minimum TON attach gate for fee-split path (5 out_msgs; F16 sandbox floor ~2.05 TON credit).
 /// Gate is strict `>`; Mini App / partners should attach ~2.3–3.5 TON (surplus refunded).
 const minTonFeePath: Int = ton("2.05");
-/// Minimum TON attach gate for excluded sender/recipient bypass (1 deploy + feeConfig sync).
-/// F16 sandbox first-green credit ≈ 0.58 TON (isolated chain). Still ≫ wallet/DEX default attach.
+/// Legacy excluded-path floor (F16 ≈ 0.58). Unused as JettonTransfer entry gate after
+/// IMP-MNAUD-F11 (claimed-excluded always resolves → minTonFeePath). Kept for docs/parity.
 const minTonExcludedPath: Int = ton("0.58");
 /// Forward TON at or above this threshold triggers live excluded resolution on master (staking deposits).
 const minForwardForLiveExcludedCheck: Int = ton("1");
@@ -723,32 +723,24 @@ contract BurnJettonWallet(
         let ctx = context();
         let fwd = ctx.readForwardFee();
         let recipientForwards = 1 + sign(msg.forwardTonAmount);
-        // Live-resolve (forward ≥ minForwardForLiveExcludedCheck, neither party
-        // locally excluded) may still execute the fee path after master resolve —
-        // require minTonFeePath so under-gassed attaches fail at wallet entry
-        // instead of stranding TON on master (MNAUD-10 / IMP-MNAUD-F10).
-        let minTonRequired = (senderExcludedLocal || destExcludedLocal)
-            ? minTonExcludedPath
-            : minTonFeePath;
+        // IMP-MNAUD-F11: local snapshot claiming excluded is NOT authoritative —
+        // that branch always hops to ResolveJettonTransfer (may execute fee path
+        // after RemoveExcluded). Entry gate is therefore always minTonFeePath;
+        // surplus is refunded when master confirms the transfer is still excluded.
+        // (Warm P2P with neither side locally excluded keeps the direct fee path.)
+        let minTonRequired = minTonFeePath;
         require(
             ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
             "Insufficient amount of TON attached",
         );
 
-        if (senderExcludedLocal || destExcludedLocal) {
-            self.executeJettonTransfer(
-                msg.queryId,
-                msg.amount,
-                msg.destination,
-                msg.responseDestination,
-                msg.forwardTonAmount,
-                msg.forwardPayload,
-                true,
-            );
-            return;
-        }
-
-        if (msg.forwardTonAmount >= minForwardForLiveExcludedCheck) {
+        // IMP-MNAUD-F11 / STKFEE-02: never trust local excluded==true (stale-remove
+        // fee-bypass). Also resolve when forward ≥ 1 TON (stale-add / staking).
+        if (
+            senderExcludedLocal ||
+            destExcludedLocal ||
+            msg.forwardTonAmount >= minForwardForLiveExcludedCheck
+        ) {
             nativeReserve(minTonsForStorage, ReserveAtMost);
             message(MessageParameters {
                 to: self.master,

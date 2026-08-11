@@ -17,7 +17,6 @@ import {
     NANO_PER_BURN,
     setupExcluded,
     TRANSFER_TON,
-    TRANSFER_TON_EXCLUDED,
     transferAndAssertFees,
     type JettonDeployedContext,
 } from './helpers';
@@ -375,11 +374,12 @@ describe('BurnJetton', () => {
 
             const wx = await getWallet(ctx, ctx.userX.address);
             const ten = 10n * NANO_PER_BURN;
+            // F11: claimed-excluded resolves on master → fee-path attach.
             await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: ten,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(ten);
@@ -411,13 +411,13 @@ describe('BurnJetton', () => {
                 jettonAmount: ten,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.staking.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(ten);
         });
 
-        it('excluded transfer passes with reduced attach (0.7 TON)', async () => {
+        it('excluded transfer passes with fee-path attach after live resolve (IMP-MNAUD-F11)', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
             await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
@@ -428,14 +428,14 @@ describe('BurnJetton', () => {
                 jettonAmount: amount,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
             expect(r.transactions).toHaveTransaction({ success: true });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(amount);
         });
 
-        it('excluded transfer rejects insufficient attach (0.5 TON → exit 32113)', async () => {
+        it('excluded claim rejects attach below minTonFeePath (0.5 TON → exit 32113)', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 10n * NANO_PER_BURN, 1n, MINT_TON);
             await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
@@ -609,7 +609,7 @@ describe('BurnJetton', () => {
                 jettonAmount: amount,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
             expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
 
@@ -619,7 +619,7 @@ describe('BurnJetton', () => {
             // Net owner delta can be slightly negative after gas (code-size sensitive);
             // require a substantial excess return relative to the attach, same shape as fee-path.
             const ownerDelta = (await ctx.userX.getBalance()) - ownerTonBefore;
-            const excessReturned = ownerDelta + TRANSFER_TON_EXCLUDED;
+            const excessReturned = ownerDelta + TRANSFER_TON;
             expect(excessReturned).toBeGreaterThan(toNano('0.3'));
 
             const wy = await getWallet(ctx, ctx.userY.address);
@@ -1112,7 +1112,7 @@ describe('BurnJetton', () => {
                 jettonAmount: burnLeg,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
             expect(xfer.transactions).toHaveTransaction({ from: wx.address, success: true });
             expect((await wx.getGetWalletData()).balance).toBe(95n * NANO_PER_BURN);
@@ -1183,12 +1183,43 @@ describe('BurnJetton', () => {
                 jettonAmount: amount,
                 destinationOwner: ctx.staking.address,
                 responseDestination: ctx.userX.address,
-                value: TRANSFER_TON_EXCLUDED,
+                value: TRANSFER_TON,
             });
 
             const wSt = await getWallet(ctx, ctx.staking.address);
             expect((await wSt.getGetWalletData()).balance).toBe(amount);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore);
+        });
+
+        it('RemoveExcluded without SyncFeeConfig: next transfer takes fees (IMP-MNAUD-F11)', async () => {
+            const amount = 10n * NANO_PER_BURN;
+            // Keep totalSupply ≥ 100 BURN so auto-reduce does not shrink the 1% fee.
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+
+            await ctx.master.sendRemoveExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            expect(await ctx.master.getGetIsExcluded(ctx.userY.address)).toBe(false);
+            // Deliberately skip SyncFeeConfig — sender JW snapshot still lists Y as excluded.
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: TRANSFER_TON,
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+
+            const burn = (amount * 50n) / 10000n;
+            const net = amount - (amount * 100n) / 10000n;
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(net);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - burn);
         });
 
         it('non-excluded transfer still charges 1% fee (direct fee path, no master hop)', async () => {

@@ -46,15 +46,13 @@ describe('IMP-TNFS-F21 F16 gas floors matrix', () => {
         }
     });
 
-    it('pins F16 gates and near-floor probes (not DEX 0.05–0.3)', () => {
+    it('pins F16/F11 gates and near-floor probes (not DEX 0.05–0.3)', () => {
         expect(MIN_TON_FEE_PATH_NANO).toBe(toNano('2.05'));
-        expect(MIN_TON_EXCLUDED_PATH_NANO).toBe(toNano('0.58'));
+        expect(MIN_TON_EXCLUDED_PATH_NANO).toBe(toNano('0.58')); // legacy constant; unused as JW entry after F11
         expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBe(toNano('2.06'));
-        expect(EXCLUDED_NEAR_FLOOR_ATTACH_NANO).toBe(toNano('0.60'));
-        // Near-floor probes sit just above gates; never claim native DEX attach.
+        // F11: claimed-excluded uses fee-path near-floor (alias).
+        expect(EXCLUDED_NEAR_FLOOR_ATTACH_NANO).toBe(FEE_NEAR_FLOOR_ATTACH_NANO);
         expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
-        expect(EXCLUDED_NEAR_FLOOR_ATTACH_NANO).toBeGreaterThan(MIN_TON_EXCLUDED_PATH_NANO);
-        expect(EXCLUDED_NEAR_FLOOR_ATTACH_NANO).toBeLessThan(toNano('0.3') + toNano('0.4')); // sanity
         expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBeGreaterThan(toNano('0.3'));
         expect(MIN_TON_EXCLUDED_PATH_NANO).toBeGreaterThan(toNano('0.3'));
     });

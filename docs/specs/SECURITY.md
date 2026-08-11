@@ -928,19 +928,31 @@ to service partner contract; return remainder to initiator or explicit beneficia
 
 ### Fee-exempt Transfers and Stale Excluded Snapshot
 
-**Problem:** `BurnJettonWallet.JettonTransfer` checks excluded status against **local snapshot**
-of sender's `feeConfig`. If `StakingMaster` (or other protocol sink) added to excluded on
-master after user wallet sync, staking deposit charged standard 1% fee
-(mismatch with `TOKENOMICS.md`).
+**Problem (stale-add, STKFEE-02):** `BurnJettonWallet.JettonTransfer` once trusted only the
+**local** `feeConfig` snapshot. If `StakingMaster` (or other protocol sink) was added to
+excluded on master after the sender wallet synced, a staking deposit could still take the
+fee path (mismatch with `TOKENOMICS.md`).
+
+**Problem (stale-remove, IMP-MNAUD-F11):** the inverse bug — after `RemoveExcluded` on master
+without `SyncFeeConfigToWallet`, a wallet whose snapshot still lists the address as excluded
+took the **local fee-free fast-path forever**. Outbound transfers only sync the **recipient**
+wallet, so the sender snapshot never self-healed.
 
 **Accepted mechanism (live resolve on master):**
 
-1. Local fast-path: sender or recipient in local excluded snapshot → excluded transfer.
-2. Normal P2P (`forwardTonAmount < 1 TON`, not locally excluded) → fee path without hop to master
-   (warm-wallet path gas profile preserved).
-3. Protocol notify path (`forwardTonAmount ≥ 1 TON`, typical staking) when not locally
-   excluded → `ResolveJettonTransfer` (wallet → master). Master checks **live** `excludedHead`,
-   pushes current `JettonUpdateFeeConfig` to sender and executes `CommitJettonTransfer`.
+1. **Never trust local `excluded==true`.** If sender or recipient appears in the local
+   excluded snapshot → always `ResolveJettonTransfer` (wallet → master). Master checks
+   **live** `excludedHead`, pushes `JettonUpdateFeeConfig` to sender, and commits with
+   `excludedTransfer` set from live truth (fee path after remove; fee-free if still excluded).
+2. Protocol notify path (`forwardTonAmount ≥ 1 TON`, typical staking) with neither side
+   locally excluded → same resolve hop (covers stale-add).
+3. Normal warm P2P (`forwardTonAmount < 1 TON`, neither side locally excluded) → direct
+   fee path without master hop (gas profile preserved).
+
+**Entry TON gate:** claimed-excluded and fee paths both require `minTonFeePath` (≈2.05 TON
+strict `>`). Surplus is refunded when master confirms the transfer is still excluded.
+The former `minTonExcludedPath` (≈0.58) is no longer an entry gate for `JettonTransfer`
+(F11); under-attach fails at wallet entry instead of stranding value on master.
 
 **Security:** `excludedTransfer=true` in commit set only if address is in
 timelock-managed excluded list on master (`AddExcluded` / `RemoveExcluded`). Arbitrary

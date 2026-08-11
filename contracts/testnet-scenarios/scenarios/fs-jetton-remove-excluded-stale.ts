@@ -1,9 +1,9 @@
 /**
- * fs-jetton-dex-exclude-add-live — Timelock AddExcluded for a throwaway
- * DEX-like owner → SyncFeeConfig → transfer delivers 100% (IMP-TNFS-F23 / F04).
+ * fs-jetton-remove-excluded-stale — RemoveExcluded without SyncFeeConfig →
+ * next transfer still takes 1% fees (IMP-TNFS-F31 / IMP-MNAUD-F11).
  *
- * Lab-only: never mutates shared tip excluded list. RemoveExcluded is F31.
- * Throwaway address is ephemeral (not a production DEX / user wallet).
+ * Lab-only: throwaway owner AddExcluded+Sync → 100% credit → RemoveExcluded
+ * (no Sync) → fee-path attach → assert net 99%. Cleanup is RemoveExcluded itself.
  */
 import { Address, toNano } from '@ton/core';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
@@ -17,10 +17,12 @@ import {
 } from '../lib/balances';
 import {
     buildAddExcludedBody,
+    buildRemoveExcludedBody,
     buildSyncFeeConfigBody,
     createEphemeralWalletSender,
     naWhenDexExcludeLive,
     OP_ADD_EXCLUDED,
+    OP_REMOVE_EXCLUDED,
     OP_SYNC_FEE_CONFIG,
     readJettonAdminState,
     resolveAdminActor,
@@ -29,14 +31,16 @@ import {
 import { resolveDeployerSender } from '../lib/gov';
 import {
     checkExcludedTransferOkBalances,
+    checkTransferOkBalances,
     FEE_NEAR_FLOOR_ATTACH_NANO,
     requireFeeTestRecipient,
+    TRANSFER_TON,
 } from '../lib/matrix-checks';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
-/** Seed throwaway with enough BURN for one excluded transfer + dust. */
-const SEED_BURN = TRANSFER_AMOUNT + 100_000_000n; // 1.1 BURN
-const SEED_TON = toNano('4');
+/** Two transfers (excluded then fee) + dust. */
+const SEED_BURN = TRANSFER_AMOUNT * 2n + 100_000_000n;
+const SEED_TON = toNano('8');
 
 export const naWhen = naWhenDexExcludeLive;
 
@@ -57,7 +61,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const funderBurn = await readJettonWalletBalance(provider, jettonMaster, funder);
     if (funderBurn < SEED_BURN) {
         throw new Error(
-            `Funder BURN ${funderBurn} < ${SEED_BURN} — need ≥1.1 BURN to seed throwaway DEX owner.`,
+            `Funder BURN ${funderBurn} < ${SEED_BURN} — need ≥${Number(SEED_BURN) / 1e9} BURN to seed throwaway.`,
         );
     }
 
@@ -67,16 +71,14 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         throw new Error('admin actor unresolved after naWhen passed');
     }
 
-    // 1) Ephemeral throwaway "DEX-like" owner (never logged / persisted).
     const pool = await createEphemeralWalletSender(ctx);
     console.log(
-        `[fs-jetton-dex-exclude-add-live] throwaway pool=${pool.address.toString({
+        `[fs-jetton-remove-excluded-stale] throwaway=${pool.address.toString({
             urlSafe: true,
             bounceable: true,
         })}`,
     );
 
-    // 2) Fund TON (deployer) + BURN (Blueprint Actor A).
     const deployer = await resolveDeployerSender(ctx);
     let seqno = await deployer.getSeqno();
     await deployer.sender.send({
@@ -93,28 +95,28 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         jettonAmount: SEED_BURN,
         destinationOwner: pool.address,
         responseDestination: funder,
-        value: toNano('3.5'),
+        value: TRANSFER_TON,
     });
     await waitForSenderSeqnoIncrement(provider, seqno);
 
     let poolBurn = await readJettonWalletBalance(provider, jettonMaster, pool.address);
-    for (let i = 0; i < 10 && poolBurn < TRANSFER_AMOUNT; i += 1) {
+    for (let i = 0; i < 10 && poolBurn < TRANSFER_AMOUNT * 2n; i += 1) {
         await new Promise((r) => setTimeout(r, 2_000));
         poolBurn = await readJettonWalletBalance(provider, jettonMaster, pool.address);
     }
-    if (poolBurn < TRANSFER_AMOUNT) {
+    if (poolBurn < TRANSFER_AMOUNT * 2n) {
         throw new Error(
-            `Throwaway pool BURN ${poolBurn} < ${TRANSFER_AMOUNT} after seed — abort before AddExcluded.`,
+            `Throwaway BURN ${poolBurn} < ${TRANSFER_AMOUNT * 2n} after seed — abort.`,
         );
     }
 
-    // 3) Timelock AddExcluded + SyncFeeConfig (lab governor / multisig).
+    // 1) AddExcluded + Sync → excluded transfer 100%.
     await sendJettonAdminBody(ctx, {
         state,
         actor,
         method: OP_ADD_EXCLUDED,
         body: buildAddExcludedBody(pool.address),
-        label: 'fs-jetton-dex-exclude-add-live:AddExcluded',
+        label: 'fs-jetton-remove-excluded-stale:AddExcluded',
     });
 
     let isExcluded = await master.getGetIsExcluded(pool.address);
@@ -123,7 +125,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         isExcluded = await master.getGetIsExcluded(pool.address);
     }
     if (!isExcluded) {
-        throw new Error('AddExcluded did not surface on master getIsExcluded within poll budget');
+        throw new Error('AddExcluded did not surface on master getIsExcluded');
     }
 
     await sendJettonAdminBody(ctx, {
@@ -131,31 +133,22 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         actor,
         method: OP_SYNC_FEE_CONFIG,
         body: buildSyncFeeConfigBody(pool.address),
-        label: 'fs-jetton-dex-exclude-add-live:SyncFeeConfig',
+        label: 'fs-jetton-remove-excluded-stale:SyncFeeConfig',
     });
-    // Allow JW feeConfig push to settle before excluded transfer.
     await new Promise((r) => setTimeout(r, 8_000));
-
-    // 4) Transfer from excluded throwaway → recipient; assert 100%.
-    if (poolBurn < MIN_SENDER_BALANCE && poolBurn < TRANSFER_AMOUNT) {
-        throw new Error(`Excluded pool BURN ${poolBurn} too low for transfer`);
-    }
-    const senderBefore = await readJettonWalletBalance(provider, jettonMaster, pool.address);
-    const recipientBefore = await readJettonWalletBalance(provider, jettonMaster, recipient);
 
     const poolJwAddr = await master.getGetWalletAddress(pool.address);
     const poolJw = provider.open(BurnJettonWallet.fromAddress(poolJwAddr));
-    const attachNano = FEE_NEAR_FLOOR_ATTACH_NANO;
-    console.log(
-        `[fs-jetton-dex-exclude-add-live] excluded transfer amount=${TRANSFER_AMOUNT} attach=${attachNano}…`,
-    );
+
+    let senderBefore = await readJettonWalletBalance(provider, jettonMaster, pool.address);
+    let recipientBefore = await readJettonWalletBalance(provider, jettonMaster, recipient);
 
     seqno = await pool.getSeqno();
     await poolJw.sendTransfer(pool.sender, {
         jettonAmount: TRANSFER_AMOUNT,
         destinationOwner: recipient,
         responseDestination: pool.address,
-        value: attachNano,
+        value: FEE_NEAR_FLOOR_ATTACH_NANO,
     });
     await pool.waitSeqnoIncrement(seqno);
 
@@ -167,33 +160,93 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         senderAfter = await readJettonWalletBalance(provider, jettonMaster, pool.address);
     }
 
-    const balanceChecks = checkExcludedTransferOkBalances({
+    const excludedOk = checkExcludedTransferOkBalances({
         recipientDelta: recipientAfter - recipientBefore,
         senderDelta: senderAfter - senderBefore,
         amount: TRANSFER_AMOUNT,
     });
 
+    // 2) RemoveExcluded WITHOUT SyncFeeConfig — JW snapshot still claims excluded.
+    await sendJettonAdminBody(ctx, {
+        state,
+        actor,
+        method: OP_REMOVE_EXCLUDED,
+        body: buildRemoveExcludedBody(pool.address),
+        label: 'fs-jetton-remove-excluded-stale:RemoveExcluded',
+    });
+
+    let stillExcluded = await master.getGetIsExcluded(pool.address);
+    for (let i = 0; i < 12 && stillExcluded; i += 1) {
+        await new Promise((r) => setTimeout(r, 2_000));
+        stillExcluded = await master.getGetIsExcluded(pool.address);
+    }
+    if (stillExcluded) {
+        throw new Error('RemoveExcluded did not clear master getIsExcluded');
+    }
+
+    // 3) Transfer with fee-path attach → must charge 1% (F11 live-resolve).
+    if (senderAfter < MIN_SENDER_BALANCE && senderAfter < TRANSFER_AMOUNT) {
+        throw new Error(`Throwaway BURN ${senderAfter} too low for post-remove transfer`);
+    }
+
+    senderBefore = await readJettonWalletBalance(provider, jettonMaster, pool.address);
+    recipientBefore = await readJettonWalletBalance(provider, jettonMaster, recipient);
+    const supplyBefore = (await master.getGetJettonData()).totalSupply;
+
+    console.log(
+        `[fs-jetton-remove-excluded-stale] post-RemoveExcluded (no Sync) transfer attach=${TRANSFER_TON}…`,
+    );
+    seqno = await pool.getSeqno();
+    await poolJw.sendTransfer(pool.sender, {
+        jettonAmount: TRANSFER_AMOUNT,
+        destinationOwner: recipient,
+        responseDestination: pool.address,
+        value: TRANSFER_TON,
+    });
+    await pool.waitSeqnoIncrement(seqno);
+
+    recipientAfter = await readJettonWalletBalance(provider, jettonMaster, recipient);
+    senderAfter = await readJettonWalletBalance(provider, jettonMaster, pool.address);
+    for (let attempt = 0; attempt < 10 && recipientAfter === recipientBefore; attempt += 1) {
+        await new Promise((r) => setTimeout(r, 2_000));
+        recipientAfter = await readJettonWalletBalance(provider, jettonMaster, recipient);
+        senderAfter = await readJettonWalletBalance(provider, jettonMaster, pool.address);
+    }
+    const supplyAfter = (await master.getGetJettonData()).totalSupply;
+
+    const feeOk = checkTransferOkBalances({
+        recipientDelta: recipientAfter - recipientBefore,
+        senderDelta: senderAfter - senderBefore,
+        amount: TRANSFER_AMOUNT,
+        supplyDelta: supplyAfter - supplyBefore,
+    });
+
     return [
         check(
-            'throwaway-excluded',
+            'throwaway-was-excluded',
             isExcluded,
-            `pool ${pool.address.toString({ urlSafe: true, bounceable: true })} on master excluded list`,
+            `pool was on master excluded list before RemoveExcluded`,
         ),
-        ...balanceChecks,
+        ...excludedOk,
         check(
-            'cleanup-deferred-f31',
-            true,
-            'RemoveExcluded deferred to IMP-TNFS-F31 (throwaway left excluded on lab tip)',
+            'removed-from-master',
+            !stillExcluded,
+            'getIsExcluded=false after RemoveExcluded (no Sync)',
+        ),
+        ...feeOk,
+        check(
+            'cleanup-remove-done',
+            !stillExcluded,
+            'throwaway not left on excluded list (RemoveExcluded is cleanup)',
         ),
     ];
 }
 
 export const scenario: Scenario = {
-    id: 'fs-jetton-dex-exclude-add-live',
-    title: 'AddExcluded DEX-path live (F04)',
+    id: 'fs-jetton-remove-excluded-stale',
+    title: 'RemoveExcluded stale fee-bypass (F11)',
     description:
-        'Lab: Timelock AddExcluded throwaway DEX-like owner → SyncFeeConfig → transfer delivers 100%. ' +
-        'Shared tip / revoked admin → N/A. RemoveExcluded is F31.',
+        'Lab: AddExcluded+Sync → 100% → RemoveExcluded without Sync → next transfer takes 1% fees (live resolve). Shared tip → N/A.',
     tags: ['jetton', 'admin', 'lab'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],

@@ -5,7 +5,7 @@ import { toNano } from '@ton/core';
  * Update together when tact constants or IMP-JETTON-GAS-02 gates change.
  */
 export const MIN_TON_FEE_PATH_NANO = toNano('2.05');
-/** Excluded-path gate (IMP-MNAUD-F16 sandbox first-green ≈ 0.58 TON). */
+/** Excluded-path legacy gate (F16 ≈ 0.58). Unused as JW entry after IMP-MNAUD-F11. */
 export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.58');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
 /** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 / F16 decision log. */

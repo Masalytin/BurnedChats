@@ -36,8 +36,10 @@ export const MAX_SUPPLY_NANO = 1000n * NANO_PER_BURN;
  * IMP-TNFS-F21 / F16 sandbox first-green probes (strictly above on-chain gates).
  * Not DEX-default 0.05–0.3 TON — those remain impossible without F17 fanout rewrite.
  */
+/** Recommended attach when local snapshot claims excluded (IMP-MNAUD-F11 → resolve). */
 export const FEE_NEAR_FLOOR_ATTACH_NANO = toNano('2.06');
-export const EXCLUDED_NEAR_FLOOR_ATTACH_NANO = toNano('0.60');
+/** @deprecated Alias of fee-path near-floor after F11 (claimed-excluded uses minTonFeePath). */
+export const EXCLUDED_NEAR_FLOOR_ATTACH_NANO = FEE_NEAR_FLOOR_ATTACH_NANO;
 
 /** Sandbox GAS-07 cold fee-path surplus lower bound (ownerDelta + attach). */
 export const SURPLUS_MIN_EXCESS_NANO = toNano('1.5');

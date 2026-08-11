@@ -11,6 +11,7 @@ import {
     storeChangeOwner,
     storeCloseMint,
     storeMint,
+    storeRemoveExcluded,
     storeSyncFeeConfigToWallet,
     type JettonTransferInternal,
 } from '../../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
@@ -46,6 +47,8 @@ export const OP_CHANGE_OWNER = 3n;
 export const OP_MINT = 1680571655n;
 /** Timelock-gated AddExcluded (burn-jetton-wallet.tact / master). */
 export const OP_ADD_EXCLUDED = 0x5a1c8f01n;
+/** Timelock-gated RemoveExcluded (burn-jetton-wallet.tact / master). */
+export const OP_REMOVE_EXCLUDED = 0x5a1c8f02n;
 /** Timelock-gated SyncFeeConfigToWallet. */
 export const OP_SYNC_FEE_CONFIG = 0x3c8f9013n;
 
@@ -260,6 +263,19 @@ export function buildAddExcludedBody(address: Address, queryId: bigint = 0n): Ce
         .store(
             storeAddExcluded({
                 $$type: 'AddExcluded',
+                queryId,
+                address,
+            }),
+        )
+        .endCell();
+}
+
+/** Remove address from master excluded list (IMP-TNFS-F31 / IMP-MNAUD-F11). */
+export function buildRemoveExcludedBody(address: Address, queryId: bigint = 0n): Cell {
+    return beginCell()
+        .store(
+            storeRemoveExcluded({
+                $$type: 'RemoveExcluded',
                 queryId,
                 address,
             }),

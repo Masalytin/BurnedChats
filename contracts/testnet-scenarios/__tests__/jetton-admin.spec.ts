@@ -6,8 +6,10 @@ import {
     ADMIN_SCENARIO_IDS,
     DESTRUCTIVE_ADMIN_IDS,
     OP_ADD_EXCLUDED,
+    OP_REMOVE_EXCLUDED,
     OP_SYNC_FEE_CONFIG,
     buildAddExcludedBody,
+    buildRemoveExcludedBody,
     buildSyncFeeConfigBody,
     isRevokedAdmin,
     MAX_SUPPLY_NANO,
@@ -186,5 +188,20 @@ describe('IMP-TNFS-05 jetton-admin helpers — N/A policy', () => {
         expect(s!.destructive).not.toBe(true);
         expect(isDestructive(s!)).toBe(false);
         expect(typeof s!.naWhen).toBe('function');
+    });
+
+    it('IMP-TNFS-F31 remove-excluded-stale registered + RemoveExcluded body opcode', () => {
+        const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+        const s = scenarios.find((x) => x.id === 'fs-jetton-remove-excluded-stale');
+        expect(s).toBeDefined();
+        expect(s!.tags).toEqual(expect.arrayContaining(['jetton', 'admin', 'lab']));
+        expect(s!.needsLiveTx).toBe(true);
+        expect(isDestructive(s!)).toBe(false);
+
+        const addr = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+        const rem = buildRemoveExcludedBody(addr).beginParse();
+        expect(rem.loadUint(32)).toBe(Number(OP_REMOVE_EXCLUDED));
+        expect(rem.loadUintBig(64)).toBe(0n);
+        expect(rem.loadAddress().equals(addr)).toBe(true);
     });
 });

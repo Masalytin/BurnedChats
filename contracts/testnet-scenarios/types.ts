@@ -119,7 +119,7 @@ export type Report = {
 };
 
 export type ScenarioStateEntry = {
-    status: 'pass' | 'fail';
+    status: 'pass' | 'fail' | 'na';
     ts: string;
     reportPath?: string;
     txHashes?: string[];

@@ -1,6 +1,9 @@
 /**
- * fs-jetton-excluded-near-floor-ok — excluded sender attach ≈ 0.60 TON → full
- * amount credited (IMP-MNAUD-F16 / IMP-TNFS-F21).
+ * fs-jetton-excluded-near-floor-ok — excluded sender attach just above
+ * minTonFeePath → full amount credited (IMP-MNAUD-F11 / F16 / IMP-TNFS-F21).
+ *
+ * After F11, claimed-excluded always ResolveJettonTransfer → entry gate is
+ * minTonFeePath (≈2.05), not the legacy 0.58 excluded floor.
  */
 import { Address } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
@@ -68,7 +71,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
     const attachNano = EXCLUDED_NEAR_FLOOR_ATTACH_NANO;
     console.log(
-        `[fs-jetton-excluded-near-floor-ok] probing attach=${attachNano} nano (excluded near-floor; expect full credit)…`,
+        `[fs-jetton-excluded-near-floor-ok] probing attach=${attachNano} nano (F11 fee-path gate; expect full credit)…`,
     );
 
     const seqnoBefore = await getSenderSeqno(provider);
@@ -97,9 +100,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
 export const scenario: Scenario = {
     id: 'fs-jetton-excluded-near-floor-ok',
-    title: 'Excluded-path near-floor ok (F16)',
+    title: 'Excluded-path near-floor ok (F11/F16)',
     description:
-        'Excluded sender attach ≈ 0.60 TON (above 0.58 gate) credits 100% amount with no fee legs.',
+        'Excluded sender attach ≈ 2.06 TON (above minTonFeePath after F11 resolve) credits 100% amount with no fee legs.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],

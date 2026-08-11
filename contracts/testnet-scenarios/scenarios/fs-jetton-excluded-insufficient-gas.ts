@@ -1,11 +1,13 @@
 /**
- * fs-jetton-excluded-insufficient-gas — excluded sender attach at gate (0.58 TON)
- * → reject; balances unchanged (IMP-MNAUD-F16 / IMP-TNFS-F21).
+ * fs-jetton-excluded-insufficient-gas — excluded sender attach at minTonFeePath
+ * → reject; balances unchanged (IMP-MNAUD-F11 / F16 / IMP-TNFS-F21).
+ *
+ * After F11, claimed-excluded uses the same entry gate as the fee path.
  */
 import { Address } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
-import { MIN_TON_EXCLUDED_PATH_NANO } from '../../scripts/lib/estimateJettonTransferTon';
+import { MIN_TON_FEE_PATH_NANO } from '../../scripts/lib/estimateJettonTransferTon';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
 import {
     MIN_SENDER_BALANCE,
@@ -66,10 +68,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const senderWalletAddr = await master.getGetWalletAddress(sender);
     const senderWallet = provider.open(BurnJettonWallet.fromAddress(senderWalletAddr));
 
-    // Strict `>` gate: attach exactly minTonExcludedPath must reject.
-    const attachNano = MIN_TON_EXCLUDED_PATH_NANO;
+    // Strict `>` gate: attach exactly minTonFeePath must reject (F11).
+    const attachNano = MIN_TON_FEE_PATH_NANO;
     console.log(
-        `[fs-jetton-excluded-insufficient-gas] probing attach=${attachNano} nano (excluded gate; expect reject)…`,
+        `[fs-jetton-excluded-insufficient-gas] probing attach=${attachNano} nano (fee-path gate; expect reject)…`,
     );
 
     const seqnoBefore = await getSenderSeqno(provider);
@@ -93,9 +95,9 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
 
 export const scenario: Scenario = {
     id: 'fs-jetton-excluded-insufficient-gas',
-    title: 'Excluded-path insufficient gas (F16 gate)',
+    title: 'Excluded-path insufficient gas (F11/F16 gate)',
     description:
-        'Excluded sender attach at minTonExcludedPath (0.58 TON). Pass only when transfer is rejected and balances unchanged.',
+        'Excluded sender attach at minTonFeePath (2.05 TON). Pass only when transfer is rejected and balances unchanged.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],
