@@ -16,7 +16,10 @@ export type ScenarioStatus = 'pass' | 'fail' | 'skipped' | 'na';
 
 /** Optional code hashes keyed by logical master name (jetton, staking, …). */
 export type CodeHashes = Partial<
-    Record<'jetton' | 'staking' | 'governor' | 'timelock' | 'treasury' | 'vesting', string>
+    Record<
+        'jetton' | 'jettonWallet' | 'staking' | 'governor' | 'timelock' | 'treasury' | 'vesting',
+        string
+    >
 > &
     Record<string, string | undefined>;
 
@@ -43,6 +46,12 @@ export type FullStackManifest = {
     addresses: FullStackAddresses;
     /** Optional; included in fingerprint when present. */
     codeHashes?: CodeHashes;
+    /**
+     * When true, `fs-ops-deployment-fingerprint` hard-fails if on-chain
+     * Governor / StakingMaster / JettonWallet code hashes ≠ local `build/`
+     * BOCs (IMP-TNFS-F29). Same as env `EXPECT_MNAUD_TIP=1`.
+     */
+    expectMnaudTip?: boolean;
     lab?: Record<string, unknown>;
     bootstrap?: Record<string, unknown>;
 };

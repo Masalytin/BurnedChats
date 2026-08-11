@@ -61,6 +61,27 @@ Metadata HTTP check still runs unless verify is pointed at a deployment without 
 On a fresh redeploy, allow up to ~15 s for the tonapi retry loop; persistent lag
 after that is soft N/A when on-chain checks are green (see above).
 
+### MNAUD tip code-hash pin (`EXPECT_MNAUD_TIP`) — IMP-TNFS-F29
+
+After merging **IMP-MNAUD-F07** / **F16** and redeploying lab/shared, gate the tip
+before F19–F21 live packs:
+
+```powershell
+$env:EXPECT_MNAUD_TIP = '1'
+npm run verify:deployment
+# or: npm run testnet:scenarios -- --manifest lab --scenario fs-ops-deployment-fingerprint --force
+```
+
+Compares on-chain Governor + StakingMaster account code and JettonWallet code
+(from `get_jetton_data`) to local `build/**/*.code.boc`. Mismatch → hard FAIL
+(stale tip). Without the env flag (and without `expectMnaudTip` /
+`lab.expectMnaudTip` in the manifest) the check is soft N/A so pre-MNAUD tips
+still verify green.
+
+Optional: persist hashes in the deployment JSON as `codeHashes.governor` /
+`staking` / `jettonWallet` (or `jetton` for wallet code); under the pin those
+values must also match the local build.
+
 **Human explorer (ops):** prefer **[testnet.tonscan.org](https://testnet.tonscan.org)** /
 [tonscan.org](https://tonscan.org) for manual address/tx checks. Scenario report
 links use the same hosts (`tonscanTxUrl` / `tonscanAddressUrl` in

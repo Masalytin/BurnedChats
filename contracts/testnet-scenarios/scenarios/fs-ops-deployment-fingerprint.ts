@@ -22,6 +22,14 @@ import {
     shouldSkipTonapiIndex,
     skippedTonapiIndexCheck,
 } from '../lib/fingerprint';
+import {
+    checkManifestCodeHashesVsLocal,
+    checkMnaudTipCodeHashes,
+    codeCellHashHex,
+    loadLocalMnaudCodeHashes,
+    readActiveAccountCodeHash,
+    shouldExpectMnaudTip,
+} from '../lib/mnaud-tip';
 import { checkTonapiJettonIndexed } from '../lib/tonapi';
 import { NA_LAB_TIP_ADMIN_REVOKED, isJettonAdminRevoked } from './fs-gov-role-checks';
 import type { CheckResult, ManifestKind, Scenario, ScenarioContext } from '../types';
@@ -386,6 +394,44 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
         );
     }
 
+    // IMP-TNFS-F29: optional hard pin of Governor / StakingMaster / JettonWallet
+    // code hashes to local MNAUD tip (F07-VP + F16). Soft N/A without the flag.
+    const expectMnaud = shouldExpectMnaudTip(manifest);
+    let expectedHashes = null as ReturnType<typeof loadLocalMnaudCodeHashes> | null;
+    let loadError: string | undefined;
+    if (expectMnaud) {
+        try {
+            expectedHashes = loadLocalMnaudCodeHashes(ctx.contractsRoot);
+        } catch (err) {
+            loadError = err instanceof Error ? err.message : String(err);
+        }
+    }
+    const actualHashes: Partial<{
+        governor: string;
+        staking: string;
+        jettonWallet: string;
+    }> = {};
+    if (expectMnaud && expectedHashes) {
+        const govCode = await readActiveAccountCodeHash(provider, governor);
+        const smCode = await readActiveAccountCodeHash(provider, stakingMaster);
+        if (govCode.hash) {
+            actualHashes.governor = govCode.hash;
+        }
+        if (smCode.hash) {
+            actualHashes.staking = smCode.hash;
+        }
+        actualHashes.jettonWallet = codeCellHashHex(jettonData.jettonWalletCode);
+    }
+    checks.push(
+        ...checkMnaudTipCodeHashes({
+            expectPin: expectMnaud,
+            expected: expectedHashes,
+            actual: actualHashes,
+            loadError,
+        }),
+        ...checkManifestCodeHashesVsLocal(expectMnaud, expectedHashes, manifest.codeHashes),
+    );
+
     // Tonapi index is best-effort for live-green: lag must not hard-fail a healthy tip
     // (IMP-TNFS-F05). On-chain mismatches still fail the scenario.
     const onChainAllOk = allChecksPass(checks);
@@ -402,7 +448,7 @@ export const scenario: Scenario = {
     id: 'fs-ops-deployment-fingerprint',
     title: 'Deployment fingerprint / verify-deployment',
     description:
-        'Readonly full-stack deployment checks: supply, fee destinations, exclusions, mint balances, gov wiring, metadata, tonapi index.',
+        'Readonly full-stack deployment checks: supply, fee destinations, exclusions, mint balances, gov wiring, metadata, tonapi index; optional MNAUD tip code-hash pin (EXPECT_MNAUD_TIP / expectMnaudTip).',
     tags: ['ops', 'readonly'],
     needsLiveTx: false,
     run: runChecks,
