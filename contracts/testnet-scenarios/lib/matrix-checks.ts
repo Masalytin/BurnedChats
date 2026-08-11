@@ -30,6 +30,20 @@ export const MAX_MESSAGE_VALUE_TON = toNano('10');
 /** Max supply 1000 BURN. */
 export const MAX_SUPPLY_NANO = 1000n * NANO_PER_BURN;
 
+/**
+ * IMP-TNFS-F21 / F16 sandbox first-green probes (strictly above on-chain gates).
+ * Not DEX-default 0.05–0.3 TON — those remain impossible without F17 fanout rewrite.
+ */
+export const FEE_NEAR_FLOOR_ATTACH_NANO = toNano('2.06');
+export const EXCLUDED_NEAR_FLOOR_ATTACH_NANO = toNano('0.60');
+
+export const NA_EXCLUDED_SENDER_UNAVAILABLE =
+    'excluded fee sender unavailable (set FEE_TEST_EXCLUDED_SENDER matching Blueprint signer, or liquidityHolder mnemonic)';
+export const NA_EXCLUDED_SENDER_MISMATCH =
+    'Blueprint signer ≠ excluded fee sender (FEE_TEST_EXCLUDED_SENDER / liquidityHolder)';
+export const NA_SENDER_NOT_EXCLUDED =
+    'fee sender is not on-chain excluded — cannot assert excluded-path floors';
+
 export function burnOf(amount: bigint): bigint {
     return (amount * BURN_BPS) / 10000n;
 }
@@ -63,6 +77,42 @@ export function requireFeeTestRecipient(): Address {
         );
     }
     return recipient;
+}
+
+/**
+ * Excluded-path sender for F21 floors: explicit env, else lab liquidityHolder
+ * (bootstrap addExcluded). Live requires Blueprint mnemonic to control that address.
+ */
+export function resolveExcludedFeeSender(ctx: ScenarioContext): Address {
+    const fromEnv = parseEnvAddress('FEE_TEST_EXCLUDED_SENDER');
+    if (fromEnv) {
+        return fromEnv;
+    }
+    const liquidity = ctx.manifest.addresses.liquidityHolder;
+    if (liquidity) {
+        return Address.parse(liquidity);
+    }
+    throw new Error(NA_EXCLUDED_SENDER_UNAVAILABLE);
+}
+
+/** Excluded path: recipient gets 100% of amount (no fee legs). */
+export function checkExcludedTransferOkBalances(input: {
+    recipientDelta: bigint;
+    senderDelta: bigint;
+    amount: bigint;
+}): CheckResult[] {
+    return [
+        check(
+            'excluded-recipient-full',
+            input.recipientDelta === input.amount,
+            `excluded recipient Δ=${input.recipientDelta} (expected full ${input.amount}, no fee)`,
+        ),
+        check(
+            'excluded-sender-spent',
+            input.senderDelta === -input.amount,
+            `excluded sender Δ=${input.senderDelta} (expected ${-input.amount})`,
+        ),
+    ];
 }
 
 /**
