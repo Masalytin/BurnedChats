@@ -261,3 +261,16 @@ export async function resolveTreasuryJettonWallet(
     const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
     return master.getGetWalletAddress(treasury);
 }
+
+/** IMP-TNFS-F28 / F14: treasury JW must have feeConfig.active after deploy push. */
+export function checkTreasuryJwFeeConfigActive(active: boolean): CheckResult[] {
+    return [
+        check(
+            'treasury-jw-feeconfig-active',
+            active,
+            active
+                ? 'treasury jetton wallet get_fee_config_active=true (F14 deploy-push)'
+                : 'treasury JW feeConfig inactive — spend path will exit 21507; redeploy/sync feeConfig',
+        ),
+    ];
+}

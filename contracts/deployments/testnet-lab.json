@@ -1,20 +1,22 @@
 {
     "network":  "testnet",
-    "deployedAt":  "2026-08-10",
+    "role":  "lab",
+    "deployedAt":  "2026-08-11",
     "deployer":  "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-    "metadataUri":  "https://burnedchats.net/jetton-metadata.json?v=20260810-tnfs-lab-f14",
+    "metadataUri":  "https://burnedchats.net/jetton-metadata.json?v=20260811-tnfs-lab",
+    "expectMnaudTip":  true,
     "addresses":  {
-                      "jettonMaster":  "kQCBTHaOZK6pS-UpdO5AhCtMupPWGp7tB_uC6Ix44GMCnXZT",
-                      "treasury":  "kQAq7R_YxFEZWI4TzULuOhF7_z6gBHFAp7w4pBzsavRX8SMR",
-                      "treasuryJettonWallet":  "kQCQmhMprN1hWIMUoYt-M75ijiczEeaMsgGsVfIpWxU2a9s8",
-                      "stakingPool":  "kQDidNFVer1AthaCNWKCRL3oNRknpejk5pgIAtRWMv4vyelY",
+                      "jettonMaster":  "kQDlpsWX5vudK5ebhbeWOgpdKKBgU3RwRUqlIpYP3oTJwPNb",
+                      "treasury":  "kQBOVpPC5lQlyMVyvOrDWaAXi15sY55OTbj0Ekvp92AEGoUY",
+                      "treasuryJettonWallet":  "kQAjbyZp_L6FWrBNGfhYfeJ34bjDye5TxgvCWJw1Tc6_Osgt",
+                      "stakingPool":  "kQDrDZNzaUjH0TI-JR1KIksdEnQ65y5tkqAu-wdsryHWLK0Z",
                       "stakingLock":  "kQBhVPntOamLE-mDlVNfqB9J83HoCtNKPo-rN-JU3uKGV-4i",
-                      "stakingMaster":  "kQAUQteyeTRkw5gCS4Ax_upIiOv5xZYicuW7jE1h1SNAFf5v",
-                      "governor":  "kQBW2PONPHH1l8quR-Q7iZJgEF7mxLKecoNLrAc1OiWKadeS",
+                      "stakingMaster":  "kQAnq9bXiYalOsuX_CErXgr3qWiZC6nC_060Hsa8OI3f3C0t",
+                      "governor":  "kQCRbZsoz8_T2Ym3hfoRhp1rEu6kIujcpXpuUJHEdbID-eCo",
                       "timelock":  "kQDfHUtglLTmc0yxj8pD_LZqLHpOLqmHuz9cK-0dsCrCrQk-",
-                      "vestingDeveloper":  "kQDVHPPn295hMNUo7oepj6Kh7LEfL2_3LzaEFR_DiINJDuJZ",
-                      "vestingEcosystem":  "kQC87DR-rZOJdZ_GIigeih-o6hvRgxCurIgOE-FaYRekaPo7",
-                      "vestingReserve":  "kQCLwqFpNVMoxDdBzW_HBOhRFVfzeOx6l31mnki0iMui1D8l",
+                      "vestingDeveloper":  "kQCIg2txpGJ5obk5-iyPLev_5zIWHZOf9nvgywI893wQk3dq",
+                      "vestingEcosystem":  "kQCj5WDZ-TEOrPbiFvTeiaK3rcgNmxeHwXbrZ51RKVRh_L5u",
+                      "vestingReserve":  "kQAm3A9idmlHEw9jopvyFdLsLORgzXCG7Sy6gCCmYpJVYUdj",
                       "airdropHolder":  "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
                       "liquidityHolder":  "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
                   },
@@ -25,7 +27,11 @@
                       "stakingMasterGovernorIsDeployer":  false,
                       "supplyFinalized":  false
                   },
-    "role":  "lab",
+    "codeHashes":  {
+                       "governor":  "94f505b9c258b8c729d9339584841a07d4d2d9723cb697bc31c86da6d6a86a44",
+                       "staking":  "73eb0cb4d2d95546ee23dbb8f701c992135ec0c693bdfa81bcd1163c44728582",
+                       "jettonWallet":  "abfd77a8d8b6816e9960aa11a40c46b287c4179764f01d5381c7e3871f457ccc"
+                   },
     "lab":  {
                 "timelockDelaySec":  60,
                 "cancelLagSec":  30,
@@ -35,6 +41,7 @@
                 "mintableAdmin":  true,
                 "deployStakingMasterNano":  "10000000000",
                 "timelockGovernorMultisig":  true,
-                "notes":  "IMP-MNAUD-F14 lab tip 2026-08-10: LAB_GOV_SHORT_TIMERS; Timelock.governor=TIMELOCK_GOVERNOR multisig; F14 feeConfig deploy-push verified live (treasury JW fee_config_active=true without dust; fs-treasury-spend-via-timelock PASS). Mint open. Note: Timelock address reused from prior tip — cancel stale pending before queue/execute. Do not syncAppConfigs / Mini App."
+                "expectMnaudTip":  true,
+                "notes":  "IMP-TNFS-F29/F07/F16 lab tip 2026-08-11: LAB_GOV_SHORT_TIMERS; Timelock.governor=TIMELOCK_GOVERNOR multisig; Timelock address reused from prior tip — cancel stale pending before queue/execute. expectMnaudTip pin on. Mint open. Do not syncAppConfigs / Mini App."
             }
 }

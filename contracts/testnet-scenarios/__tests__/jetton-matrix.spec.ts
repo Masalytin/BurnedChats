@@ -17,6 +17,10 @@ import {
     TREASURY_BPS,
     treasuryOf,
 } from '../lib/matrix-checks';
+import {
+    LIVE_RESOLVE_FORWARD_TON,
+    LIVE_RESOLVE_UNDERFUND_ATTACH,
+} from '../scenarios/fs-jetton-live-resolve-underfund';
 import { defaultScenariosDir, discoverScenarios, isDestructive } from '../registry';
 import { selectScenarios } from '../runner';
 import { emptyState } from '../state';
@@ -144,6 +148,19 @@ describe('IMP-TNFS-04 matrix check helpers — fee 0.5/0.3/0.2', () => {
             attachNano: MIN_TON_FEE_PATH_NANO,
         });
         expect(fail.some((c) => !c.ok && c.message.includes('false-pass'))).toBe(true);
+    });
+
+    it('IMP-TNFS-F20 mid-band constants stay below fee-path gate + forward', () => {
+        expect(LIVE_RESOLVE_FORWARD_TON).toBe(toNano('1'));
+        expect(LIVE_RESOLVE_UNDERFUND_ATTACH).toBe(toNano('1.7'));
+        expect(LIVE_RESOLVE_UNDERFUND_ATTACH).toBeLessThan(
+            MIN_TON_FEE_PATH_NANO + LIVE_RESOLVE_FORWARD_TON,
+        );
+        const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+        const underfund = scenarios.find((s) => s.id === 'fs-jetton-live-resolve-underfund');
+        expect(underfund).toBeDefined();
+        expect(underfund!.tags).toEqual(expect.arrayContaining(['jetton', 'edge']));
+        expect(underfund!.id).not.toBe('fs-jetton-transfer-insufficient-gas');
     });
 
     it('insufficient-gas attach uses fee-path gate (2.05 TON), not TOKSIM burn-path', () => {

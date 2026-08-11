@@ -13,6 +13,7 @@ import {
     TREASURY_INFLOW_TOLERANCE_NANO,
     TREASURY_LEG_ON_1_BURN,
     checkFeeInflow,
+    checkTreasuryJwFeeConfigActive,
     checkTreasurySmoke,
     checkUnauthorizedSpendRejected,
 } from '../lib/treasury';
@@ -113,6 +114,24 @@ describe('IMP-TNFS-08 treasury pack — discovery & tags', () => {
             expect(id).not.toMatch(/execute/);
             expect(id).not.toMatch(/timelock/);
         }
+    });
+});
+
+describe('IMP-TNFS-F28 treasury JW feeConfig regress', () => {
+    const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+    const byId = new Map(scenarios.map((s) => [s.id, s]));
+
+    it('registers fs-treasury-jw-feeconfig-regress', () => {
+        const s = byId.get('fs-treasury-jw-feeconfig-regress');
+        expect(s).toBeDefined();
+        expect(s!.tags).toEqual(expect.arrayContaining(['treasury', 'fee', 'readonly']));
+        expect(s!.needsLiveTx).toBe(false);
+        expect(s!.depends_on).toEqual(['fs-ops-deployment-fingerprint']);
+    });
+
+    it('checkTreasuryJwFeeConfigActive hard-fails when inactive', () => {
+        expect(checkTreasuryJwFeeConfigActive(true).every((c) => c.ok)).toBe(true);
+        expect(checkTreasuryJwFeeConfigActive(false).every((c) => !c.ok)).toBe(true);
     });
 });
 
