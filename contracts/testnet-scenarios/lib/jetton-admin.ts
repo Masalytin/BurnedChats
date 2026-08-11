@@ -3,11 +3,15 @@
  * Prefer on-chain getJettonData.mintable / adminAddress over manifest.lab hints.
  * Destructive close/revoke must never execute against shared tip.
  */
-import { Address, beginCell, Cell, toNano } from '@ton/core';
+import { Address, beginCell, Cell, toNano, type Sender } from '@ton/core';
+import { mnemonicNew, mnemonicToPrivateKey } from '@ton/crypto';
+import { WalletContractV4, WalletContractV5R1 } from '@ton/ton';
 import {
+    storeAddExcluded,
     storeChangeOwner,
     storeCloseMint,
     storeMint,
+    storeSyncFeeConfigToWallet,
     type JettonTransferInternal,
 } from '../../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
@@ -40,6 +44,10 @@ export const REVOKED_ADMIN_ADDRESS = Address.parse(
 export const OP_CLOSE_MINT = 0x5a1ca001n;
 export const OP_CHANGE_OWNER = 3n;
 export const OP_MINT = 1680571655n;
+/** Timelock-gated AddExcluded (burn-jetton-wallet.tact / master). */
+export const OP_ADD_EXCLUDED = 0x5a1c8f01n;
+/** Timelock-gated SyncFeeConfigToWallet. */
+export const OP_SYNC_FEE_CONFIG = 0x3c8f9013n;
 
 export const NA_SHARED_DESTRUCTIVE =
     'destructive jetton admin lifecycle must not run against shared tip вЂ” use --manifest lab (or explicit --tag destructive on lab)';
@@ -244,6 +252,130 @@ export function buildChangeOwnerBody(newOwner: Address, queryId: bigint = 0n): C
             }),
         )
         .endCell();
+}
+
+/** Add throwaway / DEX-like owner to master excluded list (IMP-TNFS-F23). */
+export function buildAddExcludedBody(address: Address, queryId: bigint = 0n): Cell {
+    return beginCell()
+        .store(
+            storeAddExcluded({
+                $$type: 'AddExcluded',
+                queryId,
+                address,
+            }),
+        )
+        .endCell();
+}
+
+/** Push feeConfig (incl. excluded_head) to owner JW after AddExcluded. */
+export function buildSyncFeeConfigBody(owner: Address, queryId: bigint = 0n): Cell {
+    return beginCell()
+        .store(
+            storeSyncFeeConfigToWallet({
+                $$type: 'SyncFeeConfigToWallet',
+                queryId,
+                owner,
+            }),
+        )
+        .endCell();
+}
+
+/**
+ * Ephemeral V5R1/V4 wallet for lab DEX-path exclude (never logs mnemonic).
+ * Used only as a throwaway pool-like owner — not a production DEX / user wallet.
+ */
+export type EphemeralWalletSender = {
+    address: Address;
+    sender: Sender;
+    getSeqno: () => Promise<number>;
+    waitSeqnoIncrement: (fromSeqno: number) => Promise<void>;
+};
+
+const EPHEMERAL_SEQNO_POLL_ATTEMPTS = 40;
+const EPHEMERAL_SEQNO_POLL_SLEEP_MS = 1_500;
+
+export async function createEphemeralWalletSender(
+    ctx: ScenarioContext,
+): Promise<EphemeralWalletSender> {
+    const words = await mnemonicNew(24);
+    const keyPair = await mnemonicToPrivateKey(words);
+    const version = (process.env.WALLET_VERSION?.trim() || 'v5r1').toLowerCase();
+
+    const wrap = (
+        address: Address,
+        rawSender: Sender,
+        getSeqno: () => Promise<number>,
+    ): EphemeralWalletSender => {
+        const sender: Sender = { address, send: (args) => rawSender.send(args) };
+        return {
+            address,
+            sender,
+            getSeqno,
+            waitSeqnoIncrement: async (fromSeqno: number) => {
+                for (let i = 1; i <= EPHEMERAL_SEQNO_POLL_ATTEMPTS; i += 1) {
+                    try {
+                        if ((await getSeqno()) > fromSeqno) {
+                            return;
+                        }
+                    } catch {
+                        // transient
+                    }
+                    await new Promise((r) => setTimeout(r, EPHEMERAL_SEQNO_POLL_SLEEP_MS));
+                }
+                throw new Error(
+                    `ephemeral wallet seqno did not advance from ${fromSeqno} after ` +
+                        `${EPHEMERAL_SEQNO_POLL_ATTEMPTS} attempts`,
+                );
+            },
+        };
+    };
+
+    if (version === 'v5r1') {
+        const networkGlobalId = Number(process.env.WALLET_NETWORK_ID ?? '-3');
+        const subwalletNumber = Number(process.env.SUBWALLET_NUMBER ?? '0');
+        const wallet = WalletContractV5R1.create({
+            publicKey: keyPair.publicKey,
+            walletId: {
+                networkGlobalId,
+                context: {
+                    workchain: 0,
+                    subwalletNumber,
+                    walletVersion: 'v5r1',
+                },
+            },
+        });
+        const opened = ctx.provider.open(wallet);
+        return wrap(wallet.address, opened.sender(keyPair.secretKey), () => opened.getSeqno());
+    }
+    if (version === 'v4r2' || version === 'v4') {
+        const walletId = process.env.WALLET_ID?.trim() ? Number(process.env.WALLET_ID) : undefined;
+        const wallet = WalletContractV4.create({
+            workchain: 0,
+            publicKey: keyPair.publicKey,
+            walletId,
+        });
+        const opened = ctx.provider.open(wallet);
+        return wrap(wallet.address, opened.sender(keyPair.secretKey), () => opened.getSeqno());
+    }
+    throw new Error(`Unsupported WALLET_VERSION=${version} for ephemeral wallet (use v5r1 or v4r2)`);
+}
+
+/** Lab-only AddExcluded path — never mutate shared tip excluded list. */
+export async function naWhenDexExcludeLive(ctx: ScenarioContext): Promise<string | null> {
+    const shared = naWhenSharedDestructive(ctx);
+    if (shared) {
+        return shared;
+    }
+    const revoked = await naWhenAdminRevoked(ctx);
+    if (revoked) {
+        return revoked;
+    }
+    const state = await readJettonAdminState(ctx);
+    const actor = await resolveAdminActor(ctx, state);
+    if (!actor) {
+        return NA_CANNOT_ACT_AS_ADMIN;
+    }
+    return null;
 }
 
 export function buildMintBody(

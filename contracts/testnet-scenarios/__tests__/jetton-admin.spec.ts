@@ -5,6 +5,10 @@ import { Address } from '@ton/core';
 import {
     ADMIN_SCENARIO_IDS,
     DESTRUCTIVE_ADMIN_IDS,
+    OP_ADD_EXCLUDED,
+    OP_SYNC_FEE_CONFIG,
+    buildAddExcludedBody,
+    buildSyncFeeConfigBody,
     isRevokedAdmin,
     MAX_SUPPLY_NANO,
     NA_MINT_CLOSED,
@@ -158,5 +162,29 @@ describe('IMP-TNFS-05 jetton-admin helpers — N/A policy', () => {
     it('NA reason strings are non-empty (report-friendly)', () => {
         expect(NA_SHARED_DESTRUCTIVE.length).toBeGreaterThan(10);
         expect(NA_MINT_CLOSED.length).toBeGreaterThan(10);
+    });
+
+    it('IMP-TNFS-F23 AddExcluded / SyncFeeConfig builders encode opcodes', () => {
+        const addr = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c');
+        const add = buildAddExcludedBody(addr).beginParse();
+        expect(add.loadUint(32)).toBe(Number(OP_ADD_EXCLUDED));
+        expect(add.loadUintBig(64)).toBe(0n);
+        expect(add.loadAddress().equals(addr)).toBe(true);
+
+        const sync = buildSyncFeeConfigBody(addr).beginParse();
+        expect(sync.loadUint(32)).toBe(Number(OP_SYNC_FEE_CONFIG));
+        expect(sync.loadUintBig(64)).toBe(0n);
+        expect(sync.loadAddress().equals(addr)).toBe(true);
+    });
+
+    it('IMP-TNFS-F23 dex-exclude-add-live registered (lab/admin, not destructive)', () => {
+        const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+        const s = scenarios.find((x) => x.id === 'fs-jetton-dex-exclude-add-live');
+        expect(s).toBeDefined();
+        expect(s!.tags).toEqual(expect.arrayContaining(['jetton', 'admin', 'lab']));
+        expect(s!.needsLiveTx).toBe(true);
+        expect(s!.destructive).not.toBe(true);
+        expect(isDestructive(s!)).toBe(false);
+        expect(typeof s!.naWhen).toBe('function');
     });
 });
