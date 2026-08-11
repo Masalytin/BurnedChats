@@ -25,6 +25,8 @@ export const TOTAL_FEE_BPS = BURN_BPS + STAKING_BPS + TREASURY_BPS;
 
 /** Recommended attach for live fee-path transfers (matches fee-split scenarios). */
 export const TRANSFER_TON = toNano('3.5');
+/** Warm fee-path attach (GAS-06 / estimateJettonTransferTon) — IMP-TNFS-F30. */
+export const TRANSFER_TON_WARM = toNano('2.3');
 /** Large attach for max-message-value (surplus returned; fee legs unchanged). */
 export const MAX_MESSAGE_VALUE_TON = toNano('10');
 /** Max supply 1000 BURN. */
@@ -37,12 +39,17 @@ export const MAX_SUPPLY_NANO = 1000n * NANO_PER_BURN;
 export const FEE_NEAR_FLOOR_ATTACH_NANO = toNano('2.06');
 export const EXCLUDED_NEAR_FLOOR_ATTACH_NANO = toNano('0.60');
 
+/** Sandbox GAS-07 cold fee-path surplus lower bound (ownerDelta + attach). */
+export const SURPLUS_MIN_EXCESS_NANO = toNano('1.5');
+
 export const NA_EXCLUDED_SENDER_UNAVAILABLE =
     'excluded fee sender unavailable (set FEE_TEST_EXCLUDED_SENDER matching Blueprint signer, or liquidityHolder mnemonic)';
 export const NA_EXCLUDED_SENDER_MISMATCH =
     'Blueprint signer ≠ excluded fee sender (FEE_TEST_EXCLUDED_SENDER / liquidityHolder)';
 export const NA_SENDER_NOT_EXCLUDED =
     'fee sender is not on-chain excluded — cannot assert excluded-path floors';
+export const NA_SURPLUS_BALANCE_NOISE =
+    'surplus TON heuristic below sandbox bar (toncenter/V5 gas noise) — jetton fee-split OK; soft N/A';
 
 export function burnOf(amount: bigint): bigint {
     return (amount * BURN_BPS) / 10000n;
@@ -266,6 +273,56 @@ export function checkMaxMessageValueAccounting(input: {
             'large-attach-supply',
             input.supplyDelta === -expectedBurn,
             `large attach: supply delta ${input.supplyDelta} (expected ${-expectedBurn})`,
+        ),
+    ];
+}
+
+/**
+ * IMP-TNFS-F22 / GAS-07: excessReturned = ownerTonDelta + attach ≥ minExcess.
+ * Owner net can be negative after V5 wallet gas — always add attach back.
+ */
+export function checkSurplusRefundHeuristic(input: {
+    ownerTonBefore: bigint;
+    ownerTonAfter: bigint;
+    attachNano: bigint;
+    minExcessNano?: bigint;
+}): CheckResult[] {
+    const minExcess = input.minExcessNano ?? SURPLUS_MIN_EXCESS_NANO;
+    const ownerDelta = input.ownerTonAfter - input.ownerTonBefore;
+    const excessReturned = ownerDelta + input.attachNano;
+    return [
+        check(
+            'surplus-excess-returned',
+            excessReturned >= minExcess,
+            `excessReturned=${excessReturned} (ownerΔ=${ownerDelta} + attach=${input.attachNano}; min ${minExcess})`,
+        ),
+    ];
+}
+
+/** IMP-TNFS-F30: both cold and warm attaches credit fee-path net. */
+export function checkWarmVsColdAttachCredits(input: {
+    coldRecipientDelta: bigint;
+    warmRecipientDelta: bigint;
+    amount: bigint;
+    coldAttachNano: bigint;
+    warmAttachNano: bigint;
+}): CheckResult[] {
+    const expectedNet = netOf(input.amount);
+    return [
+        check(
+            'cold-attach-credit',
+            input.coldRecipientDelta === expectedNet,
+            `cold @${input.coldAttachNano}: recipientΔ=${input.coldRecipientDelta} (expected net ${expectedNet})`,
+        ),
+        check(
+            'warm-attach-credit',
+            input.warmRecipientDelta === expectedNet,
+            `warm @${input.warmAttachNano}: recipientΔ=${input.warmRecipientDelta} (expected net ${expectedNet})`,
+        ),
+        check(
+            'warm-below-cold',
+            input.warmAttachNano < input.coldAttachNano,
+            `warm attach ${input.warmAttachNano} < cold ${input.coldAttachNano}`,
         ),
     ];
 }

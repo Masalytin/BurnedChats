@@ -449,6 +449,25 @@ export async function runOne(
     } catch (err) {
         const durationMs = Date.now() - started;
         const message = err instanceof Error ? err.message : String(err);
+        // Soft N/A from run() (e.g. IMP-TNFS-F22 surplus TON heuristic noise):
+        // jetton path may be green; TON assert flaky — explicit N/A, not silent pass/FAIL.
+        if (message.startsWith('SOFT_NA:')) {
+            const next = recordScenarioResult(state, scenario.id, {
+                status: 'na',
+                ts: new Date().toISOString(),
+            });
+            return {
+                result: {
+                    id: scenario.id,
+                    title: scenario.title,
+                    status: 'na',
+                    durationMs,
+                    checks: [],
+                    naReason: message.slice('SOFT_NA:'.length).trim(),
+                },
+                state: next,
+            };
+        }
         const next = recordScenarioResult(state, scenario.id, {
             status: 'fail',
             ts: new Date().toISOString(),

@@ -12,8 +12,17 @@ import {
 import {
     EXCLUDED_NEAR_FLOOR_ATTACH_NANO,
     FEE_NEAR_FLOOR_ATTACH_NANO,
+    SURPLUS_MIN_EXCESS_NANO,
+    TRANSFER_TON,
+    TRANSFER_TON_WARM,
     checkExcludedTransferOkBalances,
+    checkSurplusRefundHeuristic,
+    checkWarmVsColdAttachCredits,
 } from '../lib/matrix-checks';
+import {
+    RECOMMENDED_FEE_PATH_NANO,
+    RECOMMENDED_FEE_PATH_WARM_NANO,
+} from '../../scripts/lib/estimateJettonTransferTon';
 import { defaultScenariosDir, discoverScenarios } from '../registry';
 
 const CONTRACTS_ROOT = resolve(__dirname, '../..');
@@ -71,5 +80,56 @@ describe('IMP-TNFS-F21 F16 gas floors matrix', () => {
         const ids = scenarios.map((s) => s.id);
         expect(ids.some((id) => id.includes('toksim'))).toBe(false);
         expect(ids.some((id) => id.includes('0.05') || id.includes('dex-default'))).toBe(false);
+    });
+});
+
+describe('IMP-TNFS-F22 / F30 surplus + warm/cold attach', () => {
+    const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+    const byId = new Map(scenarios.map((s) => [s.id, s]));
+
+    it('registers surplus-refund and warm-vs-cold scenarios', () => {
+        for (const id of ['fs-jetton-surplus-refund', 'fs-jetton-fee-warm-vs-cold-attach'] as const) {
+            const s = byId.get(id);
+            expect(s).toBeDefined();
+            expect(s!.tags).toEqual(expect.arrayContaining(['jetton', 'edge']));
+            expect(s!.needsLiveTx).toBe(true);
+        }
+    });
+
+    it('pins cold/warm attach constants to estimateJettonTransferTon', () => {
+        expect(TRANSFER_TON).toBe(RECOMMENDED_FEE_PATH_NANO);
+        expect(TRANSFER_TON_WARM).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
+        expect(TRANSFER_TON_WARM).toBe(toNano('2.3'));
+        expect(SURPLUS_MIN_EXCESS_NANO).toBe(toNano('1.5'));
+    });
+
+    it('checkSurplusRefundHeuristic and warm/cold credits', () => {
+        const attach = toNano('3.5');
+        expect(
+            checkSurplusRefundHeuristic({
+                ownerTonBefore: toNano('10'),
+                ownerTonAfter: toNano('10') - attach + toNano('1.6'),
+                attachNano: attach,
+            }).every((c) => c.ok),
+        ).toBe(true);
+        expect(
+            checkSurplusRefundHeuristic({
+                ownerTonBefore: toNano('10'),
+                ownerTonAfter: toNano('10') - attach + toNano('0.5'),
+                attachNano: attach,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+
+        const amount = 1_000_000_000n;
+        const net = (amount * 9900n) / 10000n;
+        expect(
+            checkWarmVsColdAttachCredits({
+                coldRecipientDelta: net,
+                warmRecipientDelta: net,
+                amount,
+                coldAttachNano: TRANSFER_TON,
+                warmAttachNano: TRANSFER_TON_WARM,
+            }).every((c) => c.ok),
+        ).toBe(true);
     });
 });
