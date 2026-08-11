@@ -1403,6 +1403,111 @@ export function checkDoubleVoteRejected(input: {
 }
 
 /**
+ * Flexible-only CastVote must not record a vote (IMP-TNFS-F24 / flash-stake gate).
+ * StakingMaster VoteRelay exits with "Zero effective vp" when locked-beyond VP is 0.
+ */
+export function checkFlexibleVpVoteRejected(input: {
+    lockedBeyondVp: bigint;
+    claimedVp: bigint;
+    hasVoted: boolean;
+    forVotesBefore: bigint;
+    forVotesAfter: bigint;
+}): CheckResult[] {
+    return [
+        check(
+            'locked-beyond-zero',
+            input.lockedBeyondVp === 0n,
+            `lockedBeyondVp=${input.lockedBeyondVp} (Flexible-only precondition)`,
+        ),
+        check(
+            'claimed-vp-positive',
+            input.claimedVp > 0n,
+            `claimedVp=${input.claimedVp} (need Flexible stake so CastVote is attempted)`,
+        ),
+        check(
+            'has-voted-false',
+            !input.hasVoted,
+            input.hasVoted ? 'vote wrongly recorded' : 'vote not recorded',
+        ),
+        check(
+            'for-votes-unchanged',
+            input.forVotesAfter === input.forVotesBefore,
+            `forVotes ${input.forVotesBefore} → ${input.forVotesAfter} (expected reject)`,
+        ),
+    ];
+}
+
+export const NA_NO_FLEXIBLE_ONLY_VOTER =
+    'no Flexible-only voter (Actor A has locked-beyond VP and deployer has none / no Flexible stake)';
+
+/**
+ * Prefer Blueprint actor when locked-beyond is 0 and total VP > 0; else deployer
+ * (lab whale Flexible stake). Returns null when neither qualifies.
+ */
+export async function resolveFlexibleOnlyVoter(
+    ctx: ScenarioContext,
+): Promise<{ address: Address; via: 'blueprint' | 'deployer' } | null> {
+    const voteEndTime = await estimateFreshVoteEndTime(ctx);
+    const stakingLock = await resolveStakingLockAddr(ctx);
+    const multipliers = await readTierMultipliers(ctx, stakingLock);
+
+    const tryOwner = async (
+        address: Address,
+        via: 'blueprint' | 'deployer',
+    ): Promise<{ address: Address; via: 'blueprint' | 'deployer' } | null> => {
+        const locked = computeLockedBeyondVp(
+            await readActorStakeRecords(ctx, address),
+            multipliers,
+            voteEndTime,
+        );
+        if (locked > 0n) {
+            return null;
+        }
+        const vp = await fetchVotingPower(ctx, address);
+        if (vp <= 0n) {
+            return null;
+        }
+        return { address, via };
+    };
+
+    const actor = resolveGovActor(ctx);
+    const asActor = await tryOwner(actor, 'blueprint');
+    if (asActor) {
+        return asActor;
+    }
+
+    try {
+        const deployer = await resolveDeployerSender(ctx);
+        return await tryOwner(deployer.address, 'deployer');
+    } catch {
+        return null;
+    }
+}
+
+export async function naWhenFlexibleVpVoteReject(ctx: ScenarioContext): Promise<string | null> {
+    const time = await naWhenGovTimeDependent(ctx);
+    if (time) {
+        return time;
+    }
+    if (!ctx.provider) {
+        return NA_NO_FLEXIBLE_ONLY_VOTER;
+    }
+    const voter = await resolveFlexibleOnlyVoter(ctx);
+    if (!voter) {
+        return NA_NO_FLEXIBLE_ONLY_VOTER;
+    }
+    // If no votable proposal exists, CreateProposal needs Actor A locked VP.
+    const existing = await resolveUsableProposal(ctx, 'votable');
+    if (!existing) {
+        const lockedNa = await naWhenLockedVpUnfundable(ctx);
+        if (lockedNa) {
+            return lockedNa;
+        }
+    }
+    return null;
+}
+
+/**
  * Vote after endTime must not change forVotes.
  * If the actor never voted, hasVoted must stay false; if they voted earlier in-window,
  * a post-expiry retry must still leave forVotes unchanged (reject / Already voted).

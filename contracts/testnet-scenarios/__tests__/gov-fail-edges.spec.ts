@@ -11,6 +11,7 @@ import {
     checkDoubleVoteRejected,
     checkEarlyExecuteRejected,
     checkExpiredVoteRejected,
+    checkFlexibleVpVoteRejected,
     checkGovRoleWiring,
     checkInsufficientOnchainVpRejected,
     checkInsufficientVpRejected,
@@ -26,6 +27,7 @@ const CONTRACTS_ROOT = resolve(__dirname, '../..');
 const GOV_FAIL_IDS = [
     'fs-gov-insufficient-vp-reject',
     'fs-gov-insufficient-onchain-vp-reject',
+    'fs-gov-flexible-vp-vote-reject',
     'fs-gov-double-vote-reject',
     'fs-gov-expired-reject',
     'fs-gov-cancel',
@@ -37,6 +39,7 @@ const GOV_FAIL_IDS = [
 const EXPECTED_TAGS: Record<(typeof GOV_FAIL_IDS)[number], string[]> = {
     'fs-gov-insufficient-vp-reject': ['governance', 'edge'],
     'fs-gov-insufficient-onchain-vp-reject': ['governance', 'edge'],
+    'fs-gov-flexible-vp-vote-reject': ['governance', 'edge'],
     'fs-gov-double-vote-reject': ['governance', 'edge'],
     'fs-gov-expired-reject': ['governance', 'edge'],
     'fs-gov-cancel': ['governance'],
@@ -48,6 +51,7 @@ const EXPECTED_TAGS: Record<(typeof GOV_FAIL_IDS)[number], string[]> = {
 const LIVE_TX: Record<(typeof GOV_FAIL_IDS)[number], boolean> = {
     'fs-gov-insufficient-vp-reject': true,
     'fs-gov-insufficient-onchain-vp-reject': true,
+    'fs-gov-flexible-vp-vote-reject': true,
     'fs-gov-double-vote-reject': true,
     'fs-gov-expired-reject': true,
     'fs-gov-cancel': true,
@@ -58,6 +62,7 @@ const LIVE_TX: Record<(typeof GOV_FAIL_IDS)[number], boolean> = {
 
 /** Time-dependent fail paths share 09A `needs-lab-short-timers` on shared. */
 const TIME_DEPENDENT = new Set<string>([
+    'fs-gov-flexible-vp-vote-reject',
     'fs-gov-double-vote-reject',
     'fs-gov-expired-reject',
     'fs-gov-cancel',
@@ -96,6 +101,9 @@ describe('IMP-TNFS-09B governance fail/edge pack — discovery & tags', () => {
         expect(byId.get('fs-gov-insufficient-vp-reject')!.depends_on).toEqual(['fs-gov-smoke']);
         expect(byId.get('fs-gov-insufficient-onchain-vp-reject')!.depends_on).toEqual([
             'fs-gov-smoke',
+        ]);
+        expect(byId.get('fs-gov-flexible-vp-vote-reject')!.depends_on).toEqual([
+            'fs-gov-vote-happy',
         ]);
         expect(byId.get('fs-gov-double-vote-reject')!.depends_on).toEqual(['fs-gov-vote-happy']);
         expect(byId.get('fs-gov-expired-reject')!.depends_on).toEqual(['fs-gov-propose-happy']);
@@ -236,6 +244,38 @@ describe('IMP-TNFS-09B negative check helpers', () => {
                 forVotesBefore: 100n,
                 forVotesAfter: 200n,
                 hasVoted: true,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+    });
+
+    it('checkFlexibleVpVoteRejected: Flexible-only reject pass; wrong accept fail', () => {
+        expect(
+            checkFlexibleVpVoteRejected({
+                lockedBeyondVp: 0n,
+                claimedVp: 50n,
+                hasVoted: false,
+                forVotesBefore: 10n,
+                forVotesAfter: 10n,
+            }).every((c) => c.ok),
+        ).toBe(true);
+
+        expect(
+            checkFlexibleVpVoteRejected({
+                lockedBeyondVp: 0n,
+                claimedVp: 50n,
+                hasVoted: true,
+                forVotesBefore: 10n,
+                forVotesAfter: 60n,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+
+        expect(
+            checkFlexibleVpVoteRejected({
+                lockedBeyondVp: 1n,
+                claimedVp: 50n,
+                hasVoted: false,
+                forVotesBefore: 10n,
+                forVotesAfter: 10n,
             }).some((c) => !c.ok),
         ).toBe(true);
     });
