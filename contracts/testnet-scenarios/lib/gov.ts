@@ -51,8 +51,14 @@ export const CANCEL_LAG_SEC = 3600;
 /** ProposalType.ParameterChange (governance-payload.tact). */
 export const TYPE_PARAM = 0;
 
+/** ProposalType.FeaturePriority — no Timelock; Governor.executeProposal. */
+export const TYPE_FEATURE = 1;
+
 /** ProposalType.TreasurySpend (governance-payload.tact). */
 export const TYPE_TREASURY = 2;
+
+/** ProposalType.Emergency — Timelock delay 0 (non-high-value methods). */
+export const TYPE_EMERGENCY = 3;
 
 /** Canonical TreasurySpend opcode. */
 export const OP_TREASURY_SPEND = 0x5a1c9010;
@@ -1178,6 +1184,120 @@ export function parameterChangePayload(target: Address, method: number, args?: C
         .storeUint(method, 32)
         .storeRef(args ?? beginCell().endCell())
         .endCell();
+}
+
+/** FeaturePriority payload: description ref + optional content-id ref. */
+export function featurePriorityPayload(description: string, cid?: Cell): Cell {
+    return beginCell()
+        .storeRef(beginCell().storeStringTail(description).endCell())
+        .storeRef(cid ?? beginCell().endCell())
+        .endCell();
+}
+
+/**
+ * Emergency payload: target + uint32 method + args ref + reason ref.
+ * Do NOT use high-value methods (TreasurySpend / VestEmergencyRevoke) — delay 0
+ * is rejected by Timelock high-value floor (IMP-MNAUD-F03).
+ */
+export function emergencyPayload(
+    target: Address,
+    method: number,
+    args: Cell | undefined,
+    reason: string,
+): Cell {
+    return beginCell()
+        .storeAddress(target)
+        .storeUint(method, 32)
+        .storeRef(args ?? beginCell().endCell())
+        .storeRef(beginCell().storeStringTail(reason).endCell())
+        .endCell();
+}
+
+/** Harmless Emergency method for live delay-0 queue (not high-value). */
+export const EMERGENCY_DUMMY_METHOD = 0x99;
+
+/**
+ * Against-vote → finalize Defeated; Timelock must not have pending for id.
+ * IMP-TNFS-F25.
+ */
+export function checkAgainstDefeated(input: {
+    stateAfter: bigint;
+    againstVotes: bigint;
+    pendingAbsent: boolean;
+}): CheckResult[] {
+    return [
+        check(
+            'state-defeated',
+            input.stateAfter === PS_DEFEATED,
+            `state=${input.stateAfter} (expected Defeated=${PS_DEFEATED})`,
+        ),
+        check(
+            'against-votes-positive',
+            input.againstVotes > 0n,
+            `againstVotes=${input.againstVotes}`,
+        ),
+        check(
+            'no-timelock-pending',
+            input.pendingAbsent,
+            input.pendingAbsent ? 'no Timelock pending for proposal' : 'pending present (wrong accept)',
+        ),
+    ];
+}
+
+/** FeaturePriority: Executed via Governor, never Timelock-queued. */
+export function checkFeaturePriorityExecuted(input: {
+    proposalType: bigint;
+    stateAfter: bigint;
+    pendingAbsent: boolean;
+}): CheckResult[] {
+    return [
+        check(
+            'type-feature',
+            input.proposalType === BigInt(TYPE_FEATURE),
+            `proposalType=${input.proposalType} (expected ${TYPE_FEATURE})`,
+        ),
+        check(
+            'state-executed',
+            input.stateAfter === PS_EXECUTED,
+            `state=${input.stateAfter} (expected Executed=${PS_EXECUTED})`,
+        ),
+        check(
+            'no-timelock-pending',
+            input.pendingAbsent,
+            input.pendingAbsent ? 'Feature path never queued Timelock' : 'unexpected Timelock pending',
+        ),
+    ];
+}
+
+/** Emergency: delay-0 Timelock execute → Executed; pending cleared. */
+export function checkEmergencyExecuted(input: {
+    proposalType: bigint;
+    timelockDelay: bigint;
+    stateAfter: bigint;
+    pendingCleared: boolean;
+}): CheckResult[] {
+    return [
+        check(
+            'type-emergency',
+            input.proposalType === BigInt(TYPE_EMERGENCY),
+            `proposalType=${input.proposalType} (expected ${TYPE_EMERGENCY})`,
+        ),
+        check(
+            'timelock-delay-zero',
+            input.timelockDelay === 0n,
+            `timelockDelay=${input.timelockDelay} (expected 0)`,
+        ),
+        check(
+            'state-executed',
+            input.stateAfter === PS_EXECUTED,
+            `state=${input.stateAfter} (expected Executed=${PS_EXECUTED})`,
+        ),
+        check(
+            'pending-cleared',
+            input.pendingCleared,
+            input.pendingCleared ? 'pending cleared' : 'pending still present',
+        ),
+    ];
 }
 
 /**

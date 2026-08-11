@@ -6,16 +6,23 @@ import {
     NA_NEEDS_LAB_SHORT_TIMERS,
     PS_ACTIVE,
     PS_CANCELLED,
+    PS_DEFEATED,
+    PS_EXECUTED,
     checkAdminOnlyViaTimelock,
+    checkAgainstDefeated,
     checkCancelOutcome,
     checkDoubleVoteRejected,
     checkEarlyExecuteRejected,
+    checkEmergencyExecuted,
     checkExpiredVoteRejected,
+    checkFeaturePriorityExecuted,
     checkFlexibleVpVoteRejected,
     checkGovRoleWiring,
     checkInsufficientOnchainVpRejected,
     checkInsufficientVpRejected,
     naWhenGovTimeDependent,
+    TYPE_EMERGENCY,
+    TYPE_FEATURE,
 } from '../lib/gov';
 import { defaultScenariosDir, discoverScenarios, isDestructive } from '../registry';
 import { selectScenarios } from '../runner';
@@ -28,6 +35,9 @@ const GOV_FAIL_IDS = [
     'fs-gov-insufficient-vp-reject',
     'fs-gov-insufficient-onchain-vp-reject',
     'fs-gov-flexible-vp-vote-reject',
+    'fs-gov-against-defeated',
+    'fs-gov-feature-priority-execute',
+    'fs-gov-emergency-execute',
     'fs-gov-double-vote-reject',
     'fs-gov-expired-reject',
     'fs-gov-cancel',
@@ -40,6 +50,9 @@ const EXPECTED_TAGS: Record<(typeof GOV_FAIL_IDS)[number], string[]> = {
     'fs-gov-insufficient-vp-reject': ['governance', 'edge'],
     'fs-gov-insufficient-onchain-vp-reject': ['governance', 'edge'],
     'fs-gov-flexible-vp-vote-reject': ['governance', 'edge'],
+    'fs-gov-against-defeated': ['governance'],
+    'fs-gov-feature-priority-execute': ['governance'],
+    'fs-gov-emergency-execute': ['governance'],
     'fs-gov-double-vote-reject': ['governance', 'edge'],
     'fs-gov-expired-reject': ['governance', 'edge'],
     'fs-gov-cancel': ['governance'],
@@ -52,6 +65,9 @@ const LIVE_TX: Record<(typeof GOV_FAIL_IDS)[number], boolean> = {
     'fs-gov-insufficient-vp-reject': true,
     'fs-gov-insufficient-onchain-vp-reject': true,
     'fs-gov-flexible-vp-vote-reject': true,
+    'fs-gov-against-defeated': true,
+    'fs-gov-feature-priority-execute': true,
+    'fs-gov-emergency-execute': true,
     'fs-gov-double-vote-reject': true,
     'fs-gov-expired-reject': true,
     'fs-gov-cancel': true,
@@ -63,6 +79,9 @@ const LIVE_TX: Record<(typeof GOV_FAIL_IDS)[number], boolean> = {
 /** Time-dependent fail paths share 09A `needs-lab-short-timers` on shared. */
 const TIME_DEPENDENT = new Set<string>([
     'fs-gov-flexible-vp-vote-reject',
+    'fs-gov-against-defeated',
+    'fs-gov-feature-priority-execute',
+    'fs-gov-emergency-execute',
     'fs-gov-double-vote-reject',
     'fs-gov-expired-reject',
     'fs-gov-cancel',
@@ -105,6 +124,11 @@ describe('IMP-TNFS-09B governance fail/edge pack — discovery & tags', () => {
         expect(byId.get('fs-gov-flexible-vp-vote-reject')!.depends_on).toEqual([
             'fs-gov-vote-happy',
         ]);
+        expect(byId.get('fs-gov-against-defeated')!.depends_on).toEqual(['fs-gov-vote-happy']);
+        expect(byId.get('fs-gov-feature-priority-execute')!.depends_on).toEqual([
+            'fs-gov-vote-happy',
+        ]);
+        expect(byId.get('fs-gov-emergency-execute')!.depends_on).toEqual(['fs-gov-vote-happy']);
         expect(byId.get('fs-gov-double-vote-reject')!.depends_on).toEqual(['fs-gov-vote-happy']);
         expect(byId.get('fs-gov-expired-reject')!.depends_on).toEqual(['fs-gov-propose-happy']);
         expect(byId.get('fs-gov-cancel')!.depends_on).toEqual(['fs-gov-propose-happy']);
@@ -276,6 +300,48 @@ describe('IMP-TNFS-09B negative check helpers', () => {
                 hasVoted: false,
                 forVotesBefore: 10n,
                 forVotesAfter: 10n,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+    });
+
+    it('checkAgainstDefeated / Feature / Emergency helpers', () => {
+        expect(
+            checkAgainstDefeated({
+                stateAfter: PS_DEFEATED,
+                againstVotes: 1n,
+                pendingAbsent: true,
+            }).every((c) => c.ok),
+        ).toBe(true);
+        expect(
+            checkAgainstDefeated({
+                stateAfter: PS_ACTIVE,
+                againstVotes: 1n,
+                pendingAbsent: true,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+
+        expect(
+            checkFeaturePriorityExecuted({
+                proposalType: BigInt(TYPE_FEATURE),
+                stateAfter: PS_EXECUTED,
+                pendingAbsent: true,
+            }).every((c) => c.ok),
+        ).toBe(true);
+
+        expect(
+            checkEmergencyExecuted({
+                proposalType: BigInt(TYPE_EMERGENCY),
+                timelockDelay: 0n,
+                stateAfter: PS_EXECUTED,
+                pendingCleared: true,
+            }).every((c) => c.ok),
+        ).toBe(true);
+        expect(
+            checkEmergencyExecuted({
+                proposalType: BigInt(TYPE_EMERGENCY),
+                timelockDelay: 60n,
+                stateAfter: PS_EXECUTED,
+                pendingCleared: true,
             }).some((c) => !c.ok),
         ).toBe(true);
     });
