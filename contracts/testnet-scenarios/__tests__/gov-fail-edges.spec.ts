@@ -12,6 +12,7 @@ import {
     checkEarlyExecuteRejected,
     checkExpiredVoteRejected,
     checkGovRoleWiring,
+    checkInsufficientOnchainVpRejected,
     checkInsufficientVpRejected,
     naWhenGovTimeDependent,
 } from '../lib/gov';
@@ -24,6 +25,7 @@ const CONTRACTS_ROOT = resolve(__dirname, '../..');
 
 const GOV_FAIL_IDS = [
     'fs-gov-insufficient-vp-reject',
+    'fs-gov-insufficient-onchain-vp-reject',
     'fs-gov-double-vote-reject',
     'fs-gov-expired-reject',
     'fs-gov-cancel',
@@ -34,6 +36,7 @@ const GOV_FAIL_IDS = [
 
 const EXPECTED_TAGS: Record<(typeof GOV_FAIL_IDS)[number], string[]> = {
     'fs-gov-insufficient-vp-reject': ['governance', 'edge'],
+    'fs-gov-insufficient-onchain-vp-reject': ['governance', 'edge'],
     'fs-gov-double-vote-reject': ['governance', 'edge'],
     'fs-gov-expired-reject': ['governance', 'edge'],
     'fs-gov-cancel': ['governance'],
@@ -44,6 +47,7 @@ const EXPECTED_TAGS: Record<(typeof GOV_FAIL_IDS)[number], string[]> = {
 
 const LIVE_TX: Record<(typeof GOV_FAIL_IDS)[number], boolean> = {
     'fs-gov-insufficient-vp-reject': true,
+    'fs-gov-insufficient-onchain-vp-reject': true,
     'fs-gov-double-vote-reject': true,
     'fs-gov-expired-reject': true,
     'fs-gov-cancel': true,
@@ -64,7 +68,7 @@ describe('IMP-TNFS-09B governance fail/edge pack — discovery & tags', () => {
     const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
     const byId = new Map(scenarios.map((s) => [s.id, s]));
 
-    it('registers all 7 fail/edge scenario ids', () => {
+    it('registers all fail/edge scenario ids (09B + F19 on-chain VP)', () => {
         for (const id of GOV_FAIL_IDS) {
             expect(byId.get(id)).toBeDefined();
         }
@@ -90,6 +94,9 @@ describe('IMP-TNFS-09B governance fail/edge pack — discovery & tags', () => {
 
     it('depends_on matches DESIGN soft graph', () => {
         expect(byId.get('fs-gov-insufficient-vp-reject')!.depends_on).toEqual(['fs-gov-smoke']);
+        expect(byId.get('fs-gov-insufficient-onchain-vp-reject')!.depends_on).toEqual([
+            'fs-gov-smoke',
+        ]);
         expect(byId.get('fs-gov-double-vote-reject')!.depends_on).toEqual(['fs-gov-vote-happy']);
         expect(byId.get('fs-gov-expired-reject')!.depends_on).toEqual(['fs-gov-propose-happy']);
         expect(byId.get('fs-gov-cancel')!.depends_on).toEqual(['fs-gov-propose-happy']);
@@ -102,9 +109,10 @@ describe('IMP-TNFS-09B governance fail/edge pack — discovery & tags', () => {
         expect(byId.get('fs-gov-role-checks')!.depends_on).toEqual(['fs-gov-smoke']);
     });
 
-    it('time-dependent ids wire naWhen; role-checks has none; insufficient-vp has none', () => {
+    it('time-dependent ids wire naWhen; claimed-vp has none; on-chain-vp has naWhen', () => {
         expect(byId.get('fs-gov-role-checks')!.naWhen).toBeUndefined();
         expect(byId.get('fs-gov-insufficient-vp-reject')!.naWhen).toBeUndefined();
+        expect(typeof byId.get('fs-gov-insufficient-onchain-vp-reject')!.naWhen).toBe('function');
         for (const id of TIME_DEPENDENT) {
             expect(typeof byId.get(id)!.naWhen).toBe('function');
         }
@@ -182,6 +190,34 @@ describe('IMP-TNFS-09B negative check helpers', () => {
                 countAfter: 6n,
                 claimedVp: 0n,
                 minProposalVp: 1n,
+            }).some((c) => !c.ok),
+        ).toBe(true);
+    });
+
+    it('checkInsufficientOnchainVpRejected: soft-cancel pass; deploy false-pass fail', () => {
+        expect(
+            checkInsufficientOnchainVpRejected({
+                countBefore: 5n,
+                countAfter: 6n,
+                claimedVp: 10n,
+                minProposalVp: 1n,
+                proposerOnchainVp: 0n,
+                totalVp: 100n,
+                proposalAddr: null,
+                stateAfter: PS_CANCELLED,
+            }).every((c) => c.ok),
+        ).toBe(true);
+
+        expect(
+            checkInsufficientOnchainVpRejected({
+                countBefore: 5n,
+                countAfter: 6n,
+                claimedVp: 10n,
+                minProposalVp: 1n,
+                proposerOnchainVp: 0n,
+                totalVp: 100n,
+                proposalAddr: addr(9),
+                stateAfter: PS_ACTIVE,
             }).some((c) => !c.ok),
         ).toBe(true);
     });

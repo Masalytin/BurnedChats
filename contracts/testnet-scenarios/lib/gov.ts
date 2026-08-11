@@ -25,6 +25,7 @@ import {
     isGetMethodExecutionError,
     LOCKED_TIER,
     NA_INSUFFICIENT_BURN,
+    openStakingMaster,
     readGetterIntFlexible,
     readStakeRecord,
     requireStakingLockAddr,
@@ -1302,6 +1303,87 @@ export function checkInsufficientVpRejected(input: {
             `proposal_count ${input.countBefore} → ${input.countAfter} (expected reject)`,
         ),
     ];
+}
+
+/**
+ * IMP-TNFS-F19 / IMP-MNAUD-F07 VP half: claimedVp clears the cheap gate but on-chain
+ * proposerVp < min → reserved id CANCELLED, no Proposal address, count increments.
+ */
+export function checkInsufficientOnchainVpRejected(input: {
+    countBefore: bigint;
+    countAfter: bigint;
+    claimedVp: bigint;
+    minProposalVp: bigint;
+    proposerOnchainVp: bigint;
+    totalVp: bigint;
+    proposalAddr: Address | null;
+    stateAfter: bigint | null;
+}): CheckResult[] {
+    return [
+        check(
+            'claimed-meets-min',
+            input.claimedVp >= input.minProposalVp,
+            `claimedVp=${input.claimedVp} >= minProposalVp=${input.minProposalVp}`,
+        ),
+        check(
+            'proposer-onchain-below-min',
+            input.proposerOnchainVp < input.minProposalVp,
+            `on-chain VP ${input.proposerOnchainVp} < minProposalVp ${input.minProposalVp}`,
+        ),
+        check(
+            'total-vp-positive',
+            input.totalVp > 0n,
+            `totalVp=${input.totalVp} (need whale stake so phase-2 totalVp gate is not the failure mode)`,
+        ),
+        check(
+            'proposal-count-incremented',
+            input.countAfter === input.countBefore + 1n,
+            `proposal_count ${input.countBefore} → ${input.countAfter} (expected +1 reserved id)`,
+        ),
+        check(
+            'proposal-addr-null',
+            input.proposalAddr === null,
+            input.proposalAddr === null
+                ? 'get_proposal(id) is null (no deploy)'
+                : `get_proposal(id)=${input.proposalAddr.toString()} (false-pass: deployed)`,
+        ),
+        check(
+            'state-cancelled',
+            input.stateAfter === PS_CANCELLED,
+            `proposal_state=${input.stateAfter} (expected CANCELLED=${PS_CANCELLED})`,
+        ),
+    ];
+}
+
+/** N/A when Blueprint actor already has enough on-chain VP for eligibility. */
+export const NA_ACTOR_HAS_ONCHAIN_VP =
+    'gov-actor-has-onchain-vp (unstake / use zero-stake TEST_ACTOR for F19)';
+
+/** N/A when no stake exists anywhere — TotalVpSnapshotReply would fail totalVp>0 first. */
+export const NA_TOTAL_VP_ZERO = 'total-vp-zero (need whale stake so totalVp > 0)';
+
+export async function naWhenInsufficientOnchainVp(ctx: ScenarioContext): Promise<string | null> {
+    const sender = ctx.provider.sender().address;
+    if (!sender) {
+        return 'blueprint sender unavailable';
+    }
+    const gov = openGovernor(ctx);
+    let minProposalVp = 1n;
+    try {
+        minProposalVp = await gov.getGetMinProposalVp();
+    } catch {
+        // keep default
+    }
+    const onChain = await fetchVotingPower(ctx, sender);
+    if (onChain >= minProposalVp) {
+        return NA_ACTOR_HAS_ONCHAIN_VP;
+    }
+    const master = openStakingMaster(ctx);
+    const totalVp = await master.getGetTotalVotingPower();
+    if (totalVp <= 0n) {
+        return NA_TOTAL_VP_ZERO;
+    }
+    return null;
 }
 
 /** Second CastVote must not increase forVotes (Already voted). */
