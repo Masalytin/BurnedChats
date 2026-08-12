@@ -1,27 +1,28 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-07-18",
-  "deployer": "kQBrZFZiElcBTlnOIDkm0Mow-jIGrLNs_7lSXw5CvFtHNGlL",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260718-tnfs01",
+  "deployedAt": "2026-08-12",
+  "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
+  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260812-tnfs-shared",
   "addresses": {
-    "jettonMaster": "kQBwPTcB643D2OVjXvQQUSHlRKM_xr50e6dKAqgMf3VCDRCt",
-    "treasury": "kQD-G7-Ux8zAJCRfIqhGatT1beo8e5PVQ65-AEPtWqGyIiIY",
-    "treasuryJettonWallet": "kQBQsgI4kaDpjGiCS6dc0Gken4h7-t_JxxRE6c3wK4O_Ci3x",
-    "stakingPool": "kQBCqIzaf1cMpysMnE86v5gaWHXdw0KEsbaUL2fa-tJXskRJ",
-    "stakingLock": "kQCUez-ljN2OpLFnDIEW6rzzTjrffrkZoRezEsQ2tmui3yt4",
-    "stakingMaster": "kQDnYgUHNZO4M7FTXa_S1XJ5bP_V_RBU4NdsF-a5qZ3DK_YP",
-    "governor": "kQDuI1JduQ8DO5Z97scv7Qe2ZYABn6A6GyaZ0rgMHdjP90Pm",
-    "timelock": "kQBx8lfEImi4mw84XeATHCZ4RKg9YD_vLq2xQO4Ij21TzoYU",
-    "vestingDeveloper": "kQD6AuhA6UoLkYjJqOe4b_W9CRHT3RH6NjLiIC6u_yp6WXmJ",
-    "vestingEcosystem": "kQAJHikN6NJL--CDAvPGlDSOpihZKTuV0H8hdrcLmdgcRNDT",
-    "vestingReserve": "kQBUR6wrk8uiGTmonoy7d89Kok8_XIUARXVmuskqid6YFRKA",
-    "vestingStakingAllocation": "kQC0xJ7TXTX7e4A07Mqov6YVFCgfzDK1MCWmpXq4Wh_iNaoG",
-    "airdropHolder": "kQBrZFZiElcBTlnOIDkm0Mow-jIGrLNs_7lSXw5CvFtHNGlL",
+    "jettonMaster": "kQBNcTfIRCIfUC7KcpY7Qb5gEw5-XtgRMXXMtXHMSbUXpz8k",
+    "treasury": "kQAiGMJFOdZjM5IL6LxsrP5y6QT4O5k4l7OZY3UlxqMGNZI_",
+    "treasuryJettonWallet": "kQDildPNCoVhp7K75SqM7UNq7hYEdr8M-gVc4PD_KVoyh3Cs",
+    "stakingPool": "kQDJ-afWfGJxIv4nnfSFTKW7srZcCP7lc_fXDvSTXX3-P3G0",
+    "stakingLock": "kQDQxyx54rkQ6Dlla_P8wB904QIUn28K7DIOk6ZowiUPXgXl",
+    "stakingMaster": "kQC6y0VgpRRWWhKZm2Nw4Ji2cAN7QF_lRVCYzU9__kPyF4Ve",
+    "governor": "kQBIXBpEg7E7_B4w0yUSoguimg-05VXhiu2W3qIKzSRXsKeO",
+    "timelock": "kQAfttN7N8L_oJUrUTd7oqR8cbuVA_6J5fHGTHQ34FqbLCOP",
+    "vestingDeveloper": "kQBEu_M5rXwSk4Ptanyh7qUEPYvkYUzwg63F4qcddGP_5dAI",
+    "vestingEcosystem": "kQBvLocJCTtagRrASf8b-sS_RDKY7OtSpiDwMMvxWbh_fvyZ",
+    "vestingReserve": "kQDwJ4nKc64eGy2UTjb2plg9T40a4UCTNnByKrY3XEObfWx7",
+    "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
     "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
   },
   "bootstrap": {
     "jettonTimelockIsDeployer": false,
-    "timelockGovernorIsDeployer": true,
-    "stakingMasterGovernorIsDeployer": false
+    "timelockGovernorIsDeployer": false,
+    "timelockGovernor": "kQCPr9HzVTPEq9p-Og3dHldHXtludcLX5se0WvxwRGybZaoG",
+    "stakingMasterGovernorIsDeployer": false,
+    "supplyFinalized": false
   }
 }
