@@ -42,6 +42,7 @@
     "featureBurnTitle": "Auto-Destruction",
     "featureBurnDesc": "Détruisez toutes les traces de votre conversation en un seul geste.",
     "joinViaQr": "Rejoindre via QR",
+    "myQr": "Mon QR",
     "scanQrHint": "Pointez vers un QR d'invitation",
     "scanQrUnrecognized": "QR non reconnu comme invitation",
     "burnSection": {
@@ -1339,7 +1340,29 @@
       "failed": "Échec de la vérification. Veuillez réessayer."
     }
   },
-  "joinLanding": {
+    "dmInvite": {
+    "title": "Mon invitation de chat",
+    "caption": "Quelqu'un peut scanner ce QR ou ouvrir le lien pour démarrer un chat avec vous — sans nom d'utilisateur.",
+    "minting": "Création de l'invitation…",
+    "copy": "Copier le lien",
+    "share": "Partager",
+    "shareMessage": "Démarrez un chat sécurisé avec moi sur Burned Chats",
+    "remintButton": "Créer une nouvelle invitation",
+    "redeemSuccess": "Demande de chat envoyée !",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "Ce lien d'invitation est invalide ou inconnu",
+      "DM_INVITE_EXPIRED": "Cette invitation a expiré. Demandez-en une nouvelle",
+      "DM_INVITE_EXHAUSTED": "Cette invitation a déjà été utilisée",
+      "SELF_REDEEM": "Vous ne pouvez pas utiliser votre propre invitation",
+      "RATE_LIMITED": "Trop de demandes. Veuillez patienter",
+      "POW_FAILED": "Échec de la vérification. Réessayez",
+      "POW_INVALID": "Vérification refusée. Réessayez",
+      "CONNECTION_ERROR": "Erreur de connexion. Vérifiez le réseau",
+      "INTERNAL_ERROR": "Une erreur s'est produite. Réessayez",
+      "DEFAULT": "Impossible d'utiliser cette invitation. Réessayez"
+    }
+  },
+"joinLanding": {
     "title": "Vous êtes invité dans une salle",
     "subtitle": "Choisissez comment rejoindre",
     "openInTelegram": "Ouvrir dans Telegram",

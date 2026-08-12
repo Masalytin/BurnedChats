@@ -48,6 +48,8 @@ interface HomePageProps {
   onCreateRoom?: () => void;
   /** Join a room by scanning an invite QR (Telegram ≥ 6.4) */
   onJoinViaQr?: () => void;
+  /** Open personal DM invite QR / share sheet (IMP-DMINVITE-02) */
+  onShowMyQr?: () => void;
   /** List of rooms user participates in (P2-4.1.2) */
   rooms?: RoomListEntry[];
   /** Whether the rooms list is loading */
@@ -93,6 +95,7 @@ export function HomePage({
   burningSessionId = null,
   onCreateRoom,
   onJoinViaQr,
+  onShowMyQr,
   rooms = [],
   isLoadingRooms = false,
   onRoomClick,
@@ -330,6 +333,16 @@ export function HomePage({
                 onClick={onJoinViaQr}
               >
                 {t('home.joinViaQr')}
+              </Button>
+            )}
+            {onShowMyQr && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isConnected}
+                onClick={onShowMyQr}
+              >
+                {t('home.myQr')}
               </Button>
             )}
             <Button

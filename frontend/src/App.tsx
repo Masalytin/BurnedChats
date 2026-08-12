@@ -12,6 +12,7 @@ import { useTelegramViewport } from './hooks/useTelegramViewport';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSearch } from './hooks/useSearch';
 import { useSession, type PendingSession } from './hooks/useSession';
+import { useDmInvite } from './hooks/useDmInvite';
 import { useIncomingRequests } from './hooks/useIncomingRequests';
 import { useHandshake, MAX_HANDSHAKE_MANUAL_RETRIES, HANDSHAKE_RETRY_BASE_COOLDOWN_MS } from './hooks/useHandshake';
 import { useVerification } from './hooks/useVerification';
@@ -73,6 +74,7 @@ import {
   buildTelegramInviteDeepLink,
   buildTelegramShareUrl,
   clearPendingInviteToken,
+  parseDmInviteFragment,
   parseInviteFragment,
   parseInviteUrl,
   readPendingInviteToken,
@@ -102,11 +104,13 @@ import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
 import { completeUserExit } from './utils/completeUserExit';
 import { shouldRefreshHomeData } from './utils/shouldRefreshHomeData';
 import {
+  parseDmInviteStartParam,
   parseDmStartParam,
   parseRoomStartParam,
   resolveDmDeepLink,
   resolveRoomDeepLink,
 } from './utils/telegramStartParam';
+import { DmInviteSheet } from './components/DmInvite';
 import { disconnectTonConnect } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -321,6 +325,11 @@ function AppContent() {
   });
 
   // Session hook
+  // Personal DM invite redeem reuses /user/queue/session-created (owned by useSession).
+  const dmInviteRedeemingRef = useRef(false);
+  const dmInviteMarkRedeemedRef = useRef<() => void>(() => {});
+  const dmInviteMarkFailedRef = useRef<(code: string) => void>(() => {});
+
   const {
     result: sessionResult,
     createSession,
@@ -334,20 +343,61 @@ function AppContent() {
     unsubscribe,
     publish,
     onSessionCreated: (session) => {
+      if (dmInviteRedeemingRef.current) {
+        dmInviteRedeemingRef.current = false;
+        dmInviteMarkRedeemedRef.current();
+      }
       notificationOccurred('success');
-      toast.success('Chat request sent!');
+      toast.success(t('dmInvite.redeemSuccess'));
       setCurrentView('pending-request');
       setPendingSession(session);
       setShowChatRequestDialog(false);
       setSelectedUser(null);
+      setShowDmInviteSheet(false);
     },
     onError: (errorCode) => {
+      if (dmInviteRedeemingRef.current) {
+        dmInviteRedeemingRef.current = false;
+        dmInviteMarkFailedRef.current(String(errorCode));
+        notificationOccurred('error');
+        const key = `dmInvite.errors.${errorCode}`;
+        const msg = t(key);
+        toast.error(msg !== key ? msg : t('dmInvite.errors.DEFAULT'), {
+          title: t('dmInvite.title'),
+        });
+        return;
+      }
       notificationOccurred('error');
       if (errorCode !== 'POW_INVALID' && errorCode !== 'POW_FAILED') {
         toast.error(`Failed to create session: ${errorCode}`, { title: 'Error' });
       }
     },
   });
+
+  const {
+    mint: mintDmInvite,
+    redeem: redeemDmInvite,
+    markRedeemed: markDmInviteRedeemed,
+    markRedeemFailed: markDmInviteRedeemFailed,
+    phase: dmInvitePhase,
+    qrUrl: dmInviteQrUrl,
+    inviteUrl: dmInviteUrl,
+    errorMessage: dmInviteErrorMessage,
+    powPhase: dmInvitePowPhase,
+    powProgressIterations: dmInvitePowIterations,
+  } = useDmInvite({
+    isConnected,
+    subscribe,
+    unsubscribe,
+    publish,
+  });
+
+  useEffect(() => {
+    dmInviteMarkRedeemedRef.current = markDmInviteRedeemed;
+    dmInviteMarkFailedRef.current = markDmInviteRedeemFailed;
+  }, [markDmInviteRedeemed, markDmInviteRedeemFailed]);
+
+  const [showDmInviteSheet, setShowDmInviteSheet] = useState(false);
 
   // Incoming requests hook
   const {
@@ -859,6 +909,8 @@ function AppContent() {
   // IMP-TGUX-03: notification deep links (dm_ / room_) — one-shot per param
   const dmSetupSessionRef = useRef<string | null>(null);
   const roomSetupIdRef = useRef<string | null>(null);
+  // IMP-DMINVITE-02: personal DM invite redeem — one-shot per token
+  const dmInviteRedeemSetupRef = useRef<string | null>(null);
 
   // Web invite route (/join#invite_{token}) — IMP-WEBINVITE-02
   const isJoinRoute = location.pathname === '/join';
@@ -1541,6 +1593,22 @@ function AppContent() {
     }
   }, [isReady, startParam, isConnected, resetJoinRoom, loadInviteInfo]);
 
+  // Personal DM invite deep link: startapp=dm_invite_{token} or #dm_invite_{token}
+  useEffect(() => {
+    if (!isReady || !isConnected) return;
+
+    let token = parseDmInviteStartParam(startParam);
+    if (!token && typeof window !== 'undefined') {
+      token = parseDmInviteFragment(window.location.hash);
+    }
+    if (!token) return;
+    if (dmInviteRedeemSetupRef.current === token) return;
+
+    dmInviteRedeemSetupRef.current = token;
+    dmInviteRedeemingRef.current = true;
+    redeemDmInvite(token);
+  }, [isReady, isConnected, startParam, redeemDmInvite]);
+
   // Web invite route: parse fragment and stash token before wallet-login redirects
   useEffect(() => {
     if (!isJoinRoute) return;
@@ -1644,6 +1712,18 @@ function AppContent() {
     isConnected,
     loadInviteInfo,
   ]);
+
+  const handleShowMyQr = useCallback(() => {
+    setShowDmInviteSheet(true);
+  }, []);
+
+  const handleCloseDmInviteSheet = useCallback(() => {
+    setShowDmInviteSheet(false);
+  }, []);
+
+  const handleMintDmInvite = useCallback(() => {
+    void mintDmInvite();
+  }, [mintDmInvite]);
 
   // Telegram Mini App completes wallet ↔ Telegram linking (start_param lt_<challenge>)
   useEffect(() => {
@@ -3629,12 +3709,26 @@ function AppContent() {
           burningSessionId={burningSessionId}
           onCreateRoom={handleCreateRoom}
           onJoinViaQr={handleJoinViaQr}
+          onShowMyQr={handleShowMyQr}
           rooms={myRooms}
           isLoadingRooms={isLoadingRooms}
           onRoomClick={handleRoomClick}
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
           panicBrandRef={panicBrandRef}
+        />
+
+        {/* Personal DM invite QR / share (IMP-DMINVITE-02) */}
+        <DmInviteSheet
+          open={showDmInviteSheet}
+          onClose={handleCloseDmInviteSheet}
+          phase={dmInvitePhase}
+          qrUrl={dmInviteQrUrl}
+          inviteUrl={dmInviteUrl}
+          errorMessage={dmInviteErrorMessage}
+          powPhase={dmInvitePowPhase}
+          powProgressIterations={dmInvitePowIterations}
+          onMint={handleMintDmInvite}
         />
 
         {/* Chat request dialog */}

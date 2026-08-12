@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  parseDmInviteStartParam,
   parseDmStartParam,
   parseRoomStartParam,
   resolveDmDeepLink,
@@ -15,6 +16,24 @@ describe('parseDmStartParam', () => {
     expect(parseDmStartParam('dm_')).toBeNull();
     expect(parseDmStartParam('invite_x')).toBeNull();
     expect(parseDmStartParam(null)).toBeNull();
+  });
+
+  it('does not treat dm_invite_ as a session deep link', () => {
+    expect(parseDmStartParam('dm_invite_abc123')).toBeNull();
+    expect(parseDmStartParam('dm_invite_')).toBeNull();
+  });
+});
+
+describe('parseDmInviteStartParam', () => {
+  it('extracts token from dm_invite_ prefix', () => {
+    expect(parseDmInviteStartParam('dm_invite_tok99')).toBe('tok99');
+  });
+
+  it('returns null for empty token or wrong prefix', () => {
+    expect(parseDmInviteStartParam('dm_invite_')).toBeNull();
+    expect(parseDmInviteStartParam('dm_session-1')).toBeNull();
+    expect(parseDmInviteStartParam('invite_x')).toBeNull();
+    expect(parseDmInviteStartParam(null)).toBeNull();
   });
 });
 

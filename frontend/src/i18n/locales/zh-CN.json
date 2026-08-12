@@ -42,6 +42,7 @@
     "featureBurnTitle": "阅后即焚",
     "featureBurnDesc": "一键销毁所有对话痕迹。",
     "joinViaQr": "扫码加入",
+    "myQr": "我的二维码",
     "scanQrHint": "对准邀请二维码",
     "scanQrUnrecognized": "无法识别为邀请二维码",
     "burnSection": {
@@ -1339,7 +1340,29 @@
       "failed": "验证失败。请重试。"
     }
   },
-  "joinLanding": {
+    "dmInvite": {
+    "title": "我的聊天邀请",
+    "caption": "对方可扫描此二维码或打开链接开始与你聊天——无需用户名。",
+    "minting": "正在创建邀请…",
+    "copy": "复制链接",
+    "share": "分享",
+    "shareMessage": "在 Burned Chats 与我开始安全聊天",
+    "remintButton": "创建新邀请",
+    "redeemSuccess": "聊天请求已发送！",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "此邀请链接无效或不存在",
+      "DM_INVITE_EXPIRED": "此邀请已过期，请索取新的",
+      "DM_INVITE_EXHAUSTED": "此邀请已被使用",
+      "SELF_REDEEM": "不能使用自己的邀请",
+      "RATE_LIMITED": "请求过多，请稍候",
+      "POW_FAILED": "验证失败，请重试",
+      "POW_INVALID": "验证被拒绝，请重试",
+      "CONNECTION_ERROR": "连接错误，请检查网络",
+      "INTERNAL_ERROR": "出错了，请重试",
+      "DEFAULT": "无法使用此邀请，请重试"
+    }
+  },
+"joinLanding": {
     "title": "您被邀请加入房间",
     "subtitle": "选择加入方式",
     "openInTelegram": "在 Telegram 中打开",

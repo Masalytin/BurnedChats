@@ -51,6 +51,7 @@
     "featureBurnTitle": "Selbstzerstörung",
     "featureBurnDesc": "Zerstören Sie alle Spuren Ihres Gesprächs mit einem Tippen.",
     "joinViaQr": "Per QR beitreten",
+    "myQr": "Meine QR",
     "scanQrHint": "Auf einen Einladungs-QR richten",
     "scanQrUnrecognized": "QR-Code wurde nicht als Einladung erkannt",
     "searchHint": "Teilen Sie Ihre interne ID (im Profil oben), damit andere Sie finden können. Die Suche akzeptiert @Benutzername, numerische Telegram-ID, vollständige interne ID (UUID) oder Wallet-Adresse (EQ…).",
@@ -1339,7 +1340,29 @@
       "failed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
     }
   },
-  "joinLanding": {
+    "dmInvite": {
+    "title": "Meine Chat-Einladung",
+    "caption": "Jemand kann diesen QR scannen oder den Link öffnen, um ohne Benutzername einen Chat mit dir zu starten.",
+    "minting": "Einladung wird erstellt…",
+    "copy": "Link kopieren",
+    "share": "Teilen",
+    "shareMessage": "Starte einen sicheren Chat mit mir in Burned Chats",
+    "remintButton": "Neue Einladung erstellen",
+    "redeemSuccess": "Chat-Anfrage gesendet!",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "Dieser Einladungslink ist ungültig oder unbekannt",
+      "DM_INVITE_EXPIRED": "Diese Einladung ist abgelaufen. Bitte um eine neue",
+      "DM_INVITE_EXHAUSTED": "Diese Einladung wurde bereits verwendet",
+      "SELF_REDEEM": "Du kannst deine eigene Einladung nicht verwenden",
+      "RATE_LIMITED": "Zu viele Anfragen. Bitte kurz warten",
+      "POW_FAILED": "Verifizierung fehlgeschlagen. Bitte erneut versuchen",
+      "POW_INVALID": "Verifizierung wurde abgelehnt. Bitte erneut versuchen",
+      "CONNECTION_ERROR": "Verbindungsfehler. Bitte Netzwerk prüfen",
+      "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte erneut versuchen",
+      "DEFAULT": "Einladung konnte nicht verwendet werden. Bitte erneut versuchen"
+    }
+  },
+"joinLanding": {
     "title": "Sie wurden in einen Raum eingeladen",
     "subtitle": "Wählen Sie, wie Sie beitreten möchten",
     "openInTelegram": "In Telegram öffnen",

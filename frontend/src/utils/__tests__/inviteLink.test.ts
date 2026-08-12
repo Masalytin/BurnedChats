@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildTelegramDmInviteDeepLink,
   buildTelegramInviteDeepLink,
   buildTelegramShareUrl,
   clearPendingInviteToken,
+  parseDmInviteFragment,
+  parseDmInviteUrl,
   parseInviteFragment,
   parseInviteUrl,
   PENDING_INVITE_TOKEN_KEY,
@@ -52,6 +55,60 @@ describe('parseInviteUrl', () => {
     expect(parseInviteUrl('https://example.com/other')).toBeNull();
     expect(parseInviteUrl('https://t.me/Bot/app?startapp=dm_123')).toBeNull();
     expect(parseInviteUrl('not a qr')).toBeNull();
+  });
+
+  it('does not treat dm_invite_ as a room invite', () => {
+    expect(parseInviteUrl('dm_invite_abc')).toBeNull();
+    expect(parseInviteUrl('#dm_invite_abc')).toBeNull();
+    expect(parseInviteUrl('https://t.me/Bot/app?startapp=dm_invite_abc')).toBeNull();
+    expect(parseInviteFragment('#dm_invite_abc')).toBeNull();
+  });
+});
+
+describe('parseDmInviteFragment', () => {
+  it('returns token from #dm_invite_{token} hash', () => {
+    expect(parseDmInviteFragment('#dm_invite_abc123')).toBe('abc123');
+  });
+
+  it('returns token when hash is passed without leading #', () => {
+    expect(parseDmInviteFragment('dm_invite_deadbeef')).toBe('deadbeef');
+  });
+
+  it('returns null for empty or wrong prefix', () => {
+    expect(parseDmInviteFragment('')).toBeNull();
+    expect(parseDmInviteFragment('#')).toBeNull();
+    expect(parseDmInviteFragment('#dm_invite_')).toBeNull();
+    expect(parseDmInviteFragment('#invite_abc')).toBeNull();
+    expect(parseDmInviteFragment('#dm_session-1')).toBeNull();
+  });
+});
+
+describe('parseDmInviteUrl', () => {
+  it('parses web hash and t.me startapp deep links', () => {
+    expect(parseDmInviteUrl('https://app.burnedchats.dev/#dm_invite_tok')).toBe('tok');
+    expect(parseDmInviteUrl('https://t.me/BurnedChatsBot/app?startapp=dm_invite_tok')).toBe('tok');
+    expect(parseDmInviteUrl('t.me/Bot/app?startapp=dm_invite_xyz')).toBe('xyz');
+  });
+
+  it('parses bare dm_invite_ token / fragment', () => {
+    expect(parseDmInviteUrl('dm_invite_bare')).toBe('bare');
+    expect(parseDmInviteUrl('#dm_invite_bare')).toBe('bare');
+  });
+
+  it('does not collide with room invite_ or dm_{sessionId}', () => {
+    expect(parseDmInviteUrl('invite_abc')).toBeNull();
+    expect(parseDmInviteUrl('#invite_abc')).toBeNull();
+    expect(parseDmInviteUrl('dm_session-abc')).toBeNull();
+    expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=dm_session-abc')).toBeNull();
+    expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=invite_abc')).toBeNull();
+  });
+});
+
+describe('buildTelegramDmInviteDeepLink', () => {
+  it('builds startapp deep link with dm_invite_ prefix', () => {
+    expect(buildTelegramDmInviteDeepLink('tok99')).toBe(
+      'https://t.me/BurnedChatsBot/app?startapp=dm_invite_tok99',
+    );
   });
 });
 
