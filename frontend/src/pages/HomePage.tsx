@@ -50,6 +50,8 @@ interface HomePageProps {
   onJoinViaQr?: () => void;
   /** Open personal DM invite QR / share sheet (IMP-DMINVITE-02) */
   onShowMyQr?: () => void;
+  /** Open personal DM invite scanner (IMP-DMINVITE-03) */
+  onScanDmQr?: () => void;
   /** List of rooms user participates in (P2-4.1.2) */
   rooms?: RoomListEntry[];
   /** Whether the rooms list is loading */
@@ -96,6 +98,7 @@ export function HomePage({
   onCreateRoom,
   onJoinViaQr,
   onShowMyQr,
+  onScanDmQr,
   rooms = [],
   isLoadingRooms = false,
   onRoomClick,
@@ -343,6 +346,16 @@ export function HomePage({
                 onClick={onShowMyQr}
               >
                 {t('home.myQr')}
+              </Button>
+            )}
+            {onScanDmQr && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isConnected}
+                onClick={onScanDmQr}
+              >
+                {t('home.scanDmQr')}
               </Button>
             )}
             <Button

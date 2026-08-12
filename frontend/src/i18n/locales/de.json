@@ -52,6 +52,7 @@
     "featureBurnDesc": "Zerstören Sie alle Spuren Ihres Gesprächs mit einem Tippen.",
     "joinViaQr": "Per QR beitreten",
     "myQr": "Meine QR",
+    "scanDmQr": "Chat-QR scannen",
     "scanQrHint": "Auf einen Einladungs-QR richten",
     "scanQrUnrecognized": "QR-Code wurde nicht als Einladung erkannt",
     "searchHint": "Teilen Sie Ihre interne ID (im Profil oben), damit andere Sie finden können. Die Suche akzeptiert @Benutzername, numerische Telegram-ID, vollständige interne ID (UUID) oder Wallet-Adresse (EQ…).",
@@ -1349,6 +1350,19 @@
     "shareMessage": "Starte einen sicheren Chat mit mir in Burned Chats",
     "remintButton": "Neue Einladung erstellen",
     "redeemSuccess": "Chat-Anfrage gesendet!",
+    "scanner": {
+      "title": "Chat-Einladung scannen",
+      "caption": "Richte die Kamera auf jemandes persönlichen Chat-QR oder füge den Link unten ein.",
+      "scanButton": "Mit Kamera scannen",
+      "cameraHint": "Auf einen persönlichen Chat-Einladungs-QR richten",
+      "startingCamera": "Kamera wird gestartet…",
+      "cameraUnavailable": "Die In-App-Kamera ist hier nicht verfügbar. Link einfügen oder QR mit der Systemkamera öffnen.",
+      "systemCameraHint": "Tipp: Du kannst den QR auch mit der Systemkamera öffnen — derselbe Einladungslink.",
+      "pasteLabel": "Einladungslink einfügen",
+      "pastePlaceholder": "https://t.me/…?startapp=dm_invite_…",
+      "pasteSubmit": "Link verwenden",
+      "invalidQr": "Dieser QR oder Link ist keine persönliche Chat-Einladung"
+    },
     "errors": {
       "DM_INVITE_NOT_FOUND": "Dieser Einladungslink ist ungültig oder unbekannt",
       "DM_INVITE_EXPIRED": "Diese Einladung ist abgelaufen. Bitte um eine neue",

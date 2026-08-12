@@ -131,6 +131,7 @@
     "featureBurnDesc": "Destroy all traces of your conversation with one tap.",
     "joinViaQr": "Join via QR",
     "myQr": "My QR",
+    "scanDmQr": "Scan chat QR",
     "scanQrHint": "Point at an invite QR code",
     "scanQrUnrecognized": "QR code not recognized as an invite",
     "burnSection": {
@@ -1388,6 +1389,19 @@
     "shareMessage": "Start a secure chat with me on Burned Chats",
     "remintButton": "Create new invite",
     "redeemSuccess": "Chat request sent!",
+    "scanner": {
+      "title": "Scan chat invite",
+      "caption": "Point at someone's personal chat QR, or paste their invite link below.",
+      "scanButton": "Scan with camera",
+      "cameraHint": "Point at a personal chat invite QR",
+      "startingCamera": "Starting camera…",
+      "cameraUnavailable": "In-app camera isn't available here. Paste the link or open the QR with your system camera.",
+      "systemCameraHint": "Tip: you can also open the QR with your phone's system camera — it opens the same invite link.",
+      "pasteLabel": "Paste invite link",
+      "pastePlaceholder": "https://t.me/…?startapp=dm_invite_…",
+      "pasteSubmit": "Use link",
+      "invalidQr": "This QR or link is not a personal chat invite"
+    },
     "errors": {
       "DM_INVITE_NOT_FOUND": "This invite link is invalid or unknown",
       "DM_INVITE_EXPIRED": "This invite has expired. Ask for a new one",

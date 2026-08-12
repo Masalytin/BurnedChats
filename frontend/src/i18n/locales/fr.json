@@ -43,6 +43,7 @@
     "featureBurnDesc": "Détruisez toutes les traces de votre conversation en un seul geste.",
     "joinViaQr": "Rejoindre via QR",
     "myQr": "Mon QR",
+    "scanDmQr": "Scanner le QR chat",
     "scanQrHint": "Pointez vers un QR d'invitation",
     "scanQrUnrecognized": "QR non reconnu comme invitation",
     "burnSection": {
@@ -1349,6 +1350,19 @@
     "shareMessage": "Démarrez un chat sécurisé avec moi sur Burned Chats",
     "remintButton": "Créer une nouvelle invitation",
     "redeemSuccess": "Demande de chat envoyée !",
+    "scanner": {
+      "title": "Scanner une invitation",
+      "caption": "Pointez vers le QR de chat personnel de quelqu'un, ou collez le lien ci-dessous.",
+      "scanButton": "Scanner avec la caméra",
+      "cameraHint": "Pointez vers un QR d'invitation de chat personnel",
+      "startingCamera": "Démarrage de la caméra…",
+      "cameraUnavailable": "La caméra intégrée n'est pas disponible ici. Collez le lien ou ouvrez le QR avec la caméra système.",
+      "systemCameraHint": "Astuce : vous pouvez aussi ouvrir le QR avec la caméra système — même lien d'invitation.",
+      "pasteLabel": "Coller le lien d'invitation",
+      "pastePlaceholder": "https://t.me/…?startapp=dm_invite_…",
+      "pasteSubmit": "Utiliser le lien",
+      "invalidQr": "Ce QR ou lien n'est pas une invitation de chat personnelle"
+    },
     "errors": {
       "DM_INVITE_NOT_FOUND": "Ce lien d'invitation est invalide ou inconnu",
       "DM_INVITE_EXPIRED": "Cette invitation a expiré. Demandez-en une nouvelle",

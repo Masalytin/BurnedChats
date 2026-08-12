@@ -4,6 +4,7 @@ import {
   buildTelegramDmInviteDeepLink,
   buildTelegramInviteDeepLink,
   buildTelegramShareUrl,
+  classifyScannedInvite,
   clearPendingInviteToken,
   parseDmInviteFragment,
   parseDmInviteUrl,
@@ -101,6 +102,35 @@ describe('parseDmInviteUrl', () => {
     expect(parseDmInviteUrl('dm_session-abc')).toBeNull();
     expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=dm_session-abc')).toBeNull();
     expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=invite_abc')).toBeNull();
+  });
+});
+
+describe('classifyScannedInvite', () => {
+  it('classifies personal DM invite deep links as dm', () => {
+    expect(classifyScannedInvite('https://t.me/Bot/app?startapp=dm_invite_tok99')).toEqual({
+      kind: 'dm',
+      token: 'tok99',
+    });
+    expect(classifyScannedInvite('#dm_invite_abc')).toEqual({ kind: 'dm', token: 'abc' });
+    expect(classifyScannedInvite('dm_invite_bare')).toEqual({ kind: 'dm', token: 'bare' });
+  });
+
+  it('classifies room invite QR as room (never dm)', () => {
+    expect(classifyScannedInvite('https://t.me/Bot/app?startapp=invite_room1')).toEqual({
+      kind: 'room',
+      token: 'room1',
+    });
+    expect(classifyScannedInvite('#invite_room1')).toEqual({ kind: 'room', token: 'room1' });
+  });
+
+  it('rejects invalid / session deep links', () => {
+    expect(classifyScannedInvite('')).toEqual({ kind: 'invalid', token: null });
+    expect(classifyScannedInvite('not a qr')).toEqual({ kind: 'invalid', token: null });
+    expect(classifyScannedInvite('dm_session-abc')).toEqual({ kind: 'invalid', token: null });
+    expect(classifyScannedInvite('https://t.me/Bot/app?startapp=dm_session-abc')).toEqual({
+      kind: 'invalid',
+      token: null,
+    });
   });
 });
 

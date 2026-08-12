@@ -146,6 +146,30 @@ export function parseDmInviteUrl(text: string): string | null {
   return null;
 }
 
+/** Result of classifying a scanned / pasted invite QR payload. */
+export type ScannedInviteKind = 'dm' | 'room' | 'invalid';
+
+export interface ScannedInviteResult {
+  kind: ScannedInviteKind;
+  token: string | null;
+}
+
+/**
+ * Classify scanned QR / pasted text for the in-app DM invite scanner.
+ * DM (`dm_invite_`) is checked before room (`invite_`) so prefixes never collide.
+ */
+export function classifyScannedInvite(text: string): ScannedInviteResult {
+  const dmToken = parseDmInviteUrl(text);
+  if (dmToken) {
+    return { kind: 'dm', token: dmToken };
+  }
+  const roomToken = parseInviteUrl(text);
+  if (roomToken) {
+    return { kind: 'room', token: roomToken };
+  }
+  return { kind: 'invalid', token: null };
+}
+
 /** Build Telegram Mini App deep link for the given invite token. */
 export function buildTelegramInviteDeepLink(token: string): string {
   const botUrl = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';

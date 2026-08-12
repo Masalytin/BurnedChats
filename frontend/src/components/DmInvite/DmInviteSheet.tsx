@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Share2 } from 'lucide-react';
+import { ScanLine, Share2 } from 'lucide-react';
 import type { PowPhase } from '../../hooks/usePow';
 import type { DmInvitePhase } from '../../hooks/useDmInvite';
 import { getEnvironment } from '../../env/detector';
@@ -22,6 +22,8 @@ export interface DmInviteSheetProps {
   powPhase: PowPhase;
   powProgressIterations: number;
   onMint: () => void;
+  /** Open in-app DM invite scanner (IMP-DMINVITE-03) */
+  onScan?: () => void;
 }
 
 /**
@@ -38,6 +40,7 @@ export function DmInviteSheet({
   powPhase,
   powProgressIterations,
   onMint,
+  onScan,
 }: DmInviteSheetProps) {
   const { t } = useTranslation();
   const { impactOccurred, openTelegramLink } = useTelegram();
@@ -87,6 +90,11 @@ export function DmInviteSheet({
     impactOccurred('light');
     onMint();
   }, [impactOccurred, onMint]);
+
+  const handleScan = useCallback(() => {
+    impactOccurred('light');
+    onScan?.();
+  }, [impactOccurred, onScan]);
 
   if (!open) {
     return null;
@@ -168,6 +176,17 @@ export function DmInviteSheet({
         <Button variant="secondary" onClick={onClose} fullWidth>
           {t('common.cancel')}
         </Button>
+
+        {onScan && (
+          <Button
+            variant="ghost"
+            onClick={handleScan}
+            fullWidth
+            leftIcon={<ScanLine size={16} aria-hidden="true" />}
+          >
+            {t('dmInvite.scanner.scanButton')}
+          </Button>
+        )}
       </div>
     </div>
   );

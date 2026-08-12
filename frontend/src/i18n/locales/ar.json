@@ -43,6 +43,7 @@
     "featureBurnDesc": "دمر جميع آثار محادثتك بنقرة واحدة.",
     "joinViaQr": "الانضمام عبر QR",
     "myQr": "رمزي QR",
+    "scanDmQr": "مسح رمز دردشة QR",
     "scanQrHint": "وجّه الكاميرا إلى رمز دعوة QR",
     "scanQrUnrecognized": "رمز QR غير معروف كدعوة",
     "burnSection": {
@@ -1357,6 +1358,19 @@
     "shareMessage": "ابدأ دردشة آمنة معي على Burned Chats",
     "remintButton": "إنشاء دعوة جديدة",
     "redeemSuccess": "تم إرسال طلب الدردشة!",
+    "scanner": {
+      "title": "مسح دعوة الدردشة",
+      "caption": "وجّه الكاميرا إلى رمز QR للدردشة الشخصية أو الصق الرابط أدناه.",
+      "scanButton": "المسح بالكاميرا",
+      "cameraHint": "وجّه الكاميرا إلى رمز دعوة دردشة شخصية",
+      "startingCamera": "جارٍ تشغيل الكاميرا…",
+      "cameraUnavailable": "الكاميرا داخل التطبيق غير متاحة هنا. الصق الرابط أو افتح الرمز بكاميرا النظام.",
+      "systemCameraHint": "تلميح: يمكنك أيضاً فتح رمز QR بكاميرا الهاتف — نفس رابط الدعوة.",
+      "pasteLabel": "لصق رابط الدعوة",
+      "pastePlaceholder": "https://t.me/…?startapp=dm_invite_…",
+      "pasteSubmit": "استخدام الرابط",
+      "invalidQr": "رمز QR أو الرابط ليس دعوة دردشة شخصية"
+    },
     "errors": {
       "DM_INVITE_NOT_FOUND": "رابط الدعوة هذا غير صالح أو غير معروف",
       "DM_INVITE_EXPIRED": "انتهت صلاحية هذه الدعوة. اطلب واحدة جديدة",

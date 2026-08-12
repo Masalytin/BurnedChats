@@ -110,7 +110,7 @@ import {
   resolveDmDeepLink,
   resolveRoomDeepLink,
 } from './utils/telegramStartParam';
-import { DmInviteSheet } from './components/DmInvite';
+import { DmInviteSheet, DmInviteScanner } from './components/DmInvite';
 import { disconnectTonConnect } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -398,6 +398,7 @@ function AppContent() {
   }, [markDmInviteRedeemed, markDmInviteRedeemFailed]);
 
   const [showDmInviteSheet, setShowDmInviteSheet] = useState(false);
+  const [showDmInviteScanner, setShowDmInviteScanner] = useState(false);
 
   // Incoming requests hook
   const {
@@ -1720,6 +1721,46 @@ function AppContent() {
   const handleCloseDmInviteSheet = useCallback(() => {
     setShowDmInviteSheet(false);
   }, []);
+
+  const handleOpenDmInviteScanner = useCallback(() => {
+    setShowDmInviteSheet(false);
+    setShowDmInviteScanner(true);
+  }, []);
+
+  const handleCloseDmInviteScanner = useCallback(() => {
+    setShowDmInviteScanner(false);
+  }, []);
+
+  const handleDmInviteScannedToken = useCallback(
+    (token: string) => {
+      setShowDmInviteScanner(false);
+      if (dmInviteRedeemSetupRef.current === token) {
+        return;
+      }
+      dmInviteRedeemSetupRef.current = token;
+      dmInviteRedeemingRef.current = true;
+      redeemDmInvite(token);
+    },
+    [redeemDmInvite],
+  );
+
+  const handleDmInviteScannedRoom = useCallback(
+    (token: string) => {
+      setShowDmInviteScanner(false);
+
+      if (inviteSetupTokenRef.current !== token) {
+        inviteSetupTokenRef.current = token;
+        resetJoinRoom();
+        setInviteToken(token);
+        setCurrentView('join-room');
+      }
+
+      if (isConnected) {
+        loadInviteInfo(token);
+      }
+    },
+    [resetJoinRoom, isConnected, loadInviteInfo],
+  );
 
   const handleMintDmInvite = useCallback(() => {
     void mintDmInvite();
@@ -3710,6 +3751,7 @@ function AppContent() {
           onCreateRoom={handleCreateRoom}
           onJoinViaQr={handleJoinViaQr}
           onShowMyQr={handleShowMyQr}
+          onScanDmQr={handleOpenDmInviteScanner}
           rooms={myRooms}
           isLoadingRooms={isLoadingRooms}
           onRoomClick={handleRoomClick}
@@ -3729,6 +3771,14 @@ function AppContent() {
           powPhase={dmInvitePowPhase}
           powProgressIterations={dmInvitePowIterations}
           onMint={handleMintDmInvite}
+          onScan={handleOpenDmInviteScanner}
+        />
+
+        <DmInviteScanner
+          open={showDmInviteScanner}
+          onClose={handleCloseDmInviteScanner}
+          onDmToken={handleDmInviteScannedToken}
+          onRoomInvite={handleDmInviteScannedRoom}
         />
 
         {/* Chat request dialog */}

@@ -43,6 +43,7 @@
     "featureBurnDesc": "一键销毁所有对话痕迹。",
     "joinViaQr": "扫码加入",
     "myQr": "我的二维码",
+    "scanDmQr": "扫描聊天二维码",
     "scanQrHint": "对准邀请二维码",
     "scanQrUnrecognized": "无法识别为邀请二维码",
     "burnSection": {
@@ -1349,6 +1350,19 @@
     "shareMessage": "在 Burned Chats 与我开始安全聊天",
     "remintButton": "创建新邀请",
     "redeemSuccess": "聊天请求已发送！",
+    "scanner": {
+      "title": "扫描聊天邀请",
+      "caption": "对准对方的个人聊天二维码，或在下方粘贴邀请链接。",
+      "scanButton": "用相机扫描",
+      "cameraHint": "对准个人聊天邀请二维码",
+      "startingCamera": "正在启动相机…",
+      "cameraUnavailable": "此处无法使用应用内相机。请粘贴链接或用系统相机打开二维码。",
+      "systemCameraHint": "提示：也可以用手机系统相机打开二维码——会打开同一邀请链接。",
+      "pasteLabel": "粘贴邀请链接",
+      "pastePlaceholder": "https://t.me/…?startapp=dm_invite_…",
+      "pasteSubmit": "使用链接",
+      "invalidQr": "此二维码或链接不是个人聊天邀请"
+    },
     "errors": {
       "DM_INVITE_NOT_FOUND": "此邀请链接无效或不存在",
       "DM_INVITE_EXPIRED": "此邀请已过期，请索取新的",
