@@ -189,4 +189,40 @@ describe('useDmInvite', () => {
     expect(result.current.phase).toBe('redeemed');
     expect(result.current.error).toBeNull();
   });
+
+  it('reset clears a ready invite so Home cannot revive an exhausted QR', async () => {
+    const { result } = renderDmInvite();
+
+    act(() => {
+      void result.current.mint();
+    });
+
+    await waitFor(() => {
+      expect(publish).toHaveBeenCalled();
+    });
+
+    act(() => {
+      mintedHandler?.({
+        body: JSON.stringify({
+          success: true,
+          token: TOKEN,
+          inviteUrl: `https://t.me/Bot/app?startapp=dm_invite_${TOKEN}`,
+          expiresAt: Date.now() + 600_000,
+          maxUses: 1,
+        }),
+      } as IMessage);
+    });
+
+    expect(result.current.phase).toBe('ready');
+    expect(result.current.qrUrl).toBeTruthy();
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(result.current.phase).toBe('idle');
+    expect(result.current.token).toBeNull();
+    expect(result.current.qrUrl).toBeNull();
+    expect(result.current.inviteUrl).toBeNull();
+  });
 });

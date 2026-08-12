@@ -111,6 +111,10 @@ import {
   resolveRoomDeepLink,
 } from './utils/telegramStartParam';
 import { DmInviteSheet, DmInviteScanner } from './components/DmInvite';
+import {
+  closeDmInviteSheet,
+  shouldAutoDismissDmInviteSheet,
+} from './utils/dmInviteUi';
 import { disconnectTonConnect } from './ton/connector';
 import './components/BurnAllDialog/BurnAllDialog.css';
 import './components/PanicUndoToast/PanicUndoToast.css';
@@ -329,6 +333,7 @@ function AppContent() {
   const dmInviteRedeemingRef = useRef(false);
   const dmInviteMarkRedeemedRef = useRef<() => void>(() => {});
   const dmInviteMarkFailedRef = useRef<(code: string) => void>(() => {});
+  const dmInviteResetRef = useRef<() => void>(() => {});
 
   const {
     result: sessionResult,
@@ -353,7 +358,7 @@ function AppContent() {
       setPendingSession(session);
       setShowChatRequestDialog(false);
       setSelectedUser(null);
-      setShowDmInviteSheet(false);
+      closeDmInviteSheet(setShowDmInviteSheet, () => dmInviteResetRef.current());
     },
     onError: (errorCode) => {
       if (dmInviteRedeemingRef.current) {
@@ -379,6 +384,7 @@ function AppContent() {
     redeem: redeemDmInvite,
     markRedeemed: markDmInviteRedeemed,
     markRedeemFailed: markDmInviteRedeemFailed,
+    reset: resetDmInvite,
     phase: dmInvitePhase,
     qrUrl: dmInviteQrUrl,
     inviteUrl: dmInviteUrl,
@@ -395,7 +401,8 @@ function AppContent() {
   useEffect(() => {
     dmInviteMarkRedeemedRef.current = markDmInviteRedeemed;
     dmInviteMarkFailedRef.current = markDmInviteRedeemFailed;
-  }, [markDmInviteRedeemed, markDmInviteRedeemFailed]);
+    dmInviteResetRef.current = resetDmInvite;
+  }, [markDmInviteRedeemed, markDmInviteRedeemFailed, resetDmInvite]);
 
   const [showDmInviteSheet, setShowDmInviteSheet] = useState(false);
   const [showDmInviteScanner, setShowDmInviteScanner] = useState(false);
@@ -1719,13 +1726,20 @@ function AppContent() {
   }, []);
 
   const handleCloseDmInviteSheet = useCallback(() => {
-    setShowDmInviteSheet(false);
-  }, []);
+    closeDmInviteSheet(setShowDmInviteSheet, resetDmInvite);
+  }, [resetDmInvite]);
 
   const handleOpenDmInviteScanner = useCallback(() => {
-    setShowDmInviteSheet(false);
+    closeDmInviteSheet(setShowDmInviteSheet, resetDmInvite);
     setShowDmInviteScanner(true);
-  }, []);
+  }, [resetDmInvite]);
+
+  // Sheet mounts only on Home. Leaving home with open=true remounts a stale one-shot QR after burn.
+  useEffect(() => {
+    if (shouldAutoDismissDmInviteSheet(currentView, showDmInviteSheet)) {
+      closeDmInviteSheet(setShowDmInviteSheet, resetDmInvite);
+    }
+  }, [currentView, showDmInviteSheet, resetDmInvite]);
 
   const handleCloseDmInviteScanner = useCallback(() => {
     setShowDmInviteScanner(false);
