@@ -42,6 +42,7 @@
     "featureBurnTitle": "Autodestrucción",
     "featureBurnDesc": "Destruye todos los rastros de tu conversación con un toque.",
     "joinViaQr": "Unirse por QR",
+    "myQr": "Mi QR",
     "scanQrHint": "Apunta a un QR de invitación",
     "scanQrUnrecognized": "Código QR no reconocido como invitación",
     "burnSection": {
@@ -1339,7 +1340,29 @@
       "failed": "La verificación falló. Inténtalo de nuevo."
     }
   },
-  "joinLanding": {
+    "dmInvite": {
+    "title": "Mi invitación de chat",
+    "caption": "Alguien puede escanear este QR o abrir el enlace para chatear contigo — sin nombre de usuario.",
+    "minting": "Creando invitación…",
+    "copy": "Copiar enlace",
+    "share": "Compartir",
+    "shareMessage": "Inicia un chat seguro conmigo en Burned Chats",
+    "remintButton": "Crear nueva invitación",
+    "redeemSuccess": "¡Solicitud de chat enviada!",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "Este enlace de invitación no es válido o es desconocido",
+      "DM_INVITE_EXPIRED": "Esta invitación ha caducado. Pide una nueva",
+      "DM_INVITE_EXHAUSTED": "Esta invitación ya fue usada",
+      "SELF_REDEEM": "No puedes usar tu propia invitación",
+      "RATE_LIMITED": "Demasiadas solicitudes. Espera un momento",
+      "POW_FAILED": "Falló la verificación. Inténtalo de nuevo",
+      "POW_INVALID": "Verificación rechazada. Inténtalo de nuevo",
+      "CONNECTION_ERROR": "Error de conexión. Comprueba la red",
+      "INTERNAL_ERROR": "Algo salió mal. Inténtalo de nuevo",
+      "DEFAULT": "No se pudo usar esta invitación. Inténtalo de nuevo"
+    }
+  },
+"joinLanding": {
     "title": "Estás invitado a una sala",
     "subtitle": "Elige cómo quieres unirte",
     "openInTelegram": "Abrir en Telegram",

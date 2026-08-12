@@ -8,7 +8,7 @@ import type { IMessage } from '@stomp/stompjs';
 import type { PowWorkerInbound, PowWorkerOutbound } from '../workers/powWorker';
 
 /** Wire-format gated actions (DESIGN.md §3). */
-export type PowAction = 'session_create' | 'search' | 'room_create' | 'invite';
+export type PowAction = 'session_create' | 'search' | 'room_create' | 'invite' | 'dm_invite';
 
 /** Challenge issued by the server on /user/queue/pow-challenge. */
 export interface PowChallenge {

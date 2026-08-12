@@ -1,0 +1,96 @@
+.dm-invite-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-lg);
+  background: color-mix(in srgb, var(--bc-bg-primary) 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.dm-invite-sheet {
+  width: min(100%, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-lg);
+  background: var(--bc-bg-elevated);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-lg);
+  box-shadow: 0 12px 40px color-mix(in srgb, #000 35%, transparent);
+}
+
+.dm-invite-sheet__title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+  text-align: center;
+}
+
+.dm-invite-sheet__pow {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.dm-invite-sheet__status {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  text-align: center;
+}
+
+.dm-invite-sheet__error {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-danger, #e5484d);
+  text-align: center;
+}
+
+.dm-invite-sheet__code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: #fff;
+  border-radius: var(--bc-radius-md);
+}
+
+.dm-invite-sheet__code svg {
+  display: block;
+}
+
+.dm-invite-sheet__caption {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  text-align: center;
+}
+
+.dm-invite-sheet__url {
+  margin: 0;
+  max-width: 100%;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-tertiary, var(--bc-text-secondary));
+  text-align: center;
+  word-break: break-all;
+}
+
+.dm-invite-sheet__actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+}
+
+.dm-invite-sheet__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bc-spacing-xs);
+}

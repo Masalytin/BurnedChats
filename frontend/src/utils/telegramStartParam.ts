@@ -1,15 +1,26 @@
 /**
- * Telegram Mini App start_param helpers (IMP-TGUX-03).
+ * Telegram Mini App start_param helpers (IMP-TGUX-03 / IMP-DMINVITE-02).
  *
  * Formats (initDataUnsafe.start_param):
- *   invite_{token}  — room invite (handled elsewhere)
- *   lt_{challenge}  — wallet↔Telegram link (handled elsewhere)
- *   dm_{sessionId}  — open DM / incoming chat request
- *   room_{roomId}   — open room if member
+ *   invite_{token}     — room invite (handled elsewhere)
+ *   dm_invite_{token}  — personal DM invite redeem
+ *   lt_{challenge}     — wallet↔Telegram link (handled elsewhere)
+ *   dm_{sessionId}     — open DM / incoming chat request
+ *   room_{roomId}      — open room if member
  */
+
+const DM_INVITE_PREFIX = 'dm_invite_';
+
+export function parseDmInviteStartParam(startParam: string | null | undefined): string | null {
+  if (!startParam?.startsWith(DM_INVITE_PREFIX)) return null;
+  const token = startParam.slice(DM_INVITE_PREFIX.length);
+  return token.length > 0 ? token : null;
+}
 
 export function parseDmStartParam(startParam: string | null | undefined): string | null {
   if (!startParam?.startsWith('dm_')) return null;
+  // Personal DM invite uses dm_invite_ — must not be treated as dm_{sessionId}
+  if (startParam.startsWith(DM_INVITE_PREFIX)) return null;
   const sessionId = startParam.slice('dm_'.length);
   return sessionId.length > 0 ? sessionId : null;
 }

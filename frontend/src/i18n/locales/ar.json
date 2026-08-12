@@ -42,6 +42,7 @@
     "featureBurnTitle": "الحذف التلقائي",
     "featureBurnDesc": "دمر جميع آثار محادثتك بنقرة واحدة.",
     "joinViaQr": "الانضمام عبر QR",
+    "myQr": "رمزي QR",
     "scanQrHint": "وجّه الكاميرا إلى رمز دعوة QR",
     "scanQrUnrecognized": "رمز QR غير معروف كدعوة",
     "burnSection": {
@@ -1347,7 +1348,29 @@
       "failed": "فشل التحقق. يرجى المحاولة مرة أخرى."
     }
   },
-  "joinLanding": {
+    "dmInvite": {
+    "title": "دعوة الدردشة الخاصة بي",
+    "caption": "يمكن لشخص ما مسح رمز QR هذا أو فتح الرابط لبدء دردشة معك — دون اسم مستخدم.",
+    "minting": "جارٍ إنشاء الدعوة…",
+    "copy": "نسخ الرابط",
+    "share": "مشاركة",
+    "shareMessage": "ابدأ دردشة آمنة معي على Burned Chats",
+    "remintButton": "إنشاء دعوة جديدة",
+    "redeemSuccess": "تم إرسال طلب الدردشة!",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "رابط الدعوة هذا غير صالح أو غير معروف",
+      "DM_INVITE_EXPIRED": "انتهت صلاحية هذه الدعوة. اطلب واحدة جديدة",
+      "DM_INVITE_EXHAUSTED": "تم استخدام هذه الدعوة بالفعل",
+      "SELF_REDEEM": "لا يمكنك استخدام دعوتك الخاصة",
+      "RATE_LIMITED": "طلبات كثيرة جداً. يرجى الانتظار",
+      "POW_FAILED": "فشل التحقق. حاول مرة أخرى",
+      "POW_INVALID": "تم رفض التحقق. حاول مرة أخرى",
+      "CONNECTION_ERROR": "خطأ في الاتصال. تحقق من الشبكة",
+      "INTERNAL_ERROR": "حدث خطأ ما. حاول مرة أخرى",
+      "DEFAULT": "تعذر استخدام هذه الدعوة. حاول مرة أخرى"
+    }
+  },
+"joinLanding": {
     "title": "أنت مدعو إلى غرفة",
     "subtitle": "اختر كيف تريد الانضمام",
     "openInTelegram": "فتح في Telegram",

@@ -130,6 +130,7 @@
     "featureBurnTitle": "Burn After Reading",
     "featureBurnDesc": "Destroy all traces of your conversation with one tap.",
     "joinViaQr": "Join via QR",
+    "myQr": "My QR",
     "scanQrHint": "Point at an invite QR code",
     "scanQrUnrecognized": "QR code not recognized as an invite",
     "burnSection": {
@@ -1375,6 +1376,29 @@
       "timeout": "Verification timed out. Please try again.",
       "cancelled": "Verification cancelled.",
       "failed": "Verification failed. Please try again."
+    }
+  },
+
+  "dmInvite": {
+    "title": "My chat invite",
+    "caption": "Let someone scan this QR or open the link to start a chat with you — no username needed.",
+    "minting": "Creating invite…",
+    "copy": "Copy link",
+    "share": "Share",
+    "shareMessage": "Start a secure chat with me on Burned Chats",
+    "remintButton": "Create new invite",
+    "redeemSuccess": "Chat request sent!",
+    "errors": {
+      "DM_INVITE_NOT_FOUND": "This invite link is invalid or unknown",
+      "DM_INVITE_EXPIRED": "This invite has expired. Ask for a new one",
+      "DM_INVITE_EXHAUSTED": "This invite was already used",
+      "SELF_REDEEM": "You can't use your own invite",
+      "RATE_LIMITED": "Too many requests. Please wait a moment",
+      "POW_FAILED": "Verification failed. Please try again",
+      "POW_INVALID": "Verification was rejected. Please try again",
+      "CONNECTION_ERROR": "Connection error. Please check your network",
+      "INTERNAL_ERROR": "Something went wrong. Please try again",
+      "DEFAULT": "Could not use this invite. Please try again"
     }
   },
 
