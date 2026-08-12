@@ -170,6 +170,7 @@ pow:
     session-create: 20
     invite: 20
     room-create: 22
+    dm-invite: 20
 
 # Security settings
 security:

@@ -8,7 +8,9 @@ public enum PowAction {
     SESSION_CREATE("session_create"),
     SEARCH("search"),
     ROOM_CREATE("room_create"),
-    INVITE("invite");
+    INVITE("invite"),
+    /** Personal DM invite mint (IMP-DMINVITE-01). Wire: {@code dm_invite}. */
+    DM_INVITE("dm_invite");
 
     private final String wireValue;
 

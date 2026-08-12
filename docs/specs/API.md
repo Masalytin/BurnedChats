@@ -95,6 +95,8 @@ Compatibility: backend also accepts legacy header/query names `auth-type` / `aut
 | `SEARCH_USER` (`/app/search`) | 10 req | 1 min | `SEARCH` |
 | `SEND_MESSAGE` (`/app/message.send`, `/app/message.sync`) | 60 msg | 1 min | `MESSAGE` (`RateLimitService`; yaml `rate-limit.messages.per-minute`) |
 | `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (after PoW) |
+| `dmInvite.mint` (`/app/dmInvite.mint`) | 3 req | 1 min | `DM_INVITE_MINT` (after PoW; in-service) |
+| `dmInvite.redeem` (`/app/dmInvite.redeem`) | 10 req | 1 min | `DM_INVITE_REDEEM` (in-service; no heavy PoW) |
 | `session.accept` / `session.reject` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject — in `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` in `RoomHandler`) |
 | `handshake.key` (`/app/handshake.key`) | 10 req | 1 min | `HANDSHAKE` |
 | `message.edit` / `room.message.edit` | 10 req | 1 min | `MESSAGE_EDIT` |
@@ -272,13 +274,13 @@ Non-matching string → `INVALID_QUERY`. Partial UUID / wallet prefix → **not*
 
 Request a PoW challenge before a gated action. The route **does not** require PoW (otherwise chicken-and-egg). **Issuance rate-limit:** `RateLimitService.POW_CHALLENGE` — **10 requests / min / `internalId`**; on exceed → `/user/queue/errors` with `RATE_LIMIT_EXCEEDED` and `retryAfter` (seconds).
 
-PoW is enforced on `/app/session.create` only. Challenge issuance also accepts `search`, `room_create`, `invite` actions; those routes do not verify PoW yet.
+PoW is enforced on `/app/session.create` and `/app/dmInvite.mint`. Challenge issuance also accepts `search`, `room_create`, `invite` actions; those routes do not verify PoW yet.
 
 **Request** (`PowHandler.PowChallengeRequest`):
 
 | Field | Type | Required | Description |
 |------|-----|-------------|----------|
-| `action` | string | Yes | Wire-format: `session_create`, `search`, `room_create`, `invite` (`PowAction`) |
+| `action` | string | Yes | Wire-format: `session_create`, `search`, `room_create`, `invite`, `dm_invite` (`PowAction`) |
 
 ```typescript
 client.publish({
@@ -390,6 +392,51 @@ Body format (`Map`):
 | `RATE_LIMIT_EXCEEDED` | Per-identity cap exceeded **after** valid PoW |
 
 **Backend:** `SessionHandler` — `@MessageMapping("/session.create")`. Delivery via `StompUserMessenger.convertAndSendToInternalId`. Telegram bot offline — best-effort when recipient has `telegramId`.
+
+---
+
+### Personal DM invite (`/app/dmInvite.mint` / `/app/dmInvite.redeem`)
+
+Opaque personal invite so a peer can open a chat request **without search/username**
+(IMP-DMINVITE-01). Token is not an identity: Redis `dm_invite:{token}` only.
+Does **not** bypass PoW on `/app/session.create`.
+
+#### Mint (`/app/dmInvite.mint`)
+
+**Server order:** PoW verify (`dm_invite`) → rate-limit `DM_INVITE_MINT` (3/min) → persist token.
+
+| Field | Type | Required | Description |
+|------|-----|-------------|----------|
+| `pow` | object | If `pow.enabled=true` | `{ challengeId, nonce }` for action `dm_invite` |
+
+**Response** — `/user/queue/dm-invite-minted` (`DmInviteMintedEvent`):
+
+| Field | Type | Description |
+|------|-----|----------|
+| `success` | boolean | |
+| `token` | string? | 64 hex |
+| `inviteUrl` | string? | `{mini-app}/#dm_invite_{token}` or t.me `startapp=dm_invite_{token}` |
+| `expiresAt` | number? | Unix ms (default TTL **10 min**) |
+| `maxUses` | number? | Default **1** |
+| `error` | string? | `INTERNAL_ERROR` (PoW/RL → `/queue/errors`) |
+
+Multiple active tokens per owner are allowed.
+
+#### Redeem (`/app/dmInvite.redeem`)
+
+Scanner = ChatRequest initiator; owner = recipient. No heavy PoW (proof = valid token).
+Rate-limit `DM_INVITE_REDEEM` (10/min). On success: same `/user/queue/session-created` +
+`/user/queue/incoming-request` (+ optional Telegram `dm_{sessionId}`) as `session.create`.
+
+| Field | Type | Required | Description |
+|------|-----|-------------|----------|
+| `token` | string | Yes | Opaque token (32–128 chars) |
+
+Invite validation errors on `/user/queue/session-created` (`success: false`):
+`DM_INVITE_NOT_FOUND`, `DM_INVITE_EXPIRED`, `DM_INVITE_EXHAUSTED`, `SELF_REDEEM`
+(plus normal session-create business codes after consume).
+
+**Backend:** `DmInviteHandler`.
 
 ---
 
@@ -702,7 +749,8 @@ All server events are sent to user personal queues
 |---------|---------------|----------|
 | `/user/queue/search-result` | `SearchResultEvent` | Search result |
 | `/user/queue/pow-challenge` | `PowChallengeEvent` | Issued PoW challenge |
-| `/user/queue/session-created` | `SessionCreatedEvent` | Response to `session.create` |
+| `/user/queue/session-created` | `SessionCreatedEvent` | Response to `session.create` / `dmInvite.redeem` |
+| `/user/queue/dm-invite-minted` | `DmInviteMintedEvent` | Response to `dmInvite.mint` |
 | `/user/queue/session-accepted` | `SessionAcceptedEvent` | Request accepted |
 | `/user/queue/session-rejected` | `SessionRejectedEvent` | Request rejected |
 | `/user/queue/session-status` | `SessionStatusEvent` | Session status |
@@ -825,6 +873,10 @@ Clients use internalId as the primary peer key.
 | `SESSION_BURNED` | Session was destroyed |
 | `NOT_PARTICIPANT` | You are not a participant of this session |
 | `SELF_REQUEST` | Cannot create chat with yourself (`session.create`) |
+| `SELF_REDEEM` | Owner tried to redeem own personal DM invite |
+| `DM_INVITE_NOT_FOUND` | Unknown / blank personal DM invite token |
+| `DM_INVITE_EXPIRED` | Personal DM invite past `expiresAt` |
+| `DM_INVITE_EXHAUSTED` | Personal DM invite `maxUses` reached |
 | `INVALID_RECIPIENT` | Recipient does not resolve |
 | `ALREADY_HAS_SESSION` | Initiator already has an active session |
 | `RECIPIENT_HAS_SESSION` | Recipient already has an active session |

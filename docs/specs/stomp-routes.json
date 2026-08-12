@@ -1,7 +1,17 @@
 {
   "version" : 1,
-  "generatedAt" : "2026-07-12T10:12:52.264407300Z",
+  "generatedAt" : "2026-08-12T09:00:30.089904200Z",
   "inbound" : [ {
+    "destination" : "/app/dmInvite.mint",
+    "handler" : "dev.burnedchats.handler.DmInviteHandler",
+    "method" : "mint",
+    "requestType" : "dev.burnedchats.dto.request.MintDmInviteRequest"
+  }, {
+    "destination" : "/app/dmInvite.redeem",
+    "handler" : "dev.burnedchats.handler.DmInviteHandler",
+    "method" : "redeem",
+    "requestType" : "dev.burnedchats.dto.request.RedeemDmInviteRequest"
+  }, {
     "destination" : "/app/handshake.key",
     "handler" : "dev.burnedchats.handler.HandshakeHandler",
     "method" : "relayPublicKey",

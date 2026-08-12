@@ -77,6 +77,7 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             Map.entry("/app/room.getMembers", RateLimitType.ROOM_READ),
             Map.entry("/app/room.getPresence", RateLimitType.ROOM_READ),
             Map.entry("/app/room.getBans", RateLimitType.ROOM_READ)
+            // dmInvite.mint / dmInvite.redeem: dedicated limits in DmInviteService (IMP-DMINVITE-01)
     );
 
     @Override

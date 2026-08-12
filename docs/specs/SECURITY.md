@@ -665,9 +665,11 @@ Burned Chats uses **layered** anti-spam protection. PoW (Layer 1) **supplements*
 | `MESSAGE_DELETE` | 30 / min | delete |
 | `POW_CHALLENGE` | 10 / min | `/app/pow.challenge` |
 | `ROOM_READ` | 30 / min | room.getMembers / getPresence / getBans |
+| `DM_INVITE_MINT` | 3 / min | after PoW on `/app/dmInvite.mint` |
+| `DM_INVITE_REDEEM` | 10 / min | `/app/dmInvite.redeem` (in-service) |
 | *(whitelist)* | — | `/app/heartbeat` |
 
-On gated route `session.create` rate-limit applies **after** successful PoW verification (DESIGN §6.2), so attacker does not burn others' cap before proof of work.
+On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after** successful PoW verification (DESIGN §6.2), so attacker does not burn others' cap before proof of work.
 
 ### Layer 1 — Client-side Proof-of-Work
 
@@ -676,7 +678,7 @@ On gated route `session.create` rate-limit applies **after** successful PoW veri
 - Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 26 bit** protects weak devices.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
-**Current enforcement (2026-06-16):** backend gate only on `/app/session.create`; frontend solves PoW when creating chat (`session_create`). Wire-format also supports `search`, `room_create`, `invite` — issuance is implemented; enforcement on those routes is planned follow-up work.
+**Current enforcement (2026-08-12):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Wire-format also supports `search`, `room_create`, `invite` — issuance is implemented; enforcement on those routes is planned follow-up work. Personal DM invite **does not** bypass PoW on `session.create`.
 
 ### Place in Threat Model
 

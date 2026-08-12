@@ -6,7 +6,7 @@
 
 ### Key Overview
 
-Complete inventory of **48** Redis key families (source of truth — code).
+Complete inventory of **50** Redis key families (source of truth — code).
 Detailed sections below cover the most frequently used patterns; the rest are
 summarized in the table.
 
@@ -53,7 +53,9 @@ summarized in the table.
 | `room_presence:{roomId}` | hash | 10min | lastSeenMs (not refreshed with room TTL) |
 | `room_join_request:{roomId}:{sender}` | hash | 24h | BY_REQUEST join request |
 | `room_join_requests:{roomId}` | set | 24h | senderInternalId index |
-| `invite:{token}` | hash | until `expiresAt` | Invite token |
+| `invite:{token}` | hash | until `expiresAt` | Room invite token |
+| `dm_invite:{token}` | hash | until `expiresAt` | Personal DM invite token (default 10 min) |
+| `dm_invites:{ownerInternalId}` | set | — | Owner reverse index of DM invite tokens |
 | `ton:rpc:{addr}:{method}:{argsHash}` | string | 60s | TON RPC cache |
 | `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
 | `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
@@ -521,6 +523,42 @@ EXPIRE invite:abc123token 604800
 - `GET_INVITE_LINK` accepts optional `expiresInSeconds`, `maxUses` (0/missing = unlimited).
 
 **TTL:** `EXPIRE` = `expiresAt - now` (default 7 days when created without `expiresInSeconds`).
+
+### `dm_invite:{token}`
+
+Opaque **personal DM** invite (IMP-DMINVITE-01). Separate from room `invite:{token}`.
+Reverse index: `dm_invites:{ownerInternalId}` (Set of token strings). Scanner redeems →
+normal `ChatRequest` (redeemer = initiator, owner = recipient).
+
+```redis
+HSET dm_invite:abc123token
+  token            "abc123token"
+  ownerInternalId  "550e8400-e29b-41d4-a716-446655440000"
+  expiresAt        "1704067800000"
+  maxUses          "1"
+  usedCount        "0"
+
+SADD dm_invites:550e8400-e29b-41d4-a716-446655440000 "abc123token"
+EXPIRE dm_invite:abc123token 600
+```
+
+| Field | Type | Description |
+|------|-----|----------|
+| `token` | string | 64-char hex (32 random bytes) |
+| `ownerInternalId` | string | Invite owner (ChatRequest recipient) |
+| `expiresAt` | string (ms) | Unix ms expiry |
+| `maxUses` | string | Redemption cap (v1 default **1**) |
+| `usedCount` | string | Counter (HINCRBY before `createSession`) |
+
+**Enforcement:**
+- Mint: PoW `dm_invite` + rate limit `DM_INVITE_MINT` (3/min), after PoW.
+- Redeem: no heavy PoW; `DM_INVITE_REDEEM` (10/min); consume use **before** session create.
+- Errors: `DM_INVITE_NOT_FOUND`, `DM_INVITE_EXPIRED`, `DM_INVITE_EXHAUSTED`, `SELF_REDEEM`.
+- Multiple active tokens per owner allowed.
+
+**TTL:** `EXPIRE` = `expiresAt - now` (default **10 minutes**).
+
+**Deep link:** `{mini-app.url}/#dm_invite_{token}` or `startapp=dm_invite_{token}` (see TELEGRAM.md).
 
 ### `room_join_request:{roomId}:{senderInternalId}`
 

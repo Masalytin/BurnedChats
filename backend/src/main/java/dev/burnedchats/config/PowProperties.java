@@ -57,6 +57,8 @@ public class PowProperties {
         private int sessionCreate = 20;
         private int invite = 20;
         private int roomCreate = 22;
+        /** Personal DM invite mint (IMP-DMINVITE-01). */
+        private int dmInvite = 20;
     }
 
     /**
@@ -72,6 +74,7 @@ public class PowProperties {
             case SESSION_CREATE -> difficulty = base.getSessionCreate();
             case INVITE -> difficulty = base.getInvite();
             case ROOM_CREATE -> difficulty = base.getRoomCreate();
+            case DM_INVITE -> difficulty = base.getDmInvite();
             default -> throw new IllegalArgumentException("Unknown action: " + action);
         }
         return Math.min(difficulty, ceiling);

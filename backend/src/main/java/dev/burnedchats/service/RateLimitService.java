@@ -126,7 +126,17 @@ public class RateLimitService {
          * Telegram bot {@code inline_query} answers (IMP-TGUX-06).
          * Keyed by Telegram user id; prevents inline-query flood.
          */
-        INLINE_QUERY(30, Duration.ofMinutes(1));
+        INLINE_QUERY(30, Duration.ofMinutes(1)),
+
+        /**
+         * Personal DM invite mint ({@code /app/dmInvite.mint}) — after PoW (IMP-DMINVITE-01).
+         */
+        DM_INVITE_MINT(3, Duration.ofMinutes(1)),
+
+        /**
+         * Personal DM invite redeem ({@code /app/dmInvite.redeem}).
+         */
+        DM_INVITE_REDEEM(10, Duration.ofMinutes(1));
 
         private final int defaultMaxRequests;
         private final Duration defaultWindow;
