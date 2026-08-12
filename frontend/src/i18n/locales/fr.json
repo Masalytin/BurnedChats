@@ -42,8 +42,10 @@
     "featureBurnTitle": "Auto-Destruction",
     "featureBurnDesc": "Détruisez toutes les traces de votre conversation en un seul geste.",
     "joinViaQr": "Rejoindre via QR",
+    "sectionDmInvite": "Inviter au chat personnel",
+    "dmInviteHint": "À proximité ? Montrez votre QR ou scannez le leur — sans nom d'utilisateur.",
     "myQr": "Mon QR",
-    "scanDmQr": "Scanner le QR chat",
+    "scanDmQr": "Scanner le QR d'invitation",
     "scanQrHint": "Pointez vers un QR d'invitation",
     "scanQrUnrecognized": "QR non reconnu comme invitation",
     "burnSection": {
@@ -1343,7 +1345,7 @@
   },
     "dmInvite": {
     "title": "Mon invitation de chat",
-    "caption": "Quelqu'un peut scanner ce QR ou ouvrir le lien pour démarrer un chat avec vous — sans nom d'utilisateur.",
+    "caption": "Scannez le QR ou ouvrez le lien pour démarrer un chat. Sans nom d'utilisateur. Usage unique · expire en 10 minutes.",
     "minting": "Création de l'invitation…",
     "copy": "Copier le lien",
     "share": "Partager",

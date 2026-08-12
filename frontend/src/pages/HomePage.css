@@ -189,6 +189,20 @@
   gap: var(--bc-spacing-sm);
 }
 
+/* Personal DM invite entry (IMP-DMINVITE-04) */
+.home-dm-invite-hint {
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-secondary);
+  margin: 0;
+  line-height: var(--bc-leading-relaxed);
+}
+
+.home-dm-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-sm);
+}
+
 /* Search */
 .home-search {
   display: flex;

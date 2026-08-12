@@ -111,6 +111,7 @@ export function HomePage({
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
   const showJoinViaQr = canScanQr && onJoinViaQr != null;
+  const showDmInviteEntry = onShowMyQr != null || onScanDmQr != null;
 
   // Show FAB after scrolling down 150px (scroll container is .layout-main)
   useEffect(() => {
@@ -313,6 +314,42 @@ export function HomePage({
         />
       </section>
 
+      {/* Personal DM invite — primary entry (IMP-DMINVITE-04); not room actions */}
+      {showDmInviteEntry && (
+        <section
+          className="home-section home-dm-invite animate-slide-up"
+          style={{ animationDelay: '125ms' }}
+          aria-labelledby="home-dm-invite-title"
+        >
+          <h3 id="home-dm-invite-title" className="home-section-title">
+            {t('home.sectionDmInvite')}
+          </h3>
+          <p className="home-dm-invite-hint">{t('home.dmInviteHint')}</p>
+          <div className="home-dm-invite-actions">
+            {onShowMyQr && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isConnected}
+                onClick={onShowMyQr}
+              >
+                {t('home.myQr')}
+              </Button>
+            )}
+            {onScanDmQr && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isConnected}
+                onClick={onScanDmQr}
+              >
+                {t('home.scanDmQr')}
+              </Button>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Rooms Section (P2-4.1.2) */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
         <div className="home-section-header">
@@ -336,26 +373,6 @@ export function HomePage({
                 onClick={onJoinViaQr}
               >
                 {t('home.joinViaQr')}
-              </Button>
-            )}
-            {onShowMyQr && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!isConnected}
-                onClick={onShowMyQr}
-              >
-                {t('home.myQr')}
-              </Button>
-            )}
-            {onScanDmQr && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!isConnected}
-                onClick={onScanDmQr}
-              >
-                {t('home.scanDmQr')}
               </Button>
             )}
             <Button

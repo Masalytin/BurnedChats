@@ -42,8 +42,10 @@
     "featureBurnTitle": "阅后即焚",
     "featureBurnDesc": "一键销毁所有对话痕迹。",
     "joinViaQr": "扫码加入",
+    "sectionDmInvite": "邀请到个人聊天",
+    "dmInviteHint": "面对面？展示你的二维码或扫描对方的——无需用户名。",
     "myQr": "我的二维码",
-    "scanDmQr": "扫描聊天二维码",
+    "scanDmQr": "扫描邀请二维码",
     "scanQrHint": "对准邀请二维码",
     "scanQrUnrecognized": "无法识别为邀请二维码",
     "burnSection": {
@@ -1343,7 +1345,7 @@
   },
     "dmInvite": {
     "title": "我的聊天邀请",
-    "caption": "对方可扫描此二维码或打开链接开始与你聊天——无需用户名。",
+    "caption": "扫描二维码或打开链接开始聊天。不暴露用户名。一次性 · 10 分钟内有效。",
     "minting": "正在创建邀请…",
     "copy": "复制链接",
     "share": "分享",
