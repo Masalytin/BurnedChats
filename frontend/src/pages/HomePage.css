@@ -189,6 +189,15 @@
   gap: var(--bc-spacing-sm);
 }
 
+/* Room CTAs below header — avoids wrap stair-step next to the title */
+.home-rooms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bc-spacing-sm);
+}
+
 /* Personal DM invite entry (IMP-DMINVITE-04) */
 .home-dm-invite-hint {
   font-size: var(--bc-text-sm);

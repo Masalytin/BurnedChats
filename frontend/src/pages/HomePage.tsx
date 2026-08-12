@@ -350,40 +350,40 @@ export function HomePage({
         </section>
       )}
 
-      {/* Rooms Section (P2-4.1.2) */}
+      {/* Rooms Section (P2-4.1.2) — header = title + refresh; CTAs on their own row */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '150ms' }}>
         <div className="home-section-header">
           <h3 className="home-section-title">{t('room.sectionMyRooms')}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--bc-spacing-xs)' }}>
-            <button
-              type="button"
-              className={`home-refresh-btn${isLoadingRooms ? ' home-refresh-btn--spinning' : ''}`}
-              onClick={onRefreshRooms}
-              disabled={!isConnected || isLoadingRooms}
-              aria-label={t('aria.refreshRooms')}
-              title={t('aria.refreshRooms')}
-            >
-              <RefreshIcon size={16} />
-            </button>
-            {showJoinViaQr && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!isConnected}
-                onClick={onJoinViaQr}
-              >
-                {t('home.joinViaQr')}
-              </Button>
-            )}
+          <button
+            type="button"
+            className={`home-refresh-btn${isLoadingRooms ? ' home-refresh-btn--spinning' : ''}`}
+            onClick={onRefreshRooms}
+            disabled={!isConnected || isLoadingRooms}
+            aria-label={t('aria.refreshRooms')}
+            title={t('aria.refreshRooms')}
+          >
+            <RefreshIcon size={16} />
+          </button>
+        </div>
+        <div className="home-rooms-actions">
+          {showJoinViaQr && (
             <Button
-              variant="primary"
+              variant="secondary"
               size="sm"
               disabled={!isConnected}
-              onClick={onCreateRoom}
+              onClick={onJoinViaQr}
             >
-              {t('room.createRoomButton')}
+              {t('home.joinViaQr')}
             </Button>
-          </div>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!isConnected}
+            onClick={onCreateRoom}
+          >
+            {t('room.createRoomButton')}
+          </Button>
         </div>
 
         {isLoadingRooms && (
