@@ -771,7 +771,21 @@ but violates "100% TTL" wording.
 
 ### 4.1. Content-Security-Policy for Telegram Mini App (SPA)
 
-Actual policy for HTML/mini-app loading is set by **reverse proxy** (`nginx/prod.conf`) and duplicated in **`frontend/nginx.prod.conf`** (static container), so deployment mismatch does not leave critical directives missing.
+**Single source of truth:** `nginx/snippets/csp.inc` (mirrored byte-identical at
+`frontend/nginx/snippets/csp.inc` for the static-container image build context —
+Strategy B, IMP-TONCONNECT-CSP-05). Edge (`nginx/prod.conf`) and the frontend
+container (`frontend/nginx.prod.conf`) both `include /etc/nginx/snippets/csp.inc;`
+and **must not** inline a divergent `Content-Security-Policy`.
+
+**How to change CSP:** edit `nginx/snippets/csp.inc`, copy the same file to
+`frontend/nginx/snippets/csp.inc`, then run `node nginx/snippets/check-csp-sync.mjs`
+(fails if the two copies differ). Redeploy edge + rebuild the frontend image so
+both pick up the include.
+
+Actual policy for HTML/mini-app loading is set by **reverse proxy** and duplicated in
+the **static container** (defense-in-depth if the container is exposed directly), so
+deployment mismatch does not leave critical directives missing — provided the sync
+check stays green.
 
 **Required for video (MP4 etc.):** explicit `media-src` directive allowing `blob:`. Client uses object URL (`URL.createObjectURL`) for preview before send, poster frame capture and decrypted Blob playback in `<video>`. If `media-src` is not set, browser falls back to `default-src`; with `default-src 'self'` without `blob:` media load from `blob:https://...` is blocked (console: *Loading media from 'blob:...' violates ... default-src*).
 
@@ -779,7 +793,7 @@ Actual policy for HTML/mini-app loading is set by **reverse proxy** (`nginx/prod
 
 **Multiple `Content-Security-Policy` headers:** browser applies policies jointly (intersection). If one source (CDN, second proxy) sends policy without `media-src 'self' blob:` (or equivalent), `blob:` media may be forbidden. Either remove conflicting header or add consistent `media-src` directive at all levels.
 
-Reference policy string for production matches `add_header Content-Security-Policy` in `nginx/prod.conf` (including `img-src ... blob:` for previews/posters using object URL for images).
+Reference policy string for production is the `add_header Content-Security-Policy` line in `nginx/snippets/csp.inc` (including `img-src ... blob:` for previews/posters using object URL for images).
 
 **`script-src` (JS execution):** `'unsafe-inline'` **not used**. Production `index.html` after Vite build contains only external scripts: `'self'` (bundle `/assets/*.js`) and `https://telegram.org` (Telegram WebApp SDK). No inline `<script>` in source `frontend/index.html`; nonce/hash not required until inline scripts appear. Dynamically inserted inline scripts (XSS) are blocked. **`style-src 'unsafe-inline'`** retained — React/theme use inline styles; risk lower than script XSS for E2EE client.
 
@@ -792,7 +806,7 @@ leak via `Referer` on external origin navigation. Client extracts token from
 `location.hash` (web) or `start_param` (legacy t.me deep link). Zero-knowledge invariant
 not violated — server already knew token (Redis); only transport hygiene changes.
 
-**`connect-src` (network from Mini App):** besides `'self'`, API and WebSocket domain (`burnedchats.net`), `https://telegram.org`, TON Connect bridges (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` and corresponding `wss://`) policy explicitly allows client wallet RPC to Ton Center: `https://toncenter.com` (mainnet, no subdomain — wildcard `*.toncenter.com` does not cover it), `https://testnet.toncenter.com` (testnet), and `https://tonkeeper.com` and `https://*.tonkeeper.com` (consistency with diagnostics CLI). Full origin list — in CSP string in `nginx/prod.conf` / `frontend/nginx.prod.conf`; on `VITE_TON_RPC_URL` or network change update both files synchronously.
+**`connect-src` (network from Mini App):** besides `'self'`, API and WebSocket domain (`burnedchats.net`), `https://telegram.org`, TON Connect bridges (`config.ton.org`, `bridge.tonapi.io`, `tonconnectbridge.mytonwallet.org`, `bridge.tonhub.com`, `walletbot.me` and corresponding `wss://`) policy explicitly allows client wallet RPC to Ton Center: `https://toncenter.com` (mainnet, no subdomain — wildcard `*.toncenter.com` does not cover it), `https://testnet.toncenter.com` (testnet), and `https://tonkeeper.com` and `https://*.tonkeeper.com` (consistency with diagnostics CLI). Full origin list — in `nginx/snippets/csp.inc`; on `VITE_TON_RPC_URL` or network change update the snippet (both copies) and re-run `check-csp-sync.mjs`.
 
 ### 5. HMAC Validation for Telegram (Java)
 

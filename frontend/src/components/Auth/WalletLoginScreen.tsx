@@ -3,11 +3,36 @@ import { useTranslation } from 'react-i18next';
 import { WalletAuthError } from '../../auth/WalletAuthProvider';
 import { useAuth } from '../../hooks/useAuth';
 import { FlameIcon } from '../../icons';
+import { classifyWalletConnectError } from '../../ton/connector';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { WalletConnectButton } from './WalletConnectButton';
 import './WalletLoginScreen.css';
 
 type UiState = 'idle' | 'busy' | 'error';
+
+function mapProofError(error: WalletAuthError, t: ReturnType<typeof useTranslation>['t']): string {
+  switch (error.code) {
+    case 'PROOF_TIMESTAMP_FUTURE':
+    case 'PROOF_EXPIRED':
+      return t('walletLogin.errorProofTimestamp');
+    case 'DOMAIN_MISMATCH':
+    case 'DOMAIN_LENGTH_MISMATCH':
+      return t('walletLogin.errorProofDomain');
+    case 'NONCE_MISSING':
+    case 'NONCE_UNKNOWN':
+      return t('walletLogin.errorProofNonce');
+    case 'PUBLIC_KEY_UNAVAILABLE':
+      return t('walletLogin.errorProofPublicKey');
+    case 'SIGNATURE_INVALID':
+      return t('walletLogin.errorProofSignature');
+    case 'INVALID_REQUEST':
+    case 'ADDRESS_INVALID':
+      return t('walletLogin.errorProofRequest');
+    case 'INTERNAL':
+    default:
+      return t('walletLogin.errorProof');
+  }
+}
 
 function mapConnectError(error: unknown, t: ReturnType<typeof useTranslation>['t']): string {
   if (error instanceof WalletAuthError) {
@@ -15,44 +40,29 @@ function mapConnectError(error: unknown, t: ReturnType<typeof useTranslation>['t
       code: error.code,
       message: error.serverMessage,
     });
-    switch (error.code) {
-      case 'PROOF_TIMESTAMP_FUTURE':
-      case 'PROOF_EXPIRED':
-        return t('walletLogin.errorProofTimestamp');
-      case 'DOMAIN_MISMATCH':
-      case 'DOMAIN_LENGTH_MISMATCH':
-        return t('walletLogin.errorProofDomain');
-      case 'NONCE_MISSING':
-      case 'NONCE_UNKNOWN':
-        return t('walletLogin.errorProofNonce');
-      case 'PUBLIC_KEY_UNAVAILABLE':
-        return t('walletLogin.errorProofPublicKey');
-      case 'SIGNATURE_INVALID':
-        return t('walletLogin.errorProofSignature');
-      case 'INVALID_REQUEST':
-      case 'ADDRESS_INVALID':
-        return t('walletLogin.errorProofRequest');
-      case 'INTERNAL':
-      default:
-        return t('walletLogin.errorProof');
-    }
+    return mapProofError(error, t);
   }
 
-  const msg = error instanceof Error ? error.message : '';
-  const lower = msg.toLowerCase();
-  if (lower.includes('cancel') || lower.includes('rejected')) {
-    return t('walletLogin.errorRejected');
+  const kind = classifyWalletConnectError(error);
+  console.error('[WalletAuth] connect failed', { kind, error });
+
+  switch (kind) {
+    case 'user_rejected':
+      return t('walletLogin.errorRejected');
+    case 'csp_blocked':
+      return t('walletLogin.errorCspBlocked');
+    case 'manifest_invalid':
+      return t('walletLogin.errorManifestInvalid');
+    case 'network':
+      return t('walletLogin.errorNetwork');
+    case 'proof_failed':
+      return t('walletLogin.errorProof');
+    case 'wallet_error':
+      return t('walletLogin.errorWallet');
+    case 'unknown':
+    default:
+      return t('walletLogin.errorGeneric');
   }
-  if (lower.includes('401') || lower.includes('403') || lower.includes('-proof') || lower.includes('invalid')) {
-    return t('walletLogin.errorProof');
-  }
-  if (lower.includes('timeout') || lower.includes('timed out')) {
-    return t('walletLogin.errorTimeout');
-  }
-  if (lower.includes('failed to fetch') || lower.includes('network')) {
-    return t('walletLogin.errorNetwork');
-  }
-  return t('walletLogin.errorGeneric');
 }
 
 /** Standalone browser: TON wallet entry (Ton Connect → ton_proof → backend session token) */

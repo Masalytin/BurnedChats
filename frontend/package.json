@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "clean": "rimraf dist",
+    "check:csp": "node ../nginx/snippets/check-csp-sync.mjs",
     "i18n:check": "node ../scripts/i18n/check-i18n.mjs",
     "i18n:check:help": "node ../scripts/i18n/check-i18n.mjs --check-help"
   },

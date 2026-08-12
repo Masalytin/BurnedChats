@@ -324,6 +324,72 @@ function isTransientNetworkError(err: unknown): boolean {
   );
 }
 
+/** Taxonomy for wallet login / connect failures (IMP-TONCONNECT-CSP-04). */
+export type WalletConnectErrorKind =
+  | 'user_rejected'
+  | 'csp_blocked'
+  | 'manifest_invalid'
+  | 'network'
+  | 'proof_failed'
+  | 'wallet_error'
+  | 'unknown';
+
+/**
+ * Classifies TON Connect / wallet-auth errors into UI-facing kinds.
+ * Prefer instanceof / known prefixes; message heuristics are a last resort.
+ */
+export function classifyWalletConnectError(err: unknown): WalletConnectErrorKind {
+  if (isUserRejection(err)) {
+    return 'user_rejected';
+  }
+
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const lower = msg.toLowerCase();
+  const name = err instanceof Error ? err.name : '';
+
+  if (
+    lower.includes('manifest content error') ||
+    lower.includes('manifest_error') ||
+    lower.includes('invalid manifest') ||
+    (lower.includes('manifest') && (lower.includes('error') || lower.includes('invalid')))
+  ) {
+    return 'manifest_invalid';
+  }
+
+  // CSP blocks → SDK often retries then aborts with TON_CONNECT_SDK_ERROR.
+  if (
+    lower.includes('ton_connect_sdk_error') ||
+    lower.includes('[ton_connect_sdk_error]') ||
+    (lower.includes('aborted after attempts') &&
+      (lower.includes('failed to fetch') || lower.includes('refused to connect') || name.includes('TonConnect'))) ||
+    lower.includes('refused to connect') ||
+    lower.includes('content security policy') ||
+    lower.includes('csp')
+  ) {
+    return 'csp_blocked';
+  }
+
+  if (
+    lower.includes('401') ||
+    lower.includes('403') ||
+    lower.includes('-proof') ||
+    lower.includes('ton_proof') ||
+    lower.includes('proof')
+  ) {
+    return 'proof_failed';
+  }
+
+  if (isTransientNetworkError(err) || lower.includes('timed out') || lower.includes('timeout')) {
+    return 'network';
+  }
+
+  if (err instanceof TonConnectUIError || name.includes('TonConnect')) {
+    return 'wallet_error';
+  }
+
+  return 'unknown';
+}
+
 /**
  * Sends a signed transaction via the shared {@link getTonConnectUI} instance (wallet popup / TWA flow).
  *

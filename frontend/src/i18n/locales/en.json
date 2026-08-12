@@ -162,7 +162,10 @@
     "errorProofSignature": "Wallet signature did not match. Try reconnecting; if the issue persists — switch wallets.",
     "errorProofRequest": "Bad login request. Please reload and try again.",
     "errorTimeout": "Connection timed out. Check your network and try again.",
-    "errorNetwork": "Could not reach the server. Check your connection and API URL."
+    "errorNetwork": "Could not reach the server. Check your connection and API URL.",
+    "errorCspBlocked": "Browser blocked wallet network calls (CSP). Reload the page. If it persists — tell the admin: CSP connect-src / TON Connect bridges. See docs/improvements/tonconnect-csp-and-manifest/REPORT.md.",
+    "errorManifestInvalid": "Wallet rejected the app manifest. Server configuration mismatch — contact support (tell them: tonconnect-manifest).",
+    "errorWallet": "The wallet reported an error. Try another wallet or reconnect."
   },
 
   "accountLinking": {
