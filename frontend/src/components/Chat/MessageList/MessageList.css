@@ -128,6 +128,26 @@
   color: var(--bc-text-muted) !important;
 }
 
+/* Ephemeral membership rows — same visual weight as date separators, not bubbles */
+.message-membership-notice {
+  display: flex;
+  justify-content: center;
+  padding: var(--bc-spacing-md) 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.message-membership-notice span {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  background-color: var(--bc-bg-secondary);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-full);
+  text-align: center;
+  max-width: min(100%, 28rem);
+  line-height: 1.35;
+}
+
 /* ============================================
  * Scrollbar Styling
  * ============================================ */

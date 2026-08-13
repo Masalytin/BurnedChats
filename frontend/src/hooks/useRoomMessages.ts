@@ -158,10 +158,49 @@ interface UseRoomMessagesOptions {
   onEditError?: (errorCode: string) => void;
   onMessageDeletedByOwner?: () => void;
   onRoomModeration?: (event: RoomModerationEvent) => void;
+  onRoomMembership?: (event: RoomMembershipEvent) => void;
+}
+
+export type RoomMembershipNoticeKind = 'joined' | 'left' | 'removed';
+
+export type RoomMembershipEventType =
+  | 'ROOM_MEMBER_JOINED'
+  | 'ROOM_MEMBER_LEFT'
+  | 'ROOM_MEMBER_REMOVED';
+
+export interface RoomMembershipNotice {
+  id: string;
+  kind: RoomMembershipNoticeKind;
+  memberInternalId: string;
+  displayName?: string;
+  timestamp: number;
+}
+
+export interface RoomMembershipEvent {
+  eventType: RoomMembershipEventType;
+  roomId: string;
+  memberInternalId: string;
+  displayName?: string | null;
+  occurredAt?: number;
+}
+
+const MEMBERSHIP_KIND_BY_EVENT: Record<RoomMembershipEventType, RoomMembershipNoticeKind> = {
+  ROOM_MEMBER_JOINED: 'joined',
+  ROOM_MEMBER_LEFT: 'left',
+  ROOM_MEMBER_REMOVED: 'removed',
+};
+
+const MEMBERSHIP_NOTICE_CAP = 32;
+
+function isRoomMembershipEventType(eventType: string | undefined): eventType is RoomMembershipEventType {
+  return eventType === 'ROOM_MEMBER_JOINED'
+    || eventType === 'ROOM_MEMBER_LEFT'
+    || eventType === 'ROOM_MEMBER_REMOVED';
 }
 
 export interface UseRoomMessagesReturn {
   messages: DecryptedMessage[];
+  membershipNotices: RoomMembershipNotice[];
   isLoading: boolean;
   isSyncing: boolean;
   sendMessage: (text: string, options?: { replyToMessageId?: string }) => Promise<SendRoomMessageResult>;
@@ -196,6 +235,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     onEditError,
     onMessageDeletedByOwner,
     onRoomModeration,
+    onRoomMembership,
   } = options;
   const ownershipCtx = useMemo(
     (): RoomMessageOwnershipContext => ({
@@ -465,6 +505,12 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     pendingEditResolversRef, pendingEditTimeoutsRef, buildFileMessage,
   ]);
 
+  const [membershipNotices, setMembershipNotices] = useState<RoomMembershipNotice[]>([]);
+
+  useEffect(() => {
+    setMembershipNotices([]);
+  }, [roomId]);
+
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
       const event = JSON.parse(message.body) as NewRoomMessageEvent & Partial<RoomMessageEditedEventPayload>;
@@ -497,6 +543,49 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       if (event.eventType === 'ROOM_MESSAGE_EDITED') {
         void applyRoomEditFromBroadcast(event as RoomMessageEditedEventPayload);
+        return;
+      }
+
+      if (isRoomMembershipEventType(event.eventType)) {
+        const eventType = event.eventType;
+        const membership = event as NewRoomMessageEvent & {
+          memberInternalId?: string;
+          displayName?: string | null;
+          occurredAt?: number;
+        };
+        const memberInternalId = membership.memberInternalId?.trim();
+        if (!memberInternalId) return;
+
+        const occurredAt = membership.occurredAt;
+        onRoomMembership?.({
+          eventType,
+          roomId: event.roomId,
+          memberInternalId,
+          displayName: membership.displayName ?? null,
+          occurredAt,
+        });
+
+        if (memberInternalId === userInternalId) return;
+
+        const noticeId = `sys:${eventType}:${memberInternalId}:${occurredAt ?? 0}`;
+        const receivedAt = Date.now();
+        const trimmedName = membership.displayName?.trim();
+        setMembershipNotices(prev => {
+          if (prev.some(n => n.id === noticeId)) return prev;
+          const next: RoomMembershipNotice[] = [
+            ...prev,
+            {
+              id: noticeId,
+              kind: MEMBERSHIP_KIND_BY_EVENT[eventType],
+              memberInternalId,
+              ...(trimmedName ? { displayName: trimmedName } : {}),
+              timestamp: receivedAt,
+            },
+          ];
+          return next.length > MEMBERSHIP_NOTICE_CAP
+            ? next.slice(next.length - MEMBERSHIP_NOTICE_CAP)
+            : next;
+        });
         return;
       }
 
@@ -578,8 +667,8 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     }
   }, [
     roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner, onRoomModeration,
-    userId, getRoomEncryptionKey, setMessages, pendingDeleteResolversRef, buildFileMessage,
-    applyRoomEditFromBroadcast,
+    onRoomMembership, userInternalId, userId, getRoomEncryptionKey, setMessages,
+    pendingDeleteResolversRef, buildFileMessage, applyRoomEditFromBroadcast,
   ]);
 
   const handleRoomMessageEditedUser = useCallback(
@@ -836,6 +925,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
   return {
     messages: ttlFilteredMessages,
+    membershipNotices,
     isLoading,
     isSyncing,
     sendMessage,

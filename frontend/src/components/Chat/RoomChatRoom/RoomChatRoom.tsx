@@ -37,6 +37,7 @@ import type {
   UseRoomMessagesWebSocket,
   SendRoomFileOptions,
   RoomMessageErrorCode,
+  RoomMembershipEvent,
 } from '@/hooks/useRoomMessages';
 import type { RoomModerationEvent } from '@/hooks/useRoomModeration';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -91,6 +92,8 @@ interface RoomChatRoomProps {
   isCurrentUserMuted?: boolean;
   /** Forward ROOM_MODERATION events from the room topic to App-level state */
   onRoomModeration?: (event: RoomModerationEvent) => void;
+  /** Forward ROOM_MEMBER_* topic events so App can refresh the member list */
+  onRoomMembership?: (event: RoomMembershipEvent) => void;
   /** Per-message auto-destruction window in seconds; 0 = disabled (IMP-ROOM-19) */
   messageTtlSeconds?: number;
 }
@@ -126,6 +129,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   roomReadOnly = false,
   isCurrentUserMuted = false,
   onRoomModeration,
+  onRoomMembership,
   messageTtlSeconds = 0,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
@@ -286,7 +290,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     }
   }, [replyTarget]);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage, deleteMessage } =
+  const { messages, membershipNotices = [], sendMessage, sendFileMessage, isLoading, isSyncing, syncMessages, hideMessages, editMessage, deleteMessage } =
     useRoomMessages({
       roomId,
       userId: roomMessageUserId,
@@ -297,6 +301,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
       onEditError: handleRoomEditError,
       onMessageDeletedByOwner,
       onRoomModeration,
+      onRoomMembership,
     });
 
   const isEphemeralMode = messageTtlSeconds > 0;
@@ -664,6 +669,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         <>
           <MessageList
             messages={messages}
+            membershipNotices={membershipNotices}
             isLoading={isLoading || isSyncing}
             onCancelUpload={handleCancelUpload}
             onRetryUpload={handleRetryUpload}

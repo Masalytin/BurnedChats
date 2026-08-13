@@ -34,6 +34,7 @@ import { useRoomRoles } from './hooks/useRoomRoles';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
 import { useRoomModeration } from './hooks/useRoomModeration';
+import type { RoomMembershipEvent } from './hooks/useRoomMessages';
 import { useRoomTtl } from './hooks/useRoomTtl';
 import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
@@ -1025,6 +1026,41 @@ function AppContent() {
     topicMultiplexer,
     publish,
   });
+
+  const handleRoomMembershipEvent = useCallback((event: RoomMembershipEvent) => {
+    if (!event.roomId) return;
+    if (activeRoomChat?.roomId === event.roomId) {
+      fetchMembers(event.roomId);
+    }
+  }, [activeRoomChat?.roomId, fetchMembers]);
+
+  useEffect(() => {
+    const roomId = activeRoomChat?.roomId;
+    if (!ownsModerationTopic || !roomId || !isConnected) return;
+
+    const destination = `/topic/room/${roomId}`;
+
+    const handleTopicMessage = (message: { body: string }) => {
+      try {
+        const event = JSON.parse(message.body) as { eventType?: string; roomId?: string };
+        if (
+          event.eventType !== 'ROOM_MEMBER_JOINED'
+          && event.eventType !== 'ROOM_MEMBER_LEFT'
+          && event.eventType !== 'ROOM_MEMBER_REMOVED'
+        ) {
+          return;
+        }
+        if (event.roomId === roomId) {
+          fetchMembers(roomId);
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse room membership topic event:', err);
+      }
+    };
+
+    topicMultiplexer.subscribe(destination, handleTopicMessage);
+    return () => topicMultiplexer.unsubscribe(destination, handleTopicMessage);
+  }, [ownsModerationTopic, activeRoomChat?.roomId, isConnected, topicMultiplexer, fetchMembers]);
 
   const {
     autoBurnAt: roomAutoBurnAt,
@@ -3647,6 +3683,7 @@ function AppContent() {
             roomReadOnly={roomReadOnly}
             isCurrentUserMuted={myInternalId != null && isRoomMemberMuted(myInternalId)}
             onRoomModeration={handleRoomModerationEvent}
+            onRoomMembership={handleRoomMembershipEvent}
             messageTtlSeconds={roomMessageTtlSeconds}
           />
           <RoomKeyRecoveryModal

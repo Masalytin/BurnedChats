@@ -802,7 +802,12 @@
       "mutedBanner": "Sie wurden stummgeschaltet und können keine Nachrichten senden",
       "readOnlyBanner": "Dieser Raum ist schreibgeschützt — nur der Besitzer kann posten",
       "shareInvite": "Einladung teilen",
-      "shareInviteError": "Einladungslink konnte nicht erstellt werden. Bitte erneut versuchen."
+      "shareInviteError": "Einladungslink konnte nicht erstellt werden. Bitte erneut versuchen.",
+      "system": {
+        "joined": "{{name}} ist dem Raum beigetreten",
+        "left": "{{name}} hat den Raum verlassen",
+        "removed": "{{name}} wurde aus dem Raum entfernt"
+      }
     },
     "recovery": {
       "neededToast": "Verschlüsselungsschlüssel wurden gelöscht. Stellen Sie die Verschlüsselung wieder her, um fortzufahren.",

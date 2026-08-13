@@ -8,6 +8,7 @@ import { DocumentMessageBubble } from '../DocumentMessageBubble';
 import { MessageActionMenu, type MessageAction } from '../MessageActionMenu';
 import { TypingIndicator } from '../TypingIndicator';
 import type { UseMessageSelectionReturn } from '@/hooks/useMessageSelection';
+import type { RoomMembershipNotice } from '@/hooks/useRoomMessages';
 import type { DecryptedMessage, DecryptedFileMessage } from '@/types';
 import { useToast } from '@/components/Toast';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -24,9 +25,17 @@ export type MessageListHandle = {
   scrollToMessage: (messageId: string) => void;
 };
 
+type TimelineItem =
+  | { key: string; timestamp: number; kind: 'message'; message: DecryptedMessage }
+  | { key: string; timestamp: number; kind: 'notice'; notice: RoomMembershipNotice };
+
+export type { RoomMembershipNotice };
+
 interface MessageListProps {
   /** Array of decrypted messages to display */
   messages: DecryptedMessage[];
+  /** Ephemeral room join/leave/kick rows (rooms only; DM omits). */
+  membershipNotices?: RoomMembershipNotice[];
   /** Whether the peer is currently typing */
   isPeerTyping?: boolean;
   /** Name of the peer (for typing indicator) */
@@ -75,6 +84,7 @@ export const MessageList = memo(
   forwardRef<MessageListHandle, MessageListProps>(function MessageList(
     {
   messages,
+  membershipNotices = [],
   isPeerTyping = false,
   peerName,
   isLoading = false,
@@ -208,14 +218,33 @@ export const MessageList = memo(
     }
   }, [checkIfNearBottom, onLoadMore]);
 
+  const timeline = useMemo(() => {
+    const items: TimelineItem[] = [
+      ...messages.map((message) => ({
+        key: `msg:${message.id}`,
+        timestamp: message.timestamp,
+        kind: 'message' as const,
+        message,
+      })),
+      ...membershipNotices.map((notice) => ({
+        key: `notice:${notice.id}`,
+        timestamp: notice.timestamp,
+        kind: 'notice' as const,
+        notice,
+      })),
+    ];
+    items.sort((a, b) => a.timestamp - b.timestamp);
+    return items;
+  }, [messages, membershipNotices]);
+
   /**
-   * Auto-scroll on new messages (only if user was near bottom)
+   * Auto-scroll on new messages / notices (only if user was near bottom)
    */
   useEffect(() => {
     if (isNearBottomRef.current) {
       scrollToBottom();
     }
-  }, [messages, scrollToBottom]);
+  }, [messages, membershipNotices, scrollToBottom]);
 
   /**
    * Scroll to bottom on initial load
@@ -238,8 +267,8 @@ export const MessageList = memo(
    */
   const shouldShowDateSeparator = (index: number): boolean => {
     if (index === 0) return true;
-    const currentDate = new Date(messages[index].timestamp);
-    const prevDate = new Date(messages[index - 1].timestamp);
+    const currentDate = new Date(timeline[index].timestamp);
+    const prevDate = new Date(timeline[index - 1].timestamp);
     return !isSameDay(currentDate, prevDate);
   };
 
@@ -417,7 +446,7 @@ export const MessageList = memo(
 
   const openMenuHandler = selection ? handleOpenActionMenu : undefined;
 
-  if (isLoading && messages.length === 0) {
+  if (isLoading && messages.length === 0 && membershipNotices.length === 0) {
     return (
       <div className={`message-list message-list--loading ${className}`}>
         <div className="message-list-loader">
@@ -428,7 +457,7 @@ export const MessageList = memo(
     );
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && membershipNotices.length === 0) {
     return (
       <div className={`message-list message-list--empty ${className}`}>
         <div className="message-list-empty">
@@ -463,8 +492,30 @@ export const MessageList = memo(
       )}
 
       {/* Messages */}
-      {messages.map((message, index) => {
+      {timeline.map((item, index) => {
         const dateSep = shouldShowDateSeparator(index);
+
+        if (item.kind === 'notice') {
+          const name = item.notice.displayName?.trim() || t('room.chat.fallbackPeer');
+          return (
+            <div key={item.key}>
+              {dateSep && (
+                <div className="message-date-separator">
+                  <span>{formatChatDateSeparator(item.timestamp, t)}</span>
+                </div>
+              )}
+              <div
+                className="message-membership-notice"
+                role="status"
+                aria-live="polite"
+              >
+                <span>{t(`room.chat.system.${item.notice.kind}`, { name })}</span>
+              </div>
+            </div>
+          );
+        }
+
+        const message = item.message;
 
         if (message.type === 'image' && isFileMessage(message)) {
           return (

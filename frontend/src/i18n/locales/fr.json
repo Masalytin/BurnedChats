@@ -507,7 +507,12 @@
       "mutedBanner": "Vous avez été mis en sourdine et ne pouvez pas envoyer de messages",
       "readOnlyBanner": "Ce salon est en lecture seule — seul le propriétaire peut publier",
       "shareInvite": "Partager l'invitation",
-      "shareInviteError": "Impossible de créer le lien d'invitation. Réessayez."
+      "shareInviteError": "Impossible de créer le lien d'invitation. Réessayez.",
+      "system": {
+        "joined": "{{name}} a rejoint le salon",
+        "left": "{{name}} a quitté le salon",
+        "removed": "{{name}} a été retiré du salon"
+      }
     },
     "recovery": {
       "neededToast": "Les clés de chiffrement ont été effacées. Restaurez le chiffrement pour continuer.",

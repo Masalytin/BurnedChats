@@ -1179,7 +1179,12 @@
       "keyLoadError": "Failed to load encryption key",
       "ephemeralBadge": "Disappearing messages",
       "shareInvite": "Share invite",
-      "shareInviteError": "Could not create invite link. Try again."
+      "shareInviteError": "Could not create invite link. Try again.",
+      "system": {
+        "joined": "{{name}} joined the room",
+        "left": "{{name}} left the room",
+        "removed": "{{name}} was removed from the room"
+      }
     },
 
     "recovery": {
