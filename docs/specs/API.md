@@ -1167,7 +1167,7 @@ Errors logged on server (`NOT_OWNER`, `ROOM_NOT_FOUND`); no separate user-queue 
 
 `/topic/room/{roomId}` is a **multiplexed** channel: it publishes both
 regular encrypted messages and room service events (name, TTL, roles,
-ownership transfer, moderation, edit/delete, presence). All arrive on **one**
+ownership transfer, moderation, membership, edit/delete, presence). All arrive on **one**
 STOMP subscription, so the client must route payload by discriminator
 `eventType` (see contract below). The server always sees only opaque data
 and metadata — ciphertext/IV encoding format is uniform (standard Base64), see
@@ -1181,6 +1181,9 @@ and metadata — ciphertext/IV encoding format is uniform (standard Base64), see
 | `ROOM_MESSAGE_DELETED` | `RoomMessageHandler` → `RoomMessageDeletedEvent` | `handleNewMessage` (delete branch) | `messageId`, `deletedByInternalId`, `deletedByOwner` |
 | `ROOM_MESSAGE_EDITED` | `RoomMessageHandler` → `RoomMessageEditedEvent` | `handleNewMessage` (edit branch) → decrypt new text | `messageId`, `encryptedContent`, `iv`, opt. media fields |
 | `ROOM_MODERATION` | `RoomHandler` → `RoomModerationEvent` | `handleNewMessage` → `onRoomModeration` | `readOnly`, `mutedAdded`, `mutedRemoved` |
+| `ROOM_MEMBER_JOINED` | `RoomHandler` → `RoomMembershipEvent.joined` | `handleNewMessage` (overlay; IMP-RMSYS-02) | `memberInternalId`, `displayName?`, `occurredAt` |
+| `ROOM_MEMBER_LEFT` | `RoomHandler` / `UserBurnService` → `RoomMembershipEvent.left` | `handleNewMessage` (overlay; IMP-RMSYS-02) | `memberInternalId`, `displayName?`, `occurredAt` |
+| `ROOM_MEMBER_REMOVED` | `RoomHandler` (kick **and** ban) → `RoomMembershipEvent.removed` | `handleNewMessage` (overlay; IMP-RMSYS-02) | `memberInternalId`, `displayName?`, `occurredAt` |
 | `ROOM_NAME_UPDATED` | `RoomHandler` → `RoomNameUpdatedEvent` | `useSetRoomName` listener | `nameEncrypted`, `nameIv` |
 | `ROOM_TTL_UPDATED` | `RoomHandler` → `RoomTtlUpdatedEvent` | room-state listener | `autoBurnAt` |
 | `ROOM_MESSAGE_TTL_UPDATED` | `RoomHandler` → `RoomMessageTtlUpdatedEvent` | room-state listener | `messageTtlSeconds` |
@@ -1189,6 +1192,8 @@ and metadata — ciphertext/IV encoding format is uniform (standard Base64), see
 | _(absent)_ — presence | `WebSocketEventListener` → `RoomPresenceEvent` | room-presence listener | `internalId`, `online`, `lastSeen` (no `messageId`/`encryptedContent`) |
 
 Client routes by `eventType`; chat messages have no `eventType` and include `messageId` + ciphertext fields. Service events must not enter the text decrypt path.
+
+**Membership notices vs rekey control plane:** `ROOM_MEMBER_JOINED` / `ROOM_MEMBER_LEFT` / `ROOM_MEMBER_REMOVED` on this topic are **plaintext metadata** for members currently subscribed (join, voluntary leave, kick/ban). They are **not** written to `messages:{roomId}` (E2EE blob queue). Voluntary leave and kick/ban are **dual-published**: the existing `/user/queue/room-member-left` and `/user/queue/room-member-removed` payloads (`RoomMemberLeftEvent` / `RoomMemberRemovedEvent`) stay the control plane for owner rekey in `App.tsx`; the topic copies drive the in-chat overlay and `fetchMembers` refresh. Overlay must not listen to the queues (would double-render leave/kick). `createRoom` does not emit `ROOM_MEMBER_JOINED` (owner is the first member, not a join). Kick and ban share one topic kind (`ROOM_MEMBER_REMOVED`). Emit is after Redis membership mutation and after force-unsubscribe of the victim so they do not receive the topic event.
 
 ---
 

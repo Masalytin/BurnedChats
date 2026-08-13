@@ -2,6 +2,7 @@ package dev.burnedchats.service;
 
 import dev.burnedchats.dto.event.BurnSignalEvent;
 import dev.burnedchats.dto.event.RoomMemberLeftEvent;
+import dev.burnedchats.dto.event.RoomMembershipEvent;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.model.Session;
@@ -32,6 +33,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -78,6 +80,7 @@ class UserBurnServiceTest {
     @Mock private ReactiveRedisTemplate<String, String> redisTemplate;
     @Mock private ReactiveValueOperations<String, String> valueOperations;
     @Mock private StompUserMessenger stompUserMessenger;
+    @Mock private SimpMessagingTemplate messagingTemplate;
 
     private UserBurnService service;
 
@@ -99,7 +102,8 @@ class UserBurnServiceTest {
                 roomPresenceRepository,
                 userIdentityRepository,
                 redisTemplate,
-                stompUserMessenger);
+                stompUserMessenger,
+                messagingTemplate);
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         lenient().when(userIdentityRepository.findById(USER_ID)).thenReturn(Mono.just(walletUser()));
@@ -212,6 +216,12 @@ class UserBurnServiceTest {
             verify(roomTopicSubscriptionService).unsubscribeUserFromRoomTopic(MEMBER_ROOM_ID, USER_ID);
             verify(stompUserMessenger).convertAndSendToInternalId(
                     eq(PEER_ID), eq("/queue/room-member-left"), any(RoomMemberLeftEvent.class));
+
+            ArgumentCaptor<RoomMembershipEvent> topicCaptor = ArgumentCaptor.forClass(RoomMembershipEvent.class);
+            verify(messagingTemplate).convertAndSend(eq("/topic/room/" + MEMBER_ROOM_ID), topicCaptor.capture());
+            assertThat(topicCaptor.getValue().getEventType()).isEqualTo(RoomMembershipEvent.LEFT);
+            assertThat(topicCaptor.getValue().getRoomId()).isEqualTo(MEMBER_ROOM_ID);
+            assertThat(topicCaptor.getValue().getMemberInternalId()).isEqualTo(USER_ID);
         }
     }
 

@@ -2,6 +2,7 @@ package dev.burnedchats.service;
 
 import dev.burnedchats.dto.event.BurnSignalEvent;
 import dev.burnedchats.dto.event.RoomMemberLeftEvent;
+import dev.burnedchats.dto.event.RoomMembershipEvent;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -40,6 +42,7 @@ public class UserBurnService {
 
     private static final String BURN_SIGNAL_DESTINATION = "/queue/burn-signal";
     private static final String ROOM_MEMBER_LEFT_DESTINATION = "/queue/room-member-left";
+    private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
     private static final String SESSION_TOKEN_PREFIX = "session_token:";
     private static final String USER_PREFIX = "user:";
     private static final String AUTH_TG_PREFIX = "auth_tg:";
@@ -63,6 +66,7 @@ public class UserBurnService {
     private final UserIdentityRepository userIdentityRepository;
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final StompUserMessenger stompUserMessenger;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Summary returned after the burn-all cascade completes.
@@ -83,7 +87,8 @@ public class UserBurnService {
                 .defaultIfEmpty(emptyUser(internalId))
                 .flatMap(user -> burnDmSessions(internalId, user.telegramId())
                         .flatMap(burnedSessions -> burnOwnedRooms(internalId, user.telegramId())
-                                .flatMap(burnedRooms -> leaveMemberRooms(internalId, user.telegramId())
+                                .flatMap(burnedRooms -> leaveMemberRooms(
+                                        internalId, user.telegramId(), blankToNull(user.displayName()))
                                         .flatMap(leftRooms -> cleanupUserTails(internalId)
                                                 .then(wipeIdentityIfNeeded(internalId, user, wipeIdentity))
                                                 .thenReturn(new BurnAllSummary(
@@ -185,11 +190,11 @@ public class UserBurnService {
                 .then();
     }
 
-    private Mono<Integer> leaveMemberRooms(String internalId, Long telegramId) {
+    private Mono<Integer> leaveMemberRooms(String internalId, Long telegramId, String displayName) {
         return roomMembersRepository.getRoomsForMember(internalId)
                 .flatMap(roomId -> roomRepository.findById(roomId)
                         .filter(room -> !roomService.isOwner(room, internalId))
-                        .flatMap(room -> leaveMemberRoom(roomId, internalId, telegramId)
+                        .flatMap(room -> leaveMemberRoom(roomId, internalId, telegramId, displayName)
                                 .thenReturn(1)
                                 .onErrorResume(e -> {
                                     LOG.warn("Member room leave failed during burn-all roomId={} user={}: {}",
@@ -199,7 +204,7 @@ public class UserBurnService {
                 .reduce(0, Integer::sum);
     }
 
-    private Mono<Void> leaveMemberRoom(String roomId, String internalId, Long telegramId) {
+    private Mono<Void> leaveMemberRoom(String roomId, String internalId, Long telegramId, String displayName) {
         return roomMembersRepository.isMember(roomId, internalId)
                 .flatMap(isMember -> {
                     if (!Boolean.TRUE.equals(isMember)) {
@@ -219,6 +224,9 @@ public class UserBurnService {
                                         .filter(StringUtils::hasText)
                                         .forEach(memberInternalId -> stompUserMessenger.convertAndSendToInternalId(
                                                 memberInternalId, ROOM_MEMBER_LEFT_DESTINATION, event));
+                                messagingTemplate.convertAndSend(
+                                        ROOM_TOPIC_PREFIX + roomId,
+                                        RoomMembershipEvent.left(roomId, internalId, displayName));
                             })
                             .then();
                 });
@@ -290,5 +298,9 @@ public class UserBurnService {
                 null,
                 null,
                 null);
+    }
+
+    private static String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value : null;
     }
 }

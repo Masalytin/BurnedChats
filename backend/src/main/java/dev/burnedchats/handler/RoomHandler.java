@@ -5,6 +5,7 @@ import dev.burnedchats.dto.event.JoinApprovedEvent;
 import dev.burnedchats.dto.event.JoinRejectedEvent;
 import dev.burnedchats.dto.event.KeyBundleEvent;
 import dev.burnedchats.dto.event.MemberPublicKeysEvent;
+import dev.burnedchats.dto.event.RoomMembershipEvent;
 import dev.burnedchats.dto.event.RoomModerationEvent;
 import dev.burnedchats.dto.event.RoomBanListEvent;
 import dev.burnedchats.dto.event.RoomBurnedEvent;
@@ -380,6 +381,9 @@ public class RoomHandler {
                             System.currentTimeMillis(),
                             request.getPublicKey()
                     ));
+            emitMembership(approved.roomId(), sender.internalId(), sender.firstName(),
+                    RoomMembershipEvent::joined)
+                    .subscribe();
         } else if (ctx.result() instanceof RoomJoinService.JoinResult.Pending pending) {
             LOG.info("Join request pending: roomId={}, senderInternalId={}, ownerInternalId={}",
                     pending.request().getRoomId(), sender.internalId(), pending.ownerInternalId());
@@ -406,6 +410,8 @@ public class RoomHandler {
         resolveSenderInternalId(request)
                 .flatMap(senderInternalId -> roomJoinService
                         .acceptJoin(owner.internalId(), request.getRoomId(), senderInternalId)
+                        .then(emitMembership(request.getRoomId(), senderInternalId, null,
+                                RoomMembershipEvent::joined))
                         .thenReturn(senderInternalId))
                 .subscribe(
                         senderInternalId -> {
@@ -932,6 +938,8 @@ public class RoomHandler {
                                             memberInternalId,
                                             ROOM_MEMBER_REMOVED_DESTINATION,
                                             removedEvent));
+                            emitMembership(roomId, targetInternalId, null, RoomMembershipEvent::removed)
+                                    .subscribe();
                             sendKickResult(owner.internalId(),
                                     RoomKickResultEvent.success(roomId, targetInternalId));
                             LOG.info("KICK_MEMBER processed: roomId={}, targetInternalId={}, remainingMembers={}",
@@ -990,6 +998,8 @@ public class RoomHandler {
                                             memberInternalId,
                                             ROOM_MEMBER_REMOVED_DESTINATION,
                                             removedEvent));
+                            emitMembership(roomId, targetInternalId, null, RoomMembershipEvent::removed)
+                                    .subscribe();
                             sendKickResult(owner.internalId(),
                                     RoomKickResultEvent.success(roomId, targetInternalId));
                             LOG.info("BAN_MEMBER processed: roomId={}, targetInternalId={}, remainingMembers={}",
@@ -1226,6 +1236,9 @@ public class RoomHandler {
                                             memberInternalId,
                                             ROOM_MEMBER_LEFT_DESTINATION,
                                             memberLeftEvent));
+                            emitMembership(roomId, caller.internalId(), caller.firstName(),
+                                    RoomMembershipEvent::left)
+                                    .subscribe();
                             LOG.info("LEAVE_ROOM processed: roomId={}, leftInternalId={}, remainingMembers={}",
                                     roomId, caller.internalId(), remainingMembers.size());
                         },
@@ -1256,6 +1269,54 @@ public class RoomHandler {
         messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
         LOG.info("ROOM_MODERATION broadcast: roomId={}, readOnly={}, mutedAdded={}, mutedRemoved={}",
                 roomId, event.isReadOnly(), event.getMutedAdded(), event.getMutedRemoved());
+    }
+
+    private void broadcastMembership(String roomId, RoomMembershipEvent event) {
+        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + roomId, event);
+        LOG.info("ROOM_MEMBERSHIP broadcast: roomId={}, eventType={}, memberInternalId={}",
+                roomId, event.getEventType(), event.getMemberInternalId());
+    }
+
+    @FunctionalInterface
+    private interface MembershipEventFactory {
+        RoomMembershipEvent create(String roomId, String memberInternalId, String displayName);
+    }
+
+    /**
+     * Best-effort displayName then topic emit. Lookup failure does not roll back membership:
+     * the event still goes out with {@code displayName=null}.
+     */
+    private Mono<Void> emitMembership(
+            String roomId,
+            String memberInternalId,
+            String firstNameHint,
+            MembershipEventFactory factory) {
+        Mono<String> nameMono = StringUtils.hasText(firstNameHint)
+                ? Mono.just(firstNameHint)
+                : lookupMembershipDisplayName(memberInternalId);
+        return nameMono
+                .switchIfEmpty(Mono.just(""))
+                .doOnNext(name -> broadcastMembership(
+                        roomId,
+                        factory.create(roomId, memberInternalId, StringUtils.hasText(name) ? name : null)))
+                .onErrorResume(error -> {
+                    LOG.warn("Membership topic emit failed: roomId={}, memberInternalId={}, error={}",
+                            roomId, memberInternalId, error.toString());
+                    broadcastMembership(roomId, factory.create(roomId, memberInternalId, null));
+                    return Mono.empty();
+                })
+                .then();
+    }
+
+    private Mono<String> lookupMembershipDisplayName(String internalId) {
+        return userIdentityRepository.findById(internalId)
+                .map(UnifiedUser::displayName)
+                .filter(StringUtils::hasText)
+                .onErrorResume(error -> {
+                    LOG.warn("Membership displayName lookup failed: internalId={}, error={}",
+                            internalId, error.toString());
+                    return Mono.empty();
+                });
     }
 
     private Mono<Void> validateMuteTarget(Room room, String actorInternalId, String targetInternalId) {

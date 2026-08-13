@@ -1,6 +1,8 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.RoomLeftEvent;
+import dev.burnedchats.dto.event.RoomMemberLeftEvent;
+import dev.burnedchats.dto.event.RoomMembershipEvent;
 import dev.burnedchats.dto.request.LeaveRoomRequest;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Room;
@@ -23,18 +25,24 @@ import dev.burnedchats.service.RoomTopicSubscriptionService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +69,7 @@ class RoomHandlerLeaveTest {
     @Mock private RoomMessageRepository roomMessageRepository;
     @Mock private RoomTopicSubscriptionService roomTopicSubscriptionService;
     @Mock private OnlineStatusRepository onlineStatusRepository;
+    @Mock private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private RoomHandler roomHandler;
@@ -102,11 +111,42 @@ class RoomHandlerLeaveTest {
         when(memberPublicKeyRepository.remove(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.empty());
         when(roomMembersRepository.getMembers(ROOM))
                 .thenReturn(Flux.fromIterable(List.of(OWNER_INTERNAL)));
+        when(userIdentityRepository.findById(MEMBER_INTERNAL)).thenReturn(Mono.empty());
 
         roomHandler.leaveRoom(request, member);
 
         verify(roomMembersRepository).remove(ROOM, MEMBER_INTERNAL);
         verify(roomTopicSubscriptionService).unsubscribeUserFromRoomTopic(ROOM, MEMBER_INTERNAL);
+    }
+
+    @Test
+    void leaveRoom_whenSuccess_sendsQueueLeftAndTopicLeft_afterUnsubscribe() {
+        LeaveRoomRequest request = leaveRequest();
+        TelegramPrincipal member = memberPrincipal();
+        when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));
+        when(roomMembersRepository.isMember(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(true));
+        when(roomMembersRepository.remove(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(1L));
+        when(memberPublicKeyRepository.remove(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.empty());
+        when(roomMembersRepository.getMembers(ROOM))
+                .thenReturn(Flux.fromIterable(List.of(OWNER_INTERNAL)));
+        when(userIdentityRepository.findById(MEMBER_INTERNAL)).thenReturn(Mono.empty());
+
+        roomHandler.leaveRoom(request, member);
+
+        verify(stompUserMessenger, timeout(1000)).convertAndSendToInternalId(
+                eq(OWNER_INTERNAL), eq("/queue/room-member-left"), any(RoomMemberLeftEvent.class));
+
+        ArgumentCaptor<RoomMembershipEvent> topicCaptor = ArgumentCaptor.forClass(RoomMembershipEvent.class);
+        verify(messagingTemplate, timeout(1000)).convertAndSend(eq("/topic/room/" + ROOM), topicCaptor.capture());
+        RoomMembershipEvent topicEvent = topicCaptor.getValue();
+        assertThat(topicEvent.getEventType()).isEqualTo(RoomMembershipEvent.LEFT);
+        assertThat(topicEvent.getRoomId()).isEqualTo(ROOM);
+        assertThat(topicEvent.getMemberInternalId()).isEqualTo(MEMBER_INTERNAL);
+        assertThat(topicEvent.getDisplayName()).isNull();
+
+        InOrder order = inOrder(roomTopicSubscriptionService, messagingTemplate);
+        order.verify(roomTopicSubscriptionService).unsubscribeUserFromRoomTopic(ROOM, MEMBER_INTERNAL);
+        order.verify(messagingTemplate).convertAndSend(eq("/topic/room/" + ROOM), any(RoomMembershipEvent.class));
     }
 
     private static LeaveRoomRequest leaveRequest() {
