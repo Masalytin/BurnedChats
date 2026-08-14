@@ -69,12 +69,6 @@
   color: var(--bc-text-secondary);
 }
 
-.room-join-requests-view__empty-action {
-  margin-top: var(--bc-spacing-sm);
-  width: 100%;
-  max-width: 16rem;
-}
-
 .room-join-requests-view__footer {
   margin-top: auto;
   padding-top: var(--bc-spacing-md);

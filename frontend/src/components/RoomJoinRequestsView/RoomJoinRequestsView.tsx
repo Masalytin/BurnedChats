@@ -121,16 +121,6 @@ export function RoomJoinRequestsView({
               <Inbox size={48} strokeWidth={1.5} />
             </div>
             <p className="room-join-requests-view__empty-text">{t('room.requests.empty')}</p>
-            {onBack && (
-              <Button
-                variant="secondary"
-                onClick={onBack}
-                className="room-join-requests-view__empty-action"
-                fullWidth
-              >
-                {t('common.back')}
-              </Button>
-            )}
           </div>
         ) : (
           requests.map(request => (
