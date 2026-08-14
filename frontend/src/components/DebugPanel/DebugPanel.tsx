@@ -126,20 +126,16 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'status', label: 'Status', icon: '📡' },
   { id: 'flow', label: 'Flow', icon: '🔄' },
   { id: 'messages', label: 'Messages', icon: '💬' },
-  ...(import.meta.env.DEV
-    ? [{ id: 'crypto' as const, label: 'Crypto', icon: '🔐' }]
-    : []),
+  { id: 'crypto', label: 'Crypto', icon: '🔐' },
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'logs', label: 'Logs', icon: '📋' },
 ];
 
-const LazyCryptoTab = import.meta.env.DEV
-  ? lazy(() => import('./tabs/CryptoTab').then((m) => ({ default: m.CryptoTab })))
-  : null;
+const LazyCryptoTab = lazy(() =>
+  import('./tabs/CryptoTab').then((m) => ({ default: m.CryptoTab })),
+);
 
-function DevCryptoTab({ state }: { state: CryptoDebugState }) {
-  if (!LazyCryptoTab) return null;
-
+function LoadedCryptoTab({ state }: { state: CryptoDebugState }) {
   return (
     <Suspense fallback={<div className="debug-empty">Loading crypto tab…</div>}>
       <LazyCryptoTab state={state} />
@@ -192,13 +188,6 @@ export function DebugPanel({
       localStorage.setItem(STORAGE_KEY_TAB, activeTab);
     } catch {
       // Ignore
-    }
-  }, [activeTab]);
-
-  // Crypto tab is dev-only; fall back if persisted from a dev session
-  useEffect(() => {
-    if (!import.meta.env.DEV && activeTab === 'crypto') {
-      setActiveTab('status');
     }
   }, [activeTab]);
 
@@ -460,8 +449,8 @@ export function DebugPanel({
               <MessagesTab state={debugState.stomp} />
             )}
 
-            {import.meta.env.DEV && activeTab === 'crypto' && (
-              <DevCryptoTab state={debugState.crypto} />
+            {activeTab === 'crypto' && (
+              <LoadedCryptoTab state={debugState.crypto} />
             )}
 
             {activeTab === 'advanced' && (

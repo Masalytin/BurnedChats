@@ -1,9 +1,14 @@
 /**
  * Crypto State Tab for Debug Panel.
  * Displays keyStore state and crypto operation history.
+ * PoW bench card is available in production (IMP-POWFAST-02).
  */
 
+import { useCallback, useState } from 'react';
+import { solvePow } from '@/crypto/pow';
+import { writeTextToClipboard } from '@/utils/clipboard';
 import type { CryptoDebugState, CryptoSessionDebugState, CryptoOperationEntry } from '../hooks/useDebugState';
+import { formatPowBenchLine, runLocalPowBench } from './powBench';
 import './tabs.css';
 
 interface CryptoTabProps {
@@ -119,17 +124,79 @@ function OperationLog({ operations }: { operations: CryptoOperationEntry[] }) {
   );
 }
 
-export function CryptoTab({ state }: CryptoTabProps) {
-  if (!import.meta.env.DEV) {
-    return (
-      <div className="debug-tab-content">
-        <div className="debug-empty">Crypto debug data is available only in development builds.</div>
-      </div>
-    );
-  }
+function PowBenchCard() {
+  const [running, setRunning] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const onBench = useCallback(async () => {
+    if (running) {
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    setCopied(null);
+    try {
+      const result = await runLocalPowBench(solvePow);
+      const line = formatPowBenchLine(result);
+      setSummary(line);
+      try {
+        const ok = await writeTextToClipboard(line);
+        setCopied(ok);
+      } catch {
+        setCopied(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }, [running]);
 
   return (
+    <div className="debug-card">
+      <div className="debug-card-header">
+        <span className="debug-card-title">PoW bench</span>
+      </div>
+      <div className="debug-card-body">
+        <div className="debug-form-actions">
+          <button type="button" onClick={onBench} disabled={running}>
+            {running ? 'solving…' : 'bench PoW 20'}
+          </button>
+        </div>
+        {summary && (
+          <div className="debug-row">
+            <span className="debug-row-label">Result:</span>
+            <span className="debug-row-value mono">{summary}</span>
+          </div>
+        )}
+        {copied === false && (
+          <div className="debug-row">
+            <span className="debug-row-value warn">Clipboard copy failed — copy the line above by hand.</span>
+          </div>
+        )}
+        {error && (
+          <div className="debug-row">
+            <span className="debug-row-value error">{error}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CryptoTab({ state }: CryptoTabProps) {
+  return (
     <div className="debug-tab-content">
+      <PowBenchCard />
+
+      {!import.meta.env.DEV && (
+        <div className="debug-empty">Crypto debug data is available only in development builds.</div>
+      )}
+
+      {import.meta.env.DEV && (
+        <>
       {/* Sessions Overview */}
       <div className="debug-card">
         <div className="debug-card-header">
@@ -183,6 +250,8 @@ export function CryptoTab({ state }: CryptoTabProps) {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
