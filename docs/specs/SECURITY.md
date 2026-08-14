@@ -674,6 +674,7 @@ On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after*
 ### Layer 1 — Client-side Proof-of-Work
 
 - Primitive: Hashcash on **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (bit difficulty, not hex characters).
+- Client SHA-256 engine may be any implementation that is byte-compatible with Java `MessageDigest` / Web Crypto (`crypto.subtle.digest`); the Hashcash formula is unchanged.
 - Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; solution `{ challengeId, nonce }` in gated request body.
 - Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 26 bit** protects weak devices.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.

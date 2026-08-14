@@ -1,5 +1,5 @@
 /**
- * Prototype + benchmark for the PoW solver (IMP-ASPOW-02).
+ * Prototype + benchmark for the PoW solver (IMP-ASPOW-02 / IMP-POWFAST-01).
  *
  * This file serves two purposes:
  *   1. Functional verification of the pure solver/verifier in `pow.ts`
@@ -10,16 +10,17 @@
  *      difficulties (18/20/22) and the §5.3 ceiling (26). Results are printed to
  *      the test console.
  *
- * Why extrapolate? Real solves at difficulty 18–26 require 2^18..2^26 hashes,
- * which is far too slow to run unconditionally in CI (millions of awaited
- * `subtle.digest` calls). We measure raw throughput + real medians at feasible
- * difficulties, then project the higher levels from the measured hash rate.
+ * Why extrapolate? Real solves at difficulty 18–26 require 2^18..2^26 hashes.
+ * Even with sync `@noble/hashes`, CI must NOT solve difficulty 22+ (2^22 hashes
+ * is still too much for a unit-test budget). We measure raw throughput + real
+ * medians at feasible difficulties (≤16), then project 18/20/22/26.
  *
  * Run explicitly:
  *   cd frontend && npx vitest run src/crypto/pow.bench.test.ts
  */
 
 import { describe, it, expect } from 'vitest';
+import { sha256 } from '@noble/hashes/sha256';
 import { solvePow, verifyPow, leadingZeroBits } from './pow';
 
 // ============================================================================
@@ -186,15 +187,15 @@ describe('PoW solver — benchmark', () => {
   it('measures hash rate, median/p95 solve time, and extrapolates DESIGN levels', async () => {
     const encoder = new TextEncoder();
 
-    // ---- 1. Raw hash rate (awaited subtle.digest loop) -------------------
+    // ---- 1. Raw hash rate (sync noble SHA-256; do not await subtle) ------
     const HASH_SAMPLES = 20_000;
-    // Warm-up to stabilize JIT / crypto init.
+    // Warm-up to stabilize JIT.
     for (let i = 0; i < 2_000; i++) {
-      await crypto.subtle.digest('SHA-256', encoder.encode(`warmup${i}`));
+      sha256(encoder.encode(`warmup${i}`));
     }
     const hrStart = performance.now();
     for (let i = 0; i < HASH_SAMPLES; i++) {
-      await crypto.subtle.digest('SHA-256', encoder.encode(`bench${i}`));
+      sha256(encoder.encode(`bench${i}`));
     }
     const hrElapsed = performance.now() - hrStart;
     const hashRate = (HASH_SAMPLES / hrElapsed) * 1000; // hashes/sec
@@ -204,6 +205,7 @@ describe('PoW solver — benchmark', () => {
     // per-difficulty time budget, whichever comes first. This keeps total
     // runtime bounded across machines of varying speed.
     const REAL_DIFFICULTIES = [8, 10, 12, 14, 16];
+    expect(Math.max(...REAL_DIFFICULTIES)).toBeLessThan(22);
     const MAX_SAMPLES = 25;
     const PER_DIFFICULTY_BUDGET_MS = 4_000;
 
@@ -241,6 +243,7 @@ describe('PoW solver — benchmark', () => {
     // ---- 3. Extrapolate DESIGN.md base + ceiling difficulties ------------
     // Expected attempts ≈ 2^difficulty; expected time ≈ attempts / hashRate.
     // p95 of a geometric search ≈ ~3x the mean (−ln(0.05) ≈ 3.0).
+    // CI must not *solve* 22+; these rows are projection only.
     const DESIGN_DIFFICULTIES = [18, 20, 22, 26];
     for (const difficulty of DESIGN_DIFFICULTIES) {
       const expectedAttempts = Math.pow(2, difficulty);
@@ -257,8 +260,8 @@ describe('PoW solver — benchmark', () => {
     // ---- 4. Report -------------------------------------------------------
     const lines: string[] = [];
     lines.push('');
-    lines.push('================ PoW solver benchmark (IMP-ASPOW-02) ================');
-    lines.push(`Environment: Node webcrypto, awaited subtle.digest loop`);
+    lines.push('================ PoW solver benchmark (IMP-POWFAST-01) ================');
+    lines.push(`Environment: Node, @noble/hashes SHA-256 (sync), time-based batches`);
     lines.push(`Hash rate: ${Math.round(hashRate).toLocaleString()} hashes/sec ` +
       `(${HASH_SAMPLES} samples in ${fmtMs(hrElapsed)})`);
     lines.push('');
@@ -275,8 +278,8 @@ describe('PoW solver — benchmark', () => {
     lines.push('');
     lines.push('DESIGN.md §5.1 base bits: search=18, session_create=20, invite=20, room_create=22');
     lines.push('DESIGN.md §5.3 ceiling: 26 bits. Budget §7: median ≤ 1.5 s on mobile WebView.');
-    lines.push('NOTE: Node await-per-hash loop UNDER-estimates real WebWorker throughput;');
-    lines.push('      use the on-device matrix for the authoritative calibration decision.');
+    lines.push('NOTE: Node noble loop is a proxy; on-device WebView (IMP-POWFAST-02) is');
+    lines.push('      the authoritative calibration. CI does not solve difficulty 22+.');
     lines.push('=====================================================================');
     lines.push('');
     // eslint-disable-next-line no-console

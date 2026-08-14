@@ -22,44 +22,37 @@
  *     characters.
  *
  * Design constraints (worker-ready, non-blocking):
- *   - No DOM/window access — relies only on `crypto.subtle`, `TextEncoder`, and
- *     `setTimeout`, all available in a Web Worker. The actual Worker wiring lives
- *     in IMP-ASPOW-06; here the solver is merely worker-ready.
- *   - Iterations are batched and the solver yields to the event loop between
- *     batches, so it never blocks continuously for more than a few milliseconds.
+ *   - No DOM/window access — relies on `@noble/hashes/sha256`, `TextEncoder`,
+ *     `performance.now`, and `setTimeout`, all available in a Web Worker.
+ *   - Sync SHA-256 (no `await crypto.subtle.digest` in the hot loop). Batches
+ *     are time-based (~8 ms wall-clock), then AbortSignal + `setTimeout(0)`.
  *   - Cooperative cancellation via `AbortSignal`, without leaving the promise
  *     hanging (rejects with an `AbortError`).
  *
  * ---------------------------------------------------------------------------
- * Benchmark results (IMP-ASPOW-02) — see `pow.bench.test.ts`.
+ * Benchmark results (IMP-POWFAST-01) — see `pow.bench.test.ts`.
  *
- * Environment: Node v22.9.0 webcrypto (`crypto.subtle.digest`), single-threaded
- * await-per-hash loop. NOTE: this Node measurement is an upper bound on latency
- * and a LOWER bound on throughput vs. a real browser/WebView WebWorker, because
- * the per-call promise overhead of the async `subtle.digest` API dominates here.
- * Treat these numbers as a coarse calibration aid; the authoritative on-device
- * matrix (median mobile WebView) is still owned by the DESIGN.md §7 budget.
+ * Environment: Node v22.9.0, `@noble/hashes` SHA-256, time-based ~8 ms batches.
+ * Previous IMP-ASPOW-02 numbers (~36k h/s) measured an awaited `subtle.digest`
+ * loop and are obsolete for this engine. Treat Node figures as a coarse
+ * calibration aid; the authoritative on-device matrix is IMP-POWFAST-02.
  *
- * Representative run (Node v22.9.0, ~36k hashes/sec in the awaited loop):
+ * Representative run (Node v22.9.0, ~423k hashes/sec noble sync loop):
  *
  *   bits | source       | median    | p95
  *   -----+--------------+-----------+----------
- *      8 | measured     |   5.3 ms  |  29.6 ms
- *     10 | measured     |  32.7 ms  | 108.5 ms
- *     12 | measured     |  77.5 ms  | 319.4 ms
- *     14 | measured     | 705.3 ms  |  3.04 s
- *     16 | measured     | 390.2 ms  |  3.64 s
- *     18 | extrapolated |  5.07 s   | 21.94 s
- *     20 | extrapolated | 20.27 s   | 87.75 s
- *     22 | extrapolated | 81.10 s   | 350.99 s
- *     26 | extrapolated | ~21.6 min | ~93.6 min
+ *      8 | measured     |   0.3 ms  |   0.8 ms
+ *     10 | measured     |   1.7 ms  |   4.0 ms
+ *     12 | measured     |  15.4 ms  |  81.2 ms
+ *     14 | measured     |  29.2 ms  | 142.1 ms
+ *     16 | measured     | 331.5 ms  | 916.5 ms
+ *     18 | extrapolated | 429.1 ms  |  1.86 s
+ *     20 | extrapolated |  1.72 s   |  7.43 s
+ *     22 | extrapolated |  6.87 s   | 29.72 s
+ *     26 | extrapolated | ~1.83 min | ~7.92 min
  *
- * These Node figures look alarming, but they are NOT representative of a browser:
- * the awaited `subtle.digest` micro-benchmark is throttled to ~36k hashes/sec by
- * per-call promise overhead, whereas a real browser WebWorker doing batched
- * SHA-256 reaches roughly 1–3M hashes/sec — i.e. ~30–80x faster — bringing base
- * difficulties 18–22 back into the seconds range. The authoritative calibration
- * is the on-device matrix owned by DESIGN.md §7, not this Node proxy.
+ * CI must not solve difficulty 22+. On-device WebView (IMP-POWFAST-02) is the
+ * authoritative calibration, not this Node proxy.
  *
  * Normative cross-platform vector (DESIGN.md §2.4), produced by this prototype:
  *   challengeId = "00112233445566778899aabbccddeeff"
@@ -78,15 +71,20 @@
  * ---------------------------------------------------------------------------
  */
 
+import { sha256 } from '@noble/hashes/sha256';
+
 /**
- * Number of hash attempts per batch before yielding to the event loop.
- * Sized so a batch completes well under one animation frame (~16 ms) on any
- * realistic device, keeping the solver responsive and abort-checkable.
+ * Wall-clock budget for one sync hash batch before yielding (IMP-POWFAST-01).
+ * Time-based (not a fixed N) so abort latency stays ~8 ms on both slow and
+ * fast devices after the switch to synchronous SHA-256.
  */
-const BATCH_SIZE = 512;
+const BATCH_BUDGET_MS = 8;
 
 /** Length, in bytes, of a SHA-256 digest. */
 const SHA256_BYTES = 32;
+
+/** Optional per-batch progress callback (`iterations` so far, 1-based on win). */
+export type PowProgressCallback = (iterations: number) => void;
 
 /**
  * Result of a successful {@link solvePow} run.
@@ -124,17 +122,6 @@ export function leadingZeroBits(hash: Uint8Array): number {
     break;
   }
   return bits;
-}
-
-/**
- * Computes SHA-256 over the given bytes using the Web Crypto API.
- *
- * @param data - Input bytes.
- * @returns The 32-byte digest as a Uint8Array.
- */
-async function sha256(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return new Uint8Array(digest);
 }
 
 /**
@@ -181,20 +168,20 @@ function assertValidDifficulty(difficulty: number): void {
  * Solves a PoW challenge by searching for a nonce whose SHA-256 digest has at
  * least `difficulty` leading zero bits.
  *
- * The nonce is searched as a decimal counter starting from 0. Work is batched
- * ({@link BATCH_SIZE} hashes per batch) with a cooperative yield to the event
- * loop between batches, so the solver never blocks the thread for long and stays
- * responsive to cancellation. It is worker-ready: it touches no DOM/window APIs.
+ * The nonce is searched as a decimal counter starting from 0. Each batch runs
+ * until {@link BATCH_BUDGET_MS} of wall-clock time elapses (or a nonce is
+ * found), then `onProgress` fires, AbortSignal is checked, and the solver
+ * yields via `setTimeout(0)`. Worker-ready: no DOM/window APIs.
  *
  * Edge cases:
- *   - `difficulty === 0` returns immediately (`nonce: "0"`), since every digest
- *     trivially has ≥ 0 leading zero bits.
+ *   - `difficulty === 0` returns immediately (`nonce: "0"`) without hashing.
  *   - empty/whitespace-only `challengeId` is a validation error.
  *   - arbitrarily high difficulty remains abortable via `signal`.
  *
  * @param challengeId - Server-issued challenge identifier (hex string per DESIGN.md §3).
  * @param difficulty - Target number of leading zero bits.
  * @param signal - Optional AbortSignal for cooperative cancellation.
+ * @param onProgress - Optional callback invoked after every time-based batch.
  * @returns The winning nonce and the number of iterations performed.
  * @throws Error if `challengeId` is empty or `difficulty` is invalid.
  * @throws DOMException('AbortError') if aborted via `signal`.
@@ -203,6 +190,7 @@ export async function solvePow(
   challengeId: string,
   difficulty: number,
   signal?: AbortSignal,
+  onProgress?: PowProgressCallback,
 ): Promise<PowSolveResult> {
   if (typeof challengeId !== 'string' || challengeId.length === 0) {
     throw new Error('PoW: challengeId must be a non-empty string');
@@ -213,26 +201,33 @@ export async function solvePow(
     throw createAbortError();
   }
 
+  if (difficulty === 0) {
+    return { nonce: '0', iterations: 1 };
+  }
+
   const encoder = new TextEncoder();
   let counter = 0;
 
   // Unbounded search: a valid nonce is guaranteed to exist with probability 1,
   // and the loop remains abortable between batches for very high difficulties.
   for (;;) {
-    for (let i = 0; i < BATCH_SIZE; i++) {
+    const batchStart = performance.now();
+    while (performance.now() - batchStart < BATCH_BUDGET_MS) {
       const nonce = counter.toString();
       const message = encoder.encode(challengeId + nonce);
-      const hash = await sha256(message);
+      const hash = sha256(message);
       if (leadingZeroBits(hash) >= difficulty) {
+        onProgress?.(counter + 1);
         return { nonce, iterations: counter + 1 };
       }
       counter++;
     }
 
+    onProgress?.(counter);
+
     if (signal?.aborted) {
       throw createAbortError();
     }
-    // Hand the thread back so the UI, timers, and abort events can be serviced.
     await yieldToEventLoop();
   }
 }
@@ -266,6 +261,6 @@ export async function verifyPow(
   }
 
   const message = new TextEncoder().encode(challengeId + nonce);
-  const hash = await sha256(message);
+  const hash = sha256(message);
   return leadingZeroBits(hash) >= difficulty;
 }

@@ -20,6 +20,7 @@
     "i18n:check:help": "node ../scripts/i18n/check-i18n.mjs --check-help"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@stomp/stompjs": "^7.2.1",
     "@ton/core": "^0.60.0",
     "@tonconnect/ui-react": "^2.4.4",
