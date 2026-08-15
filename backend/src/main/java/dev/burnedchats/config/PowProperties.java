@@ -33,9 +33,9 @@ public class PowProperties {
     private Duration replayWindow = Duration.ofSeconds(120);
 
     /**
-     * Hard ceiling on difficulty in bits (DESIGN.md §5.3).
+     * Hard ceiling on difficulty in bits (on-device budget, IMP-POWFAST-04).
      */
-    private int ceiling = 26;
+    private int ceiling = 18;
 
     /**
      * Sliding window for {@code pow:abuse:global} counters (DESIGN.md §5.2).
@@ -53,12 +53,12 @@ public class PowProperties {
     @Data
     public static class BaseDifficulty {
 
-        private int search = 18;
-        private int sessionCreate = 20;
-        private int invite = 20;
-        private int roomCreate = 22;
+        private int search = 12;
+        private int sessionCreate = 14;
+        private int invite = 14;
+        private int roomCreate = 16;
         /** Personal DM invite mint (IMP-DMINVITE-01). */
-        private int dmInvite = 20;
+        private int dmInvite = 14;
     }
 
     /**

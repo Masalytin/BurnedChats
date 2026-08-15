@@ -302,7 +302,7 @@ Unknown or empty `action` → server **silently ignores** the request (debug log
 
 The `issuedAt` field is stored **only in Redis** (`pow:challenge:{id}`), not in the STOMP event.
 
-Difficulty is adaptive (global abuse signal `pow:abuse:global`, DESIGN §5). Server stores authoritative `action`/`difficulty` only in Redis; client values are not trusted. Issued difficulty is capped by `pow.ceiling` (default 26).
+Difficulty is adaptive (global abuse signal `pow:abuse:global`, DESIGN §5). Server stores authoritative `action`/`difficulty` only in Redis; client values are not trusted. Issued difficulty is capped by `pow.ceiling` (default 18).
 
 **Backend:** `PowHandler` — `@MessageMapping("/pow.challenge")`. Delivery via `StompUserMessenger.convertAndSendToUser` → `/user/queue/pow-challenge`.
 

@@ -163,14 +163,14 @@ pow:
   enabled: ${POW_ENABLED:true}
   challenge-ttl: 60s
   replay-window: 120s
-  ceiling: 26
+  ceiling: 18
   abuse-window: 60s
   base:
-    search: 18
-    session-create: 20
-    invite: 20
-    room-create: 22
-    dm-invite: 20
+    search: 12
+    session-create: 14
+    invite: 14
+    room-create: 16
+    dm-invite: 14
 
 # Security settings
 security:

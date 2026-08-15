@@ -70,8 +70,8 @@ class AdaptiveDifficultyServiceTest {
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("spring.data.redis.database", () -> "14");
         registry.add("pow.enabled", () -> "true");
-        registry.add("pow.ceiling", () -> "26");
-        registry.add("pow.base.session-create", () -> "20");
+        registry.add("pow.ceiling", () -> "18");
+        registry.add("pow.base.session-create", () -> "14");
         registry.add("pow.abuse-window", () -> "PT2S");
     }
 
@@ -124,6 +124,7 @@ class AdaptiveDifficultyServiceTest {
         @Test
         void cappedAtCeiling() {
             assertThat(AdaptiveDifficultyService.resolveDifficulty(20, 0.99, 26)).isEqualTo(26);
+            assertThat(AdaptiveDifficultyService.resolveDifficulty(14, 0.99, 18)).isEqualTo(18);
         }
     }
 
@@ -134,7 +135,7 @@ class AdaptiveDifficultyServiceTest {
         @Test
         void returnsBaseWhenNoAbuse() {
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
-                    .expectNext(20)
+                    .expectNext(14)
                     .verifyComplete();
         }
 
@@ -144,7 +145,7 @@ class AdaptiveDifficultyServiceTest {
             recordRejections(2);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
-                    .expectNext(22)
+                    .expectNext(16)
                     .verifyComplete();
         }
 
@@ -154,7 +155,7 @@ class AdaptiveDifficultyServiceTest {
             recordRejections(5);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
-                    .expectNext(26)
+                    .expectNext(18)
                     .verifyComplete();
         }
 
@@ -215,13 +216,13 @@ class AdaptiveDifficultyServiceTest {
             recordRejections(3);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
-                    .expectNext(24)
+                    .expectNext(18)
                     .verifyComplete();
 
             Thread.sleep(Duration.ofSeconds(2).toMillis() + 500);
 
             StepVerifier.create(service.currentDifficulty(PowAction.SESSION_CREATE))
-                    .expectNext(20)
+                    .expectNext(14)
                     .verifyComplete();
         }
     }

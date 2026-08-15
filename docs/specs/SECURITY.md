@@ -676,7 +676,18 @@ On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after*
 - Primitive: Hashcash on **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (bit difficulty, not hex characters).
 - Client SHA-256 engine may be any implementation that is byte-compatible with Java `MessageDigest` / Web Crypto (`crypto.subtle.digest`); the Hashcash formula is unchanged.
 - Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; solution `{ challengeId, nonce }` in gated request body.
-- Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 26 bit** protects weak devices.
+- Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 18 bit** protects weak devices (on-device Hashcash budget).
+- Base difficulty (`pow.base`, bits) before abuse bump:
+
+| Action | Bits |
+|--------|:----:|
+| `search` | 12 |
+| `session_create` | 14 |
+| `invite` | 14 |
+| `dm_invite` | 14 |
+| `room_create` | 16 |
+
+Issued difficulty is `min(base + bump, ceiling)` with bump +0/+2/+4/+6.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
 **Current enforcement (2026-08-12):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Wire-format also supports `search`, `room_create`, `invite` — issuance is implemented; enforcement on those routes is planned follow-up work. Personal DM invite **does not** bypass PoW on `session.create`.
