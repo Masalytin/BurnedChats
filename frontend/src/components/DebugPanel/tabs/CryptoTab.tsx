@@ -4,11 +4,15 @@
  * PoW bench card is available in production (IMP-POWFAST-02).
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { solvePow } from '@/crypto/pow';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import type { CryptoDebugState, CryptoSessionDebugState, CryptoOperationEntry } from '../hooks/useDebugState';
-import { formatPowBenchLine, runLocalPowBench } from './powBench';
+import {
+  formatPowBenchLine,
+  powBenchChallengeIdForRun,
+  runLocalPowBench,
+} from './powBench';
 import './tabs.css';
 
 interface CryptoTabProps {
@@ -129,6 +133,7 @@ function PowBenchCard() {
   const [summary, setSummary] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const runIndexRef = useRef(0);
 
   const onBench = useCallback(async () => {
     if (running) {
@@ -138,7 +143,9 @@ function PowBenchCard() {
     setError(null);
     setCopied(null);
     try {
-      const result = await runLocalPowBench(solvePow);
+      const challengeId = powBenchChallengeIdForRun(runIndexRef.current);
+      runIndexRef.current += 1;
+      const result = await runLocalPowBench(solvePow, challengeId);
       const line = formatPowBenchLine(result);
       setSummary(line);
       try {
@@ -162,7 +169,7 @@ function PowBenchCard() {
       <div className="debug-card-body">
         <div className="debug-form-actions">
           <button type="button" onClick={onBench} disabled={running}>
-            {running ? 'solving…' : 'bench PoW 20'}
+            {running ? 'solving…' : 'bench PoW 14'}
           </button>
         </div>
         {summary && (
