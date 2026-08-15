@@ -274,7 +274,7 @@ Non-matching string → `INVALID_QUERY`. Partial UUID / wallet prefix → **not*
 
 Request a PoW challenge before a gated action. The route **does not** require PoW (otherwise chicken-and-egg). **Issuance rate-limit:** `RateLimitService.POW_CHALLENGE` — **10 requests / min / `internalId`**; on exceed → `/user/queue/errors` with `RATE_LIMIT_EXCEEDED` and `retryAfter` (seconds).
 
-PoW is enforced on `/app/session.create` and `/app/dmInvite.mint`. Challenge issuance also accepts `search`, `room_create`, `invite` actions; those routes do not verify PoW yet.
+PoW is enforced on `/app/session.create` and `/app/dmInvite.mint`. Challenges for `search` / `room_create` / `invite` are issued; those routes are not gated; this is not a security control. Issued difficulty is calibrated to the on-device WebView budget, not miner economics.
 
 **Request** (`PowHandler.PowChallengeRequest`):
 

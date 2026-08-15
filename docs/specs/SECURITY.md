@@ -676,7 +676,7 @@ On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after*
 - Primitive: Hashcash on **SHA-256** — `leadingZeroBits(SHA256(challengeId || nonce)) >= difficulty` (bit difficulty, not hex characters).
 - Client SHA-256 engine may be any implementation that is byte-compatible with Java `MessageDigest` / Web Crypto (`crypto.subtle.digest`); the Hashcash formula is unchanged.
 - Challenge: STOMP `/app/pow.challenge` → `/user/queue/pow-challenge`; solution `{ challengeId, nonce }` in gated request body.
-- Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 18 bit** protects weak devices (on-device Hashcash budget).
+- Adaptivity: global abuse signal `pow:abuse:global` (ratio rejected/total) raises difficulty; **ceiling 18 bit** is TTL protection for honest clients under bump +0/+2/+4/+6, not an ASIC fortress.
 - Base difficulty (`pow.base`, bits) before abuse bump:
 
 | Action | Bits |
@@ -690,16 +690,18 @@ On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after*
 Issued difficulty is `min(base + bump, ceiling)` with bump +0/+2/+4/+6.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
-**Current enforcement (2026-08-12):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Wire-format also supports `search`, `room_create`, `invite` — issuance is implemented; enforcement on those routes is planned follow-up work. Personal DM invite **does not** bypass PoW on `session.create`.
+**Current enforcement (2026-08-15):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Challenges for `search` / `room_create` / `invite` are issued; those routes are not gated; this is not a security control. Personal DM invite **does not** bypass PoW on `session.create`.
+
+Layer 2 (`ReputationDifficultyResolver`) is an optional seam, not deployed; this spec does not promise staker difficulty discounts.
 
 ### Place in Threat Model
 
 | Threat | Layer 0 | Layer 1 |
 |--------|--------|--------|
-| Sybil mass spam of asymmetric actions | weak (new `internalId` = new limit) | **primary** (CPU × number of actions) |
-| Flood from one account | **primary** | additional |
-| Targeted attack with GPU/farm | — | partial (economic barrier, not absolute) |
-| E2EE content / keys | — | **not affected** (orthogonal) |
+| Sybil mass spam of asymmetric actions | **primary** (new Telegram or wallet identity → new `internalId` buckets) | delay + challenge/spent binding on **gated** routes only; **not** CPU × actions economics |
+| Flood from one account | **primary** | additional on `session.create` / `dmInvite.mint` |
+| Targeted attack with GPU/farm | — | **not closed** (14-bit Hashcash is milliseconds on native SHA-256) |
+| E2EE content / keys | — | **not affected** |
 
 PoW **does not** replace Visual Fingerprint (MITM), initData/wallet-auth or message encryption.
 
