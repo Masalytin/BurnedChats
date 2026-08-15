@@ -690,7 +690,7 @@ On gated routes `session.create` and `dmInvite.mint` rate-limit applies **after*
 Issued difficulty is `min(base + bump, ceiling)` with bump +0/+2/+4/+6.
 - **Production/testnet:** `pow.enabled=true` by default (`application.yml`, override only via `POW_ENABLED`); dev/test profiles may disable PoW for development UX.
 
-**Current enforcement (2026-08-15):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Challenges for `search` / `room_create` / `invite` are issued; those routes are not gated; this is not a security control. Personal DM invite **does not** bypass PoW on `session.create`.
+**Current enforcement (2026-08-15):** backend gate on `/app/session.create` (`session_create`) and `/app/dmInvite.mint` (`dm_invite`). Challenges for `search` / `room_create` / `invite` are not issued until those routes are gated. Personal DM invite **does not** bypass PoW on `session.create`.
 
 Layer 2 (`ReputationDifficultyResolver`) is an optional seam, not deployed; this spec does not promise staker difficulty discounts.
 

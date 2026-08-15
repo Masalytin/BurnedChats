@@ -1,6 +1,7 @@
 package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.PowChallengeEvent;
+import dev.burnedchats.exception.BurnedChatsException;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.pow.AdaptiveDifficultyService;
@@ -15,6 +16,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
+import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.Map;
@@ -66,11 +68,20 @@ public class PowHandler {
         LOG.debug("PoW challenge requested: action={}, internalId={}", action, appPrincipal.getInternalId());
 
         rateLimitService.enforceRateLimit(appPrincipal.getInternalId(), RateLimitType.POW_CHALLENGE)
-                .then(adaptiveDifficultyService.currentDifficulty(action))
-                .flatMap(difficulty -> powChallengeService.issue(action, difficulty))
+                .then(Mono.defer(() -> issueIfAllowed(action)))
                 .subscribe(
                         event -> sendChallenge(appPrincipal, event),
                         error -> handleChallengeFailure(appPrincipal, error));
+    }
+
+    private Mono<PowChallengeEvent> issueIfAllowed(PowAction action) {
+        if (!action.isIssued()) {
+            return Mono.error(new BurnedChatsException(
+                    "PoW challenge is not issued for action: " + action.wireValue(),
+                    "VALIDATION_ERROR"));
+        }
+        return adaptiveDifficultyService.currentDifficulty(action)
+                .flatMap(difficulty -> powChallengeService.issue(action, difficulty));
     }
 
     private void handleChallengeFailure(AppPrincipal principal, Throwable error) {
@@ -81,6 +92,14 @@ public class PowHandler {
 
         if (root instanceof RateLimitException rateLimitException) {
             Map<String, Object> payload = webSocketExceptionHandler.handleRateLimitException(rateLimitException);
+            stompUserMessenger.convertAndSendToUser(principal, ERRORS_DESTINATION, payload);
+            return;
+        }
+
+        if (root instanceof BurnedChatsException burnedChatsException
+                && "VALIDATION_ERROR".equals(burnedChatsException.getErrorCode())) {
+            Map<String, Object> payload =
+                    webSocketExceptionHandler.handleBurnedChatsException(burnedChatsException);
             stompUserMessenger.convertAndSendToUser(principal, ERRORS_DESTINATION, payload);
             return;
         }
