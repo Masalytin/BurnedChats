@@ -72,13 +72,17 @@ import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import {
+  buildTelegramDmInviteDeepLink,
   buildTelegramInviteDeepLink,
   buildTelegramShareUrl,
+  classifyJoinFragment,
+  clearPendingDmInviteToken,
   clearPendingInviteToken,
   parseDmInviteFragment,
-  parseInviteFragment,
   parseInviteUrl,
+  readPendingDmInviteToken,
   readPendingInviteToken,
+  stashPendingDmInviteToken,
   stashPendingInviteToken,
 } from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
@@ -921,9 +925,10 @@ function AppContent() {
   // IMP-DMINVITE-02: personal DM invite redeem — one-shot per token
   const dmInviteRedeemSetupRef = useRef<string | null>(null);
 
-  // Web invite route (/join#invite_{token}) — IMP-WEBINVITE-02
+  // Web invite route (/join#invite_{token} | /join#dm_invite_{token}) — IMP-WEBINVITE-02 / IMP-DMINVITE-05
   const isJoinRoute = location.pathname === '/join';
   const [joinRouteToken, setJoinRouteToken] = useState<string | null>(null);
+  const [joinRouteKind, setJoinRouteKind] = useState<'room' | 'dm' | null>(null);
   const [joinRouteInvalid, setJoinRouteInvalid] = useState(false);
   const [joinLoginBusy, setJoinLoginBusy] = useState(false);
 
@@ -1657,35 +1662,71 @@ function AppContent() {
   useEffect(() => {
     if (!isJoinRoute) return;
 
-    let token = parseInviteFragment(window.location.hash);
-    if (!token && environment === 'browser') {
-      token = readPendingInviteToken();
+    const classified = classifyJoinFragment(location.hash);
+    let kind = classified.kind;
+    let token = classified.token;
+
+    if (kind === 'invalid' && environment === 'browser') {
+      const dmStash = readPendingDmInviteToken();
+      const roomStash = readPendingInviteToken();
+      if (dmStash) {
+        kind = 'dm';
+        token = dmStash;
+      } else if (roomStash) {
+        kind = 'room';
+        token = roomStash;
+      }
     }
 
-    if (!token) {
+    if (kind === 'invalid' || !token) {
       setJoinRouteInvalid(true);
       setJoinRouteToken(null);
+      setJoinRouteKind(null);
       return;
     }
 
     setJoinRouteInvalid(false);
     setJoinRouteToken(token);
+    setJoinRouteKind(kind);
     if (environment === 'browser' && !isAuthenticated) {
-      stashPendingInviteToken(token);
+      if (kind === 'dm') {
+        stashPendingDmInviteToken(token);
+      } else {
+        stashPendingInviteToken(token);
+      }
     }
-  }, [isJoinRoute, environment, isAuthenticated]);
+  }, [isJoinRoute, environment, isAuthenticated, location.hash]);
 
-  // Web invite route: enter join flow when auth is ready (browser or Telegram MiniApp)
+  // Web invite route: enter join / redeem flow when auth is ready
   useEffect(() => {
     if (!isJoinRoute || !isReady || joinRouteInvalid) return;
 
     let token = joinRouteToken;
+    let kind = joinRouteKind;
     if (!token && environment === 'browser') {
-      token = readPendingInviteToken();
+      const dmStash = readPendingDmInviteToken();
+      const roomStash = readPendingInviteToken();
+      if (dmStash) {
+        token = dmStash;
+        kind = 'dm';
+      } else if (roomStash) {
+        token = roomStash;
+        kind = 'room';
+      }
     }
-    if (!token) return;
+    if (!token || !kind) return;
 
     if (environment === 'browser' && !isAuthenticated) return;
+
+    if (kind === 'dm') {
+      if (!isConnected) return;
+      if (dmInviteRedeemSetupRef.current === token) return;
+      dmInviteRedeemSetupRef.current = token;
+      dmInviteRedeemingRef.current = true;
+      redeemDmInvite(token);
+      clearPendingDmInviteToken();
+      return;
+    }
 
     if (inviteSetupTokenRef.current !== token) {
       inviteSetupTokenRef.current = token;
@@ -1703,11 +1744,13 @@ function AppContent() {
     isReady,
     joinRouteInvalid,
     joinRouteToken,
+    joinRouteKind,
     environment,
     isAuthenticated,
     isConnected,
     resetJoinRoom,
     loadInviteInfo,
+    redeemDmInvite,
   ]);
 
   const handleJoinBrowserLogin = useCallback(async () => {
@@ -3274,9 +3317,13 @@ function AppContent() {
         <>
           <JoinLanding
             valid
+            kind={joinRouteKind === 'dm' ? 'dm' : 'room'}
             token={joinRouteToken}
             onOpenTelegram={() => {
-              window.location.href = buildTelegramInviteDeepLink(joinRouteToken);
+              window.location.href =
+                joinRouteKind === 'dm'
+                  ? buildTelegramDmInviteDeepLink(joinRouteToken)
+                  : buildTelegramInviteDeepLink(joinRouteToken);
             }}
             onContinueInBrowser={() => void handleJoinBrowserLogin()}
             isLoginBusy={joinLoginBusy}

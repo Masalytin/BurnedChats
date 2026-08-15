@@ -1386,9 +1386,11 @@
 "joinLanding": {
     "title": "Estás invitado a una sala",
     "subtitle": "Elige cómo quieres unirte",
+    "dmTitle": "Estás invitado a un chat privado",
+    "dmSubtitle": "Elige cómo quieres unirte",
     "openInTelegram": "Abrir en Telegram",
     "continueInBrowser": "Continuar en el navegador",
     "invalidTitle": "Enlace de invitación no válido",
-    "invalidHint": "El enlace falta o es incorrecto. Pide al dueño de la sala una nueva invitación."
+    "invalidHint": "El enlace falta o es incorrecto. Pide una nueva invitación."
   }
 }

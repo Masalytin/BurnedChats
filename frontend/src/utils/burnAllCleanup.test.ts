@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { burnAll as burnAllKeys } from '@/crypto/keyStore';
 import { clearDownloadCache } from '@/services/fileDownloadService';
 import { cancelAll } from '@/services/transferQueue';
-import { PENDING_INVITE_TOKEN_KEY } from '@/utils/inviteLink';
+import { PENDING_DM_INVITE_TOKEN_KEY, PENDING_INVITE_TOKEN_KEY } from '@/utils/inviteLink';
 import { PREFERENCES_STORAGE_KEY } from '@/preferences/preferencesStorage';
 import { performBurnAllLocalCleanup } from './burnAllCleanup';
 
@@ -29,6 +29,7 @@ describe('performBurnAllLocalCleanup', () => {
     localStorage.clear();
     sessionStorage.setItem('bc:hidden:dm:session-1', '["m1"]');
     sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, 'invite-token');
+    sessionStorage.setItem(PENDING_DM_INVITE_TOKEN_KEY, 'dm-invite-token');
     localStorage.setItem(PREFERENCES_STORAGE_KEY, '{"hapticsEnabled":true}');
     localStorage.setItem('bc:other', 'keep-for-data-mode');
   });
@@ -41,6 +42,7 @@ describe('performBurnAllLocalCleanup', () => {
     expect(clearDownloadCache).toHaveBeenCalled();
     expect(sessionStorage.getItem('bc:hidden:dm:session-1')).toBeNull();
     expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBeNull();
+    expect(sessionStorage.getItem(PENDING_DM_INVITE_TOKEN_KEY)).toBeNull();
     expect(disconnectTon).toHaveBeenCalled();
     expect(localStorage.getItem(PREFERENCES_STORAGE_KEY)).not.toBeNull();
   });

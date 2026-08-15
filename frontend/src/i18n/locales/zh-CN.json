@@ -1386,9 +1386,11 @@
 "joinLanding": {
     "title": "您被邀请加入房间",
     "subtitle": "选择加入方式",
+    "dmTitle": "您被邀请加入私聊",
+    "dmSubtitle": "选择加入方式",
     "openInTelegram": "在 Telegram 中打开",
     "continueInBrowser": "在浏览器中继续",
     "invalidTitle": "邀请链接无效",
-    "invalidHint": "链接缺失或不正确。请向房间所有者索取新的邀请。"
+    "invalidHint": "链接缺失或不正确。请索取新的邀请。"
   }
 }

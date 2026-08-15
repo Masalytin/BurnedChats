@@ -1,15 +1,19 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import App from './App';
 import { isTelegramMiniApp } from './env/detector';
 import { LandingPage } from './pages/LandingPage/LandingPage';
+import { rootLandingRedirect } from './utils/inviteLink';
 
 /**
- * Redirects Telegram Mini App users from `/` to `/app`; otherwise renders landing.
+ * Redirects Telegram Mini App users from `/` to `/app` (hash preserved);
+ * browser `#dm_invite_` goes to `/join` instead of the marketing landing.
  */
 function TelegramLandingGuard({ children }: { children: ReactNode }) {
-  if (isTelegramMiniApp()) {
-    return <Navigate to="/app" replace />;
+  const location = useLocation();
+  const redirect = rootLandingRedirect(location.hash, isTelegramMiniApp());
+  if (redirect) {
+    return <Navigate to={redirect} replace />;
   }
   return <>{children}</>;
 }

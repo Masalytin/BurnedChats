@@ -4,6 +4,9 @@ const DM_INVITE_FRAGMENT_PREFIX = 'dm_invite_';
 /** sessionStorage key for invite token stash through wallet-login redirects */
 export const PENDING_INVITE_TOKEN_KEY = 'pending-invite-token';
 
+/** sessionStorage key for personal DM invite stash — must not share the room key */
+export const PENDING_DM_INVITE_TOKEN_KEY = 'pending-dm-invite-token';
+
 /**
  * Extract invite token from URL hash (`#invite_{token}`).
  * Returns null when the fragment is missing, malformed, or empty.
@@ -146,6 +149,29 @@ export function parseDmInviteUrl(text: string): string | null {
   return null;
 }
 
+/** Result of classifying a `/join` URL hash. */
+export type JoinFragmentKind = 'dm' | 'room' | 'invalid';
+
+export interface JoinFragmentResult {
+  kind: JoinFragmentKind;
+  token: string | null;
+}
+
+/**
+ * Classify `/join` hash: `dm_invite_` first so it never collides with room `invite_`.
+ */
+export function classifyJoinFragment(hash: string): JoinFragmentResult {
+  const dmToken = parseDmInviteFragment(hash);
+  if (dmToken) {
+    return { kind: 'dm', token: dmToken };
+  }
+  const roomToken = parseInviteFragment(hash);
+  if (roomToken) {
+    return { kind: 'room', token: roomToken };
+  }
+  return { kind: 'invalid', token: null };
+}
+
 /** Result of classifying a scanned / pasted invite QR payload. */
 export type ScannedInviteKind = 'dm' | 'room' | 'invalid';
 
@@ -204,4 +230,33 @@ export function readPendingInviteToken(): string | null {
 
 export function clearPendingInviteToken(): void {
   sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+}
+
+export function stashPendingDmInviteToken(token: string): void {
+  sessionStorage.setItem(PENDING_DM_INVITE_TOKEN_KEY, token);
+}
+
+export function readPendingDmInviteToken(): string | null {
+  return sessionStorage.getItem(PENDING_DM_INVITE_TOKEN_KEY);
+}
+
+export function clearPendingDmInviteToken(): void {
+  sessionStorage.removeItem(PENDING_DM_INVITE_TOKEN_KEY);
+}
+
+/**
+ * Where `/` should send a visitor given the current hash.
+ * Mini App always goes to `/app` (hash preserved). Browser `#dm_invite_` goes to `/join`.
+ * Returns null when the marketing landing should stay.
+ */
+export function rootLandingRedirect(hash: string, isMiniApp: boolean): string | null {
+  const normalized =
+    !hash || hash === '#' ? '' : hash.startsWith('#') ? hash : `#${hash}`;
+  if (isMiniApp) {
+    return `/app${normalized}`;
+  }
+  if (parseDmInviteFragment(normalized)) {
+    return `/join${normalized}`;
+  }
+  return null;
 }

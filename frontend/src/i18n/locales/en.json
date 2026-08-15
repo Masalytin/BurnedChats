@@ -1429,9 +1429,11 @@
   "joinLanding": {
     "title": "You're invited to a room",
     "subtitle": "Choose how you'd like to join",
+    "dmTitle": "You're invited to a private chat",
+    "dmSubtitle": "Choose how you'd like to join",
     "openInTelegram": "Open in Telegram",
     "continueInBrowser": "Continue in browser",
     "invalidTitle": "Invalid invite link",
-    "invalidHint": "This link is missing or incorrect. Ask the room owner for a new invite."
+    "invalidHint": "This link is missing or incorrect. Ask for a new invite."
   }
 }

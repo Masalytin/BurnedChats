@@ -4,14 +4,20 @@ import {
   buildTelegramDmInviteDeepLink,
   buildTelegramInviteDeepLink,
   buildTelegramShareUrl,
+  classifyJoinFragment,
   classifyScannedInvite,
+  clearPendingDmInviteToken,
   clearPendingInviteToken,
   parseDmInviteFragment,
   parseDmInviteUrl,
   parseInviteFragment,
   parseInviteUrl,
+  PENDING_DM_INVITE_TOKEN_KEY,
   PENDING_INVITE_TOKEN_KEY,
+  readPendingDmInviteToken,
   readPendingInviteToken,
+  rootLandingRedirect,
+  stashPendingDmInviteToken,
   stashPendingInviteToken,
 } from '../inviteLink';
 
@@ -85,6 +91,11 @@ describe('parseDmInviteFragment', () => {
 });
 
 describe('parseDmInviteUrl', () => {
+  it('parses web hash on /join as well as root', () => {
+    expect(parseDmInviteUrl('https://app.burnedchats.dev/join#dm_invite_tok')).toBe('tok');
+    expect(parseDmInviteUrl('https://app.burnedchats.dev/#dm_invite_tok')).toBe('tok');
+  });
+
   it('parses web hash and t.me startapp deep links', () => {
     expect(parseDmInviteUrl('https://app.burnedchats.dev/#dm_invite_tok')).toBe('tok');
     expect(parseDmInviteUrl('https://t.me/BurnedChatsBot/app?startapp=dm_invite_tok')).toBe('tok');
@@ -102,6 +113,15 @@ describe('parseDmInviteUrl', () => {
     expect(parseDmInviteUrl('dm_session-abc')).toBeNull();
     expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=dm_session-abc')).toBeNull();
     expect(parseDmInviteUrl('https://t.me/Bot/app?startapp=invite_abc')).toBeNull();
+  });
+});
+
+describe('classifyJoinFragment', () => {
+  it('classifies #invite_{token} as room and #dm_invite_{token} as dm', () => {
+    expect(classifyJoinFragment('#invite_abc123')).toEqual({ kind: 'room', token: 'abc123' });
+    expect(classifyJoinFragment('#dm_invite_tok99')).toEqual({ kind: 'dm', token: 'tok99' });
+    expect(classifyJoinFragment('')).toEqual({ kind: 'invalid', token: null });
+    expect(classifyJoinFragment('#garbage')).toEqual({ kind: 'invalid', token: null });
   });
 });
 
@@ -183,6 +203,39 @@ describe('buildTelegramShareUrl', () => {
     expect(buildTelegramShareUrl(inviteUrl, '')).toBe(
       `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=`,
     );
+  });
+});
+
+describe('pending DM invite token sessionStorage', () => {
+  afterEach(() => {
+    clearPendingInviteToken();
+    clearPendingDmInviteToken();
+  });
+
+  it('uses a distinct key from the room invite stash', () => {
+    expect(PENDING_DM_INVITE_TOKEN_KEY).toBe('pending-dm-invite-token');
+    expect(PENDING_DM_INVITE_TOKEN_KEY).not.toBe(PENDING_INVITE_TOKEN_KEY);
+    stashPendingDmInviteToken('dm-tok');
+    expect(readPendingDmInviteToken()).toBe('dm-tok');
+    expect(readPendingInviteToken()).toBeNull();
+    expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBeNull();
+    stashPendingInviteToken('room-tok');
+    expect(readPendingInviteToken()).toBe('room-tok');
+    expect(readPendingDmInviteToken()).toBe('dm-tok');
+    clearPendingDmInviteToken();
+    expect(readPendingDmInviteToken()).toBeNull();
+    expect(readPendingInviteToken()).toBe('room-tok');
+  });
+});
+
+describe('rootLandingRedirect', () => {
+  it('sends browser #dm_invite_ to /join and Mini App to /app, preserving hash', () => {
+    expect(rootLandingRedirect('#dm_invite_tok99', false)).toBe('/join#dm_invite_tok99');
+    expect(rootLandingRedirect('#dm_invite_tok99', true)).toBe('/app#dm_invite_tok99');
+    expect(rootLandingRedirect('', true)).toBe('/app');
+    expect(rootLandingRedirect('#invite_room1', true)).toBe('/app#invite_room1');
+    expect(rootLandingRedirect('#invite_room1', false)).toBeNull();
+    expect(rootLandingRedirect('', false)).toBeNull();
   });
 });
 

@@ -4,7 +4,7 @@ import { STORAGE_KEY as CLOUD_LANGUAGE_KEY } from '@/i18n';
 import { PREFERENCES_STORAGE_KEY } from '@/preferences/preferencesStorage';
 import { clearDownloadCache } from '@/services/fileDownloadService';
 import { cancelAll } from '@/services/transferQueue';
-import { PENDING_INVITE_TOKEN_KEY } from '@/utils/inviteLink';
+import { PENDING_DM_INVITE_TOKEN_KEY, PENDING_INVITE_TOKEN_KEY } from '@/utils/inviteLink';
 
 export interface BurnAllCleanupOptions {
   wipeIdentity: boolean;
@@ -22,7 +22,7 @@ function clearSessionStorageBurnAllArtifacts(): void {
   for (let i = 0; i < sessionStorage.length; i += 1) {
     const key = sessionStorage.key(i);
     if (!key) continue;
-    if (key.startsWith('bc:hidden:') || key === PENDING_INVITE_TOKEN_KEY) {
+    if (key.startsWith('bc:hidden:') || key === PENDING_INVITE_TOKEN_KEY || key === PENDING_DM_INVITE_TOKEN_KEY) {
       keysToRemove.push(key);
     }
   }
