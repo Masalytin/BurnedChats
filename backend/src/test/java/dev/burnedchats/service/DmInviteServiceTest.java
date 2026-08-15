@@ -110,7 +110,7 @@ class DmInviteServiceTest {
                         assertThat(event.getToken()).hasSize(64);
                         assertThat(event.getMaxUses()).isEqualTo(1);
                         assertThat(event.getInviteUrl()).isEqualTo(
-                                "https://burnedchats.net/#dm_invite_" + event.getToken());
+                                "https://burnedchats.net/join#dm_invite_" + event.getToken());
                         assertThat(event.getExpiresAt()).isGreaterThan(before);
                         long ttlMs = event.getExpiresAt() - before;
                         assertThat(ttlMs).isBetween(
@@ -257,7 +257,7 @@ class DmInviteServiceTest {
             when(miniApp.getUrl()).thenReturn("https://burnedchats.net/");
 
             assertThat(dmInviteService.buildInviteUrl(TOKEN))
-                    .isEqualTo("https://burnedchats.net/#dm_invite_" + TOKEN);
+                    .isEqualTo("https://burnedchats.net/join#dm_invite_" + TOKEN);
         }
 
         @Test

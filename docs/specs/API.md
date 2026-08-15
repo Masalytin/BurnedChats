@@ -415,7 +415,7 @@ Does **not** bypass PoW on `/app/session.create`.
 |------|-----|----------|
 | `success` | boolean | |
 | `token` | string? | 64 hex |
-| `inviteUrl` | string? | `{mini-app}/#dm_invite_{token}` or t.me `startapp=dm_invite_{token}` |
+| `inviteUrl` | string? | `{mini-app}/join#dm_invite_{token}` or t.me `startapp=dm_invite_{token}` |
 | `expiresAt` | number? | Unix ms (default TTL **10 min**) |
 | `maxUses` | number? | Default **1** |
 | `error` | string? | `INTERNAL_ERROR` (PoW/RL → `/queue/errors`) |

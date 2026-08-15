@@ -76,8 +76,13 @@ public class DmInviteService {
     /**
      * Canonical deep-link URL for a minted token.
      *
-     * <p>Primary: {@code {mini-app.url}/#dm_invite_{token}} (fragment — not sent to server).
-     * Fallback: {@code https://t.me/{bot}/app?startapp=dm_invite_{token}}.
+     * <p>Primary (when {@code telegram.mini-app.url} is configured):
+     * {@code {mini-app.url}/join#dm_invite_{token}} — token in the URL fragment so it
+     * is not sent to the server or logged in access logs. Mirrors room
+     * {@code InviteTokenService.buildInviteUrl} ({@code /join#invite_}).
+     *
+     * <p>Fallback (mini-app URL not configured):
+     * {@code https://t.me/{bot}/app?startapp=dm_invite_{token}}.
      */
     public String buildInviteUrl(String tokenValue) {
         String miniAppUrl = telegramProperties.getMiniApp().getUrl();
@@ -85,7 +90,7 @@ public class DmInviteService {
             String base = miniAppUrl.endsWith("/")
                     ? miniAppUrl.substring(0, miniAppUrl.length() - 1)
                     : miniAppUrl;
-            return base + "/#" + STARTAPP_PREFIX + tokenValue;
+            return base + "/join#" + STARTAPP_PREFIX + tokenValue;
         }
         String botUsername = telegramProperties.getBot().getUsername();
         return "https://t.me/" + botUsername + "/app?startapp=" + STARTAPP_PREFIX + tokenValue;

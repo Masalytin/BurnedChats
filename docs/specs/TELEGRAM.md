@@ -32,7 +32,7 @@ From `WebApp.initDataUnsafe.user`:
 |--------|--------|
 | `start_param` | `invite_{token}` (room), `dm_invite_{token}` (personal DM invite), `lt_{challengeId}` (wallet↔Telegram link), `dm_{sessionId}` (open DM / incoming chat request), `room_{roomId}` (open room if member; else ignore), legacy `partner_*` |
 | Web invite URL | `{app-domain}/join#invite_{token}` (token in fragment, not sent to server) |
-| Web personal DM invite | `{app-domain}/#dm_invite_{token}` (fragment; not sent to server) |
+| Web personal DM invite | `{app-domain}/join#dm_invite_{token}` (fragment; not sent to server) |
 | Bot notification button | `https://t.me/{bot}/app?startapp=dm_{sessionId}` (URL button; fills `initDataUnsafe.start_param`) |
 | Fallback / room invite | `https://t.me/{bot}/app?startapp=invite_{token}` |
 | Fallback / personal DM invite | `https://t.me/{bot}/app?startapp=dm_invite_{token}` |

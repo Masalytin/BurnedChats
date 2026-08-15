@@ -558,7 +558,7 @@ EXPIRE dm_invite:abc123token 600
 
 **TTL:** `EXPIRE` = `expiresAt - now` (default **10 minutes**).
 
-**Deep link:** `{mini-app.url}/#dm_invite_{token}` or `startapp=dm_invite_{token}` (see TELEGRAM.md).
+**Deep link:** `{mini-app.url}/join#dm_invite_{token}` or `startapp=dm_invite_{token}` (see TELEGRAM.md).
 
 ### `room_join_request:{roomId}:{senderInternalId}`
 
