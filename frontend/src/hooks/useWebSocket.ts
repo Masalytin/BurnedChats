@@ -279,6 +279,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const [error, setError] = useState<WebSocketError | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isReconnection, setIsReconnection] = useState(false);
+  /** React-visible copy of subscription dests — refs alone do not re-render StatusTab. */
+  const [debugSubscriptions, setDebugSubscriptions] = useState<WebSocketDebugInfo>({
+    activeSubscriptions: [],
+    storedSubscriptions: [],
+  });
   
   const clientRef = useRef<Client | null>(null);
   const subscriptionsRef = useRef<Map<string, StompSubscription>>(new Map());
@@ -303,6 +308,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onErrorRef.current = onError;
     onReconnectRef.current = onReconnect;
   }, [onConnect, onDisconnect, onError, onReconnect]);
+
+  const syncDebugSubscriptions = useCallback(() => {
+    setDebugSubscriptions({
+      activeSubscriptions: Array.from(subscriptionsRef.current.keys()),
+      storedSubscriptions: Array.from(storedSubscriptionsRef.current.keys()),
+    });
+  }, []);
+  const syncDebugSubscriptionsRef = useRef(syncDebugSubscriptions);
+  syncDebugSubscriptionsRef.current = syncDebugSubscriptions;
 
   const handleError = useCallback((wsError: WebSocketError) => {
     setError(wsError);
@@ -376,6 +390,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
               debugLog('error', `Failed to subscribe to ${destination}`, { error: String(e) });
             }
           });
+          syncDebugSubscriptionsRef.current();
           
           if (wasReconnection) {
             onReconnectRef.current?.();
@@ -406,6 +421,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         const wsError = parseStompError(frame);
         if (wsError.type === 'room_subscribe_denied') {
           clearRoomTopicSubscriptions(subscriptionsRef, storedSubscriptionsRef, wsError.roomId);
+          syncDebugSubscriptionsRef.current();
         }
         handleError(wsError);
         isConnectingRef.current = false;
@@ -536,6 +552,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         storedSubscriptionsRef.current.clear();
         hasConnectedOnceRef.current = false;
       }
+      syncDebugSubscriptions();
 
       clientRef.current.deactivate();
       clientRef.current = null;
@@ -546,7 +563,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       reconnectAttemptsRef.current = 0;
       setReconnectAttempt(0);
     }
-  }, []);
+  }, [syncDebugSubscriptions]);
 
   const subscribe = useCallback(
     (destination: string, callback: (message: IMessage) => void): StompSubscription | null => {
@@ -588,20 +605,23 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       
       if (!clientRef.current?.connected) {
         debugLog('warn', 'Cannot subscribe - not connected (will subscribe on connect)');
+        syncDebugSubscriptions();
         return null;
       }
 
       // Check if already subscribed
       if (subscriptionsRef.current.has(destination)) {
         console.warn(`[WebSocket] Already subscribed to ${destination}`);
+        syncDebugSubscriptions();
         return subscriptionsRef.current.get(destination)!;
       }
 
       const subscription = clientRef.current.subscribe(destination, wrappedCallback);
       subscriptionsRef.current.set(destination, subscription);
+      syncDebugSubscriptions();
       return subscription;
     },
-    []
+    [syncDebugSubscriptions]
   );
 
   const unsubscribe = useCallback((destination: string) => {
@@ -617,7 +637,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         console.warn(`[WebSocket] Failed to unsubscribe from ${destination}:`, e);
       }
     }
-  }, []);
+    syncDebugSubscriptions();
+  }, [syncDebugSubscriptions]);
 
   const publish = useCallback((destination: string, body: unknown) => {
     if (!clientRef.current?.connected) {
@@ -705,11 +726,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     };
   }, [isConnected]);
 
-  // Debug state for Debug Panel
-  const _debug: WebSocketDebugInfo = {
-    activeSubscriptions: Array.from(subscriptionsRef.current.keys()),
-    storedSubscriptions: Array.from(storedSubscriptionsRef.current.keys()),
-  };
+  // Debug state for Debug Panel — React state, not a render-path ref snapshot
+  const _debug: WebSocketDebugInfo = debugSubscriptions;
 
   return {
     isConnected,

@@ -158,3 +158,67 @@ describe('useWebSocket subscription restoration', () => {
     expect(h.subscribeMock).not.toHaveBeenCalledWith('/user/queue/temp', expect.any(Function));
   });
 });
+
+describe('useWebSocket reactive _debug subscription snapshot (IMP-DBGPANEL-08)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.state.connected = false;
+    h.state.config = null;
+    h.subscribeMock.mockImplementation((destination: string) => ({
+      id: destination,
+      unsubscribe: vi.fn(),
+    }));
+  });
+
+  it('updates _debug.activeSubscriptions when subscribe is called while connected', async () => {
+    const { result } = renderHook(() => useWebSocket({ getCredentials: walletCredentials }));
+
+    act(() => {
+      result.current.connect();
+    });
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(result.current._debug.activeSubscriptions).not.toContain('/user/queue/status');
+
+    act(() => {
+      result.current.subscribe('/user/queue/status', vi.fn());
+    });
+
+    expect(result.current._debug.activeSubscriptions).toContain('/user/queue/status');
+    expect(result.current._debug.storedSubscriptions).toContain('/user/queue/status');
+  });
+
+  it('removes dest from _debug.activeSubscriptions on unsubscribe', async () => {
+    const { result } = renderHook(() => useWebSocket({ getCredentials: walletCredentials }));
+
+    act(() => {
+      result.current.connect();
+    });
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      result.current.subscribe('/user/queue/temp', vi.fn());
+    });
+    expect(result.current._debug.activeSubscriptions).toContain('/user/queue/temp');
+
+    act(() => {
+      result.current.unsubscribe('/user/queue/temp');
+    });
+
+    expect(result.current._debug.activeSubscriptions).not.toContain('/user/queue/temp');
+    expect(result.current._debug.storedSubscriptions).not.toContain('/user/queue/temp');
+  });
+
+  it('updates _debug.storedSubscriptions when subscribe is called while disconnected', () => {
+    const { result } = renderHook(() => useWebSocket({ getCredentials: walletCredentials }));
+
+    expect(result.current._debug.storedSubscriptions).not.toContain('/user/queue/early');
+
+    act(() => {
+      result.current.subscribe('/user/queue/early', vi.fn());
+    });
+
+    expect(h.subscribeMock).not.toHaveBeenCalled();
+    expect(result.current._debug.activeSubscriptions).not.toContain('/user/queue/early');
+    expect(result.current._debug.storedSubscriptions).toContain('/user/queue/early');
+  });
+});

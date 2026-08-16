@@ -51,6 +51,10 @@ export interface SessionFlowState {
   peerName: string | null;
   handshakeStage: string | null;
   handshakeProgress: number;
+  /** Elapsed in current handshake stage (ms); set during waiting_peer */
+  handshakeElapsedMs?: number;
+  /** True when waiting_peer exceeds the soft timeout hint */
+  handshakeIsTakingLonger?: boolean;
   hasLocalKeys: boolean;
   hasPeerKey: boolean;
   hasSharedSecret: boolean;
@@ -849,6 +853,8 @@ export function useDebugState({
       peerName,
       handshakeStage: handshakeResult?.stage || null,
       handshakeProgress: handshakeResult?.progress || 0,
+      handshakeElapsedMs: handshakeResult?.elapsedMs,
+      handshakeIsTakingLonger: handshakeResult?.isTakingLonger,
       hasLocalKeys: Boolean(sessionKeys?.keyPair),
       hasPeerKey: Boolean(sessionKeys?.peerPublicKey),
       hasSharedSecret: hasKeys,

@@ -1,6 +1,7 @@
 /**
  * STOMP Messages Tab for Debug Panel (Phase 2).
- * Displays STOMP message log with filtering and request/response correlation.
+ * Displays STOMP message log with filtering.
+ * Request/response Pairs are hidden — correlation is not wired (IMP-DBGPANEL-08).
  */
 
 import { useState, useMemo, useCallback } from 'react';
@@ -13,7 +14,6 @@ interface MessagesTabProps {
 }
 
 type DirectionFilter = 'all' | 'outgoing' | 'incoming';
-type ViewMode = 'messages' | 'correlated';
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -50,9 +50,7 @@ function formatBody(body: unknown): string {
 export function MessagesTab({ state }: MessagesTabProps) {
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const [destinationFilter, setDestinationFilter] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('messages');
   const [expandedMessageId, setExpandedMessageId] = useState<number | null>(null);
-  const [expandedCorrelationId, setExpandedCorrelationId] = useState<string | null>(null);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -79,11 +77,6 @@ export function MessagesTab({ state }: MessagesTabProps) {
     setExpandedMessageId(prev => prev === id ? null : id);
   }, []);
 
-  // Handle correlation expand toggle
-  const toggleCorrelationExpand = useCallback((id: string) => {
-    setExpandedCorrelationId(prev => prev === id ? null : id);
-  }, []);
-
   // Copy all messages to clipboard
   const copyAllMessages = useCallback(() => {
     const text = filteredMessages.map(msg => {
@@ -98,20 +91,6 @@ export function MessagesTab({ state }: MessagesTabProps) {
     clearStompMessages();
   }, []);
 
-  const statusIcon = {
-    pending: '⏳',
-    success: '✓',
-    error: '✗',
-    timeout: '⏰',
-  };
-
-  const statusClass = {
-    pending: 'warn',
-    success: 'success',
-    error: 'error',
-    timeout: 'warn',
-  };
-
   return (
     <div className="debug-tab-content">
       {/* Toolbar */}
@@ -122,22 +101,11 @@ export function MessagesTab({ state }: MessagesTabProps) {
         </div>
         
         <div className="debug-card-body">
-          {/* View Mode Toggle */}
+          <p className="debug-stomp-pairs-note">
+            Pairs view is hidden — request/response correlation is not wired (no request-id on the wire).
+          </p>
+
           <div className="debug-stomp-toolbar">
-            <div className="debug-stomp-view-toggle">
-              <button
-                className={`debug-stomp-view-btn ${viewMode === 'messages' ? 'active' : ''}`}
-                onClick={() => setViewMode('messages')}
-              >
-                All
-              </button>
-              <button
-                className={`debug-stomp-view-btn ${viewMode === 'correlated' ? 'active' : ''}`}
-                onClick={() => setViewMode('correlated')}
-              >
-                Pairs
-              </button>
-            </div>
             
             {/* Direction Filter */}
             <div className="debug-stomp-direction-filter">
@@ -191,135 +159,61 @@ export function MessagesTab({ state }: MessagesTabProps) {
       </div>
 
       {/* Messages List */}
-      {viewMode === 'messages' && (
-        <div className="debug-card">
-          <div className="debug-card-body debug-card-body-scroll debug-stomp-messages-scroll">
-            {filteredMessages.length === 0 ? (
-              <div className="debug-empty">No messages yet</div>
-            ) : (
-              <div className="debug-stomp-messages">
-                {filteredMessages.map(msg => (
-                  <div 
-                    key={msg.id} 
-                    className={`debug-stomp-message ${msg.direction}`}
-                    onClick={() => toggleMessageExpand(msg.id)}
-                  >
-                    <div className="debug-stomp-message-header">
-                      <span className="debug-stomp-direction">
-                        {msg.direction === 'outgoing' ? '→' : '←'}
-                      </span>
-                      <span className="debug-stomp-time">{formatTime(msg.timestamp)}</span>
-                      <span className="debug-stomp-destination" title={msg.destination}>
-                        {truncateDestination(msg.destination)}
-                      </span>
-                      <span className="debug-stomp-size">{formatSize(msg.size)}</span>
-                    </div>
-                    
-                    {expandedMessageId === msg.id && (
-                      <div className="debug-stomp-message-details">
+      <div className="debug-card">
+        <div className="debug-card-body debug-card-body-scroll debug-stomp-messages-scroll">
+          {filteredMessages.length === 0 ? (
+            <div className="debug-empty">No messages yet</div>
+          ) : (
+            <div className="debug-stomp-messages">
+              {filteredMessages.map(msg => (
+                <div 
+                  key={msg.id} 
+                  className={`debug-stomp-message ${msg.direction}`}
+                  onClick={() => toggleMessageExpand(msg.id)}
+                >
+                  <div className="debug-stomp-message-header">
+                    <span className="debug-stomp-direction">
+                      {msg.direction === 'outgoing' ? '→' : '←'}
+                    </span>
+                    <span className="debug-stomp-time">{formatTime(msg.timestamp)}</span>
+                    <span className="debug-stomp-destination" title={msg.destination}>
+                      {truncateDestination(msg.destination)}
+                    </span>
+                    <span className="debug-stomp-size">{formatSize(msg.size)}</span>
+                  </div>
+                  
+                  {expandedMessageId === msg.id && (
+                    <div className="debug-stomp-message-details">
+                      <div className="debug-stomp-detail-row">
+                        <span className="debug-stomp-detail-label">Command:</span>
+                        <span className="debug-stomp-detail-value">{msg.command}</span>
+                      </div>
+                      <div className="debug-stomp-detail-row">
+                        <span className="debug-stomp-detail-label">Destination:</span>
+                        <span className="debug-stomp-detail-value mono">{msg.destination}</span>
+                      </div>
+                      {Object.keys(msg.headers).length > 0 && (
                         <div className="debug-stomp-detail-row">
-                          <span className="debug-stomp-detail-label">Command:</span>
-                          <span className="debug-stomp-detail-value">{msg.command}</span>
-                        </div>
-                        <div className="debug-stomp-detail-row">
-                          <span className="debug-stomp-detail-label">Destination:</span>
-                          <span className="debug-stomp-detail-value mono">{msg.destination}</span>
-                        </div>
-                        {Object.keys(msg.headers).length > 0 && (
-                          <div className="debug-stomp-detail-row">
-                            <span className="debug-stomp-detail-label">Headers:</span>
-                            <pre className="debug-stomp-detail-pre">
-                              {JSON.stringify(msg.headers, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                        <div className="debug-stomp-detail-row">
-                          <span className="debug-stomp-detail-label">Body:</span>
+                          <span className="debug-stomp-detail-label">Headers:</span>
                           <pre className="debug-stomp-detail-pre">
-                            {formatBody(msg.body)}
+                            {JSON.stringify(msg.headers, null, 2)}
                           </pre>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Correlated Messages (Request/Response Pairs) */}
-      {viewMode === 'correlated' && (
-        <div className="debug-card">
-          <div className="debug-card-header">
-            <span className="debug-card-title">Request/Response Pairs</span>
-            <span className="debug-count-badge">{state.correlatedMessages.length}</span>
-          </div>
-          
-          <div className="debug-card-body debug-card-body-scroll debug-stomp-messages-scroll">
-            {state.correlatedMessages.length === 0 ? (
-              <div className="debug-empty">No correlated messages yet</div>
-            ) : (
-              <div className="debug-stomp-correlations">
-                {[...state.correlatedMessages].reverse().map(cm => (
-                  <div 
-                    key={cm.requestId} 
-                    className={`debug-stomp-correlation ${cm.status}`}
-                    onClick={() => toggleCorrelationExpand(cm.requestId)}
-                  >
-                    <div className="debug-stomp-correlation-header">
-                      <span className={`debug-stomp-correlation-status ${statusClass[cm.status]}`}>
-                        {statusIcon[cm.status]}
-                      </span>
-                      <span className="debug-stomp-time">
-                        {formatTime(cm.request.timestamp)}
-                      </span>
-                      <span className="debug-stomp-destination" title={cm.request.destination}>
-                        {truncateDestination(cm.request.destination)}
-                      </span>
-                      {cm.latencyMs !== null && (
-                        <span className="debug-stomp-latency">{cm.latencyMs}ms</span>
                       )}
-                    </div>
-                    
-                    {expandedCorrelationId === cm.requestId && (
-                      <div className="debug-stomp-correlation-details">
-                        <div className="debug-stomp-correlation-section">
-                          <div className="debug-stomp-correlation-section-title">
-                            → Request
-                          </div>
-                          <pre className="debug-stomp-detail-pre">
-                            {formatBody(cm.request.body)}
-                          </pre>
-                        </div>
-                        
-                        {cm.response ? (
-                          <div className="debug-stomp-correlation-section">
-                            <div className="debug-stomp-correlation-section-title">
-                              ← Response
-                            </div>
-                            <pre className="debug-stomp-detail-pre">
-                              {formatBody(cm.response.body)}
-                            </pre>
-                          </div>
-                        ) : (
-                          <div className="debug-stomp-correlation-section">
-                            <div className="debug-stomp-correlation-no-response">
-                              {cm.status === 'pending' ? 'Waiting for response...' : 
-                               cm.status === 'timeout' ? 'Request timed out' : 'No response'}
-                            </div>
-                          </div>
-                        )}
+                      <div className="debug-stomp-detail-row">
+                        <span className="debug-stomp-detail-label">Body:</span>
+                        <pre className="debug-stomp-detail-pre">
+                          {formatBody(msg.body)}
+                        </pre>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

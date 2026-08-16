@@ -15,6 +15,11 @@ function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString();
 }
 
+function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 function getFlowLabel(flow: SessionFlowState['currentFlow']): string {
   return {
     none: 'Idle',
@@ -96,6 +101,12 @@ export function FlowTab({ state, timeline }: FlowTabProps) {
               </div>
               <span className="debug-progress-label">
                 {state.handshakeStage}: {state.handshakeProgress}%
+                {state.handshakeStage === 'waiting_peer' && state.handshakeElapsedMs != null && (
+                  <> · {formatElapsed(state.handshakeElapsedMs)}</>
+                )}
+                {state.handshakeStage === 'waiting_peer' && state.handshakeIsTakingLonger && (
+                  <> (taking longer)</>
+                )}
               </span>
             </div>
           )}
