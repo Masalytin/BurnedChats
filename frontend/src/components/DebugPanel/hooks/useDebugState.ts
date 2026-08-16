@@ -234,7 +234,8 @@ export function clearCryptoOperations(): void {
 let payloadAllowedOverride: boolean | undefined;
 
 /**
- * STOMP body is allowed in the ring iff DEV — same gate as CryptoTab dump.
+ * STOMP body is allowed in the ring iff DEV — same gate as CryptoTab dump
+ * and Flow/keyStore fingerprint fields (IMP-DBGPANEL-05).
  * Do not mix with `import.meta.env.PROD`.
  */
 export function isDebugPayloadAllowed(): boolean {
@@ -616,6 +617,7 @@ export function useDebugState({
   useEffect(() => {
     const updateCryptoSessions = () => {
       const sessionIds = getActiveSessionIds();
+      const allowDump = isDebugPayloadAllowed();
       const sessions: CryptoSessionDebugState[] = sessionIds.map(sessionId => {
         const keys = getSessionKeys(sessionId);
         return {
@@ -624,8 +626,8 @@ export function useDebugState({
           hasPeerPublicKey: Boolean(keys?.peerPublicKey),
           hasSharedSecret: Boolean(keys?.sharedSecret),
           hasAESKey: Boolean(keys?.sharedSecret?.key),
-          fingerprint: keys?.sharedSecret?.fingerprint || null,
-          visualFingerprint: keys?.sharedSecret?.visualFingerprint,
+          fingerprint: allowDump ? (keys?.sharedSecret?.fingerprint || null) : null,
+          visualFingerprint: allowDump ? keys?.sharedSecret?.visualFingerprint : undefined,
           createdAt: keys?.createdAt || Date.now(),
         };
       });
@@ -692,7 +694,13 @@ export function useDebugState({
         addTimelineEvent('Computing shared secret...', 'current');
         break;
       case 'complete':
-        addTimelineEvent('Handshake complete', 'complete', `Fingerprint: ${handshakeResult.fingerprint?.slice(0, 8)}...`);
+        addTimelineEvent(
+          'Handshake complete',
+          'complete',
+          isDebugPayloadAllowed()
+            ? `Fingerprint: ${handshakeResult.fingerprint?.slice(0, 8)}...`
+            : undefined,
+        );
         break;
       case 'error':
         addTimelineEvent(`Handshake error: ${handshakeResult.error}`, 'error');

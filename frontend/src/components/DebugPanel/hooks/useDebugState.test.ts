@@ -1,11 +1,20 @@
 // @vitest-environment happy-dom
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { HandshakeResult } from '@/hooks/useHandshake';
+import {
+  burnAll,
+  storeKeyPair,
+  storePeerPublicKey,
+  storeSharedSecret,
+} from '@/crypto/keyStore';
 import {
   clearStompMessages,
   getStompMessages,
   isDebugPayloadAllowed,
   logStompMessage,
   setDebugPayloadAllowedForTests,
+  useDebugState,
 } from './useDebugState';
 
 function expectedSize(body: unknown): number {
@@ -113,5 +122,147 @@ describe('logStompMessage payload choke', () => {
     expect(msg!.body).toBeUndefined();
     expect(msg!.destination).toBe('/app/x');
     expect(msg!.command).toBe('SEND');
+  });
+});
+
+const FINGERPRINT_HEX = 'aabbccddeeff0011';
+const FINGERPRINT_SLICE = FINGERPRINT_HEX.slice(0, 8);
+const VISUAL = [{ emoji: '🔥' }];
+
+function completeHandshake(fingerprint: string = FINGERPRINT_HEX): HandshakeResult {
+  return {
+    stage: 'complete',
+    sessionId: 'sess-fp',
+    peer: null,
+    fingerprint,
+    error: null,
+    progress: 100,
+  };
+}
+
+function seedCryptoSession(sessionId: string): void {
+  const fakeKey = {} as CryptoKey;
+  storeKeyPair(sessionId, { publicKey: fakeKey, privateKey: fakeKey });
+  storePeerPublicKey(sessionId, fakeKey);
+  storeSharedSecret(sessionId, {
+    sessionId,
+    key: fakeKey,
+    fingerprint: FINGERPRINT_HEX,
+    visualFingerprint: VISUAL,
+  });
+}
+
+function renderDebugState(handshakeResult?: HandshakeResult) {
+  return renderHook(() =>
+    useDebugState({
+      isConnected: false,
+      isConnecting: false,
+      reconnectAttempt: 0,
+      wsError: null,
+      handshakeResult,
+    }),
+  );
+}
+
+describe('fingerprint / visual dump gate (IMP-DBGPANEL-05)', () => {
+  beforeEach(() => {
+    burnAll();
+    setDebugPayloadAllowedForTests(undefined);
+  });
+
+  afterEach(() => {
+    setDebugPayloadAllowedForTests(undefined);
+    burnAll();
+  });
+
+  it('non-DEV: Handshake complete timeline details omit Fingerprint: prefix and hex', async () => {
+    setDebugPayloadAllowedForTests(false);
+
+    const { result } = renderDebugState(completeHandshake());
+
+    await waitFor(() => {
+      expect(result.current.timeline.some((e) => e.label === 'Handshake complete')).toBe(true);
+    });
+
+    for (const event of result.current.timeline) {
+      expect(event.details ?? '').not.toMatch(/Fingerprint:/);
+      expect(event.details ?? '').not.toContain(FINGERPRINT_HEX);
+      expect(event.details ?? '').not.toContain(FINGERPRINT_SLICE);
+    }
+
+    const complete = result.current.timeline.find((e) => e.label === 'Handshake complete');
+    expect(complete?.status).toBe('complete');
+    expect(complete?.details).toBeUndefined();
+  });
+
+  it('non-DEV: crypto.sessions fingerprint/visual empty; hasAESKey/hasKeyPair live', async () => {
+    setDebugPayloadAllowedForTests(false);
+    seedCryptoSession('sess-fp');
+
+    const { result } = renderDebugState();
+
+    await waitFor(() => {
+      expect(result.current.crypto.sessions).toHaveLength(1);
+    });
+
+    const session = result.current.crypto.sessions[0];
+    expect(session.sessionId).toBe('sess-fp');
+    expect(session.fingerprint).toBeNull();
+    expect(session.visualFingerprint).toBeUndefined();
+    expect(session.hasKeyPair).toBe(true);
+    expect(session.hasPeerPublicKey).toBe(true);
+    expect(session.hasSharedSecret).toBe(true);
+    expect(session.hasAESKey).toBe(true);
+  });
+
+  it('DEV: Handshake complete timeline details include Fingerprint: prefix and hex slice', async () => {
+    const { result } = renderDebugState(completeHandshake());
+
+    await waitFor(() => {
+      expect(result.current.timeline.some((e) => e.label === 'Handshake complete')).toBe(true);
+    });
+
+    const complete = result.current.timeline.find((e) => e.label === 'Handshake complete');
+    expect(complete?.details).toBe(`Fingerprint: ${FINGERPRINT_SLICE}...`);
+  });
+
+  it('DEV: crypto.sessions dump fingerprint and visualFingerprint as today', async () => {
+    seedCryptoSession('sess-fp');
+
+    const { result } = renderDebugState();
+
+    await waitFor(() => {
+      expect(result.current.crypto.sessions).toHaveLength(1);
+    });
+
+    const session = result.current.crypto.sessions[0];
+    expect(session.fingerprint).toBe(FINGERPRINT_HEX);
+    expect(session.visualFingerprint).toEqual(VISUAL);
+    expect(session.hasKeyPair).toBe(true);
+    expect(session.hasAESKey).toBe(true);
+  });
+
+  it('non-DEV: keyStore listener still refreshes booleans without copying fingerprint', async () => {
+    setDebugPayloadAllowedForTests(false);
+
+    const { result } = renderDebugState();
+
+    await waitFor(() => {
+      expect(result.current.crypto.sessions).toHaveLength(0);
+    });
+
+    act(() => {
+      seedCryptoSession('sess-live');
+    });
+
+    await waitFor(() => {
+      expect(result.current.crypto.sessions).toHaveLength(1);
+    });
+
+    const session = result.current.crypto.sessions[0];
+    expect(session.hasKeyPair).toBe(true);
+    expect(session.hasAESKey).toBe(true);
+    expect(session.fingerprint).toBeNull();
+    expect(session.visualFingerprint).toBeUndefined();
   });
 });
