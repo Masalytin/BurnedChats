@@ -7,6 +7,10 @@ import {
   setDebugPayloadAllowedForTests,
 } from './useDebugState';
 import {
+  getDefaultPreferences,
+  savePreferences,
+} from '@/preferences/preferencesStorage';
+import {
   initReplayPersist,
   loadSavedSessions,
   saveSessions,
@@ -80,6 +84,9 @@ describe('useReplay prod persist / import strip', () => {
 
   it('import JSON with bodies in prod strips body before setSession and ring has no payload', () => {
     setDebugPayloadAllowedForTests(false);
+    // IMP-DBGPANEL-06: import → processMessage → logStompMessage is a no-op
+    // unless the panel is on. Enable prefs so 01 redaction still hits the ring.
+    savePreferences({ ...getDefaultPreferences(), debugPanelEnabled: true });
     const { result } = renderHook(() => useReplay());
 
     const json = JSON.stringify([

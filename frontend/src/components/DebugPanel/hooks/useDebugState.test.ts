@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
-import { act, renderHook, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HandshakeResult } from '@/hooks/useHandshake';
 import {
   burnAll,
@@ -9,13 +11,25 @@ import {
   storeSharedSecret,
 } from '@/crypto/keyStore';
 import {
+  getDefaultPreferences,
+  PREFERENCES_STORAGE_KEY,
+  savePreferences,
+} from '@/preferences/preferencesStorage';
+import {
   clearStompMessages,
   getStompMessages,
+  incrementMessagesReceived,
+  incrementMessagesSent,
   isDebugPayloadAllowed,
   logStompMessage,
+  resetMessageCounters,
   setDebugPayloadAllowedForTests,
   useDebugState,
 } from './useDebugState';
+
+function setPanelEnabled(enabled: boolean): void {
+  savePreferences({ ...getDefaultPreferences(), debugPanelEnabled: enabled });
+}
 
 function expectedSize(body: unknown): number {
   const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
@@ -26,11 +40,15 @@ describe('logStompMessage payload choke', () => {
   beforeEach(() => {
     clearStompMessages();
     setDebugPayloadAllowedForTests(undefined);
+    // IMP-DBGPANEL-06: ingest is a no-op when the panel is off. Enable it so
+    // 01 redaction still writes the ring. Do not change the assertions below.
+    setPanelEnabled(true);
   });
 
   afterEach(() => {
     setDebugPayloadAllowedForTests(undefined);
     clearStompMessages();
+    localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   });
 
   it('defaults to payload allowed in Vitest (DEV=true) without an explicit stub', () => {
@@ -264,5 +282,180 @@ describe('fingerprint / visual dump gate (IMP-DBGPANEL-05)', () => {
     expect(session.hasAESKey).toBe(true);
     expect(session.fingerprint).toBeNull();
     expect(session.visualFingerprint).toBeUndefined();
+  });
+});
+
+describe('panel-off ingest / counters (IMP-DBGPANEL-06)', () => {
+  beforeEach(() => {
+    clearStompMessages();
+    resetMessageCounters();
+    setDebugPayloadAllowedForTests(undefined);
+    localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+  });
+
+  afterEach(() => {
+    setDebugPayloadAllowedForTests(undefined);
+    clearStompMessages();
+    resetMessageCounters();
+    localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    cleanup();
+  });
+
+  it('panel OFF: logStompMessage does not mutate the ring', () => {
+    setPanelEnabled(false);
+
+    logStompMessage(
+      'outgoing',
+      '/app/session.create',
+      'SEND',
+      { 'content-type': 'application/json' },
+      { secretExpectedAnswer: 'hunter2' },
+      'corr-off'
+    );
+
+    expect(getStompMessages()).toEqual([]);
+  });
+
+  it('panel OFF: incrementMessagesSent/Received do not grow counters', () => {
+    setPanelEnabled(false);
+    incrementMessagesSent();
+    incrementMessagesReceived();
+
+    const { result } = renderDebugState();
+    expect(result.current.websocket.messagesSent).toBe(0);
+    expect(result.current.websocket.messagesReceived).toBe(0);
+  });
+
+  it('panel ON + prod: ingest writes dest/command/size; body redacted', () => {
+    setPanelEnabled(true);
+    setDebugPayloadAllowedForTests(false);
+
+    const payload = { secretExpectedAnswer: 'hunter2', room: 'abc' };
+    const originalSize = expectedSize(payload);
+    const msg = logStompMessage(
+      'outgoing',
+      '/app/session.create',
+      'SEND',
+      { 'content-type': 'application/json' },
+      payload,
+      'corr-on'
+    );
+
+    expect(msg.body).toBeUndefined();
+    expect(msg.destination).toBe('/app/session.create');
+    expect(msg.command).toBe('SEND');
+    expect(msg.size).toBe(originalSize);
+
+    const ring = getStompMessages();
+    expect(ring).toHaveLength(1);
+    expect(ring[0].body).toBeUndefined();
+    expect(JSON.stringify(ring)).not.toContain('hunter2');
+  });
+
+  it('panel ON: incrementMessagesSent/Received grow counters', () => {
+    setPanelEnabled(true);
+    const { result } = renderDebugState();
+
+    act(() => {
+      incrementMessagesSent();
+      incrementMessagesReceived();
+    });
+
+    expect(result.current.websocket.messagesSent).toBe(1);
+    expect(result.current.websocket.messagesReceived).toBe(1);
+  });
+
+  it('enabling the panel mid-session accumulates later messages only', () => {
+    setPanelEnabled(false);
+    logStompMessage('outgoing', '/app/a', 'SEND', {}, { n: 1 });
+    expect(getStompMessages()).toHaveLength(0);
+
+    setPanelEnabled(true);
+    logStompMessage('outgoing', '/app/b', 'SEND', {}, { n: 2 });
+
+    const ring = getStompMessages();
+    expect(ring).toHaveLength(1);
+    expect(ring[0].destination).toBe('/app/b');
+  });
+
+  it('disabling the panel leaves the ring; new writes no-op', () => {
+    setPanelEnabled(true);
+    logStompMessage('outgoing', '/app/keep', 'SEND', {}, { n: 1 });
+    expect(getStompMessages()).toHaveLength(1);
+
+    setPanelEnabled(false);
+    logStompMessage('outgoing', '/app/drop', 'SEND', {}, { n: 2 });
+
+    const ring = getStompMessages();
+    expect(ring).toHaveLength(1);
+    expect(ring[0].destination).toBe('/app/keep');
+  });
+});
+
+describe('checkTimeouts interval lifecycle (IMP-DBGPANEL-06)', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('does not register a module-level setInterval(checkTimeouts, 5000)', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/components/DebugPanel/hooks/useDebugState.ts'),
+      'utf8'
+    );
+    // Eager boot-time interval (removed by 06). Lazy startTimeoutChecker may still
+    // call setInterval(checkTimeouts, 5000) after the first stomp listener.
+    expect(src).not.toMatch(
+      /if\s*\(\s*typeof window\s*!==\s*['"]undefined['"]\s*\)\s*\{\s*setInterval\(\s*checkTimeouts\s*,\s*5000\s*\)/
+    );
+  });
+
+  it('no stomp listeners: setInterval(checkTimeouts) is not started', () => {
+    const setSpy = vi.spyOn(globalThis, 'setInterval');
+    const timeoutCalls = setSpy.mock.calls.filter((call) => call[1] === 5000);
+    expect(timeoutCalls).toHaveLength(0);
+  });
+
+  it('first listener starts the timer; removing the last listener clearInterval', () => {
+    const setSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
+
+    const { unmount } = renderDebugState();
+
+    const started = setSpy.mock.calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => call[1] === 5000);
+    expect(started).toHaveLength(1);
+    expect(started[0].call[0]).toEqual(expect.any(Function));
+
+    const intervalId = setSpy.mock.results[started[0].index]?.value;
+    unmount();
+    expect(clearSpy).toHaveBeenCalledWith(intervalId);
+  });
+
+  it('a second listener does not start another interval; unmounting one keeps it', () => {
+    const setSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
+
+    const first = renderDebugState();
+    const second = renderDebugState();
+
+    const started = setSpy.mock.calls.filter((call) => call[1] === 5000);
+    expect(started).toHaveLength(1);
+
+    const clearCountAfterFirstUnmount = clearSpy.mock.calls.length;
+    first.unmount();
+    expect(clearSpy.mock.calls.length).toBe(clearCountAfterFirstUnmount);
+
+    const intervalId = setSpy.mock.results[
+      setSpy.mock.calls.findIndex((call) => call[1] === 5000)
+    ]?.value;
+    second.unmount();
+    expect(clearSpy).toHaveBeenCalledWith(intervalId);
   });
 });

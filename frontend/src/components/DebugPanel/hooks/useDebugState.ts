@@ -13,6 +13,7 @@ import {
   addKeyStoreListener,
   isHandshakeComplete,
 } from '@/crypto/keyStore';
+import { loadPreferences } from '@/preferences/preferencesStorage';
 
 // ============================================
 // Types
@@ -177,12 +178,22 @@ let globalMessagesSent = 0;
 let globalMessagesReceived = 0;
 const messageListeners = new Set<() => void>();
 
+function isDebugPanelEnabled(): boolean {
+  return loadPreferences().debugPanelEnabled;
+}
+
 export function incrementMessagesSent(): void {
+  if (!isDebugPanelEnabled()) {
+    return;
+  }
   globalMessagesSent++;
   messageListeners.forEach(fn => fn());
 }
 
 export function incrementMessagesReceived(): void {
+  if (!isDebugPanelEnabled()) {
+    return;
+  }
   globalMessagesReceived++;
   messageListeners.forEach(fn => fn());
 }
@@ -280,6 +291,20 @@ export function logStompMessage(
   body: unknown,
   correlationId?: string
 ): StompMessage {
+  if (!isDebugPanelEnabled()) {
+    return {
+      id: -1,
+      timestamp: Date.now(),
+      direction,
+      destination,
+      command,
+      headers,
+      body: undefined,
+      size: 0,
+      correlationId,
+    };
+  }
+
   let size = 0;
   try {
     const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
@@ -377,9 +402,35 @@ function checkTimeouts(): void {
   }
 }
 
-// Check for timeouts periodically
-if (typeof window !== 'undefined') {
-  setInterval(checkTimeouts, 5000);
+let timeoutCheckIntervalId: ReturnType<typeof setInterval> | null = null;
+
+function startTimeoutChecker(): void {
+  if (typeof window === 'undefined' || timeoutCheckIntervalId !== null) {
+    return;
+  }
+  timeoutCheckIntervalId = setInterval(checkTimeouts, 5000);
+}
+
+function stopTimeoutChecker(): void {
+  if (timeoutCheckIntervalId === null) {
+    return;
+  }
+  clearInterval(timeoutCheckIntervalId);
+  timeoutCheckIntervalId = null;
+}
+
+function addStompListener(listener: () => void): void {
+  stompListeners.add(listener);
+  if (stompListeners.size === 1) {
+    startTimeoutChecker();
+  }
+}
+
+function removeStompListener(listener: () => void): void {
+  stompListeners.delete(listener);
+  if (stompListeners.size === 0) {
+    stopTimeoutChecker();
+  }
 }
 
 // ============================================
@@ -564,8 +615,8 @@ export function useDebugState({
         correlatedMessages: [...correlatedMessages],
       }));
     };
-    stompListeners.add(updateStompState);
-    return () => { stompListeners.delete(updateStompState); };
+    addStompListener(updateStompState);
+    return () => { removeStompListener(updateStompState); };
   }, []);
 
   // Subscribe to performance metrics updates (Phase 5)
