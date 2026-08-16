@@ -530,9 +530,11 @@ function ReplaySection() {
                 </div>
               </div>
 
-              {/* Session Actions */}
+              {/* Session Actions — Save is DEV-only; persist is a no-op in production. */}
               <div className="debug-replay-session-actions">
-                <button onClick={saveSession}>Save Session</button>
+                {import.meta.env.DEV && (
+                  <button onClick={saveSession}>Save Session</button>
+                )}
                 <button onClick={clearSession}>Clear</button>
               </div>
             </>

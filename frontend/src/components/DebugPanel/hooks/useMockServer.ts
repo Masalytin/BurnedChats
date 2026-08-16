@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { logStompMessage } from './useDebugState';
+import { isDebugPayloadAllowed, logStompMessage } from './useDebugState';
 import type { StompCommand } from './useDebugState';
 
 // ============================================
@@ -132,12 +132,31 @@ let mockedCount = 0;
 let lastMockedAt: number | null = null;
 const mockListeners = new Set<() => void>();
 
-// Load from localStorage on init
-if (typeof window !== 'undefined') {
+/** Production: do not persist mock configs. DEV: write enabled + configs. */
+export function persistMockState(): void {
+  if (!isDebugPayloadAllowed()) return;
+  try {
+    localStorage.setItem(STORAGE_KEY_ENABLED, String(mockServerEnabled));
+    localStorage.setItem(STORAGE_KEY_MOCKS, JSON.stringify(mockConfigs));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/** Production module-init: wipe stale mock keys without waiting for burn. */
+export function initMockPersist(): void {
+  if (typeof window === 'undefined') return;
+  if (!isDebugPayloadAllowed()) {
+    localStorage.removeItem(STORAGE_KEY_ENABLED);
+    localStorage.removeItem(STORAGE_KEY_MOCKS);
+    mockServerEnabled = false;
+    mockConfigs = DEFAULT_MOCKS;
+    return;
+  }
   try {
     const savedEnabled = localStorage.getItem(STORAGE_KEY_ENABLED);
     mockServerEnabled = savedEnabled === 'true';
-    
+
     const savedMocks = localStorage.getItem(STORAGE_KEY_MOCKS);
     if (savedMocks) {
       mockConfigs = JSON.parse(savedMocks);
@@ -149,15 +168,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-/** Save state to localStorage */
-function saveState(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_ENABLED, String(mockServerEnabled));
-    localStorage.setItem(STORAGE_KEY_MOCKS, JSON.stringify(mockConfigs));
-  } catch {
-    // Ignore storage errors
-  }
-}
+initMockPersist();
 
 /** Notify listeners */
 function notifyListeners(): void {
@@ -256,14 +267,14 @@ export function useMockServer(): UseMockServerReturn {
 
   const setEnabled = useCallback((enabled: boolean) => {
     mockServerEnabled = enabled;
-    saveState();
+    persistMockState();
     notifyListeners();
   }, []);
 
   const addMock = useCallback((mock: Omit<MockResponse, 'id'>) => {
     const newMock: MockResponse = { ...mock, id: generateId() };
     mockConfigs = [...mockConfigs, newMock];
-    saveState();
+    persistMockState();
     notifyListeners();
   }, []);
 
@@ -271,19 +282,19 @@ export function useMockServer(): UseMockServerReturn {
     mockConfigs = mockConfigs.map(m => 
       m.id === id ? { ...m, ...updates } : m
     );
-    saveState();
+    persistMockState();
     notifyListeners();
   }, []);
 
   const removeMock = useCallback((id: string) => {
     mockConfigs = mockConfigs.filter(m => m.id !== id);
-    saveState();
+    persistMockState();
     notifyListeners();
   }, []);
 
   const clearMocks = useCallback(() => {
     mockConfigs = [];
-    saveState();
+    persistMockState();
     notifyListeners();
   }, []);
 
@@ -307,7 +318,7 @@ export function useMockServer(): UseMockServerReturn {
         simulateError: m.simulateError || false,
         description: m.description || '',
       }));
-      saveState();
+      persistMockState();
       notifyListeners();
       return true;
     } catch {

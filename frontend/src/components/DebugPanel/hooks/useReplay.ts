@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { logStompMessage } from './useDebugState';
+import { isDebugPayloadAllowed, logStompMessage } from './useDebugState';
 import type { StompMessage, StompCommand } from './useDebugState';
 
 // ============================================
@@ -92,8 +92,15 @@ function calculateDuration(messages: StompMessage[]): number {
   return messages[messages.length - 1].timestamp - messages[0].timestamp;
 }
 
-/** Load saved sessions from localStorage */
-function loadSavedSessions(): ReplaySession[] {
+/** Strip STOMP bodies in production before they enter ReplaySession RAM. */
+function stripReplayBodiesIfProd(messages: StompMessage[]): StompMessage[] {
+  if (isDebugPayloadAllowed()) return messages;
+  return messages.map((m) => ({ ...m, body: undefined }));
+}
+
+/** Load saved sessions from localStorage. Production: never read persist. */
+export function loadSavedSessions(): ReplaySession[] {
+  if (!isDebugPayloadAllowed()) return [];
   if (typeof window === 'undefined') return [];
   try {
     const saved = localStorage.getItem(STORAGE_KEY_SESSIONS);
@@ -106,8 +113,9 @@ function loadSavedSessions(): ReplaySession[] {
   return [];
 }
 
-/** Save sessions to localStorage */
-function saveSessions(sessions: ReplaySession[]): void {
+/** Save sessions to localStorage. Production: no-op (do not persist). */
+export function saveSessions(sessions: ReplaySession[]): void {
+  if (!isDebugPayloadAllowed()) return;
   try {
     // Only save metadata, not full messages (to save space)
     const toSave = sessions.map(s => ({
@@ -119,6 +127,15 @@ function saveSessions(sessions: ReplaySession[]): void {
     // Ignore storage errors
   }
 }
+
+/** Production module-init: wipe stale replay dumps without waiting for burn. */
+export function initReplayPersist(): void {
+  if (typeof window === 'undefined') return;
+  if (isDebugPayloadAllowed()) return;
+  localStorage.removeItem(STORAGE_KEY_SESSIONS);
+}
+
+initReplayPersist();
 
 // ============================================
 // Hook
@@ -219,6 +236,9 @@ export function useReplay(): UseReplayReturn {
 
       // Sort by timestamp
       messages.sort((a, b) => a.timestamp - b.timestamp);
+
+      // Production: strip bodies before setSession so RAM has no payload either.
+      messages = stripReplayBodiesIfProd(messages);
 
       const newSession: ReplaySession = {
         id: generateId(),

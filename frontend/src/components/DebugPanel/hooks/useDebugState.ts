@@ -227,6 +227,29 @@ export function clearCryptoOperations(): void {
 }
 
 // ============================================
+// Payload gate (IMP-DBGPANEL-01)
+// ============================================
+
+/** Test-only override. `undefined` restores `import.meta.env.DEV`. */
+let payloadAllowedOverride: boolean | undefined;
+
+/**
+ * STOMP body is allowed in the ring iff DEV — same gate as CryptoTab dump.
+ * Do not mix with `import.meta.env.PROD`.
+ */
+export function isDebugPayloadAllowed(): boolean {
+  if (payloadAllowedOverride !== undefined) {
+    return payloadAllowedOverride;
+  }
+  return import.meta.env.DEV === true;
+}
+
+/** Force DEV/prod payload gate in unit tests. Pass `undefined` to restore. */
+export function setDebugPayloadAllowedForTests(allowed: boolean | undefined): void {
+  payloadAllowedOverride = allowed;
+}
+
+// ============================================
 // STOMP Message Logger (Phase 2)
 // ============================================
 
@@ -234,6 +257,11 @@ let stompMessages: StompMessage[] = [];
 let stompMessageId = 0;
 const stompListeners = new Set<() => void>();
 const MAX_STOMP_MESSAGES = 100;
+
+/** Snapshot of the in-memory STOMP ring (test + panel subscribers). */
+export function getStompMessages(): StompMessage[] {
+  return [...stompMessages];
+}
 
 /** Pending requests for correlation (key: correlationId) */
 const pendingRequests = new Map<string, { request: StompMessage; timestamp: number }>();
@@ -251,8 +279,15 @@ export function logStompMessage(
   body: unknown,
   correlationId?: string
 ): StompMessage {
-  const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
-  const size = new Blob([bodyStr]).size;
+  let size = 0;
+  try {
+    const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+    size = new Blob([bodyStr ?? '']).size;
+  } catch {
+    size = 0;
+  }
+
+  const storedBody = isDebugPayloadAllowed() ? body : undefined;
 
   const message: StompMessage = {
     id: stompMessageId++,
@@ -261,7 +296,7 @@ export function logStompMessage(
     destination,
     command,
     headers,
-    body,
+    body: storedBody,
     size,
     correlationId,
   };
