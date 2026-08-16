@@ -3293,7 +3293,20 @@ function AppContent() {
     );
   };
 
-  // Loading state
+  const debugPanelElement = prefs.debugPanelEnabled ? (
+    <DebugPanel
+      isConnected={isConnected}
+      isConnecting={isConnecting}
+      reconnectAttempt={reconnectAttempt}
+      wsError={wsError}
+      activeSubscriptions={wsDebug.activeSubscriptions}
+      storedSubscriptions={wsDebug.storedSubscriptions}
+      sessionResult={sessionResult}
+      handshakeResult={handshakeResult}
+    />
+  ) : null;
+
+  // Loading state — no panel (noise on every start)
   if (!isReady || isAuthLoading) {
     return wrapWalletProvider(
       <>
@@ -3336,6 +3349,7 @@ function AppContent() {
     return wrapWalletProvider(
       <>
         <WalletLoginScreen />
+        {debugPanelElement}
       </>
     );
   }
@@ -3349,6 +3363,7 @@ function AppContent() {
           <h2>Cannot Start App</h2>
           <p>{initError}</p>
         </div>
+        {debugPanelElement}
       </>
     );
   }
@@ -3368,22 +3383,10 @@ function AppContent() {
             Restart App
           </button>
         </div>
+        {debugPanelElement}
       </>
     );
   }
-
-  const debugPanelElement = prefs.debugPanelEnabled ? (
-    <DebugPanel
-      isConnected={isConnected}
-      isConnecting={isConnecting}
-      reconnectAttempt={reconnectAttempt}
-      wsError={wsError}
-      activeSubscriptions={wsDebug.activeSubscriptions}
-      storedSubscriptions={wsDebug.storedSubscriptions}
-      sessionResult={sessionResult}
-      handshakeResult={handshakeResult}
-    />
-  ) : null;
 
   const burnAllChrome = (
     <>
