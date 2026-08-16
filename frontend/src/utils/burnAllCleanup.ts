@@ -1,4 +1,10 @@
 import WebApp from '@twa-dev/sdk';
+import { clearDebugLogs } from '@/components/DebugPanel/DebugPanel';
+import {
+  clearCryptoOperations,
+  clearStompMessages,
+  resetMessageCounters,
+} from '@/components/DebugPanel/hooks/useDebugState';
 import { burnAll as burnAllKeys } from '@/crypto/keyStore';
 import { STORAGE_KEY as CLOUD_LANGUAGE_KEY } from '@/i18n';
 import { PREFERENCES_STORAGE_KEY } from '@/preferences/preferencesStorage';
@@ -75,6 +81,31 @@ function clearCloudLanguagePreference(): void {
   }
 }
 
+function clearDebugLocalStorage(): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith('debug-')) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key);
+  }
+}
+
+function clearDebugPanelRam(): void {
+  clearDebugLogs();
+  clearStompMessages();
+  clearCryptoOperations();
+  resetMessageCounters();
+}
+
 /**
  * Local wipe after server burn-all ack. Keys are cleared only after ack so a
  * failed server cascade does not leave the client half-burned.
@@ -89,6 +120,8 @@ export async function performBurnAllLocalCleanup(options: BurnAllCleanupOptions)
   }
 
   burnAllKeys('manual');
+  clearDebugLocalStorage();
+  clearDebugPanelRam();
 
   if (options.wipeIdentity) {
     clearAppLocalStorage();
