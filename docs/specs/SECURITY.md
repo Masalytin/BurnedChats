@@ -764,9 +764,21 @@ Implementation: [`keyStore.ts`](../../frontend/src/crypto/keyStore.ts), lifecycl
 | Background | Mini App hidden > **45s** → `burnAll('background_timeout')` (`BACKGROUND_BURN_THRESHOLD_MS`) |
 | Private ECDH keys | `generateKeyPair()`: `extractable: false` (`ecdh.ts`) |
 
-**Known deviation ( / ):** dev-only **DebugPanel** replay stores
-STOMP bodies (including ciphertext) in `localStorage` (`debug-replay-sessions` via
-`useReplay.ts`). Production must not enable panel; fix — synthesis list §7.
+**Known deviation (opt-in diagnostics):** in-app **DebugPanel** ships in the
+production Mini App bundle and mounts when Settings `debugPanelEnabled` is on
+(default off, `preferencesStorage.ts`) — not a DEV-only surface. Production does
+**not** store or display STOMP payload: `logStompMessage` (`useDebugState.ts`)
+keeps dest/command/size/status and sets `body` to `undefined` unless
+`isDebugPayloadAllowed()` (DEV); Messages/Copy/Pairs inherit the ring. Replay
+and mock persist are off in production (`useReplay.ts` / `useMockServer.ts`);
+module init wipes stale `debug-replay-sessions` and `debug-mock-*`. User burn
+(`performBurnAllLocalCleanup` in `burnAllCleanup.ts`, data and account) deletes
+localStorage keys with prefix `debug-` and clears RAM buffers. Crypto dump in
+Crypto-tab remains DEV-only; PoW bench in the same tab is allowed in production
+(POWFAST-02). `debugLog` in production writes the ring only when the panel is
+on and does not mirror info/warn to console (errors may still go to console).
+Remaining follow-ups (not current floor): ingest still runs when the panel is
+off (IMP-DBGPANEL-06); Flow may still show fingerprint hex (IMP-DBGPANEL-05).
 
 ### Security headers / CSP
 
