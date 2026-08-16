@@ -3,7 +3,6 @@ import WebApp from '@twa-dev/sdk';
 import { StatusTab } from './tabs/StatusTab';
 import { FlowTab } from './tabs/FlowTab';
 import { MessagesTab } from './tabs/MessagesTab';
-import { AdvancedTab } from './tabs/AdvancedTab';
 import { useDebugState } from './hooks/useDebugState';
 import type { CreateSessionResult } from '@/hooks/useSession';
 import type { HandshakeResult } from '@/hooks/useHandshake';
@@ -38,7 +37,7 @@ interface DebugPanelProps {
   handshakeResult?: HandshakeResult;
 }
 
-type TabId = 'status' | 'flow' | 'messages' | 'crypto' | 'advanced' | 'logs';
+type TabId = 'status' | 'flow' | 'messages' | 'crypto' | 'logs';
 
 // ============================================
 // Local Storage Keys
@@ -184,9 +183,21 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'flow', label: 'Flow', icon: '🔄' },
   { id: 'messages', label: 'Messages', icon: '💬' },
   { id: 'crypto', label: 'Crypto', icon: '🔐' },
-  { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'logs', label: 'Logs', icon: '📋' },
 ];
+
+function visibleTabs(): typeof TABS {
+  return import.meta.env.DEV ? TABS : TABS.filter((tab) => tab.id !== 'crypto');
+}
+
+function loadActiveTab(): TabId {
+  const raw = loadString(STORAGE_KEY_TAB, 'status');
+  const allowed = new Set(visibleTabs().map((tab) => tab.id));
+  if (allowed.has(raw as TabId)) {
+    return raw as TabId;
+  }
+  return 'status';
+}
 
 const LazyCryptoTab = lazy(() =>
   import('./tabs/CryptoTab').then((m) => ({ default: m.CryptoTab })),
@@ -220,7 +231,7 @@ export function DebugPanel({
   // Panel state with persistence
   const [isExpanded, setIsExpanded] = useState(() => loadBoolean(STORAGE_KEY_EXPANDED, false));
   const [isMinimized, setIsMinimized] = useState(() => loadBoolean(STORAGE_KEY_MINIMIZED, false));
-  const [activeTab, setActiveTab] = useState<TabId>(() => loadString(STORAGE_KEY_TAB, 'status'));
+  const [activeTab, setActiveTab] = useState<TabId>(() => loadActiveTab());
   
   // Other state
   const [logs, setLogs] = useState<LogEntry[]>(globalLogs);
@@ -391,6 +402,13 @@ export function DebugPanel({
       websocket: debugState.websocket,
       sessionFlow: debugState.sessionFlow,
       timeline: debugState.timeline,
+      stomp: debugState.stomp.messages.map((m) => ({
+        direction: m.direction,
+        destination: m.destination,
+        command: m.command,
+        size: m.size,
+        timestamp: m.timestamp,
+      })),
       logs: logs.slice(-50).map(l => ({
         time: l.timestamp.toISOString(),
         level: l.level,
@@ -477,7 +495,7 @@ export function DebugPanel({
 
           {/* Tab Navigation */}
           <div className="debug-tabs">
-            {TABS.map(tab => (
+            {visibleTabs().map(tab => (
               <button
                 key={tab.id}
                 type="button"
@@ -508,12 +526,8 @@ export function DebugPanel({
               <MessagesTab state={debugState.stomp} />
             )}
 
-            {activeTab === 'crypto' && (
+            {activeTab === 'crypto' && import.meta.env.DEV && (
               <LoadedCryptoTab state={debugState.crypto} />
-            )}
-
-            {activeTab === 'advanced' && (
-              <AdvancedTab />
             )}
 
             {activeTab === 'logs' && (

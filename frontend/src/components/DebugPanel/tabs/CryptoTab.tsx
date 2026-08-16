@@ -1,7 +1,7 @@
 /**
  * Crypto State Tab for Debug Panel.
- * Displays keyStore state and crypto operation history.
- * PoW bench card is available in production (IMP-POWFAST-02).
+ * DEV-only: keyStore dump, operation history, PoW bench.
+ * Production does not mount this tab (IMP-DBGPANEL-12).
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -196,67 +196,42 @@ function PowBenchCard() {
 export function CryptoTab({ state }: CryptoTabProps) {
   return (
     <div className="debug-tab-content">
-      <PowBenchCard />
-
       {!import.meta.env.DEV && (
         <div className="debug-empty">Crypto debug data is available only in development builds.</div>
       )}
 
       {import.meta.env.DEV && (
         <>
-      {/* Sessions Overview */}
-      <div className="debug-card">
-        <div className="debug-card-header">
-          <span className="debug-card-title">Key Store Sessions</span>
-          <span className="debug-count-badge">{state.sessions.length}</span>
-        </div>
-        
-        <div className="debug-card-body">
-          {state.sessions.length === 0 ? (
-            <div className="debug-empty">No sessions in keyStore</div>
-          ) : (
-            <div className="debug-crypto-sessions">
-              {state.sessions.map((session) => (
-                <SessionCard key={session.sessionId} session={session} />
-              ))}
+          <PowBenchCard />
+          <div className="debug-card">
+            <div className="debug-card-header">
+              <span className="debug-card-title">Key Store Sessions</span>
+              <span className="debug-count-badge">{state.sessions.length}</span>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Recent Operations */}
-      <div className="debug-card">
-        <div className="debug-card-header">
-          <span className="debug-card-title">Recent Crypto Operations</span>
-          <span className="debug-count-badge">{state.operations.length}</span>
-        </div>
-        
-        <div className="debug-card-body debug-card-body-scroll">
-          <OperationLog operations={state.operations} />
-        </div>
-      </div>
-
-      {/* Crypto API Status */}
-      <div className="debug-card">
-        <div className="debug-card-header">
-          <span className="debug-card-title">Web Crypto API</span>
-        </div>
-        
-        <div className="debug-card-body">
-          <div className="debug-crypto-api-status">
-            <div className="debug-row">
-              <span className="debug-row-label">Available:</span>
-              <span className={`debug-row-value ${typeof crypto !== 'undefined' && crypto.subtle ? 'success' : 'error'}`}>
-                {typeof crypto !== 'undefined' && crypto.subtle ? '✓ Yes' : '✕ No'}
-              </span>
-            </div>
-            <div className="debug-row">
-              <span className="debug-row-label">Algorithms:</span>
-              <span className="debug-row-value mono">ECDH P-256, AES-GCM, HKDF</span>
+            <div className="debug-card-body">
+              {state.sessions.length === 0 ? (
+                <div className="debug-empty">No sessions in keyStore</div>
+              ) : (
+                <div className="debug-crypto-sessions">
+                  {state.sessions.map((session) => (
+                    <SessionCard key={session.sessionId} session={session} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
+
+          <div className="debug-card">
+            <div className="debug-card-header">
+              <span className="debug-card-title">Recent Crypto Operations</span>
+              <span className="debug-count-badge">{state.operations.length}</span>
+            </div>
+
+            <div className="debug-card-body debug-card-body-scroll">
+              <OperationLog operations={state.operations} />
+            </div>
+          </div>
         </>
       )}
     </div>

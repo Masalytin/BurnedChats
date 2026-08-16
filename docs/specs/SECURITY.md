@@ -770,18 +770,14 @@ production Mini App bundle and mounts when Settings `debugPanelEnabled` is on
 **not** store or display STOMP payload: `logStompMessage` (`useDebugState.ts`)
 keeps dest/command/size/status and sets `body` to `undefined` unless
 `isDebugPayloadAllowed()` (DEV); Messages/Copy inherit the ring. Pairs UI is
-hidden (request/response correlation is not wired). Replay persist is off in
-production (`useReplay.ts`); module init wipes stale `debug-replay-sessions`.
-There is no mock-server module; leftover `debug-mock-*` keys (if any) are
-removed by user burn. User burn (`performBurnAllLocalCleanup` in
-`burnAllCleanup.ts`, data and account) deletes localStorage keys with prefix
-`debug-` and clears RAM buffers. Ingest and counters no-op when the panel is
-off; Flow/crypto state in production do not copy fingerprint/visual.
-Crypto dump in Crypto-tab remains DEV-only; PoW bench in the same tab is a
-calibration stand allowed in production for now (POWFAST-02; revisit after
-mainnet / frozen bits). `debugLog` in production writes the ring only when the
-panel is on and does not mirror info/warn to console (errors may still go to
-console).
+hidden (request/response correlation is not wired). There is no mock-server or
+replay module; leftover `debug-mock-*` / `debug-replay-sessions` keys (if any)
+are removed by user burn (`performBurnAllLocalCleanup` in `burnAllCleanup.ts`,
+prefix `debug-`) together with RAM buffers. Ingest and counters no-op when the
+panel is off; Flow/crypto state in production do not copy fingerprint/visual.
+Crypto tab (PoW bench, keyStore dump, operations) is DEV-only — not mounted in
+production. `debugLog` in production writes the ring only when the panel is
+on and does not mirror info/warn to console (errors may still go to console).
 
 ### Security headers / CSP
 

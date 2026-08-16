@@ -469,10 +469,11 @@ describe('unwired Phase 5 timing API (IMP-DBGPANEL-10)', () => {
     expect(mod).not.toHaveProperty('startHandshakeTiming');
   });
 
-  it('hooks barrel does not export mock server', async () => {
+  it('hooks barrel does not export mock server or replay', async () => {
     const barrel = await import('./index');
     expect(barrel).not.toHaveProperty('useMockServer');
     expect(barrel).not.toHaveProperty('shouldMockMessage');
+    expect(barrel).not.toHaveProperty('useReplay');
   });
 });
 
