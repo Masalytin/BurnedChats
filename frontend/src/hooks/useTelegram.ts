@@ -421,19 +421,31 @@ export function useTelegram(): UseTelegramReturn {
   // Haptic feedback shortcuts
   const impactOccurred = useCallback((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => {
     if (isInTelegram && areHapticsEnabled()) {
-      WebApp.HapticFeedback.impactOccurred(style);
+      try {
+        WebApp.HapticFeedback.impactOccurred(style);
+      } catch {
+        // Silently fail if haptics unavailable
+      }
     }
   }, [isInTelegram]);
 
   const notificationOccurred = useCallback((type: 'error' | 'success' | 'warning') => {
     if (isInTelegram && areHapticsEnabled()) {
-      WebApp.HapticFeedback.notificationOccurred(type);
+      try {
+        WebApp.HapticFeedback.notificationOccurred(type);
+      } catch {
+        // Silently fail if haptics unavailable
+      }
     }
   }, [isInTelegram]);
 
   const selectionChanged = useCallback(() => {
     if (isInTelegram && areHapticsEnabled()) {
-      WebApp.HapticFeedback.selectionChanged();
+      try {
+        WebApp.HapticFeedback.selectionChanged();
+      } catch {
+        // Silently fail if haptics unavailable
+      }
     }
   }, [isInTelegram]);
 

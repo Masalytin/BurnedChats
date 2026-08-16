@@ -50,7 +50,11 @@ export function BottomNavBar({
       return;
     }
 
-    selectionChanged();
+    try {
+      selectionChanged();
+    } catch {
+      // Telegram haptic APIs throw on some WebViews; navigation must still proceed.
+    }
     onSelect(id);
   };
 
