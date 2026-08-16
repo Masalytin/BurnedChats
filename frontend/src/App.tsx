@@ -3349,7 +3349,6 @@ function AppContent() {
     return wrapWalletProvider(
       <>
         <WalletLoginScreen />
-        {debugPanelElement}
       </>
     );
   }

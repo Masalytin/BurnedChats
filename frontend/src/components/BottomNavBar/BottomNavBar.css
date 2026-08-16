@@ -1,6 +1,7 @@
 .bottom-nav {
   display: flex;
   position: relative;
+  z-index: 10000;
   flex-shrink: 0;
   height: calc(var(--bc-spacing-xl) + var(--bc-spacing-lg));
   padding-bottom: max(

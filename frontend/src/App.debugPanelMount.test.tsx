@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import '@/i18n';
 import {
   getDefaultPreferences,
@@ -382,6 +382,22 @@ vi.mock('./components/DebugPanel', () => ({
   debugLog: vi.fn(),
 }));
 
+vi.mock('./pages/WalletPage', () => ({
+  WalletPage: () => <div data-testid="wallet-page">Wallet</div>,
+}));
+
+vi.mock('./pages/SettingsPage', () => ({
+  SettingsPage: () => <div data-testid="settings-page">Settings</div>,
+}));
+
+vi.mock('./pages/HomePage', () => ({
+  HomePage: () => <div data-testid="home-page" className="home-page">Home</div>,
+}));
+
+vi.mock('./components/Wallet/LazyWalletProvider', () => ({
+  LazyWalletProvider: ({ children }: { children: unknown }) => children,
+}));
+
 function setPanelEnabled(enabled: boolean): void {
   savePreferences({ ...getDefaultPreferences(), debugPanelEnabled: enabled });
 }
@@ -416,7 +432,7 @@ describe('App debug panel mount on early-return screens (IMP-DBGPANEL-07)', () =
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   });
 
-  it('mounts Debug Panel on WalletLoginScreen when debugPanelEnabled', () => {
+  it('does not mount Debug Panel on WalletLoginScreen even when debugPanelEnabled', () => {
     setPanelEnabled(true);
     harness.environment = 'browser';
     harness.isAuthenticated = false;
@@ -426,7 +442,7 @@ describe('App debug panel mount on early-return screens (IMP-DBGPANEL-07)', () =
     renderApp();
 
     expect(document.querySelector('.wallet-login-screen')).not.toBeNull();
-    expect(screen.getByTestId('debug-panel')).toBeTruthy();
+    expect(screen.queryByTestId('debug-panel')).toBeNull();
   });
 
   it('mounts Debug Panel on fatal Connection Error when debugPanelEnabled', () => {
@@ -490,5 +506,70 @@ describe('App debug panel mount on early-return screens (IMP-DBGPANEL-07)', () =
     expect(initIdx).toBeGreaterThan(-1);
     expect(factoryIdx).toBeLessThan(initIdx);
     expect(initBlock?.[1]).toContain('debugPanelElement');
+  });
+
+  it('WalletLoginScreen early return does not include debugPanelElement', () => {
+    const loginIdx = APP_SOURCE.indexOf('<WalletLoginScreen />');
+    expect(loginIdx).toBeGreaterThan(-1);
+    const nearby = APP_SOURCE.slice(Math.max(0, loginIdx - 220), loginIdx + 80);
+    expect(nearby).toContain('WalletLoginScreen');
+    expect(nearby).not.toContain('debugPanelElement');
+  });
+});
+
+describe('App BottomNavBar top-level routing', () => {
+  beforeEach(() => {
+    resetHarness();
+    localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    setPanelEnabled(false);
+    harness.isAuthenticated = true;
+    harness.environment = 'browser';
+    harness.isReady = true;
+    harness.isAuthLoading = false;
+  });
+
+  afterEach(() => {
+    cleanup();
+    localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+  });
+
+  function renderSplatApp(path = '/app') {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/app/*" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it('renders WalletPage when BottomNavBar Wallet is clicked (splat /app/*)', () => {
+    renderSplatApp();
+
+    expect(screen.getByTestId('home-page')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Wallet' }));
+
+    expect(screen.getByTestId('wallet-page')).toBeTruthy();
+    expect(screen.queryByTestId('home-page')).toBeNull();
+  });
+
+  it('renders SettingsPage when BottomNavBar Settings is clicked (splat /app/*)', () => {
+    renderSplatApp();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
+
+    expect(screen.getByTestId('settings-page')).toBeTruthy();
+    expect(screen.queryByTestId('home-page')).toBeNull();
+  });
+
+  it('still switches tabs when the debug panel flag is on', () => {
+    setPanelEnabled(true);
+    renderSplatApp();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Wallet' }));
+
+    expect(screen.getByTestId('wallet-page')).toBeTruthy();
+    expect(screen.queryByTestId('home-page')).toBeNull();
   });
 });

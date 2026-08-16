@@ -54,6 +54,18 @@ describe('DebugPanel mobile tab chrome (overflow)', () => {
     expect(content).toMatch(/overflow-x:\s*hidden/);
   });
 
+  it('sits above the bottom nav instead of covering its hit target', () => {
+    const panel = block(panelCss(), '.debug-panel');
+    expect(panel).toMatch(/--bc-spacing-xl/);
+    expect(panel).not.toMatch(/bottom:\s*0;/);
+
+    const navCss = readFileSync(
+      resolve(process.cwd(), 'src/components/BottomNavBar/BottomNavBar.css'),
+      'utf8',
+    );
+    expect(block(navCss, '.bottom-nav')).toMatch(/z-index:\s*10000/);
+  });
+
   it('wraps tab buttons instead of overflowing Logs off-screen', () => {
     const css = panelCss();
     const tabs = block(css, '.debug-tabs');

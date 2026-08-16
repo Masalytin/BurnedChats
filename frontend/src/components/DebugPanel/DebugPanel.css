@@ -4,7 +4,10 @@
 
 .debug-floating-btn {
   position: fixed;
-  bottom: 16px;
+  bottom: calc(
+    16px + var(--bc-spacing-xl) + var(--bc-spacing-lg) +
+      max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))
+  );
   right: 16px;
   z-index: 9999;
   width: 36px;
@@ -70,7 +73,10 @@
 
 .debug-panel {
   position: fixed;
-  bottom: 0;
+  bottom: calc(
+    var(--bc-spacing-xl) + var(--bc-spacing-lg) +
+      max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))
+  );
   left: 0;
   right: 0;
   z-index: 9999;
