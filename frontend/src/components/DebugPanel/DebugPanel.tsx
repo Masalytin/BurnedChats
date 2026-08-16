@@ -480,7 +480,9 @@ export function DebugPanel({
             {TABS.map(tab => (
               <button
                 key={tab.id}
+                type="button"
                 className={`debug-tab ${activeTab === tab.id ? 'active' : ''}`}
+                title={tab.label}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <span className="debug-tab-icon">{tab.icon}</span>

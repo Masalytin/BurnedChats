@@ -135,7 +135,11 @@
   background: rgba(0, 0, 0, 0.95);
   color: #e0e0e0;
   max-height: 70vh;
+  /* overflow-y: auto alone computes overflow-x to auto (CSS Overflow).
+     That pans the header (minimize/close) when tabs overflow on TMA width. */
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-x: none;
   padding: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
@@ -202,6 +206,7 @@
 
 .debug-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   margin-bottom: 12px;
@@ -210,12 +215,13 @@
 }
 
 .debug-tab {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 4.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 8px 12px;
+  padding: 8px 6px;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -245,6 +251,14 @@
 
 .debug-tab-label {
   font-weight: 500;
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .debug-tab {
+    flex: 1 1 calc((100% - 8px) / 3);
+    max-width: calc((100% - 8px) / 3);
+  }
 }
 
 .debug-tab-container {
