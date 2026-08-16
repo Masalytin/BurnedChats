@@ -19,8 +19,11 @@ function TelegramLandingGuard({ children }: { children: ReactNode }) {
 }
 
 export function AppRouter() {
+  // App swaps Home/Wallet/Settings via useLocation() inside a /app/* splat,
+  // under Suspense(LazyWalletProvider). RR7's default startTransition keeps
+  // the previous UI while that boundary is pending — URL updates, Home stays.
   return (
-    <BrowserRouter>
+    <BrowserRouter useTransitions={false}>
       <Routes>
         <Route
           path="/"

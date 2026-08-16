@@ -32,7 +32,11 @@ vi.mock('./env/detector', () => ({
   isTelegramMiniApp: () => false,
 }));
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { AppRouter } from './AppRouter';
+
+const ROUTER_SOURCE = readFileSync(resolve(__dirname, 'AppRouter.tsx'), 'utf8');
 
 describe('AppRouter top-level tab paths', () => {
   afterEach(() => {
@@ -56,5 +60,9 @@ describe('AppRouter top-level tab paths', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go home' }));
     expect(screen.getByTestId('pathname').textContent).toBe('/app');
+  });
+
+  it('disables RR7 startTransition so splat pathname views commit with the URL', () => {
+    expect(ROUTER_SOURCE).toMatch(/<BrowserRouter useTransitions=\{false\}>/);
   });
 });
