@@ -86,6 +86,8 @@ describe('performBurnAllLocalCleanup', () => {
     localStorage.setItem('debug-replay-sessions', '[{"id":"s1"}]');
     localStorage.setItem('debug-panel-tab', 'messages');
     localStorage.setItem('debug-unexpected-key', 'must-not-survive');
+    localStorage.setItem('debug-mock-enabled', 'true');
+    localStorage.setItem('debug-mock-configs', '[]');
     localStorage.setItem('ton-connect-ui_wallet-info', '{"name":"mock"}');
     localStorage.setItem('tonconnect-preferences', '{"theme":"dark"}');
 
@@ -94,6 +96,8 @@ describe('performBurnAllLocalCleanup', () => {
     expect(localStorage.getItem('debug-replay-sessions')).toBeNull();
     expect(localStorage.getItem('debug-panel-tab')).toBeNull();
     expect(localStorage.getItem('debug-unexpected-key')).toBeNull();
+    expect(localStorage.getItem('debug-mock-enabled')).toBeNull();
+    expect(localStorage.getItem('debug-mock-configs')).toBeNull();
     expect(localStorage.getItem(PREFERENCES_STORAGE_KEY)).not.toBeNull();
     expect(localStorage.getItem('bc:other')).not.toBeNull();
     expect(localStorage.getItem('ton-connect-ui_wallet-info')).not.toBeNull();

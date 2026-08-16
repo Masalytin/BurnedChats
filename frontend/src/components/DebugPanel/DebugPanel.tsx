@@ -511,7 +511,7 @@ export function DebugPanel({
             )}
 
             {activeTab === 'advanced' && (
-              <AdvancedTab performance={debugState.performance} />
+              <AdvancedTab />
             )}
 
             {activeTab === 'logs' && (

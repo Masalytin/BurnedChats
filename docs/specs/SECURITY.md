@@ -769,16 +769,19 @@ production Mini App bundle and mounts when Settings `debugPanelEnabled` is on
 (default off, `preferencesStorage.ts`) — not a DEV-only surface. Production does
 **not** store or display STOMP payload: `logStompMessage` (`useDebugState.ts`)
 keeps dest/command/size/status and sets `body` to `undefined` unless
-`isDebugPayloadAllowed()` (DEV); Messages/Copy/Pairs inherit the ring. Replay
-and mock persist are off in production (`useReplay.ts` / `useMockServer.ts`);
-module init wipes stale `debug-replay-sessions` and `debug-mock-*`. User burn
-(`performBurnAllLocalCleanup` in `burnAllCleanup.ts`, data and account) deletes
-localStorage keys with prefix `debug-` and clears RAM buffers. Crypto dump in
-Crypto-tab remains DEV-only; PoW bench in the same tab is allowed in production
-(POWFAST-02). `debugLog` in production writes the ring only when the panel is
-on and does not mirror info/warn to console (errors may still go to console).
-Remaining follow-ups (not current floor): ingest still runs when the panel is
-off (IMP-DBGPANEL-06); Flow may still show fingerprint hex (IMP-DBGPANEL-05).
+`isDebugPayloadAllowed()` (DEV); Messages/Copy inherit the ring. Pairs UI is
+hidden (request/response correlation is not wired). Replay persist is off in
+production (`useReplay.ts`); module init wipes stale `debug-replay-sessions`.
+There is no mock-server module; leftover `debug-mock-*` keys (if any) are
+removed by user burn. User burn (`performBurnAllLocalCleanup` in
+`burnAllCleanup.ts`, data and account) deletes localStorage keys with prefix
+`debug-` and clears RAM buffers. Ingest and counters no-op when the panel is
+off; Flow/crypto state in production do not copy fingerprint/visual.
+Crypto dump in Crypto-tab remains DEV-only; PoW bench in the same tab is a
+calibration stand allowed in production for now (POWFAST-02; revisit after
+mainnet / frozen bits). `debugLog` in production writes the ring only when the
+panel is on and does not mirror info/warn to console (errors may still go to
+console).
 
 ### Security headers / CSP
 

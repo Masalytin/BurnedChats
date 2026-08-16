@@ -459,3 +459,20 @@ describe('checkTimeouts interval lifecycle (IMP-DBGPANEL-06)', () => {
     expect(clearSpy).toHaveBeenCalledWith(intervalId);
   });
 });
+
+describe('unwired Phase 5 timing API (IMP-DBGPANEL-10)', () => {
+  it('does not export startConnectionTiming / recordLatencySample', async () => {
+    const mod = await import('./useDebugState');
+    expect(mod).not.toHaveProperty('startConnectionTiming');
+    expect(mod).not.toHaveProperty('recordLatencySample');
+    expect(mod).not.toHaveProperty('markConnectionEstablished');
+    expect(mod).not.toHaveProperty('startHandshakeTiming');
+  });
+
+  it('hooks barrel does not export mock server', async () => {
+    const barrel = await import('./index');
+    expect(barrel).not.toHaveProperty('useMockServer');
+    expect(barrel).not.toHaveProperty('shouldMockMessage');
+  });
+});
+
