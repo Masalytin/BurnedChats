@@ -444,8 +444,6 @@ export function useHandshake({
       // Clear timeout
       clearHandshakeTimers();
 
-      console.log('[useHandshake] Handshake complete:', sessionId, 'fingerprint:', fingerprint);
-
       updateStage('complete', { fingerprint });
       activeSessionRef.current = null;
       onHandshakeCompleteRef.current?.(sessionId, fingerprint);

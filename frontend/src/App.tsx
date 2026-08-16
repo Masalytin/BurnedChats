@@ -488,12 +488,11 @@ function AppContent() {
     subscribe,
     unsubscribe,
     publish,
-    onHandshakeComplete: (sessionId, fingerprint) => {
+    onHandshakeComplete: (sessionId) => {
       setHandshakeManualRetryCount(0);
       lastHandshakeRetryAtRef.current = 0;
       notificationOccurred('success');
       toast.success('Secure connection established!');
-      console.log('[App] Handshake complete:', sessionId, fingerprint);
       if (pendingRekeyResendRef.current === sessionId) {
         pendingRekeyResendRef.current = null;
         setRekeyResendNonce((n) => n + 1);

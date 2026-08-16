@@ -17,6 +17,7 @@ export interface ChatWebSocketApi {
 import SockJS from 'sockjs-client';
 import WebApp from '@twa-dev/sdk';
 import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMessage } from '../components/DebugPanel';
+import { buildStompErrorDebugData } from '../components/DebugPanel/DebugPanel';
 import { buildWebSocketHandshakeUrl } from './webSocketHandshakeUrl';
 
 /** WebSocket connection error types */
@@ -401,12 +402,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       },
       
       onStompError: (frame) => {
-        const errorMsg = frame.headers?.message || frame.body || 'Unknown STOMP error';
-        debugLog('error', 'STOMP error', { 
-          message: errorMsg,
-          headers: frame.headers,
-          body: frame.body,
-        });
+        debugLog('error', 'STOMP error', buildStompErrorDebugData(frame));
         const wsError = parseStompError(frame);
         if (wsError.type === 'room_subscribe_denied') {
           clearRoomTopicSubscriptions(subscriptionsRef, storedSubscriptionsRef, wsError.roomId);
@@ -591,7 +587,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       storedSubscriptionsRef.current.set(destination, { destination, callback: wrappedCallback });
       
       if (!clientRef.current?.connected) {
-        console.warn('[WebSocket] Cannot subscribe - not connected (will subscribe on connect)');
+        debugLog('warn', 'Cannot subscribe - not connected (will subscribe on connect)');
         return null;
       }
 
@@ -603,8 +599,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
       const subscription = clientRef.current.subscribe(destination, wrappedCallback);
       subscriptionsRef.current.set(destination, subscription);
-      
-      console.log(`[WebSocket] Subscribed to ${destination}`);
       return subscription;
     },
     []
@@ -619,7 +613,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       try {
         subscription.unsubscribe();
         subscriptionsRef.current.delete(destination);
-        console.log(`[WebSocket] Unsubscribed from ${destination}`);
       } catch (e) {
         console.warn(`[WebSocket] Failed to unsubscribe from ${destination}:`, e);
       }

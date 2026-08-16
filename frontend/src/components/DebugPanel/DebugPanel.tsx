@@ -8,13 +8,14 @@ import { useDebugState } from './hooks/useDebugState';
 import type { CreateSessionResult } from '@/hooks/useSession';
 import type { HandshakeResult } from '@/hooks/useHandshake';
 import type { CryptoDebugState } from './hooks/useDebugState';
+import { loadPreferences } from '../../preferences/preferencesStorage';
 import './DebugPanel.css';
 
 // ============================================
 // Types
 // ============================================
 
-interface LogEntry {
+export interface LogEntry {
   id: number;
   timestamp: Date;
   level: 'info' | 'warn' | 'error' | 'success';
@@ -86,28 +87,84 @@ let globalLogs: LogEntry[] = [];
 let logId = 0;
 let listeners: Set<() => void> = new Set();
 
+/** Test-only override. `undefined` restores `import.meta.env.DEV`. */
+let debugLogDevOverride: boolean | undefined;
+
 /**
- * Add a debug log entry from anywhere in the app
+ * Console/ring DEV gate for debugLog. Vite inlines `import.meta.env.DEV`;
+ * tests use {@link setDebugLogDevForTests} (same pattern as payload gate in 01).
+ */
+export function isDebugLogDev(): boolean {
+  if (debugLogDevOverride !== undefined) {
+    return debugLogDevOverride;
+  }
+  return import.meta.env.DEV === true;
+}
+
+/** Force DEV/prod debugLog gate in unit tests. Pass `undefined` to restore. */
+export function setDebugLogDevForTests(dev: boolean | undefined): void {
+  debugLogDevOverride = dev;
+}
+
+/** Snapshot of the in-memory ring (tests / Logs tab). */
+export function getDebugLogs(): LogEntry[] {
+  return globalLogs;
+}
+
+export interface StompErrorDebugData {
+  message: string;
+  headers?: { [key: string]: string };
+  body?: string;
+}
+
+/**
+ * STOMP ERROR frame payload for debugLog. Non-DEV omits `body` (frame payload).
+ */
+export function buildStompErrorDebugData(frame: {
+  headers?: { [key: string]: string };
+  body?: string;
+}): StompErrorDebugData {
+  const errorMsg = frame.headers?.message || frame.body || 'Unknown STOMP error';
+  const data: StompErrorDebugData = {
+    message: errorMsg,
+    headers: frame.headers,
+  };
+  if (isDebugLogDev()) {
+    data.body = frame.body;
+  }
+  return data;
+}
+
+/**
+ * Add a debug log entry from anywhere in the app.
+ * DEV: ring + console (all levels).
+ * non-DEV: ring iff panel on; console only for `error`.
  */
 export function debugLog(
   level: LogEntry['level'], 
   message: string, 
   data?: unknown
 ) {
-  const entry: LogEntry = {
-    id: logId++,
-    timestamp: new Date(),
-    level,
-    message,
-    data,
-  };
-  
-  globalLogs = [...globalLogs.slice(-99), entry]; // Keep last 100
-  listeners.forEach(fn => fn());
-  
-  // Also log to console
-  const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
-  console[consoleMethod](`[Debug] ${message}`, data ?? '');
+  const isDev = isDebugLogDev();
+  const writeRing = isDev || loadPreferences().debugPanelEnabled;
+
+  if (writeRing) {
+    const entry: LogEntry = {
+      id: logId++,
+      timestamp: new Date(),
+      level,
+      message,
+      data,
+    };
+
+    globalLogs = [...globalLogs.slice(-99), entry]; // Keep last 100
+    listeners.forEach(fn => fn());
+  }
+
+  if (isDev || level === 'error') {
+    const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
+    console[consoleMethod](`[Debug] ${message}`, data ?? '');
+  }
 }
 
 /**
