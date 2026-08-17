@@ -33,6 +33,24 @@ describe('classifyWalletConnectError', () => {
     );
   });
 
+  it('classifies closing the TON Connect modal as user_rejected, not CSP', () => {
+    // TonConnectUIError extends TonConnectError, which prefixes every message with
+    // [TON_CONNECT_SDK_ERROR]. Closing the picker aborts connectWallet() with
+    // "Wallet was not connected" (closeReason === 'action-cancelled').
+    const closeModal = new TonConnectUIError('Wallet was not connected');
+    closeModal.message = `[TON_CONNECT_SDK_ERROR] TonConnectUIError\nWallet was not connected`;
+    expect(classifyWalletConnectError(closeModal)).toBe('user_rejected');
+
+    // withTimeout() wraps the original into a plain Error — instanceof is lost.
+    expect(
+      classifyWalletConnectError(
+        new Error(
+          '[WalletAuth] connectWallet: [TON_CONNECT_SDK_ERROR] TonConnectUIError\nWallet was not connected',
+        ),
+      ),
+    ).toBe('user_rejected');
+  });
+
   it('classifies CSP / SDK abort after failed fetch', () => {
     expect(
       classifyWalletConnectError(

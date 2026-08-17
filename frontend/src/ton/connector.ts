@@ -299,15 +299,26 @@ function readConnectedBalanceNanoton(ui: TonConnectUI): bigint | null {
 }
 
 function isUserRejection(err: unknown): boolean {
-  if (err instanceof TonConnectUIError) {
-    const m = err.message.toLowerCase();
-    return m.includes('not sent') || m.includes('cancel') || m.includes('reject') || m.includes('denied');
+  const m = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
+  if (!m) {
+    return false;
   }
-  if (err instanceof Error) {
-    const m = err.message.toLowerCase();
-    return m.includes('user rejected') || m.includes('user rejects') || m.includes('declined');
-  }
-  return false;
+  // Closing the TON Connect picker aborts connectWallet() with TonConnectUIError
+  // "Wallet was not connected" (closeReason === 'action-cancelled'). The SDK
+  // prefixes every TonConnectError with [TON_CONNECT_SDK_ERROR], and withTimeout()
+  // may wrap it into a plain Error — match on message text, not instanceof.
+  return (
+    m.includes('user rejected') ||
+    m.includes('user rejects') ||
+    m.includes('reject') ||
+    m.includes('declined') ||
+    m.includes('cancel') ||
+    m.includes('denied') ||
+    m.includes('not sent') ||
+    m.includes('was not connected') ||
+    m.includes('action-cancelled') ||
+    m.includes('action canceled')
+  );
 }
 
 function isTransientNetworkError(err: unknown): boolean {
