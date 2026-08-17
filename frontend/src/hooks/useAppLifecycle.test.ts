@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useAppLifecycle, BACKGROUND_BURN_THRESHOLD_MS } from './useAppLifecycle';
+import {
+  useAppLifecycle,
+  BACKGROUND_BURN_THRESHOLD_MS,
+  shouldShowBackgroundBurnToast,
+} from './useAppLifecycle';
 import {
   burnAll,
   getActiveSessionIds,
@@ -117,7 +121,80 @@ describe('useAppLifecycle background burn (IMP-AUDIT-10)', () => {
     expect(onBackgroundKeysBurned).toHaveBeenCalledWith({
       reason: 'background_timeout',
       sessionIdsBurned: ['sess-a', 'sess-b'],
+      roomIdsBurned: [],
     });
+  });
+
+  it('passes group-key room ids even when no DM sessions exist', () => {
+    vi.mocked(getActiveSessionIds).mockReturnValue([]);
+    const ROOM_ID = 'room-only-keys';
+    storeGroupKey(ROOM_ID, 1, { type: 'secret' } as CryptoKey);
+
+    mountLifecycle();
+    setHidden();
+    act(() => {
+      vi.advanceTimersByTime(BACKGROUND_BURN_THRESHOLD_MS);
+    });
+
+    expect(onBackgroundKeysBurned).toHaveBeenCalledWith({
+      reason: 'background_timeout',
+      sessionIdsBurned: [],
+      roomIdsBurned: [ROOM_ID],
+    });
+  });
+});
+
+describe('shouldShowBackgroundBurnToast', () => {
+  const liveUi = {
+    currentView: 'room-chat',
+    hasActiveChat: false,
+    hasActiveRoom: true,
+  };
+
+  const homeUi = {
+    currentView: 'home',
+    hasActiveChat: false,
+    hasActiveRoom: false,
+  };
+
+  it('is false when no keys were burned, even if a room is open', () => {
+    expect(
+      shouldShowBackgroundBurnToast(
+        { reason: 'background_timeout', sessionIdsBurned: [], roomIdsBurned: [] },
+        liveUi,
+      ),
+    ).toBe(false);
+  });
+
+  it('is false on the home screen even if leftover keys were wiped', () => {
+    expect(
+      shouldShowBackgroundBurnToast(
+        {
+          reason: 'background_timeout',
+          sessionIdsBurned: ['room-join:abc'],
+          roomIdsBurned: ['abc'],
+        },
+        homeUi,
+      ),
+    ).toBe(false);
+  });
+
+  it('is true when an open room chat had group keys wiped', () => {
+    expect(
+      shouldShowBackgroundBurnToast(
+        { reason: 'background_timeout', sessionIdsBurned: [], roomIdsBurned: ['abc'] },
+        liveUi,
+      ),
+    ).toBe(true);
+  });
+
+  it('is true when an open DM chat had session keys wiped', () => {
+    expect(
+      shouldShowBackgroundBurnToast(
+        { reason: 'background_timeout', sessionIdsBurned: ['sess-1'], roomIdsBurned: [] },
+        { currentView: 'chat', hasActiveChat: true, hasActiveRoom: false },
+      ),
+    ).toBe(true);
   });
 });
 

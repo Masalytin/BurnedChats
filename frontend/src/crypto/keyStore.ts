@@ -728,6 +728,13 @@ export function hasGroupKey(roomId: string): boolean {
 }
 
 /**
+ * Room IDs that currently have at least one epoch group key in memory.
+ */
+export function getActiveGroupKeyRoomIds(): string[] {
+  return Array.from(groupKeyStore.keys());
+}
+
+/**
  * Securely removes all epoch keys for a room.
  *
  * @param roomId - Room identifier

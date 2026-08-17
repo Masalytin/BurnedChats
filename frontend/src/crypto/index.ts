@@ -69,6 +69,7 @@ export {
   getGroupKeyEpochs,
   resolveDecryptionKeyForRoomMessage,
   hasGroupKey,
+  getActiveGroupKeyRoomIds,
   burnGroupKey,
   burnAllGroupKeys,
   // Burn operations

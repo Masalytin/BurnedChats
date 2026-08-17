@@ -86,7 +86,11 @@ import {
   stashPendingInviteToken,
 } from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
-import { useAppLifecycle, type BackgroundKeysBurnedInfo } from './hooks/useAppLifecycle';
+import {
+  useAppLifecycle,
+  shouldShowBackgroundBurnToast,
+  type BackgroundKeysBurnedInfo,
+} from './hooks/useAppLifecycle';
 import { useBurnAll } from './hooks/useBurnAll';
 import { useDeadmanSwitch } from './hooks/useDeadmanSwitch';
 import { useExitBurnFlow } from './hooks/useExitBurnFlow';
@@ -2942,6 +2946,7 @@ function AppContent() {
   const membersVisibilityTimerRef = useRef<number | null>(null);
   const MEMBERS_VISIBILITY_DEBOUNCE_MS = 400;
   const backgroundBurnPendingToastRef = useRef(false);
+  const backgroundBurnDidWipeRef = useRef(false);
 
   // Keep the latest view/chat state in a ref so the visibility callback can
   // read fresh values without being re-created on every state change.
@@ -2965,7 +2970,12 @@ function AppContent() {
   });
 
   const handleBackgroundKeysBurned = useCallback((info: BackgroundKeysBurnedInfo) => {
-    backgroundBurnPendingToastRef.current = true;
+    if (shouldShowBackgroundBurnToast(info, visibilitySyncDepsRef.current)) {
+      backgroundBurnPendingToastRef.current = true;
+    }
+    if (info.sessionIdsBurned.length > 0 || info.roomIdsBurned.length > 0) {
+      backgroundBurnDidWipeRef.current = true;
+    }
 
     for (const sessionId of info.sessionIdsBurned) {
       clearVerificationStatus(sessionId);
@@ -3139,11 +3149,19 @@ function AppContent() {
   const handleVisibilityRestored = useCallback(() => {
     if (backgroundBurnPendingToastRef.current) {
       backgroundBurnPendingToastRef.current = false;
+      backgroundBurnDidWipeRef.current = false;
       notificationOccurred('warning');
       toast.warning(t('lifecycle.backgroundBurnMessage'), {
         title: t('lifecycle.backgroundBurnTitle'),
         duration: 6000,
       });
+      fetchSessions();
+      fetchRooms();
+      return;
+    }
+
+    if (backgroundBurnDidWipeRef.current) {
+      backgroundBurnDidWipeRef.current = false;
       fetchSessions();
       fetchRooms();
       return;

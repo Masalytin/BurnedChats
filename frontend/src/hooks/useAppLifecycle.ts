@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import {
   burnAll,
   getActiveSessionIds,
+  getActiveGroupKeyRoomIds,
   BACKGROUND_BURN_THRESHOLD_MS,
 } from '@/crypto/keyStore';
 import { cancelAll } from '@/services/transferQueue';
@@ -11,6 +12,39 @@ export interface BackgroundKeysBurnedInfo {
   reason: 'background_timeout';
   /** Session IDs that had keys before the wipe (for UI cleanup). */
   sessionIdsBurned: string[];
+  /** Room IDs that had group keys before the wipe. */
+  roomIdsBurned: string[];
+}
+
+/** UI snapshot used to decide whether the background-burn toast is warranted. */
+export interface BackgroundBurnToastUi {
+  currentView: string;
+  hasActiveChat: boolean;
+  hasActiveRoom: boolean;
+}
+
+/**
+ * Show the "keys burned in background" toast only when keys actually existed
+ * and the user was in a live chat/room (not merely sitting on the home list).
+ */
+export function shouldShowBackgroundBurnToast(
+  info: BackgroundKeysBurnedInfo,
+  ui: BackgroundBurnToastUi,
+): boolean {
+  const hadKeys = info.sessionIdsBurned.length > 0 || info.roomIdsBurned.length > 0;
+  if (!hadKeys) {
+    return false;
+  }
+  if (ui.hasActiveChat || ui.hasActiveRoom) {
+    return true;
+  }
+  return (
+    ui.currentView === 'chat' ||
+    ui.currentView === 'room-chat' ||
+    ui.currentView === 'room-manage' ||
+    ui.currentView === 'handshake' ||
+    ui.currentView === 'verify'
+  );
 }
 
 /**
@@ -115,6 +149,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
     }
 
     const sessionIdsBurned = getActiveSessionIds();
+    const roomIdsBurned = getActiveGroupKeyRoomIds();
     backgroundBurnPerformedRef.current = true;
     backgroundBurnTimerRef.current = null;
 
@@ -129,6 +164,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
       onBackgroundKeysBurnedRef.current?.({
         reason: 'background_timeout',
         sessionIdsBurned,
+        roomIdsBurned,
       });
     } catch (err) {
       console.warn('[AppLifecycle] onBackgroundKeysBurned threw:', err);

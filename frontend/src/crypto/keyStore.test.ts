@@ -30,6 +30,7 @@ import {
   isHandshakeComplete,
   hasSession,
   getActiveSessionIds,
+  getActiveGroupKeyRoomIds,
   getSessionCount,
   burn,
   burnAll,
@@ -298,6 +299,24 @@ describe('Key Storage', () => {
 
       it('should return empty array when no sessions', () => {
         expect(getActiveSessionIds()).toEqual([]);
+      });
+    });
+
+    describe('getActiveGroupKeyRoomIds()', () => {
+      it('should return empty array when no group keys', () => {
+        expect(getActiveGroupKeyRoomIds()).toEqual([]);
+      });
+
+      it('should return room ids that have stored group keys', async () => {
+        const groupKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        storeGroupKey('room-a', 0, groupKey);
+        storeGroupKey('room-b', 1, groupKey);
+
+        expect(getActiveGroupKeyRoomIds()).toEqual(expect.arrayContaining(['room-a', 'room-b']));
+        expect(getActiveGroupKeyRoomIds()).toHaveLength(2);
       });
     });
 
