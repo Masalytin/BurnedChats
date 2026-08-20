@@ -1,4 +1,4 @@
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
+import { Blockchain, SandboxContract, TreasuryContract, internal } from '@ton/sandbox';
 import { beginCell, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
@@ -7,7 +7,7 @@ import { StakingMaster } from '../wrappers/StakingMaster';
 import { emissionFundForwardPayload, StakingPool, STAKING_PLACEHOLDER_MASTER } from '../wrappers/StakingPool';
 import { StakingMaster_errors_backward } from '../build/StakingMaster/StakingMaster_StakingMaster';
 import { StakingLock_errors_backward } from '../build/StakingMaster/StakingMaster_StakingLock';
-import { StakingPool_errors_backward } from '../build/StakingPool/StakingPool_StakingPool';
+import { StakingPool_errors_backward, storeCommitJettonTransfer } from '../build/StakingPool/StakingPool_StakingPool';
 import { DEPLOY_TON, MINT_TON, NANO_PER_BURN, SANDBOX_NOW, stakeForwardPayload } from './helpers';
 import { assertRelayFlowClean } from './helpers/cashbackLoopAssert';
 import {
@@ -1561,5 +1561,171 @@ describe('bounce handlers (IMP-AUDIT-08)', () => {
             success: true,
         });
         expect(await env.pool.getGetPoolBalance()).toBe(poolBalBeforePay);
+    });
+});
+
+// IMP-MNAUD-F18: after F11 every pool/treasury payout hops wallet → master
+// (ResolveJettonTransfer) → wallet (CommitJettonTransfer). A balance failure must
+// reach the owner's rollback accounting either as a natural bounce of the inbound
+// JettonTransfer (entry pre-check) or as an explicit JettonTransferCommitFailed
+// (commit-stage race window).
+describe('IMP-MNAUD-F18 — commit-stage failure rollback (resolve path)', () => {
+    const OP_COMMIT_JETTON_TRANSFER = 0x6a3b2c21;
+    const OP_JETTON_TRANSFER_COMMIT_FAILED = 0x6a3b2c22;
+    const OP_COMMIT_JETTON_TRANSFER_BOUNCED_EVENT = 0x6a3b2c23;
+
+    it('PayUnstake bounce restores pool_balance when jetton wallet lacks balance', async () => {
+        const env = await setupStakingEnvironment('https://example.com/f18-unstake-bounce.json');
+        const user = await env.blockchain.treasury('f18-unstake-user');
+        const stakeAmt = 10n * NANO_PER_BURN;
+        await mintAndSyncUser(env, user, stakeAmt);
+        await stakeAs(env, user, 0, stakeAmt);
+
+        const poolRewardWallet = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.pool.getGetJettonRewardsWallet()),
+        );
+        const walletBal = (await poolRewardWallet.getGetWalletData()).balance;
+
+        const masterSender = env.blockchain.sender(env.stakingMaster.address);
+        await env.pool.sendCreditPoolBalance(masterSender, 50n * NANO_PER_BURN);
+        const poolBalBefore = await env.pool.getGetPoolBalance();
+
+        // principal + capped reward = 50 BURN > real wallet balance (~10 BURN).
+        const rewardAsk = 40n * NANO_PER_BURN;
+        expect(stakeAmt + rewardAsk).toBeGreaterThan(walletBal);
+
+        const payTx = await env.pool.sendPayUnstake(masterSender, {
+            recipient: user.address,
+            principal: stakeAmt,
+            reward: rewardAsk,
+        });
+        expect(payTx.transactions).toHaveTransaction({
+            from: env.pool.address,
+            to: poolRewardWallet.address,
+            op: 0xf8a7ea5,
+            success: false,
+        });
+        expect(payTx.transactions).toHaveTransaction({
+            on: env.pool.address,
+            inMessageBounced: true,
+            success: true,
+        });
+        expect(await env.pool.getGetPoolBalance()).toBe(poolBalBefore);
+    });
+
+    it('commit-stage balance failure sends JettonTransferCommitFailed to the owner and pool rolls back', async () => {
+        const env = await setupStakingEnvironment('https://example.com/f18-commit-fail.json');
+        const user = await env.blockchain.treasury('f18-commit-user');
+        const stakeAmt = 10n * NANO_PER_BURN;
+        await mintAndSyncUser(env, user, stakeAmt);
+        await stakeAs(env, user, 0, stakeAmt);
+
+        const poolRewardWallet = env.blockchain.openContract(
+            BurnJettonWallet.fromAddress(await env.pool.getGetJettonRewardsWallet()),
+        );
+        const walletBal = (await poolRewardWallet.getGetWalletData()).balance;
+        const poolBalBefore = await env.pool.getGetPoolBalance();
+
+        // Race window: balance changed between the wallet entry check and master's
+        // commit hop. Forge the CommitJettonTransfer master would send.
+        const payoutAmt = walletBal + 5n * NANO_PER_BURN;
+        const commitTx = await env.blockchain.sendMessage(
+            internal({
+                from: env.jettonMaster.address,
+                to: poolRewardWallet.address,
+                value: toNano('2.2'),
+                bounce: true,
+                body: beginCell()
+                    .store(
+                        storeCommitJettonTransfer({
+                            $$type: 'CommitJettonTransfer',
+                            queryId: 777n,
+                            amount: payoutAmt,
+                            destination: user.address,
+                            responseDestination: env.stakingMaster.address,
+                            forwardTonAmount: 1n,
+                            forwardPayload: beginCell().storeUint(0, 1).endCell(),
+                            excludedTransfer: true,
+                        }),
+                    )
+                    .endCell(),
+            }),
+        );
+
+        // The wallet must NOT throw (the bounce would be silently swallowed by master);
+        // it must deliver an explicit failure signal to its owner instead.
+        expect(commitTx.transactions).toHaveTransaction({
+            on: poolRewardWallet.address,
+            op: OP_COMMIT_JETTON_TRANSFER,
+            success: true,
+        });
+        expect(commitTx.transactions).toHaveTransaction({
+            from: poolRewardWallet.address,
+            to: env.pool.address,
+            op: OP_JETTON_TRANSFER_COMMIT_FAILED,
+            success: true,
+        });
+        // No jettons moved; pool bookkeeping restored by the rollback handler.
+        expect((await poolRewardWallet.getGetWalletData()).balance).toBe(walletBal);
+        expect(await env.pool.getGetPoolBalance()).toBe(poolBalBefore + payoutAmt);
+    });
+
+    it('pool rejects JettonTransferCommitFailed from a non-wallet sender', async () => {
+        const env = await setupStakingEnvironment('https://example.com/f18-commit-auth.json');
+        const rogue = await env.blockchain.treasury('f18-rogue');
+        const poolBalBefore = await env.pool.getGetPoolBalance();
+
+        const rogueTx = await env.blockchain.sendMessage(
+            internal({
+                from: rogue.address,
+                to: env.pool.address,
+                value: toNano('0.05'),
+                bounce: true,
+                body: beginCell()
+                    .storeUint(OP_JETTON_TRANSFER_COMMIT_FAILED, 32)
+                    .storeUint(1n, 64)
+                    .storeCoins(100n * NANO_PER_BURN)
+                    .endCell(),
+            }),
+        );
+        expect(rogueTx.transactions).toHaveTransaction({
+            on: env.pool.address,
+            success: false,
+        });
+        expect(await env.pool.getGetPoolBalance()).toBe(poolBalBefore);
+    });
+
+    it('master emits CommitJettonTransferBounced when a commit hop bounces back', async () => {
+        const env = await setupStakingEnvironment('https://example.com/f18-master-emit.json');
+        const poolJw = await env.pool.getGetJettonRewardsWallet();
+        const bouncedAmt = 7n * NANO_PER_BURN;
+
+        // Residual (non-balance) commit failure: the bounce body only carries the
+        // prefix (opcode + queryId + amount) back to master.
+        const bounceTx = await env.blockchain.sendMessage(
+            internal({
+                from: poolJw,
+                to: env.jettonMaster.address,
+                value: toNano('0.05'),
+                bounced: true,
+                body: beginCell()
+                    .storeUint(0xffffffff, 32)
+                    .storeUint(OP_COMMIT_JETTON_TRANSFER, 32)
+                    .storeUint(888n, 64)
+                    .storeCoins(bouncedAmt)
+                    .endCell(),
+            }),
+        );
+        expect(bounceTx.transactions).toHaveTransaction({
+            on: env.jettonMaster.address,
+            inMessageBounced: true,
+            success: true,
+        });
+        // Not silently swallowed anymore: an external event is emitted for monitoring.
+        expect(bounceTx.externals.length).toBeGreaterThanOrEqual(1);
+        const eventBody = bounceTx.externals[0].body.beginParse();
+        expect(eventBody.loadUint(32)).toBe(OP_COMMIT_JETTON_TRANSFER_BOUNCED_EVENT);
+        expect(eventBody.loadUintBig(64)).toBe(888n);
+        expect(eventBody.loadCoins()).toBe(bouncedAmt);
     });
 });

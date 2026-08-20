@@ -13,6 +13,7 @@ import { Proposal_errors_backward } from '../build/Governor/Governor_Proposal';
 import { Timelock_errors_backward } from '../build/Timelock/Timelock_Timelock';
 import {
     Treasury_errors_backward,
+    storeJettonNotification,
     storeJettonTransfer,
     storeTreasurySpend,
 } from '../build/Treasury/Treasury_Treasury';
@@ -43,6 +44,8 @@ const OP_TIMELOCK_QUEUE = 0x5a040201;
 const OP_TREASURY_SPEND = 0x5a1c9010;
 const OP_VEST_EMERGENCY_REVOKE = 0x5a060002;
 const OP_JETTON_TRANSFER = 0xf8a7ea5;
+// IMP-MNAUD-F18: wallet → owner commit-stage failure signal.
+const OP_JETTON_TRANSFER_COMMIT_FAILED = 0x6a3b2c22;
 
 // ProposalType enum (governance-payload.tact).
 const TYPE_PARAM = 0;
@@ -706,6 +709,151 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(remaining!.recipient.equals(recipientB.address)).toBe(true);
             expect(remaining!.reason).toBe('eq-second');
             expect(remaining!.queryId).toBe(queryB);
+        });
+
+        // IMP-MNAUD-F18: after F11 the treasury payout always resolves via master —
+        // a balance failure must still roll back total_spent/spending_log (F12
+        // invariant on the resolve path).
+        it('spend exceeding real wallet balance bounces at the wallet and rolls back accounting (IMP-MNAUD-F18)', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-f18-entry.json');
+            const treasury = env.blockchain.openContract(
+                await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+            );
+            await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+            await fundTreasury(env, treasury, 10n * NANO_PER_BURN);
+
+            // Desync accounting from reality: forge a JettonNotification from the
+            // treasury wallet crediting BURN that never physically arrived.
+            const treasuryJw = await env.jettonMaster.getGetWalletAddress(treasury.address);
+            const phantom = 500n * NANO_PER_BURN;
+            await env.blockchain.sendMessage(
+                internal({
+                    from: treasuryJw,
+                    to: treasury.address,
+                    value: toNano('0.05'),
+                    body: beginCell()
+                        .store(
+                            storeJettonNotification({
+                                $$type: 'JettonNotification',
+                                queryId: 1n,
+                                amount: phantom,
+                                sender: env.deployer.address,
+                                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+                            }),
+                        )
+                        .endCell(),
+                }),
+            );
+            expect(await treasury.getGetTotalReceived()).toBe(10n * NANO_PER_BURN + phantom);
+
+            const recipient = await env.blockchain.treasury('f18-entry-recipient');
+            const spendAmount = 100n * NANO_PER_BURN; // > real wallet balance of 10 BURN
+            const spendTx = await deliverTreasurySpend(env, treasury, {
+                queryId: 555n,
+                recipient: recipient.address,
+                amount: spendAmount,
+                reason: 'f18-entry',
+                proposalId: 555n,
+            });
+
+            // The outbound JettonTransfer must abort at the wallet itself (natural
+            // bounce), not hop to master and die silently at CommitJettonTransfer.
+            expect(spendTx.transactions).toHaveTransaction({
+                from: treasury.address,
+                to: treasuryJw,
+                op: OP_JETTON_TRANSFER,
+                success: false,
+            });
+            expect(spendTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                inMessageBounced: true,
+                success: true,
+            });
+            expect(await treasury.getGetTotalSpent()).toBe(0n);
+            expect(await treasury.getGetSpendingCount()).toBe(0n);
+        });
+
+        // IMP-MNAUD-F18: commit-stage race window — the wallet reports the failure
+        // with an explicit JettonTransferCommitFailed; Treasury must roll back the
+        // matching queryId entry.
+        it('JettonTransferCommitFailed from the treasury wallet rolls back the matching spend (IMP-MNAUD-F18)', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-f18-commit.json');
+            const treasury = env.blockchain.openContract(
+                await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+            );
+            await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+            await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+            const recipientA = await env.blockchain.treasury('f18-commit-a');
+            const recipientB = await env.blockchain.treasury('f18-commit-b');
+            const amountA = 3n * NANO_PER_BURN;
+            const amountB = 5n * NANO_PER_BURN;
+            const queryA = 555n;
+            const queryB = 666n;
+
+            await deliverTreasurySpend(env, treasury, {
+                queryId: queryA,
+                recipient: recipientA.address,
+                amount: amountA,
+                reason: 'f18-first',
+                proposalId: queryA,
+            });
+            await deliverTreasurySpend(env, treasury, {
+                queryId: queryB,
+                recipient: recipientB.address,
+                amount: amountB,
+                reason: 'f18-second',
+                proposalId: queryB,
+            });
+            expect(await treasury.getGetTotalSpent()).toBe(amountA + amountB);
+            expect(await treasury.getGetSpendingCount()).toBe(2n);
+
+            // Inject the wallet's commit-stage failure signal for spend A.
+            // Body layout: opcode 0x6a3b2c22 + queryId (uint64) + amount (coins).
+            const treasuryJw = await env.jettonMaster.getGetWalletAddress(treasury.address);
+            const failTx = await env.blockchain.sendMessage(
+                internal({
+                    from: treasuryJw,
+                    to: treasury.address,
+                    value: toNano('0.05'),
+                    body: beginCell()
+                        .storeUint(OP_JETTON_TRANSFER_COMMIT_FAILED, 32)
+                        .storeUint(queryA, 64)
+                        .storeCoins(amountA)
+                        .endCell(),
+                }),
+            );
+            expect(failTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                success: true,
+            });
+            expect(await treasury.getGetTotalSpent()).toBe(amountB);
+            expect(await treasury.getGetSpendingCount()).toBe(1n);
+            const remaining = (await treasury.getGetSpendingHistory()).get(0n);
+            expect(remaining).toBeDefined();
+            expect(remaining!.queryId).toBe(queryB);
+            expect(remaining!.recipient.equals(recipientB.address)).toBe(true);
+
+            // Rogue sender must not be able to fake rollbacks.
+            const rogue = await env.blockchain.treasury('f18-commit-rogue');
+            const rogueTx = await env.blockchain.sendMessage(
+                internal({
+                    from: rogue.address,
+                    to: treasury.address,
+                    value: toNano('0.05'),
+                    body: beginCell()
+                        .storeUint(OP_JETTON_TRANSFER_COMMIT_FAILED, 32)
+                        .storeUint(queryB, 64)
+                        .storeCoins(amountB)
+                        .endCell(),
+                }),
+            );
+            expect(rogueTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                success: false,
+            });
+            expect(await treasury.getGetTotalSpent()).toBe(amountB);
+            expect(await treasury.getGetSpendingCount()).toBe(1n);
         });
     });
 

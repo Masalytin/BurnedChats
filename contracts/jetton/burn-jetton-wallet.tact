@@ -169,6 +169,23 @@ message(0x6a3b2c21) CommitJettonTransfer {
     excludedTransfer: Bool;
 }
 
+/// Wallet → owner: commit-stage transfer failed (insufficient jetton balance after the
+/// resolve hop). A throw here would bounce to master and be silently swallowed, so the
+/// owner (StakingPool / Treasury) would never roll back its accounting (IMP-MNAUD-F18).
+message(0x6a3b2c22) JettonTransferCommitFailed {
+    queryId: Int as uint64;
+    amount: Int as coins;
+}
+
+/// Master emit: a CommitJettonTransfer bounced back for a non-balance failure
+/// (balance failures are reported wallet-side via JettonTransferCommitFailed).
+/// The bounce prefix carries no owner address, so off-chain monitoring is the
+/// only possible delivery (IMP-MNAUD-F18).
+message(0x6a3b2c23) CommitJettonTransferBounced {
+    queryId: Int as uint64;
+    amount: Int as coins;
+}
+
 /// Master-only: update fee parameters and destination owner addresses on a wallet.
 message(0x4d7e2bc4) JettonUpdateFeeConfig {
     queryId: Int as uint64;
@@ -741,6 +758,12 @@ contract BurnJettonWallet(
             destExcludedLocal ||
             msg.forwardTonAmount >= minForwardForLiveExcludedCheck
         ) {
+            // IMP-MNAUD-F18: pre-check the balance before the resolve hop. Post-F11 the
+            // deduction happens only at CommitJettonTransfer, whose bounce dies at master —
+            // failing the inbound transfer here restores the natural bounce to the owner's
+            // rollback handlers (bounced<JettonTransferOut> / bounced<JettonTransfer>).
+            // The commit-stage re-check covers in-flight races (JettonTransferCommitFailed).
+            require(self.balance >= msg.amount, "Incorrect balance after send");
             nativeReserve(minTonsForStorage, ReserveAtMost);
             message(MessageParameters {
                 to: self.master,
@@ -775,6 +798,25 @@ contract BurnJettonWallet(
         require(sender() == self.master, "Incorrect sender");
         let payload = msg.forwardPayload.beginParse();
         checkEitherForwardPayload(payload);
+        // IMP-MNAUD-F18: a commit-stage balance failure must not throw — the bounce
+        // returns to master where no owner routing is possible (only the queryId/amount
+        // prefix survives). Report the failure to the owner explicitly; the incoming
+        // TON is forwarded with the signal so nothing strands on the wallet (MNAUD-10).
+        if (self.balance < msg.amount) {
+            let tonBalanceBeforeMsg = myBalance() - context().value;
+            nativeReserve(max(tonBalanceBeforeMsg, minTonsForStorage), ReserveAtMost);
+            message(MessageParameters {
+                to: self.owner,
+                value: 0,
+                mode: SendRemainingBalance + SendIgnoreErrors,
+                bounce: false,
+                body: JettonTransferCommitFailed {
+                    queryId: msg.queryId,
+                    amount: msg.amount,
+                }.toCell(),
+            });
+            return;
+        }
         self.executeJettonTransfer(
             msg.queryId,
             msg.amount,

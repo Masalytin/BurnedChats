@@ -1000,7 +1000,33 @@ timelock-managed excluded list on master (`AddExcluded` / `RemoveExcluded`). Arb
 recipient cannot bypass fee. Wallet authorized: sender jetton wallet == caller;
 `CommitJettonTransfer` accepted only from master.
 
-Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`.
+**Commit-stage failure routing (IMP-MNAUD-F18):** the resolve hop moves the balance
+check from the inbound `JettonTransfer` to `CommitJettonTransfer` (master → wallet).
+A throw there would bounce to **master** and die silently — the bounce prefix carries
+only `queryId`/`amount`, no owner address — so the sender's accounting
+(`StakingPool.pool_balance` via `bounced<JettonTransferOut>` /
+`Treasury.total_spent` via `bounced<JettonTransfer>`, IMP-AUDIT-08 / IMP-MNAUD-F12)
+would stay deducted without jettons moving. Accepted mechanism, three layers:
+
+1. **Entry pre-check:** on the resolve branch of `JettonTransfer` the wallet requires
+   `balance ≥ amount` **before** the hop — the common insufficient-balance case aborts
+   the inbound transfer and the natural bounce reaches the owner's existing rollback
+   handlers (pre-F11 behavior restored).
+2. **Explicit commit failure signal:** if the balance became insufficient between entry
+   and commit (in-flight race), the wallet does **not** throw on
+   `CommitJettonTransfer`; it sends `JettonTransferCommitFailed {queryId, amount}` to
+   `self.owner` with the incoming TON (`SendRemainingBalance` after storage reserve —
+   nothing strands on the wallet or master). `StakingPool` and `Treasury` roll back
+   their accounting on this message (sender-gated to their own jetton wallet; Treasury
+   matches by `queryId`, F12 invariant).
+3. **Residual bounce observability:** master handles `bounced<CommitJettonTransfer>`
+   by emitting `CommitJettonTransferBounced {queryId, amount}` (external event) —
+   non-balance commit failures (unreachable for pool/treasury flows) are visible to
+   off-chain monitoring instead of being swallowed.
+
+Opcodes: `ResolveJettonTransfer` `0x6a3b2c20`, `CommitJettonTransfer` `0x6a3b2c21`,
+`JettonTransferCommitFailed` `0x6a3b2c22`, `CommitJettonTransferBounced` `0x6a3b2c23`
+(emit).
 
 ### DEX pools as excluded addresses (IMP-MNAUD-F04)
 

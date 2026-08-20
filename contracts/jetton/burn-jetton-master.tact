@@ -346,6 +346,14 @@ contract BurnJettonMaster(
         self.totalSupply -= msg.amount;
     }
 
+    /// IMP-MNAUD-F18: residual (non-balance) commit-hop failure. Balance failures are
+    /// reported wallet-side (JettonTransferCommitFailed → owner); anything else that
+    /// bounces here cannot be routed on-chain — the bounce prefix has no owner address —
+    /// so emit an external event instead of swallowing the failure silently.
+    bounced(msg: bounced<CommitJettonTransfer>) {
+        emit(CommitJettonTransferBounced { queryId: msg.queryId, amount: msg.amount }.toCell());
+    }
+
     get fun get_jetton_data(): BurnJettonMasterState {
         return BurnJettonMasterState {
             totalSupply: self.totalSupply,

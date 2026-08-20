@@ -260,6 +260,15 @@ contract StakingPool(
         self.pool_balance += msg.amount;
     }
 
+    /// Commit-stage payout failure on the post-F11 resolve path (IMP-MNAUD-F18).
+    /// Mirrors bounced<JettonTransferOut>: the payout hops wallet → master → wallet,
+    /// and a balance failure at CommitJettonTransfer surfaces as an explicit signal
+    /// from the pool jetton wallet instead of a bounce.
+    receive(msg: JettonTransferCommitFailed) {
+        require(sender() == self.jettonRewardsWalletAddr(), "Only pool JW");
+        self.pool_balance += msg.amount;
+    }
+
     get fun get_staking_master(): Address {
         return self.stakingMaster;
     }

@@ -125,17 +125,17 @@ contract Treasury(
         });
     }
 
-    /// Jetton wallet bounced `JettonTransfer` (e.g. insufficient jetton balance) — roll back accounting.
-    /// Match by `queryId` (not LIFO): interleaved spends must not roll back the wrong entry
-    /// or throw on amount mismatch and permanently inflate `total_spent` (IMP-MNAUD-F12).
-    bounced(msg: bounced<JettonTransfer>) {
+    /// Shared spend rollback keyed by `queryId` (not LIFO): interleaved spends must not
+    /// roll back the wrong entry or throw on amount mismatch and permanently inflate
+    /// `total_spent` (IMP-MNAUD-F12).
+    fun rollbackSpend(queryId: Int, amount: Int) {
         require(self.spending_count > 0, "Unexpected bounce");
         let found: Int = -1;
         let i: Int = 0;
         while (i < self.spending_count) {
             let candOpt = self.spending_log.get(i);
             if (candOpt != null) {
-                if (candOpt!!.queryId == msg.queryId) {
+                if (candOpt!!.queryId == queryId) {
                     found = i;
                 }
             }
@@ -145,7 +145,7 @@ contract Treasury(
         let recOpt = self.spending_log.get(found);
         require(recOpt != null, "Unexpected bounce log");
         let rec = recOpt!!;
-        require(rec.amount == msg.amount, "Bounce amount mismatch");
+        require(rec.amount == amount, "Bounce amount mismatch");
 
         // Swap-remove to keep indices dense: [0 .. spending_count) with no holes
         // so getters/`spending_count` stay coherent after arbitrary-index delete.
@@ -158,6 +158,20 @@ contract Treasury(
         self.spending_log.del(lastIdx);
         self.spending_count = lastIdx;
         self.total_spent -= rec.amount;
+    }
+
+    /// Jetton wallet bounced `JettonTransfer` (e.g. insufficient jetton balance) — roll back accounting.
+    bounced(msg: bounced<JettonTransfer>) {
+        self.rollbackSpend(msg.queryId, msg.amount);
+    }
+
+    /// Commit-stage spend failure on the post-F11 resolve path (IMP-MNAUD-F18).
+    /// The payout hops wallet → master → wallet, and a balance failure at
+    /// CommitJettonTransfer surfaces as an explicit signal from the treasury jetton
+    /// wallet instead of a bounce (F12 invariant on the resolve path).
+    receive(msg: JettonTransferCommitFailed) {
+        require(sender() == self.treasury_jetton_wallet(), "Only treasury jetton wallet");
+        self.rollbackSpend(msg.queryId, msg.amount);
     }
 
     get fun get_timelock(): Address {
