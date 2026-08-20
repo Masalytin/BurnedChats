@@ -855,6 +855,39 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(await treasury.getGetTotalSpent()).toBe(amountB);
             expect(await treasury.getGetSpendingCount()).toBe(1n);
         });
+
+        // IMP-MNAUD-F19: MIN_SPEND_FORWARD must cover the post-F11 wallet entry gate
+        // (minTonFeePath 2.05 + fwd fee). Attach in the 1.0–2.05 gap must fail loudly
+        // at the Treasury require — before any accounting mutation — instead of
+        // logging a spend that bounces at the wallet.
+        it('TreasurySpend attach below the post-F11 wallet gate is rejected up front (IMP-MNAUD-F19)', async () => {
+            const env = await setupGovernance('https://example.com/gov-treasury-f19-floor.json');
+            const treasury = env.blockchain.openContract(
+                await Treasury.prepareInit(env.timelock.address, env.jettonMaster.address),
+            );
+            await treasury.send(env.deployer.getSender(), { value: toNano('0.2') }, null);
+            await fundTreasury(env, treasury, 50n * NANO_PER_BURN);
+
+            const recipient = await env.blockchain.treasury('f19-floor-recipient');
+            const spendTx = await deliverTreasurySpend(env, treasury, {
+                queryId: 777n,
+                recipient: recipient.address,
+                amount: 5n * NANO_PER_BURN,
+                reason: 'f19-floor',
+                proposalId: 777n,
+                value: toNano('1.5'), // old floor 1.0 < 1.5 < post-F11 gate ~2.06
+            });
+
+            expect(spendTx.transactions).toHaveTransaction({
+                on: treasury.address,
+                success: false,
+                exitCode: Treasury_errors_backward['Insufficient gas for spend'],
+            });
+            // Fail loudly BEFORE any accounting mutation: no outbound transfer, no log entry.
+            expect(spendTx.transactions).not.toHaveTransaction({ op: OP_JETTON_TRANSFER });
+            expect(await treasury.getGetTotalSpent()).toBe(0n);
+            expect(await treasury.getGetSpendingCount()).toBe(0n);
+        });
     });
 
     describe('Emergency proposal (type 3, delay 0)', () => {

@@ -4,13 +4,16 @@
 import "../jetton/burn-jetton-wallet";
 
 /// Lower bound on TON that must accompany a `TreasurySpend` so the outgoing
-/// `JettonTransfer` clears the jetton-wallet excluded-path gate end-to-end
-/// (gate ~0.58 + recipient wallet deploy 0.55 + fee-config sync 0.05 + fwd/gas).
-/// Treasury is on the master excluded list (bootstrap), so the cheaper excluded
-/// path applies, but it still needs ~1 TON of headroom. The actual forwarded
-/// value is relayed from the inbound Timelock message (`SendRemainingValue`),
-/// not from this constant or from Treasury's own (storage-only) balance.
-const MIN_SPEND_FORWARD: Int = ton("1.0");
+/// `JettonTransfer` clears the jetton-wallet entry gate end-to-end. Treasury is
+/// on the master excluded list (bootstrap), and post-IMP-MNAUD-F11 a
+/// claimed-excluded transfer always resolves via master with the fee-path gate
+/// `minTonFeePath` (2.05, strict `>`, plus forward fees) — the old excluded-path
+/// floor (~0.58 → 1.0 with headroom) no longer applies (IMP-MNAUD-F19).
+/// 2.3 mirrors the attach guidance in burn-jetton-wallet.tact. The actual
+/// forwarded value is relayed from the inbound Timelock message
+/// (`SendRemainingValue`), not from this constant or from Treasury's own
+/// (storage-only) balance.
+const MIN_SPEND_FORWARD: Int = ton("2.3");
 
 struct SpendRecord {
     recipient: Address;
@@ -69,10 +72,10 @@ contract Treasury(
         require(msg.amount <= avail, "Insufficient tracked balance");
 
         /// Fail loudly (before any accounting mutation) if Timelock under-funds the
-        /// spend: a too-small forward would bounce at the jetton-wallet gate and the
-        /// payout would be silently lost. Aborting here leaves `total_spent`/
-        /// `spending_log` untouched, so the proposal "Executed" / treasury "no spend"
-        /// mismatch is auditable rather than a corrupted record. See
+        /// spend: a too-small forward would only bounce later at the jetton-wallet
+        /// entry gate and be rolled back (F12/F18). Aborting here leaves
+        /// `total_spent`/`spending_log` untouched, so the proposal "Executed" /
+        /// treasury "no spend" mismatch is auditable rather than a corrupted record.
         /// See docs/specs/TOKENOMICS.md (treasury spend relay gas budget).
         require(context().value >= MIN_SPEND_FORWARD, "Insufficient gas for spend");
 
