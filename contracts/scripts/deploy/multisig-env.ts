@@ -80,7 +80,7 @@ async function deriveV5R1AddressFromMnemonic(mnemonic: string): Promise<{
  * used for signing — override is for reporting only when derivation knobs match).
  */
 export async function loadMultisigSignerSlots(
-    env: NodeJS.ProcessEnv = process.env,
+    _env: NodeJS.ProcessEnv = process.env,
 ): Promise<MultisigSignerSlot[]> {
     const slots: MultisigSignerSlot[] = [];
     for (let i = 1; i <= SIGNER_COUNT; i += 1) {
