@@ -84,7 +84,10 @@ describe('IMP-MNAUD-F16 gas floors', () => {
         ).toBe(true);
     }, 180_000);
 
-    it('excluded-path: 0.50 fails gate; 0.60 credits (gate 0.58 + fwd)', async () => {
+    // IMP-MNAUD-F11: a locally-excluded sender no longer takes the cheap 0.58 gate —
+    // the wallet entry gate is always minTonFeePath (2.05) and the transfer resolves
+    // via master (surplus refunded once master confirms exclusion).
+    it('excluded-path: legacy 0.60 fails after F11; 2.06 credits (gate 2.05 + fwd)', async () => {
         const ctxLo = await prepareExcludedCtx();
         const destLo = await ctxLo.blockchain.treasury('f16-ex-lo');
         expect(
@@ -92,7 +95,7 @@ describe('IMP-MNAUD-F16 gas floors', () => {
                 ctxLo,
                 ctxLo.staking.address,
                 destLo.address,
-                toNano('0.50'),
+                toNano('0.60'),
                 ctxLo.staking.getSender(),
             ),
         ).toBe(false);
@@ -104,7 +107,7 @@ describe('IMP-MNAUD-F16 gas floors', () => {
                 ctxHi,
                 ctxHi.staking.address,
                 destHi.address,
-                toNano('0.60'),
+                toNano('2.06'),
                 ctxHi.staking.getSender(),
             ),
         ).toBe(true);

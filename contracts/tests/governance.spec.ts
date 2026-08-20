@@ -308,7 +308,9 @@ async function deliverTreasurySpend(
         internal({
             from: env.timelock.address,
             to: treasury.address,
-            value: p.value ?? toNano('1.6'),
+            // IMP-MNAUD-F11: treasury is excluded → its payout JettonTransfer resolves via
+            // master with the minTonFeePath (2.05) entry gate; 1.6 TON no longer clears it.
+            value: p.value ?? toNano('4'),
             bounce: true,
             body: beginCell()
                 .store(
@@ -497,9 +499,11 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             // treasury-spend target so the payout clears the jetton-wallet excluded
             // gate end-to-end. The wrapper's default 0.25 TON is intentionally
             // bypassed with a treasury-sized budget (relay source of gas).
+            // IMP-MNAUD-F11 raised the wallet entry gate to minTonFeePath (2.05),
+            // so the budget is 4 TON (surplus refunds to the recipient).
             const execTx = await env.timelock.send(
                 env.deployer.getSender(),
-                { value: toNano('1.6') },
+                { value: toNano('4') },
                 { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
             );
 
@@ -1200,9 +1204,10 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
         });
         advanceTime(env.blockchain, 2 * DAY + 1);
 
+        // IMP-MNAUD-F11: treasury payout resolves via master (minTonFeePath gate) — 4 TON budget.
         const execTx = await env.timelock.send(
             env.deployer.getSender(),
-            { value: toNano('1.6') },
+            { value: toNano('4') },
             { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
         );
 
@@ -1600,9 +1605,10 @@ describe('Timelock high-value dispatch re-arm (IMP-MNAUD-F08)', () => {
         expect(await proposal.getGetState()).toBe(PS_EXECUTED);
 
         // Retry the SAME pending with the PREMNT-07-sized budget → payout settles.
+        // IMP-MNAUD-F11: budget raised to 4 TON (wallet entry gate is minTonFeePath 2.05).
         const okExec = await env.timelock.send(
             env.deployer.getSender(),
-            { value: toNano('1.6') },
+            { value: toNano('4') },
             { $$type: 'TimelockExecutePending', queryId: 0n, proposalId: id },
         );
         expect(okExec.transactions).toHaveTransaction({

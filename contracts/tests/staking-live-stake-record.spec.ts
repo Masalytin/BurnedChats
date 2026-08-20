@@ -98,8 +98,15 @@ describe('IMP-TNFS-F09 A — harness read path vs toncenter-v2 nested tuple shap
 });
 
 describe('IMP-TNFS-F09 B — sandbox replay of the live stake flow (contract records the stake)', () => {
-    /** Harness constants from testnet-scenarios/lib/staking.ts (live run values). */
-    const STAKE_ATTACHED_TON = 5_850_540_001n;
+    /**
+     * Live-shaped stake attach. Original live-run value was 5.85 TON (forward 5),
+     * sized for the pre-F11 excluded gate (0.58). After IMP-MNAUD-F11 the wallet
+     * entry gate is always minTonFeePath (2.05): value > forward + 2*fwd_fee + 2.05,
+     * so the attach is raised to 7.5 TON. NOTE: testnet-scenarios/lib/staking.ts
+     * harness constants (forward 8 / attach 9.5) are still pre-F11-sized and fail
+     * the same gate — tracked as a follow-up card (IMP-MNAUD-F20).
+     */
+    const STAKE_ATTACHED_TON = toNano('7.5');
     const STAKE_FORWARD_TON = toNano('5');
     const STAKE_AMOUNT = 5n * NANO_PER_BURN;
     const FLEXIBLE_TIER = 0;

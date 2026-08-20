@@ -1246,13 +1246,15 @@ describe('IMP-STKFEE-04 — sub-min net stuck funds', () => {
         const senderJw = env.blockchain.openContract(
             BurnJettonWallet.fromAddress(await env.jettonMaster.getGetWalletAddress(sender.address)),
         );
+        // IMP-MNAUD-F11: destination (StakingMaster) is excluded → the transfer resolves
+        // via master and the wallet entry gate is minTonFeePath (2.05), not 0.58.
         const tx = await senderJw.sendTransfer(sender.getSender(), {
             jettonAmount: dust,
             destinationOwner: env.stakingMaster.address,
             responseDestination: sender.address,
             forwardTonAmount: 0n,
             forwardPayload: beginCell().storeUint(0, 1).asSlice(),
-            value: toNano('0.7'),
+            value: toNano('2.3'),
         });
         expect(tx.transactions).toHaveTransaction({ success: true });
 
