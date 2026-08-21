@@ -1,20 +1,20 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-08-12",
+  "deployedAt": "2026-08-21",
   "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260812-tnfs-lab-f11",
+  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260821-tnfs-lab",
   "addresses": {
-    "jettonMaster": "kQAlqDk9gDBRShKV2X8aBdUj3UM9mdpIktNJ-zHVdIhPIZuG",
-    "treasury": "kQAMiqy1SGVP0uf5toexePx3dBy4uY9XPKhUwHdOe00iJmzz",
-    "treasuryJettonWallet": "kQCkNbfO3xnmtvPaPLggyhnIRjFxOuOKLGnaFobZ5VsR_Pdi",
-    "stakingPool": "kQCP0YcY-glVKAuSOtO0MdgfRqfpVPqfv1BzF_sEQBMHDceQ",
+    "jettonMaster": "kQAY09GTGXKublsSLUWAEPMD6NyGEHmGhhe5E74y_ZVsA6H5",
+    "treasury": "kQA7wIC6eDNa3FafLE5Z9ilQBwBE9m8KfKj22GkPv2HWJ7Nx",
+    "treasuryJettonWallet": "kQAl4lpu2OeF6Ns165DJF_Rn-IaS3U-zKRXwRkARVrwi66HE",
+    "stakingPool": "kQAVBmpnGH578LCX5Hc3pTD8SWbutujmirKdUGZOlCj5iMe1",
     "stakingLock": "kQBhVPntOamLE-mDlVNfqB9J83HoCtNKPo-rN-JU3uKGV-4i",
-    "stakingMaster": "kQB04LCoy8HOfXsg2BjaFNT6RN6WML_EEN88PKAQWcNQBxTl",
-    "governor": "kQAx2od7X3L2ny3J3pmousSfcGbH-8eN5XPE99PXD2lWgLRQ",
+    "stakingMaster": "kQDO8FJx4Vw_EAiYoppDcoR2VeNIXoMQV9h-NAMbNqj_7Q8w",
+    "governor": "kQCbxo1U3C24QL5YWwgcUfKKmYJtSbn2XJaDowJVna3pxjPd",
     "timelock": "kQDfHUtglLTmc0yxj8pD_LZqLHpOLqmHuz9cK-0dsCrCrQk-",
-    "vestingDeveloper": "kQAV23YXT6H35oyy7O2NBjLfBYY9Bbd1AKSZvZWJMfB_QfAn",
-    "vestingEcosystem": "kQCTfL6vJy1eyJOYmO1PMQ3jUEqWVeUXfUkdl5taWRXEx06L",
-    "vestingReserve": "kQCutHVY1mi_MQisfPh-wFr0OI7Q6KvzuAD2PjiVTv-7Ou0L",
+    "vestingDeveloper": "kQAK-zN3Op_PEzuIHZnqgUGCsGbMXJuEOInbCUFVuW3Kvnjm",
+    "vestingEcosystem": "kQDj1zDaQJmYesNnzsBS516Alk-kB_7VvhPzAanSdCaH-w3-",
+    "vestingReserve": "kQCErPNbudDhah0Eyk8YmJqUsrWMNiUxSIXPqxf1eLX_sSJA",
     "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
     "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
   },
@@ -35,6 +35,6 @@
     "mintableAdmin": true,
     "deployStakingMasterNano": "10000000000",
     "timelockGovernorMultisig": true,
-    "notes": "IMP-MNAUD-F11 JW live-resolve tip 2026-08-12; LAB_GOV_SHORT_TIMERS; Timelock.governor=TIMELOCK_GOVERNOR multisig; mint open. Do not syncAppConfigs / Mini App."
+    "notes": "IMP-MNAUD-F18/F19/F20 tip 2026-08-21 (commit-bounce rollback, MIN_SPEND_FORWARD 2.3, harness attach); LAB_GOV_SHORT_TIMERS; Timelock.governor=TIMELOCK_GOVERNOR multisig; Timelock/StakingLock reused from 2026-08-12 tip (code+init unchanged); mint open. Do not syncAppConfigs / Mini App."
   }
 }
