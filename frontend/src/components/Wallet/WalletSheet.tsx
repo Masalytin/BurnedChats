@@ -22,9 +22,10 @@ export function WalletSheet() {
   const [title, setTitle] = useState('');
   const [panelView, setPanelView] = useState<WalletPanelView>('main');
   const [sendOpen, setSendOpen] = useState(false);
+  const [tokenBurnOpen, setTokenBurnOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const blockChildOverlay = sendOpen || helpOpen;
+  const blockChildOverlay = sendOpen || tokenBurnOpen || helpOpen;
 
   const handleBack = useCallback(() => {
     if (!blockChildOverlay) {
@@ -35,6 +36,7 @@ export function WalletSheet() {
   useEffect(() => {
     if (!sheetOpen) {
       setSendOpen(false);
+      setTokenBurnOpen(false);
       setHelpOpen(false);
       setPanelView('main');
     }
@@ -82,6 +84,7 @@ export function WalletSheet() {
           onTitleChange={setTitle}
           onPanelChange={setPanelView}
           onSendOpenChange={setSendOpen}
+          onTokenBurnOpenChange={setTokenBurnOpen}
           helpOpen={helpOpen}
           onHelpOpenChange={setHelpOpen}
           suppressHelpTrigger

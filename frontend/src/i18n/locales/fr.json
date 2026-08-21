@@ -141,7 +141,10 @@
           "BURN est un jeton sur le réseau TON. Le portefeuille affiche votre solde BURN on-chain et permet d'envoyer du BURN à d'autres dans le chat.",
           "Il vous faut aussi une petite quantité de {{symbol}} native sur le même portefeuille pour payer les frais réseau des transferts.",
           "Vos clés restent dans votre app TON — Burned Chats lit les soldes et prépare les transactions ; il ne peut pas dépenser sans votre approbation.",
-          "Les transferts BURN ordinaires brûlent 0,5 % du montant on-chain (fee-on-transfer). Cela réduit définitivement l'offre en circulation sur le réseau. Après la fermeture du mint, le portefeuille indique aussi quelle part du plafond de 1000 BURN a été brûlée."
+          "Brûler un chat (Brûler le chat) supprime définitivement cette conversation. Cela ne brûle pas de jetons BURN.",
+          "Les transferts BURN ordinaires brûlent 0,5 % du montant on-chain (fee-on-transfer). Cela réduit définitivement l’offre en circulation. Le fee-burn ne crée pas de ligne « Brûler BURN » dans l’historique de ce portefeuille.",
+          "Après la fermeture du mint, le portefeuille indique aussi quelle part du plafond de 1000 BURN a été brûlée.",
+          "Vous pouvez aussi brûler volontairement le BURN que vous détenez (non staké) via un JettonBurn TEP-74 sur votre jetton wallet. Ce n’est pas un transfert vers une adresse de brûlage. C’est irréversible."
         ]
       }
     }
@@ -1307,7 +1310,17 @@
     "gramLowBalance": "Peu de {{symbol}} pour les frais réseau",
     "usernameNotResolved": "La résolution de @username Telegram dans l'application n'est pas encore disponible — utilisez une adresse TON.",
     "waitingConfirmation": "En attente de confirmation…",
-    "walletAddressAria": "Adresse du portefeuille"
+    "walletAddressAria": "Adresse du portefeuille",
+    "burnToken": "Brûler BURN",
+    "burnTokenModalTitle": "Brûler BURN",
+    "burnTokenAvailable": "Disponible (non staké) : {{amount}}",
+    "burnTokenIrreversible": "Ceci est irréversible. Le BURN brûlé est retiré définitivement de la circulation.",
+    "burnTokenConfirmAmount": "Ressaisissez le même montant",
+    "burnTokenConfirm": "Brûler BURN",
+    "burnTokenSuccess": "BURN brûlé",
+    "burnTokenFailed": "Impossible de brûler le BURN",
+    "burnTokenTimeout": "Le portefeuille a signé le brûlage, mais il n’a pas encore été vu on-chain. En cas de bounce, le solde reviendra. Ne supposez pas que les jetons ont été brûlés.",
+    "errAmountMismatch": "Le montant ressaisi ne correspond pas."
   },
   "walletLogin": {
     "busy": "En attente du portefeuille…",
@@ -1352,7 +1365,7 @@
       "failed": "Échec de la vérification. Veuillez réessayer."
     }
   },
-    "dmInvite": {
+  "dmInvite": {
     "title": "Mon invitation de chat",
     "caption": "Scannez le QR ou ouvrez le lien pour démarrer un chat. Sans nom d'utilisateur. Usage unique · expire en 10 minutes.",
     "minting": "Création de l'invitation…",
@@ -1387,7 +1400,7 @@
       "DEFAULT": "Impossible d'utiliser cette invitation. Réessayez"
     }
   },
-"joinLanding": {
+  "joinLanding": {
     "title": "Vous êtes invité dans une salle",
     "subtitle": "Choisissez comment rejoindre",
     "dmTitle": "Vous êtes invité à une discussion privée",

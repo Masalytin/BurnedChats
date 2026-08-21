@@ -141,7 +141,10 @@
           "BURN 是 TON 网络上的代币。钱包显示你的链上 BURN 余额，并可在聊天中向他人发送 BURN。",
           "同一钱包中还需要少量原生 {{symbol}} 以支付转账的网络费用。",
           "密钥保留在你的 TON 钱包应用中——Burned Chats 读取余额并构建交易；未经你确认无法花费。",
-          "普通 BURN 转账会在链上销毁金额的 0.5%（转账手续费销毁）。这会永久减少网络流通量。铸造关闭后，钱包还会显示 1000 BURN 上限中已销毁多少。"
+          "销毁聊天会永久删除该对话，并不会销毁 BURN 代币。",
+          "普通 BURN 转账会在链上销毁金额的 0.5%（转账手续费销毁）。这会永久减少网络流通量。手续费销毁不会在此钱包历史中产生「销毁 BURN」记录。",
+          "铸造关闭后，钱包还会显示 1000 BURN 上限中已销毁多少。",
+          "你也可以自愿销毁持有的 BURN（未质押），通过自己 jetton 钱包上的 TEP-74 JettonBurn。这不是转到销毁地址。此操作不可撤销。"
         ]
       }
     }
@@ -1307,7 +1310,17 @@
     "gramLowBalance": "{{symbol}} 余额不足，无法支付网络费用",
     "usernameNotResolved": "应用内解析 Telegram @username 尚不可用 — 请使用 TON 地址。",
     "waitingConfirmation": "等待确认…",
-    "walletAddressAria": "钱包地址"
+    "walletAddressAria": "钱包地址",
+    "burnToken": "销毁 BURN",
+    "burnTokenModalTitle": "销毁 BURN",
+    "burnTokenAvailable": "可用（未质押）：{{amount}}",
+    "burnTokenIrreversible": "此操作不可撤销。销毁的 BURN 将永久退出流通。",
+    "burnTokenConfirmAmount": "再次输入相同金额",
+    "burnTokenConfirm": "销毁 BURN",
+    "burnTokenSuccess": "已销毁 BURN",
+    "burnTokenFailed": "无法销毁 BURN",
+    "burnTokenTimeout": "钱包已签名销毁，但链上尚未看到。若交易回弹，余额会回来。请勿假定代币已被销毁。",
+    "errAmountMismatch": "再次输入的金额不一致。"
   },
   "walletLogin": {
     "busy": "等待钱包…",
@@ -1352,7 +1365,7 @@
       "failed": "验证失败。请重试。"
     }
   },
-    "dmInvite": {
+  "dmInvite": {
     "title": "我的聊天邀请",
     "caption": "扫描二维码或打开链接开始聊天。不暴露用户名。一次性 · 10 分钟内有效。",
     "minting": "正在创建邀请…",
@@ -1387,7 +1400,7 @@
       "DEFAULT": "无法使用此邀请，请重试"
     }
   },
-"joinLanding": {
+  "joinLanding": {
     "title": "您被邀请加入房间",
     "subtitle": "选择加入方式",
     "dmTitle": "您被邀请加入私聊",

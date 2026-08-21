@@ -71,12 +71,17 @@ vi.mock('qrcode.react', () => ({
 
 const mockUseWallet = vi.mocked(useWallet);
 
-const defaultBurn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch' | 'isRefreshing'> = {
+const defaultBurn: Pick<
+  UseBurnToken,
+  'balance' | 'isLoading' | 'error' | 'refetch' | 'isRefreshing' | 'burn' | 'transferProgress'
+> = {
   balance: 1_000_000_000n,
   isLoading: false,
   error: null,
   refetch: vi.fn(),
   isRefreshing: false,
+  burn: vi.fn(),
+  transferProgress: null,
 };
 
 const defaultTon: Pick<
@@ -173,6 +178,20 @@ describe('WalletSheet nested HelpSheet', () => {
       expect(screen.getAllByRole('dialog').length).toBe(1);
     });
     expect(closeSheet).not.toHaveBeenCalled();
+  });
+
+  it('blocks wallet sheet close while TokenBurnModal is open', async () => {
+    renderOpenWalletSheet();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.burnToken') }));
+    expect(screen.getAllByRole('dialog').length).toBe(2);
+
+    for (const handler of [...backButtonClickHandlers]) {
+      handler();
+    }
+
+    expect(closeSheet).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: i18n.t('wallet.burnTokenModalTitle') })).toBeTruthy();
   });
 
   it('returns focus to wallet sheet after HelpSheet closes', async () => {

@@ -150,7 +150,10 @@
           "BURN ist ein Token im TON-Netzwerk. Die Wallet zeigt dein On-Chain-BURN-Guthaben und ermöglicht das Senden von BURN an andere im Chat.",
           "Du brauchst auch eine kleine Menge native {{symbol}} in derselben Wallet für Netzwerkgebühren bei Überweisungen.",
           "Deine Schlüssel bleiben in deiner TON-Wallet-App — Burned Chats liest Guthaben und erstellt Transaktionen; ohne deine Bestätigung kann nichts ausgegeben werden.",
-          "Gewöhnliche BURN-Transfers verbrennen 0,5 % des Betrags on-chain (Fee-on-Transfer). Das verringert dauerhaft das zirkulierende Angebot im Netzwerk. Nach dem Schließen des Mints zeigt die Wallet auch, wie viel der 1000-BURN-Obergrenze verbrannt wurde."
+          "Einen Chat zu verbrennen (Chat verbrennen) löscht diese Unterhaltung dauerhaft. Dabei werden keine BURN-Token verbrannt.",
+          "Gewöhnliche BURN-Transfers verbrennen 0,5 % des Betrags on-chain (Fee-on-Transfer). Das verringert dauerhaft das zirkulierende Angebot. Fee-Burn erzeugt keinen „BURN verbrennen“-Eintrag in dieser Wallet-Historie.",
+          "Nach dem Schließen des Mints zeigt die Wallet auch, wie viel der 1000-BURN-Obergrenze verbrannt wurde.",
+          "Du kannst gehaltenes BURN (nicht gestakt) auch freiwillig per TEP-74 JettonBurn an deiner Jetton-Wallet verbrennen. Das ist keine Überweisung an eine Burn-Adresse. Es kann nicht rückgängig gemacht werden."
         ]
       }
     }
@@ -1188,7 +1191,17 @@
     "errAmountPositive": "Betrag muss größer als null sein.",
     "errAmountOverBalance": "Betrag übersteigt Ihr BURN-Guthaben.",
     "errorTitle": "Wallet nicht verfügbar",
-    "errorRetry": "Erneut versuchen"
+    "errorRetry": "Erneut versuchen",
+    "burnToken": "BURN verbrennen",
+    "burnTokenModalTitle": "BURN verbrennen",
+    "burnTokenAvailable": "Verfügbar (nicht gestakt): {{amount}}",
+    "burnTokenIrreversible": "Das kann nicht rückgängig gemacht werden. Verbranntes BURN wird dauerhaft aus dem Umlauf entfernt.",
+    "burnTokenConfirmAmount": "Denselben Betrag erneut eingeben",
+    "burnTokenConfirm": "BURN verbrennen",
+    "burnTokenSuccess": "BURN verbrannt",
+    "burnTokenFailed": "BURN konnte nicht verbrannt werden",
+    "burnTokenTimeout": "Die Wallet hat das Verbrennen signiert, aber on-chain noch nicht gesehen. Bei einem Bounce kehrt das Guthaben zurück. Gehen Sie nicht davon aus, dass die Token verbrannt wurden.",
+    "errAmountMismatch": "Der erneut eingegebene Betrag stimmt nicht überein."
   },
   "staking": {
     "tierFlexible": "Flexibel",
@@ -1352,7 +1365,7 @@
       "failed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
     }
   },
-    "dmInvite": {
+  "dmInvite": {
     "title": "Meine Chat-Einladung",
     "caption": "Scanne den QR oder öffne den Link, um einen Chat zu starten. Kein Benutzername. Einmalig · 10 Minuten gültig.",
     "minting": "Einladung wird erstellt…",
@@ -1387,7 +1400,7 @@
       "DEFAULT": "Einladung konnte nicht verwendet werden. Bitte erneut versuchen"
     }
   },
-"joinLanding": {
+  "joinLanding": {
     "title": "Sie wurden in einen Raum eingeladen",
     "subtitle": "Wählen Sie, wie Sie beitreten möchten",
     "dmTitle": "Sie wurden zu einem privaten Chat eingeladen",

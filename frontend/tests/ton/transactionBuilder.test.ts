@@ -7,10 +7,12 @@ import type { TransactionMessage } from '@/ton/types';
 import {
   buildClaimMsg,
   buildCreateProposalMsg,
+  buildJettonBurnMsg,
   buildJettonTransferMsg,
   buildStakeMsg,
   buildUnstakeMsg,
   buildVoteMsg,
+  JETTON_BURN_ATTACHED_TON,
   VOTE_ATTACHED_TON,
 } from '@/ton/transactionBuilder';
 
@@ -135,6 +137,58 @@ describe('transactionBuilder payload encoding', () => {
     });
     expect(BigInt(msg.amount)).toBe(VOTE_ATTACHED_TON);
     expect(BigInt(msg.amount)).toBe(toNano('0.18'));
+  });
+
+  it('buildJettonBurnMsg uses TEP-74 JettonBurn opcode 0x595f07bc', () => {
+    const owner = Address.parse(`0:${'11'.repeat(32)}`);
+    const jettonWallet = Address.parse(`0:${'22'.repeat(32)}`);
+    const msg = buildJettonBurnMsg({
+      jettonWallet,
+      amount: 5_000_000_000n,
+      responseAddress: owner,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x595f07bc);
+    expect(s.loadUintBig(64)).toBe(0n);
+    expect(s.loadCoins()).toBe(5_000_000_000n);
+    const responseDest = s.loadMaybeAddress();
+    expect(responseDest?.equals(owner)).toBe(true);
+    expect(responseDest?.equals(jettonWallet)).toBe(false);
+    expect(s.loadBit()).toBe(false);
+    expect(s.remainingBits).toBe(0);
+    expect(s.remainingRefs).toBe(0);
+    expect(msg.address).toBe(jettonWallet.toString());
+  });
+
+  it('buildJettonBurnMsg defaults attach to JETTON_BURN_ATTACHED_TON (0.08 TON)', () => {
+    const owner = Address.parse(`0:${'11'.repeat(32)}`);
+    const jettonWallet = Address.parse(`0:${'22'.repeat(32)}`);
+    const msg = buildJettonBurnMsg({
+      jettonWallet,
+      amount: 1n,
+      responseAddress: owner,
+    });
+    expect(msg.amount).toBe(JETTON_BURN_ATTACHED_TON.toString());
+    expect(BigInt(msg.amount)).toBe(toNano('0.08'));
+  });
+
+  it('buildJettonBurnMsg routes Excesses to owner TON wallet, not the jetton wallet', () => {
+    const owner = Address.parse(`0:${'aa'.repeat(32)}`);
+    const jettonWallet = Address.parse(`0:${'bb'.repeat(32)}`);
+    const msg = buildJettonBurnMsg({
+      jettonWallet,
+      amount: 10n ** 9n,
+      responseAddress: owner,
+      queryId: 7n,
+    });
+    const s = firstBocCellBase64(msg.payload).beginParse();
+    expect(s.loadUint(32)).toBe(0x595f07bc);
+    expect(s.loadUintBig(64)).toBe(7n);
+    s.loadCoins();
+    const responseDest = s.loadMaybeAddress();
+    expect(responseDest).not.toBeNull();
+    expect(responseDest!.equals(owner)).toBe(true);
+    expect(responseDest!.equals(jettonWallet)).toBe(false);
   });
 
   it('buildCreateProposalMsg encodes CreateProposal (0x5a040101)', () => {

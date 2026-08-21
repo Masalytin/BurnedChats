@@ -673,6 +673,14 @@ The Mini App reads TEP-74 `get_jetton_data` on the jetton master via Ton Center 
 
 CloseMint on-chain does not require `totalSupply == 1000` (that check exists only in the bootstrap script). The Mini App follows the formula above and does not run an indexer of burn transactions.
 
+### Mini App voluntary TEP-74 burn
+
+The Mini App can send a native TEP-74 `JettonBurn` (`0x595f07bc`) to the user's **jetton wallet**. That is **not** a transfer to a burn address, the jetton master, or a null destination — a transfer would take the fee-on-transfer split and leave ~99% sitting on that address.
+
+- Only liquid jetton-wallet balance can be burned. Staked BURN must be unstaked first.
+- `responseDestination` is the owner's TON wallet so Excesses return there.
+- Fee-on-transfer 0.5% burn does **not** emit a `JettonBurn` history row; only this voluntary path does.
+
 ---
 
 ## Risks and Mitigation

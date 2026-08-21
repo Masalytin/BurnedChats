@@ -1,3 +1,4 @@
+import { Address, beginCell } from '@ton/core';
 import { describe, expect, it } from 'vitest';
 import { mapCenterTxToBurnRow } from '@/ton/burnToken';
 
@@ -74,5 +75,48 @@ describe('mapCenterTxToBurnRow — send/receive direction', () => {
 
     expect(row.type).toBe('send');
     expect(row.amount).toBe(11_000_000_000n);
+  });
+
+  it('classifies inbound JettonBurn (0x595f07bc) as burn with decoded amount', () => {
+    const owner = Address.parse(`0:${'11'.repeat(32)}`);
+    const body = beginCell()
+      .storeUint(0x595f07bc, 32)
+      .storeUint(0n, 64)
+      .storeCoins(3_000_000_000n)
+      .storeAddress(owner)
+      .storeBit(false)
+      .endCell()
+      .toBoc({ idx: false })
+      .toString('base64');
+
+    const row = mapCenterTxToBurnRow({
+      utime: 1782637250,
+      transaction_id: { hash: 'jetton-burn-hash' },
+      in_msg: {
+        source: 'EQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDm07',
+        destination: 'EQCQd4JvaQnjCNolRItEcNp1U0jEZIH4c0p532MKaL3xKt8U',
+        msg_data: { body },
+      },
+      out_msgs: [],
+    });
+
+    expect(row.type).toBe('burn');
+    expect(row.amount).toBe(3_000_000_000n);
+    expect(row.counterparty).toBe('EQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDm07');
+  });
+
+  it('regression: unrecognized tx stays type burn with amount 0', () => {
+    const row = mapCenterTxToBurnRow({
+      utime: 1782637250,
+      transaction_id: { hash: 'unknown-tx-hash' },
+      in_msg: {
+        source: 'EQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDm07',
+        msg_data: { body: 'te6cckEBAQEAAgAAAA==' },
+      },
+      out_msgs: [],
+    });
+
+    expect(row.type).toBe('burn');
+    expect(row.amount).toBe(0n);
   });
 });

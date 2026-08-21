@@ -141,7 +141,10 @@
           "BURN es un token en la red TON. La wallet muestra tu saldo BURN on-chain y te permite enviar BURN a otros en el chat.",
           "También necesitas una pequeña cantidad de {{symbol}} nativo en la misma wallet para pagar las comisiones de red en transferencias.",
           "Tus claves permanecen en tu app TON — Burned Chats lee saldos y prepara transacciones; no puede gastar sin tu aprobación.",
-          "Las transferencias BURN habituales queman el 0,5 % del importe on-chain (fee-on-transfer). Eso reduce de forma permanente la oferta en circulación de la red. Tras cerrar el mint, la wallet también muestra cuánto del tope de 1000 BURN se ha quemado."
+          "Quemar un chat (Quemar chat) elimina esa conversación para siempre. No quema tokens BURN.",
+          "Las transferencias BURN habituales queman el 0,5 % del importe on-chain (fee-on-transfer). Eso reduce de forma permanente la oferta en circulación. El fee-burn no crea una fila «Quemar BURN» en el historial de esta wallet.",
+          "Tras cerrar el mint, la wallet también muestra cuánto del tope de 1000 BURN se ha quemado.",
+          "También puedes quemar voluntariamente el BURN que tienes (no en stake) con un JettonBurn TEP-74 en tu jetton wallet. No es una transferencia a una dirección de quema. No se puede deshacer."
         ]
       }
     }
@@ -1307,7 +1310,17 @@
     "gramLowBalance": "Poco {{symbol}} para comisiones de red",
     "usernameNotResolved": "Resolver @username de Telegram en la app aún no está disponible — usa una dirección TON.",
     "waitingConfirmation": "Esperando confirmación…",
-    "walletAddressAria": "Dirección de wallet"
+    "walletAddressAria": "Dirección de wallet",
+    "burnToken": "Quemar BURN",
+    "burnTokenModalTitle": "Quemar BURN",
+    "burnTokenAvailable": "Disponible (no en stake): {{amount}}",
+    "burnTokenIrreversible": "Esto no se puede deshacer. El BURN quemado se retira de circulación para siempre.",
+    "burnTokenConfirmAmount": "Vuelve a escribir la misma cantidad",
+    "burnTokenConfirm": "Quemar BURN",
+    "burnTokenSuccess": "BURN quemado",
+    "burnTokenFailed": "No se pudo quemar BURN",
+    "burnTokenTimeout": "La wallet firmó la quema, pero aún no se vio on-chain. Si rebota, el saldo volverá. No asumas que los tokens se quemaron.",
+    "errAmountMismatch": "La cantidad repetida no coincide."
   },
   "walletLogin": {
     "busy": "Esperando wallet…",
@@ -1352,7 +1365,7 @@
       "failed": "La verificación falló. Inténtalo de nuevo."
     }
   },
-    "dmInvite": {
+  "dmInvite": {
     "title": "Mi invitación de chat",
     "caption": "Escanea el QR o abre el enlace para chatear. Sin nombre de usuario. Un solo uso · caduca en 10 minutos.",
     "minting": "Creando invitación…",
@@ -1387,7 +1400,7 @@
       "DEFAULT": "No se pudo usar esta invitación. Inténtalo de nuevo"
     }
   },
-"joinLanding": {
+  "joinLanding": {
     "title": "Estás invitado a una sala",
     "subtitle": "Elige cómo quieres unirte",
     "dmTitle": "Estás invitado a un chat privado",

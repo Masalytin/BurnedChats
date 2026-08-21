@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { Balance } from './Balance';
 import { History } from './History';
 import { SendModal } from './SendModal';
+import { TokenBurnModal } from './TokenBurnModal';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
@@ -20,6 +21,8 @@ export interface WalletPanelProps {
   onPanelChange?: (panel: Panel) => void;
   /** Sheet shell blocks close while send modal is open. */
   onSendOpenChange?: (open: boolean) => void;
+  /** Sheet shell blocks close while token-burn modal is open. */
+  onTokenBurnOpenChange?: (open: boolean) => void;
   /** Controlled help sheet open state (sheet shell owns trigger placement). */
   helpOpen?: boolean;
   /** Sheet shell blocks close while nested HelpSheet is open. */
@@ -35,6 +38,7 @@ export function WalletPanel({
   onTitleChange,
   onPanelChange,
   onSendOpenChange,
+  onTokenBurnOpenChange,
   helpOpen: helpOpenProp,
   onHelpOpenChange,
   suppressHelpTrigger = false,
@@ -45,6 +49,7 @@ export function WalletPanel({
   const toast = useToast();
   const [panel, setPanel] = useState<Panel>('main');
   const [sendOpen, setSendOpen] = useState(false);
+  const [tokenBurnOpen, setTokenBurnOpen] = useState(false);
   const [internalHelpOpen, setInternalHelpOpen] = useState(false);
   const [receiveExpanded, setReceiveExpanded] = useState(false);
 
@@ -78,6 +83,10 @@ export function WalletPanel({
   }, [sendOpen, onSendOpenChange]);
 
   useEffect(() => {
+    onTokenBurnOpenChange?.(tokenBurnOpen);
+  }, [tokenBurnOpen, onTokenBurnOpenChange]);
+
+  useEffect(() => {
     if (!isHelpControlled) {
       onHelpOpenChange?.(helpOpen);
     }
@@ -85,6 +94,10 @@ export function WalletPanel({
 
   const handleSent = useCallback(() => {
     toast.success(t('wallet.sendSuccess'));
+  }, [t, toast]);
+
+  const handleBurned = useCallback(() => {
+    toast.success(t('wallet.burnTokenSuccess'));
   }, [t, toast]);
 
   if (!ton.isConnected) {
@@ -135,6 +148,7 @@ export function WalletPanel({
             onReceiveToggle={() => setReceiveExpanded((v) => !v)}
             onSend={() => setSendOpen(true)}
             onHistory={() => setPanel('history')}
+            onBurnToken={() => setTokenBurnOpen(true)}
           />
         </PullToRefresh>
       )}
@@ -143,6 +157,12 @@ export function WalletPanel({
         onClose={() => setSendOpen(false)}
         burn={burn}
         onSent={handleSent}
+      />
+      <TokenBurnModal
+        isOpen={tokenBurnOpen}
+        onClose={() => setTokenBurnOpen(false)}
+        burn={burn}
+        onBurned={handleBurned}
       />
       <HelpSheet
         open={helpOpen}

@@ -27,6 +27,7 @@ export interface BalanceProps {
   receiveExpanded: boolean;
   onSend: () => void;
   onHistory: () => void;
+  onBurnToken?: () => void;
 }
 
 /**
@@ -39,6 +40,7 @@ export function Balance({
   receiveExpanded,
   onSend,
   onHistory,
+  onBurnToken,
 }: BalanceProps) {
   const { t } = useTranslation();
   const { tonBalance, isRefreshing, refreshWallet } = useWallet();
@@ -97,6 +99,8 @@ export function Balance({
 
   const isConfigError = burn.error instanceof BurnTokenError && burn.error.code === 'CONFIG';
   const showSupply = ton.isConnected && !isConfigError && burn.supply != null;
+  const showBurnCta =
+    Boolean(onBurnToken) && !isConfigError && burn.balance != null && burn.balance > 0n;
 
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';
@@ -217,6 +221,12 @@ export function Balance({
           {t('wallet.history')}
         </button>
       </div>
+
+      {showBurnCta ? (
+        <button type="button" className={styles.tertiaryBurnBtn} onClick={onBurnToken}>
+          {t('wallet.burnToken')}
+        </button>
+      ) : null}
 
       {receiveExpanded && addr ? (
         <div className={styles.receivePanel}>

@@ -5,10 +5,12 @@ import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import { STAKE_ATTACHED_TON, estimateStakeTon } from '@/ton/estimateStakeTon';
 import {
   buildClaimMsg,
+  buildJettonBurnMsg,
   buildJettonTransferMsg,
   buildStakeMsg,
   buildUnstakeMsg,
   buildVoteMsg,
+  JETTON_BURN_ATTACHED_TON,
   VOTE_ATTACHED_TON,
 } from '@/ton/transactionBuilder';
 
@@ -96,6 +98,29 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
       expect(BigInt(msg.amount)).toBe(STAKE_ATTACHED_TON);
       expect(BigInt(msg.amount)).toBe(stakeEstimate.recommendedNano);
       expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(stakeEstimate.minimumNano);
+    });
+  });
+
+  describe('burnJetton (burnToken.ts) via buildJettonBurnMsg — IMP-WALLETBURN-02', () => {
+    it('attach equals 0.08 TON and Excesses route to owner, not JW', () => {
+      const msg = buildJettonBurnMsg({
+        jettonWallet: userJettonWallet,
+        amount: 1_000_000_000n,
+        responseAddress: userWallet,
+      });
+      expect(JETTON_BURN_ATTACHED_TON).toBe(toNano('0.08'));
+      expect(BigInt(msg.amount)).toBe(JETTON_BURN_ATTACHED_TON);
+      expect(BigInt(msg.amount)).toBe(toNano('0.08'));
+      expect(msg.address).toBe(userJettonWallet.toString());
+
+      const s = firstBocCell(msg.payload).beginParse();
+      expect(s.loadUint(32)).toBe(0x595f07bc);
+      s.loadUintBig(64);
+      s.loadCoins();
+      const responseDestination = s.loadMaybeAddress();
+      expect(responseDestination?.equals(userWallet)).toBe(true);
+      expect(responseDestination?.equals(userJettonWallet)).toBe(false);
+      expect(s.loadBit()).toBe(false);
     });
   });
 

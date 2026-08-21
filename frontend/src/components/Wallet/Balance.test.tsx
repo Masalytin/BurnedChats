@@ -51,6 +51,7 @@ function renderBalance(
   walletOverrides: Partial<Pick<ReturnType<typeof useWallet>, 'tonBalance' | 'isRefreshing' | 'refreshWallet'>> = {},
   burnOverrides: Partial<typeof defaultBurn> = {},
   tonOverrides: Partial<typeof defaultTon> = {},
+  onBurnToken?: () => void,
 ) {
   const refreshWallet = walletOverrides.refreshWallet ?? vi.fn().mockResolvedValue(undefined);
 
@@ -77,6 +78,7 @@ function renderBalance(
         receiveExpanded={false}
         onSend={vi.fn()}
         onHistory={vi.fn()}
+        onBurnToken={onBurnToken}
       />
     </I18nextProvider>,
   );
@@ -198,6 +200,28 @@ describe('Balance network supply line', () => {
 
     expect(screen.queryByText(/Network circulating/i)).toBeNull();
     expect(screen.queryByText(/Network burned/i)).toBeNull();
+  });
+
+  it('places Burn BURN as a tertiary control below Receive/Send/History, not in the action row', () => {
+    const onBurnToken = vi.fn();
+    renderBalance({}, {}, {}, onBurnToken);
+
+    const burnBtn = screen.getByRole('button', { name: 'Burn BURN' });
+    const actionsRow = burnBtn.previousElementSibling;
+    expect(actionsRow?.className).toMatch(/actionsRow/);
+    expect(actionsRow?.querySelectorAll('button')).toHaveLength(3);
+    expect(actionsRow?.textContent).toMatch(/Receive/);
+    expect(actionsRow?.textContent).toMatch(/Send/);
+    expect(actionsRow?.textContent).toMatch(/History/);
+    expect(actionsRow?.textContent).not.toMatch(/Burn BURN/);
+    fireEvent.click(burnBtn);
+    expect(onBurnToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides Burn BURN when liquid balance is zero', () => {
+    renderBalance({}, { balance: 0n }, {}, vi.fn());
+
+    expect(screen.queryByRole('button', { name: 'Burn BURN' })).toBeNull();
   });
 
   it('hides the supply line when the wallet is not connected', () => {

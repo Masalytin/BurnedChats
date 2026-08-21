@@ -37,6 +37,15 @@ const TIMELOCK_EXECUTE_OP = 0x5a040202;
 /** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
 export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
 
+/** TEP-74 `JettonBurn` opcode (`JettonBurn` in burn-jetton-wallet.tact). */
+const JETTON_BURN_OP = 0x595f07bc;
+
+/**
+ * Native attach for voluntary TEP-74 burn (contract tests use 0.08; wrapper default 0.05).
+ * Surplus returns to `responseDestination` as Excesses.
+ */
+export const JETTON_BURN_ATTACHED_TON = toNano('0.08');
+
 /** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
 export const VOTE_ATTACHED_TON = toNano('0.18');
 
@@ -103,6 +112,32 @@ export function buildJettonTransferMsg(params: {
   });
   /** Dynamic warm/cold attach from {@link estimateBurnTransferTon}; defaults to cold 3.5 TON. */
   const attached = params.attachedTon ?? BURN_TRANSFER_ATTACHED_TON;
+  return {
+    address: params.jettonWallet.toString(),
+    amount: attached.toString(),
+    payload: body.toBoc({ idx: false }).toString('base64'),
+  };
+}
+
+/**
+ * TEP-74 `JettonBurn` to the user's jetton wallet. `responseAddress` MUST be the owner's
+ * TON wallet — a null destination leaves Excesses on the jetton master.
+ */
+export function buildJettonBurnMsg(params: {
+  jettonWallet: Address;
+  amount: bigint;
+  responseAddress: Address;
+  queryId?: bigint;
+  attachedTon?: bigint;
+}): TransactionMessage {
+  const body = beginCell()
+    .storeUint(JETTON_BURN_OP, 32)
+    .storeUint(params.queryId ?? 0n, 64)
+    .storeCoins(params.amount)
+    .storeAddress(params.responseAddress)
+    .storeBit(false)
+    .endCell();
+  const attached = params.attachedTon ?? JETTON_BURN_ATTACHED_TON;
   return {
     address: params.jettonWallet.toString(),
     amount: attached.toString(),

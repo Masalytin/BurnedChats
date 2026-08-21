@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   BurnTokenError,
+  burnJetton,
   getBurnBalance,
   getBurnHistory,
   getEffectiveFeeParams,
@@ -31,6 +32,8 @@ export interface UseBurnToken {
   feeParams: EffectiveFeeParams | null;
   refetch(): Promise<void>;
   transfer(params: TransferParams): Promise<TxResult>;
+  /** Voluntary TEP-74 burn of liquid JW balance. */
+  burn(params: { amount: bigint }): Promise<TxResult>;
   /** Progress through signing + Ton Center confirmation polling. */
   transferProgress: TransferProgressPayload | null;
 }
@@ -185,6 +188,33 @@ export function useBurnToken(): UseBurnToken {
     [walletAddress, load],
   );
 
+  const burn = useCallback(
+    async (params: { amount: bigint }): Promise<TxResult> => {
+      if (!walletAddress) {
+        const errMsg = 'Connect wallet before burning BURN';
+        const err = new BurnTokenError('UNKNOWN', errMsg);
+        setTransferProgress({ phase: 'failed', error: err });
+        return { ok: false, kind: 'unknown', message: errMsg };
+      }
+
+      setTransferProgress({ phase: 'idle' });
+
+      try {
+        return await burnJetton(
+          { ...params, walletAddress },
+          {
+            onTransferProgress: (p) => {
+              setTransferProgress(p);
+            },
+          },
+        );
+      } finally {
+        await load();
+      }
+    },
+    [walletAddress, load],
+  );
+
   return {
     balance,
     supply,
@@ -195,6 +225,7 @@ export function useBurnToken(): UseBurnToken {
     feeParams,
     refetch: load,
     transfer,
+    burn,
     transferProgress,
   };
 }

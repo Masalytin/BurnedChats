@@ -166,7 +166,7 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
                   <div className={styles.txAmount}>
                     {(() => {
                       const abs = tx.amount < 0n ? -tx.amount : tx.amount;
-                      const sign = tx.type === 'send' ? '−' : '+';
+                      const sign = tx.type === 'send' || tx.type === 'burn' ? '−' : '+';
                       return `${sign}${formatBurn(abs)}`;
                     })()}
                   </div>

@@ -310,7 +310,17 @@
     "errAmountPositive": "Amount must be greater than zero.",
     "errAmountOverBalance": "Amount exceeds your BURN balance.",
     "errorTitle": "Wallet unavailable",
-    "errorRetry": "Try again"
+    "errorRetry": "Try again",
+    "burnToken": "Burn BURN",
+    "burnTokenModalTitle": "Burn BURN",
+    "burnTokenAvailable": "Available (not staked): {{amount}}",
+    "burnTokenIrreversible": "This cannot be undone. Burned BURN is removed from circulation forever.",
+    "burnTokenConfirmAmount": "Retype the same amount",
+    "burnTokenConfirm": "Burn BURN",
+    "burnTokenSuccess": "BURN burned",
+    "burnTokenFailed": "Could not burn BURN",
+    "burnTokenTimeout": "The wallet signed the burn, but it was not seen on-chain in time. If it bounced, your balance will return. Do not assume the tokens were burned.",
+    "errAmountMismatch": "The retyped amount does not match."
   },
 
   "staking": {
@@ -706,7 +716,10 @@
           "BURN is a token on the TON network. The wallet shows your on-chain BURN balance and lets you send BURN to others in chat.",
           "You also need a small amount of native {{symbol}} on the same wallet to pay network fees for transfers.",
           "Your keys stay in your TON wallet app — Burned Chats reads balances and builds transactions; it cannot spend without your approval.",
-          "Ordinary BURN transfers burn 0.5% of the amount on-chain (fee-on-transfer). That permanently reduces network circulating supply. After mint is closed, the wallet also shows how much of the 1000 BURN cap has been burned."
+          "Burning a chat (Burn chat) permanently deletes that conversation. It does not burn BURN tokens.",
+          "Ordinary BURN transfers burn 0.5% of the amount on-chain (fee-on-transfer). That permanently reduces network circulating supply. Fee-burn does not create a Burn BURN row in this wallet history.",
+          "After mint is closed, the wallet also shows how much of the 1000 BURN cap has been burned.",
+          "You can also voluntarily burn BURN you hold (not staked) with a TEP-74 JettonBurn on your jetton wallet. That is not a transfer to a burn address. It cannot be undone."
         ]
       }
     }

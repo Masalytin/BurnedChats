@@ -2,7 +2,7 @@ import { Address, Cell, type Slice, beginCell } from '@ton/core';
 import { sendTonTransaction } from '@/ton/connector';
 import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
 import { getTonBalanceNano } from '@/ton/tonBalance';
-import { buildJettonTransferMsg } from '@/ton/transactionBuilder';
+import { buildJettonBurnMsg, buildJettonTransferMsg, JETTON_BURN_ATTACHED_TON } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
@@ -24,6 +24,8 @@ export type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 /** TEP-74 jetton wallet → jetton wallet delivery (`JettonInternalTransfer`). */
 const JETTON_INTERNAL_TRANSFER_OP = 0x178d4519;
+/** TEP-74 owner → jetton wallet burn (`JettonBurn`). */
+const JETTON_BURN_OP = 0x595f07bc;
 
 /** Stack entry Ton Center `[type, value]` pair. */
 type StackSlot = [string, string];
@@ -38,6 +40,9 @@ export type TransferParams = {
 
 /** `transferBurn` requires the connected user TON address (friendly or raw). */
 export type TransferBurnParams = TransferParams & { walletAddress: string };
+
+/** `burnJetton` requires the connected user TON address (friendly or raw). */
+export type BurnJettonParams = { walletAddress: string; amount: bigint };
 
 export { BurnTokenError, type BurnTokenErrorCode } from '@/ton/burnTokenError';
 import { BurnTokenError } from '@/ton/burnTokenError';
@@ -417,6 +422,24 @@ function tryDecodeJettonTransferAmount(bodyB64: string | undefined): bigint | nu
   }
 }
 
+function tryDecodeJettonBurnAmount(bodyB64: string | undefined): bigint | null {
+  if (!bodyB64) {
+    return null;
+  }
+  try {
+    const cell = Cell.fromBoc(Buffer.from(bodyB64, 'base64'))[0]!;
+    const s = cell.beginParse();
+    const op = s.loadUint(32);
+    if (op !== JETTON_BURN_OP) {
+      return null;
+    }
+    s.loadUintBig(64);
+    return s.loadCoins();
+  } catch {
+    return null;
+  }
+}
+
 function tryDecodeJettonInternalTransferAmount(bodyB64: string | undefined): bigint | null {
   if (!bodyB64) {
     return null;
@@ -447,6 +470,7 @@ export function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
   const bodyIn = tx.in_msg?.msg_data?.body;
   const transferIn = tryDecodeJettonTransferAmount(bodyIn);
   const internalIn = tryDecodeJettonInternalTransferAmount(bodyIn);
+  const burnIn = tryDecodeJettonBurnAmount(bodyIn);
 
   const out = Array.isArray(tx.out_msgs) ? tx.out_msgs : [];
   let internalOut: { amount: bigint; destination: string } | null = null;
@@ -463,6 +487,10 @@ export function mapCenterTxToBurnRow(tx: TonCenterTx): BurnTransaction {
     type = 'send';
     amount = transferIn;
     counterparty = internalOut.destination || (tx.in_msg?.destination ?? '');
+  } else if (burnIn !== null) {
+    type = 'burn';
+    amount = burnIn;
+    counterparty = tx.in_msg?.source ?? '';
   } else if (internalIn !== null) {
     type = 'receive';
     amount = internalIn;
@@ -715,6 +743,120 @@ export async function transferBurn(params: TransferBurnParams, deps?: BurnTokenD
     forwardPayload,
     attachedTon,
     responseAddress: senderWallet,
+  });
+
+  let beforeLt = 0n;
+  try {
+    const cur = await readLatestTxCursor(params.walletAddress, r);
+    beforeLt = cur?.lt ?? 0n;
+  } catch {
+    beforeLt = 0n;
+  }
+
+  const tx = await r.sendTransactionImpl([msg]);
+  if (!tx.ok) {
+    const mapped = txResultToBurnError(tx);
+    emit({ phase: 'failed', error: mapped });
+    return tx;
+  }
+
+  emit({ phase: 'confirming', txHash: null });
+
+  let hash: string | null = null;
+  try {
+    hash = await pollForWalletTxHash(params.walletAddress, beforeLt, DEFAULT_POLL_MS, r);
+  } catch (e) {
+    const net = new BurnTokenError('NETWORK_ERROR', 'Confirmation polling failed', { cause: e });
+    emit({ phase: 'failed', error: net });
+    return { ok: false, kind: 'network', message: net.message };
+  }
+
+  if (hash) {
+    emit({ phase: 'confirmed', txHash: hash });
+  } else {
+    emit({
+      phase: 'timed_out',
+      txHash: null,
+      error: new BurnTokenError(
+        'UNKNOWN',
+        'Transaction was signed but not observed on-chain within the confirmation window',
+      ),
+    });
+  }
+
+  return tx;
+}
+
+/**
+ * Voluntary TEP-74 `JettonBurn` via Ton Connect on the owner's jetton wallet.
+ *
+ * Must not be implemented as a transfer to null / master / a "burn address".
+ * Confirmation polling matches {@link transferBurn}.
+ */
+export async function burnJetton(params: BurnJettonParams, deps?: BurnTokenDeps): Promise<TxResult> {
+  const r = resolveDeps(deps);
+  const emit = (p: TransferProgressPayload) => r.onTransferProgress?.(p);
+
+  emit({ phase: 'signing', txHash: null });
+
+  if (params.amount <= 0n) {
+    const err = new BurnTokenError('UNKNOWN', 'Burn amount must be greater than zero');
+    emit({ phase: 'failed', error: err });
+    throw err;
+  }
+
+  const balance = await getBurnBalance(params.walletAddress, deps);
+  if (params.amount > balance) {
+    const err = new BurnTokenError(
+      'INSUFFICIENT_BALANCE',
+      'BURN jetton balance is insufficient for this burn (staked BURN cannot be burned)',
+    );
+    emit({ phase: 'failed', error: err });
+    throw err;
+  }
+
+  let userJettonWallet: string;
+  try {
+    userJettonWallet = await getUserJettonWalletAddress(params.walletAddress, r);
+  } catch (e) {
+    const wrapped =
+      e instanceof BurnTokenError
+        ? e
+        : new BurnTokenError('NETWORK_ERROR', 'Failed to resolve jetton wallet', { cause: e });
+    emit({ phase: 'failed', error: wrapped });
+    throw wrapped;
+  }
+
+  const attachedTon = JETTON_BURN_ATTACHED_TON;
+  try {
+    const tonBalance = await getTonBalanceNano(params.walletAddress, {
+      rpcBaseUrl: r.rpcBaseUrl,
+      toncenterApiKey: r.apiKey,
+      fetchImpl: r.fetchImpl,
+    });
+    const minTon = attachedTon + TON_GAS_BUFFER_NANOTON;
+    if (tonBalance < minTon) {
+      const err = new BurnTokenError(
+        'INSUFFICIENT_TON_GAS',
+        'Not enough TON for jetton burn gas attachment and fees',
+      );
+      emit({ phase: 'failed', error: err });
+      throw err;
+    }
+  } catch (e) {
+    if (e instanceof BurnTokenError && e.code === 'INSUFFICIENT_TON_GAS') {
+      throw e;
+    }
+    /* Ton balance probe is best-effort; sendTonTransaction still guards when wallet reports balance */
+  }
+
+  const ownerWallet = Address.parse(params.walletAddress.trim());
+  const jettonWalletAddr = Address.parse(userJettonWallet);
+  const msg = buildJettonBurnMsg({
+    jettonWallet: jettonWalletAddr,
+    amount: params.amount,
+    responseAddress: ownerWallet,
+    attachedTon,
   });
 
   let beforeLt = 0n;

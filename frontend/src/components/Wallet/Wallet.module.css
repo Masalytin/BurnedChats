@@ -341,6 +341,37 @@
   margin-top: var(--bc-spacing-sm);
 }
 
+.tertiaryBurnBtn {
+  display: block;
+  width: 100%;
+  margin: calc(var(--bc-spacing-sm) * -1) 0 var(--bc-spacing-lg);
+  padding: var(--bc-spacing-2xs);
+  min-height: var(--bc-touch-target);
+  border: none;
+  background: transparent;
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tertiaryBurnBtn:hover:not(:disabled) {
+  color: var(--bc-text-primary);
+}
+
+.tertiaryBurnBtn:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.burnIrreversible {
+  margin: 0 0 var(--bc-spacing-md);
+  color: var(--bc-error);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
+}
+
 .receivePanel {
   margin-top: var(--bc-spacing-md);
   padding: var(--bc-spacing-md);
