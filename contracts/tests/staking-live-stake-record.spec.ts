@@ -22,14 +22,17 @@ import {
     Contract,
     ContractProvider,
     openContract,
-    toNano,
     TupleItem,
     TupleReader,
 } from '@ton/core';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
-import { readStakeAmount } from '../testnet-scenarios/lib/staking';
+import {
+    readStakeAmount,
+    STAKE_ATTACHED_TON,
+    STAKE_FORWARD_TON,
+} from '../testnet-scenarios/lib/staking';
 import { MINT_TON, NANO_PER_BURN, stakeForwardPayload, TRANSFER_TON } from './helpers';
 import { setupStakingEnvironment, StakingTestEnv } from './staking-helpers';
 import '@ton/test-utils';
@@ -99,15 +102,11 @@ describe('IMP-TNFS-F09 A — harness read path vs toncenter-v2 nested tuple shap
 
 describe('IMP-TNFS-F09 B — sandbox replay of the live stake flow (contract records the stake)', () => {
     /**
-     * Live-shaped stake attach. Original live-run value was 5.85 TON (forward 5),
-     * sized for the pre-F11 excluded gate (0.58). After IMP-MNAUD-F11 the wallet
-     * entry gate is always minTonFeePath (2.05): value > forward + 2*fwd_fee + 2.05,
-     * so the attach is raised to 7.5 TON. NOTE: testnet-scenarios/lib/staking.ts
-     * harness constants (forward 8 / attach 9.5) are still pre-F11-sized and fail
-     * the same gate — tracked as a follow-up card (IMP-MNAUD-F20).
+     * Replicates the LIVE harness constants (testnet-scenarios/lib/staking.ts):
+     * forward 8 / attach 10.6, sized for the post-F11 wallet entry gate
+     * `value > forward + 2*fwd_fee + minTonFeePath(2.05)` — IMP-MNAUD-F20.
+     * Imported (not copied) so sandbox replay and live harness cannot drift.
      */
-    const STAKE_ATTACHED_TON = toNano('7.5');
-    const STAKE_FORWARD_TON = toNano('5');
     const STAKE_AMOUNT = 5n * NANO_PER_BURN;
     const FLEXIBLE_TIER = 0;
 

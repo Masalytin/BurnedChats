@@ -2,6 +2,10 @@ import { describe, expect, it } from '@jest/globals';
 import { resolve } from 'node:path';
 import { Address } from '@ton/core';
 import { defaultScenariosDir, discoverScenarios, isDestructive } from '../registry';
+import {
+    ESTIMATED_FORWARD_FEE_PER_HOP_NANO,
+    MIN_TON_FEE_PATH_NANO,
+} from '../../scripts/lib/estimateJettonTransferTon';
 import { selectScenarios } from '../runner';
 import { emptyState } from '../state';
 import {
@@ -163,14 +167,20 @@ describe('IMP-TNFS-07 staking pack — discovery & tags', () => {
 });
 
 describe('IMP-TNFS-07 seed constants & Flexible tier choice', () => {
-    it('reuses stake-deposit-smoke attach / forward / min-stake constants', () => {
-        expect(STAKE_ATTACHED_TON).toBe(9_500_000_000n);
+    it('stake attach clears the post-F11 wallet entry gate (IMP-MNAUD-F20)', () => {
+        expect(STAKE_ATTACHED_TON).toBe(10_600_000_000n);
         expect(STAKE_FORWARD_TON).toBe(8_000_000_000n);
         expect(STAKE_AMOUNT_HAPPY).toBe(5_000_000_000n);
         expect(MIN_STAKE_NANO).toBe(10_000_000n);
         expect(SUB_MIN_STAKE_NANO).toBe(MIN_STAKE_NANO - 1n);
         expect(FLEXIBLE_TIER).toBe(0);
         expect(LOCKED_TIER).toBe(1);
+        // Gate: value > forward + 2*fwd_fee + minTonFeePath (2.05).
+        expect(STAKE_ATTACHED_TON).toBeGreaterThan(
+            STAKE_FORWARD_TON +
+                2n * ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
+                MIN_TON_FEE_PATH_NANO,
+        );
     });
 
     it('stakeForwardPayload encodes either-bit + StakeForward ref', () => {
