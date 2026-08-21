@@ -140,7 +140,8 @@
         "body": [
           "BURN est un jeton sur le réseau TON. Le portefeuille affiche votre solde BURN on-chain et permet d'envoyer du BURN à d'autres dans le chat.",
           "Il vous faut aussi une petite quantité de {{symbol}} native sur le même portefeuille pour payer les frais réseau des transferts.",
-          "Vos clés restent dans votre app TON — Burned Chats lit les soldes et prépare les transactions ; il ne peut pas dépenser sans votre approbation."
+          "Vos clés restent dans votre app TON — Burned Chats lit les soldes et prépare les transactions ; il ne peut pas dépenser sans votre approbation.",
+          "Les transferts BURN ordinaires brûlent 0,5 % du montant on-chain (fee-on-transfer). Cela réduit définitivement l'offre en circulation sur le réseau. Après la fermeture du mint, le portefeuille indique aussi quelle part du plafond de 1000 BURN a été brûlée."
         ]
       }
     }
@@ -1262,6 +1263,9 @@
     "linkErrorTimeout": "La liaison du portefeuille a pris trop de temps. Veuillez réessayer — en cas d'échec persistant, le serveur peut encore vérifier votre signature.",
     "loadMore": "Charger plus",
     "max": "Max",
+    "mintStillOpen": "Mint encore ouvert — le montant brûlé n'est pas affiché",
+    "networkBurned": "Brûlé sur le réseau {{amount}} sur 1000",
+    "networkCirculating": "En circulation sur le réseau {{amount}}",
     "openWalletAria": "Ouvrir le portefeuille, adresse {{address}}, BURN {{balance}}{{gramSuffix}}",
     "receive": "Recevoir",
     "receiveHide": "Masquer la réception",

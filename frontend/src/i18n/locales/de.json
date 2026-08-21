@@ -149,7 +149,8 @@
         "body": [
           "BURN ist ein Token im TON-Netzwerk. Die Wallet zeigt dein On-Chain-BURN-Guthaben und ermöglicht das Senden von BURN an andere im Chat.",
           "Du brauchst auch eine kleine Menge native {{symbol}} in derselben Wallet für Netzwerkgebühren bei Überweisungen.",
-          "Deine Schlüssel bleiben in deiner TON-Wallet-App — Burned Chats liest Guthaben und erstellt Transaktionen; ohne deine Bestätigung kann nichts ausgegeben werden."
+          "Deine Schlüssel bleiben in deiner TON-Wallet-App — Burned Chats liest Guthaben und erstellt Transaktionen; ohne deine Bestätigung kann nichts ausgegeben werden.",
+          "Gewöhnliche BURN-Transfers verbrennen 0,5 % des Betrags on-chain (Fee-on-Transfer). Das verringert dauerhaft das zirkulierende Angebot im Netzwerk. Nach dem Schließen des Mints zeigt die Wallet auch, wie viel der 1000-BURN-Obergrenze verbrannt wurde."
         ]
       }
     }
@@ -1091,6 +1092,9 @@
     "drawerTitle": "BURN Wallet",
     "historyTitle": "Transaktionsverlauf",
     "balanceSectionTitle": "BURN-Guthaben",
+    "networkCirculating": "Netzwerk-Umlauf {{amount}}",
+    "networkBurned": "Im Netzwerk verbrannt {{amount}} von 1000",
+    "mintStillOpen": "Mint noch offen — verbrannte Menge wird nicht angezeigt",
     "tonForGas": "{{symbol}} für Gebühren",
     "tonForGasAria": "Natives {{symbol}}-Guthaben für Netzwerkgebühren",
     "gramBalanceLabel": "GRAM-Guthaben",

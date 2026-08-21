@@ -140,7 +140,8 @@
         "body": [
           "BURN 是 TON 网络上的代币。钱包显示你的链上 BURN 余额，并可在聊天中向他人发送 BURN。",
           "同一钱包中还需要少量原生 {{symbol}} 以支付转账的网络费用。",
-          "密钥保留在你的 TON 钱包应用中——Burned Chats 读取余额并构建交易；未经你确认无法花费。"
+          "密钥保留在你的 TON 钱包应用中——Burned Chats 读取余额并构建交易；未经你确认无法花费。",
+          "普通 BURN 转账会在链上销毁金额的 0.5%（转账手续费销毁）。这会永久减少网络流通量。铸造关闭后，钱包还会显示 1000 BURN 上限中已销毁多少。"
         ]
       }
     }
@@ -1262,6 +1263,9 @@
     "linkErrorTimeout": "钱包关联耗时过长。请重试 — 如果持续失败，服务器可能仍在验证您的签名。",
     "loadMore": "加载更多",
     "max": "最大",
+    "mintStillOpen": "铸造仍开放 — 不显示已销毁数量",
+    "networkBurned": "网络已销毁 {{amount}} / 1000",
+    "networkCirculating": "网络流通 {{amount}}",
     "openWalletAria": "打开钱包，地址 {{address}}，BURN {{balance}}{{gramSuffix}}",
     "receive": "接收",
     "receiveHide": "隐藏接收",

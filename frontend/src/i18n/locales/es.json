@@ -140,7 +140,8 @@
         "body": [
           "BURN es un token en la red TON. La wallet muestra tu saldo BURN on-chain y te permite enviar BURN a otros en el chat.",
           "También necesitas una pequeña cantidad de {{symbol}} nativo en la misma wallet para pagar las comisiones de red en transferencias.",
-          "Tus claves permanecen en tu app TON — Burned Chats lee saldos y prepara transacciones; no puede gastar sin tu aprobación."
+          "Tus claves permanecen en tu app TON — Burned Chats lee saldos y prepara transacciones; no puede gastar sin tu aprobación.",
+          "Las transferencias BURN habituales queman el 0,5 % del importe on-chain (fee-on-transfer). Eso reduce de forma permanente la oferta en circulación de la red. Tras cerrar el mint, la wallet también muestra cuánto del tope de 1000 BURN se ha quemado."
         ]
       }
     }
@@ -1262,6 +1263,9 @@
     "linkErrorTimeout": "La vinculación de wallet tardó demasiado. Intenta de nuevo — si sigue fallando, el servidor aún puede estar verificando tu firma.",
     "loadMore": "Cargar más",
     "max": "Máx",
+    "mintStillOpen": "Mint aún abierto — no se muestra la cantidad quemada",
+    "networkBurned": "Quemado en la red {{amount}} de 1000",
+    "networkCirculating": "En circulación en la red {{amount}}",
     "openWalletAria": "Abrir wallet, dirección {{address}}, BURN {{balance}}{{gramSuffix}}",
     "receive": "Recibir",
     "receiveHide": "Ocultar recepción",

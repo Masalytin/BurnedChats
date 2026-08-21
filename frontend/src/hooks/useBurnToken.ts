@@ -5,10 +5,12 @@ import {
   getBurnBalance,
   getBurnHistory,
   getEffectiveFeeParams,
+  getJettonSupply,
   transferBurn,
   type TransferParams,
   type TransferProgressPayload,
 } from '@/ton/burnToken';
+import type { JettonSupply } from '@/ton/burnSupply';
 import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 
@@ -19,6 +21,8 @@ const BALANCE_POLL_MS = 30_000;
 /** Card contract: reactive BURN jetton wallet state for UI. */
 export interface UseBurnToken {
   balance: bigint | null;
+  /** Network circulating / burned from `get_jetton_data`; null until first success. */
+  supply: JettonSupply | null;
   history: BurnTransaction[];
   isLoading: boolean;
   /** True during refetch when a balance snapshot is already on screen. */
@@ -39,6 +43,7 @@ export function useBurnToken(): UseBurnToken {
   const { walletAddress, isConnected } = useTonConnect();
 
   const [balance, setBalance] = useState<bigint | null>(null);
+  const [supply, setSupply] = useState<JettonSupply | null>(null);
   const [history, setHistory] = useState<BurnTransaction[]>([]);
   const [feeParams, setFeeParams] = useState<EffectiveFeeParams | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,6 +85,7 @@ export function useBurnToken(): UseBurnToken {
   const load = useCallback(async () => {
     if (!walletAddress) {
       setBalance(null);
+      setSupply(null);
       setHistory([]);
       setFeeParams(null);
       setError(null);
@@ -98,15 +104,21 @@ export function useBurnToken(): UseBurnToken {
     }
 
     try {
-      const nano = await getBurnBalance(walletAddress);
-      setBalance(nano);
-      setError(null);
-    } catch (e) {
-      if (!hasSnapshot) {
+      const [balanceResult, supplyResult] = await Promise.allSettled([
+        getBurnBalance(walletAddress),
+        getJettonSupply(),
+      ]);
+      if (balanceResult.status === 'fulfilled') {
+        setBalance(balanceResult.value);
+        setError(null);
+      } else if (!hasSnapshot) {
+        const e = balanceResult.reason;
         setError(e instanceof Error ? e : new Error(String(e)));
         setBalance(null);
       }
-      /* keep last snapshot on flaky RPC during refetch */
+      if (supplyResult.status === 'fulfilled') {
+        setSupply(supplyResult.value);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -129,12 +141,16 @@ export function useBurnToken(): UseBurnToken {
         return;
       }
       void (async () => {
-        try {
-          const nano = await getBurnBalance(walletAddress);
-          setBalance(nano);
+        const [balanceResult, supplyResult] = await Promise.allSettled([
+          getBurnBalance(walletAddress),
+          getJettonSupply(),
+        ]);
+        if (balanceResult.status === 'fulfilled') {
+          setBalance(balanceResult.value);
           setError(null);
-        } catch {
-          /* keep last snapshot to avoid flashing errors on flaky RPC */
+        }
+        if (supplyResult.status === 'fulfilled') {
+          setSupply(supplyResult.value);
         }
       })();
     }, BALANCE_POLL_MS);
@@ -171,6 +187,7 @@ export function useBurnToken(): UseBurnToken {
 
   return {
     balance,
+    supply,
     history,
     isLoading,
     isRefreshing,

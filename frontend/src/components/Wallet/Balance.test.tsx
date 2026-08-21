@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import i18n from '@/i18n';
 
+import { BurnTokenError } from '@/ton/burnToken';
+import type { JettonSupply } from '@/ton/burnSupply';
+import { formatBurn } from '@/utils/format';
+
 import { Balance } from './Balance';
 import { useWallet } from './WalletProvider';
 
@@ -20,8 +24,9 @@ const mockUseWallet = vi.mocked(useWallet);
 
 const defaultBurn = {
   balance: 1_000_000_000n,
+  supply: null as JettonSupply | null,
   isLoading: false,
-  error: null,
+  error: null as Error | null,
   refetch: vi.fn(),
 };
 
@@ -30,8 +35,22 @@ const defaultTon = {
   isConnected: true,
 };
 
+const mintOpenSupply: JettonSupply = {
+  circulating: 990_000_000_000n,
+  mintable: true,
+  burned: null,
+};
+
+const mintClosedSupply: JettonSupply = {
+  circulating: 990_000_000_000n,
+  mintable: false,
+  burned: 10_000_000_000n,
+};
+
 function renderBalance(
   walletOverrides: Partial<Pick<ReturnType<typeof useWallet>, 'tonBalance' | 'isRefreshing' | 'refreshWallet'>> = {},
+  burnOverrides: Partial<typeof defaultBurn> = {},
+  tonOverrides: Partial<typeof defaultTon> = {},
 ) {
   const refreshWallet = walletOverrides.refreshWallet ?? vi.fn().mockResolvedValue(undefined);
 
@@ -52,8 +71,8 @@ function renderBalance(
   return render(
     <I18nextProvider i18n={i18n}>
       <Balance
-        burn={defaultBurn}
-        ton={defaultTon}
+        burn={{ ...defaultBurn, ...burnOverrides }}
+        ton={{ ...defaultTon, ...tonOverrides }}
         onReceiveToggle={vi.fn()}
         receiveExpanded={false}
         onSend={vi.fn()}
@@ -137,3 +156,54 @@ describe('Balance GRAM card', () => {
     expect(refreshWallet).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Balance network supply line', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.clearAllMocks();
+  });
+
+  it('shows circulating and mint-open copy when mintable, without a burned amount', () => {
+    renderBalance({}, { supply: mintOpenSupply });
+
+    expect(screen.getByText(`Network circulating ${formatBurn(mintOpenSupply.circulating)}`)).toBeTruthy();
+    expect(screen.getByText('Mint still open — burned amount is not shown')).toBeTruthy();
+    expect(screen.queryByText(/Network burned/i)).toBeNull();
+  });
+
+  it('shows circulating and network burned when mint is closed', () => {
+    renderBalance({}, { supply: mintClosedSupply });
+
+    expect(screen.getByText(`Network circulating ${formatBurn(mintClosedSupply.circulating)}`)).toBeTruthy();
+    expect(
+      screen.getByText(`Network burned ${formatBurn(mintClosedSupply.burned!)} of 1000`),
+    ).toBeTruthy();
+  });
+
+  it('hides the supply line when supply is null', () => {
+    renderBalance({}, { supply: null });
+
+    expect(screen.queryByText(/Network circulating/i)).toBeNull();
+    expect(screen.queryByText(/Mint still open/i)).toBeNull();
+  });
+
+  it('hides the supply line on CONFIG even if a snapshot exists', () => {
+    renderBalance(
+      {},
+      {
+        supply: mintClosedSupply,
+        error: new BurnTokenError('CONFIG', 'BURN jetton master address is not configured'),
+      },
+    );
+
+    expect(screen.queryByText(/Network circulating/i)).toBeNull();
+    expect(screen.queryByText(/Network burned/i)).toBeNull();
+  });
+
+  it('hides the supply line when the wallet is not connected', () => {
+    renderBalance({}, { supply: mintClosedSupply }, { isConnected: false, walletAddress: '' });
+
+    expect(screen.queryByText(/Network circulating/i)).toBeNull();
+  });
+});
+

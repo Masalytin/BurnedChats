@@ -661,7 +661,17 @@ contracts/
 
 **Backend:** `TonService` (TON RPC), `JettonService` (BURN balance), `StakingVerifier` (staking tier).
 
-**Frontend:** `useTonConnect` (wallet connection), `useBurnToken` (balance), `useStaking` (staking operations), `useGovernance` (voting).
+**Frontend:** `useTonConnect` (wallet connection), `useBurnToken` (balance + supply), `useStaking` (staking operations), `useGovernance` (voting).
+
+### Mini App circulating / burned
+
+The Mini App reads TEP-74 `get_jetton_data` on the jetton master via Ton Center (not the backend `JettonInfo` Redis cache, which has a 1-hour TTL).
+
+- **Circulating** = on-chain `totalSupply`.
+- **Burned** is shown only when `mintable === false`: `max(0, 1000 BURN − totalSupply)`.
+- While mint is still open (`mintable === true`), the UI does **not** compute `MAX − supply` — unminted tokens are not burned.
+
+CloseMint on-chain does not require `totalSupply == 1000` (that check exists only in the bootstrap script). The Mini App follows the formula above and does not run an indexer of burn transactions.
 
 ---
 

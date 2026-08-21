@@ -214,6 +214,9 @@
     "drawerTitle": "BURN Wallet",
     "historyTitle": "Transaction history",
     "balanceSectionTitle": "BURN balance",
+    "networkCirculating": "Network circulating {{amount}}",
+    "networkBurned": "Network burned {{amount}} of 1000",
+    "mintStillOpen": "Mint still open — burned amount is not shown",
     "tonForGas": "{{symbol}} for fees",
     "tonForGasAria": "Native {{symbol}} balance for network fees",
     "gramBalanceLabel": "GRAM balance",
@@ -702,7 +705,8 @@
         "body": [
           "BURN is a token on the TON network. The wallet shows your on-chain BURN balance and lets you send BURN to others in chat.",
           "You also need a small amount of native {{symbol}} on the same wallet to pay network fees for transfers.",
-          "Your keys stay in your TON wallet app — Burned Chats reads balances and builds transactions; it cannot spend without your approval."
+          "Your keys stay in your TON wallet app — Burned Chats reads balances and builds transactions; it cannot spend without your approval.",
+          "Ordinary BURN transfers burn 0.5% of the amount on-chain (fee-on-transfer). That permanently reduces network circulating supply. After mint is closed, the wallet also shows how much of the 1000 BURN cap has been burned."
         ]
       }
     }

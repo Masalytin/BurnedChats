@@ -199,6 +199,21 @@
   color: var(--bc-text-secondary);
 }
 
+.supplyLine {
+  margin-top: var(--bc-spacing-sm);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
+  color: var(--bc-text-secondary);
+}
+
+.supplyLine p {
+  margin: 0;
+}
+
+.supplyLine p + p {
+  margin-top: var(--bc-spacing-2xs);
+}
+
 .balanceAssetCard {
   margin-top: var(--bc-spacing-lg);
   padding: var(--bc-spacing-md) var(--bc-spacing-2xs);

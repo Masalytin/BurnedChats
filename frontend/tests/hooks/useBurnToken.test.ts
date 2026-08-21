@@ -5,11 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBurnToken } from '@/hooks/useBurnToken';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import * as burnToken from '@/ton/burnToken';
+import type { JettonSupply } from '@/ton/burnSupply';
 import type { EffectiveFeeParams } from '@/types/ton';
 
 const WALLET = '0QBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WJPD';
 
 const mockFees: EffectiveFeeParams = { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+
+const mockSupplyMintOpen: JettonSupply = {
+  circulating: 990_000_000_000n,
+  mintable: true,
+  burned: null,
+};
+
+const mockSupplyMintClosed: JettonSupply = {
+  circulating: 990_000_000_000n,
+  mintable: false,
+  burned: 10_000_000_000n,
+};
 
 vi.mock('@/hooks/useTonConnect', () => ({
   useTonConnect: vi.fn(),
@@ -38,6 +51,7 @@ describe('useBurnToken isolated load', () => {
     vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
     vi.spyOn(burnToken, 'getBurnHistory').mockRejectedValue(new Error('Ton Center 429'));
     vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
 
     const { result } = renderHook(() => useBurnToken());
 
@@ -56,6 +70,7 @@ describe('useBurnToken isolated load', () => {
     vi.spyOn(burnToken, 'getBurnBalance').mockRejectedValue(balanceErr);
     vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
     vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
 
     const { result } = renderHook(() => useBurnToken());
 
@@ -77,6 +92,7 @@ describe('useBurnToken isolated load', () => {
       .mockResolvedValue(99_000_000_000n);
     vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
     vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
 
     const { result } = renderHook(() => useBurnToken());
 
@@ -98,4 +114,69 @@ describe('useBurnToken isolated load', () => {
     expect(result.current.error).toBeNull();
     expect(getBurnBalance).toHaveBeenCalledTimes(2);
   });
+
+  it('exposes supply from getJettonSupply on initial load', async () => {
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintClosed);
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.supply).toEqual(mockSupplyMintClosed);
+    });
+  });
+
+  it('keeps the balance snapshot when getJettonSupply fails', async () => {
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockRejectedValue(
+      new burnToken.BurnTokenError('NETWORK_ERROR', 'supply RPC down'),
+    );
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.balance).toBe(42_000_000_000n);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.supply).toBeNull();
+  });
+
+  it('refetches supply on the 30s poll and keeps last snapshots if supply fails', async () => {
+    vi.useFakeTimers();
+
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    const getJettonSupply = vi
+      .spyOn(burnToken, 'getJettonSupply')
+      .mockResolvedValueOnce(mockSupplyMintClosed)
+      .mockRejectedValueOnce(new burnToken.BurnTokenError('NETWORK_ERROR', 'supply poll failed'));
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.balance).toBe(42_000_000_000n);
+    expect(result.current.supply).toEqual(mockSupplyMintClosed);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+      await Promise.resolve();
+    });
+
+    expect(result.current.balance).toBe(42_000_000_000n);
+    expect(result.current.supply).toEqual(mockSupplyMintClosed);
+    expect(getJettonSupply).toHaveBeenCalledTimes(2);
+  });
 });
+

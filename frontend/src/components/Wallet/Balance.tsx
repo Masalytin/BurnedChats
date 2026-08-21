@@ -21,7 +21,7 @@ import styles from './Wallet.module.css';
 const MIN_GRAM_FOR_SEND_NANO = estimateBurnTransferTon({ feePath: false }).recommendedNano;
 
 export interface BalanceProps {
-  burn: Pick<UseBurnToken, 'balance' | 'isLoading' | 'error' | 'refetch'>;
+  burn: Pick<UseBurnToken, 'balance' | 'supply' | 'isLoading' | 'error' | 'refetch'>;
   ton: Pick<UseTonConnectResult, 'walletAddress' | 'isConnected'>;
   onReceiveToggle: () => void;
   receiveExpanded: boolean;
@@ -95,6 +95,9 @@ export function Balance({
       ? t('wallet.gramBalanceAria', { amount: formatNativeCoin(tonBalance.nano) })
       : undefined;
 
+  const isConfigError = burn.error instanceof BurnTokenError && burn.error.code === 'CONFIG';
+  const showSupply = ton.isConnected && !isConfigError && burn.supply != null;
+
   const addr = ton.walletAddress ?? '';
   const tonUri = addr ? `ton://transfer/${encodeURIComponent(addr)}?text=BURN` : '';
 
@@ -130,6 +133,22 @@ export function Balance({
           >
             {t('wallet.balanceRetry')}
           </button>
+        ) : null}
+        {showSupply && burn.supply ? (
+          <div className={styles.supplyLine}>
+            <p>
+              {t('wallet.networkCirculating', { amount: formatBurn(burn.supply.circulating) })}
+            </p>
+            {burn.supply.mintable ? (
+              <p>{t('wallet.mintStillOpen')}</p>
+            ) : (
+              <p>
+                {t('wallet.networkBurned', {
+                  amount: formatBurn(burn.supply.burned ?? 0n),
+                })}
+              </p>
+            )}
+          </div>
         ) : null}
         {addr ? (
           <p className={styles.mono} aria-label={t('wallet.walletAddressAria')}>

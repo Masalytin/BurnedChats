@@ -7,6 +7,9 @@ import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
+import { parseJettonDataStack, type JettonSupply } from '@/ton/burnSupply';
+
+export type { JettonSupply } from '@/ton/burnSupply';
 import {
   createExcludedPreflightDeps,
   isExcludedTransfer,
@@ -336,6 +339,34 @@ async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<Effective
     stakingBps: Number(nums[1]),
     treasuryBps: Number(nums[2]),
   };
+}
+
+/**
+ * Network circulating / burned from jetton master `get_jetton_data` (Ton Center, not backend cache).
+ */
+export async function getJettonSupply(deps?: BurnTokenDeps): Promise<JettonSupply> {
+  const r = resolveDeps(deps);
+  const master = resolveJettonMaster(r.jettonMaster);
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    master,
+    'get_jetton_data',
+    [],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new BurnTokenError('NETWORK_ERROR', `get_jetton_data exit_code ${exitCode}`);
+  }
+  try {
+    return parseJettonDataStack(stackUnknown);
+  } catch (e) {
+    throw new BurnTokenError(
+      'NETWORK_ERROR',
+      e instanceof Error ? e.message : 'get_jetton_data parse failed',
+      { cause: e },
+    );
+  }
 }
 
 /**
