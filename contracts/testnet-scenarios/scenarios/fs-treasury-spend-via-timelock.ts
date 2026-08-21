@@ -1,16 +1,22 @@
 /**
  * fs-treasury-spend-via-timelock — authorized spend updates total_spent / accounting after execute.
+ *
+ * IMP-TNFS-F32: state/type-aware selection. The blind latest pickup failed
+ * under `--all` interleaving when a newer non-Executed / non-Treasury proposal
+ * shadowed the one queue-execute-happy had executed — scan for the newest
+ * EXECUTED TreasurySpend proposal instead.
  */
 import { Address } from '@ton/core';
 import {
     PS_EXECUTED,
     SPEND_AMOUNT_HAPPY,
+    TYPE_TREASURY,
     checkTreasurySpendAccounting,
     naWhenGovTimeDependent,
     openProposal,
     parseTreasurySpendPayload,
     readSpendAccounting,
-    resolveLatestProposalAddr,
+    resolveProposalMatching,
 } from '../lib/gov';
 import type { CheckResult, Scenario, ScenarioContext } from '../types';
 
@@ -22,19 +28,18 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const { provider, manifest } = ctx;
     const treasury = Address.parse(manifest.addresses.treasury);
 
-    const latest = await resolveLatestProposalAddr(ctx);
+    const latest = await resolveProposalMatching(ctx, {
+        proposalType: TYPE_TREASURY,
+        states: [PS_EXECUTED],
+    });
     if (!latest) {
-        throw new Error('No proposal found — run fs-gov-propose-happy → queue-execute first.');
-    }
-
-    const proposal = openProposal(provider, latest.addr);
-    const state = await proposal.getGetState();
-    if (state !== PS_EXECUTED) {
         throw new Error(
-            `Proposal id=${latest.id} state=${state}; need Executed (run fs-gov-queue-execute-happy).`,
+            'No Executed TreasurySpend proposal found within scan depth — run ' +
+                'fs-gov-propose-happy → fs-gov-vote-happy → fs-gov-queue-execute-happy first.',
         );
     }
 
+    const proposal = openProposal(provider, latest.addr);
     const payload = await proposal.getGetPayload();
     const parsed = parseTreasurySpendPayload(payload);
     const spendAmount = parsed.amount > 0n ? parsed.amount : SPEND_AMOUNT_HAPPY;

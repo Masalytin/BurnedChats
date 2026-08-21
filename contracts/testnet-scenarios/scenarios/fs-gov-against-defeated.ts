@@ -20,6 +20,7 @@ import {
     openGovernor,
     openProposal,
     parameterChangePayload,
+    pendingAbsentForProposal,
     readPendingAction,
     resolveGovActor,
     resolveGovMaxWaitSec,
@@ -133,7 +134,10 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     return checkAgainstDefeated({
         stateAfter,
         againstVotes: await proposal.getGetAgainstVotes(),
-        pendingAbsent: pending == null,
+        // IMP-TNFS-F32: attribute by proposal address — the Timelock survives
+        // lab redeploys and a stale pending from an OLD Governor's proposal can
+        // collide with this fresh Governor's small sequential id.
+        pendingAbsent: pendingAbsentForProposal(pending, addr),
     });
 }
 

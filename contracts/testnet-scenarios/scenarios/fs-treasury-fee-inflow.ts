@@ -2,7 +2,7 @@
  * fs-treasury-fee-inflow — after 1 BURN fee transfer, treasury JW / total_received ↑ by 0.2% leg.
  * Tolerance: exact match (see lib/treasury.ts + decision log).
  */
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
@@ -114,6 +114,11 @@ export const scenario: Scenario = {
         'Send 1 BURN fee-bearing transfer; assert treasury jetton wallet and get_total_received increase by exact FEE_SPLIT_EXPECTED.treasury (0.002 BURN).',
     tags: ['treasury', 'fee'],
     needsLiveTx: true,
+    // IMP-TNFS-F32: 3.5 TON fee-path attach — V5R1 silently skipped the
+    // transfer on a 2.01 TON actor balance (live 2026-08-21, Δ=0 false FAIL).
+    // The IMP-TNFS-F10 runner preflight turns that into honest N/A with the
+    // top-up amount.
+    budget: { signer: 'actor', minTon: TRANSFER_TON + toNano('0.2') },
     depends_on: ['fs-jetton-fee-split'],
     naWhen,
     run: runChecks,

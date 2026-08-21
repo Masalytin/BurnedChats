@@ -2,7 +2,7 @@
  * fs-jetton-transfer-insufficient-gas — attach at fee-path gate → reject/bounce.
  * Pass ONLY if transfer rejected; balances unchanged (no false-pass if recipient credited).
  */
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
 import { MIN_TON_FEE_PATH_NANO } from '../../scripts/lib/estimateJettonTransferTon';
@@ -93,6 +93,10 @@ export const scenario: Scenario = {
         'Attach at fee-path gate (2.05 TON). Passes only when transfer is rejected/bounced and balances unchanged — never if recipient is credited.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
+    // IMP-TNFS-F32: 2.05 TON probe attach. Without the preflight a drained
+    // actor makes V5R1 skip the send entirely — balances unchanged would
+    // FALSE-PASS the "reject" assert without any transfer ever attempted.
+    budget: { signer: 'actor', minTon: MIN_TON_FEE_PATH_NANO + toNano('0.2') },
     depends_on: ['fs-jetton-transfer-ok'],
     naWhen,
     run: runChecks,

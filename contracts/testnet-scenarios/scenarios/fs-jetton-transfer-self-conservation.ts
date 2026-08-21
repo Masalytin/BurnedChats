@@ -1,7 +1,7 @@
 /**
  * fs-jetton-transfer-self-conservation — self-transfer: burn+legs+net conserve (0.5/0.3/0.2).
  */
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../../wrappers/BurnJettonWallet';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from '../../scripts/deploy/wait';
@@ -80,6 +80,8 @@ export const scenario: Scenario = {
         'Live self-transfer of 1 BURN: balance drops by total fee only (net returns). Mirrors sandbox conservation.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
+    // IMP-TNFS-F32: fixed 3.5 TON attach — preflight instead of V5R1 silent skip.
+    budget: { signer: 'actor', minTon: TRANSFER_TON + toNano('0.2') },
     depends_on: ['fs-jetton-fee-split'],
     naWhen,
     run: runChecks,

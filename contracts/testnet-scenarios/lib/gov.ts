@@ -779,6 +779,16 @@ export async function resolveLatestProposalAddr(
 export const PROPOSAL_SCAN_DEPTH = 10;
 
 /**
+ * Minimum remaining voting-window seconds required before a CastVote leg is
+ * attempted (IMP-TNFS-F32). A vote sent near the end of the 60-second lab
+ * window rides the multihop relay (wallet → Governor → StakingMaster →
+ * Governor → Proposal) and can land after `endTime` — live 2026-08-21,
+ * fs-gov-vote-happy "voter not recorded". Selection helpers skip proposals
+ * whose window has less than this remaining; callers create a fresh one.
+ */
+export const MIN_VOTE_WINDOW_REMAINING_SEC = 30;
+
+/**
  * What the caller intends to do with the selected proposal (IMP-TNFS-F13):
  * - `votable`    — CastVote target: Active with the voting window not yet over
  *                  (pre-window Active counts — the caller waits for startTime).
@@ -804,13 +814,21 @@ export function isProposalUsable(input: {
     /** Voting-window end (unix); only consulted for Active proposals. */
     endTimeUnix: bigint;
     nowUnix: number;
+    /**
+     * Guard for CastVote targets (IMP-TNFS-F32): an Active proposal counts
+     * only when at least this many seconds of the voting window remain, so
+     * the multihop vote relay cannot land after `endTime`. Default 0 keeps
+     * legacy behaviour for non-vote wants.
+     */
+    minWindowRemainingSec?: number;
 }): boolean {
     const { want, state, endTimeUnix, nowUnix } = input;
     if (state === PS_ACTIVE) {
         if (want === 'executable') {
             return true;
         }
-        return BigInt(nowUnix) < endTimeUnix;
+        const minRemaining = BigInt(input.minWindowRemainingSec ?? 0);
+        return BigInt(nowUnix) + minRemaining < endTimeUnix;
     }
     if (state === PS_SUCCEEDED) {
         return want === 'reusable' || want === 'executable';
@@ -832,7 +850,7 @@ export function isProposalUsable(input: {
 export async function resolveUsableProposal(
     ctx: ScenarioContext,
     want: UsableProposalWant,
-    opts?: { depth?: number; nowUnix?: number },
+    opts?: { depth?: number; nowUnix?: number; minWindowRemainingSec?: number },
 ): Promise<UsableProposal | null> {
     const gov = openGovernor(ctx);
     const count = await gov.getGetProposalCount();
@@ -841,6 +859,9 @@ export async function resolveUsableProposal(
     }
     const depth = BigInt(opts?.depth ?? PROPOSAL_SCAN_DEPTH);
     const nowUnix = opts?.nowUnix ?? Math.floor(Date.now() / 1000);
+    // Votable targets carry the CastVote relay-latency guard by default (F32).
+    const minWindowRemainingSec =
+        opts?.minWindowRemainingSec ?? (want === 'votable' ? MIN_VOTE_WINDOW_REMAINING_SEC : 0);
     const lowest = count > depth ? count - depth : 0n;
     for (let id = count - 1n; id >= lowest; id -= 1n) {
         const addr = await gov.getGetProposal(id);
@@ -851,11 +872,142 @@ export async function resolveUsableProposal(
         const state = await proposal.getGetState();
         // Fetch the window only for Active — terminal states short-circuit.
         const endTimeUnix = state === PS_ACTIVE ? await proposal.getGetEndTime() : 0n;
-        if (isProposalUsable({ want, state, endTimeUnix, nowUnix })) {
+        if (isProposalUsable({ want, state, endTimeUnix, nowUnix, minWindowRemainingSec })) {
             return { id, addr, state };
         }
     }
     return null;
+}
+
+// ─── State/type-aware proposal matching — IMP-TNFS-F32 ──────────────────────
+//
+// Blind `resolveLatestProposalAddr` callers break under `--all` interleaving:
+// between a scenario and its dependency other gov scenarios create new
+// proposals (ParamChange from against-defeated, cancel probes, …), so "the
+// latest" is no longer the one the dependency prepared. Probes must select by
+// what they actually need — proposalType / state / hasVoted — scanning the
+// same depth window as `resolveUsableProposal`.
+
+export type ProposalMatch = {
+    id: bigint;
+    addr: Address;
+    state: bigint;
+    proposalType: bigint;
+};
+
+/**
+ * Scan proposals latest → down (at most `depth`) and return the first one
+ * matching ALL provided filters:
+ * - `proposalType` — exact governance-payload type (TYPE_TREASURY, …);
+ * - `states`       — allowed Proposal states (any state when omitted);
+ * - `votedBy`      — `get_has_voted(owner)` must be true;
+ * - `minWindowRemainingSec` — for Active proposals, remaining voting window
+ *   must be at least this (CastVote relay-latency guard, F32).
+ */
+export async function resolveProposalMatching(
+    ctx: ScenarioContext,
+    opts: {
+        proposalType?: number;
+        states?: readonly bigint[];
+        votedBy?: Address;
+        minWindowRemainingSec?: number;
+        depth?: number;
+        nowUnix?: number;
+    },
+): Promise<ProposalMatch | null> {
+    const gov = openGovernor(ctx);
+    const count = await gov.getGetProposalCount();
+    if (count <= 0n) {
+        return null;
+    }
+    const depth = BigInt(opts.depth ?? PROPOSAL_SCAN_DEPTH);
+    const nowUnix = opts.nowUnix ?? Math.floor(Date.now() / 1000);
+    const lowest = count > depth ? count - depth : 0n;
+    for (let id = count - 1n; id >= lowest; id -= 1n) {
+        const addr = await gov.getGetProposal(id);
+        if (!addr) {
+            continue;
+        }
+        const proposal = openProposal(ctx.provider, addr);
+        const state = await proposal.getGetState();
+        if (opts.states && !opts.states.includes(state)) {
+            continue;
+        }
+        const proposalType = await proposal.getGetProposalType();
+        if (opts.proposalType != null && Number(proposalType) !== opts.proposalType) {
+            continue;
+        }
+        if (opts.minWindowRemainingSec != null && state === PS_ACTIVE) {
+            const endTimeUnix = await proposal.getGetEndTime();
+            if (BigInt(nowUnix) + BigInt(opts.minWindowRemainingSec) >= endTimeUnix) {
+                continue;
+            }
+        }
+        if (opts.votedBy && !(await proposal.getHasVoted(opts.votedBy))) {
+            continue;
+        }
+        return { id, addr, state, proposalType };
+    }
+    return null;
+}
+
+/**
+ * Pending attribution (IMP-TNFS-F32): the Timelock survives lab redeploys
+ * (code+init unchanged → same address), so a stale unexecuted pending from an
+ * OLD Governor's proposal can collide with a small sequential id of the fresh
+ * Governor (live 2026-08-21 — fs-gov-against-defeated false "pending present"
+ * against the early-execute-reject leftover id=1). `PendingAction` stores
+ * `proposalContract`; absence must be attributed by the proposal address,
+ * never by id alone.
+ */
+export function pendingAbsentForProposal(
+    pending: PendingActionView | null,
+    proposalAddr: Address,
+): boolean {
+    return pending == null || !pending.proposalContract.equals(proposalAddr);
+}
+
+/**
+ * Shared self-contained votable-proposal helper (IMP-TNFS-F32, generalising
+ * the fs-gov-vote-happy F13 pattern): reuse a votable proposal with enough
+ * window remaining, else CreateProposal a fresh TreasurySpend and poll until
+ * it is selectable. Caller must hold locked-beyond VP (`ensureLockedVotingPower`)
+ * before invoking — CreateProposal needs it (F07/F15).
+ */
+export async function ensureVotableProposal(
+    ctx: ScenarioContext,
+    reason: string,
+): Promise<UsableProposal> {
+    const existing = await resolveUsableProposal(ctx, 'votable');
+    if (existing) {
+        return existing;
+    }
+
+    const actor = resolveGovActor(ctx);
+    const treasury = Address.parse(ctx.manifest.addresses.treasury);
+    const recipient = resolveSpendRecipient(ctx);
+    const payload = treasurySpendPayload(treasury, recipient, SPEND_AMOUNT_HAPPY, reason);
+    const claimedVp = await fetchVotingPower(ctx, actor);
+    const { contract, contractProvider } = governorContract(ctx);
+    const seqnoBefore = await getSenderSeqno(ctx.provider);
+    await contract.sendCreateProposal(contractProvider, ctx.provider.sender(), {
+        proposalType: TYPE_TREASURY,
+        payload,
+        claimedVp,
+    });
+    await waitForSenderSeqnoIncrement(ctx.provider, seqnoBefore);
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        await sleepMs(5_000);
+        const created = await resolveUsableProposal(ctx, 'votable');
+        if (created) {
+            return created;
+        }
+    }
+    throw new Error(
+        `CreateProposal (${reason}) did not yield a votable proposal after poll — ` +
+            'check actor locked VP / cancel lag / tip timers.',
+    );
 }
 
 /**

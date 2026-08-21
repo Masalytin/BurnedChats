@@ -1,15 +1,19 @@
 import { describe, expect, it } from '@jest/globals';
 import { resolve } from 'node:path';
-import { Address } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import {
     EXPECTED_TREASURY,
     FEE_SPLIT_EXPECTED,
     NANO_PER_BURN,
+    NA_INSUFFICIENT_SENDER_TON,
     TRANSFER_AMOUNT,
+    insufficientSenderTonReason,
 } from '../lib/balances';
+import { MIN_TON_FEE_PATH_NANO } from '../../scripts/lib/estimateJettonTransferTon';
 import { treasuryOf } from '../lib/matrix-checks';
 import {
     EXIT_ONLY_TIMELOCK,
+    TRANSFER_TON,
     TREASURY_INFLOW_TOLERANCE_NANO,
     TREASURY_LEG_ON_1_BURN,
     checkFeeInflow,
@@ -132,6 +136,50 @@ describe('IMP-TNFS-F28 treasury JW feeConfig regress', () => {
     it('checkTreasuryJwFeeConfigActive hard-fails when inactive', () => {
         expect(checkTreasuryJwFeeConfigActive(true).every((c) => c.ok)).toBe(true);
         expect(checkTreasuryJwFeeConfigActive(false).every((c) => !c.ok)).toBe(true);
+    });
+});
+
+describe('IMP-TNFS-F32 actor TON preflight on fixed-attach fee/jetton paths', () => {
+    const scenarios = discoverScenarios(defaultScenariosDir(CONTRACTS_ROOT));
+    const byId = new Map(scenarios.map((s) => [s.id, s]));
+
+    it('fee-inflow declares an actor budget covering the 3.5 TON attach', () => {
+        const budget = byId.get('fs-treasury-fee-inflow')!.budget;
+        expect(budget).toBeDefined();
+        expect(budget!.signer).toBe('actor');
+        expect(budget!.minTon).toBeGreaterThanOrEqual(TRANSFER_TON);
+    });
+
+    it('self-conservation / insufficient-gas declare actor budgets covering their attach', () => {
+        const conservation = byId.get('fs-jetton-transfer-self-conservation')!.budget;
+        expect(conservation).toBeDefined();
+        expect(conservation!.signer).toBe('actor');
+        expect(conservation!.minTon).toBeGreaterThanOrEqual(TRANSFER_TON);
+
+        const insufficient = byId.get('fs-jetton-transfer-insufficient-gas')!.budget;
+        expect(insufficient).toBeDefined();
+        expect(insufficient!.signer).toBe('actor');
+        expect(insufficient!.minTon).toBeGreaterThanOrEqual(MIN_TON_FEE_PATH_NANO);
+    });
+
+    it('underfunded actor yields honest N/A with the top-up amount, not FAIL', () => {
+        // Live 2026-08-21: 2.01 TON balance vs 3.5 TON attach — V5R1 silently
+        // skipped the transfer (seqno grew, Δ=0) → false FAIL before F32.
+        const budget = byId.get('fs-treasury-fee-inflow')!.budget!;
+        const reason = insufficientSenderTonReason({
+            budget,
+            balance: toNano('2.01'),
+            address: 'EQtest',
+        });
+        expect(reason).toContain(NA_INSUFFICIENT_SENDER_TON);
+        expect(reason).toContain('3.7'); // need ≥ 3.5 attach + 0.2 margin
+        expect(reason).toContain('2.01'); // current balance → top-up delta obvious
+        expect(reason).toContain('actor');
+    });
+
+    it('funded actor passes the preflight', () => {
+        const budget = byId.get('fs-treasury-fee-inflow')!.budget!;
+        expect(insufficientSenderTonReason({ budget, balance: toNano('4') })).toBeNull();
     });
 });
 

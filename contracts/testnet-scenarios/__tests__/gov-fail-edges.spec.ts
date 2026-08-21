@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import { resolve } from 'node:path';
-import { Address } from '@ton/core';
+import { Address, beginCell } from '@ton/core';
 import {
+    MIN_VOTE_WINDOW_REMAINING_SEC,
     NA_LAB_ONLY_PARAMS,
     NA_NEEDS_LAB_SHORT_TIMERS,
     PS_ACTIVE,
@@ -10,6 +11,9 @@ import {
     PS_EXECUTED,
     checkAdminOnlyViaTimelock,
     checkAgainstDefeated,
+    isProposalUsable,
+    pendingAbsentForProposal,
+    type PendingActionView,
     checkCancelOutcome,
     checkDoubleVoteRejected,
     checkEarlyExecuteRejected,
@@ -425,6 +429,94 @@ describe('IMP-TNFS-09B negative check helpers', () => {
                 nowUnix: 50,
                 scheduledUnix: 100,
             }).some((c) => !c.ok),
+        ).toBe(true);
+    });
+
+    it('pendingAbsentForProposal attributes stale pending by proposal address (F32)', () => {
+        const freshProposal = addr(7);
+        const staleProposal = addr(8);
+        const mkPending = (proposalContract: Address): PendingActionView => ({
+            proposalId: 1n,
+            proposalContract,
+            target: addr(1),
+            method: 0x99n,
+            args: beginCell().endCell(),
+            scheduledTime: 123n,
+            executed: false,
+        });
+
+        // No pending at all → absent.
+        expect(pendingAbsentForProposal(null, freshProposal)).toBe(true);
+        // Stale pending with a COLLIDING id but another Governor's proposal
+        // address (Timelock survived the redeploy) → still absent for ours.
+        expect(pendingAbsentForProposal(mkPending(staleProposal), freshProposal)).toBe(true);
+        // Pending genuinely queued for this proposal → present (wrong accept).
+        expect(pendingAbsentForProposal(mkPending(freshProposal), freshProposal)).toBe(false);
+    });
+
+    it('checkAgainstDefeated stays green under a stale colliding-id pending (F32)', () => {
+        const freshProposal = addr(7);
+        const stalePending: PendingActionView = {
+            proposalId: 1n, // same small sequential id as the fresh Governor's proposal
+            proposalContract: addr(8), // but an OLD Governor's proposal contract
+            target: addr(1),
+            method: 0x99n,
+            args: beginCell().endCell(),
+            scheduledTime: 123n,
+            executed: false,
+        };
+        expect(
+            checkAgainstDefeated({
+                stateAfter: PS_DEFEATED,
+                againstVotes: 1n,
+                pendingAbsent: pendingAbsentForProposal(stalePending, freshProposal),
+            }).every((c) => c.ok),
+        ).toBe(true);
+        // Same pending actually pointing at our proposal → wrong accept → fail.
+        expect(
+            checkAgainstDefeated({
+                stateAfter: PS_DEFEATED,
+                againstVotes: 1n,
+                pendingAbsent: pendingAbsentForProposal(
+                    { ...stalePending, proposalContract: freshProposal },
+                    freshProposal,
+                ),
+            }).some((c) => !c.ok),
+        ).toBe(true);
+    });
+
+    it('isProposalUsable votable honours the min-window-remaining guard (F32)', () => {
+        const now = 1_000_000;
+        const base = { want: 'votable' as const, state: PS_ACTIVE, nowUnix: now };
+
+        // 20s left < 30s guard → not votable (relay could land post-endTime).
+        expect(
+            isProposalUsable({
+                ...base,
+                endTimeUnix: BigInt(now + 20),
+                minWindowRemainingSec: MIN_VOTE_WINDOW_REMAINING_SEC,
+            }),
+        ).toBe(false);
+        // 40s left ≥ 30s guard → votable.
+        expect(
+            isProposalUsable({
+                ...base,
+                endTimeUnix: BigInt(now + 40),
+                minWindowRemainingSec: MIN_VOTE_WINDOW_REMAINING_SEC,
+            }),
+        ).toBe(true);
+        // Guard omitted → legacy strict now < endTime behaviour.
+        expect(isProposalUsable({ ...base, endTimeUnix: BigInt(now + 1) })).toBe(true);
+        expect(isProposalUsable({ ...base, endTimeUnix: BigInt(now) })).toBe(false);
+        // Executable want ignores the window entirely.
+        expect(
+            isProposalUsable({
+                want: 'executable',
+                state: PS_ACTIVE,
+                nowUnix: now,
+                endTimeUnix: BigInt(now - 100),
+                minWindowRemainingSec: MIN_VOTE_WINDOW_REMAINING_SEC,
+            }),
         ).toBe(true);
     });
 
