@@ -18,6 +18,14 @@ package.ts
 deployments/*.bak*
 deployments/*.bak-*
 
+# Owner ops artifacts from testnet runs (DEPLOY_ACTIONS п.28): deploy backups,
+# live-run stdout logs, scratch env copies. Never tracked, never deleted by agents.
+.deploy-backup-*
+.env.m
+.env.testnet.bak-*
+f*-live-stdout.txt
+Untitled
+
 # Full-stack testnet scenario runner (IMP-TNFS-02)
 reports/
 .testnet-scenario-state.json
