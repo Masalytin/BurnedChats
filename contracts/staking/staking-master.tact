@@ -88,7 +88,9 @@ contract StakingMaster(
     const MinStakeNano: Int = 10000000;
 
     const GasToPool: Int = ton("0.06");
-    /// Must satisfy BurnJettonWallet JettonTransfer gate (forward + ton("2.1") + fees).
+    /// Must satisfy BurnJettonWallet JettonTransfer gate (forward + `minTonFeePath` from
+    /// the wallet's feeConfig snapshot — governance default 1.0 TON after IMP-MNAUD-F17/F22 —
+    /// plus forward fees). 3.5 keeps ample headroom even if governance raises the gate.
     const GasForwardStakeJetton: Int = ton("3.5");
     const GasPayRewards: Int = ton("3.5");
 

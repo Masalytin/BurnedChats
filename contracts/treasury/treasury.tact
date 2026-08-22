@@ -7,7 +7,8 @@ import "../jetton/burn-jetton-wallet";
 /// `JettonTransfer` clears the jetton-wallet entry gate end-to-end. Treasury is
 /// on the master excluded list (bootstrap), and post-IMP-MNAUD-F11 a
 /// claimed-excluded transfer always resolves via master with the fee-path gate
-/// `minTonFeePath` (2.05, strict `>`, plus forward fees) — the old excluded-path
+/// `minTonFeePath` (governance default 1.0 after IMP-MNAUD-F17/F22, strict `>`,
+/// plus forward fees) — the old excluded-path
 /// floor (~0.58 → 1.0 with headroom) no longer applies (IMP-MNAUD-F19).
 /// 2.3 mirrors the attach guidance in burn-jetton-wallet.tact. The actual
 /// forwarded value is relayed from the inbound Timelock message

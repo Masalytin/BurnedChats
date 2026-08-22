@@ -33,7 +33,7 @@ const TIMELOCK_STORAGE_RESERVE: Int = ton("0.05");
 /// little value left to pay the bounce forward fee. This floor guarantees the
 /// dispatched message always carries enough headroom (target gates throw within
 /// ~0.01 TON of compute), so "failure => bounce" holds. Honest executors attach
-/// far more anyway (Treasury spend gate ~1 TON, Vesting ReleaseTon 3.5 TON).
+/// far more anyway (Treasury MIN_SPEND_FORWARD 2.3 TON, Vesting ReleaseTon 3.5 TON).
 const TIMELOCK_HIGH_VALUE_EXEC_MIN: Int = ton("0.1");
 
 struct PendingAction {
@@ -147,7 +147,9 @@ contract Timelock(
                 .endCell();
 
             /// High-value targets cannot run on a fixed 0.12 TON:
-            /// - TreasurySpend: jetton-wallet excluded gate (~0.58 TON) + recipient deploy
+            /// - TreasurySpend: MIN_SPEND_FORWARD (2.3 TON) — post-IMP-MNAUD-F11 the
+            ///   claimed-excluded transfer resolves via master with the fee-path gate
+            ///   (`minTonFeePath`, governance default 1.0 after F17/F22) + recipient deploy
             /// - VestEmergencyRevoke: Vesting.ReleaseTon (3.5 TON) for excluded transfer
             /// Relay the executor-provided budget end-to-end instead of paying from
             /// Timelock's (storage-only) balance. `SendIgnoreErrors` is intentionally
