@@ -10,7 +10,7 @@ import {
     insufficientSenderTonReason,
 } from '../lib/balances';
 import { MIN_TON_FEE_PATH_NANO } from '../../scripts/lib/estimateJettonTransferTon';
-import { treasuryOf } from '../lib/matrix-checks';
+import { TRANSFER_TON as FEE_PATH_TRANSFER_TON, treasuryOf } from '../lib/matrix-checks';
 import {
     EXIT_ONLY_TIMELOCK,
     TRANSFER_TON,
@@ -154,7 +154,8 @@ describe('IMP-TNFS-F32 actor TON preflight on fixed-attach fee/jetton paths', ()
         const conservation = byId.get('fs-jetton-transfer-self-conservation')!.budget;
         expect(conservation).toBeDefined();
         expect(conservation!.signer).toBe('actor');
-        expect(conservation!.minTon).toBeGreaterThanOrEqual(TRANSFER_TON);
+        // Scenario budget is built from matrix-checks TRANSFER_TON (fee-path attach, 1.5 after F17).
+        expect(conservation!.minTon).toBeGreaterThanOrEqual(FEE_PATH_TRANSFER_TON);
 
         const insufficient = byId.get('fs-jetton-transfer-insufficient-gas')!.budget;
         expect(insufficient).toBeDefined();

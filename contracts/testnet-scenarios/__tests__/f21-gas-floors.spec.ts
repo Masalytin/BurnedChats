@@ -46,10 +46,10 @@ describe('IMP-TNFS-F21 F16 gas floors matrix', () => {
         }
     });
 
-    it('pins F16/F11 gates and near-floor probes (not DEX 0.05–0.3)', () => {
-        expect(MIN_TON_FEE_PATH_NANO).toBe(toNano('2.05'));
+    it('pins F16/F11/F17 gates and near-floor probes (not DEX 0.05–0.3)', () => {
+        expect(MIN_TON_FEE_PATH_NANO).toBe(toNano('1.0')); // IMP-MNAUD-F17 W1 warm sink legs
         expect(MIN_TON_EXCLUDED_PATH_NANO).toBe(toNano('0.58')); // legacy constant; unused as JW entry after F11
-        expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBe(toNano('2.06'));
+        expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBe(toNano('1.01'));
         // F11: claimed-excluded uses fee-path near-floor (alias).
         expect(EXCLUDED_NEAR_FLOOR_ATTACH_NANO).toBe(FEE_NEAR_FLOOR_ATTACH_NANO);
         expect(FEE_NEAR_FLOOR_ATTACH_NANO).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
@@ -97,23 +97,23 @@ describe('IMP-TNFS-F22 / F30 surplus + warm/cold attach', () => {
     it('pins cold/warm attach constants to estimateJettonTransferTon', () => {
         expect(TRANSFER_TON).toBe(RECOMMENDED_FEE_PATH_NANO);
         expect(TRANSFER_TON_WARM).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-        expect(TRANSFER_TON_WARM).toBe(toNano('2.3'));
-        expect(SURPLUS_MIN_EXCESS_NANO).toBe(toNano('1.5'));
+        expect(TRANSFER_TON_WARM).toBe(toNano('1.2'));
+        expect(SURPLUS_MIN_EXCESS_NANO).toBe(toNano('0.4'));
     });
 
     it('checkSurplusRefundHeuristic and warm/cold credits', () => {
-        const attach = toNano('3.5');
+        const attach = toNano('1.5');
         expect(
             checkSurplusRefundHeuristic({
                 ownerTonBefore: toNano('10'),
-                ownerTonAfter: toNano('10') - attach + toNano('1.6'),
+                ownerTonAfter: toNano('10') - attach + toNano('0.5'),
                 attachNano: attach,
             }).every((c) => c.ok),
         ).toBe(true);
         expect(
             checkSurplusRefundHeuristic({
                 ownerTonBefore: toNano('10'),
-                ownerTonAfter: toNano('10') - attach + toNano('0.5'),
+                ownerTonAfter: toNano('10') - attach + toNano('0.3'),
                 attachNano: attach,
             }).some((c) => !c.ok),
         ).toBe(true);

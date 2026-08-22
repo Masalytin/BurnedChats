@@ -40,8 +40,8 @@ export const STAKE_FORWARD_TON = toNano('8');
 /**
  * Attach must clear the post-F11 wallet entry gate (IMP-MNAUD-F20):
  *   value > forwardTonAmount + recipientForwards*fwd_fee + minTonFeePath
- *         = 8 + 2*fwd_fee(≈0.0003..0.004 live) + 2.05 ≈ 10.06 TON.
- * 10.6 leaves ~0.54 TON headroom for live fwd_fee variance; surplus refunds
+ *         = 8 + 2*fwd_fee(≈0.0003..0.004 live) + 1.0 (F17) ≈ 9.01 TON.
+ * 10.6 leaves ~1.59 TON headroom for live fwd_fee variance; surplus refunds
  * via JettonExcesses. Pre-F11 value 9.5 (excluded gate 0.58) fails this gate.
  */
 export const STAKE_ATTACHED_TON = toNano('10.6');

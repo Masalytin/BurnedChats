@@ -1,7 +1,7 @@
 /**
- * fs-jetton-fee-warm-vs-cold-attach — cold recipient @ 3.5 TON then warm @ 2.3
- * (IMP-TNFS-F30 / GAS-06). Uses an ephemeral cold owner so FEE_TEST_RECIPIENT
- * warm state does not force N/A.
+ * fs-jetton-fee-warm-vs-cold-attach — cold recipient @ 1.5 TON then warm @ 1.2
+ * (IMP-TNFS-F30 / GAS-06 / IMP-MNAUD-F17). Uses an ephemeral cold owner so
+ * FEE_TEST_RECIPIENT warm state does not force N/A.
  */
 import { Address } from '@ton/core';
 import { mnemonicNew, mnemonicToPrivateKey } from '@ton/crypto';
@@ -193,7 +193,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-fee-warm-vs-cold-attach',
     title: 'Fee-path warm vs cold attach (GAS-06)',
     description:
-        'Ephemeral cold recipient @ 3.5 TON then warm @ 2.3 TON — both credit fee-path net (GAS-06).',
+        'Ephemeral cold recipient @ 1.5 TON then warm @ 1.2 TON — both credit fee-path net (GAS-06/F17).',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-jetton-fee-near-floor-ok'],

@@ -97,7 +97,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-excluded-insufficient-gas',
     title: 'Excluded-path insufficient gas (F11/F16 gate)',
     description:
-        'Excluded sender attach at minTonFeePath (2.05 TON). Pass only when transfer is rejected and balances unchanged.',
+        'Excluded sender attach at minTonFeePath (1.0 TON, F17). Pass only when transfer is rejected and balances unchanged.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],

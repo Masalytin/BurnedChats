@@ -1,6 +1,6 @@
 /**
- * fs-jetton-surplus-refund — fee-path @ 3.5 TON; assert surplus TON returns to
- * owner (IMP-TNFS-F22 / GAS-07). Jetton fee-split must pass; surplus is a
+ * fs-jetton-surplus-refund — fee-path @ 1.5 TON (F17); assert surplus TON returns
+ * to owner (IMP-TNFS-F22 / GAS-07). Jetton fee-split must pass; surplus is a
  * lower-bound heuristic (V5 gas noise → soft N/A, not silent pass).
  */
 import { Address, toNano } from '@ton/core';
@@ -124,7 +124,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-surplus-refund',
     title: 'Jetton surplus TON refund (GAS-07)',
     description:
-        'Fee-path @ 3.5 TON: fee-split OK and owner surplus excessReturned ≥ 1.5 TON (GAS-07). ' +
+        'Fee-path @ 1.5 TON: fee-split OK and owner surplus excessReturned ≥ 0.4 TON (GAS-07/F17). ' +
         'Soft N/A when jetton OK but TON heuristic below bar (V5/toncenter noise).',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,

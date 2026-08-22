@@ -175,7 +175,7 @@ describe('IMP-TNFS-07 seed constants & Flexible tier choice', () => {
         expect(SUB_MIN_STAKE_NANO).toBe(MIN_STAKE_NANO - 1n);
         expect(FLEXIBLE_TIER).toBe(0);
         expect(LOCKED_TIER).toBe(1);
-        // Gate: value > forward + 2*fwd_fee + minTonFeePath (2.05).
+        // Gate: value > forward + 2*fwd_fee + minTonFeePath (1.0 after F17).
         expect(STAKE_ATTACHED_TON).toBeGreaterThan(
             STAKE_FORWARD_TON +
                 2n * ESTIMATED_FORWARD_FEE_PER_HOP_NANO +

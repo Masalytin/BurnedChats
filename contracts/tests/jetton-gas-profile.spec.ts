@@ -129,24 +129,28 @@ describe('IMP-JETTON-GAS-06 — fee-split gas profile (cold vs warm wallets)', (
         await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
     });
 
-    it('cold deploy: all three sink wallets receive perInternalDeployTon attach', async () => {
+    // IMP-MNAUD-F17 (W1): pool/treasury legs are warm message() sends (~0.106 /
+    // ~0.041 TON sandbox); only the recipient leg keeps deploy(perInternalDeployTon).
+    it('fee split: recipient leg keeps 0.55 deploy; pool/treasury warm legs are < 0.55', async () => {
         const amount = 100n * NANO_PER_BURN;
         const { profile } = await runFeeSplitTransfer(ctx, ctx.userX, ctx.userY.address, amount);
 
         expect(profile.recipientLegNano).toBe(toNano('0.55'));
         expect(profile.poolLegNano).toBeGreaterThanOrEqual(toNano('0.07'));
-        expect(profile.treasuryLegNano).toBe(toNano('0.55'));
+        expect(profile.poolLegNano).toBeLessThan(toNano('0.15'));
+        expect(profile.treasuryLegNano).toBeGreaterThan(0n);
+        expect(profile.treasuryLegNano).toBeLessThan(toNano('0.06'));
         expect(profile.burnNotifyNano).toBe(toNano('0.06'));
-        expect(profile.totalOutNano).toBeGreaterThanOrEqual(toNano('1.76'));
+        // recipient 0.55 + pool ~0.106 + treasury ~0.041 + burn 0.06 + propagate 0.05
+        expect(profile.totalOutNano).toBeLessThan(toNano('0.95'));
         expect(profile.senderSurplusNano).toBeLessThan(TRANSFER_TON);
     });
 
-    it('warm wallets: repeat transfer uses identical out_msg attach (deploy path unchanged)', async () => {
+    it('warm repeat: out_msg attach per leg identical to first transfer (value is state-independent)', async () => {
         const amount = 10n * NANO_PER_BURN;
         const cold = await runFeeSplitTransfer(ctx, ctx.userX, ctx.userY.address, amount);
         const warm = await runFeeSplitTransfer(ctx, ctx.userX, ctx.userY.address, amount);
 
-        // On-chain attach per leg unchanged (deploy() even when wallet exists).
         expect(warm.profile.recipientLegNano).toBe(cold.profile.recipientLegNano);
         expect(warm.profile.poolLegNano).toBe(cold.profile.poolLegNano);
         expect(warm.profile.treasuryLegNano).toBe(cold.profile.treasuryLegNano);
@@ -162,10 +166,11 @@ describe('IMP-JETTON-GAS-06 — fee-split gas profile (cold vs warm wallets)', (
         expect(surplusDelta).toBeLessThanOrEqual(toNano('0.0001'));
     });
 
-    it('minimum attach: cold deploy succeeds above gate; warm repeat succeeds with same floor', async () => {
+    it('minimum attach: cold recipient succeeds at F17 floor; warm repeat succeeds with same floor', async () => {
         const amount = 10n * NANO_PER_BURN;
         const walletFrom = await getWallet(ctx, ctx.userX.address);
-        const minAttach = toNano('2.15');
+        // IMP-MNAUD-F17 sandbox first-credit 0.91–0.93; gate 1.0 (strict >) → 1.01 credits.
+        const minAttach = toNano('1.01');
 
         const coldTx = await walletFrom.sendTransfer(ctx.userX.getSender(), {
             jettonAmount: amount,
@@ -197,9 +202,11 @@ describe('IMP-JETTON-GAS-06 — fee-split gas profile (cold vs warm wallets)', (
             warm: warm.profile,
         };
 
-        // Stable anchors for IMP-JETTON-GAS-06 decision log.
+        // Stable anchors for IMP-JETTON-GAS-06 / IMP-MNAUD-F17 decision logs.
         expect(table.cold.recipientLegNano).toBe(toNano('0.55'));
         expect(table.warm.recipientLegNano).toBe(toNano('0.55'));
+        expect(table.cold.poolLegNano).toBeLessThan(toNano('0.55'));
+        expect(table.cold.treasuryLegNano).toBeLessThan(toNano('0.55'));
         const totalDelta =
             table.cold.totalOutNano > table.warm.totalOutNano
                 ? table.cold.totalOutNano - table.warm.totalOutNano

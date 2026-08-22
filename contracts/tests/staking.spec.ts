@@ -643,6 +643,9 @@ describe('Emission + staking fee Jetton pipe (P5-2-2-3)', () => {
         await poolOnChain.sendWireStakingMaster(deployer.getSender(), stakingMaster.address);
 
         await jettonMaster.sendSetFeeDestinations(deployer.getSender(), poolBase.address, deployer.address);
+        // IMP-MNAUD-F17: bootstrap invariant — sink JW is deployed via fee-config
+        // sync (StateInit, F14) so the warm message() pool leg does not bounce.
+        await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), poolBase.address);
         await jettonMaster.sendMint(deployer.getSender(), alice.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
         await jettonMaster.sendSyncFeeConfigToWallet(deployer.getSender(), alice.address);
 

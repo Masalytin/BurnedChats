@@ -1,6 +1,6 @@
 /**
- * fs-jetton-fee-near-floor-ok — non-excluded attach ≈ 2.06 TON (just above F16
- * fee gate 2.05) → fee-split success (IMP-MNAUD-F16 / IMP-TNFS-F21).
+ * fs-jetton-fee-near-floor-ok — non-excluded attach ≈ 1.01 TON (just above the
+ * F17 fee gate 1.0) → fee-split success (IMP-MNAUD-F16/F17 / IMP-TNFS-F21).
  */
 import { Address } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
@@ -94,7 +94,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-fee-near-floor-ok',
     title: 'Fee-path near-floor ok (F16)',
     description:
-        'Non-excluded attach ≈ 2.06 TON (above 2.05 gate) completes fee-split (0.5/0.3/0.2); not native DEX 0.05–0.3.',
+        'Non-excluded attach ≈ 1.01 TON (above the 1.0 F17 gate) completes fee-split (0.5/0.3/0.2); not native DEX 0.05–0.3.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],

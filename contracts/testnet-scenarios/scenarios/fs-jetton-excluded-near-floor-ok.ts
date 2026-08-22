@@ -3,7 +3,7 @@
  * minTonFeePath → full amount credited (IMP-MNAUD-F11 / F16 / IMP-TNFS-F21).
  *
  * After F11, claimed-excluded always ResolveJettonTransfer → entry gate is
- * minTonFeePath (≈2.05), not the legacy 0.58 excluded floor.
+ * minTonFeePath (1.0 after F17), not the legacy 0.58 excluded floor.
  */
 import { Address } from '@ton/core';
 import { BurnJettonMaster } from '../../wrappers/BurnJettonMaster';
@@ -102,7 +102,7 @@ export const scenario: Scenario = {
     id: 'fs-jetton-excluded-near-floor-ok',
     title: 'Excluded-path near-floor ok (F11/F16)',
     description:
-        'Excluded sender attach ≈ 2.06 TON (above minTonFeePath after F11 resolve) credits 100% amount with no fee legs.',
+        'Excluded sender attach ≈ 1.01 TON (above minTonFeePath after F11 resolve) credits 100% amount with no fee legs.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
     depends_on: ['fs-ops-deployment-fingerprint'],

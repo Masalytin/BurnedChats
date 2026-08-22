@@ -23,26 +23,26 @@ export const TREASURY_BPS = 20n;
 /** Total fee bps (1%). */
 export const TOTAL_FEE_BPS = BURN_BPS + STAKING_BPS + TREASURY_BPS;
 
-/** Recommended attach for live fee-path transfers (matches fee-split scenarios). */
-export const TRANSFER_TON = toNano('3.5');
-/** Warm fee-path attach (GAS-06 / estimateJettonTransferTon) — IMP-TNFS-F30. */
-export const TRANSFER_TON_WARM = toNano('2.3');
+/** Recommended attach for live fee-path transfers (matches estimateJettonTransferTon). */
+export const TRANSFER_TON = toNano('1.5');
+/** Warm fee-path attach (IMP-MNAUD-F17 / estimateJettonTransferTon) — IMP-TNFS-F30. */
+export const TRANSFER_TON_WARM = toNano('1.2');
 /** Large attach for max-message-value (surplus returned; fee legs unchanged). */
 export const MAX_MESSAGE_VALUE_TON = toNano('10');
 /** Max supply 1000 BURN. */
 export const MAX_SUPPLY_NANO = 1000n * NANO_PER_BURN;
 
 /**
- * IMP-TNFS-F21 / F16 sandbox first-green probes (strictly above on-chain gates).
- * Not DEX-default 0.05–0.3 TON — those remain impossible without F17 fanout rewrite.
+ * IMP-TNFS-F21 / F16 / F17 sandbox first-green probes (strictly above on-chain gates).
+ * Post-F17 W1 the gate is 1.0 (warm message() sink legs); still not DEX-default 0.05–0.3 TON.
  */
 /** Recommended attach when local snapshot claims excluded (IMP-MNAUD-F11 → resolve). */
-export const FEE_NEAR_FLOOR_ATTACH_NANO = toNano('2.06');
+export const FEE_NEAR_FLOOR_ATTACH_NANO = toNano('1.01');
 /** @deprecated Alias of fee-path near-floor after F11 (claimed-excluded uses minTonFeePath). */
 export const EXCLUDED_NEAR_FLOOR_ATTACH_NANO = FEE_NEAR_FLOOR_ATTACH_NANO;
 
-/** Sandbox GAS-07 cold fee-path surplus lower bound (ownerDelta + attach). */
-export const SURPLUS_MIN_EXCESS_NANO = toNano('1.5');
+/** Cold fee-path surplus lower bound (ownerDelta + attach): attach 1.5 − fanout ~0.91 − gas. */
+export const SURPLUS_MIN_EXCESS_NANO = toNano('0.4');
 
 export const NA_EXCLUDED_SENDER_UNAVAILABLE =
     'excluded fee sender unavailable (set FEE_TEST_EXCLUDED_SENDER matching Blueprint signer, or liquidityHolder mnemonic)';

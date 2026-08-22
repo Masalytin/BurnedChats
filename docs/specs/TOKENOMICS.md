@@ -249,22 +249,28 @@ fee-exempt.
 2. **Consequence:** volume routed through excluded pools **skips** the 1% fee
    (no burn / staking / treasury cut on those legs). This is an intentional
    fee-bypass for AMM correctness — documented in [SECURITY.md](./SECURITY.md).
-3. **Gas attach is a separate constraint (post-F11 uniform entry gate; IMP-MNAUD-F16
-   measured floors):**
+3. **Gas attach is a separate constraint (post-F11 uniform entry gate; floors
+   measured in IMP-MNAUD-F16 and re-profiled in IMP-MNAUD-F17 W1):**
    - **Every** `JettonTransfer` — fee-path **and** excluded — must clear the
-     on-chain wallet entry gate `minTonFeePath` = **2.05 TON** (strict `>`, plus
+     on-chain wallet entry gate `minTonFeePath` = **1.0 TON** (strict `>`, plus
      forward amount and forward fees). IMP-MNAUD-F11 removed the separate
      excluded entry gate; surplus is refunded when master confirms the transfer
-     is excluded.
-   - Recommended attach: **~2.3 TON** for excluded partner integrations (F04 DEX
-     pools) and warm transfers; **~3.5 TON** for cold fee-path transfers via
-     Mini App / custom routers.
+     is excluded. IMP-MNAUD-F17 W1 switched the pool/treasury fanout legs from
+     `deploy(0.55)` to warm `message()` sends (~0.11 / ~0.04 TON), lowering the
+     gate from the F16 value 2.05 to 1.0 (sandbox first-credit 0.91–0.93 TON).
+   - Recommended attach: **~1.2 TON** for excluded partner integrations (F04 DEX
+     pools) and warm transfers; **~1.5 TON** for cold fee-path transfers via
+     Mini App / custom routers. Surplus above actual fanout cost is refunded.
+   - Warm-partner prerequisite: pool/treasury sink jetton wallets are deployed
+     and fee-config-synced at bootstrap (IMP-MNAUD-F14 / MAINNET_FINALIZE). If a
+     sink is unexpectedly cold, that fee leg bounces back to the sender wallet
+     (balance restored — no jetton loss) and self-heals on the next transfer.
    - `minTonExcludedPath` = 0.58 TON is a **legacy constant** (pre-F11 sandbox
      floor), **not** an entry gate — do not size partner attaches from it.
-   - Typical wallet/DEX **defaults (~0.05–0.3 TON) still fail** — native
-     low-attach DEX UX requires a separate fanout redesign (warm `message()` vs
-     `deploy()`, or lower `perInternalDeployTon`) — see **IMP-MNAUD-F17**, not
-     this card.
+   - Typical wallet/DEX **defaults (~0.05–0.3 TON) still fail** — the recipient
+     leg keeps `deploy(perInternalDeployTon=0.55)` because the recipient is the
+     cold variable; native low-attach DEX UX would require the W2/W3 wedges of
+     **IMP-MNAUD-F17**, which are explicitly not implemented.
 
 Do **not** add arbitrary DEX pools to the excluded list without Timelock
 governance; do **not** treat “$0.01–0.05” network fees as the Jetton attach cost.
@@ -768,11 +774,11 @@ The Mini App can send a native TEP-74 `JettonBurn` (`0x595f07bc`) to the user's 
 Yes, **after** governance excludes the pool addresses (fee-on-transfer otherwise
 breaks AMM balances). Excluded pool volume does **not** pay the 1% protocol fee.
 Transfers still need sufficient **TON attach**: post-F11 every `JettonTransfer`
-(excluded path included) must clear the uniform **2.05 TON** wallet entry gate —
-recommend **~2.3 TON** for excluded/warm legs (surplus refunded) and ~3.5 TON for
-cold fee-path Mini App transfers. The legacy 0.58 TON excluded floor is **not**
-an entry gate anymore. Native router UX with ~0.05–0.3 TON attach is **out of
-scope** until fanout redesign (**IMP-MNAUD-F17**).
+(excluded path included) must clear the uniform **1.0 TON** wallet entry gate
+(F17 W1) — recommend **~1.2 TON** for excluded/warm legs (surplus refunded) and
+~1.5 TON for cold fee-path Mini App transfers. The legacy 0.58 TON excluded floor
+is **not** an entry gate anymore. Native router UX with ~0.05–0.3 TON attach is
+**out of scope** (unimplemented W2/W3 wedges of **IMP-MNAUD-F17**).
 
 ### Why only 1,000 tokens?
 

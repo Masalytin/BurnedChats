@@ -69,8 +69,10 @@ async function credited(
     }
 }
 
-describe('IMP-MNAUD-F16 gas floors', () => {
-    it('fee-path: DEX-default attach fails; 2.06 TON credits (gate 2.05 + fwd)', async () => {
+describe('IMP-MNAUD-F16/F17 gas floors', () => {
+    // IMP-MNAUD-F17 (W1): warm message() sink legs lowered the fanout requirement;
+    // sandbox first-credit is 0.91–0.93 TON, uniform gate is 1.0 (strict >).
+    it('fee-path: DEX-default attach fails; 1.01 TON credits (gate 1.0 + fwd)', async () => {
         const ctxLo = await prepareFeeCtx();
         const destLo = await ctxLo.blockchain.treasury('f16-fee-lo');
         expect(
@@ -80,14 +82,14 @@ describe('IMP-MNAUD-F16 gas floors', () => {
         const ctxHi = await prepareFeeCtx();
         const destHi = await ctxHi.blockchain.treasury('f16-fee-hi');
         expect(
-            await credited(ctxHi, ctxHi.userX.address, destHi.address, toNano('2.06'), ctxHi.userX.getSender()),
+            await credited(ctxHi, ctxHi.userX.address, destHi.address, toNano('1.01'), ctxHi.userX.getSender()),
         ).toBe(true);
     }, 180_000);
 
     // IMP-MNAUD-F11: a locally-excluded sender no longer takes the cheap 0.58 gate —
-    // the wallet entry gate is always minTonFeePath (2.05) and the transfer resolves
-    // via master (surplus refunded once master confirms exclusion).
-    it('excluded-path: legacy 0.60 fails after F11; 2.06 credits (gate 2.05 + fwd)', async () => {
+    // the wallet entry gate is always minTonFeePath (1.0 after F17) and the transfer
+    // resolves via master (surplus refunded once master confirms exclusion).
+    it('excluded-path: legacy 0.60 fails after F11; 1.01 credits (gate 1.0 + fwd)', async () => {
         const ctxLo = await prepareExcludedCtx();
         const destLo = await ctxLo.blockchain.treasury('f16-ex-lo');
         expect(
@@ -107,7 +109,7 @@ describe('IMP-MNAUD-F16 gas floors', () => {
                 ctxHi,
                 ctxHi.staking.address,
                 destHi.address,
-                toNano('2.06'),
+                toNano('1.01'),
                 ctxHi.staking.getSender(),
             ),
         ).toBe(true);

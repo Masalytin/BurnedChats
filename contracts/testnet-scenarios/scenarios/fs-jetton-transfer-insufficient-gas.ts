@@ -61,7 +61,7 @@ export async function runChecks(ctx: ScenarioContext): Promise<CheckResult[]> {
     const senderWalletAddr = await master.getGetWalletAddress(sender);
     const senderWallet = provider.open(BurnJettonWallet.fromAddress(senderWalletAddr));
 
-    // Strict `>` gate: attach exactly MIN_TON_FEE_PATH_NANO (2.05 TON) must reject.
+    // Strict `>` gate: attach exactly MIN_TON_FEE_PATH_NANO (1.0 TON after F17) must reject.
     const attachNano = MIN_TON_FEE_PATH_NANO;
     console.log(
         `[fs-jetton-transfer-insufficient-gas] probing attach=${attachNano} nano (fee-path gate; expect reject)…`,
@@ -90,10 +90,10 @@ export const scenario: Scenario = {
     id: 'fs-jetton-transfer-insufficient-gas',
     title: 'Insufficient-gas transfer (expected reject)',
     description:
-        'Attach at fee-path gate (2.05 TON). Passes only when transfer is rejected/bounced and balances unchanged — never if recipient is credited.',
+        'Attach at fee-path gate (1.0 TON, F17). Passes only when transfer is rejected/bounced and balances unchanged — never if recipient is credited.',
     tags: ['jetton', 'edge'],
     needsLiveTx: true,
-    // IMP-TNFS-F32: 2.05 TON probe attach. Without the preflight a drained
+    // IMP-TNFS-F32: gate-level probe attach. Without the preflight a drained
     // actor makes V5R1 skip the send entirely — balances unchanged would
     // FALSE-PASS the "reject" assert without any transfer ever attempted.
     budget: { signer: 'actor', minTon: MIN_TON_FEE_PATH_NANO + toNano('0.2') },

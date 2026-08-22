@@ -25,8 +25,8 @@ import type { CheckResult, Scenario, ScenarioContext } from '../types';
 /** forwardTonAmount that triggers the live-resolve / mid-band path (F10). */
 export const LIVE_RESOLVE_FORWARD_TON = toNano('1');
 /**
- * Mid-band attach: above excluded floor (~0.58) but well below fee-path gate
- * (2.05 + forward + hops). Card: ≈1.7 TON after F16.
+ * Mid-band attach: above excluded floor (~0.58) but below fee-path gate +
+ * forward (1.0 + 1.0 + hops after F17). 1.7 TON stays in the red mid-band.
  */
 export const LIVE_RESOLVE_UNDERFUND_ATTACH = toNano('1.7');
 

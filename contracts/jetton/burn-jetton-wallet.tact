@@ -5,9 +5,13 @@ const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
 const perInternalDeployTon: Int = ton("0.55");
-/// Minimum TON attach gate for fee-split path (5 out_msgs; F16 sandbox floor ~2.05 TON credit).
-/// Gate is strict `>`; Mini App / partners should attach ~2.3–3.5 TON (surplus refunded).
-const minTonFeePath: Int = ton("2.05");
+/// Minimum TON attach gate for fee-split path (uniform entry gate, strict `>`).
+/// IMP-MNAUD-F17 (W1): pool/treasury legs are warm `message()` sends (~0.11 / ~0.04 TON),
+/// so the fanout no longer needs 3×perInternalDeployTon. Sandbox floors (2026-08-22):
+/// direct first credit 0.91–0.93 TON; resolve→commit credits ≥ 0.89 (fanout-throw at
+/// master ≤ 0.88 — F10 strand band, gate must stay above it with margin). 1.0 keeps
+/// ~0.07 TON margin for mainnet forward-fee variance. Recommended attach ~1.2 TON warm.
+const minTonFeePath: Int = ton("1.0");
 /// Legacy excluded-path floor (F16 ≈ 0.58). Unused as JettonTransfer entry gate after
 /// IMP-MNAUD-F11 (claimed-excluded always resolves → minTonFeePath). Kept for docs/parity.
 const minTonExcludedPath: Int = ton("0.58");
@@ -628,15 +632,17 @@ contract BurnJettonWallet(
             gasPoolForwardMin,
             gasPoolToMasterAccrual + fwd + minTonsForStorage + gasPoolForwardEpsilon,
         );
-        let poolDeliverTon = max(
-            perInternalDeployTon,
-            poolFwdTon + fwd + minTonsForStorage + ton("0.02"),
-        );
+        // IMP-MNAUD-F17 (W1): pool/treasury legs are warm `message()` sends without
+        // StateInit — fee sinks are deployed and fee-config-synced at bootstrap
+        // (IMP-MNAUD-F14: master pushFeeConfigToOwner deploys with StateInit), so
+        // the perInternalDeployTon floor no longer applies to these two legs.
+        // If a sink is unexpectedly cold (pre-bootstrap edge) the leg bounces and
+        // bounced<JettonTransferInternal> restores the wallet balance — no jetton
+        // loss; that transfer's staking/treasury fee is skipped, and the F14
+        // propagate below deploys the sink so the next transfer credits normally.
+        let poolDeliverTon = poolFwdTon + fwd + minTonsForStorage + ton("0.02");
         let treasFwdTon: Int = gasTreasuryForwardMin;
-        let treasDeliverTon = max(
-            perInternalDeployTon,
-            treasFwdTon + fwd + minTonsForStorage + ton("0.02"),
-        );
+        let treasDeliverTon = treasFwdTon + fwd + minTonsForStorage + ton("0.02");
         let feeFanoutTonRequired = deliverTon + poolDeliverTon + treasDeliverTon + ton("0.06") + ton("0.15");
         require(ctx.value >= feeFanoutTonRequired, "Insufficient TON for fee fanout");
 
@@ -661,7 +667,8 @@ contract BurnJettonWallet(
             init: initOf BurnJettonWallet(destination, self.master, 0, emptyCfg),
         });
 
-        deploy(DeployParameters {
+        message(MessageParameters {
+            to: contractAddress(poolWalletInit),
             value: poolDeliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
@@ -673,11 +680,11 @@ contract BurnJettonWallet(
                 forwardTonAmount: poolFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
-            init: poolWalletInit,
         });
 
         // Forward enough TON so Treasury receives `JettonNotification` for total_received stats (P5-3-2-1).
-        deploy(DeployParameters {
+        message(MessageParameters {
+            to: contractAddress(treasWalletInit),
             value: treasDeliverTon,
             bounce: true,
             mode: SendPayGasSeparately,
@@ -689,7 +696,6 @@ contract BurnJettonWallet(
                 forwardTonAmount: treasFwdTon,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
-            init: treasWalletInit,
         });
 
         message(MessageParameters {

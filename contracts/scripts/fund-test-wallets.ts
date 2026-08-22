@@ -53,15 +53,15 @@ import type { ManifestKind } from '../testnet-scenarios/types';
 
 // ─── Constants (exported for unit tests) ────────────────────────────────────
 
-/** Fee-split path gate in burn-jetton-wallet.tact (5 out_msgs; IMP-MNAUD-F16). */
-export const MIN_TON_FEE_PATH = toNano('2.05');
+/** Fee-split path gate in burn-jetton-wallet.tact (IMP-MNAUD-F16 → 2.05, F17 W1 → 1.0). */
+export const MIN_TON_FEE_PATH = toNano('1.0');
 /** Excluded sender/recipient bypass gate (informational — Actor A must be non-excluded). */
 export const MIN_TON_EXCLUDED_PATH = toNano('0.58');
 /**
  * Default BURN-leg attach. Actor A is non-excluded by design, so the transfer
- * takes the fee-split path and must clear minTonFeePath (2.05) plus forward
- * fees; 2.5 gives margin (live-confirmed 2026-07-23). The excluded path only
- * needs ~0.58 but never applies here.
+ * takes the fee-split path and must clear minTonFeePath (1.0 after F17) plus
+ * forward fees; 2.5 keeps the live-confirmed margin (2026-07-23). The excluded
+ * path only needs ~0.58 but never applies here.
  */
 export const DEFAULT_JETTON_TRANSFER_ATTACH = toNano('2.5');
 /** Default Actor A TON budget: full lab staking+gov run consumed ≈ 30 TON live. */
@@ -140,8 +140,8 @@ export function resolveJettonTransferAttach(env: NodeJS.ProcessEnv = process.env
     const value = toNano(raw);
     if (value < MIN_TON_FEE_PATH) {
         throw new Error(
-            `FUND_JETTON_ATTACH=${raw} TON < minTonFeePath 2.05 TON — the non-excluded fee-split path ` +
-                'rejects the transfer with exit 32113 (live 2026-07-23). Use ≥ 2.5.',
+            `FUND_JETTON_ATTACH=${raw} TON < minTonFeePath 1.0 TON — the non-excluded fee-split path ` +
+                'rejects the transfer with exit 32113 (live 2026-07-23). Use ≥ 1.2.',
         );
     }
     return value;

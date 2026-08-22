@@ -74,8 +74,8 @@ describe('fund-test-wallets BURN-leg attach', () => {
         }
     });
 
-    it('default attach clears the fee-split path gate (minTonFeePath 2.05)', () => {
-        expect(MIN_TON_FEE_PATH).toBe(toNano('2.05'));
+    it('default attach clears the fee-split path gate (minTonFeePath 1.0 after F17)', () => {
+        expect(MIN_TON_FEE_PATH).toBe(toNano('1.0'));
         expect(MIN_TON_EXCLUDED_PATH).toBe(toNano('0.58'));
         expect(DEFAULT_JETTON_TRANSFER_ATTACH).toBe(toNano('2.5'));
         expect(resolveJettonTransferAttach({})).toBe(DEFAULT_JETTON_TRANSFER_ATTACH);
@@ -84,14 +84,14 @@ describe('fund-test-wallets BURN-leg attach', () => {
 
     it('env override is honoured when at or above the gate', () => {
         expect(resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '3' })).toBe(toNano('3'));
-        expect(resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '2.1' })).toBe(toNano('2.1'));
+        expect(resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '1.2' })).toBe(toNano('1.2'));
     });
 
     it('env override below minTonFeePath is rejected (would exit 32113 live)', () => {
         expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.1' })).toThrow(
             /minTonFeePath/,
         );
-        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '2.0' })).toThrow(
+        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.9' })).toThrow(
             /exit 32113/,
         );
     });

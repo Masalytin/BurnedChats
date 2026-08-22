@@ -100,7 +100,7 @@ export const QUEUE_ATTACH_TON = toNano('0.06');
  * Timelock relays the budget to Treasury (`SendRemainingValue`), which requires
  * `context().value >= MIN_SPEND_FORWARD (2.3, IMP-MNAUD-F19)` and then relays it
  * into the payout JettonTransfer, whose post-F11 wallet entry gate is
- * minTonFeePath (2.05) + hops. Pre-F19 value 1.6 fails the Treasury require;
+ * minTonFeePath (1.0 after F17) + hops. Pre-F19 value 1.6 fails the Treasury require;
  * 4 matches the sandbox budget in tests/governance.spec.ts (surplus refunds
  * to the grant recipient).
  */

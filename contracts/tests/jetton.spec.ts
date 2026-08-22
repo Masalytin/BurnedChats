@@ -90,6 +90,10 @@ describe('BurnJetton', () => {
             expect((await wx.getGetWalletData()).balance).toBe(amount);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(amount);
 
+            // IMP-MNAUD-F17: warm sink legs are message() sends — deploy sink JWs first
+            // (production invariant: bootstrap syncs sinks before transfers, IMP-MNAUD-F14).
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
             await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 10n * NANO_PER_BURN,
@@ -229,7 +233,7 @@ describe('BurnJetton', () => {
             expect((await wy.getGetWalletData()).balance).toBe(n);
         });
 
-        it('fee-path JettonNotification credits Treasury.total_received on cold treasury JW', async () => {
+        it('fee-path JettonNotification credits Treasury.total_received (bootstrap-synced treasury JW)', async () => {
             const treasuryContract = ctx.blockchain.openContract(
                 await Treasury.prepareInit(ctx.deployer.address, ctx.master.address),
             );
@@ -244,6 +248,9 @@ describe('BurnJetton', () => {
 
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 200n * NANO_PER_BURN, 1n, MINT_TON);
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            // IMP-MNAUD-F17: the warm treasury leg has no StateInit — deploy the treasury JW
+            // via the F14 deploy-capable sync, exactly like MAINNET_FINALIZE bootstrap does.
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), treasuryContract.address);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
 
             expect(await treasuryContract.getGetTotalReceived()).toBe(0n);
@@ -461,21 +468,23 @@ describe('BurnJetton', () => {
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
         });
 
-        it('fee path rejects attach at/below 2.05 TON gate (2.0 TON)', async () => {
+        it('fee path rejects attach at/below 1.0 TON gate (1.0 TON)', async () => {
             const wx = await getWallet(ctx, ctx.userX.address);
+            const balanceBefore = (await wx.getGetWalletData()).balance;
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: toNano('2.0'),
+                value: toNano('1.0'),
             });
             expect(r.transactions).toHaveTransaction({
                 success: false,
                 exitCode: BurnJettonWallet_errors_backward['Insufficient amount of TON attached'],
             });
+            expect((await wx.getGetWalletData()).balance).toBe(balanceBefore);
         });
 
-        it('fee path credits at F16 sandbox floor (2.05 TON + fwd clears gate+fanout)', async () => {
+        it('fee path credits at F17 sandbox floor (1.01 TON + fwd clears gate+fanout)', async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
@@ -486,7 +495,7 @@ describe('BurnJetton', () => {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,
                 responseDestination: ctx.userX.address,
-                value: toNano('2.06'),
+                value: toNano('1.01'),
             });
             expect(r.transactions).toHaveTransaction({ success: true });
             const wy = await getWallet(ctx, ctx.userY.address);
@@ -510,7 +519,7 @@ describe('BurnJetton', () => {
             const wx = await getWallet(ctx, ctx.userX.address);
             const balanceBefore = (await wx.getGetWalletData()).balance;
             // forward ≥ 1 TON → live-resolve; 1.7 TON clears minTonExcludedPath (0.58)
-            // gate but not minTonFeePath (2.05) + forward + fwd fees → exit 32113, no debit.
+            // gate but not minTonFeePath (1.0, F17) + forward + fwd fees → exit 32113, no debit.
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,
@@ -540,6 +549,136 @@ describe('BurnJetton', () => {
             expect(r.transactions).toHaveTransaction({ success: true });
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
+        });
+    });
+
+    describe('Warm fanout (IMP-MNAUD-F17 W1)', () => {
+        const FANOUT_EXIT = () => BurnJettonWallet_errors_backward['Insufficient TON for fee fanout'];
+
+        beforeEach(async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+        });
+
+        it('all-cold sinks (pre-bootstrap edge): sink legs bounce, balance restored, no jetton loss', async () => {
+            // Fresh chain: staking/treasury JWs never minted or synced — the warm
+            // message() legs bounce; bounced<JettonTransferInternal> restores the
+            // sender balance. Recipient still gets net; burn still applies.
+            const amount = 10n * NANO_PER_BURN;
+            const burn = (amount * 50n) / 10000n;
+            const staking = (amount * 30n) / 10000n;
+            const treasury = (amount * 20n) / 10000n;
+            const net = amount - burn - staking - treasury;
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const supplyBefore = (await ctx.master.getGetJettonData()).totalSupply;
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('2.05'), // legacy F16 floor still clears the new gate
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+
+            // Sender keeps the bounced staking+treasury parts — no silent loss.
+            expect((await wx.getGetWalletData()).balance).toBe(
+                100n * NANO_PER_BURN - amount + staking + treasury,
+            );
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBe(net);
+            expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - burn);
+
+            // F14 propagate deploys+activates the sinks in the same chain — the
+            // NEXT transfer credits the fee legs normally (self-healing).
+            const poolW = await getWallet(ctx, ctx.staking.address);
+            const treasW = await getWallet(ctx, ctx.treasury.address);
+            expect(await poolW.getGetFeeConfigActive()).toBe(true);
+            expect(await treasW.getGetFeeConfigActive()).toBe(true);
+            await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('1.2'),
+            });
+            expect((await poolW.getGetWalletData()).balance).toBe(staking);
+            expect((await treasW.getGetWalletData()).balance).toBe(treasury);
+        });
+
+        it('single cold sink: only that leg bounces; warm pool leg credits', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            // treasury JW deliberately left cold (mis-detect / partial bootstrap edge)
+
+            const amount = 10n * NANO_PER_BURN;
+            const staking = (amount * 30n) / 10000n;
+            const treasury = (amount * 20n) / 10000n;
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: amount,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('1.2'),
+            });
+            expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
+
+            const poolW = await getWallet(ctx, ctx.staking.address);
+            expect((await poolW.getGetWalletData()).balance).toBe(1n + staking);
+            // Treasury leg bounced back into the sender wallet — restored, not lost.
+            expect((await wx.getGetWalletData()).balance).toBe(
+                100n * NANO_PER_BURN - amount + treasury,
+            );
+        });
+
+        it('stale-excluded resolve just above the gate commits without master strand (F10 invariant)', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            // Stale local snapshot: sender believes Y is excluded; master resolves fee path.
+            await ctx.master.sendAddExcluded(ctx.deployer.getSender(), ctx.userY.address);
+            await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
+            await ctx.master.sendRemoveExcluded(ctx.deployer.getSender(), ctx.userY.address);
+
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                value: toNano('1.01'),
+            });
+            // The resolve hop eats ~0.06 TON; the gate keeps enough margin that
+            // CommitJettonTransfer's fanout require never throws (no TON strand at master).
+            expect(r.transactions).not.toHaveTransaction({
+                success: false,
+                exitCode: FANOUT_EXIT(),
+            });
+            const wy = await getWallet(ctx, ctx.userY.address);
+            expect((await wy.getGetWalletData()).balance).toBeGreaterThan(0n);
+        });
+
+        it('warm repeat with high forwardTonAmount keeps the recipient deliver max() formula', async () => {
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
+            const wx = await getWallet(ctx, ctx.userX.address);
+            const recipJw = await ctx.master.getGetWalletAddress(ctx.userY.address);
+            const forward = toNano('0.9'); // < 1 TON: stays direct fee path, > perInternalDeployTon trigger
+            const r = await wx.sendTransfer(ctx.userX.getSender(), {
+                jettonAmount: 1n * NANO_PER_BURN,
+                destinationOwner: ctx.userY.address,
+                responseDestination: ctx.userX.address,
+                forwardTonAmount: forward,
+                value: toNano('2.5'),
+            });
+            expect(r.transactions).toHaveTransaction({ success: true });
+            // deliverTon = max(perInternalDeployTon, forward + fwd + storage + pad) > forward
+            const leg = r.transactions
+                .flatMap((t) => [...t.outMessages.values()])
+                .find(
+                    (m) =>
+                        m.info.type === 'internal' &&
+                        m.info.src?.equals(wx.address) &&
+                        m.info.dest?.equals(recipJw),
+                );
+            expect(leg).toBeDefined();
+            expect(leg!.info.type === 'internal' && leg!.info.value.coins > forward).toBe(true);
         });
     });
 
@@ -658,7 +797,8 @@ describe('BurnJetton', () => {
                 value: TRANSFER_TON,
             });
 
-            const warmAttach = toNano('2.3');
+            // IMP-MNAUD-F17 W1: warm repeat attach target (gate 1.0 + headroom).
+            const warmAttach = toNano('1.2');
             const r = await wx.sendTransfer(ctx.userX.getSender(), {
                 jettonAmount: 1n * NANO_PER_BURN,
                 destinationOwner: ctx.userY.address,
@@ -934,6 +1074,9 @@ describe('BurnJetton', () => {
     describe('Edge cases', () => {
         beforeEach(async () => {
             await ctx.master.sendMint(ctx.deployer.getSender(), ctx.userX.address, 100n * NANO_PER_BURN, 1n, MINT_TON);
+            // IMP-MNAUD-F17: warm sink legs — deploy sink JWs (bootstrap invariant, F14).
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.staking.address, 1n, 1n, MINT_TON);
+            await ctx.master.sendMint(ctx.deployer.getSender(), ctx.treasury.address, 1n, 1n, MINT_TON);
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
         });
 
