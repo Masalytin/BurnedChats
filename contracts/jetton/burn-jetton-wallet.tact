@@ -4,6 +4,8 @@
 const gasForBurn: Int = 6700;
 const gasForTransfer: Int = 10500;
 const minTonsForStorage: Int = ton("0.01");
+/// Default recipient-leg deploy value (IMP-MNAUD-F22: governance-tunable, this const
+/// is the default AND the lower cap — lowering below the proven W1 floor is impossible).
 const perInternalDeployTon: Int = ton("0.55");
 /// Minimum TON attach gate for fee-split path (uniform entry gate, strict `>`).
 /// IMP-MNAUD-F17 (W1): pool/treasury legs are warm `message()` sends (~0.11 / ~0.04 TON),
@@ -11,6 +13,8 @@ const perInternalDeployTon: Int = ton("0.55");
 /// direct first credit 0.91–0.93 TON; resolve→commit credits ≥ 0.89 (fanout-throw at
 /// master ≤ 0.88 — F10 strand band, gate must stay above it with margin). 1.0 keeps
 /// ~0.07 TON margin for mainnet forward-fee variance. Recommended attach ~1.2 TON warm.
+/// IMP-MNAUD-F22: this const is the DEFAULT of the governance-tunable gate
+/// (`SetGasParams`); wallets read the effective gate from their feeConfig snapshot.
 const minTonFeePath: Int = ton("1.0");
 /// Legacy excluded-path floor (F16 ≈ 0.58). Unused as JettonTransfer entry gate after
 /// IMP-MNAUD-F11 (claimed-excluded always resolves → minTonFeePath). Kept for docs/parity.
@@ -26,6 +30,33 @@ const gasPoolForwardMin: Int = ton("0.07");
 const gasTreasuryForwardMin: Int = ton("0.01");
 /// Headroom on computed pool forward for forward-fee variance.
 const gasPoolForwardEpsilon: Int = ton("0.005");
+/// Default TON attached to the burn-leg JettonBurnNotification (fee path).
+/// IMP-MNAUD-F22: governance-tunable; this const is the default and the lower cap.
+const gasBurnNotifyTon: Int = ton("0.06");
+/// Default TON attached to each PropagateFeeConfigToOwner push (fee path sends 3,
+/// so the legacy fanout pad 0.15 = 3× this value). IMP-MNAUD-F22: governance-tunable;
+/// this const is the default and the lower cap.
+const gasPropagateTon: Int = ton("0.05");
+/// Extra TON per deliver leg on top of forward amount + fwd fee + storage.
+const gasDeliverPadTon: Int = ton("0.02");
+
+// --- IMP-MNAUD-F22: const caps for the governance-tunable gas params -----------
+// Pattern mirrors MAX_TOTAL_FEE_BPS: hard compile-time bounds that neither the
+// Timelock nor a buggy master push can escape (wallets re-validate on receipt).
+/// Lower cap for the entry gate: above the worst measured W1 first-credit (0.93 TON,
+/// IMP-MNAUD-F17 gate-floor evidence) and well above the resolve→commit strand band
+/// (throw ≤ 0.88). Governance can never re-open the F10 band by lowering the gate.
+const GAS_MIN_TON_FEE_PATH_FLOOR: Int = ton("0.95");
+/// Upper cap for the entry gate: bounds worst-case censorship-by-cost if governance
+/// is compromised (a transfer can never be forced to cost more than 5 TON attach).
+const GAS_MIN_TON_FEE_PATH_CEIL: Int = ton("5");
+/// Upper cap shared by the five deliver/forward tunables (per-leg budget bound).
+const GAS_DELIVER_CEIL: Int = ton("1");
+/// Conservative forward-fee bound used by the SetGasParams coherence invariant
+/// (~25× the sandbox forward fee for these messages; if mainnet fwd fees ever
+/// exceed this, governance must raise the gate — which is exactly what F22 enables).
+const GAS_INVARIANT_FWD_CEIL: Int = ton("0.01");
+
 const Basechain: Int = 0;
 const walletStateInitCells: Int = 30;
 const walletStateInitBits: Int = 20000;
@@ -191,6 +222,8 @@ message(0x6a3b2c23) CommitJettonTransferBounced {
 }
 
 /// Master-only: update fee parameters and destination owner addresses on a wallet.
+/// IMP-MNAUD-F22: carries the governance gas params; the wallet re-validates them
+/// against the const caps + coherence invariant before accepting the snapshot.
 message(0x4d7e2bc4) JettonUpdateFeeConfig {
     queryId: Int as uint64;
     burn_rate_bps: Int;
@@ -207,6 +240,12 @@ message(0x4d7e2bc4) JettonUpdateFeeConfig {
     low_supply_mode: Bool;
     excluded_count: Int;
     excluded_head: Cell;
+    gas_min_ton_fee_path: Int as coins;
+    gas_per_internal_deploy_ton: Int as coins;
+    gas_pool_forward_min: Int as coins;
+    gas_treasury_forward_min: Int as coins;
+    gas_burn_notify_ton: Int as coins;
+    gas_propagate_ton: Int as coins;
 }
 
 /// Admin: add holder address to the excluded-from-fees list (TEP owner address, not jetton wallet).
@@ -252,6 +291,20 @@ message(0x5a1c8f06) SetTimelock {
     newTimelock: Address;
 }
 
+/// Timelock: update the governance-tunable TON gas gates (IMP-MNAUD-F22).
+/// Survival insurance against network fee drift — defaults equal the post-F17 W1
+/// constants; master validates against const caps AND the fanout coherence
+/// invariant (no configuration may pass the entry gate yet fail the fanout).
+message(0x5a1c8f07) SetGasParams {
+    queryId: Int as uint64;
+    min_ton_fee_path: Int as coins;
+    per_internal_deploy_ton: Int as coins;
+    gas_pool_forward_min: Int as coins;
+    gas_treasury_forward_min: Int as coins;
+    gas_burn_notify_ton: Int as coins;
+    gas_propagate_ton: Int as coins;
+}
+
 /// Admin: permanently and irreversibly close minting on the master.
 /// Gated on `admin` (same authority as `Mint`); after bootstrap `admin` is the
 /// on-chain Timelock contract, so close-mint is governance-controlled. There is
@@ -273,6 +326,93 @@ inline fun jettonWalletEmptyFeeConfig(): Cell {
     return beginCell().endCell();
 }
 
+/// Governance-tunable TON gas params (IMP-MNAUD-F22). Shared by master state view,
+/// wallet snapshot and validation; defaults equal the post-F17 W1 constants.
+struct GasParamsView {
+    minTonFeePath: Int;
+    perInternalDeployTon: Int;
+    poolForwardMin: Int;
+    treasuryForwardMin: Int;
+    burnNotifyTon: Int;
+    propagateTon: Int;
+}
+
+inline fun defaultGasParams(): GasParamsView {
+    return GasParamsView {
+        minTonFeePath: minTonFeePath,
+        perInternalDeployTon: perInternalDeployTon,
+        poolForwardMin: gasPoolForwardMin,
+        treasuryForwardMin: gasTreasuryForwardMin,
+        burnNotifyTon: gasBurnNotifyTon,
+        propagateTon: gasPropagateTon,
+    };
+}
+
+/// IMP-MNAUD-F22: const-cap + coherence validation, enforced on master
+/// (`SetGasParams`) AND re-checked on every wallet (`JettonUpdateFeeConfig`).
+/// The coherence invariant rejects any configuration where the entry gate could
+/// admit an attach that then fails the fee-fanout require — evaluated at the
+/// worst case (cold recipient deploy leg, forward fee at GAS_INVARIANT_FWD_CEIL),
+/// so governance can never open an F10 strand band within a single config.
+inline fun isValidGasParams(g: GasParamsView): Bool {
+    if (g.minTonFeePath < GAS_MIN_TON_FEE_PATH_FLOOR || g.minTonFeePath > GAS_MIN_TON_FEE_PATH_CEIL) {
+        return false;
+    }
+    if (g.perInternalDeployTon < perInternalDeployTon || g.perInternalDeployTon > GAS_DELIVER_CEIL) {
+        return false;
+    }
+    if (g.poolForwardMin < gasPoolForwardMin || g.poolForwardMin > GAS_DELIVER_CEIL) {
+        return false;
+    }
+    if (g.treasuryForwardMin < gasTreasuryForwardMin || g.treasuryForwardMin > GAS_DELIVER_CEIL) {
+        return false;
+    }
+    if (g.burnNotifyTon < gasBurnNotifyTon || g.burnNotifyTon > GAS_DELIVER_CEIL) {
+        return false;
+    }
+    if (g.propagateTon < gasPropagateTon || g.propagateTon > GAS_DELIVER_CEIL) {
+        return false;
+    }
+    let worstPoolFwd = max(
+        g.poolForwardMin,
+        gasPoolToMasterAccrual + GAS_INVARIANT_FWD_CEIL + minTonsForStorage + gasPoolForwardEpsilon,
+    );
+    let worstPoolDeliver = worstPoolFwd + GAS_INVARIANT_FWD_CEIL + minTonsForStorage + gasDeliverPadTon;
+    let worstTreasDeliver = g.treasuryForwardMin + GAS_INVARIANT_FWD_CEIL + minTonsForStorage + gasDeliverPadTon;
+    let worstFanout =
+        g.perInternalDeployTon + worstPoolDeliver + worstTreasDeliver + g.burnNotifyTon + 3 * g.propagateTon;
+    return g.minTonFeePath >= worstFanout;
+}
+
+inline fun packGasParamsCell(g: GasParamsView): Cell {
+    return beginCell()
+        .storeCoins(g.minTonFeePath)
+        .storeCoins(g.perInternalDeployTon)
+        .storeCoins(g.poolForwardMin)
+        .storeCoins(g.treasuryForwardMin)
+        .storeCoins(g.burnNotifyTon)
+        .storeCoins(g.propagateTon)
+        .endCell();
+}
+
+inline fun parseGasParamsCell(c: Cell): GasParamsView {
+    let s = c.beginParse();
+    let mtf = s.loadCoins();
+    let pid = s.loadCoins();
+    let pfm = s.loadCoins();
+    let tfm = s.loadCoins();
+    let bnt = s.loadCoins();
+    let prt = s.loadCoins();
+    return GasParamsView {
+        minTonFeePath: mtf,
+        perInternalDeployTon: pid,
+        poolForwardMin: pfm,
+        treasuryForwardMin: tfm,
+        burnNotifyTon: bnt,
+        propagateTon: prt,
+    };
+}
+
 struct DecodedFeeConfig {
     active: Bool;
     burnBps: Int;
@@ -289,6 +429,7 @@ struct DecodedFeeConfig {
     lowSupplyMode: Bool;
     excludedCount: Int;
     excludedHead: Cell;
+    gas: GasParamsView;
 }
 
 inline fun emptyExcludedHead(): Cell {
@@ -373,6 +514,7 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
             lowSupplyMode: false,
             excludedCount: 0,
             excludedHead: emptyExcludedHead(),
+            gas: defaultGasParams(),
         };
     }
     let active = s.loadUint(1) == 1;
@@ -398,6 +540,7 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
             lowSupplyMode: false,
             excludedCount: 0,
             excludedHead: emptyExcludedHead(),
+            gas: defaultGasParams(),
         };
     }
     let ext = s.loadRef().beginParse();
@@ -410,6 +553,13 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
     let lowSupplyMode = ext.loadBit();
     let excludedCount = ext.loadUint(16);
     let excludedHead = ext.loadRef();
+    // IMP-MNAUD-F22: gas section is a second ref of the extension cell; a legacy
+    // (pre-F22) snapshot without it falls back to the const defaults — coherent
+    // with the pre-F22 behavior (same gate, same deliver values).
+    let gas = defaultGasParams();
+    if (ext.refs() > 0) {
+        gas = parseGasParamsCell(ext.loadRef());
+    }
     return DecodedFeeConfig {
         active: active,
         burnBps: b,
@@ -426,6 +576,7 @@ inline fun decodeFeeConfig(cfg: Cell): DecodedFeeConfig {
         lowSupplyMode: lowSupplyMode,
         excludedCount: excludedCount,
         excludedHead: excludedHead,
+        gas: gas,
     };
 }
 
@@ -439,6 +590,7 @@ inline fun packFeeConfigExtension(
     lowSupplyMode: Bool,
     excludedCount: Int,
     excludedHead: Cell,
+    gas: GasParamsView,
 ): Cell {
     return beginCell()
         .storeBit(dynamicBurnEnabled)
@@ -450,6 +602,7 @@ inline fun packFeeConfigExtension(
         .storeBit(lowSupplyMode)
         .storeUint(excludedCount, 16)
         .storeRef(excludedHead)
+        .storeRef(packGasParamsCell(gas))
         .endCell();
 }
 
@@ -502,10 +655,11 @@ inline fun requestRecipientFeeConfigSync(
     queryId: Int,
     senderOwner: Address,
     recipientOwner: Address,
+    propagateTon: Int,
 ) {
     message(MessageParameters {
         to: master,
-        value: ton("0.05"),
+        value: propagateTon,
         mode: SendPayGasSeparately,
         bounce: true,
         body: PropagateFeeConfigToOwner {
@@ -514,6 +668,43 @@ inline fun requestRecipientFeeConfigSync(
             recipient_owner: recipientOwner,
         }.toCell(),
     });
+}
+
+/// Per-leg deliver values and the total fee-fanout requirement, computed from ONE
+/// gas snapshot (IMP-MNAUD-F22: entry gate and all deliver values must come from
+/// the same local snapshot — self-consistent execution even when stale).
+struct FeeFanoutPlan {
+    deliverTon: Int;
+    poolFwdTon: Int;
+    poolDeliverTon: Int;
+    treasFwdTon: Int;
+    treasDeliverTon: Int;
+    requiredTon: Int;
+}
+
+inline fun computeFeeFanoutPlan(gas: GasParamsView, forwardTonAmount: Int, fwd: Int): FeeFanoutPlan {
+    let deliverTon = max(
+        gas.perInternalDeployTon,
+        forwardTonAmount + fwd + minTonsForStorage + gasDeliverPadTon,
+    );
+    let poolFwdTon = max(
+        gas.poolForwardMin,
+        gasPoolToMasterAccrual + fwd + minTonsForStorage + gasPoolForwardEpsilon,
+    );
+    let poolDeliverTon = poolFwdTon + fwd + minTonsForStorage + gasDeliverPadTon;
+    let treasFwdTon = gas.treasuryForwardMin;
+    let treasDeliverTon = treasFwdTon + fwd + minTonsForStorage + gasDeliverPadTon;
+    // recipient + pool + treasury legs + burn notify + 3× fee-config propagate
+    let requiredTon =
+        deliverTon + poolDeliverTon + treasDeliverTon + gas.burnNotifyTon + 3 * gas.propagateTon;
+    return FeeFanoutPlan {
+        deliverTon: deliverTon,
+        poolFwdTon: poolFwdTon,
+        poolDeliverTon: poolDeliverTon,
+        treasFwdTon: treasFwdTon,
+        treasDeliverTon: treasDeliverTon,
+        requiredTon: requiredTon,
+    };
 }
 
 inline fun checkEitherForwardPayload(forwardPayload: Slice) {
@@ -557,6 +748,19 @@ contract BurnJettonWallet(
             msg.burn_rate_bps + msg.staking_rate_bps + msg.treasury_rate_bps <= MAX_TOTAL_FEE_BPS,
             "Invalid fee bps",
         );
+        // IMP-MNAUD-F22: wallet-side re-validation of the governance gas params —
+        // parity with the bps re-check above. Even a buggy/compromised master push
+        // cannot install a snapshot outside the const caps or one that opens an
+        // entry-gate/fanout strand band.
+        let gas = GasParamsView {
+            minTonFeePath: msg.gas_min_ton_fee_path,
+            perInternalDeployTon: msg.gas_per_internal_deploy_ton,
+            poolForwardMin: msg.gas_pool_forward_min,
+            treasuryForwardMin: msg.gas_treasury_forward_min,
+            burnNotifyTon: msg.gas_burn_notify_ton,
+            propagateTon: msg.gas_propagate_ton,
+        };
+        require(isValidGasParams(gas), "Invalid gas params");
         let ext = packFeeConfigExtension(
             msg.dynamic_burn_enabled,
             msg.large_tx_threshold,
@@ -567,6 +771,7 @@ contract BurnJettonWallet(
             msg.low_supply_mode,
             msg.excluded_count,
             msg.excluded_head,
+            gas,
         );
         self.feeConfig = packFeeConfigCell(
             msg.burn_rate_bps,
@@ -596,10 +801,11 @@ contract BurnJettonWallet(
         let emptyCfg = jettonWalletEmptyFeeConfig();
         let ctx = context();
         let fwd = ctx.readForwardFee();
-        let deliverTon = max(
-            perInternalDeployTon,
-            forwardTonAmount + fwd + minTonsForStorage + ton("0.02"),
-        );
+        // IMP-MNAUD-F22: every deliver value below comes from the SAME snapshot
+        // (cfg.gas) that gated the entry — self-consistent execution even when
+        // the snapshot is stale relative to master (availability risk only).
+        let plan = computeFeeFanoutPlan(cfg.gas, forwardTonAmount, fwd);
+        let deliverTon = plan.deliverTon;
 
         if (excludedTransfer) {
             self.balance -= amount;
@@ -619,7 +825,7 @@ contract BurnJettonWallet(
                 }.toCell(),
                 init: initOf BurnJettonWallet(destination, self.master, 0, emptyCfg),
             });
-            requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination);
+            requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination, cfg.gas.propagateTon);
             returnTransferSurplusToOwner(queryId, responseDestination, self.owner);
             return;
         }
@@ -628,10 +834,6 @@ contract BurnJettonWallet(
         let parts = computeFeeParts(amount, burnBps, cfg.stakeBps, cfg.treasBps);
         require(parts.burn + parts.staking + parts.treasury + parts.net == amount, "Fee split invariant");
 
-        let poolFwdTon = max(
-            gasPoolForwardMin,
-            gasPoolToMasterAccrual + fwd + minTonsForStorage + gasPoolForwardEpsilon,
-        );
         // IMP-MNAUD-F17 (W1): pool/treasury legs are warm `message()` sends without
         // StateInit — fee sinks are deployed and fee-config-synced at bootstrap
         // (IMP-MNAUD-F14: master pushFeeConfigToOwner deploys with StateInit), so
@@ -640,11 +842,11 @@ contract BurnJettonWallet(
         // bounced<JettonTransferInternal> restores the wallet balance — no jetton
         // loss; that transfer's staking/treasury fee is skipped, and the F14
         // propagate below deploys the sink so the next transfer credits normally.
-        let poolDeliverTon = poolFwdTon + fwd + minTonsForStorage + ton("0.02");
-        let treasFwdTon: Int = gasTreasuryForwardMin;
-        let treasDeliverTon = treasFwdTon + fwd + minTonsForStorage + ton("0.02");
-        let feeFanoutTonRequired = deliverTon + poolDeliverTon + treasDeliverTon + ton("0.06") + ton("0.15");
-        require(ctx.value >= feeFanoutTonRequired, "Insufficient TON for fee fanout");
+        let poolFwdTon = plan.poolFwdTon;
+        let poolDeliverTon = plan.poolDeliverTon;
+        let treasFwdTon = plan.treasFwdTon;
+        let treasDeliverTon = plan.treasDeliverTon;
+        require(ctx.value >= plan.requiredTon, "Insufficient TON for fee fanout");
 
         self.balance -= amount;
         require(self.balance >= 0, "Incorrect balance after send");
@@ -700,7 +902,7 @@ contract BurnJettonWallet(
 
         message(MessageParameters {
             to: self.master,
-            value: ton("0.06"),
+            value: cfg.gas.burnNotifyTon,
             mode: SendPayGasSeparately,
             bounce: true,
             body: JettonBurnNotification {
@@ -711,12 +913,12 @@ contract BurnJettonWallet(
             }.toCell(),
         });
 
-        requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination);
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination, cfg.gas.propagateTon);
         // IMP-MNAUD-F14: fee sinks are deployed with emptyCfg on first fanout —
         // push feeConfig to pool/treasury JW so later spend/relay paths are not
         // stuck at exit 21507 when bootstrap sync raced an uninit wallet.
-        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.poolOwner);
-        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.treasuryOwner);
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.poolOwner, cfg.gas.propagateTon);
+        requestRecipientFeeConfigSync(self.master, queryId, self.owner, cfg.treasuryOwner, cfg.gas.propagateTon);
         returnTransferSurplusToOwner(queryId, responseDestination, self.owner);
     }
 
@@ -751,7 +953,9 @@ contract BurnJettonWallet(
         // after RemoveExcluded). Entry gate is therefore always minTonFeePath;
         // surplus is refunded when master confirms the transfer is still excluded.
         // (Warm P2P with neither side locally excluded keeps the direct fee path.)
-        let minTonRequired = minTonFeePath;
+        // IMP-MNAUD-F22: the gate is read from the local snapshot (governance
+        // default = the minTonFeePath const), same snapshot as the fanout values.
+        let minTonRequired = cfg.gas.minTonFeePath;
         require(
             ctx.value > msg.forwardTonAmount + recipientForwards * fwd + minTonRequired,
             "Insufficient amount of TON attached",
@@ -800,6 +1004,23 @@ contract BurnJettonWallet(
         );
     }
 
+    /// F18 pattern: report a commit-stage failure to the owner with the incoming TON
+    /// instead of throwing (a throw would bounce to master and strand the value).
+    fun reportCommitFailure(queryId: Int, amount: Int) {
+        let tonBalanceBeforeMsg = myBalance() - context().value;
+        nativeReserve(max(tonBalanceBeforeMsg, minTonsForStorage), ReserveAtMost);
+        message(MessageParameters {
+            to: self.owner,
+            value: 0,
+            mode: SendRemainingBalance + SendIgnoreErrors,
+            bounce: false,
+            body: JettonTransferCommitFailed {
+                queryId: queryId,
+                amount: amount,
+            }.toCell(),
+        });
+    }
+
     receive(msg: CommitJettonTransfer) {
         require(sender() == self.master, "Incorrect sender");
         let payload = msg.forwardPayload.beginParse();
@@ -809,18 +1030,23 @@ contract BurnJettonWallet(
         // prefix survives). Report the failure to the owner explicitly; the incoming
         // TON is forwarded with the signal so nothing strands on the wallet (MNAUD-10).
         if (self.balance < msg.amount) {
-            let tonBalanceBeforeMsg = myBalance() - context().value;
-            nativeReserve(max(tonBalanceBeforeMsg, minTonsForStorage), ReserveAtMost);
-            message(MessageParameters {
-                to: self.owner,
-                value: 0,
-                mode: SendRemainingBalance + SendIgnoreErrors,
-                bounce: false,
-                body: JettonTransferCommitFailed {
-                    queryId: msg.queryId,
-                    amount: msg.amount,
-                }.toCell(),
-            });
+            self.reportCommitFailure(msg.queryId, msg.amount);
+            return;
+        }
+        // IMP-MNAUD-F22: commit executes with the snapshot the master pushed right
+        // before this message. If governance raised the gas params while this
+        // transfer entered through the OLD (lower) gate, the fanout requirement can
+        // now exceed the attached value — a throw here would bounce to master and
+        // strand the user's TON (transition-window F10 band). Pre-check the value
+        // and refund via the F18 signal instead of throwing.
+        let cfg = decodeFeeConfig(self.feeConfig);
+        let ctx = context();
+        let plan = computeFeeFanoutPlan(cfg.gas, msg.forwardTonAmount, ctx.readForwardFee());
+        let requiredTon = msg.excludedTransfer
+            ? plan.deliverTon + cfg.gas.propagateTon
+            : plan.requiredTon;
+        if (ctx.value < requiredTon) {
+            self.reportCommitFailure(msg.queryId, msg.amount);
             return;
         }
         self.executeJettonTransfer(
@@ -919,5 +1145,11 @@ contract BurnJettonWallet(
     /// Whether master pushed fee config (for tests / off-chain reads).
     get fun get_fee_config_active(): Bool {
         return decodeFeeConfig(self.feeConfig).active;
+    }
+
+    /// Effective TON gas params from the local snapshot (IMP-MNAUD-F22);
+    /// const defaults when the snapshot is empty or pre-F22 legacy.
+    get fun get_gas_config(): GasParamsView {
+        return decodeFeeConfig(self.feeConfig).gas;
     }
 }

@@ -1,6 +1,9 @@
 /**
  * IMP-MNAUD-F16 — regression for measured gas floors (isolated chain samples).
  * Documents that native DEX default attach (0.05–0.3 TON) remains out of reach.
+ * IMP-MNAUD-F22: the floors below are now the DEFAULTS of the governance-tunable
+ * gas params (SetGasParams) — this suite pins the no-governance-intervention
+ * behavior identity (same numbers as the pre-F22 constants).
  */
 import { describe, expect, it } from '@jest/globals';
 import { toNano } from '@ton/core';

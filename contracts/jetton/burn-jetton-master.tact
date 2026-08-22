@@ -55,6 +55,17 @@ contract BurnJettonMaster(
     lowBurnBps: Int,
     lowStakingBps: Int,
     lowTreasuryBps: Int,
+    // IMP-MNAUD-F22: governance-tunable TON gas gates (Timelock via SetGasParams).
+    // Deploy defaults MUST equal the post-F17 W1 wallet constants (1.0 / 0.55 /
+    // 0.07 / 0.01 / 0.06 / 0.05) so behavior without governance intervention is
+    // identical to pre-F22. Values are propagated to wallets inside
+    // JettonUpdateFeeConfig via the existing push channels only (no live-resolve).
+    gasMinTonFeePath: Int as coins,
+    gasPerInternalDeployTon: Int as coins,
+    gasPoolFwdMin: Int as coins,
+    gasTreasuryFwdMin: Int as coins,
+    gasBurnNotify: Int as coins,
+    gasPropagate: Int as coins,
 ) {
     /// Plain TON from Timelock (governance fee-config / excluded-list ops) must not bounce
     /// back — that would ping-pong with Timelock's generic receive() (RC-A / IMP-RELAY-04).
@@ -230,6 +241,29 @@ contract BurnJettonMaster(
         self.timelock = msg.newTimelock;
     }
 
+    receive(msg: SetGasParams) {
+        require(sender() == self.timelock, "Only timelock");
+        // IMP-MNAUD-F22: const caps (MAX_TOTAL_FEE_BPS pattern) + on-chain coherence
+        // invariant — reject any configuration where the entry gate could admit an
+        // attach that then fails the fee-fanout require (F10 strand band). Same
+        // check is re-run wallet-side on JettonUpdateFeeConfig receipt.
+        let gas = GasParamsView {
+            minTonFeePath: msg.min_ton_fee_path,
+            perInternalDeployTon: msg.per_internal_deploy_ton,
+            poolForwardMin: msg.gas_pool_forward_min,
+            treasuryForwardMin: msg.gas_treasury_forward_min,
+            burnNotifyTon: msg.gas_burn_notify_ton,
+            propagateTon: msg.gas_propagate_ton,
+        };
+        require(isValidGasParams(gas), "Invalid gas params");
+        self.gasMinTonFeePath = msg.min_ton_fee_path;
+        self.gasPerInternalDeployTon = msg.per_internal_deploy_ton;
+        self.gasPoolFwdMin = msg.gas_pool_forward_min;
+        self.gasTreasuryFwdMin = msg.gas_treasury_forward_min;
+        self.gasBurnNotify = msg.gas_burn_notify_ton;
+        self.gasPropagate = msg.gas_propagate_ton;
+    }
+
     receive(msg: SyncFeeConfigToWallet) {
         require(sender() == self.timelock, "Only timelock");
         require(self.feeDestinationsActive, "Fee destinations not configured on master");
@@ -279,6 +313,12 @@ contract BurnJettonMaster(
             low_supply_mode: low,
             excluded_count: self.excludedCount,
             excluded_head: self.excludedHead,
+            gas_min_ton_fee_path: self.gasMinTonFeePath,
+            gas_per_internal_deploy_ton: self.gasPerInternalDeployTon,
+            gas_pool_forward_min: self.gasPoolFwdMin,
+            gas_treasury_forward_min: self.gasTreasuryFwdMin,
+            gas_burn_notify_ton: self.gasBurnNotify,
+            gas_propagate_ton: self.gasPropagate,
         };
 
         message(MessageParameters {
@@ -328,6 +368,12 @@ contract BurnJettonMaster(
             low_supply_mode: low,
             excluded_count: self.excludedCount,
             excluded_head: self.excludedHead,
+            gas_min_ton_fee_path: self.gasMinTonFeePath,
+            gas_per_internal_deploy_ton: self.gasPerInternalDeployTon,
+            gas_pool_forward_min: self.gasPoolFwdMin,
+            gas_treasury_forward_min: self.gasTreasuryFwdMin,
+            gas_burn_notify_ton: self.gasBurnNotify,
+            gas_propagate_ton: self.gasPropagate,
         };
 
         // IMP-MNAUD-F14: deploy with StateInit so SyncFeeConfigToWallet activates
@@ -394,6 +440,18 @@ contract BurnJettonMaster(
 
     get fun get_is_excluded(holder: Address): Bool {
         return isInExcludedChain(holder, self.excludedHead);
+    }
+
+    /// Current governance-tunable TON gas params (IMP-MNAUD-F22).
+    get fun get_gas_params(): GasParamsView {
+        return GasParamsView {
+            minTonFeePath: self.gasMinTonFeePath,
+            perInternalDeployTon: self.gasPerInternalDeployTon,
+            poolForwardMin: self.gasPoolFwdMin,
+            treasuryForwardMin: self.gasTreasuryFwdMin,
+            burnNotifyTon: self.gasBurnNotify,
+            propagateTon: self.gasPropagate,
+        };
     }
 
     /// Treasury TEP-74 owner address (must match `SetFeeDestinations.treasury` — typically the Treasury contract).

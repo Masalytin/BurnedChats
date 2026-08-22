@@ -258,6 +258,11 @@ fee-exempt.
      is excluded. IMP-MNAUD-F17 W1 switched the pool/treasury fanout legs from
      `deploy(0.55)` to warm `message()` sends (~0.11 / ~0.04 TON), lowering the
      gate from the F16 value 2.05 to 1.0 (sandbox first-credit 0.91–0.93 TON).
+     Since IMP-MNAUD-F22 the gate (and the per-leg deliver values) are
+     **governance-tunable within hard const caps** (gate ∈ [0.95; 5] TON, see
+     [Can parameters be changed?](#can-parameters-be-changed)); 1.0 TON is the
+     deploy default and stays effective unless the Timelock issues
+     `SetGasParams`.
    - Recommended attach: **~1.2 TON** for excluded partner integrations (F04 DEX
      pools) and warm transfers; **~1.5 TON** for cold fee-path transfers via
      Mini App / custom routers. Surplus above actual fanout cost is refunded.
@@ -807,5 +812,29 @@ Yes, through governance:
 - Staking pool distribution rate (linear distribution speed of 300 BURN initial allocation)
 - Tier reward shares (60/25/10/5 shares between Diamond/Gold/Silver/Flexible)
 - Treasury distribution
+- **TON gas gates of the jetton wallet** (`SetGasParams`, Timelock-gated,
+  IMP-MNAUD-F22) — survival insurance against network fee drift. Defaults equal
+  the audited post-F17 W1 constants, so without governance intervention transfer
+  behavior is bit-identical. Hard compile-time caps (the `MAX_TOTAL_FEE_BPS`
+  pattern) bound every value and are enforced on the master **and** re-validated
+  by every wallet when the config push arrives:
+
+  | Parameter | Default | Min cap | Max cap | Role |
+  |---|---|---|---|---|
+  | `min_ton_fee_path` | 1.0 TON | 0.95 TON | 5 TON | uniform `JettonTransfer` entry gate |
+  | `per_internal_deploy_ton` | 0.55 TON | 0.55 TON | 1 TON | recipient-leg deliver (cold deploy) |
+  | `gas_pool_forward_min` | 0.07 TON | 0.07 TON | 1 TON | staking-leg forward floor |
+  | `gas_treasury_forward_min` | 0.01 TON | 0.01 TON | 1 TON | treasury-leg forward floor |
+  | `gas_burn_notify_ton` | 0.06 TON | 0.06 TON | 1 TON | burn-notify leg to master |
+  | `gas_propagate_ton` | 0.05 TON | 0.05 TON | 1 TON | fee-config push (fee path sends 3×) |
+
+  Min caps equal the measured W1 floors (IMP-MNAUD-F16/F17 evidence): lowering
+  deliver values below the cold-safe floors is impossible by vote or by code.
+  On top of the caps, an on-chain coherence invariant rejects (on master and on
+  wallet) any configuration where the entry gate could admit an attach that then
+  fails the fee-fanout requirement — governance cannot open an F10 strand band.
+  Propagation to wallets uses the existing push channels only
+  (`SyncFeeConfigToWallet` / recipient propagate); a stale wallet snapshot
+  executes self-consistently with its old values (availability risk only).
 
 All stakers vote with weight per the VP formula (see Governance section). Quorum and approval threshold requirements depend on proposal type (Parameter Change / Feature Priority / Treasury Spend / Emergency).

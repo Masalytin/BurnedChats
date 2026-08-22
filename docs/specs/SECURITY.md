@@ -906,7 +906,8 @@ fixed at init and never changes on-chain.
 **Residual powers under the governor key.** Even after supply finalization
 (CloseMint + jetton-admin revoke, IMP-MNAUD-F05), the Timelock governor can
 still queue and execute (subject to the delays below): jetton fee-config
-changes (via the jetton master `timelock` authority), treasury spends
+changes (via the jetton master `timelock` authority, including the cap-bounded
+TON gas gates — see `SetGasParams` below), treasury spends
 (`TreasurySpend`), vesting emergency revokes (`VestEmergencyRevoke`), and
 staking-parameter retunes. These are accepted residual powers, mitigated by
 (a) the multisig governor and (b) the high-value delay floor.
@@ -939,6 +940,57 @@ so live scenarios actually queue with a real delay and wait it out.
 **Guarantee:** any treasury spend or vesting revoke is visible on-chain for at
 least the floor window (48 h on mainnet) before it can execute, giving the
 multisig time to cancel a compromised or mistaken action.
+
+### Governance-tunable TON gas gates (`SetGasParams`, IMP-MNAUD-F22)
+
+**Surface.** The jetton wallet's TON gas gates — entry gate `min_ton_fee_path`
+(default 1.0 TON), recipient deliver `per_internal_deploy_ton` (0.55), sink
+forward floors `gas_pool_forward_min` / `gas_treasury_forward_min` (0.07 /
+0.01), burn-notify leg `gas_burn_notify_ton` (0.06) and fee-config propagate
+`gas_propagate_ton` (0.05) — are master state under the jetton `timelock`
+authority (`SetGasParams`, opcode `0x5a1c8f07`, same gating as `SetFeeParams`).
+This is survival insurance: without it a rise in network forward/gas fees could
+permanently break the fee fanout (the gate/deliver constants would be immutable
+after mainnet deploy). Defaults equal the post-F17 W1 constants — no governance
+action ⇒ pre-F22 behavior, bit-identical.
+
+**Cap-bounded DoS analysis.** All six values are bounded by compile-time consts
+(the `MAX_TOTAL_FEE_BPS` pattern), checked on master **and re-validated by every
+wallet** on `JettonUpdateFeeConfig` receipt (a buggy or compromised master push
+cannot install an out-of-cap snapshot):
+
+- Gate ceiling **5 TON** bounds worst-case censorship-by-cost: a captured
+  Timelock can make transfers cost at most 5 TON attach, never disable them.
+- Gate floor **0.95 TON** sits above the worst measured first-credit
+  (0.93 TON, F17 evidence) and well above the resolve→commit strand band
+  (≤ 0.88): governance can never re-open the F10 band by lowering the gate.
+- Deliver/forward floors equal the measured cold-safe W1 floors — lowering a
+  leg below the value proven to execute is impossible by vote or by code;
+  ceilings (1 TON per leg) bound per-transfer TON burn if governance misprices.
+- **Coherence invariant** (on-chain, both sides): a configuration is rejected
+  unless `gate ≥ worst-case fanout` (cold recipient deploy leg, forward fee
+  bounded at 0.01 TON, burn-notify + 3× propagate included). No single config
+  can pass the entry gate yet fail the fanout require.
+
+**Propagation & staleness.** Values travel to wallets only inside
+`JettonUpdateFeeConfig` via the existing push channels (`SyncFeeConfigToWallet`,
+recipient propagate) — deliberately **no live-resolve for gas staleness**, which
+would kill the warm direct path. A wallet with a stale snapshot executes
+self-consistently: the entry gate and every deliver value come from the same
+local snapshot, so staleness is an availability risk only (users may pay the
+old gate until the sync push lands), never a fee bypass or a strand.
+
+**Transition window (commit guard).** During a raise, a resolve-path transfer
+can enter through a wallet's OLD (lower) gate while the master's config push —
+delivered right before `CommitJettonTransfer` — raises the fanout requirement
+at commit. A throw there would strand the user's TON on master (F10 pattern).
+The wallet therefore pre-checks the commit value and, if insufficient, refunds
+via the existing F18 signal (`JettonTransferCommitFailed` to the owner with the
+incoming TON) instead of throwing. Jettons are never debited in this branch.
+
+**Ops note:** after `SetGasParams`, run `SyncFeeConfigToWallet` for protocol
+wallets (pool, treasury, LP endpoints) — organic propagation covers only
+transfer recipients.
 
 ### Cashback Loop Between Auto-cashback Contracts (RC-2)
 
@@ -990,10 +1042,12 @@ wallet, so the sender snapshot never self-healed.
 3. Normal warm P2P (`forwardTonAmount < 1 TON`, neither side locally excluded) → direct
    fee path without master hop (gas profile preserved).
 
-**Entry TON gate:** claimed-excluded and fee paths both require `minTonFeePath` (≈2.05 TON
-strict `>`). Surplus is refunded when master confirms the transfer is still excluded.
-The former `minTonExcludedPath` (≈0.58) is no longer an entry gate for `JettonTransfer`
-(F11); under-attach fails at wallet entry instead of stranding value on master.
+**Entry TON gate:** claimed-excluded and fee paths both require `minTonFeePath` (default
+1.0 TON after IMP-MNAUD-F17 W1, strict `>`; governance-tunable within [0.95; 5] TON via
+`SetGasParams`, IMP-MNAUD-F22). Surplus is refunded when master confirms the transfer is
+still excluded. The former `minTonExcludedPath` (≈0.58) is no longer an entry gate for
+`JettonTransfer` (F11); under-attach fails at wallet entry instead of stranding value on
+master.
 
 **Security:** `excludedTransfer=true` in commit set only if address is in
 timelock-managed excluded list on master (`AddExcluded` / `RemoveExcluded`). Arbitrary
@@ -1042,13 +1096,14 @@ self-exclude: only Timelock/`AddExcluded` (jetton admin) mutates the list
 desync AMM expectations — treat as high-care ops.
 
 **Gas is orthogonal:** post-F11 the wallet entry gate is uniform — every
-`JettonTransfer` (excluded path included) requires `minTonFeePath` (≈2.05 TON
-after IMP-MNAUD-F16, strict `>` plus forward amount and forward fees); surplus
-is refunded when master confirms the transfer is excluded. The legacy
+`JettonTransfer` (excluded path included) requires `minTonFeePath` (default
+1.0 TON after IMP-MNAUD-F17 W1, strict `>` plus forward amount and forward
+fees; governance-tunable within hard caps via `SetGasParams`, IMP-MNAUD-F22);
+surplus is refunded when master confirms the transfer is excluded. The legacy
 `minTonExcludedPath` (≈0.58) is **not** an entry gate (see IMP-MNAUD-F11 above).
 Default wallet/DEX attaches (~0.05–0.3 TON) remain insufficient — recommend
-~2.3 TON (excluded/warm) or ~3.5 TON (cold fee path, Mini App); low-attach
-router UX requires the IMP-MNAUD-F17 fanout redesign.
+~1.2 TON (excluded/warm) or ~1.5 TON (cold fee path, Mini App); low-attach
+router UX would require the W2/W3 wedges of IMP-MNAUD-F17 (not implemented).
 
 **Ops checklist before seeding LP:**
 

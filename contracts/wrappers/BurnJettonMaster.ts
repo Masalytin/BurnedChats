@@ -11,6 +11,7 @@ import {
     type SetDynamicBurnThresholds as SetDynamicBurnThresholdsPayload,
     type SetFeeDestinations as SetFeeDestinationsPayload,
     type SetFeeParams as SetFeeParamsPayload,
+    type SetGasParams as SetGasParamsPayload,
     type SetTimelock as SetTimelockPayload,
     type SyncFeeConfigToWallet as SyncFeeConfigToWalletPayload,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
@@ -60,6 +61,13 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             10n,
             6n,
             4n,
+            // IMP-MNAUD-F22 gas param defaults = post-F17 W1 wallet constants
+            toNano('1.0'), // gasMinTonFeePath
+            toNano('0.55'), // gasPerInternalDeployTon
+            toNano('0.07'), // gasPoolFwdMin
+            toNano('0.01'), // gasTreasuryFwdMin
+            toNano('0.06'), // gasBurnNotify
+            toNano('0.05'), // gasPropagate
         );
         if (base.init === undefined) {
             throw new Error('BurnJettonMaster init is not defined');
@@ -141,6 +149,32 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
             burn_rate_bps: p.burnBps,
             staking_rate_bps: p.stakingBps,
             treasury_rate_bps: p.treasuryBps,
+        };
+        return this.send(provider, via, { value: toNano('0.02') }, msg);
+    }
+
+    /** Timelock updates the governance-tunable TON gas gates (IMP-MNAUD-F22). */
+    async sendSetGasParams(
+        provider: ContractProvider,
+        via: Sender,
+        p: {
+            minTonFeePath: bigint;
+            perInternalDeployTon: bigint;
+            poolForwardMin: bigint;
+            treasuryForwardMin: bigint;
+            burnNotifyTon: bigint;
+            propagateTon: bigint;
+        },
+    ) {
+        const msg: SetGasParamsPayload = {
+            $$type: 'SetGasParams',
+            queryId: 0n,
+            min_ton_fee_path: p.minTonFeePath,
+            per_internal_deploy_ton: p.perInternalDeployTon,
+            gas_pool_forward_min: p.poolForwardMin,
+            gas_treasury_forward_min: p.treasuryForwardMin,
+            gas_burn_notify_ton: p.burnNotifyTon,
+            gas_propagate_ton: p.propagateTon,
         };
         return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
