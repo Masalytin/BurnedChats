@@ -119,7 +119,7 @@ describe('preflightRecipientJetton', () => {
 });
 
 describe('warm attach estimate from preflight', () => {
-  it('maps warm preflight to 2.3 TON recommended attach', async () => {
+  it('maps warm preflight to 1.2 TON recommended attach', async () => {
     const { estimateBurnTransferTon, RECOMMENDED_FEE_PATH_WARM_NANO } = await import(
       '@/ton/estimateBurnTransferTon'
     );
@@ -131,10 +131,10 @@ describe('warm attach estimate from preflight', () => {
     });
 
     expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-    expect(estimate.recommendedNano).toBe(2_300_000_000n);
+    expect(estimate.recommendedNano).toBe(1_200_000_000n);
   });
 
-  it('maps cold preflight to 3.5 TON recommended attach', async () => {
+  it('maps cold preflight to 1.5 TON recommended attach', async () => {
     const { estimateBurnTransferTon, RECOMMENDED_FEE_PATH_NANO } = await import(
       '@/ton/estimateBurnTransferTon'
     );
@@ -146,7 +146,7 @@ describe('warm attach estimate from preflight', () => {
     });
 
     expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_NANO);
-    expect(estimate.recommendedNano).toBe(3_500_000_000n);
+    expect(estimate.recommendedNano).toBe(1_500_000_000n);
   });
 });
 
@@ -160,9 +160,9 @@ describe('transferBurn attach parity', () => {
       jettonWallet: addr,
       recipient: addr,
       amount: 1_000_000_000n,
-      attachedTon: 2_300_000_000n,
+      attachedTon: 1_200_000_000n,
     });
 
-    expect(msg.amount).toBe('2300000000');
+    expect(msg.amount).toBe('1200000000');
   });
 });

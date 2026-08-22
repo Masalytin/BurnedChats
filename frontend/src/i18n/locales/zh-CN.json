@@ -1293,7 +1293,7 @@
     "sendGasColdHint": "首次向此接收方转账 — ~{{attach}} {{symbol}} 押金；实际网络费用 ~{{netMin}}–{{netMax}} {{symbol}}。剩余将退还。",
     "sendGasDepositHint": "此转账预留 ~{{attach}} {{symbol}}；实际网络费用 ~{{netMin}}–{{netMax}} {{symbol}}。其余将退还。",
     "sendGasExcludedHint": "无 BURN 费用分配 — 网络押金 ~{{attach}} {{symbol}}。剩余将退还。",
-    "sendGasHint": "BURN 转账附加 ~3.5 {{symbol}} 用于 on-chain gas（与上方 BURN 费用分配分开）。请在钱包中保留足够的原生 {{symbol}}。",
+    "sendGasHint": "BURN 转账附加 ~1.5 {{symbol}} 用于 on-chain gas（与上方 BURN 费用分配分开）。请在钱包中保留足够的原生 {{symbol}}。",
     "sendGasNetFeeHint": "部分剩余金额可能暂时留在 Jetton 钱包中，然后退回您的主钱包。",
     "sendGasWarmHint": "重复转账 — 较低 ~{{attach}} {{symbol}} 押金；实际网络费用 ~{{netMin}}–{{netMax}} {{symbol}}。剩余将退还。",
     "sendMaxTonReserveHint": "发送最大 BURN 前，请在钱包中保留 ~{{attach}} {{symbol}} 用于网络押金。",

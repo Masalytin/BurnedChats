@@ -1293,7 +1293,7 @@
     "sendGasColdHint": "Primera transferencia a este destinatario — depósito ~{{attach}} {{symbol}}; comisión de red real ~{{netMin}}–{{netMax}} {{symbol}}. El excedente se reembolsa.",
     "sendGasDepositHint": "~{{attach}} {{symbol}} reservado para esta transferencia; comisión de red real ~{{netMin}}–{{netMax}} {{symbol}}. El resto se reembolsa.",
     "sendGasExcludedHint": "Sin división de comisión BURN — depósito de red ~{{attach}} {{symbol}}. El excedente se reembolsa.",
-    "sendGasHint": "Las transferencias BURN adjuntan ~3.5 {{symbol}} al mensaje para gas on-chain (aparte de la división de comisión BURN de arriba). Mantén suficiente {{symbol}} nativo en tu wallet.",
+    "sendGasHint": "Las transferencias BURN adjuntan ~1.5 {{symbol}} al mensaje para gas on-chain (aparte de la división de comisión BURN de arriba). Mantén suficiente {{symbol}} nativo en tu wallet.",
     "sendGasNetFeeHint": "Parte del excedente puede quedarse brevemente en tu jetton wallet antes de volver a tu wallet principal.",
     "sendGasWarmHint": "Transferencia repetida — depósito menor ~{{attach}} {{symbol}}; comisión de red real ~{{netMin}}–{{netMax}} {{symbol}}. El excedente se reembolsa.",
     "sendMaxTonReserveHint": "Mantén ~{{attach}} {{symbol}} en tu wallet para el depósito de red antes de enviar el máximo BURN.",

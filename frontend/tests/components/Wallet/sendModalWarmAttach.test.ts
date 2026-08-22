@@ -25,26 +25,26 @@ function hint(template: string, attachNano: bigint): string {
 }
 
 describe('IMP-JETTON-GAS-08 — warm-path TON attach UX', () => {
-  it('warm preflight yields 2.3 TON attach in estimate', () => {
+  it('warm preflight yields 1.2 TON attach in estimate', () => {
     const estimate = estimateBurnTransferTon({
       feePath: true,
       recipientWalletDeployed: true,
       recipientFeeConfigActive: true,
     });
     expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
-    expect(formatTonAmount(estimate.recommendedNano)).toBe('2.3');
+    expect(formatTonAmount(estimate.recommendedNano)).toBe('1.2');
   });
 
-  it('cold preflight yields 3.5 TON attach in estimate', () => {
+  it('cold preflight yields 1.5 TON attach in estimate', () => {
     const estimate = estimateBurnTransferTon({ feePath: true });
     expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_NANO);
-    expect(formatTonAmount(estimate.recommendedNano)).toBe('3.5');
+    expect(formatTonAmount(estimate.recommendedNano)).toBe('1.5');
   });
 
-  it('warm unlocks send when TON balance is between 2.3 and 3.4 TON', () => {
+  it('warm unlocks send when TON balance is between 1.2 and 1.4 TON', () => {
     const warm = estimateBurnTransferTon({ feePath: true, recipientWalletDeployed: true }).recommendedNano;
     const cold = estimateBurnTransferTon({ feePath: true }).recommendedNano;
-    const balance = 2_500_000_000n;
+    const balance = 1_300_000_000n;
     expect(balance < cold).toBe(true);
     expect(balance >= warm).toBe(true);
   });
@@ -54,13 +54,13 @@ describe('IMP-JETTON-GAS-08 — warm-path TON attach UX', () => {
     const warm = hint(en.wallet.sendGasWarmHint, RECOMMENDED_FEE_PATH_WARM_NANO);
     expect(cold.toLowerCase()).toMatch(/first/);
     expect(warm.toLowerCase()).toMatch(/repeat/);
-    expect(cold).toContain('3.5');
-    expect(warm).toContain('2.3');
+    expect(cold).toContain('1.5');
+    expect(warm).toContain('1.2');
   });
 
   it('ru warm hint mentions repeat transfer and lower deposit', () => {
     const warm = hint(ru.wallet.sendGasWarmHint, RECOMMENDED_FEE_PATH_WARM_NANO);
     expect(warm).toContain('Повторный');
-    expect(warm).toContain('2.3');
+    expect(warm).toContain('1.2');
   });
 });

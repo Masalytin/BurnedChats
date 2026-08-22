@@ -1297,7 +1297,7 @@
     "sendGasColdHint": "أول تحويل لهذا المستلم — وديعة ~{{attach}} {{symbol}}؛ رسوم الشبكة الفعلية ~{{netMin}}–{{netMax}} {{symbol}}. يُسترد الفائض.",
     "sendGasDepositHint": "يُحجز ~{{attach}} {{symbol}} لهذا التحويل؛ رسوم الشبكة الفعلية ~{{netMin}}–{{netMax}} {{symbol}}. يُسترد الباقي.",
     "sendGasExcludedHint": "بدون تقسيم رسوم BURN — وديعة شبكة ~{{attach}} {{symbol}}. يُسترد الفائض.",
-    "sendGasHint": "تحويلات BURN ترفق ~3.5 {{symbol}} بالرسالة لـ on-chain gas (منفصل عن تقسيم رسوم BURN أعلاه). احتفظ بـ {{symbol}} أصلي كافٍ في محفظتك.",
+    "sendGasHint": "تحويلات BURN ترفق ~1.5 {{symbol}} بالرسالة لـ on-chain gas (منفصل عن تقسيم رسوم BURN أعلاه). احتفظ بـ {{symbol}} أصلي كافٍ في محفظتك.",
     "sendGasNetFeeHint": "قد يبقى جزء من الفائض في محفظة Jetton مؤقتًا قبل العودة إلى محفظتك الرئيسية.",
     "sendGasWarmHint": "تحويل متكرر — وديعة أقل ~{{attach}} {{symbol}}؛ رسوم الشبكة الفعلية ~{{netMin}}–{{netMax}} {{symbol}}. يُسترد الفائض.",
     "sendMaxTonReserveHint": "احتفظ بـ ~{{attach}} {{symbol}} في محفظتك لوديعة الشبكة قبل إرسال الحد الأقصى من BURN.",

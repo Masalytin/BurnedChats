@@ -98,10 +98,10 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
       expect(BigInt(msg.amount)).toBe(STAKE_ATTACHED_TON);
       expect(BigInt(msg.amount)).toBe(stakeEstimate.recommendedNano);
       expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(stakeEstimate.minimumNano);
-      // Post-F11 uniform wallet entry gate (IMP-MNAUD-F23): attach must clear
-      // forward + 2*fwd + minTonFeePath(2.05) with live fwd variance headroom.
+      // Post-F11 uniform wallet entry gate (F17 W1 / IMP-MNAUD-F24): attach must
+      // clear forward + 2*fwd + minTonFeePath(1.0) with live fwd variance headroom.
       expect(BigInt(msg.amount)).toBeGreaterThan(
-        stakeEstimate.forwardTonNano + 2n * toNano('0.004') + toNano('2.05'),
+        stakeEstimate.forwardTonNano + 2n * toNano('0.004') + toNano('1.0'),
       );
     });
   });

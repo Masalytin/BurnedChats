@@ -271,7 +271,7 @@
     "sendErrorJettonWalletNotDeployed": "У вашего кошелька ещё нет BURN jetton-кошелька. Сначала получите BURN, затем отправьте.",
     "sendErrorInsufficientBalance": "Недостаточно BURN для этого перевода.",
     "sendErrorInsufficientGas": "Недостаточно {{symbol}} на кошельке для оплаты сетевых комиссий.",
-    "sendGasHint": "К переводу BURN к сообщению прикрепляется ~3.5 {{symbol}} на on-chain газ (отдельно от сплита комиссий BURN выше). Держите достаточный запас native {{symbol}} на кошельке.",
+    "sendGasHint": "К переводу BURN к сообщению прикрепляется ~1.5 {{symbol}} на on-chain газ (отдельно от сплита комиссий BURN выше). Держите достаточный запас native {{symbol}} на кошельке.",
     "sendGasDepositHint": "~{{attach}} {{symbol}} резервируется для перевода; фактическая сетевая комиссия ~{{netMin}}–{{netMax}} {{symbol}}. Остаток вернётся.",
     "sendGasColdHint": "Первый перевод получателю — залог ~{{attach}} {{symbol}}; сетевая комиссия ~{{netMin}}–{{netMax}} {{symbol}}. Остаток вернётся.",
     "sendGasWarmHint": "Повторный перевод — меньший залог ~{{attach}} {{symbol}}; сетевая комиссия ~{{netMin}}–{{netMax}} {{symbol}}. Остаток вернётся.",

@@ -28,12 +28,12 @@ function depositHint(template: string): string {
 describe('IMP-JETTON-GAS-05 — fee path gas deposit UX', () => {
   it('formatNativeCoin appends display symbol to gas attach amount', () => {
     const estimate = estimateBurnTransferTon({ feePath: true });
-    expect(formatNativeCoin(estimate.recommendedNano)).toBe(`3.5 ${NATIVE_COIN_SYMBOL}`);
+    expect(formatNativeCoin(estimate.recommendedNano)).toBe(`1.5 ${NATIVE_COIN_SYMBOL}`);
   });
 
   it('en deposit hint contains recommended attach, net fee range, and native coin symbol', () => {
     const hint = depositHint(en.wallet.sendGasDepositHint);
-    expect(hint).toContain('3.5');
+    expect(hint).toContain('1.5');
     expect(hint).toContain('0.05');
     expect(hint).toContain('0.1');
     expect(hint).toContain(NATIVE_COIN_SYMBOL);
@@ -42,7 +42,7 @@ describe('IMP-JETTON-GAS-05 — fee path gas deposit UX', () => {
 
   it('ru deposit hint contains recommended attach and refund wording', () => {
     const hint = depositHint(ru.wallet.sendGasDepositHint);
-    expect(hint).toContain('3.5');
+    expect(hint).toContain('1.5');
     expect(hint).toContain('вернётся');
   });
 

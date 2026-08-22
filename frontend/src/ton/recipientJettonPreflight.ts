@@ -212,7 +212,7 @@ export function createRecipientPreflightDeps(overrides?: Partial<JettonWalletRes
 
 /**
  * Best-effort recipient jetton wallet probe for warm-path TON attach.
- * On RPC failure returns cold-path defaults (3.5 TON estimate in UI).
+ * On RPC failure returns cold-path defaults (1.5 TON estimate in UI).
  */
 export async function preflightRecipientJetton(
   recipientOwner: string,

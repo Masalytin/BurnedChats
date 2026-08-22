@@ -22,26 +22,26 @@ function hint(template: string, attachNano: bigint): string {
 }
 
 describe('IMP-JETTON-GAS-11 — excluded-path TON attach UX', () => {
-  it('excluded path estimate yields post-F11 2.3 TON attach', () => {
+  it('excluded path estimate yields post-F17 1.2 TON attach', () => {
     const estimate = estimateBurnTransferTon({ feePath: false });
     expect(estimate.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
-    expect(formatTonAmount(estimate.recommendedNano)).toBe('2.3');
+    expect(formatTonAmount(estimate.recommendedNano)).toBe('1.2');
   });
 
-  it('fee path remains 3.5 TON for non-excluded users', () => {
+  it('fee path remains 1.5 TON for non-excluded users', () => {
     const estimate = estimateBurnTransferTon({ feePath: true });
     expect(estimate.recommendedNano).toBe(RECOMMENDED_FEE_PATH_NANO);
   });
 
-  it('excluded attach unlocks send when TON balance is between 2.3 and 3.4 TON', () => {
+  it('excluded attach unlocks send when TON balance is between 1.2 and 1.4 TON', () => {
     const excluded = estimateBurnTransferTon({ feePath: false }).recommendedNano;
     const fee = estimateBurnTransferTon({ feePath: true }).recommendedNano;
-    const balance = 3_000_000_000n;
+    const balance = 1_300_000_000n;
     expect(balance >= excluded).toBe(true);
     expect(balance < fee).toBe(true);
   });
 
-  it('msg builder uses 2.3 TON when attachedTon is excluded estimate', () => {
+  it('msg builder uses 1.2 TON when attachedTon is excluded estimate', () => {
     const attach = estimateBurnTransferTon({ feePath: false }).recommendedNano;
     const msg = buildJettonTransferMsg({
       jettonWallet: Address.parse(`0:${'aa'.repeat(32)}`),
@@ -49,18 +49,18 @@ describe('IMP-JETTON-GAS-11 — excluded-path TON attach UX', () => {
       amount: 1_000_000_000n,
       attachedTon: attach,
     });
-    expect(msg.amount).toBe('2300000000');
+    expect(msg.amount).toBe('1200000000');
   });
 
-  it('en excluded hint describes no BURN fee split and 2.3 TON deposit', () => {
+  it('en excluded hint describes no BURN fee split and 1.2 TON deposit', () => {
     const text = hint(en.wallet.sendGasExcludedHint, RECOMMENDED_EXCLUDED_PATH_NANO);
     expect(text.toLowerCase()).toMatch(/no burn fee/i);
-    expect(text).toContain('2.3');
+    expect(text).toContain('1.2');
   });
 
   it('ru excluded hint matches card copy', () => {
     const text = hint(ru.wallet.sendGasExcludedHint, RECOMMENDED_EXCLUDED_PATH_NANO);
     expect(text).toContain('без комиссии BURN');
-    expect(text).toContain('2.3');
+    expect(text).toContain('1.2');
   });
 });

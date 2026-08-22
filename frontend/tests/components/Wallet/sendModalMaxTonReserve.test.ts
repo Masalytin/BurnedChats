@@ -24,10 +24,10 @@ describe('IMP-JETTON-GAS-10 — SendModal MAX TON reserve', () => {
     recipientWalletDeployed: true,
   }).recommendedNano;
 
-  it('canAffordGasReserve rejects 1 TON when warm attach is 2.3 TON', () => {
+  it('canAffordGasReserve rejects 1 TON when warm attach is 1.2 TON', () => {
     expect(warmRecommended).toBe(RECOMMENDED_FEE_PATH_WARM_NANO);
     expect(canAffordGasReserve(1_000_000_000n, warmRecommended)).toBe(false);
-    expect(canAffordGasReserve(2_300_000_000n, warmRecommended)).toBe(true);
+    expect(canAffordGasReserve(1_200_000_000n, warmRecommended)).toBe(true);
   });
 
   it('tryApplyMaxBurnAmount blocks silent MAX when TON is below recommended attach', () => {
@@ -64,8 +64,8 @@ describe('IMP-JETTON-GAS-10 — SendModal MAX TON reserve', () => {
     const attach = formatTonAmount(warmRecommended);
     const enHint = en.wallet.sendMaxTonReserveHint.replace('{{attach}}', attach);
     const ruHint = ru.wallet.sendMaxTonReserveHint.replace('{{attach}}', attach);
-    expect(enHint).toContain('2.3');
-    expect(ruHint).toContain('2.3');
+    expect(enHint).toContain('1.2');
+    expect(ruHint).toContain('1.2');
     expect(ruHint.toLowerCase()).toMatch(/залог|ton/);
   });
 });

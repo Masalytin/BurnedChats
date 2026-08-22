@@ -271,7 +271,7 @@
     "sendErrorJettonWalletNotDeployed": "Your wallet does not have a BURN jetton wallet yet. Receive BURN first, then try sending.",
     "sendErrorInsufficientBalance": "You do not have enough BURN for this transfer.",
     "sendErrorInsufficientGas": "Not enough {{symbol}} in your wallet to pay network fees.",
-    "sendGasHint": "BURN transfers attach ~3.5 {{symbol}} to the message for on-chain gas (separate from the BURN fee split above). Keep enough native {{symbol}} in your wallet.",
+    "sendGasHint": "BURN transfers attach ~1.5 {{symbol}} to the message for on-chain gas (separate from the BURN fee split above). Keep enough native {{symbol}} in your wallet.",
     "sendGasDepositHint": "~{{attach}} {{symbol}} is reserved for this transfer; actual network fee is ~{{netMin}}–{{netMax}} {{symbol}}. The rest is refunded.",
     "sendGasColdHint": "First transfer to this recipient — ~{{attach}} {{symbol}} deposit; actual network fee ~{{netMin}}–{{netMax}} {{symbol}}. Surplus is refunded.",
     "sendGasWarmHint": "Repeat transfer — lower ~{{attach}} {{symbol}} deposit; actual network fee ~{{netMin}}–{{netMax}} {{symbol}}. Surplus is refunded.",

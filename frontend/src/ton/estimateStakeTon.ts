@@ -40,10 +40,9 @@ const STAKE_FEE_PATH_FANOUT_MARGIN_NANO = toNano('0.35');
 /**
  * Headroom for live forward-fee variance on the post-F11 uniform wallet entry
  * gate `value > forward + 2*fwd + minTonFeePath` (live fwd ≈ 0.0003–0.004 TON
- * vs the 0.00027 estimate; IMP-MNAUD-F20). Sized so the default stake attach
- * lands at ~7.5 TON at forward 5 — the sandbox-replica orientation of
- * IMP-MNAUD-F23; the F20 harness keeps a comparable ~0.54 TON at forward 8.
- * Surplus refunds via JettonExcesses.
+ * vs the 0.00027 estimate; IMP-MNAUD-F20). With the post-F17 gate (1.0) the
+ * default stake attach lands at ~6.45 TON at forward 5 (was ~7.5 at the F16
+ * gate 2.05 — IMP-MNAUD-F24 sync). Surplus refunds via JettonExcesses.
  */
 const GATE_FORWARD_FEE_HEADROOM_NANO = toNano('0.25');
 
@@ -102,24 +101,24 @@ function poolLegForwardTon(): bigint {
   return maxBig(GAS_POOL_FORWARD_MIN_NANO, computed);
 }
 
+/** IMP-MNAUD-F17 (W1): pool leg is a warm message() send — no perInternalDeployTon floor. */
 function poolLegDeliverTon(): bigint {
   const poolFwd = poolLegForwardTon();
-  return maxBig(
-    PER_INTERNAL_DEPLOY_NANO,
+  return (
     poolFwd +
-      ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-      MIN_TONS_FOR_STORAGE_NANO +
-      INTERNAL_DEPLOY_HEADROOM_NANO,
+    ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
+    MIN_TONS_FOR_STORAGE_NANO +
+    INTERNAL_DEPLOY_HEADROOM_NANO
   );
 }
 
+/** IMP-MNAUD-F17 (W1): treasury leg is a warm message() send — no perInternalDeployTon floor. */
 function treasuryLegDeliverTon(): bigint {
-  return maxBig(
-    PER_INTERNAL_DEPLOY_NANO,
+  return (
     TREASURY_LEG_FORWARD_NANO +
-      ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-      MIN_TONS_FOR_STORAGE_NANO +
-      INTERNAL_DEPLOY_HEADROOM_NANO,
+    ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
+    MIN_TONS_FOR_STORAGE_NANO +
+    INTERNAL_DEPLOY_HEADROOM_NANO
   );
 }
 
@@ -134,7 +133,7 @@ export type StakePathTonBreakdown = {
     gateFwdHeadroomNano: bigint;
     recommendedAttachNano: bigint;
   };
-  /** 3 deploys + burn-notify + propagate (legacy / non-excluded fallback). */
+  /** 1 recipient deploy + 2 warm sink legs + burn-notify + propagate (F17 W1; non-excluded fallback). */
   feePath: {
     netDeployNano: bigint;
     poolDeployNano: bigint;

@@ -35,13 +35,13 @@ describe('transactionBuilder payload encoding', () => {
     expect(s.loadUint(32)).toBe(0x0f8a7ea5);
   });
 
-  it('buildJettonTransferMsg defaults attached TON to 3.5 (BURN_TRANSFER_ATTACHED_TON)', () => {
+  it('buildJettonTransferMsg defaults attached TON to 1.5 (BURN_TRANSFER_ATTACHED_TON, F24)', () => {
     const msg = buildJettonTransferMsg({
       jettonWallet: ADDR,
       recipient: ADDR,
       amount: 1_000_000_000n,
     });
-    expect(msg.amount).toBe(String(3_500_000_000n));
+    expect(msg.amount).toBe(String(1_500_000_000n));
   });
 
   it('buildJettonTransferMsg routes TEP-74 excess to responseAddress, not recipient', () => {

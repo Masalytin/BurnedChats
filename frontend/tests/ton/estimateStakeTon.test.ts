@@ -21,19 +21,19 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
   });
 
   it('excluded attach clears the post-F11 gate and stays below fee-path attach', () => {
-    expect(STAKE_ATTACHED_TON).toBe(7_500_540_001n);
-    expect(STAKE_FEE_PATH_ATTACHED_TON).toBe(7_650_540_001n);
+    expect(STAKE_ATTACHED_TON).toBe(6_450_540_001n);
+    expect(STAKE_FEE_PATH_ATTACHED_TON).toBe(6_600_540_001n);
     expect(STAKE_FEE_PATH_ATTACHED_TON).toBeGreaterThan(STAKE_ATTACHED_TON);
   });
 
-  it('default attach passes the on-chain wallet entry gate with live fwd-fee variance (IMP-MNAUD-F23)', () => {
-    // burn-jetton-wallet.tact:748-752 — value > forward + 2*fwd + minTonFeePath(2.05);
-    // live fwd observed up to ~0.004 TON (IMP-MNAUD-F20).
+  it('default attach passes the on-chain wallet entry gate with live fwd-fee variance (IMP-MNAUD-F24)', () => {
+    // burn-jetton-wallet.tact JettonTransfer gate — value > forward + 2*fwd +
+    // minTonFeePath (1.0 after F17 W1); live fwd observed up to ~0.004 TON (F20).
     const liveFwdFeeMax = toNano('0.004');
-    const onChainGate = STAKE_FORWARD_TON + 2n * liveFwdFeeMax + toNano('2.05');
+    const onChainGate = STAKE_FORWARD_TON + 2n * liveFwdFeeMax + toNano('1.0');
     expect(STAKE_ATTACHED_TON).toBeGreaterThan(onChainGate);
     expect(STAKE_RESTAKE_ATTACHED_TON).toBeGreaterThan(
-      STAKE_RESTAKE_NOTIFY_FORWARD_NANO + 2n * liveFwdFeeMax + toNano('2.05'),
+      STAKE_RESTAKE_NOTIFY_FORWARD_NANO + 2n * liveFwdFeeMax + toNano('1.0'),
     );
   });
 
@@ -44,7 +44,7 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
     const liveFwdFeeMax = toNano('0.004');
     const b = computeStakePathBreakdown(harnessForward).excluded;
     expect(b.recommendedAttachNano).toBeGreaterThan(
-      harnessForward + 2n * liveFwdFeeMax + toNano('2.05'),
+      harnessForward + 2n * liveFwdFeeMax + toNano('1.0'),
     );
     expect(b.recommendedAttachNano).toBeLessThanOrEqual(toNano('10.6'));
   });
@@ -73,8 +73,8 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
     });
     expect(estimate.forwardTonNano).toBe(STAKE_RESTAKE_NOTIFY_FORWARD_NANO);
     expect(estimate.recommendedNano).toBe(STAKE_RESTAKE_ATTACHED_TON);
-    expect(STAKE_RESTAKE_ATTACHED_TON).toBe(9_700_540_001n);
-    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBe(9_850_540_001n);
+    expect(STAKE_RESTAKE_ATTACHED_TON).toBe(8_650_540_001n);
+    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBe(8_800_540_001n);
   });
 
   it('restake fee path uses higher fanout attach', () => {

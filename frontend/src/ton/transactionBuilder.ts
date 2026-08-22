@@ -34,8 +34,8 @@ const PROPOSAL_FINALIZE_OP = 0x5a040012;
 const EXECUTE_PROPOSAL_OP = 0x5a040103;
 const TIMELOCK_EXECUTE_OP = 0x5a040202;
 
-/** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. */
-export const BURN_TRANSFER_ATTACHED_TON = toNano('3.5');
+/** Cold-path default attach (first transfer / undeployed recipient JW). Override via `attachedTon`. IMP-MNAUD-F24: 3.5 → 1.5 after the F17 W1 gate drop. */
+export const BURN_TRANSFER_ATTACHED_TON = toNano('1.5');
 
 /** TEP-74 `JettonBurn` opcode (`JettonBurn` in burn-jetton-wallet.tact). */
 const JETTON_BURN_OP = 0x595f07bc;
@@ -110,7 +110,7 @@ export function buildJettonTransferMsg(params: {
     forwardTonAmount,
     forwardPayload,
   });
-  /** Dynamic warm/cold attach from {@link estimateBurnTransferTon}; defaults to cold 3.5 TON. */
+  /** Dynamic warm/cold attach from {@link estimateBurnTransferTon}; defaults to cold 1.5 TON. */
   const attached = params.attachedTon ?? BURN_TRANSFER_ATTACHED_TON;
   return {
     address: params.jettonWallet.toString(),
