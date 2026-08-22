@@ -113,10 +113,11 @@ describe('IMP-JETTON-GAS-11 — excludedTransferPreflight', () => {
     expect(result).toBe(false);
   });
 
-  it('excluded sender estimate uses 0.7 TON attach (feePath false)', () => {
+  it('excluded sender estimate uses post-F11 2.3 TON attach (feePath false)', () => {
     const estimate = estimateBurnTransferTon({ feePath: false });
     expect(estimate.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
-    expect(estimate.recommendedNano).toBe(700_000_000n);
+    expect(estimate.recommendedNano).toBe(2_300_000_000n);
+    expect(estimate.recommendedNano).toBeGreaterThan(estimate.minimumNano);
   });
 
   it('createExcludedPreflightDeps returns null without master env', () => {

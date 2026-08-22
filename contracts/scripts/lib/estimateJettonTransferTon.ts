@@ -10,7 +10,12 @@ export const MIN_TON_EXCLUDED_PATH_NANO = toNano('0.58');
 export const RECOMMENDED_FEE_PATH_NANO = toNano('3.5');
 /** Warm fee path (all sink wallets active); see IMP-JETTON-GAS-06 / F16 decision log. */
 export const RECOMMENDED_FEE_PATH_WARM_NANO = toNano('2.3');
-export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('0.7');
+/**
+ * Post-F11 every JettonTransfer (excluded included) enters through the uniform
+ * `minTonFeePath` gate (2.05); surplus refunds when master confirms exclusion.
+ * 2.3 matches the warm fee-path recommendation (IMP-MNAUD-F23).
+ */
+export const RECOMMENDED_EXCLUDED_PATH_NANO = toNano('2.3');
 
 export const PER_INTERNAL_DEPLOY_NANO = toNano('0.55');
 export const BURN_NOTIFY_NANO = toNano('0.06');
@@ -121,8 +126,10 @@ export function estimateJettonTransferTon(
         };
     }
 
+    // IMP-MNAUD-F11: the wallet entry gate is minTonFeePath for ALL transfers;
+    // the legacy excluded gate (MIN_TON_EXCLUDED_PATH_NANO) is not an entry gate.
     return {
-        minimumNano: gateMinimumNano(MIN_TON_EXCLUDED_PATH_NANO, forwardTonAmount),
+        minimumNano: gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount),
         recommendedNano: RECOMMENDED_EXCLUDED_PATH_NANO,
         breakdown: excludedPathBreakdown(forwardTonAmount),
     };

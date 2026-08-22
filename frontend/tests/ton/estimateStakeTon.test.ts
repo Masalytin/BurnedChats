@@ -20,11 +20,33 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
     expect(STAKE_RESTAKE_NOTIFY_FORWARD_NANO).toBe(toNano('7.2'));
   });
 
-  it('excluded attach is below legacy 7.6 TON fee-path attach', () => {
-    expect(STAKE_ATTACHED_TON).toBeLessThan(toNano('7.6'));
+  it('excluded attach clears the post-F11 gate and stays below fee-path attach', () => {
+    expect(STAKE_ATTACHED_TON).toBe(7_500_540_001n);
+    expect(STAKE_FEE_PATH_ATTACHED_TON).toBe(7_650_540_001n);
     expect(STAKE_FEE_PATH_ATTACHED_TON).toBeGreaterThan(STAKE_ATTACHED_TON);
-    expect(STAKE_ATTACHED_TON).toBe(5_850_540_001n);
-    expect(STAKE_FEE_PATH_ATTACHED_TON).toBe(7_450_540_001n);
+  });
+
+  it('default attach passes the on-chain wallet entry gate with live fwd-fee variance (IMP-MNAUD-F23)', () => {
+    // burn-jetton-wallet.tact:748-752 — value > forward + 2*fwd + minTonFeePath(2.05);
+    // live fwd observed up to ~0.004 TON (IMP-MNAUD-F20).
+    const liveFwdFeeMax = toNano('0.004');
+    const onChainGate = STAKE_FORWARD_TON + 2n * liveFwdFeeMax + toNano('2.05');
+    expect(STAKE_ATTACHED_TON).toBeGreaterThan(onChainGate);
+    expect(STAKE_RESTAKE_ATTACHED_TON).toBeGreaterThan(
+      STAKE_RESTAKE_NOTIFY_FORWARD_NANO + 2n * liveFwdFeeMax + toNano('2.05'),
+    );
+  });
+
+  it('at harness forward (8 TON) attach parity with F20 replica constants (10.6 ceiling)', () => {
+    // Sandbox replica staking-live-stake-record.spec.ts imports the harness
+    // constants from testnet-scenarios/lib/staking.ts: forward 8 / attach 10.6.
+    const harnessForward = toNano('8');
+    const liveFwdFeeMax = toNano('0.004');
+    const b = computeStakePathBreakdown(harnessForward).excluded;
+    expect(b.recommendedAttachNano).toBeGreaterThan(
+      harnessForward + 2n * liveFwdFeeMax + toNano('2.05'),
+    );
+    expect(b.recommendedAttachNano).toBeLessThanOrEqual(toNano('10.6'));
   });
 
   it('default estimate uses excluded-path attach and documents both paths', () => {
@@ -51,8 +73,8 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
     });
     expect(estimate.forwardTonNano).toBe(STAKE_RESTAKE_NOTIFY_FORWARD_NANO);
     expect(estimate.recommendedNano).toBe(STAKE_RESTAKE_ATTACHED_TON);
-    expect(STAKE_RESTAKE_ATTACHED_TON).toBe(8_050_540_001n);
-    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBe(9_650_540_001n);
+    expect(STAKE_RESTAKE_ATTACHED_TON).toBe(9_700_540_001n);
+    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBe(9_850_540_001n);
   });
 
   it('restake fee path uses higher fanout attach', () => {

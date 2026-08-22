@@ -1041,10 +1041,14 @@ self-exclude: only Timelock/`AddExcluded` (jetton admin) mutates the list
 (≤64 entries). Removing a pool later (`RemoveExcluded`) restores fees but may
 desync AMM expectations — treat as high-care ops.
 
-**Gas is orthogonal:** excluded path still enforces `minTonExcludedPath` (≈0.65 TON);
-fee path enforces `minTonFeePath` (≈2.1 TON). Default wallet/DEX attaches
-(~0.05–0.3 TON) remain insufficient until **IMP-MNAUD-F16** or a custom high-attach
-router / Mini App path (~3.5 TON).
+**Gas is orthogonal:** post-F11 the wallet entry gate is uniform — every
+`JettonTransfer` (excluded path included) requires `minTonFeePath` (≈2.05 TON
+after IMP-MNAUD-F16, strict `>` plus forward amount and forward fees); surplus
+is refunded when master confirms the transfer is excluded. The legacy
+`minTonExcludedPath` (≈0.58) is **not** an entry gate (see IMP-MNAUD-F11 above).
+Default wallet/DEX attaches (~0.05–0.3 TON) remain insufficient — recommend
+~2.3 TON (excluded/warm) or ~3.5 TON (cold fee path, Mini App); low-attach
+router UX requires the IMP-MNAUD-F17 fanout redesign.
 
 **Ops checklist before seeding LP:**
 

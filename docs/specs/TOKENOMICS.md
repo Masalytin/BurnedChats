@@ -249,13 +249,18 @@ fee-exempt.
 2. **Consequence:** volume routed through excluded pools **skips** the 1% fee
    (no burn / staking / treasury cut on those legs). This is an intentional
    fee-bypass for AMM correctness — documented in [SECURITY.md](./SECURITY.md).
-3. **Gas attach is a separate constraint (IMP-MNAUD-F16 measured floors):**
-   - Fee-path: on-chain `minTonFeePath` = **2.05 TON** (strict `>`; sandbox first
-     credit at ≈2.05 TON with cold recipient + fee fanout). Mini App / custom
-     routers should attach **~2.3–3.5 TON** (surplus refunded).
-   - Excluded-path (F04 DEX pools): `minTonExcludedPath` = **0.58 TON** (sandbox
-     first credit ≈0.58 TON with cold recipient). Partner integrations should
-     attach **≥ ~0.7 TON**.
+3. **Gas attach is a separate constraint (post-F11 uniform entry gate; IMP-MNAUD-F16
+   measured floors):**
+   - **Every** `JettonTransfer` — fee-path **and** excluded — must clear the
+     on-chain wallet entry gate `minTonFeePath` = **2.05 TON** (strict `>`, plus
+     forward amount and forward fees). IMP-MNAUD-F11 removed the separate
+     excluded entry gate; surplus is refunded when master confirms the transfer
+     is excluded.
+   - Recommended attach: **~2.3 TON** for excluded partner integrations (F04 DEX
+     pools) and warm transfers; **~3.5 TON** for cold fee-path transfers via
+     Mini App / custom routers.
+   - `minTonExcludedPath` = 0.58 TON is a **legacy constant** (pre-F11 sandbox
+     floor), **not** an entry gate — do not size partner attaches from it.
    - Typical wallet/DEX **defaults (~0.05–0.3 TON) still fail** — native
      low-attach DEX UX requires a separate fanout redesign (warm `message()` vs
      `deploy()`, or lower `perInternalDeployTon`) — see **IMP-MNAUD-F17**, not
@@ -762,10 +767,12 @@ The Mini App can send a native TEP-74 `JettonBurn` (`0x595f07bc`) to the user's 
 
 Yes, **after** governance excludes the pool addresses (fee-on-transfer otherwise
 breaks AMM balances). Excluded pool volume does **not** pay the 1% protocol fee.
-Transfers still need sufficient **TON attach** (excluded floor **0.58 TON** on-chain /
-recommend ~0.7 TON; fee-path floor **2.05 TON** / Mini App ~3.5 TON). Native
-router UX with ~0.05–0.3 TON attach is **out of scope** until fanout redesign
-(**IMP-MNAUD-F17**).
+Transfers still need sufficient **TON attach**: post-F11 every `JettonTransfer`
+(excluded path included) must clear the uniform **2.05 TON** wallet entry gate —
+recommend **~2.3 TON** for excluded/warm legs (surplus refunded) and ~3.5 TON for
+cold fee-path Mini App transfers. The legacy 0.58 TON excluded floor is **not**
+an entry gate anymore. Native router UX with ~0.05–0.3 TON attach is **out of
+scope** until fanout redesign (**IMP-MNAUD-F17**).
 
 ### Why only 1,000 tokens?
 

@@ -25,10 +25,14 @@ describe('IMP-JETTON-GAS-04 — estimateJettonTransferTon', () => {
         expect(estimate.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
     });
 
-    it('excluded path recommended is at most 0.8 TON (GAS-02 target)', () => {
-        const estimate = estimateJettonTransferTon({ feePath: false });
-        expect(estimate.recommendedNano).toBeLessThanOrEqual(800_000_000n);
-        expect(estimate.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
+    it('excluded path uses the post-F11 uniform entry gate and 2.3 TON recommended', () => {
+        const excluded = estimateJettonTransferTon({ feePath: false });
+        const fee = estimateJettonTransferTon({ feePath: true });
+        expect(excluded.minimumNano).toBe(fee.minimumNano);
+        expect(excluded.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
+        expect(excluded.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
+        expect(excluded.recommendedNano).toBe(2_300_000_000n);
+        expect(excluded.recommendedNano).toBeGreaterThan(excluded.minimumNano);
     });
 
     it('fee path breakdown sums planned out_msgs from TX-5F37DA75 §3.2', () => {

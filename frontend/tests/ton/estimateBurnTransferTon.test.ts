@@ -13,13 +13,13 @@ import {
   estimateBurnTransferTon,
 } from '@/ton/estimateBurnTransferTon';
 
-/** Canonical values from contracts/scripts/lib/estimateJettonTransferTon.ts */
+/** Canonical values from contracts/scripts/lib/estimateJettonTransferTon.ts (post-F11/F16). */
 const CONTRACTS_PARITY = {
-  MIN_TON_FEE_PATH_NANO: toNano('2.1'),
-  MIN_TON_EXCLUDED_PATH_NANO: toNano('0.65'),
+  MIN_TON_FEE_PATH_NANO: toNano('2.05'),
+  MIN_TON_EXCLUDED_PATH_NANO: toNano('0.58'),
   RECOMMENDED_FEE_PATH_NANO: toNano('3.5'),
   RECOMMENDED_FEE_PATH_WARM_NANO: toNano('2.3'),
-  RECOMMENDED_EXCLUDED_PATH_NANO: toNano('0.7'),
+  RECOMMENDED_EXCLUDED_PATH_NANO: toNano('2.3'),
   PER_INTERNAL_DEPLOY_NANO: toNano('0.55'),
   BURN_NOTIFY_NANO: toNano('0.06'),
   PROPAGATE_FEE_CONFIG_NANO: toNano('0.05'),
@@ -43,14 +43,20 @@ describe('IMP-JETTON-GAS-04 — estimateBurnTransferTon', () => {
     expect(estimate.recommendedNano).toBe(BURN_TRANSFER_ATTACHED_TON);
   });
 
-  it('fee path minimum exceeds 2.1 TON contract gate', () => {
+  it('fee path minimum is strictly greater than the 2.05 TON contract gate (F16)', () => {
     const estimate = estimateBurnTransferTon({ feePath: true });
-    expect(estimate.minimumNano).toBeGreaterThan(2_100_000_000n);
+    expect(estimate.minimumNano).toBeGreaterThan(2_050_000_000n);
+    expect(estimate.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
   });
 
-  it('excluded path recommended is at most 0.8 TON', () => {
-    const estimate = estimateBurnTransferTon({ feePath: false });
-    expect(estimate.recommendedNano).toBeLessThanOrEqual(800_000_000n);
+  it('excluded path uses the post-F11 uniform entry gate and 2.3 TON recommended', () => {
+    const excluded = estimateBurnTransferTon({ feePath: false });
+    const fee = estimateBurnTransferTon({ feePath: true });
+    expect(excluded.minimumNano).toBe(fee.minimumNano);
+    expect(excluded.minimumNano).toBeGreaterThan(MIN_TON_FEE_PATH_NANO);
+    expect(excluded.recommendedNano).toBe(RECOMMENDED_EXCLUDED_PATH_NANO);
+    expect(excluded.recommendedNano).toBe(2_300_000_000n);
+    expect(excluded.recommendedNano).toBeGreaterThan(excluded.minimumNano);
   });
 
   it('warm fee path recommends 2.3 TON when recipient wallet deployed (GAS-06)', () => {

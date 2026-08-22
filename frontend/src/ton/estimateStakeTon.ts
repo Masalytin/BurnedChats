@@ -6,7 +6,6 @@ import {
   GAS_POOL_FORWARD_EPSILON_NANO,
   GAS_POOL_FORWARD_MIN_NANO,
   GAS_POOL_TO_MASTER_ACCRUAL_NANO,
-  MIN_TON_EXCLUDED_PATH_NANO,
   MIN_TON_FEE_PATH_NANO,
   MIN_TONS_FOR_STORAGE_NANO,
   PER_INTERNAL_DEPLOY_NANO,
@@ -38,6 +37,15 @@ const STAKE_ATTACH_SAFETY_MARGIN_NANO = toNano('0.08');
  * Unspent attach returns to the user as TEP-74 Excesses.
  */
 const STAKE_FEE_PATH_FANOUT_MARGIN_NANO = toNano('0.35');
+/**
+ * Headroom for live forward-fee variance on the post-F11 uniform wallet entry
+ * gate `value > forward + 2*fwd + minTonFeePath` (live fwd ≈ 0.0003–0.004 TON
+ * vs the 0.00027 estimate; IMP-MNAUD-F20). Sized so the default stake attach
+ * lands at ~7.5 TON at forward 5 — the sandbox-replica orientation of
+ * IMP-MNAUD-F23; the F20 harness keeps a comparable ~0.54 TON at forward 8.
+ * Surplus refunds via JettonExcesses.
+ */
+const GATE_FORWARD_FEE_HEADROOM_NANO = toNano('0.25');
 
 /** Minimum forward on JettonNotification for a first stake (minStakeNotifyTon base). */
 export const STAKE_NOTIFY_FORWARD_MIN_NANO =
@@ -123,6 +131,7 @@ export type StakePathTonBreakdown = {
     gateMinimumNano: bigint;
     liveResolveOverheadNano: bigint;
     safetyMarginNano: bigint;
+    gateFwdHeadroomNano: bigint;
     recommendedAttachNano: bigint;
   };
   /** 3 deploys + burn-notify + propagate (legacy / non-excluded fallback). */
@@ -134,6 +143,7 @@ export type StakePathTonBreakdown = {
     propagateNano: bigint;
     gateMinimumNano: bigint;
     fanoutMarginNano: bigint;
+    gateFwdHeadroomNano: bigint;
     recommendedAttachNano: bigint;
   };
 };
@@ -142,11 +152,14 @@ export type StakePathTonBreakdown = {
 export function computeStakePathBreakdown(forwardTonAmount: bigint): StakePathTonBreakdown {
   const netDeployNano = netLegDeliverTon(forwardTonAmount);
   const excludedInternalOut = netDeployNano + PROPAGATE_FEE_CONFIG_NANO;
-  const excludedGateMin = gateMinimumNano(MIN_TON_EXCLUDED_PATH_NANO, forwardTonAmount);
+  // IMP-MNAUD-F11: the wallet entry gate is minTonFeePath for ALL transfers,
+  // including the excluded/staking branch; the legacy excluded gate is gone.
+  const excludedGateMin = gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount);
   const excludedRecommended =
     maxBig(excludedInternalOut, excludedGateMin) +
     LIVE_EXCLUDED_RESOLVE_OVERHEAD_NANO +
-    STAKE_ATTACH_SAFETY_MARGIN_NANO;
+    STAKE_ATTACH_SAFETY_MARGIN_NANO +
+    GATE_FORWARD_FEE_HEADROOM_NANO;
 
   const poolDeployNano = poolLegDeliverTon();
   const treasuryDeployNano = treasuryLegDeliverTon();
@@ -157,7 +170,10 @@ export function computeStakePathBreakdown(forwardTonAmount: bigint): StakePathTo
     BURN_NOTIFY_NANO +
     PROPAGATE_FEE_CONFIG_NANO;
   const feeGateMin = gateMinimumNano(MIN_TON_FEE_PATH_NANO, forwardTonAmount);
-  const feeRecommended = maxBig(feeInternalOut, feeGateMin) + STAKE_FEE_PATH_FANOUT_MARGIN_NANO;
+  const feeRecommended =
+    maxBig(feeInternalOut, feeGateMin) +
+    STAKE_FEE_PATH_FANOUT_MARGIN_NANO +
+    GATE_FORWARD_FEE_HEADROOM_NANO;
 
   return {
     excluded: {
@@ -166,6 +182,7 @@ export function computeStakePathBreakdown(forwardTonAmount: bigint): StakePathTo
       gateMinimumNano: excludedGateMin,
       liveResolveOverheadNano: LIVE_EXCLUDED_RESOLVE_OVERHEAD_NANO,
       safetyMarginNano: STAKE_ATTACH_SAFETY_MARGIN_NANO,
+      gateFwdHeadroomNano: GATE_FORWARD_FEE_HEADROOM_NANO,
       recommendedAttachNano: excludedRecommended,
     },
     feePath: {
@@ -176,6 +193,7 @@ export function computeStakePathBreakdown(forwardTonAmount: bigint): StakePathTo
       propagateNano: PROPAGATE_FEE_CONFIG_NANO,
       gateMinimumNano: feeGateMin,
       fanoutMarginNano: STAKE_FEE_PATH_FANOUT_MARGIN_NANO,
+      gateFwdHeadroomNano: GATE_FORWARD_FEE_HEADROOM_NANO,
       recommendedAttachNano: feeRecommended,
     },
   };

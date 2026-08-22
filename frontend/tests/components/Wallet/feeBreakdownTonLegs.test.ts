@@ -5,6 +5,12 @@ import en from '@/i18n/locales/en.json';
 import ru from '@/i18n/locales/ru.json';
 import {
   BURN_NOTIFY_NANO,
+  ESTIMATED_FORWARD_FEE_PER_HOP_NANO,
+  GAS_POOL_FORWARD_EPSILON_NANO,
+  GAS_POOL_FORWARD_MIN_NANO,
+  GAS_POOL_TO_MASTER_ACCRUAL_NANO,
+  GAS_TREASURY_FORWARD_MIN_NANO,
+  MIN_TONS_FOR_STORAGE_NANO,
   PER_INTERNAL_DEPLOY_NANO,
   PROPAGATE_FEE_CONFIG_NANO,
   estimateBurnTransferTon,
@@ -25,6 +31,24 @@ describe('IMP-JETTON-GAS-09 — TON breakdown legs', () => {
     expect(breakdown.propagateNano).toBe(PROPAGATE_FEE_CONFIG_NANO);
     expect(coreLegs).toBe(PLANNED_OUT_MSGS_NANO);
     expect(recommendedNano).toBeGreaterThan(coreLegs);
+  });
+
+  it('fee path forward includes pool and treasury legs (scripts-lib parity, IMP-MNAUD-F23)', () => {
+    const maxBig = (a: bigint, b: bigint) => (a > b ? a : b);
+    const poolFwd = maxBig(
+      GAS_POOL_FORWARD_MIN_NANO,
+      GAS_POOL_TO_MASTER_ACCRUAL_NANO +
+        ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
+        MIN_TONS_FOR_STORAGE_NANO +
+        GAS_POOL_FORWARD_EPSILON_NANO,
+    );
+    const treasFwd = maxBig(
+      GAS_TREASURY_FORWARD_MIN_NANO,
+      ESTIMATED_FORWARD_FEE_PER_HOP_NANO + MIN_TONS_FOR_STORAGE_NANO + toNano('0.02'),
+    );
+    const { breakdown } = estimateBurnTransferTon({ feePath: true });
+    expect(breakdown.forwardNano).toBe(poolFwd + treasFwd);
+    expect(treasFwd).toBeGreaterThan(0n);
   });
 
   it('feeConfigActive sets propagate estimate to zero while attach row stays recommended', () => {
