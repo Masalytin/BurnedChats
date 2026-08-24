@@ -65,7 +65,6 @@ export function computeEnvOverrides(network: TonNetwork, env: NodeJS.ProcessEnv)
         ...burnVite,
         VITE_TON_NETWORK: 'testnet',
         VITE_TON_RPC_URL: 'https://testnet.toncenter.com/api/v2',
-        ...(shared.TONCENTER_API_KEY ? { VITE_TONCENTER_API_KEY: shared.TONCENTER_API_KEY } : {}),
       },
     };
   }
@@ -79,7 +78,6 @@ export function computeEnvOverrides(network: TonNetwork, env: NodeJS.ProcessEnv)
       ...burnVite,
       VITE_TON_NETWORK: 'mainnet',
       VITE_TON_RPC_URL: 'https://toncenter.com/api/v2',
-      ...(shared.TONCENTER_API_KEY ? { VITE_TONCENTER_API_KEY: shared.TONCENTER_API_KEY } : {}),
     },
   };
 }

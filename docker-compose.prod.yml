@@ -104,7 +104,8 @@ services:
         - VITE_TONCONNECT_MANIFEST_URL=https://${DOMAIN}/tonconnect-manifest.json
         - VITE_TON_NETWORK=mainnet
         - VITE_TON_RPC_URL=https://toncenter.com/api/v2
-        - VITE_TONCENTER_API_KEY=${TONCENTER_API_KEY}
+        # Never bake TONCENTER_API_KEY into the Mini App bundle (IMP-SEC-05).
+        # Backend keeps TONCENTER_API_KEY in .env.prod for Java RPC only.
         - VITE_BURN_JETTON_MASTER=${BURN_JETTON_MASTER_ADDRESS}
         - VITE_STAKING_MASTER=${BURN_STAKING_MASTER_ADDRESS}
         - VITE_GOVERNOR_ADDRESS=${BURN_GOVERNOR_ADDRESS}

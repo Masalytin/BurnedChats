@@ -25,7 +25,6 @@ describe('computeEnvOverrides', () => {
     expect(overrides.frontendBuildArgs).toMatchObject({
       VITE_TON_NETWORK: 'testnet',
       VITE_TON_RPC_URL: 'https://testnet.toncenter.com/api/v2',
-      VITE_TONCENTER_API_KEY: 'test-api-key',
       VITE_BURN_JETTON_MASTER: 'EQjetton',
       VITE_BURN_STAKING_MASTER: 'EQstaking',
       VITE_BURN_GOVERNOR: 'EQgov',
@@ -47,6 +46,7 @@ describe('computeEnvOverrides', () => {
 
     expect(overrides.frontendBuildArgs.VITE_TON_NETWORK).toBe('mainnet');
     expect(overrides.frontendBuildArgs.VITE_TON_RPC_URL).toBe('https://toncenter.com/api/v2');
+    expect(overrides.frontendBuildArgs.VITE_TONCENTER_API_KEY).toBeUndefined();
     expect(overrides.backend.TONCENTER_ENDPOINT).toBeUndefined();
   });
 

@@ -5,7 +5,7 @@ import { sendTonTransaction } from '@/ton/connector';
 import { getMinProposalVp, getVoteEffectiveVp } from '@/ton/governance-vp';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
-import { resolveIsTestNet } from '@/ton/rpc';
+import { resolveApiKey, resolveIsTestNet } from '@/ton/rpc';
 import {
   buildCreateProposalMsg,
   buildExecuteMsg,
@@ -111,7 +111,7 @@ function resolveDeps(deps?: GovernanceDeps): ResolvedGovernanceDeps {
     governorAddress: resolveGovernor(deps?.governorAddress),
     stakingMaster: resolveStakingMaster(deps?.stakingMasterAddress),
     rpcBaseUrl: resolveRpcBaseUrl(deps?.rpcBaseUrl),
-    apiKey: (deps?.toncenterApiKey ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim() || undefined,
+    apiKey: resolveApiKey(deps?.toncenterApiKey),
     sendTransactionImpl: deps?.sendTransactionImpl ?? sendTonTransaction,
   };
 }

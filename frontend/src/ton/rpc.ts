@@ -22,7 +22,15 @@ export function resolveRpcFallbackUrl(override?: string): string | undefined {
 }
 
 export function resolveApiKey(override?: string): string | undefined {
-  const k = (override ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
+  if (override !== undefined) {
+    const k = override.trim();
+    return k || undefined;
+  }
+  // Production Mini App must not ship a Toncenter key in the Vite bundle.
+  if (import.meta.env.PROD) {
+    return undefined;
+  }
+  const k = (import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
   return k || undefined;
 }
 

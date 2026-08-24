@@ -1,6 +1,6 @@
 import { getUserVotingPowerLockedBeyond, type GovernanceDeps, GovernanceError } from '@/ton/governance';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
-import { resolveIsTestNet } from '@/ton/rpc';
+import { resolveApiKey, resolveIsTestNet } from '@/ton/rpc';
 
 type StackSlot = [string, string];
 
@@ -41,7 +41,7 @@ function resolveVpDeps(deps?: GovernanceDeps): ResolvedVpDeps {
     fetchImpl: deps?.fetchImpl ?? defaultFetch(),
     governorAddress: resolveGovernor(deps?.governorAddress),
     rpcBaseUrl: resolveRpcBaseUrl(deps?.rpcBaseUrl),
-    apiKey: (deps?.toncenterApiKey ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim() || undefined,
+    apiKey: resolveApiKey(deps?.toncenterApiKey),
   };
 }
 

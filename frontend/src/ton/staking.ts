@@ -4,6 +4,7 @@ import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
 import { estimateStakeNet } from '@/ton/estimateStakeNet';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
+import { resolveApiKey } from '@/ton/rpc';
 import { sendTonTransaction } from '@/ton/connector';
 import { buildClaimMsg, buildStakeMsg, buildUnstakeMsg } from '@/ton/transactionBuilder';
 import type { TxResult } from '@/ton/types';
@@ -104,11 +105,6 @@ function resolveStakingMaster(override?: string): string {
     throw new StakingError('CONFIG', 'Staking master address is not configured (VITE_STAKING_MASTER)');
   }
   return addr;
-}
-
-function resolveApiKey(override?: string): string | undefined {
-  const k = (override ?? import.meta.env.VITE_TONCENTER_API_KEY ?? '').trim();
-  return k || undefined;
 }
 
 function defaultFetch(): typeof fetch {
