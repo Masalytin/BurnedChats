@@ -1166,6 +1166,7 @@
     "done": "Listo",
     "emptyCta": "Hacer Staking en Diamond",
     "emptyHint": "Haz Staking de tu BURN para unirte al pool de recompensas. Elige un tier que coincida con cuánto tiempo puedes bloquear tokens.",
+    "tierConfigFallback": "No se pudieron cargar los tiers on-chain — se muestran los valores por defecto.",
     "emptyTitle": "Empieza a ganar recompensas",
     "goClaim": "Ir a claim",
     "headerPending": "Recompensas pendientes",

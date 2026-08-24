@@ -1166,6 +1166,7 @@
     "done": "Terminé",
     "emptyCta": "Staker en Diamond",
     "emptyHint": "Stakez vos BURN pour rejoindre le pool de récompenses. Choisissez un palier adapté à la durée de verrouillage souhaitée.",
+    "tierConfigFallback": "Impossible de charger les paliers on-chain — valeurs par défaut affichées.",
     "emptyTitle": "Commencez à gagner des récompenses",
     "goClaim": "Aller au claim",
     "headerPending": "Récompenses en attente",

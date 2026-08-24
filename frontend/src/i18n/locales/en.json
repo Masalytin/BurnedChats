@@ -374,6 +374,7 @@
     "headerPending": "Pending rewards",
     "emptyTitle": "Start earning rewards",
     "emptyHint": "Stake your BURN to join the rewards pool. Pick a tier that matches how long you can lock tokens.",
+    "tierConfigFallback": "Could not load on-chain tier settings — showing last known defaults.",
     "emptyCta": "Stake into Diamond",
     "timelineAria": "Unlock timeline",
     "timelineEmpty": "No active locks. Flexible tier or unlocked positions do not appear here.",

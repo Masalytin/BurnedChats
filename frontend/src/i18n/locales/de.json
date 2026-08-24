@@ -1283,6 +1283,7 @@
     "headerPending": "Ausstehende Belohnungen",
     "emptyTitle": "Belohnungen verdienen",
     "emptyHint": "Staken Sie Ihr BURN, um dem Belohnungspool beizutreten. Wählen Sie eine Stufe, die zu Ihrer Sperrdauer passt.",
+    "tierConfigFallback": "On-Chain-Stufen konnten nicht geladen werden — es gelten die Standardwerte.",
     "emptyCta": "In Diamant staken",
     "timelineAria": "Entsperrungs-Zeitachse",
     "timelineEmpty": "Keine aktiven Sperren. Flexible Stufe oder entsperrte Positionen erscheinen hier nicht.",

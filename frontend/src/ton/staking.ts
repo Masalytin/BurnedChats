@@ -1,6 +1,7 @@
-import { Address } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 
 import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
+import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { estimateStakeNet } from '@/ton/estimateStakeNet';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
@@ -16,7 +17,7 @@ export type { StakeInfo, TierConfig } from '@/types/ton';
 /** Phase 1 linear pool: 0.274 BURN/day in nano (see TOKENOMICS.md). */
 export const PHASE1_DAILY_EMISSION_NANO = 274_000_000n;
 
-const TIER_CONFIG_CACHE_LS_KEY = 'burn-staking-tier-config-v1';
+const TIER_CONFIG_CACHE_LS_KEY = 'burn-staking-tier-config-v2';
 const TIER_CONFIG_CACHE_MS = 3_600_000;
 
 const STABLE_TIER_CONFIGS: TierConfig[] = [
@@ -54,6 +55,7 @@ export interface StakingDeps {
   /** BURN jetton master (friendly or raw). */
   jettonMaster?: string;
   stakingMaster?: string;
+  stakingLock?: string;
   toncenterApiKey?: string;
   fetchImpl?: typeof fetch;
   sendTransactionImpl?: typeof sendTonTransaction;
@@ -65,6 +67,7 @@ type ResolvedStakingDeps = {
   rpcBaseUrl: string;
   jettonMaster?: string;
   stakingMaster: string;
+  stakingLock?: string;
   apiKey?: string;
   fetchImpl: typeof fetch;
   sendTransactionImpl: typeof sendTonTransaction;
@@ -119,6 +122,7 @@ function resolveDeps(deps?: StakingDeps): ResolvedStakingDeps {
     rpcBaseUrl: resolveRpcBaseUrl(deps?.rpcBaseUrl),
     jettonMaster: deps?.jettonMaster,
     stakingMaster: resolveStakingMaster(deps?.stakingMaster),
+    stakingLock: deps?.stakingLock,
     apiKey: resolveApiKey(deps?.toncenterApiKey),
     fetchImpl: deps?.fetchImpl ?? defaultFetch(),
     sendTransactionImpl: deps?.sendTransactionImpl ?? sendTonTransaction,
@@ -566,16 +570,112 @@ export async function getLiveTierTvls(deps?: StakingDeps): Promise<Partial<Recor
   return out;
 }
 
+export type TierConfigSource = 'chain' | 'cache' | 'fallback';
+
+let lastTierConfigSource: TierConfigSource = 'fallback';
+
+export function getLastTierConfigSource(): TierConfigSource {
+  return lastTierConfigSource;
+}
+
+function addressFromGetMethodStack(stackUnknown: unknown): string | null {
+  const b64 = firstStackSliceCellB64(stackUnknown);
+  if (!b64) {
+    return null;
+  }
+  try {
+    const cell = Cell.fromBoc(Buffer.from(b64, 'base64'))[0];
+    if (!cell) {
+      return null;
+    }
+    const addr = cell.beginParse().loadAddress();
+    return addr.toString({ bounceable: true, urlSafe: true, testOnly: resolveIsTestNet() });
+  } catch {
+    return null;
+  }
+}
+
+async function resolveStakingLockAddress(r: ResolvedStakingDeps): Promise<string> {
+  if (r.stakingLock?.trim()) {
+    return r.stakingLock.trim();
+  }
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    r.stakingMaster,
+    'get_staking_lock',
+    [],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new StakingError('NETWORK_ERROR', `get_staking_lock exit ${exitCode}`);
+  }
+  const addr = addressFromGetMethodStack(stackUnknown);
+  if (!addr) {
+    throw new StakingError('NETWORK_ERROR', 'get_staking_lock returned no address');
+  }
+  return addr;
+}
+
+function tierConfigFromLockNums(tier: StakingTier, nums: bigint[]): TierConfig | null {
+  if (nums.length < 3) {
+    return null;
+  }
+  return {
+    tier,
+    lockDurationSec: Number(nums[0]),
+    multiplier: Number(nums[1]) / 100,
+    rewardSharePercent: Number(nums[2]),
+  };
+}
+
+async function fetchTierConfigsFromLock(deps?: StakingDeps): Promise<TierConfig[]> {
+  const r = resolveDeps(deps);
+  const lock = await resolveStakingLockAddress(r);
+  const rows = await Promise.all(
+    ALL_STAKING_TIERS.map(async (tier) => {
+      const { exitCode, stackUnknown } = await postRunGetMethod(
+        r.rpcBaseUrl,
+        lock,
+        'get_lock_config',
+        [['num', `0x${tier.toString(16)}`]],
+        r.fetchImpl,
+        r.apiKey,
+      );
+      if (exitCode !== 0) {
+        throw new StakingError('NETWORK_ERROR', `get_lock_config exit ${exitCode} for tier ${tier}`);
+      }
+      const cfg = tierConfigFromLockNums(tier, numsFromStack(stackUnknown));
+      if (!cfg) {
+        throw new StakingError('NETWORK_ERROR', `get_lock_config parse failed for tier ${tier}`);
+      }
+      return cfg;
+    }),
+  );
+  return rows;
+}
+
 /**
- * Tier multipliers / lock durations / reward shares (matches TOKENOMICS + `StakingTier` Java enum); cached 1h in `localStorage`.
+ * Tier lock / share / VP from StakingLock (`get_lock_config`). Cached 1h.
+ * Hardcoded TOKENOMICS table is fallback only when RPC fails (IMP-STKUX-02).
  */
-export async function getTierConfigs(_deps?: StakingDeps): Promise<TierConfig[]> {
+export async function getTierConfigs(deps?: StakingDeps): Promise<TierConfig[]> {
   const hit = readCachedTierConfigs();
   if (hit) {
+    lastTierConfigSource = 'cache';
     return hit;
   }
-  writeCachedTierConfigs(STABLE_TIER_CONFIGS);
-  return [...STABLE_TIER_CONFIGS];
+  try {
+    const fromChain = await fetchTierConfigsFromLock(deps);
+    lastTierConfigSource = 'chain';
+    writeCachedTierConfigs(fromChain);
+    return fromChain;
+  } catch (e) {
+    lastTierConfigSource = 'fallback';
+    console.warn('[staking] getTierConfigs: RPC unavailable, using hardcoded fallback', e);
+    writeCachedTierConfigs(STABLE_TIER_CONFIGS);
+    return [...STABLE_TIER_CONFIGS];
+  }
 }
 
 export function calculateApy(

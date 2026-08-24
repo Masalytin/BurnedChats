@@ -7,6 +7,7 @@ import {
   claimTx,
   getPendingRewards,
   getStakes,
+  getLastTierConfigSource,
   getLiveTierTvls,
   getTierConfigs,
   stakeTx,
@@ -109,6 +110,8 @@ export interface UseStaking {
   claim(params: { tier: StakingTier }): Promise<TxResult>;
   /** On-chain TVL per tier from `get_master_total_stake` (IMP-STKUX-01). */
   liveTierTvls: Partial<Record<StakingTier, bigint>>;
+  /** True when tier table came from hardcoded fallback (RPC down). */
+  tierConfigsFallback: boolean;
   /**
    * Indicative APY for UI using live TVL when available (emission formula remains approximate).
    */
@@ -126,6 +129,7 @@ export function useStaking(): UseStaking {
   const [error, setError] = useState<Error | null>(null);
   const [optimisticByTier, setOptimisticByTier] = useState<Partial<Record<StakingTier, bigint>>>({});
   const [liveTierTvls, setLiveTierTvls] = useState<Partial<Record<StakingTier, bigint>>>({});
+  const [tierConfigsFallback, setTierConfigsFallback] = useState(false);
 
   const visibleRef = useRef(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
   const txRefreshTimersRef = useRef<number[]>([]);
@@ -206,6 +210,7 @@ export function useStaking(): UseStaking {
       ]);
       setChainStakes(stakes);
       setTierConfigs(cfgs);
+      setTierConfigsFallback(getLastTierConfigSource() === 'fallback');
       setLiveTierTvls(tvls);
       const pr: Partial<Record<StakingTier, bigint>> = {};
       for (const s of stakes) {
@@ -337,6 +342,7 @@ export function useStaking(): UseStaking {
     stakes,
     tierConfigs,
     liveTierTvls,
+    tierConfigsFallback,
     pendingRewards,
     rewardsRefreshing,
     isLoading,

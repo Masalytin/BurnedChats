@@ -1,7 +1,7 @@
 import { Address, beginCell } from '@ton/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { calculateApy, getMasterTotalStake, getStakes, getTierConfigs, PHASE1_DAILY_EMISSION_NANO, stakeTx, type StakingDeps } from '@/ton/staking';
+import { calculateApy, getLastTierConfigSource, getMasterTotalStake, getStakes, getTierConfigs, PHASE1_DAILY_EMISSION_NANO, stakeTx, type StakingDeps } from '@/ton/staking';
 import { StakingTier } from '@/types/ton';
 import { formatLockDuration, formatTierName, formatTimeRemaining } from '@/utils/staking-format';
 
@@ -237,7 +237,7 @@ describe('getTierConfigs cache', () => {
 
     const first = await getTierConfigs();
     expect(first).toHaveLength(4);
-    const raw = store['burn-staking-tier-config-v1'];
+    const raw = store['burn-staking-tier-config-v2'];
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw!) as { configs: unknown[]; at: number };
     expect(parsed.configs).toHaveLength(4);
@@ -245,6 +245,93 @@ describe('getTierConfigs cache', () => {
     const second = await getTierConfigs();
     expect(second).toEqual(first);
 
+    vi.unstubAllGlobals();
+  });
+
+  it('reads lock duration and shares from StakingLock getters', async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    });
+
+    const LOCK = Address.parse(`0:${'55'.repeat(32)}`).toString({
+      bounceable: true,
+      urlSafe: true,
+      testOnly: true,
+    });
+    const lockBoc = beginCell().storeAddress(Address.parse(LOCK)).endCell().toBoc({ idx: false }).toString('base64');
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+      if (method === 'get_staking_lock') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['cell', { bytes: lockBoc }]] },
+        });
+      }
+      if (method === 'get_lock_config') {
+        const tier = Number.parseInt(String(body.stack?.[0]?.[1] ?? '0x0').replace(/^0x/i, ''), 16);
+        const duration = tier === 2 ? 42 : 0;
+        const multiplier = tier === 2 ? 250 : 100;
+        const share = tier === 2 ? 33 : 1;
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [
+              ['num', `0x${duration.toString(16)}`],
+              ['num', `0x${multiplier.toString(16)}`],
+              ['num', `0x${share.toString(16)}`],
+            ],
+          },
+        });
+      }
+      return jsonResponse({ ok: false, error: `unexpected ${method}` }, 500);
+    });
+
+    const configs = await getTierConfigs({
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      stakingMaster: STAKING_MASTER,
+    });
+    const gold = configs.find((c) => c.tier === StakingTier.Gold);
+    expect(gold?.lockDurationSec).toBe(42);
+    expect(gold?.multiplier).toBe(2.5);
+    expect(gold?.rewardSharePercent).toBe(33);
+    expect(getLastTierConfigSource()).toBe('chain');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to hardcoded configs and warns when RPC fails', async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: () => {},
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'));
+
+    const configs = await getTierConfigs({
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      stakingMaster: STAKING_MASTER,
+    });
+    expect(configs).toHaveLength(4);
+    expect(configs[2]?.rewardSharePercent).toBe(25);
+    expect(getLastTierConfigSource()).toBe('fallback');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
     vi.unstubAllGlobals();
   });
 });

@@ -1166,6 +1166,7 @@
     "done": "完成",
     "emptyCta": "Stake 到 Diamond",
     "emptyHint": "Stake 您的 BURN 以加入奖励池。选择与您可锁定代币时长匹配的层级。",
+    "tierConfigFallback": "无法加载链上层级配置 — 显示默认值。",
     "emptyTitle": "开始赚取奖励",
     "goClaim": "前往 claim",
     "headerPending": "待领取奖励",

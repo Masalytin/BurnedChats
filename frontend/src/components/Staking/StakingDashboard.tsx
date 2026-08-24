@@ -86,6 +86,7 @@ export function StakingDashboard({
     stakes,
     tierConfigs,
     liveTierTvls,
+    tierConfigsFallback,
     pendingRewards,
     rewardsRefreshing,
     isLoading,
@@ -311,6 +312,12 @@ export function StakingDashboard({
           </div>
         </div>
       </div>
+
+      {tierConfigsFallback ? (
+        <p className={styles.errText} role="status">
+          {t('staking.tierConfigFallback')}
+        </p>
+      ) : null}
 
       {flexibleOnlyVote ? (
         <p className={styles.errText} role="status">

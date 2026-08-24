@@ -1170,6 +1170,7 @@
     "done": "تم",
     "emptyCta": "Staking في Diamond",
     "emptyHint": "ضع BURN في Staking للانضمام إلى مجمع المكافآت. اختر مستوى يناسب مدة القفل.",
+    "tierConfigFallback": "تعذر تحميل إعدادات المستويات على السلسلة — يتم عرض القيم الافتراضية.",
     "emptyTitle": "ابدأ كسب المكافآت",
     "goClaim": "الانتقال إلى claim",
     "headerPending": "مكافآت معلقة",
