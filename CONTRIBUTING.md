@@ -122,6 +122,19 @@ Reference locale: `en.json` (frontend), `messages.properties` (backend). Use
 5. **AGPL-3.0** applies — network deployments of modified versions must offer
    corresponding source to users (see [LICENSE](LICENSE)).
 
+## Release tags (app semver)
+
+Frontend (`frontend/package.json` `version`) and backend (`GET /api/info`
+`version`) share one **app** semver (`X.Y.Z`). They are not the contracts
+archive tags (`contracts/v*` / `archive/*`).
+
+When publishing a production image (GHCR / `docker-compose.prod.yml`):
+
+1. Bump both surfaces to the same `X.Y.Z` in the same commit.
+2. Tag the public repo `vX.Y.Z` on that commit (`git tag -a vX.Y.Z`).
+3. Do not reuse or rewrite historical `legacy/*`, `release/toksim-*`, or
+   `archive/*` tags.
+
 ## Documentation index
 
 | Spec | Topic |
