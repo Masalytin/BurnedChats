@@ -97,14 +97,7 @@ public class TelegramWebhookConfig {
             return;
         }
 
-        // Build full URL: use base URL only (no path) so path is appended once
-        String baseUrl = webhookUrl.trim().replaceAll("/+$", "");
-        String path = webhookPath != null ? webhookPath.trim() : "";
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
-        // Avoid double path if url was set with path included
-        String fullWebhookUrl = baseUrl.endsWith(path) ? baseUrl : baseUrl + path;
+        String fullWebhookUrl = resolvePublicWebhookUrl(webhookUrl, webhookPath);
 
         try {
             SetWebhook.SetWebhookBuilder webhookBuilder = SetWebhook.builder()
@@ -121,7 +114,9 @@ public class TelegramWebhookConfig {
             SetWebhook setWebhook = webhookBuilder.build();
 
             BurnedChatsWebhookBot bot = burnedChatsWebhookBot();
-            bot.setWebhook(setWebhook);
+            // execute() sends url as-is. TelegramWebhookBot.setWebhook() rewrites it to
+            // {url}/callback/{botPath} via WebhookUtils — that 404s our Spring mapping.
+            sendSetWebhook(bot, setWebhook);
 
             LOG.info("Telegram webhook registered successfully");
             LOG.info("Webhook URL: {}", fullWebhookUrl);
@@ -130,5 +125,30 @@ public class TelegramWebhookConfig {
         } catch (TelegramApiException e) {
             LOG.error("Failed to register Telegram webhook at {}", fullWebhookUrl, e);
         }
+    }
+
+    /**
+     * Public HTTPS URL Telegram should POST to (our {@code TelegramWebhookController}).
+     *
+     * <p>{@code TELEGRAM_WEBHOOK_URL} in compose already includes the path; do not append twice.
+     */
+    static String resolvePublicWebhookUrl(String webhookUrl, String webhookPath) {
+        String baseUrl = webhookUrl.trim().replaceAll("/+$", "");
+        String path = webhookPath != null ? webhookPath.trim() : "";
+        if (path.isEmpty()) {
+            return baseUrl;
+        }
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        return baseUrl.endsWith(path) ? baseUrl : baseUrl + path;
+    }
+
+    /**
+     * Must use {@link BurnedChatsWebhookBot#execute} — not {@code setWebhook()}.
+     */
+    static void sendSetWebhook(BurnedChatsWebhookBot bot, SetWebhook setWebhook)
+            throws TelegramApiException {
+        bot.execute(setWebhook);
     }
 }

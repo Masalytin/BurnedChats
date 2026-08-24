@@ -123,7 +123,7 @@ cleanup_disk() {
 update_and_restart() {
     log_info "Pulling latest changes..."
     cd "$PROJECT_DIR"
-    git pull origin master
+    git pull --ff-only origin main
     
     log_info "Rebuilding and restarting services..."
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
