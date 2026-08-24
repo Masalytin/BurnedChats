@@ -111,7 +111,7 @@
         "body": [
           "Wenn Zahlen oder Emoji nicht übereinstimmen, vertraue diesem Chat nicht. Jemand könnte die Verbindung abfangen.",
           "Stoppe hier. Starte einen neuen Chat mit deinem Kontakt über einen vertrauenswürdigen Kanal und vergleiche erneut.",
-          "Tippe nur auf „trotzdem fortfahren“, wenn du das Risiko verstehst — nicht übereinstimmende Fingerabdrücke bedeuten, dass die Verschlüsselung dich möglicherweise nicht schützt."
+          "Tippe auf „Chat verlassen und verbrennen“, um diese Sitzung zu zerstören. Schreibe nicht weiter bei abweichenden Fingerprints."
         ]
       }
     },
@@ -606,7 +606,7 @@
     "mismatchButton": "Stimmt nicht überein",
     "skipButton": "Überspringen und Fortfahren",
     "continueButton": "Zum Chat fortfahren",
-    "continueAnywayButton": "Trotzdem fortfahren (Nicht empfohlen)",
+    "continueAnywayButton": "Chat verlassen und verbrennen",
     "waitingPeer": "Warte auf Verifizierung des Partners...",
     "helpText": "Bitten Sie Ihren Partner, seine Fingerabdruck-Symbole über einen Sprachanruf oder persönlich vorzulesen. Wenn sie übereinstimmen, drücken Sie \"Fingerabdruck stimmt überein\".",
     "waitingLonger": "Dauert länger als üblich…",

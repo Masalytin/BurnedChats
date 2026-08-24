@@ -102,7 +102,7 @@
         "body": [
           "Si los números o emoji no coinciden, no confíes en este chat. Alguien puede estar interceptando la conexión.",
           "Detente aquí. Inicia un nuevo chat con tu contacto por un canal de confianza y compara de nuevo.",
-          "Solo pulsa «continuar de todos modos» si entiendes el riesgo — huellas distintas significan que el cifrado puede no protegerte."
+          "Pulsa «Salir y quemar este chat» para destruir esta sesión. No sigas escribiendo si las huellas no coinciden."
         ]
       }
     },
@@ -311,7 +311,7 @@
     "mismatchButton": "No Coincide",
     "skipButton": "Omitir y Continuar",
     "continueButton": "Continuar al Chat",
-    "continueAnywayButton": "Continuar de Todos Modos (No Recomendado)",
+    "continueAnywayButton": "Salir y quemar este chat",
     "waitingPeer": "Esperando que el par verifique...",
     "helpText": "Pide a tu par que lea sus símbolos de huella digital por llamada de voz o en persona. Si coinciden, presiona \"La Huella Coincide\".",
     "waitingLonger": "Está tardando más de lo habitual…",

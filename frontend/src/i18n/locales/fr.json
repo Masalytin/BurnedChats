@@ -102,7 +102,7 @@
         "body": [
           "Si les chiffres ou les emoji ne correspondent pas, ne faites pas confiance à ce chat. Quelqu'un peut intercepter la connexion.",
           "Arrêtez-vous ici. Démarrez un nouveau chat avec votre contact via un canal de confiance et comparez à nouveau.",
-          "N'appuyez sur « continuer quand même » que si vous comprenez le risque — des empreintes différentes signifient que le chiffrement peut ne pas vous protéger."
+          "Appuyez sur « Quitter et brûler ce chat » pour détruire cette session. Ne continuez pas à écrire si les empreintes ne correspondent pas."
         ]
       }
     },
@@ -311,7 +311,7 @@
     "mismatchButton": "Ne Correspond Pas",
     "skipButton": "Ignorer et Continuer",
     "continueButton": "Continuer vers la Discussion",
-    "continueAnywayButton": "Continuer Quand Même (Non Recommandé)",
+    "continueAnywayButton": "Quitter et brûler ce chat",
     "waitingPeer": "En attente de la vérification du pair...",
     "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\".",
     "waitingLonger": "Cela prend plus de temps que d'habitude…",

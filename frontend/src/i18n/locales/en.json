@@ -677,7 +677,7 @@
         "body": [
           "If the numbers or emoji don't match, do not trust this chat. Someone may be intercepting the connection.",
           "Stop here. Start a new chat with your contact over a channel you both trust, and compare again.",
-          "Only tap \"continue anyway\" if you understand the risk — mismatched fingerprints mean encryption may not protect you."
+          "Tap \"Leave and burn this chat\" to destroy this session. Do not keep messaging on a mismatched fingerprint."
         ]
       }
     },
@@ -986,7 +986,7 @@
     "mismatchButton": "Doesn't Match",
     "skipButton": "Skip and Continue",
     "continueButton": "Continue to Chat",
-    "continueAnywayButton": "Continue Anyway (Not Recommended)",
+    "continueAnywayButton": "Leave and burn this chat",
     "waitingPeer": "Waiting for peer to verify...",
     "waitingLonger": "Taking longer than usual…",
     "connectionLost": "No connection — your confirmation wasn't sent.",
