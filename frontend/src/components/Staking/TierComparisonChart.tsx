@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { StakingTier, type TierConfig } from '@/types/ton';
-import { ILLUSTRATIVE_PRE_USER_NANO, calculateApyForInput } from '@/utils/apy';
+import { calculateApyForInput, resolvePreUserTierTotalNano } from '@/utils/apy';
 import { formatTierName } from '@/utils/staking-format';
 
 import { barScaleStyle } from './barScale';
@@ -19,12 +19,19 @@ export interface TierComparisonChartProps {
   dailyEmissionNano: bigint;
   cfgByTier: Map<StakingTier, TierConfig>;
   selectedTier: StakingTier;
+  liveTierTvls?: Partial<Record<StakingTier, bigint>>;
 }
 
 /**
- * Horizontal bars: APY % for each tier at the same stake amount (illustrative TVL per tier).
+ * Horizontal bars: APY % for each tier at the same stake amount (live TVL when available).
  */
-export function TierComparisonChart({ amountNano, dailyEmissionNano, cfgByTier, selectedTier }: TierComparisonChartProps) {
+export function TierComparisonChart({
+  amountNano,
+  dailyEmissionNano,
+  cfgByTier,
+  selectedTier,
+  liveTierTvls,
+}: TierComparisonChartProps) {
   const { t } = useTranslation();
 
   const rows = TIER_ORDER.map((tier) => {
@@ -34,7 +41,7 @@ export function TierComparisonChart({ amountNano, dailyEmissionNano, cfgByTier, 
         ? calculateApyForInput(
             amountNano,
             tier,
-            ILLUSTRATIVE_PRE_USER_NANO[tier],
+            resolvePreUserTierTotalNano(tier, 0n, liveTierTvls?.[tier] ?? null),
             dailyEmissionNano,
             cfg.rewardSharePercent,
           )

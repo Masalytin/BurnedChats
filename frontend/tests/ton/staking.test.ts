@@ -1,7 +1,7 @@
 import { Address, beginCell } from '@ton/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { calculateApy, getStakes, getTierConfigs, PHASE1_DAILY_EMISSION_NANO, stakeTx, type StakingDeps } from '@/ton/staking';
+import { calculateApy, getMasterTotalStake, getStakes, getTierConfigs, PHASE1_DAILY_EMISSION_NANO, stakeTx, type StakingDeps } from '@/ton/staking';
 import { StakingTier } from '@/types/ton';
 import { formatLockDuration, formatTierName, formatTimeRemaining } from '@/utils/staking-format';
 
@@ -198,6 +198,25 @@ describe('getStakes RPC', () => {
     expect(stakes[0]?.amount).toBe(1_000_000_000n);
     expect(stakes[0]?.startTime).toBe(100);
     expect(stakes[0]?.unlockTime).toBe(1000);
+  });
+});
+
+describe('getMasterTotalStake', () => {
+  it('reads get_master_total_stake and does not use illustrative constants', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: { exit_code: 0, stack: [['num', '0x2540be400']] },
+      }),
+    );
+    const tvl = await getMasterTotalStake(StakingTier.Gold, {
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      stakingMaster: STAKING_MASTER,
+    });
+    expect(tvl).toBe(10_000_000_000n);
+    const body = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
+    expect(body.method).toBe('get_master_total_stake');
   });
 });
 

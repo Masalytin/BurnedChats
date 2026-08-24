@@ -31,6 +31,7 @@ export interface StakeModalProps {
   walletBalanceNano: bigint | null;
   /** Current on-chain stake in the selected tier (excludes the amount being typed). */
   existingStakeInTierNano: bigint;
+  liveTierTotalNano?: bigint | null;
   /** Accrued pending reward in the selected tier (restake gas premium when > 0). */
   pendingRewardInTierNano?: bigint;
   onConfirmStake: (tier: StakingTier, amount: bigint) => Promise<{ ok: boolean }>;
@@ -46,6 +47,7 @@ export function StakeModal({
   tierConfigs,
   walletBalanceNano,
   existingStakeInTierNano,
+  liveTierTotalNano = null,
   pendingRewardInTierNano = 0n,
   onConfirmStake,
 }: StakeModalProps) {
@@ -370,6 +372,7 @@ export function StakeModal({
                   stakeNetEstimate?.willChargeFee ? stakeNetEstimate.netNano : amountNano
                 }
                 existingStakeInTierNano={existingStakeInTierNano}
+                liveTierTotalNano={liveTierTotalNano}
                 rewardSharePercent={selectedCfg.rewardSharePercent}
               />
             ) : null}

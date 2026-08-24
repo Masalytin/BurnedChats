@@ -33,6 +33,7 @@ export interface ApyCalculatorProps {
   showPhaseToggle?: boolean;
   /** Used to personalize tier TVL (existing position) and cap slider. */
   existingStakeByTier?: Partial<Record<StakingTier, bigint>>;
+  liveTierTvls?: Partial<Record<StakingTier, bigint>>;
   tierConfigs: TierConfig[];
   /** When set, amount slider uses this as 100%. */
   walletBalanceNano?: bigint | null;
@@ -43,6 +44,7 @@ export function ApyCalculator({
   initialTier = StakingTier.Gold,
   showPhaseToggle = true,
   existingStakeByTier,
+  liveTierTvls,
   tierConfigs,
   walletBalanceNano,
 }: ApyCalculatorProps) {
@@ -103,8 +105,8 @@ export function ApyCalculator({
 
   const preUserNano = useMemo(() => {
     const existing = existingStakeByTier?.[tier] ?? 0n;
-    return resolvePreUserTierTotalNano(tier, existing);
-  }, [tier, existingStakeByTier]);
+    return resolvePreUserTierTotalNano(tier, existing, liveTierTvls?.[tier] ?? null);
+  }, [tier, existingStakeByTier, liveTierTvls]);
 
   const result =
     selectedCfg !== undefined
@@ -273,6 +275,7 @@ export function ApyCalculator({
           dailyEmissionNano={dailyEmissionNano}
           cfgByTier={cfgByTier}
           selectedTier={tier}
+          liveTierTvls={liveTierTvls}
         />
       ) : null}
     </section>

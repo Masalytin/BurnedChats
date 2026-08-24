@@ -85,6 +85,7 @@ export function StakingDashboard({
   const {
     stakes,
     tierConfigs,
+    liveTierTvls,
     pendingRewards,
     rewardsRefreshing,
     isLoading,
@@ -360,6 +361,7 @@ export function StakingDashboard({
           tierConfigs={tierConfigs}
           walletBalanceNano={burn.balance}
           existingStakeByTier={existingStakeByTier}
+          liveTierTvls={liveTierTvls}
           initialTier={StakingTier.Gold}
         />
       ) : null}
@@ -475,6 +477,7 @@ export function StakingDashboard({
         tierConfigs={tierConfigs}
         walletBalanceNano={burn.balance}
         existingStakeInTierNano={stakeModalExisting}
+        liveTierTotalNano={liveTierTvls[stakeModalTier] ?? null}
         pendingRewardInTierNano={stakeModalPending}
         onConfirmStake={onConfirmStake}
       />

@@ -528,6 +528,45 @@ export async function getPendingReward(address: string, tier: StakingTier, deps?
 }
 
 /**
+ * On-chain TVL for one tier (`get_master_total_stake`). Not an illustrative constant.
+ */
+export async function getMasterTotalStake(tier: StakingTier, deps?: StakingDeps): Promise<bigint> {
+  const r = resolveDeps(deps);
+  const { exitCode, stackUnknown } = await postRunGetMethod(
+    r.rpcBaseUrl,
+    r.stakingMaster,
+    'get_master_total_stake',
+    [['num', `0x${tier.toString(16)}`]],
+    r.fetchImpl,
+    r.apiKey,
+  );
+  if (exitCode !== 0) {
+    throw new StakingError('NETWORK_ERROR', `get_master_total_stake exit ${exitCode}`);
+  }
+  return firstStackNum(stackUnknown) ?? 0n;
+}
+
+export async function getLiveTierTvls(deps?: StakingDeps): Promise<Partial<Record<StakingTier, bigint>>> {
+  const entries = await Promise.all(
+    ALL_STAKING_TIERS.map(async (tier) => {
+      try {
+        const v = await getMasterTotalStake(tier, deps);
+        return [tier, v] as const;
+      } catch {
+        return [tier, undefined] as const;
+      }
+    }),
+  );
+  const out: Partial<Record<StakingTier, bigint>> = {};
+  for (const [tier, v] of entries) {
+    if (v !== undefined) {
+      out[tier] = v;
+    }
+  }
+  return out;
+}
+
+/**
  * Tier multipliers / lock durations / reward shares (matches TOKENOMICS + `StakingTier` Java enum); cached 1h in `localStorage`.
  */
 export async function getTierConfigs(_deps?: StakingDeps): Promise<TierConfig[]> {

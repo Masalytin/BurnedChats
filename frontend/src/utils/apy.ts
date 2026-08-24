@@ -35,8 +35,21 @@ export function phase2DailyStakingPoolEmissionNano(preset: NetworkActivityPreset
   return (dailyVolumeNano * 3n) / 1000n;
 }
 
-export function resolvePreUserTierTotalNano(tier: StakingTier, existingUserStakeNano: bigint): bigint {
-  return ILLUSTRATIVE_PRE_USER_NANO[tier] + (existingUserStakeNano < 0n ? 0n : existingUserStakeNano);
+export function resolvePreUserTierTotalNano(
+  _tier: StakingTier,
+  existingUserStakeNano: bigint,
+  liveTierTotalNano?: bigint | null,
+): bigint {
+  const existing = existingUserStakeNano < 0n ? 0n : existingUserStakeNano;
+  if (liveTierTotalNano != null && liveTierTotalNano >= 0n) {
+    return liveTierTotalNano > existing ? liveTierTotalNano : existing;
+  }
+  return existing;
+}
+
+/** @deprecated Illustrative TOKENOMICS table only — never treat as live TVL (IMP-STKUX-01). */
+export function illustrativePreUserTierNano(tier: StakingTier): bigint {
+  return ILLUSTRATIVE_PRE_USER_NANO[tier];
 }
 
 /**

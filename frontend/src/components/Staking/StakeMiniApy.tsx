@@ -20,15 +20,17 @@ export function StakeMiniApyBlock({
   amountNano,
   existingStakeInTierNano,
   rewardSharePercent,
+  liveTierTotalNano = null,
 }: {
   tier: StakingTier;
   amountNano: bigint;
   existingStakeInTierNano: bigint;
   rewardSharePercent: number;
+  liveTierTotalNano?: bigint | null;
 }) {
   const { t } = useTranslation();
   const amt = useDebouncedValue(amountNano, DEBOUNCE_MS);
-  const pre = resolvePreUserTierTotalNano(tier, existingStakeInTierNano);
+  const pre = resolvePreUserTierTotalNano(tier, existingStakeInTierNano, liveTierTotalNano);
   const res =
     amt >= MIN_MEANINGFUL_STAKE_NANO
       ? calculateApyForInput(amt, tier, pre, phase1DailyEmissionNano(), rewardSharePercent)

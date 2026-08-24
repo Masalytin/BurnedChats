@@ -7,6 +7,7 @@ import {
   claimTx,
   getPendingRewards,
   getStakes,
+  getLiveTierTvls,
   getTierConfigs,
   stakeTx,
   unstakeTx,
@@ -106,8 +107,10 @@ export interface UseStaking {
   stake(params: { tier: StakingTier; amount: bigint }): Promise<TxResult>;
   unstake(params: { tier: StakingTier; amount: bigint }): Promise<TxResult>;
   claim(params: { tier: StakingTier }): Promise<TxResult>;
+  /** On-chain TVL per tier from `get_master_total_stake` (IMP-STKUX-01). */
+  liveTierTvls: Partial<Record<StakingTier, bigint>>;
   /**
-   * Indicative APY for UI: uses an illustrative tier TVL of `6 × stakeAmount` when total tier stake is unknown (see TOKENOMICS examples).
+   * Indicative APY for UI using live TVL when available (emission formula remains approximate).
    */
   calculateApy(tier: StakingTier, stakeAmount: bigint): number;
 }
@@ -122,6 +125,7 @@ export function useStaking(): UseStaking {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [optimisticByTier, setOptimisticByTier] = useState<Partial<Record<StakingTier, bigint>>>({});
+  const [liveTierTvls, setLiveTierTvls] = useState<Partial<Record<StakingTier, bigint>>>({});
 
   const visibleRef = useRef(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
   const txRefreshTimersRef = useRef<number[]>([]);
@@ -187,6 +191,7 @@ export function useStaking(): UseStaking {
       setChainStakes([]);
       setTierConfigs([]);
       setPendingRewards({});
+      setLiveTierTvls({});
       setError(null);
       return;
     }
@@ -194,9 +199,14 @@ export function useStaking(): UseStaking {
     setIsLoading(true);
     setError(null);
     try {
-      const [stakes, cfgs] = await Promise.all([getStakes(walletAddress), getTierConfigs()]);
+      const [stakes, cfgs, tvls] = await Promise.all([
+        getStakes(walletAddress),
+        getTierConfigs(),
+        getLiveTierTvls(),
+      ]);
       setChainStakes(stakes);
       setTierConfigs(cfgs);
+      setLiveTierTvls(tvls);
       const pr: Partial<Record<StakingTier, bigint>> = {};
       for (const s of stakes) {
         if (s.pendingReward > 0n) {
@@ -214,6 +224,14 @@ export function useStaking(): UseStaking {
   useEffect(() => {
     void loadCore();
   }, [walletAddress, loadCore]);
+
+  useEffect(() => {
+    void getLiveTierTvls()
+      .then(setLiveTierTvls)
+      .catch(() => {
+        setLiveTierTvls({});
+      });
+  }, []);
 
   useEffect(() => {
     if (!walletAddress || !isConnected) {
@@ -304,9 +322,10 @@ export function useStaking(): UseStaking {
     if (stakeAmount <= 0n) {
       return 0;
     }
-    const illustrativeTierTvl = stakeAmount * 6n;
-    return calculateApyOnChain(tier, stakeAmount, illustrativeTierTvl);
-  }, []);
+    const live = liveTierTvls[tier];
+    const totalTierStake = live != null && live > 0n ? live : stakeAmount;
+    return calculateApyOnChain(tier, stakeAmount, totalTierStake);
+  }, [liveTierTvls]);
 
   const mergedStakes = mergeOptimistic(chainStakes, optimisticByTier);
   const stakes = mergedStakes.map((s) => ({
@@ -317,6 +336,7 @@ export function useStaking(): UseStaking {
   return {
     stakes,
     tierConfigs,
+    liveTierTvls,
     pendingRewards,
     rewardsRefreshing,
     isLoading,

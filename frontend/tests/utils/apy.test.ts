@@ -78,6 +78,19 @@ describe('calculateApyForInput', () => {
   });
 });
 
+describe('resolvePreUserTierTotalNano', () => {
+  it('uses live on-chain TVL and never substitutes illustrative TVL', async () => {
+    const { resolvePreUserTierTotalNano, ILLUSTRATIVE_PRE_USER_NANO } = await import('@/utils/apy');
+    const live = 12n * 1_000_000_000n;
+    expect(resolvePreUserTierTotalNano(StakingTier.Gold, 1_000_000_000n, live)).toBe(live);
+    expect(resolvePreUserTierTotalNano(StakingTier.Gold, 0n, null)).toBe(0n);
+    expect(resolvePreUserTierTotalNano(StakingTier.Gold, 2_000_000_000n, null)).toBe(2_000_000_000n);
+    expect(resolvePreUserTierTotalNano(StakingTier.Gold, 0n)).not.toBe(
+      ILLUSTRATIVE_PRE_USER_NANO[StakingTier.Gold],
+    );
+  });
+});
+
 describe('phase2DailyStakingPoolEmissionNano', () => {
   it('orders Low < Medium < High', () => {
     const lo = phase2DailyStakingPoolEmissionNano('low');
