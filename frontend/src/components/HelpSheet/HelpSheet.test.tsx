@@ -118,6 +118,37 @@ describe('HelpSheet', () => {
     expect(screen.getByText('Second paragraph.')).toBeTruthy();
   });
 
+  it('interpolates extra values into body paragraphs', () => {
+    i18n.addResourceBundle(
+      'en',
+      'translation',
+      {
+        help: {
+          test: {
+            topic: {
+              title: 'Interpolated topic',
+              body: ['Address: {{pinnedJetton}}'],
+            },
+          },
+        },
+      },
+      true,
+      true,
+    );
+    render(
+      <I18nextProvider i18n={i18n}>
+        <HelpSheet
+          open
+          onClose={vi.fn()}
+          topicKey={TEST_TOPIC}
+          values={{ pinnedJetton: 'EQHelpSheetInterpolationTest' }}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByText('Address: EQHelpSheetInterpolationTest')).toBeTruthy();
+  });
+
   it('does not render when closed', () => {
     renderHelpSheet({ open: false });
 

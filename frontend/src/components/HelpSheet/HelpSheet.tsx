@@ -16,6 +16,8 @@ export interface HelpSheetProps {
    * `help.handshake.waiting.title` / `help.handshake.waiting.body`).
    */
   topicKey: string;
+  /** Extra i18n interpolation values for `help.{topic}.body` paragraphs. */
+  values?: Record<string, string>;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface HelpSheetProps {
  * pause its own Escape / BackButton / backdrop handlers (see `suspended` on
  * `BottomSheet` in `WalletSheet`) until `onClose` runs. The parent owns both `open` states.
  */
-export function HelpSheet({ open, onClose, topicKey }: HelpSheetProps) {
+export function HelpSheet({ open, onClose, topicKey, values }: HelpSheetProps) {
   const { t } = useTranslation();
   const titleId = useId();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -35,7 +37,7 @@ export function HelpSheet({ open, onClose, topicKey }: HelpSheetProps) {
   const bodyKey = `help.${topicKey}.body`;
 
   const title = t(titleKey, { defaultValue: '' });
-  const bodyRaw = t(bodyKey, { returnObjects: true, defaultValue: [] });
+  const bodyRaw = t(bodyKey, { returnObjects: true, defaultValue: [], ...values });
   const paragraphs = Array.isArray(bodyRaw)
     ? bodyRaw.filter((p): p is string => typeof p === 'string')
     : [];
