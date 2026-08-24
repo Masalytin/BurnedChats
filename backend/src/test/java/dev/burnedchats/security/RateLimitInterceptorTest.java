@@ -115,6 +115,22 @@ class RateLimitInterceptorTest {
     }
 
     @Test
+    @DisplayName("room message send/sync use MESSAGE bucket not GENERAL")
+    void roomMessageSendUsesMessageBucket() {
+        AppPrincipal principal = mockPrincipal("user-room-msg");
+        when(rateLimitService.enforceRateLimit("user-room-msg", RateLimitType.MESSAGE))
+                .thenReturn(Mono.empty());
+
+        interceptor.preSend(stompMessage(StompCommand.SEND, "/app/room.message.send", principal), channel);
+        interceptor.preSend(stompMessage(StompCommand.SEND, "/app/room.message.sync", principal), channel);
+
+        ArgumentCaptor<RateLimitType> typeCaptor = ArgumentCaptor.forClass(RateLimitType.class);
+        verify(rateLimitService, org.mockito.Mockito.times(2))
+                .enforceRateLimit(eq("user-room-msg"), typeCaptor.capture());
+        assertThat(typeCaptor.getAllValues()).containsOnly(RateLimitType.MESSAGE);
+    }
+
+    @Test
     @DisplayName("maps unknown destinations to GENERAL rate limit")
     void generalForUnknownDestination() {
         AppPrincipal principal = mockPrincipal("user-789");

@@ -656,7 +656,7 @@ Burned Chats uses **layered** anti-spam protection. PoW (Layer 1) **supplements*
 |-----------------|-------|------------|
 | `SEARCH` | 10 / min | `/app/search` |
 | `SESSION_CREATE` | 3 / min | after PoW on `/app/session.create` |
-| `MESSAGE` | 60 / min | send/sync |
+| `MESSAGE` | 60 / min | send/sync (DM `/app/message.*` and room `/app/room.message.send` / `sync`) |
 | `SESSION_ACTION` | 10 / min | accept/reject/verification |
 | `HANDSHAKE` | 10 / min | key exchange |
 | `FILE_UPLOAD` | 10 / min | REST upload |

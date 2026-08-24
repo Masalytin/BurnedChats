@@ -68,6 +68,8 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             Map.entry("/app/session.reject", RateLimitType.SESSION_ACTION),
             Map.entry("/app/message.send", RateLimitType.MESSAGE),
             Map.entry("/app/message.sync", RateLimitType.MESSAGE),
+            Map.entry("/app/room.message.send", RateLimitType.MESSAGE),
+            Map.entry("/app/room.message.sync", RateLimitType.MESSAGE),
             Map.entry("/app/message.edit", RateLimitType.MESSAGE_EDIT),
             Map.entry("/app/room.message.edit", RateLimitType.MESSAGE_EDIT),
             Map.entry("/app/message.delete", RateLimitType.MESSAGE_DELETE),
