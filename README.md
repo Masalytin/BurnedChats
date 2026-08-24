@@ -8,6 +8,10 @@ smart contracts for wallet auth and an experimental deflationary token.
 [![Backend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml)
 [![Frontend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml)
 [![Contracts CI](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml)
+[![Audit Gates](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml)
+[![CodeQL](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml)
+
+**Try it:** [Telegram bot](https://t.me/BurnedChatsBot) · [burnedchats.net](https://burnedchats.net)
 
 | Component | Stack |
 |-----------|-------|
@@ -117,11 +121,11 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ## Build and test
 
 ```bash
-# Backend (Java 21)
-cd backend && ./gradlew clean build
+# Backend (Java 21) — Gradle wrapper lives at the repository root
+./gradlew :backend:build
 
 # Backend integration tests (Testcontainers; requires Docker)
-./gradlew integrationTest
+./gradlew :backend:integrationTest
 
 # Frontend (Node 20+ or 22+)
 cd frontend && npm ci && npm run lint && npm run build && npm test
@@ -147,7 +151,9 @@ BurnedChats/
 └── .github/workflows/
 ```
 
-Start with [ARCHITECTURE.md](docs/specs/ARCHITECTURE.md) and [SECURITY.md](docs/specs/SECURITY.md).
+Start with [ARCHITECTURE.md](docs/specs/ARCHITECTURE.md) and the threat model in
+[docs/specs/SECURITY.md](docs/specs/SECURITY.md). To report a vulnerability, use
+the root [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -200,6 +206,8 @@ is no funded liquidity, no external audit, and no distribution program behind it
 
 | Document | Topic |
 |----------|-------|
+| [SECURITY.md](SECURITY.md) | Vulnerability disclosure |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
 | [ARCHITECTURE.md](docs/specs/ARCHITECTURE.md) | System design |
 | [SECURITY.md](docs/specs/SECURITY.md) | Cryptography and threat model |
 | [API.md](docs/specs/API.md) | REST and WebSocket/STOMP |

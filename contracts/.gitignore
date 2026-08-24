@@ -18,6 +18,8 @@ package.ts
 # Deployment manifest backups (testnet.json is tracked; ignore manual copies)
 deployments/*.bak*
 deployments/*.bak-*
+# Pre-launch mainnet tip — local operator artifact until README status changes
+deployments/mainnet.json
 
 # Owner ops artifacts from testnet runs (DEPLOY_ACTIONS п.28): deploy backups,
 # live-run stdout logs, scratch env copies. Never tracked, never deleted by agents.

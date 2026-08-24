@@ -112,7 +112,7 @@ curl -sfI https://burnedchats.net/burn-icon.png
 
 Override with `JETTON_METADATA_URI` for staging or pinned releases.
 
-**Mainnet:** prefer an immutable URL (release tag or CDN), not a floating `master` branch — set
+**Mainnet:** prefer an immutable URL (release tag or CDN), not a floating `main` branch — set
 `JETTON_METADATA_URI` in `.env.mainnet` rather than relying on the default.
 
 Env load order for `--testnet`: `.env.testnet` → `.env`. Blueprint reads `WALLET_MNEMONIC` and

@@ -5,6 +5,13 @@ Thank you for your interest in contributing. This repository contains the
 under `docs/specs/`. Product behaviour is defined by those specs — keep them in
 sync when you change APIs, data models, or security-relevant behaviour.
 
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+**Do not open a public issue for security vulnerabilities** — follow
+[SECURITY.md](SECURITY.md) (GitHub private vulnerability reporting).
+
+Looking for a first task? Filter issues labeled `good first issue`, or ask in
+[Discussions](https://github.com/Masalytin/BurnedChats/discussions).
+
 ## Prerequisites
 
 | Module | Requirements |
@@ -21,11 +28,14 @@ Run from the repository root before opening a PR. All commands must exit 0.
 ### Backend
 
 ```bash
-cd backend
-./gradlew clean build
+./gradlew :backend:build
 ```
 
-Integration tests (`integrationTest`) require a running Docker Engine.
+Integration tests require a running Docker Engine:
+
+```bash
+./gradlew :backend:integrationTest
+```
 
 ### Frontend
 
@@ -126,4 +136,5 @@ Reference locale: `en.json` (frontend), `messages.properties` (backend). Use
 | [TELEGRAM.md](docs/specs/TELEGRAM.md) | Mini App and bot |
 | [TOKENOMICS.md](docs/specs/TOKENOMICS.md) | BURN token |
 
-Questions about roadmap or priorities — open a GitHub issue.
+Questions about roadmap or priorities — open a GitHub issue or start a
+[Discussion](https://github.com/Masalytin/BurnedChats/discussions).

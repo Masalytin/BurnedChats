@@ -10,7 +10,7 @@
 **Mainnet deployment of BURN contracts is forbidden until this external audit completes**
 and all P0/P1 findings are resolved or explicitly accepted by the project owner.
 
-Prerequisite engineering work on `master` is complete: functional blockers closed,
+Prerequisite engineering work on `main` is complete: functional blockers closed,
 relay/cashback paths verified, and this audit package assembled.
 
 ---
