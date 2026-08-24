@@ -132,6 +132,65 @@ services:
     networks:
       - internal
 
+  # ===== Internal observability (IMP-OBS-03) =====
+  # Scrape is on the compose network only. Host binds are loopback — not in nginx.
+  # SSH tunnel if needed: ssh -L 9090:127.0.0.1:9090 -L 3001:127.0.0.1:3001 user@host
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    container_name: burnedchats-redis-exporter
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: burnedchats-prometheus
+    restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - backend
+      - redis-exporter
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - internal
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: burnedchats-grafana
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_ADDR=0.0.0.0
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - internal
+
   # ===== Nginx (Reverse Proxy + SSL) =====
   nginx:
     image: nginx:alpine
@@ -181,6 +240,10 @@ volumes:
   backend-files:
     driver: local
   redisinsight-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
     driver: local
 
 networks:

@@ -1,0 +1,55 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Offline queue enqueued vs delivered",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "increase(burnedchats_offline_queue_enqueued_total[5m])",
+          "legendFormat": "enqueued",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(burnedchats_offline_queue_delivered_total[5m])",
+          "legendFormat": "delivered",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Rate-limit hits",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "increase(rate_limit_hits_total[5m])",
+          "legendFormat": "hits",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["burnedchats", "internal"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "Relay internals",
+  "uid": "burnedchats-relay",
+  "version": 1
+}

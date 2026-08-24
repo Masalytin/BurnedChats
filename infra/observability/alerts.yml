@@ -1,0 +1,39 @@
+groups:
+  - name: burnedchats-relay
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis exporter reports instance down
+          description: Internal scrape only — do not expose /actuator.
+
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend Prometheus scrape is down
+
+      - alert: OfflineQueueNoDelivery
+        expr: |
+          increase(burnedchats_offline_queue_enqueued_total[15m]) > 0
+          and
+          increase(burnedchats_offline_queue_delivered_total[15m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Offline queue is enqueuing without delivery
+          description: enqueued grew while delivered stayed flat (IMP-OBS-01 runbook).
+
+      - alert: RateLimitSpike
+        expr: increase(rate_limit_hits_total[5m]) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Rate-limit hits spiked

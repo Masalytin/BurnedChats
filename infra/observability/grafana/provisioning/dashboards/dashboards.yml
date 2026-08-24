@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: burnedchats
+    orgId: 1
+    folder: BurnedChats
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
