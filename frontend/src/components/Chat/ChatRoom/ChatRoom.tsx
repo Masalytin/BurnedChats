@@ -70,6 +70,9 @@ interface ChatRoomProps {
   onCancelUpload?: () => void;
   /** Retry failed upload */
   onRetryUpload?: (messageId: string) => void;
+  /** Count-only notice (TTL / overflow) — never plaintext (IMP-OFFLINE-04). */
+  infoBanner?: string | null;
+  onDismissInfoBanner?: () => void;
   /** Optional CSS class name */
   className?: string;
   /** Locally hide messages (delete for me) */
@@ -115,6 +118,8 @@ export const ChatRoom = memo(function ChatRoom({
   uploadState,
   onCancelUpload,
   onRetryUpload,
+  infoBanner,
+  onDismissInfoBanner,
   className = '',
   hideMessages,
   onEditMessage,
@@ -489,6 +494,22 @@ export const ChatRoom = memo(function ChatRoom({
         >
           <AlertCircle size={18} className="chat-room-error-banner-icon" aria-hidden />
           <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {infoBanner && (
+        <div className="chat-room-info-banner" role="status">
+          <span>{infoBanner}</span>
+          {onDismissInfoBanner && (
+            <button
+              type="button"
+              className="chat-room-info-banner-dismiss"
+              onClick={onDismissInfoBanner}
+              aria-label={t('common.cancel')}
+            >
+              ×
+            </button>
+          )}
         </div>
       )}
 

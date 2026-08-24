@@ -4094,15 +4094,6 @@ function ChatViewContent({
     [t, toast],
   );
 
-  const handleSyncComplete = useCallback(
-    (_count: number, failedCount?: number) => {
-      if (failedCount && failedCount > 0) {
-        toast.warning(t('chat.sync.undecryptable', { count: failedCount }), { duration: 8000 });
-      }
-    },
-    [t, toast],
-  );
-
   const [isSendingFile, setIsSendingFile] = useState(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
 
@@ -4118,6 +4109,8 @@ function ChatViewContent({
     deleteMessage,
     retryOutgoingFile,
     hasOutgoingFileBlob,
+    expiredDuringAbsenceCount,
+    dismissExpiredBanner,
   } = useMessages({
     sessionId,
     userId,
@@ -4128,7 +4121,6 @@ function ChatViewContent({
     rekeyResendNonce,
     onError: handleMessageError,
     onEditError: handleDmEditError,
-    onSyncComplete: handleSyncComplete,
   });
 
   // Publish the hook's syncMessages up to AppContent via the ref so the
@@ -4212,6 +4204,12 @@ function ChatViewContent({
       }
       onCancelUpload={handleCancelUpload}
       onRetryUpload={handleRetryUpload}
+      infoBanner={
+        expiredDuringAbsenceCount > 0
+          ? t('chat.sync.expiredWhileAway', { count: expiredDuringAbsenceCount })
+          : null
+      }
+      onDismissInfoBanner={dismissExpiredBanner}
       onBack={onBack}
       onBurn={onBurn}
       disabled={composerBlocked}

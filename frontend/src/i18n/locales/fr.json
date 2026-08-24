@@ -241,7 +241,8 @@
       "windowExpired": "La fenêtre de modification a expiré (limite de 15 min)"
     },
     "sync": {
-      "undecryptable": "{{count}} message(s) n'ont pas pu être restaurés — demandez à votre correspondant de les renvoyer"
+      "undecryptable": "{{count}} message(s) n'ont pas pu être restaurés — demandez à votre correspondant de les renvoyer",
+      "expiredWhileAway": "{{count}} messages ont expiré pendant votre absence"
     },
     "emptyHint": "Envoyez un message pour démarrer la conversation",
     "emptyMessages": "Aucun message pour l'instant",

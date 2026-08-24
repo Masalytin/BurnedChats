@@ -871,7 +871,8 @@
       "notEditable": "This message cannot be edited"
     },
     "sync": {
-      "undecryptable": "{{count}} message(s) could not be restored — ask your peer to resend them"
+      "undecryptable": "{{count}} message(s) could not be restored — ask your peer to resend them",
+      "expiredWhileAway": "{{count}} messages expired while you were away"
     },
     "reply": {
       "you": "You",

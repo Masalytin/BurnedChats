@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage } from '@/crypto/aes';
 import { isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
@@ -25,6 +25,7 @@ import {
 } from '@/hooks/useMessageCore';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
 import { createFileBlobOutbox, createSessionOutbox } from '@/hooks/sessionOutbox';
+import { resolveExpiredAbsenceCount } from '@/hooks/expiredAbsenceCount';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
@@ -122,6 +123,8 @@ interface SyncMessagesEvent {
   deletedIds?: string[];
   deletedMessageIds?: string[];
   edits?: SyncedEditPayload[];
+  expiredCount?: number;
+  trimmedCount?: number;
 }
 
 export type UseMessagesWebSocket = ChatWebSocketApi;
@@ -160,6 +163,8 @@ interface UseMessagesReturn {
   retryMessage: (messageId: string) => Promise<SendMessageResult>;
   retryOutgoingFile: (messageId: string) => Promise<SendMessageResult>;
   hasOutgoingFileBlob: (messageId: string) => boolean;
+  expiredDuringAbsenceCount: number;
+  dismissExpiredBanner: () => void;
   syncMessages: () => void;
   error: MessageErrorCode | null;
   editMessage: (
@@ -322,6 +327,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const lastRekeyResendNonceRef = useRef(0);
   const outgoingOutboxRef = useRef(createSessionOutbox());
   const fileBlobOutboxRef = useRef(createFileBlobOutbox());
+  const [expiredDuringAbsenceCount, setExpiredDuringAbsenceCount] = useState(0);
 
   const resendUndeliveredAfterRekey = useCallback(async () => {
     if (!isConnected || !sessionId) return;
@@ -658,6 +664,14 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       }
 
       const failedCount = decryptFailedCount;
+      const expiredN = resolveExpiredAbsenceCount({
+        failedCount,
+        expiredCount: event.expiredCount,
+        trimmedCount: event.trimmedCount,
+      });
+      if (expiredN > 0) {
+        setExpiredDuringAbsenceCount(expiredN);
+      }
       console.log(
         `[useMessages] Sync batch: ${newMessageCount} message(s), ${editPayloads.length} edit(s), ${tombstoneDeleteIds.length} delete(s)`,
         failedCount > 0 ? `, ${failedCount} decrypt failure(s)` : '',
@@ -844,6 +858,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     return Boolean(fileBlobOutboxRef.current.get(messageId));
   }, []);
 
+  const dismissExpiredBanner = useCallback(() => {
+    setExpiredDuringAbsenceCount(0);
+  }, []);
+
   const retryOutgoingFile = useCallback(async (messageId: string): Promise<SendMessageResult> => {
     const blob = fileBlobOutboxRef.current.get(messageId);
     if (!blob) {
@@ -865,6 +883,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     retryMessage,
     retryOutgoingFile,
     hasOutgoingFileBlob,
+    expiredDuringAbsenceCount,
+    dismissExpiredBanner,
     syncMessages,
     error,
     editMessage,

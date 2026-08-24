@@ -272,7 +272,8 @@
       "notEditable": "Diese Nachricht kann nicht bearbeitet werden"
     },
     "sync": {
-      "undecryptable": "{{count}} Nachricht(en) konnten nicht wiederhergestellt werden — bitten Sie Ihren Gesprächspartner, sie erneut zu senden"
+      "undecryptable": "{{count}} Nachricht(en) konnten nicht wiederhergestellt werden — bitten Sie Ihren Gesprächspartner, sie erneut zu senden",
+      "expiredWhileAway": "{{count}} Nachrichten sind abgelaufen, während Sie weg waren"
     },
     "reply": {
       "you": "Sie",

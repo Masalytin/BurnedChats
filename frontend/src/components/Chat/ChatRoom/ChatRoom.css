@@ -138,6 +138,31 @@
   color: var(--bc-error);
 }
 
+.chat-room-info-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+  flex-shrink: 0;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--bc-text-muted) 20%, transparent);
+}
+
+.chat-room-info-banner-dismiss {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--bc-text-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--bc-spacing-xs);
+}
+
 /* Animations */
 @keyframes chat-room-pulse {
   0%, 100% {

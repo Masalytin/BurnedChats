@@ -241,7 +241,8 @@
       "windowExpired": "编辑窗口已过期（15 分钟限制）"
     },
     "sync": {
-      "undecryptable": "无法恢复 {{count}} 条消息 — 请让对方重新发送"
+      "undecryptable": "无法恢复 {{count}} 条消息 — 请让对方重新发送",
+      "expiredWhileAway": "您不在时有 {{count}} 条消息已过期"
     },
     "emptyHint": "发送消息以开始对话",
     "emptyMessages": "暂无消息",
