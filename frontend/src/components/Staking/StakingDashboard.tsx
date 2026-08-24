@@ -40,10 +40,17 @@ function totalPendingNano(stakes: StakeInfo[]): bigint {
   return stakes.reduce((a, s) => a + s.pendingReward, 0n);
 }
 
-function formatVpScore(stakes: StakeInfo[], configs: TierConfig[]): string {
+function formatVpScore(
+  stakes: StakeInfo[],
+  configs: TierConfig[],
+  opts: { voteEligibleOnly?: boolean } = {},
+): string {
   const mult = new Map(configs.map((c) => [c.tier, c.multiplier]));
   let score = 0;
   for (const s of stakes) {
+    if (opts.voteEligibleOnly && s.tier === StakingTier.Flexible) {
+      continue;
+    }
     score += (Number(s.amount) / 1e9) * (mult.get(s.tier) ?? 1);
   }
   if (!Number.isFinite(score) || score === 0) {
@@ -116,6 +123,8 @@ export function StakingDashboard({
   const totalStaked = totalStakedNano(stakes);
   const totalPending = totalPendingNano(stakes);
   const vpDisplay = formatVpScore(stakes, tierConfigs);
+  const vpVoteEligible = formatVpScore(stakes, tierConfigs, { voteEligibleOnly: true });
+  const flexibleOnlyVote = vpDisplay !== '0' && vpVoteEligible === '0';
 
   useEffect(() => {
     setRewardHighlight(true);
@@ -284,6 +293,12 @@ export function StakingDashboard({
             </div>
           </div>
           <div>
+            <div className={styles.statLabel}>{t('staking.headerVoteVp')}</div>
+            <div className={styles.statValue} aria-busy={isLoading || undefined}>
+              {isLoading ? <span className={styles.statSkeleton} aria-hidden="true" /> : vpVoteEligible}
+            </div>
+          </div>
+          <div>
             <div className={styles.statLabel}>{t('staking.headerPending')}</div>
             <div
               className={`${styles.statValue} ${rewardHighlight ? styles.pulse : ''}`}
@@ -295,6 +310,12 @@ export function StakingDashboard({
           </div>
         </div>
       </div>
+
+      {flexibleOnlyVote ? (
+        <p className={styles.errText} role="status">
+          {t('staking.flexibleNoVoteHint')}
+        </p>
+      ) : null}
 
       {ton.isConnected && !isLoading && stakes.length === 0 ? (
         <div className={styles.banner}>

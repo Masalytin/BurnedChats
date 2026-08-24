@@ -225,6 +225,7 @@ function AppContent() {
     checkHomeScreenStatus,
     startParam,
     close,
+    requestWriteAccess,
   } = useTelegram();
 
   useTelegramViewport();
@@ -589,6 +590,15 @@ function AppContent() {
   }, [myRooms]);
 
   const myRoomIds = useMemo(() => myRooms.map(r => r.roomId), [myRooms]);
+
+  useEffect(() => {
+    const onBurned = (ev: Event) => {
+      const count = (ev as CustomEvent<{ count?: number }>).detail?.count ?? 0;
+      toast.info(t('room.burnedOffline', { count }));
+    };
+    window.addEventListener('bc:rooms-burned-offline', onBurned);
+    return () => window.removeEventListener('bc:rooms-burned-offline', onBurned);
+  }, [t, toast]);
 
   const topicMultiplexer = useMemo(
     () => createRoomTopicMultiplexer(subscribe, unsubscribe),
@@ -970,6 +980,7 @@ function AppContent() {
   // App state
   const [initError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
@@ -1945,6 +1956,31 @@ function AppContent() {
     setActiveRoomChat({ roomId, epoch: 0 });
     setCurrentView('room-chat');
   }, [isReady, isConnected, startParam, isLoadingRooms, myRoomIds]);
+
+  // Ask Telegram for bot write access once after first successful Mini App auth.
+  // Refusal must not block chat (IMP-TGNOTIFY-02).
+  const writeAccessAskedRef = useRef(false);
+  useEffect(() => {
+    if (!isReady || !isInTelegram || !isAuthenticated || writeAccessAskedRef.current) {
+      return;
+    }
+    writeAccessAskedRef.current = true;
+    void requestWriteAccess().catch(() => undefined);
+  }, [isReady, isInTelegram, isAuthenticated, requestWriteAccess]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    try {
+      if (localStorage.getItem('bc:onboarding-seen') === '1') {
+        return;
+      }
+    } catch {
+      /* show once this session */
+    }
+    setShowOnboarding(true);
+  }, [isAuthenticated]);
 
   // Initialize Mini App chrome only in Telegram.
   useEffect(() => {
@@ -3876,6 +3912,45 @@ function AppContent() {
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
           panicBrandRef={panicBrandRef}
         />
+
+        {showOnboarding && (
+          <div
+            className="home-empty-state"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="onboarding-title"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              background: 'rgba(0,0,0,0.55)',
+            }}
+          >
+            <div style={{ maxWidth: 420, background: 'var(--tg-theme-bg-color, #111)', padding: 20, borderRadius: 12 }}>
+              <h2 id="onboarding-title">{t('home.onboardingTitle')}</h2>
+              <p>{t('home.onboardingKeys')}</p>
+              <p>{t('home.onboardingInvite')}</p>
+              <p>{t('home.onboardingRooms')}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.setItem('bc:onboarding-seen', '1');
+                  } catch {
+                    /* ignore quota / private mode */
+                  }
+                  setShowOnboarding(false);
+                }}
+              >
+                {t('home.onboardingContinue')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Personal DM invite QR / share (IMP-DMINVITE-02) */}
         <DmInviteSheet

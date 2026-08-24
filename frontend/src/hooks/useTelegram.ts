@@ -308,9 +308,13 @@ export function useTelegram(): UseTelegramReturn {
   // Permissions
   const requestWriteAccess = useCallback((): Promise<boolean> => {
     return new Promise((resolve) => {
-      WebApp.requestWriteAccess((granted) => {
-        resolve(granted);
-      });
+      try {
+        WebApp.requestWriteAccess((granted) => {
+          resolve(Boolean(granted));
+        });
+      } catch {
+        resolve(false);
+      }
     });
   }, []);
 

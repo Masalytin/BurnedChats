@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { useState, useCallback, useEffect, useRef, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
@@ -110,6 +110,19 @@ export function HomePage({
   const { canScanQr } = useTelegram();
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
+  const hadRendezvousRef = useRef(false);
+  useEffect(() => {
+    if (rooms.length > 0 || activeSessions.length > 0) {
+      hadRendezvousRef.current = true;
+    }
+  }, [rooms.length, activeSessions.length]);
+  const showRedisLossBanner =
+    hadRendezvousRef.current &&
+    isConnected &&
+    !isLoadingRooms &&
+    !isLoadingSessions &&
+    rooms.length === 0 &&
+    activeSessions.length === 0;
   const showJoinViaQr = canScanQr && onJoinViaQr != null;
   const showDmInviteEntry = onShowMyQr != null || onScanDmQr != null;
 
@@ -408,7 +421,19 @@ export function HomePage({
 
         {!isLoadingRooms && rooms.length === 0 && (
           <div className="home-empty-state">
-            <p>{t('room.emptyRooms')}</p>
+            {showRedisLossBanner ? (
+              <p role="status">{t('home.redisLossBanner')}</p>
+            ) : (
+              <p>{t('room.emptyRooms')}</p>
+            )}
+            <p>{t('home.emptyRoomsCta')}</p>
+            <div className="home-empty-actions">
+              {onCreateRoom && (
+                <Button variant="primary" onClick={onCreateRoom}>
+                  {t('room.createRoomButton')}
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </section>

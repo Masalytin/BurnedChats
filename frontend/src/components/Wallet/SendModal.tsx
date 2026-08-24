@@ -579,6 +579,15 @@ export function SendModal({ isOpen, onClose, burn, onSent }: SendModalProps) {
 
             <FeeBreakdown amountNano={debouncedNano} feeParams={burn.feeParams} tonGas={tonGas} />
 
+            {recipientPreflight?.jettonWalletAddress ? (
+              <p className={styles.feeHint} role="status">
+                {t('wallet.preSignReview', {
+                  dest: recipientPreflight.jettonWalletAddress,
+                  amount: amount || '0',
+                })}
+              </p>
+            ) : null}
+
             {(submitError || validationError) && !isUsernameRecipient ? (
               <p className={styles.errorText} role="alert">
                 {submitError ?? validationError}
