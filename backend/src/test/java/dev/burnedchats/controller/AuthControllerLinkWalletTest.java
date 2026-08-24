@@ -97,6 +97,32 @@ class AuthControllerLinkWalletTest {
     }
 
     @Test
+    @DisplayName("linkTelegramChallenge uses t.me/{bot}/app?startapp=")
+    void telegramLinkUsesAppPath() {
+        TelegramProperties props = new TelegramProperties();
+        props.getBot().setUsername("BurnedChatsBot");
+        AuthAccountLinkService link = mock(AuthAccountLinkService.class);
+        when(link.createTelegramLinkChallenge("sess")).thenReturn(Mono.just("challenge-1"));
+        AuthController deepLinkController = new AuthController(
+                mock(TonProofVerifier.class),
+                mock(AuthenticationService.class),
+                mock(SessionTokenService.class),
+                link,
+                mock(TelegramAuthService.class),
+                props);
+
+        StepVerifier.create(deepLinkController.linkTelegramChallenge(
+                        new AuthController.SessionTokenOnlyRequest("sess")))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isNotNull();
+                    assertThat(resp.getBody().get("telegramLink"))
+                            .isEqualTo("https://t.me/BurnedChatsBot/app?startapp=lt_challenge-1");
+                })
+                .verifyComplete();
+    }
+
+    @Test
     @DisplayName("successful link returns 200 linked accounts payload")
     void happyPathReturns200() {
         UnifiedUser user = new UnifiedUser(

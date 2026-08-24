@@ -305,7 +305,7 @@ public class AuthController {
         if (botUsernameNoAt.isBlank()) {
             return "";
         }
-        return "https://t.me/" + botUsernameNoAt + "?startapp=" + startapp;
+        return "https://t.me/" + botUsernameNoAt + "/app?startapp=" + startapp;
     }
 
     private static String trimBot(String bot) {

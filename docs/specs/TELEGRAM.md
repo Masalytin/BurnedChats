@@ -36,6 +36,7 @@ From `WebApp.initDataUnsafe.user`:
 | Bot notification button | `https://t.me/{bot}/app?startapp=dm_{sessionId}` (URL button; fills `initDataUnsafe.start_param`) |
 | Fallback / room invite | `https://t.me/{bot}/app?startapp=invite_{token}` |
 | Fallback / personal DM invite | `https://t.me/{bot}/app?startapp=dm_invite_{token}` |
+| Wallet↔Telegram link | `https://t.me/{bot}/app?startapp=lt_{challengeId}` |
 
 Room and auth flows: [API.md](./API.md).
 
