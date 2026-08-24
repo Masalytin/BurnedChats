@@ -605,6 +605,36 @@ See [API.md](./API.md) (`/api/auth/wallet`).
 
 ---
 
+## TON Connect Mini App signing surface
+
+> Auth handshake (`ton_proof`) is specified above and in Phase 3 wallet-auth
+> cards (`P3-5.2.1`). Post-audit on-chain overview stays in `P5-6.4.1` /
+> [Governance On-chain](#governance-on-chain-phase-5). This section is the
+> **in-app signing** threat model: send / stake / vote from the Mini App.
+
+TON Connect shows the user **TON attach + BOC**. The Mini App is a separate
+trust surface: it chooses destination contracts and encodes intent. A malicious
+or compromised Mini App can ask the wallet to sign a transfer the UI label
+does not honestly describe.
+
+| Actor / layer | What it sees | What it cannot do |
+|---------------|--------------|-------------------|
+| User in Mini App | Human copy (send N BURN, stake tier, vote) | Verify BOC without a pre-sign review |
+| Wallet (TON Connect) | Destination address + payload BOC + TON attach | Decode jetton/gov intent unless the wallet itself parses TEP-74 |
+| Backend `/api/ton/*` | Read-only RPC; may return a jetton-wallet address | Must not be trusted as the sole JW (see IMP-SEC-03) |
+| CDN / static host | Served JS that builds transactions | CSP does **not** pin contract addresses |
+| Nginx CSP | Script/connect origins | Does not constrain `messages[].address` in `sendTransaction` |
+
+**Pinned contracts** (`VITE_BURN_JETTON_MASTER`, staking master, Governor,
+treasury) are build-time constants. Pre-sign UI must display those same
+addresses (or addresses **derived** from them, e.g. user jetton wallet from
+the pinned master) — never a free-typed destination for token ops.
+
+**Not in scope here:** replacing `ton_proof` verification, changing frozen
+contracts, or treating `bothVerified` as cryptography.
+
+---
+
 ## User Discoverability (wallet-only identity)
 
 > STOMP contract: [API.md](./API.md#search_user-appsearch).
@@ -785,7 +815,7 @@ on and does not mirror info/warn to console (errors may still go to console).
   `@EnableWebFluxSecurity` filter chain with CSP directives (historical snippet removed).
 - **Actual CSP:** nginx only — see [§4.1](#41-content-security-policy-for-telegram-mini-app-spa) and `nginx/prod.conf`.
 
-### Redis Ephemerality (TTL)
+### Redis Ephemerality (TTL + AOF)
 
 Invariant: **almost all** Redis keys have TTL. Backend audit (2026-07): **50 of 51**
 patterns with expire.
@@ -793,6 +823,13 @@ patterns with expire.
 **Known exception ( / ):** `room_invites:{roomId}` — `SADD` without
 `EXPIRE` (`InviteTokenRepository`). Fix in code — separate task; not ciphertext,
 but violates "100% TTL" wording.
+
+**AOF is intentional.** Docker Compose starts Redis with `--appendonly yes`.
+That writes **ciphertext and metadata** to the data volume so a Redis process
+restart does not wipe every live session. It is **not** a plaintext backup:
+encryption keys never leave the client. Losing the volume, host disk, or a
+`FLUSH*` is a total rendezvous wipe (rooms, queues, identity). Do not promise
+chat recovery to users or support.
 
 ### 4.1. Content-Security-Policy for Telegram Mini App (SPA)
 

@@ -55,8 +55,9 @@ fingerprint ceremony. See docs/assets/README.md for capture guidelines.
 - **Encrypted media** — chunked AES-GCM for files and thumbnails.
 - **TON integration** — TON Connect wallet auth; Jetton (TEP-74) with staking, governance,
   treasury, and vesting contracts (Tact + Sandbox tests, 80% coverage gate).
-- **Operations** — Docker Compose (dev / prod / SSL), Nginx TLS, Redis with TTL-only
-  storage, Actuator + Prometheus metrics.
+- **Operations** — Docker Compose (dev / prod / SSL), Nginx TLS, Redis with TTL
+  plus optional AOF of **ciphertext and metadata** (no plaintext backup; Redis
+  loss wipes rendezvous), Actuator + Prometheus metrics.
 - **Specifications** — API, security, and data models under [`docs/specs/`](docs/specs/).
 
 ---

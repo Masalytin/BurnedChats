@@ -7,7 +7,7 @@
 ```
 ┌──────────────┐   HTTPS / WSS (STOMP)   ┌─────────────────────┐   Bot webhook
 │   Frontend   │◄───────────────────────►│  Spring Boot relay  │◄────────────── Telegram
-│  Mini App    │   ciphertext + metadata │  + Redis (TTL)      │
+│  Mini App    │   ciphertext + metadata │  + Redis (TTL+AOF)  │
 │  Web Crypto  │                         │                     │
 └──────────────┘                         └─────────────────────┘
        │ keys in RAM only                         │
@@ -19,7 +19,9 @@
 ### Principles
 
 1. **Zero-knowledge** — server relays opaque ciphertext; no decryption keys on server
-2. **Ephemeral storage** — Redis keys with TTL; no SQL or durable chat history
+2. **Ephemeral storage** — Redis keys with TTL; no SQL or durable **plaintext**
+   chat history. Compose enables AOF so ciphertext/metadata survive a Redis
+   process restart; losing the volume or `FLUSH*` still wipes all rendezvous.
 3. **Client-side crypto** — ECDH P-256 + AES-256-GCM via Web Crypto API
 4. **Fail-safe destruction** — keys wiped from RAM on close, burn, or long background
 
@@ -63,7 +65,8 @@ dev.burnedchats/
 
 - Validates Telegram `initData` and TON wallet proofs
 - Rendezvous: connect users by `internalId`, relay encrypted packets
-- Stores ciphertext blobs and metadata in Redis with TTL
+- Stores ciphertext blobs and metadata in Redis with TTL (AOF may persist those
+  opaque blobs on disk; keys never leave the client)
 - Sends Telegram bot notifications **without** message content
 - Read-only TON contract queries for wallet/governance UI
 
