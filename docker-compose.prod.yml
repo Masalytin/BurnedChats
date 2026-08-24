@@ -30,11 +30,13 @@ services:
       - .env.prod
     volumes:
       - redis-data:/data
+    # Ex: keyspace expiry for auto-burn / deadman. volatile-ttl: do not evict keys without TTL.
     command: >
       redis-server
       --appendonly yes
       --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy volatile-ttl
+      --notify-keyspace-events Ex
       --requirepass ${REDIS_PASSWORD}
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
@@ -100,8 +102,8 @@ services:
         - VITE_TELEGRAM_BOT_URL=https://t.me/BurnedChatsBot
         - VITE_GITHUB_URL=https://github.com/Masalytin/BurnedChats
         - VITE_TONCONNECT_MANIFEST_URL=https://${DOMAIN}/tonconnect-manifest.json
-        - VITE_TON_NETWORK=testnet
-        - VITE_TON_RPC_URL=https://testnet.toncenter.com/api/v2
+        - VITE_TON_NETWORK=mainnet
+        - VITE_TON_RPC_URL=https://toncenter.com/api/v2
         - VITE_TONCENTER_API_KEY=${TONCENTER_API_KEY}
         - VITE_BURN_JETTON_MASTER=${BURN_JETTON_MASTER_ADDRESS}
         - VITE_STAKING_MASTER=${BURN_STAKING_MASTER_ADDRESS}

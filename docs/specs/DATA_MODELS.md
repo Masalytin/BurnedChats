@@ -395,7 +395,9 @@ SET user:deadman:tg:111222333 tg:111222333 EX 2592000
 **Trigger:** Redis keyspace `expired` on trigger key → `DeadmanRedisKeyspaceConfig` →
 `UserBurnService.burnAllForUser(internalId, wipeIdentity from cfg)` → `DEL cfg`.
 Precision — "approximately at expiry" (depends on `notify-keyspace-events` and Redis load);
-acceptable for day-scale periods.
+acceptable for day-scale periods. Docker Compose (`docker-compose.yml`,
+`docker-compose.prod.yml`, `docker-compose.ssl.yml`) starts Redis with
+`--notify-keyspace-events Ex` so expired-key listeners (room auto-burn, deadman) fire.
 
 **Idempotency:** if the user already burned data manually (`/app/user.burnAll`),
 listener does not fail — cfg may be missing or cascade completes with empty result.
