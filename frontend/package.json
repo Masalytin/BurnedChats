@@ -23,7 +23,7 @@
     "@noble/hashes": "^1.8.0",
     "@stomp/stompjs": "^7.2.1",
     "@ton/core": "^0.60.0",
-    "@tonconnect/ui-react": "^2.4.4",
+    "@tonconnect/ui-react": "^3.0.2",
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "@twa-dev/sdk": "^8.0.2",
