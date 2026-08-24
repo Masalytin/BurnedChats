@@ -26,6 +26,7 @@ import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.FileMessageRelayValidator.FileValidationException;
 import dev.burnedchats.service.RoomService;
+import dev.burnedchats.service.RoomTelegramNotifyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +80,7 @@ public class RoomMessageHandler {
     private final FileBurnService fileBurnService;
     private final OfflineQueueMetrics offlineQueueMetrics;
     private final RoomService roomService;
+    private final RoomTelegramNotifyService roomTelegramNotifyService;
 
     @SuppressWarnings("checkstyle:MethodLength")
     @MessageMapping("/room.message.edit")
@@ -375,7 +377,8 @@ public class RoomMessageHandler {
                             ROOM_MESSAGE_SENT_DESTINATION,
                             RoomMessageSentEvent.success(roomId, messageId, serverTimestamp)
                     );
-                    return extendRoomTtlAfterMutation(roomId);
+                    return extendRoomTtlAfterMutation(roomId)
+                            .then(roomTelegramNotifyService.notifyOfflineMembers(roomId, sender.internalId()));
                 });
     }
 

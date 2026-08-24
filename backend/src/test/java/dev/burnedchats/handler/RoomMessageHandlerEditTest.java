@@ -13,6 +13,7 @@ import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
+import dev.burnedchats.service.RoomTelegramNotifyService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,8 @@ class RoomMessageHandlerEditTest {
     private OfflineQueueMetrics offlineQueueMetrics;
     @Mock
     private StompUserMessenger stompUserMessenger;
+    @Mock
+    private RoomTelegramNotifyService roomTelegramNotifyService;
 
     @InjectMocks
     private RoomMessageHandler roomMessageHandler;

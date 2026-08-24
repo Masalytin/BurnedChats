@@ -15,6 +15,7 @@ import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.FileBurnService;
 import dev.burnedchats.service.FileMessageRelayValidator;
 import dev.burnedchats.service.RoomService;
+import dev.burnedchats.service.RoomTelegramNotifyService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,10 +60,20 @@ class RoomMessageHandlerMuteTest {
     @Mock
     private StompUserMessenger stompUserMessenger;
     @Mock
+    private RoomTelegramNotifyService roomTelegramNotifyService;
+    @Mock
     private RoomService roomService;
 
     @InjectMocks
     private RoomMessageHandler roomMessageHandler;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubRoomNotify() {
+        org.mockito.Mockito.lenient()
+                .when(roomTelegramNotifyService.notifyOfflineMembers(org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(reactor.core.publisher.Mono.empty());
+    }
 
     @Test
     void sendRoomMessage_whenMuted_rejectsWithMutedError() {
