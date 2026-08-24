@@ -226,17 +226,37 @@ async function tryBackendJettonWallet(address: string, fetchImpl: typeof fetch):
   return null;
 }
 
-async function getUserJettonWalletAddress(ownerAddress: string, deps: ResolvedDeps): Promise<string> {
-  const viaBackend = await tryBackendJettonWallet(ownerAddress, deps.fetchImpl);
-  if (viaBackend) {
-    return viaBackend;
+/** True when both strings parse as the same TON address (any friendly form). */
+export function sameTonAddress(a: string, b: string): boolean {
+  try {
+    return Address.parse(a.trim()).equals(Address.parse(b.trim()));
+  } catch {
+    return false;
   }
-  return resolveUserJettonWalletAddress(ownerAddress, {
+}
+
+/**
+ * Accept a backend-supplied jetton wallet only when it matches the address
+ * derived locally from the pinned jetton master. Otherwise keep the local value.
+ */
+export function pickTrustedJettonWallet(local: string, backend: string | null): string {
+  if (backend && !sameTonAddress(backend, local)) {
+    console.warn(
+      '[burnToken] Ignoring backend jetton wallet that does not match pinned-master derive',
+    );
+  }
+  return local;
+}
+
+async function getUserJettonWalletAddress(ownerAddress: string, deps: ResolvedDeps): Promise<string> {
+  const local = await resolveUserJettonWalletAddress(ownerAddress, {
     rpcBaseUrl: deps.rpcBaseUrl,
     jettonMaster: resolveJettonMaster(deps.jettonMaster),
     apiKey: deps.apiKey,
     fetchImpl: deps.fetchImpl,
   });
+  const viaBackend = await tryBackendJettonWallet(ownerAddress, deps.fetchImpl);
+  return pickTrustedJettonWallet(local, viaBackend);
 }
 
 async function fetchBurnBalanceNanoRpc(ownerAddress: string, deps: ResolvedDeps): Promise<bigint> {

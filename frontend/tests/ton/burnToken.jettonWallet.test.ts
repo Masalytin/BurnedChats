@@ -1,6 +1,7 @@
 import { Address } from '@ton/core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { pickTrustedJettonWallet, sameTonAddress } from '@/ton/burnToken';
 import { BurnTokenError } from '@/ton/burnTokenError';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 
@@ -125,5 +126,29 @@ describe('resolveUserJettonWalletAddress', () => {
     ).rejects.toMatchObject({
       code: 'NETWORK_ERROR',
     });
+  });
+});
+
+describe('pickTrustedJettonWallet', () => {
+  const local = JETTON_USER_WALLET;
+  const spoofed = Address.parse(`0:${'33'.repeat(32)}`).toString({
+    bounceable: true,
+    urlSafe: true,
+    testOnly: true,
+  });
+
+  it('keeps the local derive when backend JW is a different address', () => {
+    expect(pickTrustedJettonWallet(local, spoofed)).toBe(local);
+    expect(sameTonAddress(local, spoofed)).toBe(false);
+  });
+
+  it('keeps the local derive when backend JW matches (any friendly form)', () => {
+    const bounceable = Address.parse(local).toString({ bounceable: true, urlSafe: true, testOnly: true });
+    expect(pickTrustedJettonWallet(local, bounceable)).toBe(local);
+    expect(sameTonAddress(local, bounceable)).toBe(true);
+  });
+
+  it('keeps the local derive when backend JW is missing', () => {
+    expect(pickTrustedJettonWallet(local, null)).toBe(local);
   });
 });
