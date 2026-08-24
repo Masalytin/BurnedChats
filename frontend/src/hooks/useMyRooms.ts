@@ -14,6 +14,7 @@ interface ServerRoomListEvent {
     nameEncrypted?: string | null;
     nameIv?: string | null;
   }>;
+  burned?: Array<{ roomId: string; burnedAt?: number | null }>;
   error?: string;
 }
 
@@ -82,6 +83,12 @@ export function useMyRooms({
             nameEncrypted: r.nameEncrypted,
             nameIv: r.nameIv,
           })));
+          if (event.burned && event.burned.length > 0) {
+            console.info('[useMyRooms] rooms burned while offline:', event.burned.length);
+            window.dispatchEvent(new CustomEvent('bc:rooms-burned-offline', {
+              detail: { count: event.burned.length },
+            }));
+          }
         } else {
           console.warn('[useMyRooms] ROOM_LIST error:', event.error);
         }

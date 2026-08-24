@@ -9,6 +9,8 @@ import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.repository.InviteTokenRepository;
+import dev.burnedchats.repository.RoomBurnInboxRepository;
+import dev.burnedchats.service.RoomTelegramNotifyService;
 import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
@@ -93,6 +95,8 @@ class RoomHandlerKickTest {
     @Mock private OnlineStatusRepository onlineStatusRepository;
     @Mock private SimpMessagingTemplate messagingTemplate;
     @Mock private PasswordProofService passwordProofService;
+    @Mock private RoomBurnInboxRepository roomBurnInboxRepository;
+    @Mock private RoomTelegramNotifyService roomTelegramNotifyService;
 
     private RoomService roomService;
 
@@ -112,7 +116,8 @@ class RoomHandlerKickTest {
                 roomMessageRepository,
                 roomBansRepository,
                 roomMutedRepository,
-                stompUserMessenger);
+                stompUserMessenger,
+                roomBurnInboxRepository);
         roomHandler = new RoomHandler(
                 roomService,
                 inviteTokenService,
@@ -134,7 +139,8 @@ class RoomHandlerKickTest {
                 roomRolesRepository,
                 rateLimitService,
                 onlineStatusRepository,
-                messagingTemplate);
+                messagingTemplate,
+                roomTelegramNotifyService);
         when(rateLimitService.enforceRateLimit(anyString(), eq(RateLimitType.SESSION_ACTION)))
                 .thenReturn(Mono.empty());
         lenient().when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));

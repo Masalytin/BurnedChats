@@ -74,6 +74,7 @@ import dev.burnedchats.service.RateLimitService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.service.RoomJoinService;
 import dev.burnedchats.service.RoomService;
+import dev.burnedchats.service.RoomTelegramNotifyService;
 import dev.burnedchats.service.RoomTopicSubscriptionService;
 import dev.burnedchats.util.InternalIds;
 import jakarta.validation.Valid;
@@ -146,6 +147,7 @@ public class RoomHandler {
     private final RateLimitService rateLimitService;
     private final OnlineStatusRepository onlineStatusRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final RoomTelegramNotifyService roomTelegramNotifyService;
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
@@ -397,6 +399,9 @@ public class RoomHandler {
                             pending.request().getCreatedAt(),
                             pending.request().getPublicKey()
                     ));
+            roomTelegramNotifyService
+                    .notifyOwnerJoinRequest(pending.ownerInternalId(), pending.request().getRoomId())
+                    .subscribe();
         }
     }
 
@@ -686,11 +691,13 @@ public class RoomHandler {
                         .nameIv(room.getNameIv())
                         .build()))
                 .collectList()
+                .zipWith(roomService.drainBurnInbox(participant.internalId()))
                 .subscribe(
-                        rooms -> {
+                        tuple -> {
                             sendStompToInternalId(participant.internalId(), ROOM_LIST_DESTINATION,
-                                    RoomListEvent.success(rooms));
-                            LOG.info("ROOM_LIST sent: internalId={}, count={}", participant.internalId(), rooms.size());
+                                    RoomListEvent.success(tuple.getT1(), tuple.getT2()));
+                            LOG.info("ROOM_LIST sent: internalId={}, count={}", participant.internalId(),
+                                    tuple.getT1().size());
                         },
                         error -> {
                             LOG.error("GET_MY_ROOMS failed: internalId={}, error={}",

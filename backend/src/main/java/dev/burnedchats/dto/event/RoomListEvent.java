@@ -27,6 +27,11 @@ public class RoomListEvent {
     private List<RoomInfo> rooms;
 
     /**
+     * Rooms burned while this user was offline (roomId + burnedAt only).
+     */
+    private List<BurnedNotice> burned;
+
+    /**
      * Error code when {@code success = false}.
      */
     private String error;
@@ -62,10 +67,24 @@ public class RoomListEvent {
         private String nameIv;
     }
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BurnedNotice {
+        private String roomId;
+        private Long burnedAt;
+    }
+
     public static RoomListEvent success(List<RoomInfo> rooms) {
+        return success(rooms, List.of());
+    }
+
+    public static RoomListEvent success(List<RoomInfo> rooms, List<BurnedNotice> burned) {
         return RoomListEvent.builder()
                 .success(true)
                 .rooms(rooms)
+                .burned(burned)
                 .build();
     }
 

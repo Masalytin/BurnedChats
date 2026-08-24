@@ -47,17 +47,28 @@ public class RoomAutoBurnRedisKeyspaceConfig {
                 return;
             }
             String key = new String(body, StandardCharsets.UTF_8);
-            if (!RoomRepository.isAutoBurnTriggerKey(key)) {
+            if (RoomRepository.isAutoBurnTriggerKey(key)) {
+                String roomId = RoomRepository.parseRoomIdFromAutoBurnKey(key);
+                if (roomId == null || roomId.isBlank()) {
+                    return;
+                }
+                LOG.info("Auto-burn trigger expired for room {}", roomId);
+                roomService.executeAutoBurnAndNotify(roomId)
+                        .doOnError(err -> LOG.error("Auto-burn failed for room {}: {}", roomId, err.getMessage()))
+                        .subscribe();
                 return;
             }
-            String roomId = RoomRepository.parseRoomIdFromAutoBurnKey(key);
-            if (roomId == null || roomId.isBlank()) {
-                return;
+            if (RoomRepository.isRoomHashKey(key)) {
+                String roomId = RoomRepository.parseRoomIdFromHashKey(key);
+                if (roomId == null || roomId.isBlank()) {
+                    return;
+                }
+                LOG.info("Room hash expired for room {}", roomId);
+                roomService.executeHashExpiryCascade(roomId)
+                        .doOnError(err -> LOG.error("Hash-expiry cascade failed for room {}: {}",
+                                roomId, err.getMessage()))
+                        .subscribe();
             }
-            LOG.info("Auto-burn trigger expired for room {}", roomId);
-            roomService.executeAutoBurnAndNotify(roomId)
-                    .doOnError(err -> LOG.error("Auto-burn failed for room {}: {}", roomId, err.getMessage()))
-                    .subscribe();
         };
     }
 }
