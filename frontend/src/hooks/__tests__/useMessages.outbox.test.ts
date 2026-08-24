@@ -107,3 +107,82 @@ describe('useMessages offline outbox', () => {
     sendSpy.mockRestore();
   });
 });
+
+describe('useMessages file blob retry after rekey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retries a failed file send from the RAM blob, not from disk', async () => {
+    const file = new File(['bytes'], 'rekey-photo.jpg', { type: 'image/jpeg' });
+    const sendFileSpy = vi.spyOn(useMessageCore, 'sendEncryptedFileMessage');
+    sendFileSpy
+      .mockImplementationOnce(async (params) => {
+        params.onOptimisticCreated?.('file-msg-1');
+        return { success: false, messageId: 'file-msg-1', error: 'SEND_FAILED' };
+      })
+      .mockResolvedValueOnce({ success: true, messageId: 'file-msg-2', error: null });
+
+    const { result } = renderHook(() =>
+      useMessages({
+        sessionId: 'sess-1',
+        userId: 'user-int',
+        userTelegramId: 42,
+        ws: {
+          isConnected: true,
+          isReconnection: false,
+          subscribe: vi.fn(),
+          unsubscribe: vi.fn(),
+          publish: vi.fn(),
+        },
+        bothVerified: true,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.sendFileMessage(file, 'caption');
+    });
+
+    expect(result.current.hasOutgoingFileBlob('file-msg-1')).toBe(true);
+
+    await act(async () => {
+      const retry = await result.current.retryOutgoingFile('file-msg-1');
+      expect(retry.success).toBe(true);
+    });
+
+    expect(sendFileSpy).toHaveBeenCalledTimes(2);
+    expect(sendFileSpy.mock.calls[1][0].file).toBe(file);
+    expect(sendFileSpy.mock.calls[1][0].caption).toBe('caption');
+    expect(result.current.hasOutgoingFileBlob('file-msg-1')).toBe(false);
+
+    sendFileSpy.mockRestore();
+  });
+
+  it('does not retry when the blob is no longer in memory', async () => {
+    const sendFileSpy = vi.spyOn(useMessageCore, 'sendEncryptedFileMessage');
+    const { result } = renderHook(() =>
+      useMessages({
+        sessionId: 'sess-1',
+        userId: 'user-int',
+        userTelegramId: 42,
+        ws: {
+          isConnected: true,
+          isReconnection: false,
+          subscribe: vi.fn(),
+          unsubscribe: vi.fn(),
+          publish: vi.fn(),
+        },
+        bothVerified: true,
+      }),
+    );
+
+    await act(async () => {
+      const retry = await result.current.retryOutgoingFile('missing');
+      expect(retry.success).toBe(false);
+      expect(retry.error).toBe('SEND_FAILED');
+    });
+
+    expect(sendFileSpy).not.toHaveBeenCalled();
+    sendFileSpy.mockRestore();
+  });
+});

@@ -69,7 +69,7 @@ interface ChatRoomProps {
   /** Cancel current upload */
   onCancelUpload?: () => void;
   /** Retry failed upload */
-  onRetryUpload?: () => void;
+  onRetryUpload?: (messageId: string) => void;
   /** Optional CSS class name */
   className?: string;
   /** Locally hide messages (delete for me) */

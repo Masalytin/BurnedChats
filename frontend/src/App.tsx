@@ -4106,7 +4106,19 @@ function ChatViewContent({
   const [isSendingFile, setIsSendingFile] = useState(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
 
-  const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage, deleteMessage } = useMessages({
+  const {
+    messages,
+    sendMessage,
+    sendFileMessage,
+    isLoading,
+    error,
+    syncMessages,
+    hideMessages,
+    editMessage,
+    deleteMessage,
+    retryOutgoingFile,
+    hasOutgoingFileBlob,
+  } = useMessages({
     sessionId,
     userId,
     userTelegramId,
@@ -4166,6 +4178,16 @@ function ChatViewContent({
     setIsSendingFile(false);
   }, []);
 
+  const handleRetryUpload = useCallback(
+    (messageId: string) => {
+      if (!hasOutgoingFileBlob(messageId)) {
+        return;
+      }
+      void retryOutgoingFile(messageId);
+    },
+    [hasOutgoingFileBlob, retryOutgoingFile],
+  );
+
   const composerBlocked = !bothVerified || !!error;
   const composerBlockReason = !bothVerified
     ? t('chat.verificationRequired')
@@ -4189,6 +4211,7 @@ function ChatViewContent({
           : null
       }
       onCancelUpload={handleCancelUpload}
+      onRetryUpload={handleRetryUpload}
       onBack={onBack}
       onBurn={onBurn}
       disabled={composerBlocked}

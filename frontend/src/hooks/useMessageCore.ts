@@ -294,6 +294,10 @@ export interface SendFileMessageCoreParams<TError extends string> {
   onEncryptProgress?: (percent: number) => void;
   signal?: AbortSignal;
   replyToMessageId?: string;
+  /** Called after optimistic messageId is allocated (IMP-OFFLINE-03 RAM blob map). */
+  onOptimisticCreated?: (messageId: string) => void;
+  /** Called when the optimistic file bubble is dropped (user abort). */
+  onOptimisticCleared?: (messageId: string) => void;
 }
 
 export async function sendEncryptedFileMessage<TError extends string>(
@@ -320,6 +324,8 @@ export async function sendEncryptedFileMessage<TError extends string>(
     onEncryptProgress,
     signal,
     replyToMessageId,
+    onOptimisticCreated,
+    onOptimisticCleared,
   } = params;
 
   setError(null);
@@ -343,6 +349,7 @@ export async function sendEncryptedFileMessage<TError extends string>(
   }
 
   const messageId = generateMessageId(messageIdPrefix);
+  onOptimisticCreated?.(messageId);
   const timestamp = Date.now();
   const messageType = validated.messageType;
 
@@ -431,6 +438,7 @@ export async function sendEncryptedFileMessage<TError extends string>(
       // Cancelled by the user — drop the optimistic bubble entirely.
       setMessages(prev => prev.filter(m => m.id !== messageId));
       pendingMessagesRef.current.delete(messageId);
+      onOptimisticCleared?.(messageId);
       return { success: false, messageId: null, error: sendFailedError };
     }
 

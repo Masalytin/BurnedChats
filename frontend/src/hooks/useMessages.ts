@@ -24,7 +24,7 @@ import {
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
-import { createSessionOutbox } from '@/hooks/sessionOutbox';
+import { createFileBlobOutbox, createSessionOutbox } from '@/hooks/sessionOutbox';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
@@ -158,6 +158,8 @@ interface UseMessagesReturn {
   clearMessages: () => void;
   hideMessages: (ids: string | string[]) => void;
   retryMessage: (messageId: string) => Promise<SendMessageResult>;
+  retryOutgoingFile: (messageId: string) => Promise<SendMessageResult>;
+  hasOutgoingFileBlob: (messageId: string) => boolean;
   syncMessages: () => void;
   error: MessageErrorCode | null;
   editMessage: (
@@ -319,6 +321,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
   const lastRekeyResendNonceRef = useRef(0);
   const outgoingOutboxRef = useRef(createSessionOutbox());
+  const fileBlobOutboxRef = useRef(createFileBlobOutbox());
 
   const resendUndeliveredAfterRekey = useCallback(async () => {
     if (!isConnected || !sessionId) return;
@@ -480,6 +483,12 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       onEncryptProgress: sendOptions?.onEncryptProgress,
       signal: sendOptions?.signal,
       replyToMessageId: sendOptions?.replyToMessageId,
+      onOptimisticCreated: (messageId) => {
+        fileBlobOutboxRef.current.remember(messageId, { file, caption });
+      },
+      onOptimisticCleared: (messageId) => {
+        fileBlobOutboxRef.current.forget(messageId);
+      },
     });
   }, [
     sessionId, isConnected, publish, handleError, setError, setMessages,
@@ -831,6 +840,20 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     return sendMessage(message.content, { replyToMessageId: message.replyToMessageId });
   }, [visibleMessages, sendMessage, setMessages]);
 
+  const hasOutgoingFileBlob = useCallback((messageId: string): boolean => {
+    return Boolean(fileBlobOutboxRef.current.get(messageId));
+  }, []);
+
+  const retryOutgoingFile = useCallback(async (messageId: string): Promise<SendMessageResult> => {
+    const blob = fileBlobOutboxRef.current.get(messageId);
+    if (!blob) {
+      return { success: false, messageId, error: 'SEND_FAILED' };
+    }
+    fileBlobOutboxRef.current.forget(messageId);
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    return sendFileMessage(blob.file, blob.caption);
+  }, [sendFileMessage, setMessages]);
+
   return {
     messages: visibleMessages,
     isLoading,
@@ -840,6 +863,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     clearMessages,
     hideMessages,
     retryMessage,
+    retryOutgoingFile,
+    hasOutgoingFileBlob,
     syncMessages,
     error,
     editMessage,

@@ -12,6 +12,35 @@ export interface SessionOutbox {
   size(): number;
 }
 
+export interface OutgoingFileBlob {
+  file: File;
+  caption?: string;
+}
+
+export interface FileBlobOutbox {
+  remember(messageId: string, blob: OutgoingFileBlob): void;
+  get(messageId: string): OutgoingFileBlob | undefined;
+  forget(messageId: string): void;
+}
+
+export function createFileBlobOutbox(): FileBlobOutbox {
+  const map = new Map<string, OutgoingFileBlob>();
+  return {
+    remember(messageId, blob) {
+      if (!messageId) {
+        return;
+      }
+      map.set(messageId, blob);
+    },
+    get(messageId) {
+      return map.get(messageId);
+    },
+    forget(messageId) {
+      map.delete(messageId);
+    },
+  };
+}
+
 export function createSessionOutbox(): SessionOutbox {
   const items: SessionOutboxItem[] = [];
   return {
