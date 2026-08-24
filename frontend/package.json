@@ -29,7 +29,7 @@
     "@twa-dev/sdk": "^8.0.2",
     "dom-to-image": "^2.6.0",
     "i18next": "^25.8.11",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.33.0",
     "motion": "^12.34.2",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
