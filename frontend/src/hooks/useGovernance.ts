@@ -5,6 +5,7 @@ import type { Cell } from '@ton/core';
 import i18n from '@/i18n';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import {
+  cancelProposal as cancelProposalTx,
   createProposal as createProposalTx,
   executeProposal as executeProposalTx,
   getActiveProposals,
@@ -34,6 +35,7 @@ export interface UseGovernance {
   queue(params: { proposalId: number }): Promise<TxResult>;
   execute(params: { proposalId: number; proposalType: ProposalType }): Promise<TxResult>;
   createProposal(params: { type: ProposalType; payload: Cell; period?: number }): Promise<TxResult>;
+  cancel(params: { proposalId: number }): Promise<TxResult>;
 }
 
 /**
@@ -242,6 +244,29 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     [walletAddress, load],
   );
 
+  const cancel = useCallback(
+    async (params: { proposalId: number }): Promise<TxResult> => {
+      const addr = walletAddress?.trim();
+      if (!addr) {
+        return {
+          ok: false,
+          kind: 'unknown',
+          code: 'governance.error.connectWalletCancel',
+          message: i18n.t('governance.error.connectWalletCancel'),
+        };
+      }
+      const result = await cancelProposalTx(
+        { proposalId: params.proposalId, walletAddress: addr },
+        depsRef.current,
+      );
+      if (result.ok) {
+        await load();
+      }
+      return result;
+    },
+    [walletAddress, load],
+  );
+
   return {
     proposals,
     userVotes,
@@ -254,5 +279,6 @@ export function useGovernance(deps?: GovernanceDeps): UseGovernance {
     queue,
     execute,
     createProposal,
+    cancel,
   };
 }

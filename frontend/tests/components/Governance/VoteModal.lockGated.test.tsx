@@ -94,6 +94,7 @@ describe('VoteModal lock-gated VP UX', () => {
       queue: vi.fn(),
       execute: vi.fn(),
       createProposal: vi.fn(),
+      cancel: vi.fn(),
     };
   });
 

@@ -61,6 +61,7 @@ function baseGov(over: Partial<UseGovernance> = {}): UseGovernance {
     queue: vi.fn(),
     execute: vi.fn(),
     createProposal: vi.fn(),
+    cancel: vi.fn(),
     ...over,
   };
 }

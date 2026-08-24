@@ -896,6 +896,10 @@
     "endsIn": "Залишилось {{parts}}",
     "errorLoad": "Не вдалося завантажити дані governance.",
     "executeFail": "Не вдалося виконати proposal",
+    "cancelProposal": "Скасувати пропозицію",
+    "cancelSubmitting": "Скасування…",
+    "cancelSuccess": "Пропозицію скасовано",
+    "cancelFail": "Не вдалося скасувати пропозицію",
     "executeProposal": "Виконати proposal",
     "executeSubmitting": "Виконання…",
     "executeSuccess": "Транзакцію виконання надіслано",
@@ -993,6 +997,7 @@
       "connectWalletCreate": "Підключіть гаманець, щоб створити пропозицію.",
       "connectWalletExecute": "Підключіть гаманець, щоб виконати пропозицію.",
       "connectWalletQueue": "Підключіть гаманець, щоб поставити пропозицію в чергу.",
+      "connectWalletCancel": "Підключіть гаманець, щоб скасувати пропозицію.",
       "connectWalletVote": "Підключіть гаманець, щоб голосувати.",
       "voteEndTimeRequired": "Для голосування потрібен час завершення пропозиції."
     },

@@ -496,6 +496,10 @@
     "executeSubmitting": "Wird ausgeführt…",
     "executeSuccess": "Vorschlagsausführung eingereicht",
     "executeFail": "Vorschlag konnte nicht ausgeführt werden",
+    "cancelProposal": "Vorschlag abbrechen",
+    "cancelSubmitting": "Wird abgebrochen…",
+    "cancelSuccess": "Vorschlag abgebrochen",
+    "cancelFail": "Vorschlag konnte nicht abgebrochen werden",
     "executeWaiting": "Timelock aktiv — ausführbar {{remaining}}",
     "timelockDisabledNeedWallet": "Wallet verbinden zum Einreihen oder Ausführen",
     "voteModalTitle": "Abstimmung bestätigen",
@@ -538,6 +542,7 @@
       "connectWalletCreate": "Verbinden Sie Ihre Wallet, um einen Vorschlag zu erstellen.",
       "connectWalletExecute": "Verbinden Sie Ihre Wallet, um einen Vorschlag auszuführen.",
       "connectWalletQueue": "Verbinden Sie Ihre Wallet, um einen Vorschlag einzureihen.",
+      "connectWalletCancel": "Verbinden Sie Ihre Wallet, um einen Vorschlag abzubrechen.",
       "connectWalletVote": "Verbinden Sie Ihre Wallet, um abzustimmen.",
       "voteEndTimeRequired": "Zum Abstimmen ist das Enddatum des Vorschlags erforderlich."
     },

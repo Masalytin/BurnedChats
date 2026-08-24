@@ -588,6 +588,10 @@
     "executeSubmitting": "Исполнение…",
     "executeSuccess": "Транзакция исполнения отправлена",
     "executeFail": "Не удалось исполнить proposal",
+    "cancelProposal": "Отменить предложение",
+    "cancelSubmitting": "Отмена…",
+    "cancelSuccess": "Предложение отменено",
+    "cancelFail": "Не удалось отменить предложение",
     "executeWaiting": "Timelock активен — исполнение {{remaining}}",
     "timelockDisabledNeedWallet": "Подключите кошелёк для queue/execute",
     "voteModalTitle": "Подтверждение голоса",
@@ -662,6 +666,7 @@
     "error": {
       "connectWalletVote": "Подключите кошелёк, чтобы голосовать.",
       "connectWalletQueue": "Подключите кошелёк, чтобы поставить предложение в очередь.",
+      "connectWalletCancel": "Подключите кошелёк, чтобы отменить предложение.",
       "connectWalletExecute": "Подключите кошелёк, чтобы исполнить предложение.",
       "connectWalletCreate": "Подключите кошелёк, чтобы создать предложение.",
       "voteEndTimeRequired": "Для голосования нужно время окончания предложения."

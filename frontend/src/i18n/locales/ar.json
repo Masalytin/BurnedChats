@@ -900,6 +900,10 @@
     "endsIn": "ينتهي خلال {{parts}}",
     "errorLoad": "تعذّر تحميل بيانات Governance.",
     "executeFail": "تعذّر تنفيذ المقترح",
+    "cancelProposal": "إلغاء المقترح",
+    "cancelSubmitting": "جارٍ الإلغاء…",
+    "cancelSuccess": "تم إلغاء المقترح",
+    "cancelFail": "تعذّر إلغاء المقترح",
     "executeProposal": "تنفيذ المقترح",
     "executeSubmitting": "جارٍ التنفيذ…",
     "executeSuccess": "تم إرسال تنفيذ المقترح",
@@ -997,6 +1001,7 @@
       "connectWalletCreate": "اربط المحفظة لإنشاء مقترح.",
       "connectWalletExecute": "اربط المحفظة لتنفيذ مقترح.",
       "connectWalletQueue": "اربط المحفظة لإدراج مقترح في الانتظار.",
+      "connectWalletCancel": "اربط المحفظة لإلغاء مقترح.",
       "connectWalletVote": "اربط المحفظة للتصويت.",
       "voteEndTimeRequired": "وقت انتهاء المقترح مطلوب للتصويت."
     },

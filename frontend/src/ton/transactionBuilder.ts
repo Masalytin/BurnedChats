@@ -31,6 +31,7 @@ const CLAIM_REWARDS_OP = 0x5a020003;
 const CREATE_PROPOSAL_OP = 0x5a040101;
 const CAST_VOTE_OP = 0x5a040102;
 const PROPOSAL_FINALIZE_OP = 0x5a040012;
+const PROPOSAL_CANCEL_OP = 0x5a040014;
 const EXECUTE_PROPOSAL_OP = 0x5a040103;
 const TIMELOCK_EXECUTE_OP = 0x5a040202;
 
@@ -286,6 +287,18 @@ export function buildCreateProposalMsg(params: {
  * Finalize voting on a Proposal child — on success Governor auto-queues Timelock (`ProposalFinalize`).
  * UI label: "Queue".
  */
+/** `ProposalCancel` — proposer-only, `now() < startTime`. */
+export function buildCancelProposalMsg(params: {
+  proposalAddress: Address;
+}): TransactionMessage {
+  const body = beginCell().storeUint(PROPOSAL_CANCEL_OP, 32).endCell();
+  return {
+    address: params.proposalAddress.toString(),
+    amount: toNano('0.05').toString(),
+    payload: body.toBoc({ idx: false }).toString('base64'),
+  };
+}
+
 export function buildQueueMsg(params: {
   proposalAddress: Address;
   queryId?: bigint;

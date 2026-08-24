@@ -76,6 +76,7 @@ describe('CreateProposal on-chain min VP gate', () => {
       queue: vi.fn(),
       execute: vi.fn(),
       createProposal: vi.fn(),
+      cancel: vi.fn(),
     };
   });
 

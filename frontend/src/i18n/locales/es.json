@@ -896,6 +896,10 @@
     "endsIn": "Termina en {{parts}}",
     "errorLoad": "No se pudieron cargar los datos de Governance.",
     "executeFail": "No se pudo ejecutar la proposal",
+    "cancelProposal": "Cancelar propuesta",
+    "cancelSubmitting": "Cancelando…",
+    "cancelSuccess": "Propuesta cancelada",
+    "cancelFail": "No se pudo cancelar la propuesta",
     "executeProposal": "Ejecutar proposal",
     "executeSubmitting": "Ejecutando…",
     "executeSuccess": "Ejecución de proposal enviada",
@@ -993,6 +997,7 @@
       "connectWalletCreate": "Conecta la wallet para crear una proposal.",
       "connectWalletExecute": "Conecta la wallet para ejecutar una proposal.",
       "connectWalletQueue": "Conecta la wallet para poner en cola una proposal.",
+      "connectWalletCancel": "Conecta la wallet para cancelar una propuesta.",
       "connectWalletVote": "Conecta la wallet para votar.",
       "voteEndTimeRequired": "Se requiere la hora de fin de la proposal para votar."
     },

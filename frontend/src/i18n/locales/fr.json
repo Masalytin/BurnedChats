@@ -896,6 +896,10 @@
     "endsIn": "Se termine dans {{parts}}",
     "errorLoad": "Impossible de charger les données governance.",
     "executeFail": "Impossible d'exécuter la proposition",
+    "cancelProposal": "Annuler la proposition",
+    "cancelSubmitting": "Annulation…",
+    "cancelSuccess": "Proposition annulée",
+    "cancelFail": "Impossible d'annuler la proposition",
     "executeProposal": "Exécuter la proposition",
     "executeSubmitting": "Exécution…",
     "executeSuccess": "Exécution de la proposition soumise",
@@ -993,6 +997,7 @@
       "connectWalletCreate": "Connectez le portefeuille pour créer une proposition.",
       "connectWalletExecute": "Connectez le portefeuille pour exécuter une proposition.",
       "connectWalletQueue": "Connectez le portefeuille pour mettre en file d'attente une proposition.",
+      "connectWalletCancel": "Connectez le portefeuille pour annuler une proposition.",
       "connectWalletVote": "Connectez le portefeuille pour voter.",
       "voteEndTimeRequired": "La date de fin de la proposition est requise pour voter."
     },

@@ -574,6 +574,10 @@
     "executeSubmitting": "Executing…",
     "executeSuccess": "Proposal execution submitted",
     "executeFail": "Could not execute proposal",
+    "cancelProposal": "Cancel proposal",
+    "cancelSubmitting": "Cancelling…",
+    "cancelSuccess": "Proposal cancelled",
+    "cancelFail": "Could not cancel proposal",
     "executeWaiting": "Timelock active — executable {{remaining}}",
     "timelockDisabledNeedWallet": "Connect wallet to queue or execute",
     "voteModalTitle": "Confirm vote",
@@ -647,6 +651,7 @@
     "error": {
       "connectWalletVote": "Connect wallet to vote.",
       "connectWalletQueue": "Connect wallet to queue a proposal.",
+      "connectWalletCancel": "Connect wallet to cancel a proposal.",
       "connectWalletExecute": "Connect wallet to execute a proposal.",
       "connectWalletCreate": "Connect wallet to create a proposal.",
       "voteEndTimeRequired": "Proposal end time is required to vote."

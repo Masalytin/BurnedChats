@@ -14,6 +14,7 @@ import { ProposalTimeline } from './ProposalTimeline';
 import { VoteModal, type LockGatedVpState } from './VoteModal';
 import { VoteProgressBar } from './VoteProgressBar';
 import {
+  addressesLikelyEqual,
   canQueueProposal,
   describeLockGatedVoteUx,
   formatEndsInRemaining,
@@ -128,7 +129,7 @@ export function ProposalDetail() {
   const id = Number(rawId ?? 'NaN');
   const { isConnected, walletAddress } = useTonConnect();
   const toast = useToast();
-  const { userVotes, votingPower, refetch, queue, execute } = useGovernanceState();
+  const { userVotes, votingPower, refetch, queue, execute, cancel } = useGovernanceState();
   const [detail, setDetail] = useState<ProposalDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -137,6 +138,7 @@ export function ProposalDetail() {
   const [lifecycle, setLifecycle] = useState<ProposalLifecycleMeta | null>(null);
   const [queueBusy, setQueueBusy] = useState(false);
   const [executeBusy, setExecuteBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [lockGatedVp, setLockGatedVp] = useState<LockGatedVpState>({ status: 'loading' });
   const [lockGatedFetchGen, setLockGatedFetchGen] = useState(0);
 
@@ -251,6 +253,15 @@ export function ProposalDetail() {
     return summary.state === ProposalState.Active && nowSec < summary.startTime;
   }, [summary, nowSec]);
 
+  const canCancel = useMemo(() => {
+    if (!summary || !walletAddress) return false;
+    return (
+      isConnected &&
+      isPreVoteWindow &&
+      addressesLikelyEqual(summary.proposer, walletAddress)
+    );
+  }, [summary, walletAddress, isConnected, isPreVoteWindow]);
+
   const executeAfterSec = useMemo(() => {
     if (!lifecycle) return 0;
     return lifecycle.succeededAt + lifecycle.timelockDelaySec;
@@ -318,6 +329,22 @@ export function ProposalDetail() {
       }
     } finally {
       setQueueBusy(false);
+    }
+  };
+
+  const handleCancel = async (): Promise<void> => {
+    if (!summary) return;
+    setCancelBusy(true);
+    try {
+      const res = await cancel({ proposalId: summary.id });
+      if (res.ok) {
+        toast.success(t('governance.cancelSuccess'));
+        refreshDetail();
+      } else {
+        toast.error(res.message && res.message.length > 0 ? res.message : t('governance.cancelFail'));
+      }
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -507,6 +534,16 @@ export function ProposalDetail() {
         </div>
         {isPreVoteWindow ? (
           <p className={styles.muted}>{formatStartsInRemaining(summary.startTime, t, nowSec)}</p>
+        ) : null}
+        {canCancel ? (
+          <button
+            type="button"
+            className={styles.voteAgainstBtn}
+            disabled={cancelBusy}
+            onClick={() => void handleCancel()}
+          >
+            {cancelBusy ? t('governance.cancelSubmitting') : t('governance.cancelProposal')}
+          </button>
         ) : null}
         {!isConnected ? <p className={styles.muted}>{t('governance.voteDisabledNeedWallet')}</p> : null}
         {summary.state !== ProposalState.Active ? (

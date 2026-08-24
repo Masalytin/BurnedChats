@@ -7,6 +7,7 @@ import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { resolveApiKey, resolveIsTestNet } from '@/ton/rpc';
 import {
+  buildCancelProposalMsg,
   buildCreateProposalMsg,
   buildExecuteMsg,
   buildQueueMsg,
@@ -656,6 +657,18 @@ export async function getProposalLifecycleMeta(
     succeededAt: Number(succeededNums[0] ?? 0n),
     timelockDelaySec: Number(delayNums[0] ?? 0n),
   };
+}
+
+/** Proposer cancel in the pre-vote window (`ProposalCancel`). */
+export async function cancelProposal(
+  params: { proposalId: number; walletAddress: string },
+  deps?: GovernanceDeps,
+): Promise<TxResult> {
+  void params.walletAddress;
+  const r = resolveDeps(deps);
+  const proposalContract = await fetchProposalContractAddress(r, params.proposalId);
+  const msg = buildCancelProposalMsg({ proposalAddress: Address.parse(proposalContract.trim()) });
+  return r.sendTransactionImpl([msg]);
 }
 
 /** Finalize voting — triggers automatic Timelock queue on success. */

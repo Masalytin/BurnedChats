@@ -90,6 +90,7 @@ describe('VoteModal on-chain confirmation', () => {
       queue: vi.fn(),
       execute: vi.fn(),
       createProposal: vi.fn(),
+      cancel: vi.fn(),
     };
   });
 
