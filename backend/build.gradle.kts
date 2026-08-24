@@ -69,7 +69,7 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     
     // SpotBugs annotations
-    compileOnly("com.github.spotbugs:spotbugs-annotations:4.8.3")
+    compileOnly("com.github.spotbugs:spotbugs-annotations:4.10.4")
 }
 
 tasks.bootJar {
