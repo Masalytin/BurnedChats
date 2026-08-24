@@ -66,7 +66,7 @@ dependencies {
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("org.testcontainers:junit-jupiter:$testcontainersVersion")
     testImplementation("org.testcontainers:testcontainers:$testcontainersVersion")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
     
     // SpotBugs annotations
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.8.3")
