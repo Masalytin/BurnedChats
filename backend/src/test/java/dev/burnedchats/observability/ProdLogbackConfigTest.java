@@ -24,5 +24,7 @@ class ProdLogbackConfigTest {
         assertThat(end).isGreaterThan(0);
         prodBlock = prodBlock.substring(0, end);
         assertThat(prodBlock).contains("ch.qos.logback.classic.encoder.JsonEncoder");
+        assertThat(prodBlock).contains("burned-chats.json.log");
+        assertThat(body).doesNotContain("name=\"FILE\"");
     }
 }
