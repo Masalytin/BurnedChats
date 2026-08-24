@@ -384,5 +384,12 @@ class RateLimitServiceTest {
             assertEquals(10, RateLimitType.HANDSHAKE.getMaxRequests());
             assertEquals(Duration.ofMinutes(1), RateLimitType.HANDSHAKE.getWindow());
         }
+
+        @Test
+        @DisplayName("should have correct configuration for ROOM_INVITE_MINT")
+        void shouldHaveCorrectConfigForRoomInviteMint() {
+            assertEquals(10, RateLimitType.ROOM_INVITE_MINT.getMaxRequests());
+            assertEquals(Duration.ofMinutes(1), RateLimitType.ROOM_INVITE_MINT.getWindow());
+        }
     }
 }

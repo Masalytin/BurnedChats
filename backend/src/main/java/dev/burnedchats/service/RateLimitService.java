@@ -117,6 +117,12 @@ public class RateLimitService {
         ROOM_READ(30, Duration.ofMinutes(1)),
 
         /**
+         * Room invite mint ({@code /app/room.getInviteLink}) — dedicated cap so
+         * minting cannot hide in the {@link #GENERAL} 100/min bucket.
+         */
+        ROOM_INVITE_MINT(10, Duration.ofMinutes(1)),
+
+        /**
          * Failed room-password proof attempts — overridden by
          * {@code rate-limit.room-password-fail.*} (SECURITY.md: 5 / 10 min).
          */

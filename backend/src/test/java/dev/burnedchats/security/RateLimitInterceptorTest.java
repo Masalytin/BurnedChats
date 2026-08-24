@@ -172,6 +172,18 @@ class RateLimitInterceptorTest {
         assertThat(typeCaptor.getAllValues()).containsOnly(RateLimitType.ROOM_READ);
     }
 
+    @Test
+    @DisplayName("room.getInviteLink uses ROOM_INVITE_MINT bucket not GENERAL")
+    void roomGetInviteLinkUsesDedicatedBucket() {
+        AppPrincipal principal = mockPrincipal("user-invite");
+        when(rateLimitService.enforceRateLimit("user-invite", RateLimitType.ROOM_INVITE_MINT))
+                .thenReturn(Mono.empty());
+
+        interceptor.preSend(stompMessage(StompCommand.SEND, "/app/room.getInviteLink", principal), channel);
+
+        verify(rateLimitService).enforceRateLimit("user-invite", RateLimitType.ROOM_INVITE_MINT);
+    }
+
     private static AppPrincipal mockPrincipal(String internalId) {
         AppPrincipal principal = mock(AppPrincipal.class);
         when(principal.getInternalId()).thenReturn(internalId);

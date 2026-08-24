@@ -102,6 +102,7 @@ Compatibility: backend also accepts legacy header/query names `auth-type` / `aut
 | `message.edit` / `room.message.edit` | 10 req | 1 min | `MESSAGE_EDIT` |
 | `message.delete` / `room.message.delete` | 30 req | 1 min | `MESSAGE_DELETE` |
 | `room.getMembers` / `room.getPresence` / `room.getBans` | 30 req | 1 min | `ROOM_READ` |
+| `room.getInviteLink` (`/app/room.getInviteLink`) | 10 req | 1 min | `ROOM_INVITE_MINT` (no extra PoW) |
 | `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, not interceptor) |
 | Failed room password proof (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — key `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; atomic INCR per attempt, reset on success |
 | Other unmapped `/app/*` | 100 req | 1 min | `GENERAL` fallback in `RateLimitInterceptor` |

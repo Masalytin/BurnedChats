@@ -681,6 +681,7 @@ Burned Chats uses **layered** anti-spam protection. PoW (Layer 1) **supplements*
 - **STOMP SEND:** on limit exceeded `RateLimitInterceptor` **drops** inbound frame (`null`), client receives `{ error: "RATE_LIMIT_EXCEEDED", retryAfter }` on `/user/queue/errors` via `StompUserMessenger` — WebSocket is **not** closed (unlike STOMP ERROR).
 - **`/app/heartbeat`:** whitelist — not counted in `GENERAL`, so presence heartbeat does not break connection after exhausted general bucket.
 - **Room read-only STOMP:** `/app/room.getMembers`, `/app/room.getPresence`, `/app/room.getBans` → `ROOM_READ` (30 req / min), separate from `GENERAL` (100 req / min).
+- **Room invite mint:** `/app/room.getInviteLink` → `ROOM_INVITE_MINT` (10 req / min). No extra PoW (canon D2).
 
 | `RateLimitType` | Limit | Purpose |
 |-----------------|-------|------------|
@@ -695,6 +696,7 @@ Burned Chats uses **layered** anti-spam protection. PoW (Layer 1) **supplements*
 | `MESSAGE_DELETE` | 30 / min | delete |
 | `POW_CHALLENGE` | 10 / min | `/app/pow.challenge` |
 | `ROOM_READ` | 30 / min | room.getMembers / getPresence / getBans |
+| `ROOM_INVITE_MINT` | 10 / min | `/app/room.getInviteLink` (no extra PoW) |
 | `DM_INVITE_MINT` | 3 / min | after PoW on `/app/dmInvite.mint` |
 | `DM_INVITE_REDEEM` | 10 / min | `/app/dmInvite.redeem` (in-service) |
 | *(whitelist)* | — | `/app/heartbeat` |
