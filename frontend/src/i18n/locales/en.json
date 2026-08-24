@@ -113,7 +113,9 @@
     "offline": "offline",
     "typing": "typing...",
     "connecting": "connecting",
-    "reconnecting": "Reconnecting..."
+    "reconnecting": "Reconnecting...",
+    "reconnectExhausted": "Could not reconnect after {{count}} attempts",
+    "reconnectNow": "Try again"
   },
 
   "home": {

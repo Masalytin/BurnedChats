@@ -19,6 +19,7 @@ import WebApp from '@twa-dev/sdk';
 import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMessage } from '../components/DebugPanel';
 import { buildStompErrorDebugData } from '../components/DebugPanel/DebugPanel';
 import { buildWebSocketHandshakeUrl } from './webSocketHandshakeUrl';
+import { isReconnectExhausted } from './reconnectExhausted';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -87,6 +88,8 @@ interface UseWebSocketReturn {
   reconnectAttempt: number;
   /** Whether this is a reconnection (not first connect) */
   isReconnection: boolean;
+  /** True after max auto-reconnect attempts failed (IMP-OFFLINE-05). */
+  reconnectExhausted: boolean;
   /** Initiate connection */
   connect: () => void;
   /**
@@ -459,6 +462,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
             debugLog('error', 'Max reconnection attempts reached', { 
               attempts: reconnectAttemptsRef.current 
             });
+            client.reconnectDelay = 0;
             handleError({
               type: 'connection_error',
               message: 'Unable to connect after multiple attempts',
@@ -487,6 +491,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     if (isConnectingRef.current) {
       debugLog('info', 'Connection in progress, skipping');
       return;
+    }
+
+    if (clientRef.current) {
+      try {
+        clientRef.current.deactivate();
+      } catch {
+        // Ignore teardown errors before a manual retry.
+      }
+      clientRef.current = null;
     }
 
     // Check for initData in production
@@ -735,6 +748,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     error,
     reconnectAttempt,
     isReconnection,
+    reconnectExhausted: isReconnectExhausted(isConnected, reconnectAttempt, maxReconnectAttempts),
     connect,
     disconnect,
     subscribe,

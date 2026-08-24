@@ -28,7 +28,9 @@
     "offline": "hors ligne",
     "typing": "écrit...",
     "connecting": "connexion",
-    "reconnecting": "Reconnexion..."
+    "reconnecting": "Reconnexion...",
+    "reconnectExhausted": "Impossible de se reconnecter après {{count}} tentatives",
+    "reconnectNow": "Réessayer"
   },
   "home": {
     "sectionSearch": "Démarrer une Discussion Sécurisée",

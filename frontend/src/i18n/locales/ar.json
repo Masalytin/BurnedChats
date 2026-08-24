@@ -28,7 +28,9 @@
     "offline": "غير متصل",
     "typing": "يكتب...",
     "connecting": "جارٍ الاتصال",
-    "reconnecting": "جارٍ إعادة الاتصال..."
+    "reconnecting": "جارٍ إعادة الاتصال...",
+    "reconnectExhausted": "تعذر إعادة الاتصال بعد {{count}} محاولات",
+    "reconnectNow": "حاول مرة أخرى"
   },
   "home": {
     "sectionSearch": "ابدأ دردشة آمنة",

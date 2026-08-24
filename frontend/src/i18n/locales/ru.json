@@ -113,7 +113,9 @@
     "offline": "не в сети",
     "typing": "печатает...",
     "connecting": "подключение",
-    "reconnecting": "Переподключение..."
+    "reconnecting": "Переподключение...",
+    "reconnectExhausted": "Не удалось переподключиться после {{count}} попыток",
+    "reconnectNow": "Попробовать снова"
   },
 
   "home": {

@@ -91,6 +91,7 @@ vi.mock('./hooks/useWebSocket', () => ({
     isConnecting: false,
     error: harness.wsError,
     reconnectAttempt: 0,
+    reconnectExhausted: false,
     connect: noop,
     disconnect: noop,
     subscribe: () => null,

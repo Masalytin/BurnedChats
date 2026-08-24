@@ -37,7 +37,9 @@
     "offline": "offline",
     "typing": "schreibt...",
     "connecting": "verbindet",
-    "reconnecting": "Wiederverbindung..."
+    "reconnecting": "Wiederverbindung...",
+    "reconnectExhausted": "Nach {{count}} Versuchen keine Verbindung",
+    "reconnectNow": "Erneut versuchen"
   },
   "home": {
     "sectionSearch": "Sicheren Chat starten",

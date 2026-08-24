@@ -73,6 +73,9 @@ interface ChatRoomProps {
   /** Count-only notice (TTL / overflow) — never plaintext (IMP-OFFLINE-04). */
   infoBanner?: string | null;
   onDismissInfoBanner?: () => void;
+  reconnectExhausted?: boolean;
+  reconnectAttempt?: number;
+  onRetryConnect?: () => void;
   /** Optional CSS class name */
   className?: string;
   /** Locally hide messages (delete for me) */
@@ -120,6 +123,9 @@ export const ChatRoom = memo(function ChatRoom({
   onRetryUpload,
   infoBanner,
   onDismissInfoBanner,
+  reconnectExhausted = false,
+  reconnectAttempt = 0,
+  onRetryConnect,
   className = '',
   hideMessages,
   onEditMessage,
@@ -510,6 +516,19 @@ export const ChatRoom = memo(function ChatRoom({
               ×
             </button>
           )}
+        </div>
+      )}
+
+      {reconnectExhausted && onRetryConnect && (
+        <div className="chat-room-info-banner" role="status">
+          <span>{t('status.reconnectExhausted', { count: reconnectAttempt })}</span>
+          <button
+            type="button"
+            className="chat-room-info-banner-dismiss"
+            onClick={onRetryConnect}
+          >
+            {t('status.reconnectNow')}
+          </button>
         </div>
       )}
 

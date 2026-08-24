@@ -28,7 +28,9 @@
     "offline": "офлайн",
     "typing": "друкує...",
     "connecting": "підключення",
-    "reconnecting": "Перепідключення..."
+    "reconnecting": "Перепідключення...",
+    "reconnectExhausted": "Не вдалося перепідключитися після {{count}} спроб",
+    "reconnectNow": "Спробувати знову"
   },
   "home": {
     "sectionSearch": "Розпочати захищений чат",

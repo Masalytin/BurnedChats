@@ -247,6 +247,7 @@ function AppContent() {
     isConnecting,
     error: wsError,
     reconnectAttempt,
+    reconnectExhausted,
     connect, 
     disconnect,
     subscribe,
@@ -3651,6 +3652,9 @@ function AppContent() {
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
             syncMessagesRef={dmSyncMessagesRef}
+            reconnectExhausted={reconnectExhausted}
+            reconnectAttempt={reconnectAttempt}
+            onRetryConnect={connect}
           />
         </Layout>
         {debugPanelElement}
@@ -3889,6 +3893,8 @@ function AppContent() {
           isConnected={isConnected}
           isConnecting={isConnecting}
           reconnectAttempt={reconnectAttempt}
+          reconnectExhausted={reconnectExhausted}
+          onRetryConnect={connect}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           searchResult={searchResult}
@@ -4054,6 +4060,9 @@ interface ChatViewContentProps {
    * e.g. when the Mini App returns from background (FIX-SYNC-3).
    */
   syncMessagesRef?: MutableRefObject<(() => void) | null>;
+  reconnectExhausted?: boolean;
+  reconnectAttempt?: number;
+  onRetryConnect?: () => void;
 }
 
 function ChatViewContent({
@@ -4067,6 +4076,9 @@ function ChatViewContent({
   onBack,
   onBurn,
   syncMessagesRef,
+  reconnectExhausted = false,
+  reconnectAttempt = 0,
+  onRetryConnect,
 }: ChatViewContentProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -4210,6 +4222,9 @@ function ChatViewContent({
           : null
       }
       onDismissInfoBanner={dismissExpiredBanner}
+      reconnectExhausted={reconnectExhausted}
+      reconnectAttempt={reconnectAttempt}
+      onRetryConnect={onRetryConnect}
       onBack={onBack}
       onBurn={onBurn}
       disabled={composerBlocked}

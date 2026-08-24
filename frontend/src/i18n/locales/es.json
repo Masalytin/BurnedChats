@@ -28,7 +28,9 @@
     "offline": "desconectado",
     "typing": "escribiendo...",
     "connecting": "conectando",
-    "reconnecting": "Reconectando..."
+    "reconnecting": "Reconectando...",
+    "reconnectExhausted": "No se pudo reconectar tras {{count}} intentos",
+    "reconnectNow": "Reintentar"
   },
   "home": {
     "sectionSearch": "Iniciar un Chat Seguro",

@@ -16,7 +16,11 @@ const h = vi.hoisted(() => ({
   deactivateMock: vi.fn(),
   state: {
     connected: false,
-    config: null as null | { onConnect?: () => void; onDisconnect?: () => void },
+    config: null as null | {
+      onConnect?: () => void;
+      onDisconnect?: () => void;
+      onWebSocketClose?: (event: unknown) => void;
+    },
   },
 }));
 
@@ -220,5 +224,44 @@ describe('useWebSocket reactive _debug subscription snapshot (IMP-DBGPANEL-08)',
     expect(h.subscribeMock).not.toHaveBeenCalled();
     expect(result.current._debug.activeSubscriptions).not.toContain('/user/queue/early');
     expect(result.current._debug.storedSubscriptions).toContain('/user/queue/early');
+  });
+});
+
+describe('useWebSocket reconnect exhausted CTA (IMP-OFFLINE-05)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.state.connected = false;
+    h.state.config = null;
+    h.subscribeMock.mockImplementation((destination: string) => ({
+      id: destination,
+      unsubscribe: vi.fn(),
+    }));
+  });
+
+  it('flags exhausted after max closes and allows a manual connect retry', async () => {
+    const { result } = renderHook(() =>
+      useWebSocket({ getCredentials: walletCredentials, maxReconnectAttempts: 2 }),
+    );
+
+    act(() => {
+      result.current.connect();
+    });
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      h.state.connected = false;
+      h.state.config?.onWebSocketClose?.({});
+      h.state.config?.onWebSocketClose?.({});
+    });
+
+    expect(result.current.reconnectExhausted).toBe(true);
+    expect(result.current.reconnectAttempt).toBe(2);
+
+    act(() => {
+      result.current.connect();
+    });
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(result.current.reconnectExhausted).toBe(false);
+    expect(result.current.reconnectAttempt).toBe(0);
   });
 });

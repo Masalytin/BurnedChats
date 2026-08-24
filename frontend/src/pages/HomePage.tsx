@@ -16,6 +16,8 @@ interface HomePageProps {
   isConnected: boolean;
   isConnecting?: boolean;
   reconnectAttempt?: number;
+  reconnectExhausted?: boolean;
+  onRetryConnect?: () => void;
   /** Search query value */
   searchQuery?: string;
   /** Set search query */
@@ -81,6 +83,8 @@ export function HomePage({
   isConnected, 
   isConnecting = false,
   reconnectAttempt = 0,
+  reconnectExhausted = false,
+  onRetryConnect,
   searchQuery = '',
   onSearchQueryChange,
   searchResult = defaultSearchResult,
@@ -223,6 +227,15 @@ export function HomePage({
           </div>
         </div>
       </header>
+
+      {reconnectExhausted && onRetryConnect && (
+        <div className="home-reconnect-banner" role="status">
+          <span>{t('status.reconnectExhausted', { count: reconnectAttempt })}</span>
+          <Button type="button" variant="secondary" size="sm" onClick={onRetryConnect}>
+            {t('status.reconnectNow')}
+          </Button>
+        </div>
+      )}
 
       {/* User Profile Card */}
       <Card className="home-profile-card animate-slide-up">

@@ -60,6 +60,18 @@
   border-radius: var(--bc-radius-sm);
 }
 
+.home-reconnect-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  font-size: var(--bc-text-sm);
+  color: var(--bc-text-muted);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-md);
+}
+
 /* Profile Card */
 .home-profile-card {
   background: linear-gradient(
