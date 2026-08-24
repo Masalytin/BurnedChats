@@ -24,6 +24,7 @@ import {
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
+import { createSessionOutbox } from '@/hooks/sessionOutbox';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
@@ -317,6 +318,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, [isConnected, sessionId, bothVerified, getEncryptionKey]);
 
   const lastRekeyResendNonceRef = useRef(0);
+  const outgoingOutboxRef = useRef(createSessionOutbox());
 
   const resendUndeliveredAfterRekey = useCallback(async () => {
     if (!isConnected || !sessionId) return;
@@ -377,6 +379,14 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     text: string,
     sendOptions?: { replyToMessageId?: string },
   ): Promise<SendMessageResult> => {
+    if (!isConnected && sessionId && text.trim()) {
+      outgoingOutboxRef.current.enqueue({
+        contextId: sessionId,
+        text,
+        replyToMessageId: sendOptions?.replyToMessageId,
+      });
+      return { success: true, messageId: null, error: null };
+    }
     return sendEncryptedTextMessage({
       text,
       contextId: sessionId,
@@ -416,6 +426,16 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     sessionId, isConnected, publish, handleError, setError, setMessages,
     pendingMessagesRef, userTelegramId, validateBeforeSend,
   ]);
+
+  useEffect(() => {
+    if (!isConnected || !sessionId) {
+      return;
+    }
+    const queued = outgoingOutboxRef.current.drain();
+    for (const item of queued) {
+      void sendMessage(item.text, { replyToMessageId: item.replyToMessageId });
+    }
+  }, [isConnected, sessionId, sendMessage]);
 
   const sendFileMessage = useCallback(async (
     file: File,

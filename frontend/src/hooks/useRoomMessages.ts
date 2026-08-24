@@ -22,6 +22,7 @@ import {
   resolvePendingMessageAck,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
+import { createSessionOutbox } from '@/hooks/sessionOutbox';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
 
 // ============================================
@@ -305,6 +306,8 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     getEncryptionKey: getRoomEncryptionKey,
   } = core;
 
+  const outgoingOutboxRef = useRef(createSessionOutbox());
+
   const buildFileMessage = useCallback((
     wire: FileMessageWireFields & { senderInternalId?: string | null; senderTgId?: number | null; senderName?: string | null },
     timestamp: number,
@@ -340,6 +343,14 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     text: string,
     sendOptions?: { replyToMessageId?: string },
   ): Promise<SendRoomMessageResult> => {
+    if (!isConnected && roomId && text.trim()) {
+      outgoingOutboxRef.current.enqueue({
+        contextId: roomId,
+        text,
+        replyToMessageId: sendOptions?.replyToMessageId,
+      });
+      return { success: true, messageId: null, error: null };
+    }
     return sendEncryptedTextMessage({
       text,
       contextId: roomId,
@@ -380,6 +391,16 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     roomId, isConnected, publish, handleError, setError, setMessages,
     pendingMessagesRef, userId, validateBeforeSend,
   ]);
+
+  useEffect(() => {
+    if (!isConnected || !roomId) {
+      return;
+    }
+    const queued = outgoingOutboxRef.current.drain();
+    for (const item of queued) {
+      void sendMessage(item.text, { replyToMessageId: item.replyToMessageId });
+    }
+  }, [isConnected, roomId, sendMessage]);
 
   const sendFileMessage = useCallback(async (
     file: File,
