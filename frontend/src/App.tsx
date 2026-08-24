@@ -38,6 +38,8 @@ import type { RoomMembershipEvent } from './hooks/useRoomMessages';
 import { useRoomTtl } from './hooks/useRoomTtl';
 import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
+import { OnboardingBriefing } from './components/OnboardingBriefing';
+import { RoomBurnedReturnDialog } from './components/RoomBurnedReturnDialog';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
 import { ChatRequestDialog, type ChatRequestSecretPayload } from './components/ChatRequestDialog';
@@ -3922,68 +3924,23 @@ function AppContent() {
         />
 
         {offlineBurnNotice != null && offlineBurnNotice > 0 && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="room-burned-return-title"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 41,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 16,
-              background: 'rgba(0,0,0,0.55)',
-            }}
-          >
-            <div style={{ maxWidth: 420, background: 'var(--tg-theme-bg-color, #111)', padding: 20, borderRadius: 12 }}>
-              <h2 id="room-burned-return-title">{t('room.burnedReturnTitle')}</h2>
-              <p>{t('room.burnedReturnBody', { count: offlineBurnNotice })}</p>
-              <button type="button" onClick={() => setOfflineBurnNotice(null)}>
-                {t('room.burnedReturnCta')}
-              </button>
-            </div>
-          </div>
+          <RoomBurnedReturnDialog
+            count={offlineBurnNotice}
+            onDismiss={() => setOfflineBurnNotice(null)}
+          />
         )}
 
         {showOnboarding && (
-          <div
-            className="home-empty-state"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="onboarding-title"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 40,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 16,
-              background: 'rgba(0,0,0,0.55)',
+          <OnboardingBriefing
+            onDismiss={() => {
+              try {
+                localStorage.setItem('bc:onboarding-seen', '1');
+              } catch {
+                /* ignore quota / private mode */
+              }
+              setShowOnboarding(false);
             }}
-          >
-            <div style={{ maxWidth: 420, background: 'var(--tg-theme-bg-color, #111)', padding: 20, borderRadius: 12 }}>
-              <h2 id="onboarding-title">{t('home.onboardingTitle')}</h2>
-              <p>{t('home.onboardingKeys')}</p>
-              <p>{t('home.onboardingInvite')}</p>
-              <p>{t('home.onboardingRooms')}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.setItem('bc:onboarding-seen', '1');
-                  } catch {
-                    /* ignore quota / private mode */
-                  }
-                  setShowOnboarding(false);
-                }}
-              >
-                {t('home.onboardingContinue')}
-              </button>
-            </div>
-          </div>
+          />
         )}
 
         {/* Personal DM invite QR / share (IMP-DMINVITE-02) */}
