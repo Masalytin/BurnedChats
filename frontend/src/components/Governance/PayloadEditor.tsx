@@ -1,6 +1,6 @@
-import { type ChangeEvent, type ReactNode, useMemo } from 'react';
+import { type ChangeEvent, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { beginCell, Cell } from '@ton/core';
+import { beginCell, Cell, toNano } from '@ton/core';
 
 import { ProposalType } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
@@ -49,6 +49,45 @@ function envAddr(...keys: string[]): string {
 
 function canonicalTreasuryOrEmpty(): string {
   return getCanonicalTreasuryAddress() ?? envAddr('VITE_TREASURY_ADDRESS');
+}
+
+export const SET_FEE_PARAMS_OP = 0x1a72d4e2;
+export const SET_GAS_PARAMS_OP = 0x5a1c8f07;
+
+export function buildSetFeeParamsArgsCell(burnBps: number, stakingBps: number, treasuryBps: number): Cell {
+  return beginCell()
+    .storeUint(0, 64)
+    .storeInt(burnBps, 257)
+    .storeInt(stakingBps, 257)
+    .storeInt(treasuryBps, 257)
+    .endCell();
+}
+
+export function buildSetGasParamsArgsCell(params: {
+  minTonFeePath: string;
+  perInternalDeployTon: string;
+  poolForwardMin: string;
+  treasuryForwardMin: string;
+  burnNotifyTon: string;
+  propagateTon: string;
+}): Cell {
+  return beginCell()
+    .storeUint(0, 64)
+    .storeCoins(toNano(params.minTonFeePath || '0'))
+    .storeCoins(toNano(params.perInternalDeployTon || '0'))
+    .storeCoins(toNano(params.poolForwardMin || '0'))
+    .storeCoins(toNano(params.treasuryForwardMin || '0'))
+    .storeCoins(toNano(params.burnNotifyTon || '0'))
+    .storeCoins(toNano(params.propagateTon || '0'))
+    .endCell();
+}
+
+function parseMethodId(raw: string): number {
+  const s = raw.trim();
+  if (!s) {
+    return Number.NaN;
+  }
+  return s.startsWith('0x') || s.startsWith('0X') ? Number.parseInt(s, 16) : Number.parseInt(s, 10);
 }
 
 function parseArgsCell(b64OrHex: string): Cell {
@@ -104,7 +143,7 @@ export function emptyDraft(kind: ProposalType): GovernanceProposalDraft {
 export function draftToFormValues(draft: GovernanceProposalDraft): ProposalFormValues {
   switch (draft.kind) {
     case ProposalType.ParameterChange: {
-      const mid = Number.parseInt(draft.methodIdStr.trim(), 10);
+      const mid = parseMethodId(draft.methodIdStr);
       if (!Number.isFinite(mid) || mid < 0) {
         throw new RangeError('method');
       }
@@ -178,6 +217,18 @@ function fieldError(errors: DraftFieldError[] | undefined, field: string): strin
 
 export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
   const { t } = useTranslation();
+  const [paramPreset, setParamPreset] = useState<'custom' | 'setFee' | 'setGas'>('custom');
+  const [burnBps, setBurnBps] = useState('30');
+  const [stakingBps, setStakingBps] = useState('30');
+  const [treasuryBps, setTreasuryBps] = useState('40');
+  const [gasFields, setGasFields] = useState({
+    minTonFeePath: '1.5',
+    perInternalDeployTon: '0.1',
+    poolForwardMin: '0.05',
+    treasuryForwardMin: '0.05',
+    burnNotifyTon: '0.05',
+    propagateTon: '0.05',
+  });
 
   const renderFieldError = (field: string): ReactNode => {
     const code = fieldError(errors, field);
@@ -202,6 +253,32 @@ export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
       ].filter((o) => o.value.length > 0),
     [t],
   );
+
+  const applyFeePreset = (burn: string, staking: string, treasury: string): void => {
+    if (draft.kind !== ProposalType.ParameterChange) {
+      return;
+    }
+    const args = buildSetFeeParamsArgsCell(Number(burn) || 0, Number(staking) || 0, Number(treasury) || 0);
+    onChange({
+      ...draft,
+      target: envAddr('VITE_BURN_JETTON_MASTER') || draft.target,
+      methodIdStr: String(SET_FEE_PARAMS_OP),
+      argsB64: args.toBoc({ idx: false }).toString('base64'),
+    });
+  };
+
+  const applyGasPreset = (fields: typeof gasFields): void => {
+    if (draft.kind !== ProposalType.ParameterChange) {
+      return;
+    }
+    const args = buildSetGasParamsArgsCell(fields);
+    onChange({
+      ...draft,
+      target: envAddr('VITE_BURN_JETTON_MASTER') || draft.target,
+      methodIdStr: String(SET_GAS_PARAMS_OP),
+      argsB64: args.toBoc({ idx: false }).toString('base64'),
+    });
+  };
 
   const handleSelectTarget = (e: ChangeEvent<HTMLSelectElement>): void => {
     const v = e.target.value;
@@ -246,6 +323,98 @@ export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
         ) : (
           renderFieldError('target')
         )}
+        {!isEmergency ? (
+          <label className={styles.field}>
+            <span>{t('governance.paramPreset')}</span>
+            <select
+              className={styles.input}
+              value={paramPreset}
+              onChange={(e) => {
+                const next = e.target.value as 'custom' | 'setFee' | 'setGas';
+                setParamPreset(next);
+                if (next === 'setFee') {
+                  applyFeePreset(burnBps, stakingBps, treasuryBps);
+                } else if (next === 'setGas') {
+                  applyGasPreset(gasFields);
+                }
+              }}
+            >
+              <option value="custom">{t('governance.presetCustom')}</option>
+              <option value="setFee">{t('governance.presetSetFeeParams')}</option>
+              <option value="setGas">{t('governance.presetSetGasParams')}</option>
+            </select>
+          </label>
+        ) : null}
+        {draft.kind === ProposalType.ParameterChange && paramPreset === 'setFee' ? (
+          <div className={styles.formStack}>
+            <label className={styles.field}>
+              <span>{t('governance.feeBurnBps')}</span>
+              <input
+                className={styles.input}
+                inputMode="numeric"
+                value={burnBps}
+                onChange={(e) => {
+                  setBurnBps(e.target.value);
+                  applyFeePreset(e.target.value, stakingBps, treasuryBps);
+                }}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>{t('governance.feeStakingBps')}</span>
+              <input
+                className={styles.input}
+                inputMode="numeric"
+                value={stakingBps}
+                onChange={(e) => {
+                  setStakingBps(e.target.value);
+                  applyFeePreset(burnBps, e.target.value, treasuryBps);
+                }}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>{t('governance.feeTreasuryBps')}</span>
+              <input
+                className={styles.input}
+                inputMode="numeric"
+                value={treasuryBps}
+                onChange={(e) => {
+                  setTreasuryBps(e.target.value);
+                  applyFeePreset(burnBps, stakingBps, e.target.value);
+                }}
+              />
+            </label>
+          </div>
+        ) : null}
+        {draft.kind === ProposalType.ParameterChange && paramPreset === 'setGas' ? (
+          <div className={styles.formStack}>
+            {(
+              [
+                ['minTonFeePath', 'governance.gasMinTonFeePath'],
+                ['perInternalDeployTon', 'governance.gasPerInternalDeploy'],
+                ['poolForwardMin', 'governance.gasPoolForward'],
+                ['treasuryForwardMin', 'governance.gasTreasuryForward'],
+                ['burnNotifyTon', 'governance.gasBurnNotify'],
+                ['propagateTon', 'governance.gasPropagate'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className={styles.field}>
+                <span>{t(label)}</span>
+                <input
+                  className={styles.input}
+                  inputMode="decimal"
+                  value={gasFields[key]}
+                  onChange={(e) => {
+                    const next = { ...gasFields, [key]: e.target.value };
+                    setGasFields(next);
+                    applyGasPreset(next);
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+        ) : null}
+        {(isEmergency || paramPreset === 'custom') && (
+          <>
         <label className={styles.field}>
           <span>{t('governance.createMethodId')}</span>
           <input
@@ -266,6 +435,8 @@ export function PayloadEditor({ draft, onChange, errors }: PayloadEditorProps) {
           />
           {renderFieldError('argsB64')}
         </label>
+          </>
+        )}
         {isEmergency ? (
           <label className={styles.field}>
             <span>{t('governance.createEmergencyReason')}</span>
