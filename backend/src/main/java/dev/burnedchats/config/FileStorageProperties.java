@@ -60,4 +60,33 @@ public class FileStorageProperties {
      * Default: 30 minutes.
      */
     private Duration concurrentDownloadSlotTtl = Duration.ofMinutes(30);
+
+    /**
+     * File metadata TTL: at least {@code messageTtl} (so a live room feed does not 404 files),
+     * not longer than the remaining room-hash TTL, never below one minute.
+     */
+    public static Duration resolveMetadataTtl(
+            Duration defaultTtl,
+            Integer messageTtlSeconds,
+            Duration roomHashRemaining) {
+        Duration ttl = defaultTtl == null || defaultTtl.isZero() || defaultTtl.isNegative()
+                ? Duration.ofHours(24)
+                : defaultTtl;
+        if (messageTtlSeconds != null && messageTtlSeconds > 0) {
+            Duration messageTtl = Duration.ofSeconds(messageTtlSeconds.longValue());
+            if (messageTtl.compareTo(ttl) > 0) {
+                ttl = messageTtl;
+            }
+        }
+        if (roomHashRemaining != null
+                && !roomHashRemaining.isNegative()
+                && !roomHashRemaining.isZero()
+                && roomHashRemaining.compareTo(ttl) < 0) {
+            ttl = roomHashRemaining;
+        }
+        if (ttl.isZero() || ttl.isNegative()) {
+            return Duration.ofMinutes(1);
+        }
+        return ttl;
+    }
 }

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,11 +34,14 @@ public class FileMetadataRepository {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final FileStorageProperties properties;
+    private final RoomRepository roomRepository;
 
     public FileMetadataRepository(ReactiveRedisTemplate<String, String> redisTemplate,
-                                  FileStorageProperties properties) {
+                                  FileStorageProperties properties,
+                                  RoomRepository roomRepository) {
         this.redisTemplate = redisTemplate;
         this.properties = properties;
+        this.roomRepository = roomRepository;
     }
 
     /**
@@ -51,13 +55,14 @@ public class FileMetadataRepository {
         String contextKey = contextKeyFor(metadata.getContextId());
         Map<String, String> hash = toMap(metadata);
 
-        return redisTemplate.opsForHash()
+        return resolveTtl(metadata)
+                .flatMap(ttl -> redisTemplate.opsForHash()
                 .putAll(metaKey, hash)
-                .then(redisTemplate.expire(metaKey, properties.getMetadataTtl()))
+                .then(redisTemplate.expire(metaKey, ttl))
                 .flatMap(ok -> redisTemplate.opsForSet()
                         .add(contextKey, metadata.getFileId())
-                        .then(redisTemplate.expire(contextKey, properties.getMetadataTtl()))
-                        .thenReturn(true))
+                        .then(redisTemplate.expire(contextKey, ttl))
+                        .thenReturn(true)))
                 .doOnSuccess(r -> LOG.debug("Saved file metadata: {}, context: {}:{}",
                         metadata.getFileId(), metadata.getContextType(), metadata.getContextId()));
     }
@@ -182,6 +187,24 @@ public class FileMetadataRepository {
                 .size(parseLongOrNull(map.get("size")))
                 .createdAt(parseLongOrNull(map.get("createdAt")))
                 .build();
+    }
+
+    private Mono<Duration> resolveTtl(FileMetadata metadata) {
+        Duration fallback = properties.getMetadataTtl();
+        if (metadata == null || !"room".equalsIgnoreCase(metadata.getContextType())
+                || metadata.getContextId() == null || metadata.getContextId().isBlank()) {
+            return Mono.just(fallback);
+        }
+        String roomId = metadata.getContextId();
+        return roomRepository.findById(roomId)
+                .flatMap(room -> roomRepository.getRemainingTtl(roomId)
+                        .defaultIfEmpty(Duration.ZERO)
+                        .map(remaining -> FileStorageProperties.resolveMetadataTtl(
+                                fallback,
+                                room.getMessageTtl() > 0 ? room.getMessageTtl() : null,
+                                remaining.isZero() ? null : remaining)))
+                .defaultIfEmpty(fallback)
+                .onErrorReturn(fallback);
     }
 
     private Long parseLongOrNull(String value) {

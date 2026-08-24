@@ -31,7 +31,7 @@ summarized in the table.
 | `ratelimit:{type}:{userId}` | string | type window | STOMP rate limit (`RateLimitService`) |
 | `ratelimit:rest:{group}:{clientId}` | string | group window | REST rate limit |
 | `filedownload:active:{internalId}` | string | 30min | Active download slot counter |
-| `file_meta:{fileId}` | hash | 24h | Encrypted blob metadata |
+| `file_meta:{fileId}` | hash | max(24h, room messageTtl) capped by remaining room hash TTL | Encrypted blob metadata |
 | `file_context:{contextId}` | set | 24h | `fileId` index by session/room |
 | `pow:challenge:{challengeId}` | hash | 60s | PoW challenge (action + difficulty) |
 | `pow:spent:{challengeId}` | string | 120s | One-time spent marker (SET NX) |
@@ -43,6 +43,7 @@ summarized in the table.
 | `user:deadman:{internalId}` | string | `periodDays` | Dead man's switch trigger (refresh on connect) |
 | `user:deadman:cfg:{internalId}` | string | **no TTL** | `{ periodDays, wipeIdentity }` — deleted on disable/expiry |
 | `room_members:{roomId}` | set | 30d | Members (internalId) |
+| `room_burn_inbox:{internalId}` | list | 7d | Offline burn facts (`roomId|burnedAt`), no names |
 | `member_rooms:{internalId}` | set | 30d | User room reverse index |
 | `room_keys:{roomId}:{epoch}` | hash | **7d** | Wrapped group keys |
 | `room_key_epoch:{roomId}` | string | 30d | Current rekey epoch |
@@ -626,6 +627,7 @@ HSET file_meta:550e8400-e29b-41d4-a716-446655440000
   createdAt          "1705312200000"
 
 EXPIRE file_meta:550e8400-e29b-41d4-a716-446655440000 86400
+# TTL = max(default 24h, room.messageTtl) capped by remaining room:{id} TTL (IMP-FILEUX-01)
 ```
 
 | Field | Type | Description |

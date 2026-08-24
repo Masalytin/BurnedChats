@@ -176,6 +176,27 @@ public class RoomRepository {
         return key.substring(AUTO_BURN_TRIGGER_PREFIX.length());
     }
 
+    /** {@code room:{roomId}} hash — not {@code room:autoburn:*} or other prefixes. */
+    public static boolean isRoomHashKey(String key) {
+        if (key == null || !key.startsWith(KEY_PREFIX) || isAutoBurnTriggerKey(key)) {
+            return false;
+        }
+        String rest = key.substring(KEY_PREFIX.length());
+        return !rest.isBlank() && rest.indexOf(':') < 0;
+    }
+
+    public static String parseRoomIdFromHashKey(String key) {
+        if (!isRoomHashKey(key)) {
+            return null;
+        }
+        return key.substring(KEY_PREFIX.length());
+    }
+
+    public Mono<Duration> getRemainingTtl(String roomId) {
+        return redisTemplate.getExpire(keyFor(roomId))
+                .defaultIfEmpty(Duration.ZERO);
+    }
+
     /**
      * Update encrypted room name fields and refresh TTL.
      *
