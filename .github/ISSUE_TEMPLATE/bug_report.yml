@@ -1,0 +1,76 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        **Never post encryption keys, room passwords, chat contents, wallet
+        mnemonics, or bot tokens in an issue.** If you believe you found a
+        security vulnerability, do **not** open a public issue — use
+        [private vulnerability reporting](https://github.com/Masalytin/BurnedChats/security/advisories/new)
+        instead (see [SECURITY.md](../../SECURITY.md)).
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the project is affected?
+      options:
+        - Frontend (Mini App UI / crypto / TON Connect)
+        - Backend (relay / STOMP / Redis / Telegram bot)
+        - Smart contracts (jetton / staking / governance)
+        - Infrastructure (Docker / Nginx / CI)
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Clear description of the bug — expected vs. actual behavior.
+      placeholder: "Expected: ... Actual: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Mini App in ...
+        2. Create a room with ...
+        3. Send a message ...
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Telegram client and platform, browser (for web), or self-hosted setup details.
+      placeholder: |
+        - Telegram: Desktop 5.x / iOS / Android
+        - Browser (if web): Chrome 130
+        - Deployment: official / self-hosted (docker compose, commit SHA)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or console output
+      description: Browser console, backend logs, or CI output. Redact anything sensitive.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md, not public issues).
+          required: true
+        - label: I did not include keys, passwords, tokens, mnemonics, or chat contents.
+          required: true

@@ -8,6 +8,7 @@ package.ts
 .env
 .env.testnet
 .env.mainnet
+.env.lab
 
 # VS Code
 .vscode/*

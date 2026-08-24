@@ -24,6 +24,21 @@ production-ready.
 
 ---
 
+<!--
+## Screenshots
+
+Drop 2-3 captures into docs/assets/ and uncomment this section:
+
+<p align="center">
+  <img src="docs/assets/chat.png" alt="E2E-encrypted chat" width="30%" />
+  <img src="docs/assets/room.png" alt="Password-protected room" width="30%" />
+  <img src="docs/assets/fingerprint.png" alt="Visual fingerprint verification" width="30%" />
+</p>
+
+Recommended shots: chat with burn timer, room join with password, key
+fingerprint ceremony. See docs/assets/README.md for capture guidelines.
+-->
+
 ## Features
 
 - **Client-side E2EE** — ECDH handshake and AES-256-GCM in the browser; the relay

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Masalytin/BurnedChats/security/advisories/new
+    about: Please report vulnerabilities privately — never in a public issue. See SECURITY.md for scope and response times.
+  - name: Question / discussion
+    url: https://github.com/Masalytin/BurnedChats/discussions
+    about: Ask questions or discuss ideas that are not yet concrete bug reports or feature requests.

@@ -106,8 +106,12 @@ pnpm-debug.log*
 .env.test
 .env.production
 .env.prod
+# Catch-all for any .env.* variant (.env.lab, .env.mainnet, ...) — env files may hold secrets
+.env.*
 *.env
 !.env.example
+# Tracked exception: contains ONLY public testnet contract addresses, no secrets [P5-6-1-1]
+!frontend/.env.testnet
 
 # Let's Encrypt certificates
 certbot/
