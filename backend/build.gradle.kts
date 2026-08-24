@@ -56,7 +56,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic")
 
     // TON cell / BoC decoding (governance proposal payloads)
-    implementation("org.ton.ton4j:cell:2.0.2")
+    implementation("org.ton.ton4j:cell:2.1.0")
 
     // OpenAPI / Swagger UI (dev/testnet only — disabled in prod profile)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
