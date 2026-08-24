@@ -12,6 +12,20 @@ import { TokenBurnModal } from './TokenBurnModal';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
 
+function pinnedAddress(envKey: string): string {
+  const raw = (import.meta.env as Record<string, string | undefined>)[envKey];
+  return (raw ?? '').trim();
+}
+
+function buildFingerprint(parts: string[]): string {
+  const joined = parts.filter(Boolean).join('|');
+  let hash = 0;
+  for (let i = 0; i < joined.length; i += 1) {
+    hash = (hash * 31 + joined.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
 type Panel = 'main' | 'history';
 
 export interface WalletPanelProps {
@@ -150,6 +164,35 @@ export function WalletPanel({
             onHistory={() => setPanel('history')}
             onBurnToken={() => setTokenBurnOpen(true)}
           />
+          <section className={styles.pinnedContracts} aria-label={t('wallet.pinnedContractsTitle')}>
+            <h3 className={styles.pinnedContractsTitle}>{t('wallet.pinnedContractsTitle')}</h3>
+            <p className={styles.pinnedContractsHint}>{t('wallet.pinnedContractsHint')}</p>
+            {(
+              [
+                ['pinnedJetton', pinnedAddress('VITE_BURN_JETTON_MASTER')],
+                ['pinnedStaking', pinnedAddress('VITE_STAKING_MASTER')],
+                ['pinnedGovernor', pinnedAddress('VITE_GOVERNOR_ADDRESS')],
+                ['pinnedTreasury', pinnedAddress('VITE_TREASURY_ADDRESS')],
+              ] as const
+            ).map(([labelKey, addr]) => (
+              <div key={labelKey} className={styles.pinnedRow}>
+                <span className={styles.pinnedLabel}>{t(`wallet.${labelKey}`)}</span>
+                <code className={styles.pinnedValue}>{addr || '—'}</code>
+              </div>
+            ))}
+            <div className={styles.pinnedRow}>
+              <span className={styles.pinnedLabel}>{t('wallet.pinnedBuildId')}</span>
+              <code className={styles.pinnedValue}>
+                {buildFingerprint([
+                  pinnedAddress('VITE_BURN_JETTON_MASTER'),
+                  pinnedAddress('VITE_STAKING_MASTER'),
+                  pinnedAddress('VITE_GOVERNOR_ADDRESS'),
+                  pinnedAddress('VITE_TREASURY_ADDRESS'),
+                  String(import.meta.env.MODE),
+                ])}
+              </code>
+            </div>
+          </section>
         </PullToRefresh>
       )}
       <SendModal

@@ -878,6 +878,43 @@
   padding: 0;
 }
 
+.pinnedContracts {
+  margin-top: var(--bc-spacing-md);
+  padding: var(--bc-spacing-sm);
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-surface-muted, rgba(255, 255, 255, 0.04));
+}
+
+.pinnedContractsTitle {
+  margin: 0 0 var(--bc-spacing-xs);
+  font-size: var(--bc-text-sm);
+  font-weight: 700;
+}
+
+.pinnedContractsHint {
+  margin: 0 0 var(--bc-spacing-sm);
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.pinnedRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: var(--bc-spacing-xs);
+}
+
+.pinnedLabel {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+}
+
+.pinnedValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  word-break: break-all;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;
