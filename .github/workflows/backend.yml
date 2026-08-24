@@ -13,7 +13,7 @@ on:
             - 'docs/specs/stomp-routes.json'
             - '.github/workflows/backend.yml'
     push:
-        branches: [master]
+        branches: [main]
         paths:
             - 'backend/**'
             - 'build.gradle.kts'

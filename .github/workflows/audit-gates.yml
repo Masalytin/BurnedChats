@@ -23,7 +23,7 @@ on:
             - 'frontend/**'
             - '.github/workflows/audit-gates.yml'
     push:
-        branches: [master]
+        branches: [main]
         paths:
             - 'contracts/**'
             - 'frontend/**'

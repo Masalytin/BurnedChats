@@ -104,11 +104,11 @@ Reference locale: `en.json` (frontend), `messages.properties` (backend). Use
 
 ## Pull requests
 
-1. Fork and branch from `master`.
+1. Fork and branch from `main`.
 2. Keep commits focused; use conventional scopes (`feat(backend): …`,
    `fix(frontend): …`, `docs(specs): …`).
 3. Ensure the build matrix above is green.
-4. Do not force-push to `master`.
+4. Do not force-push to `main`.
 5. **AGPL-3.0** applies — network deployments of modified versions must offer
    corresponding source to users (see [LICENSE](LICENSE)).
 

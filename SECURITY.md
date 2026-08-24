@@ -7,12 +7,12 @@ model.
 
 ## Supported versions
 
-Only the latest code on the `master` branch is supported. There are no
-maintained release lines yet; fixes land on `master`.
+Only the latest code on the `main` branch is supported. There are no
+maintained release lines yet; fixes land on `main`.
 
 | Version | Supported |
 |---------|-----------|
-| `master` (latest) | Yes |
+| `main` (latest) | Yes |
 | Anything else | No |
 
 ## Reporting a vulnerability

@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial open-source publication. The project is pre-1.0: no versioned releases
 exist yet, and the public API may change without notice.
 
+### Changed
+
+- Default branch renamed from `master` to `main`.
+
 ### Current state at publication
 
 - **Chat core** — 1:1 E2E-encrypted chats (ECDH P-256 + AES-256-GCM, client-side
@@ -29,4 +33,4 @@ exist yet, and the public API may change without notice.
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/commits/master
+[Unreleased]: https://github.com/Masalytin/BurnedChats/commits/main
