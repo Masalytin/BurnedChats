@@ -30,8 +30,10 @@ import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.util.InternalIds;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.util.SecretAnswerHasher;
+import dev.burnedchats.metrics.GrowthMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -65,6 +67,9 @@ public class SessionLifecycleService {
     private final PowVerificationService powVerificationService;
     private final AdaptiveDifficultyService adaptiveDifficultyService;
     private final RateLimitService rateLimitService;
+
+    @Autowired(required = false)
+    private GrowthMetrics growthMetrics;
 
     public sealed interface CreateSessionResult permits CreateSessionResult.Created, CreateSessionResult.Failed {
         record Created(
@@ -151,7 +156,12 @@ public class SessionLifecycleService {
                             secretExpectedAnswer);
                 })
                 .switchIfEmpty(Mono.fromSupplier(() -> new CreateSessionResult.Failed(
-                        SessionCreatedEvent.error("INVALID_RECIPIENT"))));
+                        SessionCreatedEvent.error("INVALID_RECIPIENT"))))
+                .doOnSuccess(result -> {
+                    if (result instanceof CreateSessionResult.Created && growthMetrics != null) {
+                        growthMetrics.incrementSessionsCreated();
+                    }
+                });
     }
 
     public Flux<IncomingRequestEvent> pendingIncomingRequests(ParticipantContext participant) {

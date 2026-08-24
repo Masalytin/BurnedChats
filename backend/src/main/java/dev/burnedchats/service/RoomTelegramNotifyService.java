@@ -6,8 +6,10 @@ import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.telegram.BotMessageService;
 import dev.burnedchats.telegram.BurnedChatsBot;
+import dev.burnedchats.metrics.GrowthMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -31,6 +33,9 @@ public class RoomTelegramNotifyService {
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
     private final ReactiveRedisTemplate<String, String> redisTemplate;
+
+    @Autowired(required = false)
+    private GrowthMetrics growthMetrics;
 
     public Mono<Void> notifyOfflineMembers(String roomId, String senderInternalId) {
         if (roomId == null || roomId.isBlank()) {
@@ -68,7 +73,13 @@ public class RoomTelegramNotifyService {
                     }
                     return telegramIdOf(ownerInternalId)
                             .flatMap(tg -> botMessages.getForUser("bot.notify.roomJoinRequest", tg)
-                                    .map(text -> telegramBot.sendNotificationWithButton(tg, text, "room_" + roomId))
+                                    .map(text -> {
+                                        telegramBot.sendNotificationWithButton(tg, text, "room_" + roomId);
+                                        if (growthMetrics != null) {
+                                            growthMetrics.incrementBotNotifySent("room_join_request");
+                                        }
+                                        return text;
+                                    })
                                     .then());
                 })
                 .onErrorResume(e -> {
@@ -85,7 +96,12 @@ public class RoomTelegramNotifyService {
 
     private Mono<Void> sendRoomPing(Long telegramId, String roomId) {
         return botMessages.getForUser("bot.notify.roomMessage", telegramId)
-                .doOnNext(text -> telegramBot.sendNotificationWithButton(telegramId, text, "room_" + roomId))
+                .doOnNext(text -> {
+                    telegramBot.sendNotificationWithButton(telegramId, text, "room_" + roomId);
+                    if (growthMetrics != null) {
+                        growthMetrics.incrementBotNotifySent("room_message");
+                    }
+                })
                 .then();
     }
 }

@@ -15,8 +15,10 @@ import dev.burnedchats.security.pow.PowVerificationService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import dev.burnedchats.service.SessionLifecycleService.CreateSessionResult;
 import dev.burnedchats.util.ParticipantContext;
+import dev.burnedchats.metrics.GrowthMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -50,6 +52,9 @@ public class DmInviteService {
     private final SessionLifecycleService sessionLifecycleService;
     private final TelegramProperties telegramProperties;
 
+    @Autowired(required = false)
+    private GrowthMetrics growthMetrics;
+
     /**
      * Mint a single-use personal DM invite for the authenticated owner.
      */
@@ -69,6 +74,11 @@ public class DmInviteService {
     public Mono<CreateSessionResult> redeem(ParticipantContext redeemer, String tokenValue) {
         return rateLimitService.enforceRateLimit(redeemer.internalId(), RateLimitType.DM_INVITE_REDEEM)
                 .then(Mono.defer(() -> consumeAndCreate(redeemer, tokenValue)))
+                .doOnSuccess(result -> {
+                    if (result instanceof CreateSessionResult.Created && growthMetrics != null) {
+                        growthMetrics.incrementDmInvitesRedeemed();
+                    }
+                })
                 .doOnError(e -> LOG.warn("DM invite redeem failed for redeemer={}: {}",
                         redeemer.internalId(), e.getMessage()));
     }

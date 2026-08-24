@@ -18,8 +18,10 @@ import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomRepository;
 import dev.burnedchats.repository.RoomBurnInboxRepository;
 import dev.burnedchats.repository.RoomRolesRepository;
+import dev.burnedchats.metrics.GrowthMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -53,6 +55,9 @@ public class RoomService {
     private final RoomMutedRepository roomMutedRepository;
     private final StompUserMessenger stompUserMessenger;
     private final RoomBurnInboxRepository roomBurnInboxRepository;
+
+    @Autowired(required = false)
+    private GrowthMetrics growthMetrics;
 
     /**
      * Create a new room owned by {@code ownerInternalId}.
@@ -94,8 +99,13 @@ public class RoomService {
                 .then(roomRepository.save(room))
                 .then(roomMembersRepository.add(roomId, ownerInternalId))
                 .thenReturn(room)
-                .doOnSuccess(r -> LOG.info("Room created: id={}, ownerInternalId={}, joinMode={}",
-                        r.getId(), ownerInternalId, r.getJoinMode()))
+                .doOnSuccess(r -> {
+                    if (growthMetrics != null) {
+                        growthMetrics.incrementRoomsCreated();
+                    }
+                    LOG.info("Room created: id={}, ownerInternalId={}, joinMode={}",
+                            r.getId(), ownerInternalId, r.getJoinMode());
+                })
                 .onErrorResume(e -> {
                     LOG.error("Failed to create room for owner {}: {}", ownerInternalId, e.getMessage());
                     return Mono.error(e);
