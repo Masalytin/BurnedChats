@@ -146,7 +146,13 @@
           "Brûler un chat (Brûler le chat) supprime définitivement cette conversation. Cela ne brûle pas de jetons BURN.",
           "Les transferts BURN ordinaires brûlent 0,5 % du montant on-chain (fee-on-transfer). Cela réduit définitivement l’offre en circulation. Le fee-burn ne crée pas de ligne « Brûler BURN » dans l’historique de ce portefeuille.",
           "Après la fermeture du mint, le portefeuille indique aussi quelle part du plafond de 1000 BURN a été brûlée.",
-          "Vous pouvez aussi brûler volontairement le BURN que vous détenez (non staké) via un JettonBurn TEP-74 sur votre jetton wallet. Ce n’est pas un transfert vers une adresse de brûlage. C’est irréversible."
+          "Vous pouvez aussi brûler volontairement le BURN que vous détenez (non staké) via un JettonBurn TEP-74 sur votre jetton wallet. Ce n’est pas un transfert vers une adresse de brûlage. C’est irréversible.",
+          "Comparez ces adresses de contrats au moment de la compilation avec une source indépendante. Une app compromise via le CDN pourrait afficher d’autres valeurs.",
+          "Jetton master : {{pinnedJetton}}",
+          "Staking master : {{pinnedStaking}}",
+          "Governor : {{pinnedGovernor}}",
+          "Treasury : {{pinnedTreasury}}",
+          "Empreinte de build : {{pinnedBuildId}}"
         ]
       }
     },

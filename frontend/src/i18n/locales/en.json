@@ -787,7 +787,13 @@
           "Burning a chat (Burn chat) permanently deletes that conversation. It does not burn BURN tokens.",
           "Ordinary BURN transfers burn 0.5% of the amount on-chain (fee-on-transfer). That permanently reduces network circulating supply. Fee-burn does not create a Burn BURN row in this wallet history.",
           "After mint is closed, the wallet also shows how much of the 1000 BURN cap has been burned.",
-          "You can also voluntarily burn BURN you hold (not staked) with a TEP-74 JettonBurn on your jetton wallet. That is not a transfer to a burn address. It cannot be undone."
+          "You can also voluntarily burn BURN you hold (not staked) with a TEP-74 JettonBurn on your jetton wallet. That is not a transfer to a burn address. It cannot be undone.",
+          "Compare these build-time contract addresses with an independent source. A CDN-compromised app could show different values.",
+          "Jetton master: {{pinnedJetton}}",
+          "Staking master: {{pinnedStaking}}",
+          "Governor: {{pinnedGovernor}}",
+          "Treasury: {{pinnedTreasury}}",
+          "Build fingerprint: {{pinnedBuildId}}"
         ]
       }
     }

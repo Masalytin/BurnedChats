@@ -26,6 +26,28 @@ function buildFingerprint(parts: string[]): string {
   return hash.toString(16).padStart(8, '0');
 }
 
+const PINNED_PLACEHOLDER = '—';
+
+function pinnedHelpValues(): Record<string, string> {
+  const jetton = pinnedAddress('VITE_BURN_JETTON_MASTER');
+  const staking = pinnedAddress('VITE_STAKING_MASTER');
+  const governor = pinnedAddress('VITE_GOVERNOR_ADDRESS');
+  const treasury = pinnedAddress('VITE_TREASURY_ADDRESS');
+  return {
+    pinnedJetton: jetton || PINNED_PLACEHOLDER,
+    pinnedStaking: staking || PINNED_PLACEHOLDER,
+    pinnedGovernor: governor || PINNED_PLACEHOLDER,
+    pinnedTreasury: treasury || PINNED_PLACEHOLDER,
+    pinnedBuildId: buildFingerprint([
+      jetton,
+      staking,
+      governor,
+      treasury,
+      String(import.meta.env.MODE),
+    ]),
+  };
+}
+
 type Panel = 'main' | 'history';
 
 export interface WalletPanelProps {
@@ -164,35 +186,6 @@ export function WalletPanel({
             onHistory={() => setPanel('history')}
             onBurnToken={() => setTokenBurnOpen(true)}
           />
-          <section className={styles.pinnedContracts} aria-label={t('wallet.pinnedContractsTitle')}>
-            <h3 className={styles.pinnedContractsTitle}>{t('wallet.pinnedContractsTitle')}</h3>
-            <p className={styles.pinnedContractsHint}>{t('wallet.pinnedContractsHint')}</p>
-            {(
-              [
-                ['pinnedJetton', pinnedAddress('VITE_BURN_JETTON_MASTER')],
-                ['pinnedStaking', pinnedAddress('VITE_STAKING_MASTER')],
-                ['pinnedGovernor', pinnedAddress('VITE_GOVERNOR_ADDRESS')],
-                ['pinnedTreasury', pinnedAddress('VITE_TREASURY_ADDRESS')],
-              ] as const
-            ).map(([labelKey, addr]) => (
-              <div key={labelKey} className={styles.pinnedRow}>
-                <span className={styles.pinnedLabel}>{t(`wallet.${labelKey}`)}</span>
-                <code className={styles.pinnedValue}>{addr || '—'}</code>
-              </div>
-            ))}
-            <div className={styles.pinnedRow}>
-              <span className={styles.pinnedLabel}>{t('wallet.pinnedBuildId')}</span>
-              <code className={styles.pinnedValue}>
-                {buildFingerprint([
-                  pinnedAddress('VITE_BURN_JETTON_MASTER'),
-                  pinnedAddress('VITE_STAKING_MASTER'),
-                  pinnedAddress('VITE_GOVERNOR_ADDRESS'),
-                  pinnedAddress('VITE_TREASURY_ADDRESS'),
-                  String(import.meta.env.MODE),
-                ])}
-              </code>
-            </div>
-          </section>
         </PullToRefresh>
       )}
       <SendModal
@@ -211,6 +204,7 @@ export function WalletPanel({
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
         topicKey="wallet.about"
+        values={pinnedHelpValues()}
       />
     </>
   );
