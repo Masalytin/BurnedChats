@@ -147,6 +147,36 @@
           "Vous pouvez aussi brûler volontairement le BURN que vous détenez (non staké) via un JettonBurn TEP-74 sur votre jetton wallet. Ce n’est pas un transfert vers une adresse de brûlage. C’est irréversible."
         ]
       }
+    },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
     }
   },
   "chat": {
@@ -234,7 +264,7 @@
       "sending": "Envoi",
       "sent": "Envoyé"
     },
-    "premiumTitle": "Utilisateur Premium",
+    "premiumTitle": "Telegram Premium",
     "reply": {
       "cancelAriaLabel": "Annuler la réponse",
       "chipLabel": "Réponse à {{name}}",
@@ -254,7 +284,9 @@
     "selectionCount_one": "1 sélectionné",
     "selectionModeToolbar": "Sélection de messages",
     "temporarilyUnavailable": "Discussion temporairement indisponible",
-    "verificationRequired": "En attente de vérification de l'empreinte. Comparez les empreintes visuelles avec votre correspondant avant d'envoyer des messages."
+    "verificationRequired": "En attente de vérification de l'empreinte. Comparez les empreintes visuelles avec votre correspondant avant d'envoyer des messages.",
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
   },
   "burnDialog": {
     "title": "Détruire cette discussion ?",
@@ -474,7 +506,8 @@
       "errorBannedHint": "Contactez le propriétaire du salon si vous avez besoin d'un accès",
       "errorInviteExhausted": "Ce lien d'invitation n'est plus actif",
       "errorInviteExpired": "Ce lien d'invitation a expiré",
-      "errorInviteHint": "Demandez au propriétaire du salon de créer un nouveau lien"
+      "errorInviteHint": "Demandez au propriétaire du salon de créer un nouveau lien",
+      "errorRoomNotFound": "Ce salon a disparu ou a expiré"
     },
     "requests": {
       "title": "Demandes de Rejoindre",
@@ -522,7 +555,7 @@
       "neededToast": "Les clés de chiffrement ont été effacées. Restaurez le chiffrement pour continuer.",
       "modalTitle": "Restaurer le chiffrement du salon",
       "modalDescription": "Vos clés de chiffrement ont été supprimées (par exemple après un passage en arrière-plan ou un rechargement de page).",
-      "modalWarning": "Cela crée une nouvelle époque de clé. Les anciens messages ne pourront plus être déchiffrés. Les nouveaux messages fonctionneront normalement.",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "Restaurer le chiffrement",
       "recoverButton": "Restaurer le chiffrement",
       "errorGeneric": "Impossible de restaurer le chiffrement. Réessayez depuis le salon.",
@@ -676,7 +709,10 @@
       "offlineMessage": "Vous n'avez plus accès à ce salon",
       "title": "Retiré du salon"
     },
-    "subscribeDenied": "Vous n'avez plus accès à ce salon"
+    "subscribeDenied": "Vous n'avez plus accès à ce salon",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home"
   },
   "sessionCard": {
     "statusPending": "En attente...",
@@ -1322,7 +1358,14 @@
     "burnTokenSuccess": "BURN brûlé",
     "burnTokenFailed": "Impossible de brûler le BURN",
     "burnTokenTimeout": "Le portefeuille a signé le brûlage, mais il n’a pas encore été vu on-chain. En cas de bounce, le solde reviendra. Ne supposez pas que les jetons ont été brûlés.",
-    "errAmountMismatch": "Le montant ressaisi ne correspond pas."
+    "errAmountMismatch": "Le montant ressaisi ne correspond pas.",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint"
   },
   "walletLogin": {
     "busy": "En attente du portefeuille…",

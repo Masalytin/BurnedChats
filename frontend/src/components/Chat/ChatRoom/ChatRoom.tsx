@@ -2,7 +2,12 @@ import { memo, useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { useToast } from '@/components/Toast';
+import { useStaking } from '@/hooks/useStaking';
+import { useTonConnect } from '@/hooks/useTonConnect';
+import { StakingTier } from '@/types/ton';
+import { formatTierName } from '@/utils/staking-format';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
@@ -353,6 +358,23 @@ export const ChatRoom = memo(function ChatRoom({
     setDeleteEveryoneIds(null);
   }, []);
 
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopic, setHelpTopic] = useState<'chat.about' | 'files.about'>('chat.about');
+  const { isConnected: walletConnected } = useTonConnect();
+  const { stakes } = useStaking();
+  const selfStakeTier = useMemo(() => {
+    if (!walletConnected) {
+      return null;
+    }
+    const order = [StakingTier.Diamond, StakingTier.Gold, StakingTier.Silver, StakingTier.Flexible];
+    for (const tier of order) {
+      if (stakes.some((s) => s.tier === tier && s.amount > 0n)) {
+        return tier;
+      }
+    }
+    return null;
+  }, [walletConnected, stakes]);
+
   const headerLeft = (
     <>
       <Avatar
@@ -395,18 +417,37 @@ export const ChatRoom = memo(function ChatRoom({
     </>
   );
 
-  const headerRight = onBurn ? (
-    <button
-      type="button"
-      className="chat-screen-icon-btn chat-room-burn"
-      onClick={handleBurnClick}
-      disabled={disabled}
-      aria-label={t('chat.burnButtonLabel')}
-      title={t('chat.burnButtonTitle')}
-    >
-      <Flame size={22} aria-hidden />
-    </button>
-  ) : undefined;
+  const headerRight = (
+    <div className="chat-room-header-actions">
+      {selfStakeTier != null && (
+        <span
+          className="chat-room-stake-badge"
+          title={t('chat.burnStakeBadgeHint')}
+          aria-label={t('chat.burnStakeBadgeHint')}
+        >
+          {t('chat.burnStakeBadge', { tier: formatTierName(selfStakeTier, t) })}
+        </span>
+      )}
+      <HelpTrigger
+        onOpen={() => {
+          setHelpTopic(pendingFile ? 'files.about' : 'chat.about');
+          setHelpOpen(true);
+        }}
+      />
+      {onBurn ? (
+        <button
+          type="button"
+          className="chat-screen-icon-btn chat-room-burn"
+          onClick={handleBurnClick}
+          disabled={disabled}
+          aria-label={t('chat.burnButtonLabel')}
+          title={t('chat.burnButtonTitle')}
+        >
+          <Flame size={22} aria-hidden />
+        </button>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className={`chat-screen chat-room ${className}`}>
@@ -496,6 +537,10 @@ export const ChatRoom = memo(function ChatRoom({
           messageType={pendingFile.messageType}
           onSend={handlePreviewSend}
           onCancel={handlePreviewCancel}
+          onOpenHelp={() => {
+            setHelpTopic('files.about');
+            setHelpOpen(true);
+          }}
         />
       )}
 
@@ -528,6 +573,12 @@ export const ChatRoom = memo(function ChatRoom({
         cancelLabel={t('common.cancel')}
         variant="destructive"
         iconType="delete"
+      />
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey={helpTopic}
       />
     </div>
   );

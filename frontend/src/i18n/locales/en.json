@@ -269,6 +269,13 @@
     "max": "Max",
     "amountSliderAria": "Amount as a percentage of your balance",
     "sendConfirm": "Send",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint",
     "preSignReview": "You will sign a BURN transfer of {{amount}} to jetton wallet {{dest}} (derived from the pinned master, not typed by hand).",
     "sendSuccess": "Transfer submitted",
     "sendFailed": "Transfer failed",
@@ -719,6 +726,36 @@
         ]
       }
     },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
+    },
     "wallet": {
       "about": {
         "title": "Why a wallet here?",
@@ -767,7 +804,9 @@
 
   "chat": {
     "verifiedTitle": "Encrypted & Verified",
-    "premiumTitle": "Premium user",
+    "premiumTitle": "Telegram Premium",
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium",
     "burnButtonLabel": "Burn chat",
     "burnButtonTitle": "Destroy this chat permanently",
     "errorBannerLabel": "Chat error",
@@ -1114,6 +1153,9 @@
     "sectionMyRooms": "My Rooms",
     "emptyRooms": "No rooms yet",
     "burnedOffline": "{{count}} room(s) were burned while you were offline.",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home",
     "createRoomButton": "Create Room",
     "roleOwner": "Owner",
     "roleMember": "Member",
@@ -1160,6 +1202,7 @@
       "errorInvalidPassword": "Incorrect password",
       "errorExpiredToken": "This invite link has expired or is invalid",
       "errorInviteExpired": "This invite link has expired",
+      "errorRoomNotFound": "This room is gone or has expired",
       "errorInviteExhausted": "This invite link is no longer active",
       "errorInviteHint": "Ask the room owner to create a new link",
       "errorInvalidToken": "Invalid invite link",
@@ -1219,7 +1262,7 @@
       "neededToast": "Encryption keys were cleared. Restore encryption to continue.",
       "modalTitle": "Restore room encryption",
       "modalDescription": "Your encryption keys were removed (for example after the app was in the background or the page reloaded).",
-      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual.",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "Restore encryption",
       "recoverButton": "Restore encryption",
       "errorGeneric": "Could not restore encryption. Try again from the room.",

@@ -591,14 +591,16 @@ function AppContent() {
 
   const myRoomIds = useMemo(() => myRooms.map(r => r.roomId), [myRooms]);
 
+  const [offlineBurnNotice, setOfflineBurnNotice] = useState<number | null>(null);
+
   useEffect(() => {
     const onBurned = (ev: Event) => {
       const count = (ev as CustomEvent<{ count?: number }>).detail?.count ?? 0;
-      toast.info(t('room.burnedOffline', { count }));
+      setOfflineBurnNotice(count);
     };
     window.addEventListener('bc:rooms-burned-offline', onBurned);
     return () => window.removeEventListener('bc:rooms-burned-offline', onBurned);
-  }, [t, toast]);
+  }, []);
 
   const topicMultiplexer = useMemo(
     () => createRoomTopicMultiplexer(subscribe, unsubscribe),
@@ -3913,6 +3915,32 @@ function AppContent() {
           panicBrandRef={panicBrandRef}
         />
 
+        {offlineBurnNotice != null && offlineBurnNotice > 0 && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="room-burned-return-title"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 41,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              background: 'rgba(0,0,0,0.55)',
+            }}
+          >
+            <div style={{ maxWidth: 420, background: 'var(--tg-theme-bg-color, #111)', padding: 20, borderRadius: 12 }}>
+              <h2 id="room-burned-return-title">{t('room.burnedReturnTitle')}</h2>
+              <p>{t('room.burnedReturnBody', { count: offlineBurnNotice })}</p>
+              <button type="button" onClick={() => setOfflineBurnNotice(null)}>
+                {t('room.burnedReturnCta')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {showOnboarding && (
           <div
             className="home-empty-state"
@@ -4075,6 +4103,9 @@ function ChatViewContent({
     [t, toast],
   );
 
+  const [isSendingFile, setIsSendingFile] = useState(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+
   const { messages, sendMessage, sendFileMessage, isLoading, error, syncMessages, hideMessages, editMessage, deleteMessage } = useMessages({
     sessionId,
     userId,
@@ -4115,10 +4146,25 @@ function ChatViewContent({
 
   const handleSendFile = useCallback(
     (file: File, caption?: string, options?: { replyToMessageId?: string }) => {
-      void sendFileMessage(file, caption, options);
+      uploadAbortRef.current?.abort();
+      const controller = new AbortController();
+      uploadAbortRef.current = controller;
+      setIsSendingFile(true);
+      void sendFileMessage(file, caption, { ...options, signal: controller.signal }).finally(() => {
+        if (uploadAbortRef.current === controller) {
+          uploadAbortRef.current = null;
+        }
+        setIsSendingFile(false);
+      });
     },
     [sendFileMessage],
   );
+
+  const handleCancelUpload = useCallback(() => {
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+    setIsSendingFile(false);
+  }, []);
 
   const composerBlocked = !bothVerified || !!error;
   const composerBlockReason = !bothVerified
@@ -4137,6 +4183,12 @@ function ChatViewContent({
       isVerified={bothVerified}
       onSendMessage={handleSendMessage}
       onSendFile={handleSendFile}
+      uploadState={
+        isSendingFile
+          ? { progress: 0, stage: 'uploading', fileName: '' }
+          : null
+      }
+      onCancelUpload={handleCancelUpload}
       onBack={onBack}
       onBurn={onBurn}
       disabled={composerBlocked}

@@ -147,6 +147,36 @@
           "También puedes quemar voluntariamente el BURN que tienes (no en stake) con un JettonBurn TEP-74 en tu jetton wallet. No es una transferencia a una dirección de quema. No se puede deshacer."
         ]
       }
+    },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
     }
   },
   "chat": {
@@ -234,7 +264,7 @@
       "sending": "Enviando",
       "sent": "Enviado"
     },
-    "premiumTitle": "Usuario Premium",
+    "premiumTitle": "Telegram Premium",
     "reply": {
       "cancelAriaLabel": "Cancelar respuesta",
       "chipLabel": "Respondiendo a {{name}}",
@@ -254,7 +284,9 @@
     "selectionCount_one": "1 seleccionado",
     "selectionModeToolbar": "Selección de mensajes",
     "temporarilyUnavailable": "Chat temporalmente no disponible",
-    "verificationRequired": "Esperando verificación de huella digital. Compara las huellas visuales con tu contacto antes de enviar mensajes."
+    "verificationRequired": "Esperando verificación de huella digital. Compara las huellas visuales con tu contacto antes de enviar mensajes.",
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
   },
   "burnDialog": {
     "title": "¿Destruir este chat?",
@@ -474,7 +506,8 @@
       "errorBannedHint": "Contacta con el propietario de la sala si necesitas acceso",
       "errorInviteExhausted": "Este enlace de invitación ya no está activo",
       "errorInviteExpired": "Este enlace de invitación ha expirado",
-      "errorInviteHint": "Pide al propietario de la sala que cree un nuevo enlace"
+      "errorInviteHint": "Pide al propietario de la sala que cree un nuevo enlace",
+      "errorRoomNotFound": "Esta sala ya no existe o ha expirado"
     },
     "requests": {
       "title": "Solicitudes de Unión",
@@ -522,7 +555,7 @@
       "neededToast": "Las claves de cifrado se borraron. Restaura el cifrado para continuar.",
       "modalTitle": "Restaurar cifrado de la sala",
       "modalDescription": "Tus claves de cifrado se eliminaron (por ejemplo, tras estar la app en segundo plano o recargar la página).",
-      "modalWarning": "Esto crea una nueva época de clave. Los mensajes anteriores ya no se podrán descifrar. Los nuevos mensajes funcionarán con normalidad.",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "Restaurar cifrado",
       "recoverButton": "Restaurar cifrado",
       "errorGeneric": "No se pudo restaurar el cifrado. Inténtalo de nuevo desde la sala.",
@@ -676,7 +709,10 @@
       "offlineMessage": "Ya no tienes acceso a esta sala",
       "title": "Eliminado de la sala"
     },
-    "subscribeDenied": "Ya no tienes acceso a esta sala"
+    "subscribeDenied": "Ya no tienes acceso a esta sala",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home"
   },
   "sessionCard": {
     "statusPending": "Pendiente...",
@@ -1322,7 +1358,14 @@
     "burnTokenSuccess": "BURN quemado",
     "burnTokenFailed": "No se pudo quemar BURN",
     "burnTokenTimeout": "La wallet firmó la quema, pero aún no se vio on-chain. Si rebota, el saldo volverá. No asumas que los tokens se quemaron.",
-    "errAmountMismatch": "La cantidad repetida no coincide."
+    "errAmountMismatch": "La cantidad repetida no coincide.",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint"
   },
   "walletLogin": {
     "busy": "Esperando wallet…",

@@ -147,6 +147,36 @@
           "Ви також можете добровільно спалити свій BURN (не в стейку) через TEP-74 JettonBurn на свій jetton-гаманець. Це не переказ на burn-адресу. Скасувати не можна."
         ]
       }
+    },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
     }
   },
   "chat": {
@@ -234,7 +264,7 @@
       "sending": "Надсилання",
       "sent": "Надісланоо"
     },
-    "premiumTitle": "Преміум-користувач",
+    "premiumTitle": "Telegram Premium",
     "reply": {
       "cancelAriaLabel": "Скасувати відповідь",
       "chipLabel": "Відповідь {{name}}",
@@ -254,7 +284,9 @@
     "selectionCount_one": "Обрано: 1",
     "selectionModeToolbar": "Вибір повідомлень",
     "temporarilyUnavailable": "Чат тимгодино недоступний",
-    "verificationRequired": "Очікується верифікація відбитка. Порівняйте візуальні відбитки зі співрозмовником перед надсиланням повідомлень."
+    "verificationRequired": "Очікується верифікація відбитка. Порівняйте візуальні відбитки зі співрозмовником перед надсиланням повідомлень.",
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
   },
   "burnDialog": {
     "title": "Спалити цей чат?",
@@ -474,7 +506,8 @@
       "errorBannedHint": "Зверніться до власника кімнати, якщо вам потрібен доступ",
       "errorInviteExhausted": "Посилання більше не активне",
       "errorInviteExpired": "Термін дії посилання закінчився",
-      "errorInviteHint": "Попросіть власника створити нове посилання"
+      "errorInviteHint": "Попросіть власника створити нове посилання",
+      "errorRoomNotFound": "Цю кімнату видалено або її термін минув"
     },
     "requests": {
       "title": "Запити на вступ",
@@ -522,7 +555,7 @@
       "neededToast": "Ключі шифрування видалено. Для продовження потрібно відновити шифрування.",
       "modalTitle": "Відновити шифрування кімнати",
       "modalDescription": "Локальні ключі шифрування було видалено (наприклад, після фону застосунку або перезавантаження сторінки).",
-      "modalWarning": "Буде створено нову епоху ключа. Старі повідомлення більше не можна розшифрувати. Нові повідомлення працюватимуть як зазвичай.",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "Відновити шифрування",
       "recoverButton": "Відновити шифрування",
       "errorGeneric": "Не вдалося відновити шифрування. Спробуйте знову з кімнати.",
@@ -676,7 +709,10 @@
       "offlineMessage": "У вас більше немає доступу до цієї кімнати",
       "title": "Видалення з кімнати"
     },
-    "subscribeDenied": "У вас більше немає доступу до цієї кімнати"
+    "subscribeDenied": "У вас більше немає доступу до цієї кімнати",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home"
   },
   "sessionCard": {
     "statusPending": "Очікування...",
@@ -1322,7 +1358,14 @@
     "burnTokenSuccess": "BURN спалено",
     "burnTokenFailed": "Не вдалося спалити BURN",
     "burnTokenTimeout": "Гаманець підписав спалювання, але в мережі його ще не видно. Якщо транзакція відскочила, баланс повернеться. Не вважайте токени спаленими.",
-    "errAmountMismatch": "Повторна сума не збігається."
+    "errAmountMismatch": "Повторна сума не збігається.",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint"
   },
   "walletLogin": {
     "busy": "Чекаємо на гаманець…",

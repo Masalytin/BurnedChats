@@ -156,11 +156,41 @@
           "Du kannst gehaltenes BURN (nicht gestakt) auch freiwillig per TEP-74 JettonBurn an deiner Jetton-Wallet verbrennen. Das ist keine Überweisung an eine Burn-Adresse. Es kann nicht rückgängig gemacht werden."
         ]
       }
+    },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
     }
   },
   "chat": {
     "verifiedTitle": "Verschlüsselt & Verifiziert",
-    "premiumTitle": "Premium-Nutzer",
+    "premiumTitle": "Telegram Premium",
     "burnButtonLabel": "Chat löschen",
     "burnButtonTitle": "Diesen Chat dauerhaft löschen",
     "errorBannerLabel": "Chat-Fehler",
@@ -263,7 +293,9 @@
       "deleteForEveryone": "Für alle löschen",
       "select": "Auswählen",
       "cancel": "Abbrechen"
-    }
+    },
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
   },
   "chatRequest": {
     "title": "Sicheren Chat starten",
@@ -769,7 +801,8 @@
       "errorBannedHint": "Kontaktieren Sie den Raumbesitzer, wenn Sie Zugang benötigen",
       "errorInviteExhausted": "Dieser Einladungslink ist nicht mehr aktiv",
       "errorInviteExpired": "Dieser Einladungslink ist abgelaufen",
-      "errorInviteHint": "Bitten Sie den Raumbesitzer, einen neuen Link zu erstellen"
+      "errorInviteHint": "Bitten Sie den Raumbesitzer, einen neuen Link zu erstellen",
+      "errorRoomNotFound": "Dieser Raum ist abgelaufen oder wurde gelöscht"
     },
     "requests": {
       "title": "Beitrittsanfragen",
@@ -817,7 +850,7 @@
       "neededToast": "Verschlüsselungsschlüssel wurden gelöscht. Stellen Sie die Verschlüsselung wieder her, um fortzufahren.",
       "modalTitle": "Raumverschlüsselung wiederherstellen",
       "modalDescription": "Ihre Verschlüsselungsschlüssel wurden entfernt (z. B. nach Hintergrundbetrieb oder Seitenneuladung).",
-      "modalWarning": "Dies erstellt eine neue Schlüsselepoche. Ältere Nachrichten können nicht mehr entschlüsselt werden. Neue Nachrichten funktionieren wie gewohnt.",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "Verschlüsselung wiederherstellen",
       "recoverButton": "Verschlüsselung wiederherstellen",
       "errorGeneric": "Verschlüsselung konnte nicht wiederhergestellt werden. Versuchen Sie es erneut aus dem Raum.",
@@ -971,7 +1004,10 @@
       "offlineMessage": "Sie haben keinen Zugriff mehr auf diesen Raum",
       "title": "Aus dem Raum entfernt"
     },
-    "subscribeDenied": "Sie haben keinen Zugriff mehr auf diesen Raum"
+    "subscribeDenied": "Sie haben keinen Zugriff mehr auf diesen Raum",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home"
   },
   "sessionCard": {
     "statusPending": "Ausstehend...",
@@ -1201,7 +1237,14 @@
     "burnTokenSuccess": "BURN verbrannt",
     "burnTokenFailed": "BURN konnte nicht verbrannt werden",
     "burnTokenTimeout": "Die Wallet hat das Verbrennen signiert, aber on-chain noch nicht gesehen. Bei einem Bounce kehrt das Guthaben zurück. Gehen Sie nicht davon aus, dass die Token verbrannt wurden.",
-    "errAmountMismatch": "Der erneut eingegebene Betrag stimmt nicht überein."
+    "errAmountMismatch": "Der erneut eingegebene Betrag stimmt nicht überein.",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint"
   },
   "staking": {
     "tierFlexible": "Flexibel",

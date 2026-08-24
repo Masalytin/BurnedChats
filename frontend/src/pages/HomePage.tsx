@@ -4,7 +4,7 @@ import type { AuthUser } from '../auth';
 import type { ActiveSession } from '../hooks/useActiveSessions';
 import { useTelegram } from '../hooks/useTelegram';
 import type { RoomListEntry, SearchResult, UserInfo } from '../types';
-import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh } from '../components';
+import { Avatar, Button, Card, CardContent, StatusBadge, Input, UserSearchResult, SessionCard, PullToRefresh, HelpSheet, HelpTrigger } from '../components';
 import { RoomCard } from '../components/RoomCard';
 import { hasGroupKey } from '@/crypto/keyStore';
 import { BalanceChip } from '../components/Wallet/BalanceChip';
@@ -108,6 +108,7 @@ export function HomePage({
 }: HomePageProps) {
   const { t } = useTranslation();
   const { canScanQr } = useTelegram();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
   const hadRendezvousRef = useRef(false);
@@ -218,6 +219,7 @@ export function HomePage({
                 {t('common.retry', { count: reconnectAttempt })}
               </span>
             )}
+            <HelpTrigger onOpen={() => setHelpOpen(true)} />
           </div>
         </div>
       </header>
@@ -517,6 +519,11 @@ export function HomePage({
       >
         <ArrowUpIcon size={20} />
       </button>
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey="home.about"
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { FileMessageType } from '../MessageInput';
 import { FileTypeIcon } from '../FileTypeIcon';
 import { getFileTypeDisplay } from '../fileTypeDisplay';
 import { formatLocalizedFileSize } from '@/utils/formatLocalizedFileSize';
+import { HelpTrigger } from '@/components/HelpSheet';
 import './FilePreview.css';
 
 interface FilePreviewProps {
@@ -11,6 +12,7 @@ interface FilePreviewProps {
   messageType: FileMessageType;
   onSend: (file: File, caption?: string) => void;
   onCancel: () => void;
+  onOpenHelp?: () => void;
 }
 
 /**
@@ -24,6 +26,7 @@ export const FilePreview = memo(function FilePreview({
   messageType,
   onSend,
   onCancel,
+  onOpenHelp,
 }: FilePreviewProps) {
   const { t } = useTranslation();
   const [caption, setCaption] = useState('');
@@ -95,6 +98,11 @@ export const FilePreview = memo(function FilePreview({
       aria-label={t('files.preview.title')}
     >
       <div className="file-preview-card" onClick={(e) => e.stopPropagation()}>
+        {onOpenHelp ? (
+          <div className="file-preview-help">
+            <HelpTrigger onOpen={onOpenHelp} />
+          </div>
+        ) : null}
         {/* Preview area */}
         <div className="file-preview-content">
           {messageType === 'image' && imageDataUrl && (

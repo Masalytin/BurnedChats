@@ -328,6 +328,20 @@ room_key_epoch:{roomId}
 
 ---
 
+## Bootstrap recovery (owner rekey)
+
+When a member's device loses the group key (background kill, reload, cleared
+storage) the owner can start a **bootstrap recovery** rekey. The server still
+only stores encrypted bundles. Member public keys used to wrap the new epoch
+come from the same server-held roster as join wraps.
+
+**This does not attest member keys.** Recovery does not run the visual
+fingerprint ceremony. A compromised relay could substitute pubkeys at wrap
+time — the same MITM class as first join. After recovery, compare fingerprints
+in-room before trusting new ciphertext.
+
+---
+
 ## Limitations and Future
 
 ### Current MVP Limitations

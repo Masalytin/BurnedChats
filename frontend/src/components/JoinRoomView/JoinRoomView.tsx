@@ -99,6 +99,7 @@ export function JoinRoomView({
     (typeof error === 'string' && (error.includes('expired') || error.includes('INVALID_TOKEN')));
   const isExhaustedToken = error === 'INVITE_EXHAUSTED';
   const isBannedUser = error === 'USER_BANNED';
+  const isRoomNotFound = error === 'ROOM_NOT_FOUND';
 
   // ----------------------------------------
   // Pending state: waiting for owner approval
@@ -186,6 +187,31 @@ export function JoinRoomView({
           <JoinRoomTitleRow />
           <p className="join-room-view__error join-room-view__error--expired" role="alert">
             {t('room.join.errorInviteExhausted')}
+          </p>
+          <p className="join-room-view__subtitle">{t('room.join.errorInviteHint')}</p>
+        </div>
+        {onCancel && (
+          <Button variant="secondary" onClick={onCancel} fullWidth>
+            {t('common.back')}
+          </Button>
+        )}
+      </JoinRoomShell>
+    );
+  }
+
+  // ----------------------------------------
+  // Error state: room gone (expired hash / burned)
+  // ----------------------------------------
+  if (isRoomNotFound) {
+    return (
+      <JoinRoomShell>
+        <div className="join-room-view__header">
+          <div className="join-room-view__icon" aria-hidden="true">
+            <Key size={36} strokeWidth={1.75} />
+          </div>
+          <JoinRoomTitleRow />
+          <p className="join-room-view__error join-room-view__error--expired" role="alert">
+            {t('room.join.errorRoomNotFound')}
           </p>
           <p className="join-room-view__subtitle">{t('room.join.errorInviteHint')}</p>
         </div>

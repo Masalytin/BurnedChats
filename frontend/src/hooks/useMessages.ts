@@ -471,6 +471,11 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       const event: NewMessageEvent = JSON.parse(message.body);
       if (!event.success || event.sessionId !== sessionId) return;
 
+      if (!bothVerified) {
+        debugLog('info', 'Skipping DM decrypt until bothVerified', { sessionId });
+        return;
+      }
+
       if (!getEncryptionKey()) {
         handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt message - no AES key');
         return;
@@ -524,12 +529,18 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse message:', parseErr);
     }
-  }, [sessionId, isOwnWireSender, onNewMessage, handleError, getEncryptionKey, setMessages]);
+  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, handleError, getEncryptionKey, setMessages]);
 
   const handleSyncMessages = useCallback(async (message: IMessage) => {
     try {
       const event: SyncMessagesEvent = JSON.parse(message.body);
       if (event.sessionId !== sessionId) return;
+
+      if (!bothVerified) {
+        setSyncing(false);
+        debugLog('info', 'Skipping DM sync decrypt until bothVerified', { sessionId });
+        return;
+      }
 
       setSyncing(false);
       if (!event.success) {
@@ -627,7 +638,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       console.error('[useMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [sessionId, isOwnWireSender, onNewMessage, onSyncComplete, handleError, setSyncing, getEncryptionKey, setMessages]);
+  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, onSyncComplete, handleError, setSyncing, getEncryptionKey, setMessages]);
 
   const syncMessages = useCallback(() => {
     coreSyncMessages(() => isHandshakeComplete(sessionId));

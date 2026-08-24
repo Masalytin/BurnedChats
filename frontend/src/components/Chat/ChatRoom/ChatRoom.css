@@ -44,6 +44,27 @@
   color: var(--bc-brand-secondary);
 }
 
+.chat-room-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+}
+
+.chat-room-stake-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 9rem;
+  padding: 0 0.4rem;
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-surface-muted, rgba(255, 140, 0, 0.12));
+  color: var(--bc-brand-primary);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .chat-room-verified {
   color: var(--bc-success);
 }

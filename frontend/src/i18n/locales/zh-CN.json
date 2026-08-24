@@ -147,6 +147,36 @@
           "你也可以自愿销毁持有的 BURN（未质押），通过自己 jetton 钱包上的 TEP-74 JettonBurn。这不是转到销毁地址。此操作不可撤销。"
         ]
       }
+    },
+    "home": {
+      "about": {
+        "title": "Home: chats and rooms",
+        "body": [
+          "This screen lists your one-to-one chats and encrypted rooms. Everything here is temporary and disappears when a chat is burned or its time limit ends.",
+          "Search starts a new encrypted chat. Create Room makes a shared space with an invite link.",
+          "If the list is suddenly empty after you had chats, the relay may have lost session data — that is expected for an ephemeral store, not a silent wipe of your wallet."
+        ]
+      }
+    },
+    "chat": {
+      "about": {
+        "title": "Encrypted chat",
+        "body": [
+          "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
+          "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+        ]
+      }
+    },
+    "files": {
+      "about": {
+        "title": "Encrypted files",
+        "body": [
+          "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
+          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "Do not assume a file stays available after you leave the chat or the room expires."
+        ]
+      }
     }
   },
   "chat": {
@@ -234,7 +264,7 @@
       "sending": "发送中",
       "sent": "已发送"
     },
-    "premiumTitle": "高级用户",
+    "premiumTitle": "Telegram Premium",
     "reply": {
       "cancelAriaLabel": "取消回复",
       "chipLabel": "回复 {{name}}",
@@ -254,7 +284,9 @@
     "selectionCount_one": "已选择 1 条",
     "selectionModeToolbar": "消息选择",
     "temporarilyUnavailable": "聊天暂时不可用",
-    "verificationRequired": "等待指纹验证。请在发送消息前与对端比对可视化指纹。"
+    "verificationRequired": "等待指纹验证。请在发送消息前与对端比对可视化指纹。",
+    "burnStakeBadge": "BURN {{tier}}",
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
   },
   "burnDialog": {
     "title": "销毁此聊天?",
@@ -474,7 +506,8 @@
       "errorBannedHint": "如需访问，请联系房间所有者",
       "errorInviteExhausted": "此邀请链接已失效",
       "errorInviteExpired": "此邀请链接已过期",
-      "errorInviteHint": "请房间所有者创建新链接"
+      "errorInviteHint": "请房间所有者创建新链接",
+      "errorRoomNotFound": "该房间已消失或已过期"
     },
     "requests": {
       "title": "加入请求",
@@ -522,7 +555,7 @@
       "neededToast": "加密密钥已清除。请恢复加密以继续。",
       "modalTitle": "恢复房间加密",
       "modalDescription": "您的加密密钥已被移除（例如应用在后台运行或页面重新加载后）。",
-      "modalWarning": "这将创建新的密钥 epoch。较早的消息将无法再解密。新消息将正常工作。",
+      "modalWarning": "This creates a new key epoch. Older messages will no longer be decryptable. New messages will work as usual. Member keys used for wrap are not visually attested — compare fingerprints after restore.",
       "confirmButton": "恢复加密",
       "recoverButton": "恢复加密",
       "errorGeneric": "无法恢复加密。请从房间中重试。",
@@ -676,7 +709,10 @@
       "offlineMessage": "您已无法访问此房间",
       "title": "已移出房间"
     },
-    "subscribeDenied": "您已无法访问此房间"
+    "subscribeDenied": "您已无法访问此房间",
+    "burnedReturnTitle": "Room burned",
+    "burnedReturnBody": "{{count}} room(s) you were in were burned while you were away. Messages and keys for those rooms are gone.",
+    "burnedReturnCta": "Back to home"
   },
   "sessionCard": {
     "statusPending": "待处理...",
@@ -1322,7 +1358,14 @@
     "burnTokenSuccess": "已销毁 BURN",
     "burnTokenFailed": "无法销毁 BURN",
     "burnTokenTimeout": "钱包已签名销毁，但链上尚未看到。若交易回弹，余额会回来。请勿假定代币已被销毁。",
-    "errAmountMismatch": "再次输入的金额不一致。"
+    "errAmountMismatch": "再次输入的金额不一致。",
+    "pinnedContractsTitle": "Pinned contracts",
+    "pinnedContractsHint": "Compare these build-time addresses with an independent source. A CDN-compromised app could show different values.",
+    "pinnedJetton": "Jetton master",
+    "pinnedStaking": "Staking master",
+    "pinnedGovernor": "Governor",
+    "pinnedTreasury": "Treasury",
+    "pinnedBuildId": "Build fingerprint"
   },
   "walletLogin": {
     "busy": "等待钱包…",
