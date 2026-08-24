@@ -3,6 +3,7 @@ package dev.burnedchats.security;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.handler.WebSocketExceptionHandler;
 import dev.burnedchats.messaging.StompUserMessenger;
+import dev.burnedchats.metrics.StompDeliveryMetrics;
 import dev.burnedchats.service.RateLimitService;
 import dev.burnedchats.service.RateLimitService.RateLimitType;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class RateLimitInterceptor implements ChannelInterceptor {
     private final RateLimitService rateLimitService;
     private final StompUserMessenger stompUserMessenger;
     private final WebSocketExceptionHandler webSocketExceptionHandler;
+    private final StompDeliveryMetrics stompDeliveryMetrics;
 
     /**
      * {@code StompUserMessenger} is injected lazily to break the startup cycle:
@@ -53,9 +55,19 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             RateLimitService rateLimitService,
             @Lazy StompUserMessenger stompUserMessenger,
             WebSocketExceptionHandler webSocketExceptionHandler) {
+        this(rateLimitService, stompUserMessenger, webSocketExceptionHandler, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RateLimitInterceptor(
+            RateLimitService rateLimitService,
+            @Lazy StompUserMessenger stompUserMessenger,
+            WebSocketExceptionHandler webSocketExceptionHandler,
+            @org.springframework.lang.Nullable StompDeliveryMetrics stompDeliveryMetrics) {
         this.rateLimitService = rateLimitService;
         this.stompUserMessenger = stompUserMessenger;
         this.webSocketExceptionHandler = webSocketExceptionHandler;
+        this.stompDeliveryMetrics = stompDeliveryMetrics;
     }
 
     /**
@@ -120,10 +132,16 @@ public class RateLimitInterceptor implements ChannelInterceptor {
 
         try {
             awaitRateLimit(userId, rateLimitType);
+            if (stompDeliveryMetrics != null) {
+                stompDeliveryMetrics.incrementAccepted();
+            }
             return message;
         } catch (RateLimitException e) {
             LOG.warn("Rate limit exceeded for user {} on {}: retry after {}s",
                     userId, destination, e.getRetryAfterSeconds());
+            if (stompDeliveryMetrics != null) {
+                stompDeliveryMetrics.incrementDropped();
+            }
             publishRateLimitError(appPrincipal, e);
             return null;
         }

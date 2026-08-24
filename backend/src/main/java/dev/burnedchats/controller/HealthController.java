@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,12 +35,17 @@ public class HealthController {
      * @return health status response
      */
     @GetMapping("/health")
-    public Map<String, Object> health() {
-        return Map.of(
-                "status", "UP",
-                "service", "burned-chats-backend",
-                "timestamp", Instant.now().toString()
-        );
+    public Mono<ResponseEntity<Map<String, Object>>> health() {
+        return redisHealthService.isHealthy()
+                .map(redisOk -> {
+                    Map<String, Object> body = Map.of(
+                            "status", redisOk ? "UP" : "DOWN",
+                            "service", "burned-chats-backend",
+                            "timestamp", Instant.now().toString()
+                    );
+                    HttpStatus status = redisOk ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+                    return ResponseEntity.status(status).body(body);
+                });
     }
 
     /**
