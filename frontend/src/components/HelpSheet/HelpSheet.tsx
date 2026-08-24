@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { BottomSheet } from '@/components/BottomSheet';
@@ -27,6 +28,9 @@ export interface HelpSheetProps {
  * consumer wins. When this sheet is open (`open === true`), the parent sheet must
  * pause its own Escape / BackButton / backdrop handlers (see `suspended` on
  * `BottomSheet` in `WalletSheet`) until `onClose` runs. The parent owns both `open` states.
+ *
+ * Rendered via portal to `document.body` so BottomNavBar (z-index 10000) and parent
+ * sheet stacking contexts cannot cover the help body.
  */
 export function HelpSheet({ open, onClose, topicKey, values }: HelpSheetProps) {
   const { t } = useTranslation();
@@ -42,7 +46,11 @@ export function HelpSheet({ open, onClose, topicKey, values }: HelpSheetProps) {
     ? bodyRaw.filter((p): p is string => typeof p === 'string')
     : [];
 
-  return (
+  if (!open) {
+    return null;
+  }
+
+  return createPortal(
     <BottomSheet
       open={open}
       onClose={onClose}
@@ -73,6 +81,7 @@ export function HelpSheet({ open, onClose, topicKey, values }: HelpSheetProps) {
           </p>
         ))}
       </div>
-    </BottomSheet>
+    </BottomSheet>,
+    document.body,
   );
 }

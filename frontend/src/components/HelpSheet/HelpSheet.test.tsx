@@ -10,11 +10,27 @@ import i18n from '@/i18n';
 import { HelpSheet } from './HelpSheet';
 import { HelpTrigger } from './HelpTrigger';
 
-const helpSheetCssPath = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  'HelpSheet.css',
-);
+const helpSheetDir = path.dirname(fileURLToPath(import.meta.url));
+const helpSheetCssPath = path.join(helpSheetDir, 'HelpSheet.css');
 const helpSheetCss = readFileSync(helpSheetCssPath, 'utf-8');
+const bottomNavCss = readFileSync(
+  path.join(helpSheetDir, '../BottomNavBar/BottomNavBar.css'),
+  'utf-8',
+);
+
+function cssBlock(css: string, selector: string): string {
+  const idx = css.indexOf(selector);
+  expect(idx).toBeGreaterThanOrEqual(0);
+  const start = css.indexOf('{', idx);
+  const end = css.indexOf('}', start);
+  return css.slice(start, end + 1);
+}
+
+function declaredZIndex(css: string, selector: string): number {
+  const match = cssBlock(css, selector).match(/z-index:\s*(\d+)/);
+  expect(match).toBeTruthy();
+  return Number(match![1]);
+}
 
 const useReducedMotionMock = vi.fn(() => false);
 const backButtonClickHandlers: Array<() => void> = [];
@@ -359,5 +375,35 @@ describe('HelpSheet UI polish (IMP-HELP-06)', () => {
     expect(helpSheetCss).toMatch(
       /\.help-sheet-close-btn[\s\S]*min-height:\s*var\(--bc-touch-target\)/,
     );
+  });
+});
+
+describe('HelpSheet vs BottomNavBar stacking', () => {
+  beforeEach(() => {
+    addTestHelpResources();
+  });
+
+  it('declares a backdrop z-index above BottomNavBar so help text is not covered', () => {
+    const helpZ = declaredZIndex(helpSheetCss, '.help-sheet-backdrop');
+    const navZ = declaredZIndex(bottomNavCss, '.bottom-nav');
+    expect(helpZ).toBeGreaterThan(navZ);
+  });
+
+  it('portals the sheet to document.body so a parent stacking context cannot trap it', () => {
+    const { container } = render(
+      <I18nextProvider i18n={i18n}>
+        <div className="layout">
+          <main className="layout-main">
+            <HelpSheet open onClose={vi.fn()} topicKey={TEST_TOPIC} />
+          </main>
+          <nav className="bottom-nav" />
+        </div>
+      </I18nextProvider>,
+    );
+
+    const backdrop = document.querySelector('.help-sheet-backdrop');
+    expect(backdrop).toBeTruthy();
+    expect(backdrop?.parentElement).toBe(document.body);
+    expect(container.querySelector('.help-sheet-backdrop')).toBeNull();
   });
 });

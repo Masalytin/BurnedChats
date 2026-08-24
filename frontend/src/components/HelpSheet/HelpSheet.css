@@ -1,7 +1,8 @@
 .help-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* Above .bottom-nav (10000) so last help paragraphs are not covered. */
+  z-index: 10100;
   background: var(--bc-bg-overlay);
   display: flex;
   align-items: flex-end;
