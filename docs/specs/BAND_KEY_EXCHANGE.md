@@ -107,33 +107,16 @@ The server acts as a **rendezvous point** where users find each other by Telegra
 
 ### Visual Fingerprint
 
-Even if an attacker substitutes keys, users will see **different** Visual Fingerprints.
+Canonical algorithm: **[SECURITY.md — Visual Fingerprint](./SECURITY.md#visual-fingerprint)**.
 
-#### Generation Algorithm
+Clients compute a **128-bit safety-number** (8×5 decimal groups) plus a 6-emoji
+mnemonic from **SHA-256 of lexicographically sorted SPKI public keys**
+(`ecdh.ts`). The hash is **not** taken from the ECDH shared secret. A key
+swap on the relay changes the number both users see.
 
-```typescript
-async function generateVisualFingerprint(
-  sharedSecret: ArrayBuffer
-): Promise<FingerprintElement[]> {
-  // Deterministic hash from shared secret
-  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
-  const bytes = new Uint8Array(hash);
-  
-  const SHAPES = ['◆', '○', '□', '△', '⬡', '⬢'];
-  const COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
-  
-  const elements: FingerprintElement[] = [];
-  
-  for (let i = 0; i < 4; i++) {
-    elements.push({
-      shape: SHAPES[bytes[i * 2] % SHAPES.length],
-      color: COLORS[bytes[i * 2 + 1] % COLORS.length]
-    });
-  }
-  
-  return elements;
-}
-```
+> **Deprecated (do not implement):** the historical 32-bit / 4-slot
+> `{shape, color}` fingerprint derived from the shared secret. That sketch
+> had ~20 bits of visual entropy and is **not** what the Mini App ships.
 
 #### Why This Works
 
@@ -160,19 +143,8 @@ Bob sees:   ⬡CYAN ⬢ORANGE ◆RED □BLUE
 On comparison → "Codes do not match" → Session destroyed
 ```
 
-#### Probabilities
-
-```
-Combinations: 6 × 6 × 6 × 6 × 6 × 6 × 6 × 6 = 1,679,616
-
-Probability of random match: 0.00006%
-
-For a successful MITM attack, Mallory must:
-1. Guess Alice's fingerprint (1/1,679,616)
-2. Substitute the UI for both parties in real time
-
-→ Practically impossible
-```
+Primary MITM channel is the **128-bit safety-number**, not the old 6⁸ shape/color
+grid. Compare numbers out-of-band; on mismatch burn-and-leave.
 
 ---
 
@@ -218,32 +190,19 @@ socket.emit('ACCEPT_REQUEST', {
 
 ### Cryptographic Integration
 
-The answer to the question becomes the **salt** for HKDF:
+> **Deprecated (do not implement):** treating the answer as HKDF salt.
+> That is **not** how the product works.
 
-```typescript
-// Standard HKDF (without secret question)
-const aesKey = await deriveKey(sharedSecret, {
-  salt: "BurnedChats-v1",
-  info: "encryption-key"
-});
+Canonical model: **[SECURITY.md — Secret Question](./SECURITY.md#secret-question-optional)**.
 
-// HKDF with secret question
-const answerHash = await sha256(answer.toLowerCase().trim());
-const aesKey = await deriveKey(sharedSecret, {
-  salt: answerHash,  // ← Answer as salt
-  info: "encryption-key"
-});
-```
+The question is **server-side admission control**. The initiator sends the
+question and expected answer; the server stores the question and a SHA-256 of
+the normalized answer; accept compares hashes constant-time. A wrong answer
+blocks session activation. HKDF still uses `sessionId` /
+`BurnedChats-AES-GCM-Key` — the answer **does not** become the salt.
 
-### Result
-
-| Scenario | SharedSecret | Salt | AES Key | Messages |
-|----------|--------------|------|---------|----------|
-| Correct answer | ✓ | ✓ | ✓ | Decrypted |
-| Wrong answer | ✓ | ✗ | ✗ | Garbage |
-| MITM | ✗ | - | ✗ | Garbage |
-
-**Important:** The server does not know the correct answer. It cannot verify whether Bob answered correctly — this is verified cryptographically on the client side.
+The server **sees** plaintext Q/A on create/accept (admission metadata, not
+message ciphertext). This does **not** replace safety-number verification.
 
 ---
 
