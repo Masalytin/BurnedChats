@@ -2,6 +2,7 @@ package dev.burnedchats.config;
 
 import dev.burnedchats.handler.WebSocketExceptionHandler;
 import dev.burnedchats.messaging.StompUserMessenger;
+import dev.burnedchats.observability.CorrelationChannelInterceptor;
 import dev.burnedchats.security.RateLimitInterceptor;
 import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor;
@@ -35,7 +36,8 @@ class WebSocketConfigContextTest {
             .withBean(StompAuthInterceptor.class, () -> mock(StompAuthInterceptor.class))
             .withBean(StompHandshakeAuthInterceptor.class, () -> mock(StompHandshakeAuthInterceptor.class))
             .withBean(StompPrincipalHandshakeHandler.class, () -> mock(StompPrincipalHandshakeHandler.class))
-            .withBean(RoomTopicSubscribeInterceptor.class, () -> mock(RoomTopicSubscribeInterceptor.class));
+            .withBean(RoomTopicSubscribeInterceptor.class, () -> mock(RoomTopicSubscribeInterceptor.class))
+            .withBean(CorrelationChannelInterceptor.class, () -> mock(CorrelationChannelInterceptor.class));
 
     @Test
     void contextStartsWithoutBeanCycle() {

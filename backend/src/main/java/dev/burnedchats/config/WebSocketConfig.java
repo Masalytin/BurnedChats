@@ -1,5 +1,6 @@
 package dev.burnedchats.config;
 
+import dev.burnedchats.observability.CorrelationChannelInterceptor;
 import dev.burnedchats.security.RateLimitInterceptor;
 import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor;
@@ -44,6 +45,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompPrincipalHandshakeHandler stompPrincipalHandshakeHandler;
     private final RateLimitInterceptor rateLimitInterceptor;
     private final RoomTopicSubscribeInterceptor roomTopicSubscribeInterceptor;
+    private final CorrelationChannelInterceptor correlationChannelInterceptor;
 
     /**
      * Heartbeat interval from server to client (ms).
@@ -199,6 +201,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // Auth on CONNECT; room topic membership on SUBSCRIBE; rate limiting on SEND
         registration.interceptors(
+                correlationChannelInterceptor,
                 stompAuthInterceptor,
                 roomTopicSubscribeInterceptor,
                 rateLimitInterceptor);

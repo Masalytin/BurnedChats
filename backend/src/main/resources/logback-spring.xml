@@ -98,11 +98,30 @@
         <logger name="org.springframework.websocket" level="DEBUG"/>
     </springProfile>
 
-    <!-- Production profile -->
+    <!-- Production profile — JSON for scrape/correlation (IMP-OBS-02) -->
     <springProfile name="prod">
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+        </appender>
+        <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_PATH}/${LOG_FILE}.log</file>
+            <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_PATH}/${LOG_FILE}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+        <appender name="ASYNC_FILE_JSON" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="FILE_JSON"/>
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <includeCallerData>false</includeCallerData>
+        </appender>
         <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE"/>
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="ASYNC_FILE_JSON"/>
         </root>
         <!-- Less verbose in production -->
         <logger name="dev.burnedchats" level="INFO"/>
