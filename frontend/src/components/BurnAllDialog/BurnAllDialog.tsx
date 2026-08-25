@@ -49,7 +49,7 @@ export const BurnAllDialog = memo(function BurnAllDialog({
     if (open) {
       haptics.impact('medium');
     }
-  }, [haptics, open]);
+  }, [haptics.impact, open]);
 
   const canHold = mode === 'data' || accountAcknowledged;
 
@@ -81,7 +81,7 @@ export const BurnAllDialog = memo(function BurnAllDialog({
       haptics.notification('warning');
       onConfirm();
     }
-  }, [haptics, onConfirm]);
+  }, [haptics.notification, onConfirm]);
 
   const startHold = useCallback(() => {
     if (isLoading || isOffline || !canHold) {
@@ -91,6 +91,9 @@ export const BurnAllDialog = memo(function BurnAllDialog({
     holdActiveRef.current = true;
     holdStartRef.current = Date.now();
     setHoldProgress(0);
+    if (holdIntervalRef.current != null) {
+      clearInterval(holdIntervalRef.current);
+    }
     holdIntervalRef.current = setInterval(tickHold, 50);
   }, [canHold, isLoading, isOffline, tickHold]);
 

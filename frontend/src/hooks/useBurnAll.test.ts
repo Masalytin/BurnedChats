@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { createElement, type ReactNode } from 'react';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { createElement, useCallback, useState, type ReactNode } from 'react';
+import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nextProvider } from 'react-i18next';
 import type { IMessage } from '@stomp/stompjs';
@@ -112,5 +112,101 @@ describe('useBurnAll', () => {
       '/user/queue/burn-all-complete',
       expect.any(Function),
     );
+  });
+
+  it('does not resubscribe when only onComplete identity changes', () => {
+    const { rerender } = renderHook(
+      ({ onComplete }: { onComplete: () => void }) =>
+        useBurnAll({
+          isConnected: true,
+          subscribe,
+          unsubscribe,
+          publish,
+          onComplete,
+        }),
+      { wrapper, initialProps: { onComplete: () => undefined } },
+    );
+
+    expect(subscribe).toHaveBeenCalledTimes(1);
+
+    rerender({ onComplete: () => undefined });
+
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it('does not loop when subscribe triggers a parent setState', () => {
+    let renders = 0;
+
+    function Parent() {
+      renders += 1;
+      const [, setTick] = useState(0);
+      const subscribeWithState = useCallback(
+        (destination: string, callback: (message: IMessage) => void) => {
+          if (destination === '/user/queue/burn-all-complete') {
+            completeHandlers.push(callback);
+          }
+          setTick((tick) => tick + 1);
+          return {};
+        },
+        [],
+      );
+      const unsubscribeStable = useCallback(() => {}, []);
+      const publishStable = useCallback(() => {}, []);
+
+      useBurnAll({
+        isConnected: true,
+        subscribe: subscribeWithState,
+        unsubscribe: unsubscribeStable,
+        publish: publishStable,
+        onComplete: () => undefined,
+      });
+
+      return null;
+    }
+
+    render(createElement(Parent));
+    expect(renders).toBeLessThan(5);
+  });
+
+  it('still delivers complete ack after parent re-renders with a new onComplete', async () => {
+    const firstOnComplete = vi.fn();
+    const secondOnComplete = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ onComplete }: { onComplete: (event: unknown) => void }) =>
+        useBurnAll({
+          isConnected: true,
+          subscribe,
+          unsubscribe,
+          publish,
+          onComplete,
+        }),
+      { wrapper, initialProps: { onComplete: firstOnComplete } },
+    );
+
+    rerender({ onComplete: secondOnComplete });
+
+    act(() => {
+      result.current.requestBurnAll({ wipeIdentity: false });
+    });
+
+    const latestHandler = completeHandlers.at(-1);
+    act(() => {
+      latestHandler?.({
+        body: JSON.stringify({
+          wipeIdentity: false,
+          burnedSessions: 1,
+          burnedRooms: 0,
+          leftRooms: 0,
+          timestamp: 1_700_000_000_000,
+        }),
+      } as IMessage);
+    });
+
+    await waitFor(() => {
+      expect(result.current.burnAllState).toBe('done');
+    });
+    expect(secondOnComplete).toHaveBeenCalledTimes(1);
+    expect(firstOnComplete).not.toHaveBeenCalled();
   });
 });

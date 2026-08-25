@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 
 export type BurnAllState = 'idle' | 'burning' | 'done' | 'error';
@@ -43,15 +43,16 @@ export function useBurnAll(options: UseBurnAllOptions): UseBurnAllReturn {
   const { isConnected, subscribe, unsubscribe, publish, onComplete, onError } = options;
   const [burnAllState, setBurnAllState] = useState<BurnAllState>('idle');
   const [error, setError] = useState<BurnAllErrorCode | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+  onCompleteRef.current = onComplete;
+  onErrorRef.current = onError;
 
-  const handleError = useCallback(
-    (code: BurnAllErrorCode) => {
-      setError(code);
-      setBurnAllState('error');
-      onError?.(code);
-    },
-    [onError],
-  );
+  const handleError = useCallback((code: BurnAllErrorCode) => {
+    setError(code);
+    setBurnAllState('error');
+    onErrorRef.current?.(code);
+  }, []);
 
   const resetBurnAll = useCallback(() => {
     setBurnAllState('idle');
@@ -82,12 +83,12 @@ export function useBurnAll(options: UseBurnAllOptions): UseBurnAllReturn {
         const event = JSON.parse(message.body) as BurnAllCompleteEvent;
         setBurnAllState('done');
         setError(null);
-        onComplete?.(event);
+        onCompleteRef.current?.(event);
       } catch {
         handleError('INTERNAL_ERROR');
       }
     },
-    [handleError, onComplete],
+    [handleError],
   );
 
   useEffect(() => {
