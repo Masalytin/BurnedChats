@@ -68,12 +68,20 @@ describe('burnToken RPC helpers', () => {
     });
   });
 
-  it('getBurnBalance prefers backend jetton-wallet before Ton Center RPC', async () => {
+  it('getBurnBalance falls back to Ton Center after backend burn-balance 404', async () => {
     vi.stubEnv('VITE_API_URL', 'https://api.stub');
+
+    const sliceB64 = addressToSliceStackBoc(JETTON_USER_WALLET);
 
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ message: 'not found' }, 404))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['tvm.Slice', sliceB64]] },
+        }),
+      )
       .mockResolvedValueOnce(
         jsonResponse({
           jettonWalletAddress: JETTON_USER_WALLET,
@@ -94,10 +102,15 @@ describe('burnToken RPC helpers', () => {
     });
 
     expect(nano).toBe(1_000_000_000n);
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/burn-balance');
-    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain('/api/wallet/jetton-wallet');
-    const walletDataCall = fetchImpl.mock.calls[2]?.[1] as { body: string };
+    const walletAddrCall = fetchImpl.mock.calls[1]?.[1] as { body: string };
+    expect(JSON.parse(walletAddrCall.body)).toMatchObject({
+      address: MASTER,
+      method: 'get_wallet_address',
+    });
+    expect(String(fetchImpl.mock.calls[2]?.[0])).toContain('/api/wallet/jetton-wallet');
+    const walletDataCall = fetchImpl.mock.calls[3]?.[1] as { body: string };
     expect(JSON.parse(walletDataCall.body)).toMatchObject({
       address: JETTON_USER_WALLET,
       method: 'get_wallet_data',

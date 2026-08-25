@@ -73,6 +73,7 @@ vi.mock('./hooks/useTelegram', () => ({
     showScanQrPopup: async () => null,
     closeScanQrPopup: noop,
     showConfirm: async () => false,
+    requestWriteAccess: asyncNoop,
     addToHomeScreen: noop,
     checkHomeScreenStatus: async () => 'unknown',
     startParam: undefined,
