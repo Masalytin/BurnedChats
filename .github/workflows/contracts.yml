@@ -10,6 +10,7 @@ on:
         paths:
             - 'contracts/**'
             - '.github/workflows/contracts.yml'
+    workflow_dispatch:
 
 defaults:
     run:

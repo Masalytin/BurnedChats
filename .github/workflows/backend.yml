@@ -29,7 +29,9 @@ jobs:
     build-test:
         runs-on: ubuntu-latest
         env:
-            FILE_STORAGE_PATH: ${{ runner.temp }}/burnedchats-files
+            # Literal path — `runner.temp` is not valid in job-level env
+            # (GitHub rejects the workflow file and the run dies in 0s).
+            FILE_STORAGE_PATH: /tmp/burnedchats-files
         steps:
             - uses: actions/checkout@v4
 

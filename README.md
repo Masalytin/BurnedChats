@@ -5,11 +5,11 @@ relay server forwards ciphertext only; keys are derived and held client-side (We
 Crypto API). The stack includes a Java/Spring backend, a React frontend, and TON
 smart contracts for wallet auth and an experimental deflationary token.
 
-[![Backend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml)
-[![Frontend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml)
-[![Contracts CI](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml)
-[![Audit Gates](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml)
-[![CodeQL](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml/badge.svg)](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml)
+[![Backend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml/badge.svg?branch=main&event=push)](https://github.com/Masalytin/BurnedChats/actions/workflows/backend.yml?query=branch%3Amain)
+[![Frontend CI](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml/badge.svg?branch=main&event=push)](https://github.com/Masalytin/BurnedChats/actions/workflows/frontend.yml?query=branch%3Amain)
+[![Contracts CI](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml/badge.svg?branch=main&event=push)](https://github.com/Masalytin/BurnedChats/actions/workflows/contracts.yml?query=branch%3Amain)
+[![Audit Gates](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml/badge.svg?branch=main&event=push)](https://github.com/Masalytin/BurnedChats/actions/workflows/audit-gates.yml?query=branch%3Amain)
+[![CodeQL](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/Masalytin/BurnedChats/actions/workflows/codeql.yml?query=branch%3Amain)
 
 **Try it:** [Telegram bot](https://t.me/BurnedChatsBot) · [burnedchats.net](https://burnedchats.net)
 
