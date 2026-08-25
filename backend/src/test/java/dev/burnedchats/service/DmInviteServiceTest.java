@@ -2,7 +2,6 @@ package dev.burnedchats.service;
 
 import dev.burnedchats.config.PowProperties;
 import dev.burnedchats.config.TelegramProperties;
-import dev.burnedchats.dto.event.DmInviteMintedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
 import dev.burnedchats.dto.request.CreateSessionRequest;
 import dev.burnedchats.dto.request.PowSolution;

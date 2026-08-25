@@ -67,7 +67,7 @@ public final class LogFieldPolicy {
         String n = key.toLowerCase(Locale.ROOT);
         return n.contains("encryptedcontent")
                 || n.contains("initdata")
-                || n.equals("token")
+                || "token".equals(n)
                 || n.contains("authorization")
                 || n.contains("ciphertext");
     }
