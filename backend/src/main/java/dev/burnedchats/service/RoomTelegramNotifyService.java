@@ -50,7 +50,8 @@ public class RoomTelegramNotifyService {
                     }
                     return roomMembersRepository.getMembers(roomId)
                             .filter(id -> senderInternalId == null || !senderInternalId.equals(id))
-                            .filterWhen(id -> onlineStatusRepository.isOnline(id).map(online -> !Boolean.TRUE.equals(online)))
+                            .filterWhen(id -> onlineStatusRepository.isOnline(id)
+                                    .map(online -> !Boolean.TRUE.equals(online)))
                             .flatMap(this::telegramIdOf)
                             .distinct()
                             .flatMap(tg -> sendRoomPing(tg, roomId))

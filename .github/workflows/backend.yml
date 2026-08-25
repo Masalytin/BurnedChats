@@ -28,6 +28,8 @@ on:
 jobs:
     build-test:
         runs-on: ubuntu-latest
+        env:
+            FILE_STORAGE_PATH: ${{ runner.temp }}/burnedchats-files
         steps:
             - uses: actions/checkout@v4
 
@@ -39,6 +41,10 @@ jobs:
 
             - name: Set up Gradle
               uses: gradle/actions/setup-gradle@v4
+
+            # Wrapper may lose +x when committed from Windows (git filemode 100644).
+            - name: Make gradlew executable
+              run: chmod +x gradlew
 
             # Unit tests only: @Tag("integration") is excluded from the `test`
             # task; Docker-backed integration tests are opt-in via

@@ -6,6 +6,7 @@ import dev.burnedchats.ton.dto.EffectiveFeeParams;
 import dev.burnedchats.ton.dto.JettonInfo;
 import dev.burnedchats.ton.dto.UserBalance;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -215,14 +216,25 @@ class JettonServiceTest {
                 {"ok":true,"result":{"exit_code":0,"stack":[["num","0x2540be400"]]}}
                 """;
 
-        for (int i = 0; i < 3; i++) {
-            server.enqueue(new MockResponse()
-                    .setBody(walletAddrTemplate)
-                    .addHeader("Content-Type", "application/json"));
-        }
-        for (int i = 0; i < 3; i++) {
-            server.enqueue(new MockResponse().setBody(walletData).addHeader("Content-Type", "application/json"));
-        }
+        // Concurrent getBurnBalances interleaves get_wallet_address / get_wallet_data;
+        // a FIFO queue then serves the wrong body. Route by method name instead.
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                String body = request.getBody().readUtf8();
+                if (body.contains("\"get_wallet_address\"")) {
+                    return new MockResponse()
+                            .setBody(walletAddrTemplate)
+                            .addHeader("Content-Type", "application/json");
+                }
+                if (body.contains("\"get_wallet_data\"")) {
+                    return new MockResponse()
+                            .setBody(walletData)
+                            .addHeader("Content-Type", "application/json");
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        });
 
         StepVerifier.create(jettonService.getBurnBalances(List.of(u1, u2, u3)).collectList())
                 .assertNext(list -> {

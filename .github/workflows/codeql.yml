@@ -39,6 +39,10 @@ jobs:
             - name: Set up Gradle
               if: matrix.language == 'java-kotlin'
               uses: gradle/actions/setup-gradle@v4
+              with:
+                  # Restored Gradle build cache serves compileJava FROM-CACHE;
+                  # CodeQL then sees no javac and fails with "didn't build any of it".
+                  cache-disabled: true
 
             - name: Initialize CodeQL
               uses: github/codeql-action/init@v3
@@ -49,7 +53,9 @@ jobs:
 
             - name: Build backend (manual mode)
               if: matrix.language == 'java-kotlin'
-              run: ./gradlew :backend:compileJava --no-daemon
+              run: |
+                  chmod +x gradlew
+                  ./gradlew :backend:compileJava --no-daemon --no-build-cache --rerun-tasks
 
             - name: Perform CodeQL Analysis
               uses: github/codeql-action/analyze@v3

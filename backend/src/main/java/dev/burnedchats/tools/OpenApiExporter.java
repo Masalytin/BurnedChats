@@ -73,6 +73,8 @@ public final class OpenApiExporter {
         defaults.put("telegram.mini-app.url", "https://export.example.com");
         defaults.put("rate-limit.enabled", "false");
         defaults.put("pow.enabled", "false");
+        defaults.put("app.files.storage-path",
+                System.getProperty("java.io.tmpdir") + "/burnedchats-export-files/");
         defaults.put("burnedchats.messages.offline-queue.keyspace-listener-enabled", "false");
         defaults.put("burnedchats.users.deadman.keyspace-listener-enabled", "false");
         defaults.put("springdoc.api-docs.enabled", "true");
