@@ -53,9 +53,7 @@ describe('fund-test-wallets CLI mode', () => {
         expect(parseManifestKind(['node', 'x'])).toBe('shared');
         expect(parseManifestKind(['node', 'x', '--manifest', 'lab'])).toBe('lab');
         expect(parseManifestKind(['node', 'x', '--manifest', 'shared'])).toBe('shared');
-        expect(() => parseManifestKind(['node', 'x', '--manifest', 'prod'])).toThrow(
-            '--manifest requires shared|lab',
-        );
+        expect(() => parseManifestKind(['node', 'x', '--manifest', 'prod'])).toThrow('--manifest requires shared|lab');
     });
 });
 
@@ -88,12 +86,8 @@ describe('fund-test-wallets BURN-leg attach', () => {
     });
 
     it('env override below minTonFeePath is rejected (would exit 32113 live)', () => {
-        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.1' })).toThrow(
-            /minTonFeePath/,
-        );
-        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.9' })).toThrow(
-            /exit 32113/,
-        );
+        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.1' })).toThrow(/minTonFeePath/);
+        expect(() => resolveJettonTransferAttach({ FUND_JETTON_ATTACH: '0.9' })).toThrow(/exit 32113/);
     });
 });
 

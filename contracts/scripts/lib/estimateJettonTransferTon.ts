@@ -56,17 +56,9 @@ function recipientForwardCount(forwardTonAmount: bigint): bigint {
     return forwardTonAmount > 0n ? 2n : 1n;
 }
 
-function gateMinimumNano(
-    minTonPathNano: bigint,
-    forwardTonAmount: bigint,
-): bigint {
+function gateMinimumNano(minTonPathNano: bigint, forwardTonAmount: bigint): bigint {
     const recipientForwards = recipientForwardCount(forwardTonAmount);
-    return (
-        minTonPathNano +
-        forwardTonAmount +
-        recipientForwards * ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-        1n
-    );
+    return minTonPathNano + forwardTonAmount + recipientForwards * ESTIMATED_FORWARD_FEE_PER_HOP_NANO + 1n;
 }
 
 function feePathBreakdown(
@@ -90,10 +82,7 @@ function feePathBreakdown(
     const poolDeliverNano =
         poolFwdNano + ESTIMATED_FORWARD_FEE_PER_HOP_NANO + MIN_TONS_FOR_STORAGE_NANO + toNano('0.02');
     const treasDeliverNano =
-        GAS_TREASURY_FORWARD_MIN_NANO +
-        ESTIMATED_FORWARD_FEE_PER_HOP_NANO +
-        MIN_TONS_FOR_STORAGE_NANO +
-        toNano('0.02');
+        GAS_TREASURY_FORWARD_MIN_NANO + ESTIMATED_FORWARD_FEE_PER_HOP_NANO + MIN_TONS_FOR_STORAGE_NANO + toNano('0.02');
 
     return {
         deployLegsNano,
@@ -116,9 +105,7 @@ function excludedPathBreakdown(forwardTonAmount: bigint): JettonTransferGasEstim
  * Off-chain attach TON estimate for BURN `JettonTransfer`.
  * `recommendedNano` matches sandbox `TRANSFER_TON` on cold fee path; warm repeat uses lower attach.
  */
-export function estimateJettonTransferTon(
-    params: EstimateJettonTransferTonParams,
-): JettonTransferGasEstimate {
+export function estimateJettonTransferTon(params: EstimateJettonTransferTonParams): JettonTransferGasEstimate {
     const forwardTonAmount = params.forwardTonAmount ?? 0n;
     const warm = params.recipientWalletDeployed === true;
     const skipPropagateEstimate = params.recipientFeeConfigActive === true;

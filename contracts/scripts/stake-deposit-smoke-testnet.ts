@@ -35,11 +35,7 @@ type DeploymentFile = {
     };
 };
 
-async function readPoolTierTotal(
-    provider: NetworkProvider,
-    poolAddr: Address,
-    tier: number,
-): Promise<bigint> {
+async function readPoolTierTotal(provider: NetworkProvider, poolAddr: Address, tier: number): Promise<bigint> {
     const pool = provider.open(StakingPool.fromAddress(poolAddr));
     return pool.getGetTotalStake(BigInt(tier));
 }

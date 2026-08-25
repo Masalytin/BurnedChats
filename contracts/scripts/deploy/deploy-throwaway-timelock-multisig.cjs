@@ -93,8 +93,7 @@ async function waitActive(client, address, label, attempts = 40) {
 
 async function main() {
     const mnemonic = requireEnv('WALLET_MNEMONIC');
-    const apiKey =
-        process.env.TONCENTER_API_KEY_TESTNET?.trim() || process.env.TONCENTER_API_KEY?.trim();
+    const apiKey = process.env.TONCENTER_API_KEY_TESTNET?.trim() || process.env.TONCENTER_API_KEY?.trim();
     const client = new TonClient({
         endpoint: 'https://testnet.toncenter.com/api/v2/jsonRPC',
         apiKey,
@@ -131,19 +130,13 @@ async function main() {
     });
     const init = { code: multisigCode, data };
     const multisigAddr = contractAddress(0, init);
-    console.log(
-        'Multisig address (predicted):',
-        multisigAddr.toString({ urlSafe: true, bounceable: true }),
-    );
+    console.log('Multisig address (predicted):', multisigAddr.toString({ urlSafe: true, bounceable: true }));
 
     const orderCode = loadCompiledHex('Order');
     const librarianCode = loadCompiledHex('Librarian');
     const librarianInit = { code: librarianCode, data: orderCode };
     const librarianAddr = contractAddress(-1, librarianInit);
-    console.log(
-        'Librarian address (predicted):',
-        librarianAddr.toString({ urlSafe: true, bounceable: true }),
-    );
+    console.log('Librarian address (predicted):', librarianAddr.toString({ urlSafe: true, bounceable: true }));
 
     const libState = await client.getContractState(librarianAddr);
     if (libState.state !== 'active') {
@@ -211,9 +204,7 @@ async function main() {
     await waitSeqno(opened, seqno2);
     const bal = await client.getBalance(multisigAddr);
     console.log('Multisig balance TON', Number(bal) / 1e9);
-    console.log(
-        'TIMELOCK_GOVERNOR=' + multisigAddr.toString({ urlSafe: true, bounceable: true }),
-    );
+    console.log('TIMELOCK_GOVERNOR=' + multisigAddr.toString({ urlSafe: true, bounceable: true }));
 }
 
 main().catch((e) => {

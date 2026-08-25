@@ -17,22 +17,11 @@
  * in the sandbox and proves the CONTRACT records the stake correctly.
  */
 import { SandboxContract, TreasuryContract } from '@ton/sandbox';
-import {
-    Address,
-    Contract,
-    ContractProvider,
-    openContract,
-    TupleItem,
-    TupleReader,
-} from '@ton/core';
+import { Address, Contract, ContractProvider, openContract, TupleItem, TupleReader } from '@ton/core';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
-import {
-    readStakeAmount,
-    STAKE_ATTACHED_TON,
-    STAKE_FORWARD_TON,
-} from '../testnet-scenarios/lib/staking';
+import { readStakeAmount, STAKE_ATTACHED_TON, STAKE_FORWARD_TON } from '../testnet-scenarios/lib/staking';
 import { MINT_TON, NANO_PER_BURN, stakeForwardPayload, TRANSFER_TON } from './helpers';
 import { setupStakingEnvironment, StakingTestEnv } from './staking-helpers';
 import '@ton/test-utils';
@@ -41,9 +30,7 @@ import '@ton/test-utils';
 const LIVE_STAKE_RECORD = [10_020_000_000n, 0n, 1_784_827_805n, 1_784_828_020n, 1_784_828_020n];
 
 const MASTER_ADDR = Address.parse('EQBmkM_xe-12_YjfTqUBeh3JnqR8PttyPALYHBwcr_0ryvMH');
-const OWNER_ADDR = Address.parseRaw(
-    '0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9',
-);
+const OWNER_ADDR = Address.parseRaw('0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9');
 
 /**
  * Build a get_stake result stack exactly as `@ton/ton` TonClient v2 does:
@@ -54,9 +41,7 @@ function toncenterV2GetStakeStack(record: bigint[] | null): TupleReader {
     if (record === null) {
         return new TupleReader([{ type: 'null' } as TupleItem]);
     }
-    return new TupleReader([
-        { type: 'tuple', items: record as unknown as TupleItem[] } as TupleItem,
-    ]);
+    return new TupleReader([{ type: 'tuple', items: record as unknown as TupleItem[] } as TupleItem]);
 }
 
 /** Well-formed shape (sandbox / TonClient4 / liteclient): proper TupleItemInt items. */

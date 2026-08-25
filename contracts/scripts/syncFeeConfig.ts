@@ -74,7 +74,9 @@ export async function run(provider: NetworkProvider) {
     const activeAfter = await wallet.getGetFeeConfigActive();
     console.log('[syncFeeConfig] fee_config_active after', activeAfter);
     if (!activeAfter) {
-        throw new Error('Sync tx sent but get_fee_config_active is still false — check timelock sender and wallet deployment.');
+        throw new Error(
+            'Sync tx sent but get_fee_config_active is still false — check timelock sender and wallet deployment.',
+        );
     }
     console.log('[syncFeeConfig] done.');
 }

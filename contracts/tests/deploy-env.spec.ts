@@ -2,20 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
-import {
-    applyBlueprintWalletAliases,
-    initDeployEnv,
-    loadDeployEnv,
-    resolveMnemonic,
-} from '../scripts/deploy/env';
+import { applyBlueprintWalletAliases, initDeployEnv, loadDeployEnv, resolveMnemonic } from '../scripts/deploy/env';
 
-const ENV_KEYS = [
-    'WALLET_MNEMONIC',
-    'WALLET_VERSION',
-    'MNEMONIC',
-    'MNEMONIC_TESTNET',
-    'MNEMONIC_MAINNET',
-] as const;
+const ENV_KEYS = ['WALLET_MNEMONIC', 'WALLET_VERSION', 'MNEMONIC', 'MNEMONIC_TESTNET', 'MNEMONIC_MAINNET'] as const;
 
 describe('deploy env', () => {
     let tempRoot: string;
@@ -64,10 +53,7 @@ describe('deploy env', () => {
 
     it('does not override explicit WALLET_MNEMONIC', () => {
         process.argv = ['node', 'blueprint', 'run', 'deploy', '--testnet', '--mnemonic'];
-        writeFileSync(
-            join(tempRoot, '.env.testnet'),
-            'WALLET_MNEMONIC=explicit\nMNEMONIC_TESTNET=legacy\n',
-        );
+        writeFileSync(join(tempRoot, '.env.testnet'), 'WALLET_MNEMONIC=explicit\nMNEMONIC_TESTNET=legacy\n');
 
         loadDeployEnv(tempRoot);
         applyBlueprintWalletAliases();

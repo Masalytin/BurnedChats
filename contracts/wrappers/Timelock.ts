@@ -25,11 +25,7 @@ export class Timelock extends TimelockBase {
         governor: Address,
         highValueDelayFloorSec: bigint = TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC,
     ): Promise<Timelock> {
-        const raw = await TimelockBase.fromInit(
-            governor,
-            highValueDelayFloorSec,
-            emptyTimelockPendingMap(),
-        );
+        const raw = await TimelockBase.fromInit(governor, highValueDelayFloorSec, emptyTimelockPendingMap());
         return new Timelock(raw.address, raw.init);
     }
 

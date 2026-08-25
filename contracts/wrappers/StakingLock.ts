@@ -37,12 +37,7 @@ export function defaultStakingTierConfigs(): Dictionary<bigint, TierConfig> {
 
 export class StakingLock extends StakingLockBase {
     static async prepareInit(timelock: Address): Promise<StakingLock> {
-        const raw = await StakingLockBase.fromInit(
-            timelock,
-            timelock,
-            false,
-            defaultStakingTierConfigs(),
-        );
+        const raw = await StakingLockBase.fromInit(timelock, timelock, false, defaultStakingTierConfigs());
         return new StakingLock(raw.address, raw.init);
     }
 

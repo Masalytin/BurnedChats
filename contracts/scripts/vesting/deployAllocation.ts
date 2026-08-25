@@ -11,13 +11,7 @@
 import { Address, toNano } from '@ton/core';
 import { NetworkProvider } from '@ton/blueprint';
 import { Vesting } from '../../wrappers/Vesting';
-import {
-    beneficiaryForPreset,
-    parseAllocationId,
-    presetDurations,
-    presetTotalNano,
-    VESTING_PRESETS,
-} from './presets';
+import { beneficiaryForPreset, parseAllocationId, presetDurations, presetTotalNano, VESTING_PRESETS } from './presets';
 
 const DEPLOY_TON = toNano('0.2');
 

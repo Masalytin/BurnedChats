@@ -1,37 +1,37 @@
 {
-  "network": "testnet",
-  "role": "lab",
-  "deployedAt": "2026-08-22",
-  "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-  "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260822-tnfs-lab",
-  "lab": {
-    "timelockDelaySec": 60,
-    "cancelLagSec": 30,
-    "proposalPeriodSec": 60,
-    "proposalTimelockDelaySec": 60,
-    "mintableAdmin": true,
-    "notes": "IMP-TNFS-F02: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; mint open; destructive + short-gov only. Post-F17/F22 tip (gate 1.0, SetGasParams). Do not syncAppConfigs / do not point Mini App here. Vesting addresses = gen-1 (funded 7/150/43, excluded, start=1787416366) from the interrupted first bootstrap pass; a second pass re-deployed empty gen-2 vestings (kQDUiMrEr…/kQAbUeaAc…/kQBopzvqc…, also excluded, mints rejected by supply cap — see decision log IMP-TNFS-lab-vesting-two-generations)."
-  },
-  "addresses": {
-    "jettonMaster": "kQAtIfFCbMLS28yq95P-Gdxa6z9zxhI_76FL0cvU-HNJ1rTy",
-    "treasury": "kQCcxX-DfVavXkYhBsgikb6wjF_EaPRaxlUn7pyAY96xshVC",
-    "treasuryJettonWallet": "kQCh7k_I5-E9S3x7jBKe8CziPK3spcwn64fGZzczpyA2mtUR",
-    "stakingPool": "kQAcpM2QxqoN4OXXjafG6NEfrzgR8KFyUk5MVJbBkG7xWjp6",
-    "stakingLock": "kQBhVPntOamLE-mDlVNfqB9J83HoCtNKPo-rN-JU3uKGV-4i",
-    "stakingMaster": "kQD54ySBjh6WivfE43SzB15ND5-iGmkJoDjlh0egdLr7xgJO",
-    "governor": "kQAdVuask5UC0R3-xyUW5cAhBSc2QTLxb9dTnHQ627MuE7W_",
-    "timelock": "kQDfHUtglLTmc0yxj8pD_LZqLHpOLqmHuz9cK-0dsCrCrQk-",
-    "vestingDeveloper": "kQBGlbBv-I7-JAmk0C14_UDs2TQZkHOn0shzTw8bMMOeXuUT",
-    "vestingEcosystem": "kQDuaqeyJCI7h2kFi7quYzA4kaUSedyDFQ3MKj9AYHxDpLr2",
-    "vestingReserve": "kQCXYKXjSZ008CK6PelrHjJ4LXJYl0OTdfadOzUVL_hwmWWb",
-    "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
-    "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
-  },
-  "bootstrap": {
-    "jettonTimelockIsDeployer": false,
-    "timelockGovernorIsDeployer": false,
-    "timelockGovernor": "kQCPr9HzVTPEq9p-Og3dHldHXtludcLX5se0WvxwRGybZaoG",
-    "stakingMasterGovernorIsDeployer": false,
-    "supplyFinalized": false
-  }
+    "network": "testnet",
+    "role": "lab",
+    "deployedAt": "2026-08-22",
+    "deployer": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
+    "metadataUri": "https://burnedchats.net/jetton-metadata.json?v=20260822-tnfs-lab",
+    "lab": {
+        "timelockDelaySec": 60,
+        "cancelLagSec": 30,
+        "proposalPeriodSec": 60,
+        "proposalTimelockDelaySec": 60,
+        "mintableAdmin": true,
+        "notes": "IMP-TNFS-F02: LAB_GOV_SHORT_TIMERS cancelLag=30 period=60 proposalTimelockDelay=60 Governor.timelockDelaySec=60; mint open; destructive + short-gov only. Post-F17/F22 tip (gate 1.0, SetGasParams). Do not syncAppConfigs / do not point Mini App here. Vesting addresses = gen-1 (funded 7/150/43, excluded, start=1787416366) from the interrupted first bootstrap pass; a second pass re-deployed empty gen-2 vestings (kQDUiMrEr…/kQAbUeaAc…/kQBopzvqc…, also excluded, mints rejected by supply cap — see decision log IMP-TNFS-lab-vesting-two-generations)."
+    },
+    "addresses": {
+        "jettonMaster": "kQAtIfFCbMLS28yq95P-Gdxa6z9zxhI_76FL0cvU-HNJ1rTy",
+        "treasury": "kQCcxX-DfVavXkYhBsgikb6wjF_EaPRaxlUn7pyAY96xshVC",
+        "treasuryJettonWallet": "kQCh7k_I5-E9S3x7jBKe8CziPK3spcwn64fGZzczpyA2mtUR",
+        "stakingPool": "kQAcpM2QxqoN4OXXjafG6NEfrzgR8KFyUk5MVJbBkG7xWjp6",
+        "stakingLock": "kQBhVPntOamLE-mDlVNfqB9J83HoCtNKPo-rN-JU3uKGV-4i",
+        "stakingMaster": "kQD54ySBjh6WivfE43SzB15ND5-iGmkJoDjlh0egdLr7xgJO",
+        "governor": "kQAdVuask5UC0R3-xyUW5cAhBSc2QTLxb9dTnHQ627MuE7W_",
+        "timelock": "kQDfHUtglLTmc0yxj8pD_LZqLHpOLqmHuz9cK-0dsCrCrQk-",
+        "vestingDeveloper": "kQBGlbBv-I7-JAmk0C14_UDs2TQZkHOn0shzTw8bMMOeXuUT",
+        "vestingEcosystem": "kQDuaqeyJCI7h2kFi7quYzA4kaUSedyDFQ3MKj9AYHxDpLr2",
+        "vestingReserve": "kQCXYKXjSZ008CK6PelrHjJ4LXJYl0OTdfadOzUVL_hwmWWb",
+        "airdropHolder": "kQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDtax",
+        "liquidityHolder": "kQBNxdjqjhQP2OPaZHSRj06NRTd4z6-Trd6BdZ0DX0_9WM4G"
+    },
+    "bootstrap": {
+        "jettonTimelockIsDeployer": false,
+        "timelockGovernorIsDeployer": false,
+        "timelockGovernor": "kQCPr9HzVTPEq9p-Og3dHldHXtludcLX5se0WvxwRGybZaoG",
+        "stakingMasterGovernorIsDeployer": false,
+        "supplyFinalized": false
+    }
 }

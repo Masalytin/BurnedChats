@@ -28,22 +28,16 @@ describe('resolveTimelockGovernor (PARAMETERS §2 B)', () => {
     });
 
     it('lab path: defaults to deployer when env unset', () => {
-        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: false }).equals(DEPLOYER)).toBe(
-            true,
-        );
+        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: false }).equals(DEPLOYER)).toBe(true);
     });
 
     it('mainnet path: throws when env unset', () => {
-        expect(() => resolveTimelockGovernor(DEPLOYER, { requireMultisig: true })).toThrow(
-            /TIMELOCK_GOVERNOR unset/,
-        );
+        expect(() => resolveTimelockGovernor(DEPLOYER, { requireMultisig: true })).toThrow(/TIMELOCK_GOVERNOR unset/);
     });
 
     it('uses TIMELOCK_GOVERNOR when set', () => {
         process.env.TIMELOCK_GOVERNOR = MULTISIG.toString({ urlSafe: true, bounceable: true });
-        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: true }).equals(MULTISIG)).toBe(
-            true,
-        );
+        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: true }).equals(MULTISIG)).toBe(true);
     });
 
     it('accepts TIMELOCK_GOVERNOR_MULTISIG alias', () => {
@@ -51,8 +45,6 @@ describe('resolveTimelockGovernor (PARAMETERS §2 B)', () => {
             urlSafe: true,
             bounceable: true,
         });
-        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: true }).equals(MULTISIG)).toBe(
-            true,
-        );
+        expect(resolveTimelockGovernor(DEPLOYER, { requireMultisig: true }).equals(MULTISIG)).toBe(true);
     });
 });

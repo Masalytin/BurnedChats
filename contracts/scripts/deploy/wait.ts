@@ -42,9 +42,7 @@ export async function waitForSenderSeqnoIncrement(
     }
     const ui = provider.ui();
     for (let i = 1; i <= attempts; i++) {
-        ui.setActionPrompt(
-            `Awaiting transaction (deployer seqno > ${fromSeqno}) [${i}/${attempts}]`,
-        );
+        ui.setActionPrompt(`Awaiting transaction (deployer seqno > ${fromSeqno}) [${i}/${attempts}]`);
         try {
             const current = await getSenderSeqno(provider);
             if (current > fromSeqno) {

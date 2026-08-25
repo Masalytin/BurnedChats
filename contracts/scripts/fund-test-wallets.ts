@@ -44,10 +44,7 @@ import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { NANO_PER_BURN, parseEnvAddress, readJettonWalletBalance } from '../testnet-scenarios/lib/balances';
 import { loadManifest } from '../testnet-scenarios/lib/manifest';
-import {
-    deriveWalletAddressFromMnemonic,
-    resolveTestActorMnemonic,
-} from '../testnet-scenarios/lib/test-actor';
+import { deriveWalletAddressFromMnemonic, resolveTestActorMnemonic } from '../testnet-scenarios/lib/test-actor';
 import { applyBlueprintWalletAliases, loadDeployEnv } from './deploy/env';
 import type { ManifestKind } from '../testnet-scenarios/types';
 
@@ -90,8 +87,7 @@ export function resolveCliMode(argv: string[]): FundCliMode {
         argv.includes('--manifest') ||
         argv.includes('--yes') ||
         argv.includes('--init-actor');
-    const wantsUsage =
-        argv.length === 0 || argv.includes('--usage') || argv.includes('--help') || argv.includes('-h');
+    const wantsUsage = argv.length === 0 || argv.includes('--usage') || argv.includes('--help') || argv.includes('-h');
     if (wantsUsage && !anyWork) {
         return 'usage';
     }
@@ -218,9 +214,7 @@ async function resolveActorAddress(): Promise<Address> {
     if (fromEnv) {
         return fromEnv;
     }
-    throw new Error(
-        'Set TEST_ACTOR_MNEMONIC (or FEE_TEST_SENDER / TEST_ACTOR address) for Actor A destination.',
-    );
+    throw new Error('Set TEST_ACTOR_MNEMONIC (or FEE_TEST_SENDER / TEST_ACTOR address) for Actor A destination.');
 }
 
 type FundPlan = {
@@ -302,9 +296,7 @@ async function assertNonExcluded(
     const master = provider.open(BurnJettonMaster.fromAddress(jettonMaster));
     const excluded = await master.getGetIsExcluded(owner);
     if (excluded) {
-        throw new Error(
-            `${label} ${fmtAddr(owner)} is fee-excluded on tip — use a non-excluded Actor A / recipient.`,
-        );
+        throw new Error(`${label} ${fmtAddr(owner)} is fee-excluded on tip — use a non-excluded Actor A / recipient.`);
     }
     return excluded;
 }
@@ -393,9 +385,7 @@ async function waitForWalletSeqnoAbove(
         }
         await sleepMs(delayMs);
     }
-    throw new Error(
-        `wallet ${fmtAddr(dw.address)} seqno did not advance from ${fromSeqno} after ${attempts} attempts`,
-    );
+    throw new Error(`wallet ${fmtAddr(dw.address)} seqno did not advance from ${fromSeqno} after ${attempts} attempts`);
 }
 
 /**
@@ -562,12 +552,7 @@ async function executeFund(
         if (plan.recipient.equals(plan.actor) || plan.recipient.equals(plan.source)) {
             throw new Error('FEE_TEST_RECIPIENT must be distinct from source and Actor A');
         }
-        recipientExcluded = await assertNonExcluded(
-            provider,
-            plan.jettonMaster,
-            plan.recipient,
-            'FEE_TEST_RECIPIENT',
-        );
+        recipientExcluded = await assertNonExcluded(provider, plan.jettonMaster, plan.recipient, 'FEE_TEST_RECIPIENT');
     }
 
     const actorState = await readAccountStateType(provider, plan.actor);
@@ -575,8 +560,7 @@ async function executeFund(
 
     // Preflight the source TON budget: a V5R1 wallet SILENTLY SKIPS an action
     // when the balance cannot cover the attach (seqno grows, nothing on-chain).
-    const required =
-        plan.actorTon + plan.jettonAttach + (plan.recipient ? plan.recipientTon : 0n) + SOURCE_GAS_MARGIN;
+    const required = plan.actorTon + plan.jettonAttach + (plan.recipient ? plan.recipientTon : 0n) + SOURCE_GAS_MARGIN;
     const sourceBalance = await readTonBalance(provider, plan.source);
     console.log(
         `[fund-test-wallets] source TON ${sourceBalance.toString()} nano; required ≈ ${required.toString()} nano`,
@@ -664,9 +648,7 @@ async function mainCli(): Promise<void> {
 }
 
 /** Provider bootstrap that keeps deploy WALLET_MNEMONIC (skips Actor A switch). */
-async function createTestnetNetworkProviderWithoutActor(
-    contractsRoot: string,
-): Promise<NetworkProvider> {
+async function createTestnetNetworkProviderWithoutActor(contractsRoot: string): Promise<NetworkProvider> {
     // Inline minimal clone of createTestnetNetworkProvider without applyTestActorForScenarios.
     const { createNetworkProvider } = await import('@ton/blueprint');
     const { SilentUIProvider } = await import('../testnet-scenarios/lib/provider');
@@ -683,10 +665,7 @@ async function createTestnetNetworkProviderWithoutActor(
     );
 }
 
-const isDirectRun =
-    typeof require !== 'undefined' &&
-    typeof module !== 'undefined' &&
-    require.main === module;
+const isDirectRun = typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module;
 
 if (isDirectRun) {
     mainCli().catch((err) => {

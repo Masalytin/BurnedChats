@@ -2,11 +2,7 @@ import { Blockchain } from '@ton/sandbox';
 import '@ton/test-utils';
 import { Address, toNano } from '@ton/core';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
-import {
-    aggregateExpectedBalancesByOwner,
-    MINT_ALLOCATIONS,
-    REVOKED_ADMIN_ADDRESS,
-} from '../scripts/deploy/bootstrap';
+import { aggregateExpectedBalancesByOwner, MINT_ALLOCATIONS, REVOKED_ADMIN_ADDRESS } from '../scripts/deploy/bootstrap';
 import type { MintAllocation } from '../scripts/deploy/types';
 
 const NANO = 10n ** 9n;
@@ -76,11 +72,7 @@ describe('mainnet supply finalization (IMP-MNAUD-F05)', () => {
             const blockchain = await Blockchain.create();
             const deployer = await blockchain.treasury('deployer');
             const content = BurnJettonMaster.jettonContentFromUri('https://example.com/burn.json');
-            const jetton = await BurnJettonMaster.fromInitDeployed(
-                deployer.address,
-                content,
-                deployer.address,
-            );
+            const jetton = await BurnJettonMaster.fromInitDeployed(deployer.address, content, deployer.address);
             const master = blockchain.openContract(jetton);
             await master.send(deployer.getSender(), { value: toNano('0.5') }, null);
 

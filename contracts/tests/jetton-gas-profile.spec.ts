@@ -1,14 +1,7 @@
 import { Address, toNano } from '@ton/core';
 import { filterTransactions } from '@ton/test-utils';
 import { expect } from '@jest/globals';
-import {
-    deployJetton,
-    getWallet,
-    MINT_TON,
-    NANO_PER_BURN,
-    TRANSFER_TON,
-    type JettonDeployedContext,
-} from './helpers';
+import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, TRANSFER_TON, type JettonDeployedContext } from './helpers';
 import '@ton/test-utils';
 
 export type FeeSplitOutMsgProfile = {
@@ -70,8 +63,7 @@ function feeSplitOutProfile(
         filterTransactions(transactions, { from: senderJw, to: master }),
     );
 
-    const totalOutNano =
-        recipientLegNano + poolLegNano + treasuryLegNano + burnNotifyNano + propagateNano;
+    const totalOutNano = recipientLegNano + poolLegNano + treasuryLegNano + burnNotifyNano + propagateNano;
     const senderSurplusNano = attachNano - totalOutNano;
 
     return {

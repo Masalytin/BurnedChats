@@ -26,9 +26,7 @@ function envTrim(key: string): string | undefined {
     return v && v.length > 0 ? v : undefined;
 }
 
-export function resolveTimelockGovernorAddress(
-    env: NodeJS.ProcessEnv = process.env,
-): Address | null {
+export function resolveTimelockGovernorAddress(env: NodeJS.ProcessEnv = process.env): Address | null {
     const raw = env.TIMELOCK_GOVERNOR?.trim() || env.TIMELOCK_GOVERNOR_MULTISIG?.trim();
     return raw ? Address.parse(raw) : null;
 }
@@ -79,9 +77,7 @@ async function deriveV5R1AddressFromMnemonic(mnemonic: string): Promise<{
  * Optional MULTISIG_SIGNER_N_ADDRESS overrides derived address (must match pubkey wallet
  * used for signing — override is for reporting only when derivation knobs match).
  */
-export async function loadMultisigSignerSlots(
-    _env: NodeJS.ProcessEnv = process.env,
-): Promise<MultisigSignerSlot[]> {
+export async function loadMultisigSignerSlots(_env: NodeJS.ProcessEnv = process.env): Promise<MultisigSignerSlot[]> {
     const slots: MultisigSignerSlot[] = [];
     for (let i = 1; i <= SIGNER_COUNT; i += 1) {
         const mnemonic = envTrim(`MULTISIG_SIGNER_${i}_MNEMONIC`);
@@ -105,9 +101,7 @@ export async function loadMultisigSignerSlots(
  * Validate env for agent-autonomous lab Timelock-via-multisig work.
  * Does not deploy or send txs.
  */
-export async function assertMultisigLabEnvReady(
-    env: NodeJS.ProcessEnv = process.env,
-): Promise<ResolvedMultisigEnv> {
+export async function assertMultisigLabEnvReady(env: NodeJS.ProcessEnv = process.env): Promise<ResolvedMultisigEnv> {
     const governor = resolveTimelockGovernorAddress(env);
     if (!governor) {
         throw new Error(
@@ -119,17 +113,13 @@ export async function assertMultisigLabEnvReady(
     const kind = resolveMultisigKind(env);
     const signers = await loadMultisigSignerSlots(env);
     if (signers.length < threshold) {
-        throw new Error(
-            `need at least MULTISIG_THRESHOLD=${threshold} signer mnemonics, have ${signers.length}`,
-        );
+        throw new Error(`need at least MULTISIG_THRESHOLD=${threshold} signer mnemonics, have ${signers.length}`);
     }
     return { governor, kind, threshold, signers };
 }
 
 /** Soft preflight for docs/scripts — returns missing requirement strings. */
-export async function listMultisigLabEnvGaps(
-    env: NodeJS.ProcessEnv = process.env,
-): Promise<string[]> {
+export async function listMultisigLabEnvGaps(env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
     const gaps: string[] = [];
     if (!resolveTimelockGovernorAddress(env)) {
         gaps.push('TIMELOCK_GOVERNOR (deploy throwaway testnet multisig and set address)');
@@ -137,9 +127,7 @@ export async function listMultisigLabEnvGaps(
     const threshold = resolveMultisigThreshold(env);
     const signers = await loadMultisigSignerSlots(env);
     if (signers.length < threshold) {
-        gaps.push(
-            `MULTISIG_SIGNER_*_MNEMONIC (≥${threshold}; currently ${signers.length} filled)`,
-        );
+        gaps.push(`MULTISIG_SIGNER_*_MNEMONIC (≥${threshold}; currently ${signers.length} filled)`);
     }
     if (!env.MULTISIG_KIND?.trim()) {
         gaps.push('MULTISIG_KIND (optional default ton-multisig-v2)');

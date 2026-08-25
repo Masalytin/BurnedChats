@@ -91,10 +91,14 @@ describe('Vesting (P5-3-3-1)', () => {
         const v = blockchain.openContract(vest);
         await v.send(deployer.getSender(), { value: DEPLOY_TON, bounce: true }, null);
 
-        const r = await v.send(userY.getSender(), { value: toNano('0.5'), bounce: true }, {
-            $$type: 'VestRelease' as const,
-            queryId: 0n,
-        });
+        const r = await v.send(
+            userY.getSender(),
+            { value: toNano('0.5'), bounce: true },
+            {
+                $$type: 'VestRelease' as const,
+                queryId: 0n,
+            },
+        );
         expect(r.transactions).toHaveTransaction({ success: false });
     });
 
@@ -182,9 +186,7 @@ describe('Vesting (P5-3-3-1)', () => {
         const totalNano = 50n * NANO_PER_BURN;
 
         // Real Treasury contract (not an EOA stub) as the revoke destination.
-        const treasuryContract = blockchain.openContract(
-            await Treasury.prepareInit(deployer.address, master.address),
-        );
+        const treasuryContract = blockchain.openContract(await Treasury.prepareInit(deployer.address, master.address));
         await treasuryContract.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
         const vest = await Vesting.prepareInit({
@@ -237,9 +239,7 @@ describe('Vesting (P5-3-3-1)', () => {
         // forbidden and the init-time floor applies. Use a lab-style short floor
         // and wait it out before each execute.
         const HIGH_VALUE_FLOOR = 60n;
-        const timelock = blockchain.openContract(
-            await Timelock.prepareInit(deployer.address, HIGH_VALUE_FLOOR),
-        );
+        const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address, HIGH_VALUE_FLOOR));
         await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
 
         const vest = await Vesting.prepareInit({

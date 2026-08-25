@@ -108,11 +108,7 @@ export function resolveToncenterApiKey(): string | undefined {
     if (isMainnet) {
         return process.env.TONCENTER_API_KEY?.trim() || undefined;
     }
-    return (
-        process.env.TONCENTER_API_KEY_TESTNET?.trim() ||
-        process.env.TONCENTER_API_KEY?.trim() ||
-        undefined
-    );
+    return process.env.TONCENTER_API_KEY_TESTNET?.trim() || process.env.TONCENTER_API_KEY?.trim() || undefined;
 }
 
 export function isForceRedeploy(): boolean {

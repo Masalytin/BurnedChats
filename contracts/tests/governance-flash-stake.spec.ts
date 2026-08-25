@@ -105,12 +105,7 @@ async function createProposal(
     return { id, proposal };
 }
 
-async function castVote(
-    env: GovEnv,
-    voter: SandboxContract<TreasuryContract>,
-    id: bigint,
-    support: boolean,
-) {
+async function castVote(env: GovEnv, voter: SandboxContract<TreasuryContract>, id: bigint, support: boolean) {
     return env.governor.sendCastVote(voter.getSender(), { proposalId: id, support, claimedVp: 10n ** 30n });
 }
 

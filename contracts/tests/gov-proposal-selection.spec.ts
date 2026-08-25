@@ -13,15 +13,7 @@
  *
  * Stub NetworkProvider pattern mirrors gov-timelock-pending-tolerant-read.spec.ts.
  */
-import {
-    Address,
-    beginCell,
-    Contract,
-    ContractProvider,
-    openContract,
-    TupleItem,
-    TupleReader,
-} from '@ton/core';
+import { Address, beginCell, Contract, ContractProvider, openContract, TupleItem, TupleReader } from '@ton/core';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
 import {
@@ -63,9 +55,7 @@ function intStack(value: bigint): TupleReader {
 }
 
 function addressStack(addr: Address): TupleReader {
-    return new TupleReader([
-        { type: 'slice', cell: beginCell().storeAddress(addr).endCell() } as TupleItem,
-    ]);
+    return new TupleReader([{ type: 'slice', cell: beginCell().storeAddress(addr).endCell() } as TupleItem]);
 }
 
 /**
@@ -107,8 +97,7 @@ function makeCtx(proposals: ProposalStub[]): ScenarioContext {
 
     const provider = {
         provider: providerFor,
-        open: <T extends Contract>(contract: T) =>
-            openContract(contract, (p) => providerFor(p.address)),
+        open: <T extends Contract>(contract: T) => openContract(contract, (p) => providerFor(p.address)),
     } as unknown as NetworkProvider;
 
     return {
@@ -135,10 +124,7 @@ describe('IMP-TNFS-F13 — resolveUsableProposal (state-aware scan)', () => {
         // Exact tip shape from 2026-07-25 lab run: fs-gov-cancel created id=1
         // and cancelled it. Old resolveLatestProposalAddr returned id=1 → vote
         // rejected on-chain and queue-execute failed "state=5 expected 4".
-        const ctx = makeCtx([
-            { state: PS_EXECUTED },
-            { state: PS_CANCELLED },
-        ]);
+        const ctx = makeCtx([{ state: PS_EXECUTED }, { state: PS_CANCELLED }]);
 
         const votable = await resolveUsableProposal(ctx, 'votable', { nowUnix: NOW });
         expect(votable).toBeNull(); // vote-happy must create a fresh proposal
@@ -153,10 +139,7 @@ describe('IMP-TNFS-F13 — resolveUsableProposal (state-aware scan)', () => {
     });
 
     it('skips a cancelled latest and returns the earlier in-window Active proposal', async () => {
-        const ctx = makeCtx([
-            { state: PS_ACTIVE, ...IN_WINDOW },
-            { state: PS_CANCELLED },
-        ]);
+        const ctx = makeCtx([{ state: PS_ACTIVE, ...IN_WINDOW }, { state: PS_CANCELLED }]);
         for (const want of ['votable', 'reusable', 'executable'] as const) {
             const found = await resolveUsableProposal(ctx, want, { nowUnix: NOW });
             expect(found).not.toBeNull();
@@ -191,11 +174,7 @@ describe('IMP-TNFS-F13 — resolveUsableProposal (state-aware scan)', () => {
     });
 
     it('returns null when no proposal within scan depth is usable', async () => {
-        const ctx = makeCtx([
-            { state: PS_CANCELLED },
-            { state: PS_DEFEATED },
-            { state: PS_CANCELLED },
-        ]);
+        const ctx = makeCtx([{ state: PS_CANCELLED }, { state: PS_DEFEATED }, { state: PS_CANCELLED }]);
         for (const want of ['votable', 'reusable', 'executable'] as const) {
             expect(await resolveUsableProposal(ctx, want, { nowUnix: NOW })).toBeNull();
         }

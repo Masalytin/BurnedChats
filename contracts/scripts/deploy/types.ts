@@ -35,5 +35,11 @@ export type MintAllocation = {
     label: string;
     burnAmount: bigint;
     /** `stakingPool` mints straight to the pool jetton wallet (emission reserve, IMP-MNAUD-F01). */
-    receiver: 'vestingDeveloper' | 'vestingEcosystem' | 'vestingReserve' | 'stakingPool' | 'airdropHolder' | 'liquidityHolder';
+    receiver:
+        | 'vestingDeveloper'
+        | 'vestingEcosystem'
+        | 'vestingReserve'
+        | 'stakingPool'
+        | 'airdropHolder'
+        | 'liquidityHolder';
 };

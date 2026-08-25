@@ -1091,12 +1091,7 @@ describe('IMP-AUDIT-03 — StakingLock runtime wiring', () => {
         const user = await env.blockchain.treasury('audit03-share-user');
         await mintAndSyncUser(env, user, 3n * MIN_STAKE_NANO);
 
-        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [
-            10n,
-            10n,
-            25n,
-            55n,
-        ]);
+        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [10n, 10n, 25n, 55n]);
         expect(gov.transactions).toHaveTransaction({ on: env.stakingLock.address, success: true });
         expect((await env.stakingMaster.getGetTierConfig(0n)).rewardShare).toBe(10n);
 
@@ -1169,12 +1164,7 @@ describe('IMP-RELAY-03 — StakingLock ↔ StakingMaster tier sync relay', () =>
         const env = await setupStakingEnvironment('https://example.com/relay03-shares.json');
         await wireStakingLockPushSync(env.stakingLock, env.stakingMaster, env.deployer);
 
-        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [
-            12n,
-            13n,
-            25n,
-            50n,
-        ]);
+        const gov = await env.stakingLock.sendSetAllTierRewardShares(env.deployer.getSender(), [12n, 13n, 25n, 50n]);
         expect(gov.transactions).toHaveTransaction({ success: true });
         expect((await env.stakingMaster.getGetTierConfig(0n)).rewardShare).toBe(12n);
 
@@ -1510,9 +1500,7 @@ describe('IMP-MNAUD-F01 — mint-to-pool emission funding (physical backing)', (
         // 4. Stakers' principal is not spent by the emission payout: the stake body is
         //    intact and the pool's wallet still covers principal + unspent reserve.
         expect((await env.stakingMaster.getGetStake(user.address, 0n))!.amount).toBe(principal);
-        expect((await poolJw.getGetWalletData()).balance).toBe(
-            TOTAL_EMISSION_BUDGET_NANO + principal - paid,
-        );
+        expect((await poolJw.getGetWalletData()).balance).toBe(TOTAL_EMISSION_BUDGET_NANO + principal - paid);
         // pool_balance bookkeeping: principal + emitted credit − reward paid out.
         expect(await env.pool.getGetPoolBalance()).toBe(principal + emitted - paid);
 

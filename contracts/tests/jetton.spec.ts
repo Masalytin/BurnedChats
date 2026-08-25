@@ -9,7 +9,10 @@ import {
     type SetAutoReduceParams as SetAutoReduceParamsMsg,
     type SetFeeParams as SetFeeParamsMsg,
 } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
-import { BurnJettonWallet_errors_backward, storeJettonBurnNotification } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
+import {
+    BurnJettonWallet_errors_backward,
+    storeJettonBurnNotification,
+} from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonWallet';
 import {
     deployJetton,
     getWallet,
@@ -54,13 +57,7 @@ describe('BurnJetton', () => {
             const keys = Object.keys(data)
                 .filter((k) => k !== '$$type')
                 .sort();
-            expect(keys).toEqual([
-                'adminAddress',
-                'jettonContent',
-                'jettonWalletCode',
-                'mintable',
-                'totalSupply',
-            ]);
+            expect(keys).toEqual(['adminAddress', 'jettonContent', 'jettonWalletCode', 'mintable', 'totalSupply']);
             expect(data.jettonContent).toBeDefined();
             expect(data.jettonWalletCode).toBeDefined();
         });
@@ -117,10 +114,7 @@ describe('BurnJetton', () => {
             expect((await wy.getGetWalletData()).balance).toBe(amount);
             expect(await wy.getGetFeeConfigActive()).toBe(false);
 
-            const sync = await ctx.master.sendSyncFeeConfigToWallet(
-                ctx.deployer.getSender(),
-                ctx.userY.address,
-            );
+            const sync = await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userY.address);
             expect(sync.transactions).toHaveTransaction({ success: true });
             expect(await wy.getGetFeeConfigActive()).toBe(true);
         });
@@ -137,10 +131,7 @@ describe('BurnJetton', () => {
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
             expect(await ws.getGetFeeConfigActive()).toBe(true);
 
-            const resync = await ctx.master.sendSyncFeeConfigToWallet(
-                ctx.deployer.getSender(),
-                ctx.staking.address,
-            );
+            const resync = await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.staking.address);
             expect(resync.transactions).toHaveTransaction({ success: true });
             expect(await ws.getGetFeeConfigActive()).toBe(true);
         });
@@ -154,10 +145,7 @@ describe('BurnJetton', () => {
             const stateBefore = await ctx.blockchain.getContract(treasuryJwAddr);
             expect(stateBefore.accountState?.type !== 'active').toBe(true);
 
-            const sync = await ctx.master.sendSyncFeeConfigToWallet(
-                ctx.deployer.getSender(),
-                ctx.treasury.address,
-            );
+            const sync = await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.treasury.address);
             expect(sync.transactions).toHaveTransaction({
                 from: ctx.master.address,
                 to: treasuryJwAddr,
@@ -581,9 +569,7 @@ describe('BurnJetton', () => {
             expect(r.transactions).toHaveTransaction({ from: wx.address, success: true });
 
             // Sender keeps the bounced staking+treasury parts — no silent loss.
-            expect((await wx.getGetWalletData()).balance).toBe(
-                100n * NANO_PER_BURN - amount + staking + treasury,
-            );
+            expect((await wx.getGetWalletData()).balance).toBe(100n * NANO_PER_BURN - amount + staking + treasury);
             const wy = await getWallet(ctx, ctx.userY.address);
             expect((await wy.getGetWalletData()).balance).toBe(net);
             expect((await ctx.master.getGetJettonData()).totalSupply).toBe(supplyBefore - burn);
@@ -624,9 +610,7 @@ describe('BurnJetton', () => {
             const poolW = await getWallet(ctx, ctx.staking.address);
             expect((await poolW.getGetWalletData()).balance).toBe(1n + staking);
             // Treasury leg bounced back into the sender wallet — restored, not lost.
-            expect((await wx.getGetWalletData()).balance).toBe(
-                100n * NANO_PER_BURN - amount + treasury,
-            );
+            expect((await wx.getGetWalletData()).balance).toBe(100n * NANO_PER_BURN - amount + treasury);
         });
 
         it('stale-excluded resolve just above the gate commits without master strand (F10 invariant)', async () => {
@@ -672,10 +656,7 @@ describe('BurnJetton', () => {
             const leg = r.transactions
                 .flatMap((t) => [...t.outMessages.values()])
                 .find(
-                    (m) =>
-                        m.info.type === 'internal' &&
-                        m.info.src?.equals(wx.address) &&
-                        m.info.dest?.equals(recipJw),
+                    (m) => m.info.type === 'internal' && m.info.src?.equals(wx.address) && m.info.dest?.equals(recipJw),
                 );
             expect(leg).toBeDefined();
             expect(leg!.info.type === 'internal' && leg!.info.value.coins > forward).toBe(true);

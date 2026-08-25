@@ -1,7 +1,14 @@
 import { resolve } from 'node:path';
 import type { NetworkProvider } from '@ton/blueprint';
 import { deployBurnStack } from './deploy/bootstrap';
-import { isDryRun, isForceRedeploy, applyBlueprintWalletAliases, loadDeployEnv, resolveMnemonic, resolveToncenterApiKey } from './deploy/env';
+import {
+    isDryRun,
+    isForceRedeploy,
+    applyBlueprintWalletAliases,
+    loadDeployEnv,
+    resolveMnemonic,
+    resolveToncenterApiKey,
+} from './deploy/env';
 import { syncAppConfigs } from './deploy/syncAppConfigs';
 
 /**

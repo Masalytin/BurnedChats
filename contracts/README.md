@@ -108,27 +108,27 @@ npm run testnet:scenarios -- --force
 npm run testnet:scenarios -- --manifest lab --tag destructive
 ```
 
-| Flag | Notes |
-|------|--------|
-| `--list` / `--scenario` / `--tag` / `--all` / `--failed-only` / `--force` | Filters + skip control |
-| `--manifest shared\|lab` | `deployments/testnet.json` (default) vs `testnet-lab.json` |
-| Destructive | **Excluded from `--all`**. Use `--tag destructive` or `--scenario <id>` on **lab** only |
+| Flag                                                                      | Notes                                                                                   |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `--list` / `--scenario` / `--tag` / `--all` / `--failed-only` / `--force` | Filters + skip control                                                                  |
+| `--manifest shared\|lab`                                                  | `deployments/testnet.json` (default) vs `testnet-lab.json`                              |
+| Destructive                                                               | **Excluded from `--all`**. Use `--tag destructive` or `--scenario <id>` on **lab** only |
 
 ### Thin `verify:*` aliases
 
 Muscle-memory wrappers (logic lives in scenarios; Q6=A):
 
-| Script | Scenario |
-|--------|----------|
-| `npm run verify:deployment` | `fs-ops-deployment-fingerprint` |
-| `npm run verify:fee-split:testnet` | `fs-jetton-fee-split` |
+| Script                             | Scenario                        |
+| ---------------------------------- | ------------------------------- |
+| `npm run verify:deployment`        | `fs-ops-deployment-fingerprint` |
+| `npm run verify:fee-split:testnet` | `fs-jetton-fee-split`           |
 
 ### Lab vs shared (hard rule)
 
-| Tip | File | Mini App / `syncAppConfigs` |
-|-----|------|-------------------------------|
-| **Shared** | `deployments/testnet.json` | **Always** — backend/frontend testnet env |
-| **Lab** | `deployments/testnet-lab.json` | **Never** — destructive + short-timer gov only |
+| Tip        | File                           | Mini App / `syncAppConfigs`                    |
+| ---------- | ------------------------------ | ---------------------------------------------- |
+| **Shared** | `deployments/testnet.json`     | **Always** — backend/frontend testnet env      |
+| **Lab**    | `deployments/testnet-lab.json` | **Never** — destructive + short-timer gov only |
 
 Do **not** point the Mini App at lab. Details: [`deployments/README.md`](deployments/README.md).
 

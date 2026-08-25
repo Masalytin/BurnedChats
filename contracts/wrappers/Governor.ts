@@ -6,15 +6,7 @@ import {
     dictValueParserProposalConfig,
     type ProposalConfig,
 } from '../build/Governor/Governor_Governor';
-import {
-    Address,
-    beginCell,
-    Cell,
-    ContractProvider,
-    Dictionary,
-    Sender,
-    toNano,
-} from '@ton/core';
+import { Address, beginCell, Cell, ContractProvider, Dictionary, Sender, toNano } from '@ton/core';
 import { StakingMaster } from './StakingMaster';
 
 /** Matches `GasVoteAttach` in governor.tact (IMP-GOVOTE-04 / IMP-GOVREFUND-01). */

@@ -15,16 +15,7 @@
  *
  * Mnemonics are generated in-test via mnemonicNew() — never real env values.
  */
-import {
-    Address,
-    beginCell,
-    Cell,
-    Contract,
-    ContractProvider,
-    openContract,
-    TupleItem,
-    TupleReader,
-} from '@ton/core';
+import { Address, beginCell, Cell, Contract, ContractProvider, openContract, TupleItem, TupleReader } from '@ton/core';
 import { mnemonicNew } from '@ton/crypto';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
@@ -44,9 +35,7 @@ import '@ton/test-utils';
 const TIMELOCK_ADDR = Address.parse('EQBmkM_xe-12_YjfTqUBeh3JnqR8PttyPALYHBwcr_0ryvMH');
 /** The lab-tip deployer EOA (Timelock.governor per card, verified 2026-07-25). */
 const GOVERNOR_EOA = Address.parse('EQB8WzqUmqJpvVVdu26-wKMNOLwVR3ZP5fLfBMoPY6joDm07');
-const OTHER_EOA = Address.parseRaw(
-    '0:6b64561111111111111111111111111111111111111111111111111111111111',
-);
+const OTHER_EOA = Address.parseRaw('0:6b64561111111111111111111111111111111111111111111111111111111111');
 
 function addressCell(addr: Address): Cell {
     return beginCell().storeAddress(addr).endCell();
@@ -56,9 +45,7 @@ function addressCell(addr: Address): Cell {
  * Stub NetworkProvider: `get` dispatches per method name so the same stub
  * serves both the `get_governor` gate and the wallet `seqno` read.
  */
-function stubNetworkProvider(
-    stacks: Record<string, () => TupleReader>,
-): NetworkProvider {
+function stubNetworkProvider(stacks: Record<string, () => TupleReader>): NetworkProvider {
     const contractProvider = {
         get: async (name: string, _args: TupleItem[]) => {
             const makeStack = stacks[name];
@@ -159,9 +146,9 @@ describe('IMP-TNFS-F16 — resolveDeployerMnemonic', () => {
 
     it('throws a clear error when both are missing or whitespace', () => {
         expect(() => resolveDeployerMnemonic({})).toThrow(/DEPLOY_WALLET_MNEMONIC/);
-        expect(() =>
-            resolveDeployerMnemonic({ DEPLOY_WALLET_MNEMONIC: ' ', WALLET_MNEMONIC: '' }),
-        ).toThrow(/DEPLOY_WALLET_MNEMONIC/);
+        expect(() => resolveDeployerMnemonic({ DEPLOY_WALLET_MNEMONIC: ' ', WALLET_MNEMONIC: '' })).toThrow(
+            /DEPLOY_WALLET_MNEMONIC/,
+        );
     });
 });
 
@@ -183,26 +170,18 @@ describe('IMP-TNFS-F16 — governor gate', () => {
     });
 
     it('assertTimelockGovernorSender passes on a well-formed get_governor stack', async () => {
-        const ctx = stubCtx(
-            stubNetworkProvider({ get_governor: () => wellFormedGovernorStack(GOVERNOR_EOA) }),
-        );
+        const ctx = stubCtx(stubNetworkProvider({ get_governor: () => wellFormedGovernorStack(GOVERNOR_EOA) }));
         await expect(assertTimelockGovernorSender(ctx, GOVERNOR_EOA)).resolves.toBeUndefined();
     });
 
     it('assertTimelockGovernorSender passes on a RAW toncenter-v2 stack (bare Cell)', async () => {
-        const ctx = stubCtx(
-            stubNetworkProvider({ get_governor: () => toncenterV2GovernorStack(GOVERNOR_EOA) }),
-        );
+        const ctx = stubCtx(stubNetworkProvider({ get_governor: () => toncenterV2GovernorStack(GOVERNOR_EOA) }));
         await expect(assertTimelockGovernorSender(ctx, GOVERNOR_EOA)).resolves.toBeUndefined();
     });
 
     it('assertTimelockGovernorSender rejects when on-chain governor differs', async () => {
-        const ctx = stubCtx(
-            stubNetworkProvider({ get_governor: () => wellFormedGovernorStack(GOVERNOR_EOA) }),
-        );
-        await expect(assertTimelockGovernorSender(ctx, OTHER_EOA)).rejects.toThrow(
-            /Timelock\.governor mismatch/,
-        );
+        const ctx = stubCtx(stubNetworkProvider({ get_governor: () => wellFormedGovernorStack(GOVERNOR_EOA) }));
+        await expect(assertTimelockGovernorSender(ctx, OTHER_EOA)).rejects.toThrow(/Timelock\.governor mismatch/);
     });
 });
 

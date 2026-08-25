@@ -50,8 +50,7 @@ import { applyBlueprintWalletAliases, loadDeployEnv } from './deploy/env';
 // ─── Constants (exported for unit tests) ────────────────────────────────────
 
 /** Polluted V5R1 wallet the live runs actually signed with (IMP-TNFS-F09 RCA). */
-export const EXPECTED_POLLUTED_RAW =
-    '0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9';
+export const EXPECTED_POLLUTED_RAW = '0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9';
 /** Clean Actor A derivation of TEST_ACTOR_MNEMONIC (bounceable-testnet form). */
 export const EXPECTED_CLEAN_FRIENDLY = 'kQBrZFZiElcBTlnOIDkm0Mow-jIGrLNs_7lSXw5CvFtHNGlL';
 /** Source / deploy wallet — destination of the final TON sweep (active, bounce ok). */
@@ -85,8 +84,7 @@ export const MIN_POLLUTED_TON_FOR_RECOVERY = UNSTAKE_ATTACH_TON + BURN_TRANSFER_
 export type RecoveryCliMode = 'usage' | 'dry-run' | 'plan-only' | 'send';
 
 export function resolveRecoveryCliMode(argv: string[]): RecoveryCliMode {
-    const wantsUsage =
-        argv.length === 0 || argv.includes('--usage') || argv.includes('--help') || argv.includes('-h');
+    const wantsUsage = argv.length === 0 || argv.includes('--usage') || argv.includes('--help') || argv.includes('-h');
     if (wantsUsage) {
         return 'usage';
     }
@@ -233,9 +231,7 @@ async function waitForWalletSeqnoAbove(
         }
         await sleepMs(delayMs);
     }
-    throw new Error(
-        `wallet ${fmtAddr(dw.address)} seqno did not advance from ${fromSeqno} after ${attempts} attempts`,
-    );
+    throw new Error(`wallet ${fmtAddr(dw.address)} seqno did not advance from ${fromSeqno} after ${attempts} attempts`);
 }
 
 // ─── Live state / plan ──────────────────────────────────────────────────────
@@ -257,17 +253,9 @@ type RecoveryAddresses = {
     jettonMaster: Address;
 };
 
-async function readRecoveryState(
-    provider: NetworkProvider,
-    addrs: RecoveryAddresses,
-): Promise<RecoveryState> {
+async function readRecoveryState(provider: NetworkProvider, addrs: RecoveryAddresses): Promise<RecoveryState> {
     const pollutedTon = await readLiveTonBalance(provider, addrs.polluted.address);
-    const record = await readStakeRecord(
-        provider,
-        addrs.stakingMaster,
-        addrs.polluted.address,
-        RECOVERY_TIER,
-    );
+    const record = await readStakeRecord(provider, addrs.stakingMaster, addrs.polluted.address, RECOVERY_TIER);
     const master = provider.open(BurnJettonMaster.fromAddress(addrs.jettonMaster));
     const pollutedJettonWallet = await master.getGetWalletAddress(addrs.polluted.address);
     // readJettonWalletBalance tolerates a lazily-deployed (uninit) jetton wallet → 0.
@@ -327,11 +315,7 @@ function printPlan(addrs: RecoveryAddresses, state: RecoveryState): void {
 
 // ─── Live steps (only reachable with --yes) ─────────────────────────────────
 
-async function stepUnstake(
-    provider: NetworkProvider,
-    addrs: RecoveryAddresses,
-    stakeAmount: bigint,
-): Promise<void> {
+async function stepUnstake(provider: NetworkProvider, addrs: RecoveryAddresses, stakeAmount: bigint): Promise<void> {
     if (stakeAmount <= 0n) {
         console.log('[recover-polluted-actor] step 1 skip — no open stake record');
         return;
@@ -404,9 +388,7 @@ async function stepTransferBurn(provider: NetworkProvider, addrs: RecoveryAddres
     for (let i = 1; i <= attempts; i++) {
         const cleanAfter = await readJettonWalletBalance(provider, addrs.jettonMaster, addrs.clean);
         if (cleanAfter - cleanBefore >= (amount * 99n) / 100n) {
-            console.log(
-                `[recover-polluted-actor] step 2 verified — clean Actor BURN ${cleanBefore} → ${cleanAfter}`,
-            );
+            console.log(`[recover-polluted-actor] step 2 verified — clean Actor BURN ${cleanBefore} → ${cleanAfter}`);
             return amount;
         }
         await sleepMs(5_000);
@@ -428,9 +410,7 @@ async function stepSweepTon(provider: NetworkProvider, addrs: RecoveryAddresses)
     const sourceBefore = await readLiveTonBalance(provider, addrs.source);
     const opened = provider.open(dw.wallet);
     const seqno = await opened.getSeqno();
-    console.log(
-        `[recover-polluted-actor] step 3 — sweep ${fmtTon(value)} → ${fmtAddr(addrs.source)} (bounce=true)`,
-    );
+    console.log(`[recover-polluted-actor] step 3 — sweep ${fmtTon(value)} → ${fmtAddr(addrs.source)} (bounce=true)`);
     // Direct signed transfer (fund-test-wallets pattern); bounce=true is safe —
     // the source/deploy wallet is active.
     await opened.sendTransfer({
@@ -465,12 +445,7 @@ async function printFinalBalances(provider: NetworkProvider, addrs: RecoveryAddr
     const pollutedBurn = await readJettonWalletBalance(provider, addrs.jettonMaster, addrs.polluted.address);
     const cleanBurn = await readJettonWalletBalance(provider, addrs.jettonMaster, addrs.clean);
     const sourceTon = await readLiveTonBalance(provider, addrs.source);
-    const record = await readStakeRecord(
-        provider,
-        addrs.stakingMaster,
-        addrs.polluted.address,
-        RECOVERY_TIER,
-    );
+    const record = await readStakeRecord(provider, addrs.stakingMaster, addrs.polluted.address, RECOVERY_TIER);
     console.log('[recover-polluted-actor] final balances:');
     console.log('  polluted TON        ', fmtTon(pollutedTon));
     console.log('  polluted BURN       ', fmtBurn(pollutedBurn));
@@ -588,8 +563,7 @@ async function mainCli(): Promise<void> {
     await executeRecovery(provider, contractsRoot, mode);
 }
 
-const isDirectRun =
-    typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module;
+const isDirectRun = typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module;
 
 if (isDirectRun) {
     mainCli().catch((err) => {

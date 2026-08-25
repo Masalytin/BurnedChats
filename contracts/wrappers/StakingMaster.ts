@@ -89,11 +89,7 @@ export class StakingMaster extends StakingMasterBase {
         return this.send(provider, via, { value: toNano('0.1') }, msg);
     }
 
-    async sendUnstakeJetton(
-        provider: ContractProvider,
-        via: Sender,
-        p: { tier: number; amount: bigint },
-    ) {
+    async sendUnstakeJetton(provider: ContractProvider, via: Sender, p: { tier: number; amount: bigint }) {
         const msg: UnstakeJetton = {
             $$type: 'UnstakeJetton',
             queryId: 0n,
@@ -113,11 +109,6 @@ export class StakingMaster extends StakingMasterBase {
     }
 
     async sendJettonExcesses(provider: ContractProvider, via: Sender, queryId = 0n, value = toNano('0.5')) {
-        return this.send(
-            provider,
-            via,
-            { value },
-            { $$type: 'JettonExcesses' as const, queryId },
-        );
+        return this.send(provider, via, { value }, { $$type: 'JettonExcesses' as const, queryId });
     }
 }

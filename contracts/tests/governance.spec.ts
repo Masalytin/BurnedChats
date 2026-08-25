@@ -152,9 +152,7 @@ async function setupTimelockOnly(highValueDelayFloorSec?: bigint): Promise<{
     const blockchain = await Blockchain.create();
     blockchain.now = SANDBOX_NOW;
     const deployer = await blockchain.treasury('deployer');
-    const timelock = blockchain.openContract(
-        await Timelock.prepareInit(deployer.address, highValueDelayFloorSec),
-    );
+    const timelock = blockchain.openContract(await Timelock.prepareInit(deployer.address, highValueDelayFloorSec));
     await timelock.send(deployer.getSender(), { value: toNano('0.2') }, null);
     return { blockchain, deployer, timelock };
 }
@@ -277,11 +275,7 @@ function extractQueue(result: SendMessageResult, timelockAddr: Address) {
 }
 
 /** Fund the treasury: credit `total_received` (mint forward → JettonNotification) and activate its wallet fee config. */
-async function fundTreasury(
-    env: GovEnv,
-    treasury: SandboxContract<Treasury>,
-    amountNano: bigint,
-): Promise<void> {
+async function fundTreasury(env: GovEnv, treasury: SandboxContract<Treasury>, amountNano: bigint): Promise<void> {
     await env.jettonMaster.sendAddExcluded(env.deployer.getSender(), treasury.address);
     await env.jettonMaster.sendMint(
         env.deployer.getSender(),
@@ -375,12 +369,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
             const target = await env.blockchain.treasury('param-target');
-            const { id, proposal } = await createProposal(
-                env,
-                voter,
-                TYPE_PARAM,
-                paramPayload(target.address, 0x1234),
-            );
+            const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 0x1234));
 
             const voteTx = await castVote(env, voter, id, true);
             expect(voteTx.transactions).toHaveTransaction({ on: env.stakingMaster.address, success: true });
@@ -406,12 +395,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
             const target = await env.blockchain.treasury('pexec-target');
-            const { id, proposal } = await createProposal(
-                env,
-                voter,
-                TYPE_PARAM,
-                paramPayload(target.address, 0x42),
-            );
+            const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 0x42));
             await castVote(env, voter, id, true);
             advanceTime(env.blockchain, 3 * DAY + 1);
             const finalizeTx = await proposal.sendFinalize(env.deployer.getSender());
@@ -443,12 +427,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
             const target = await env.blockchain.treasury('defeat-target');
-            const { id, proposal } = await createProposal(
-                env,
-                voter,
-                TYPE_PARAM,
-                paramPayload(target.address, 1),
-            );
+            const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 1));
             await castVote(env, voter, id, false);
             expect(await proposal.getGetAgainstVotes()).toBeGreaterThan(0n);
 
@@ -568,7 +547,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
                 claimedVp: totalVp,
             });
             expect(createTx.transactions).toHaveTransaction({ on: env.governor.address, success: false });
-            expect((await env.governor.getGetProposalCount())).toBe(0n);
+            expect(await env.governor.getGetProposalCount()).toBe(0n);
         });
 
         it('Treasury rejects a TreasurySpend not coming from the Timelock', async () => {
@@ -934,12 +913,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             const voter = await env.blockchain.treasury('gov-feat-voter');
             await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
-            const { id, proposal } = await createProposal(
-                env,
-                voter,
-                TYPE_FEATURE,
-                featurePayload('ship dark mode'),
-            );
+            const { id, proposal } = await createProposal(env, voter, TYPE_FEATURE, featurePayload('ship dark mode'));
             await castVote(env, voter, id, true);
 
             advanceTime(env.blockchain, 7 * DAY + 1);
@@ -1116,12 +1090,7 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             const trueTotalVp = await env.stakingMaster.getGetTotalVotingPower();
 
             const target = await env.blockchain.treasury('vp-e2e-target');
-            const { id, proposal } = await createProposal(
-                env,
-                voter,
-                TYPE_PARAM,
-                paramPayload(target.address, 1),
-            );
+            const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 1));
             expect(await proposal.getGetQuorumRequired()).toBe((trueTotalVp * PARAM_QUORUM_PCT) / 100n);
 
             await castVote(env, voter, id, true);
@@ -1161,21 +1130,11 @@ describe('Governance E2E (IMP-PREMNT-02)', () => {
             expect(await env.governor.getGetProposal(idBefore)).toBeNull();
             expect(await env.governor.getGetProposalState(idBefore)).toBe(PS_CANCELLED);
 
-            const wire = await env.stakingMaster.sendSetGovernor(
-                env.deployer.getSender(),
-                env.governor.address,
-            );
+            const wire = await env.stakingMaster.sendSetGovernor(env.deployer.getSender(), env.governor.address);
             expect(wire.transactions).toHaveTransaction({ success: true });
-            expect((await env.stakingMaster.getGetGovernorAddr()).equals(env.governor.address)).toBe(
-                true,
-            );
+            expect((await env.stakingMaster.getGetGovernorAddr()).equals(env.governor.address)).toBe(true);
 
-            const { id, proposal } = await createProposal(
-                env,
-                proposer,
-                TYPE_PARAM,
-                paramPayload(target.address, 2),
-            );
+            const { id, proposal } = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 2));
             expect(id).toBe(idBefore + 1n);
             expect(await env.governor.getGetProposal(id)).not.toBeNull();
             expect(await env.governor.getGetProposalState(id)).toBe(PS_ACTIVE);
@@ -1203,9 +1162,7 @@ describe('Vote regressions (IMP-GOVOTE-05 / AD-3)', () => {
         expect(
             countEmptyGovernorStakingHops(voteTx.transactions, env.governor.address, env.stakingMaster.address),
         ).toBe(0);
-        expect(
-            countEmptyProposalStakingHops(voteTx.transactions, proposal.address, env.stakingMaster.address),
-        ).toBe(0);
+        expect(countEmptyProposalStakingHops(voteTx.transactions, proposal.address, env.stakingMaster.address)).toBe(0);
     });
 
     it('rejects vote inside CANCEL_LAG window with Not started and does not record the vote (RC-1)', async () => {
@@ -1274,12 +1231,7 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
         await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
         const target = await env.blockchain.treasury('relay-param-target');
-        const { id, proposal } = await createProposal(
-            env,
-            voter,
-            TYPE_PARAM,
-            paramPayload(target.address, 0xabcd),
-        );
+        const { id, proposal } = await createProposal(env, voter, TYPE_PARAM, paramPayload(target.address, 0xabcd));
         await castVote(env, voter, id, true);
 
         advanceTime(env.blockchain, 3 * DAY + 1);
@@ -1321,12 +1273,7 @@ describe('Execution relay audit (IMP-RELAY-02)', () => {
         const voter = await env.blockchain.treasury('gov-relay-feat-voter');
         await stakeForVp(env, voter, 3, 100n * NANO_PER_BURN);
 
-        const { id, proposal } = await createProposal(
-            env,
-            voter,
-            TYPE_FEATURE,
-            featurePayload('relay audit feature'),
-        );
+        const { id, proposal } = await createProposal(env, voter, TYPE_FEATURE, featurePayload('relay audit feature'));
         await castVote(env, voter, id, true);
 
         advanceTime(env.blockchain, 7 * DAY + 1);
@@ -1546,12 +1493,7 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
         ['VestEmergencyRevoke', BigInt(OP_VEST_EMERGENCY_REVOKE)],
     ];
 
-    function queueParamsFor(
-        proposalContract: Address,
-        target: Address,
-        method: bigint,
-        proposalId: bigint,
-    ) {
+    function queueParamsFor(proposalContract: Address, target: Address, method: bigint, proposalId: bigint) {
         return {
             proposalId,
             proposalContract,
@@ -1682,12 +1624,7 @@ describe('Timelock high-value delay floor (IMP-MNAUD-F03)', () => {
         expect(await timelock.getGetPending(32n)).not.toBeNull();
 
         advanceTime(blockchain, Number(LAB_FLOOR));
-        const execTx = await timelock.sendExecutePending(
-            deployer.getSender(),
-            32n,
-            0n,
-            toNano('1.6'),
-        );
+        const execTx = await timelock.sendExecutePending(deployer.getSender(), 32n, 0n, toNano('1.6'));
         expect(execTx.transactions).toHaveTransaction({ on: timelock.address, success: true });
         const dispatched = await timelock.getGetPending(32n);
         expect(dispatched).not.toBeNull();
@@ -1995,12 +1932,7 @@ describe('IMP-MNAUD-F07 cheap half — O(1) knownProposals reverse index', () =>
         expect(await env.governor.getGetIsKnownProposal(stranger.address)).toBe(false);
 
         const target = await env.blockchain.treasury('mnaud-f07-index-target');
-        const { proposal: p1 } = await createProposal(
-            env,
-            proposer,
-            TYPE_PARAM,
-            paramPayload(target.address, 1),
-        );
+        const { proposal: p1 } = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 1));
         expect(await env.governor.getGetIsKnownProposal(p1.address)).toBe(true);
 
         const { proposal: p2 } = await createProposal(
@@ -2019,12 +1951,7 @@ describe('IMP-MNAUD-F07 cheap half — O(1) knownProposals reverse index', () =>
         await stakeForVp(env, proposer, 3, 100n * NANO_PER_BURN);
 
         const target = await env.blockchain.treasury('mnaud-f07-cb-target');
-        const { proposal } = await createProposal(
-            env,
-            proposer,
-            TYPE_PARAM,
-            paramPayload(target.address, 1),
-        );
+        const { proposal } = await createProposal(env, proposer, TYPE_PARAM, paramPayload(target.address, 1));
         expect(await env.governor.getGetIsKnownProposal(proposal.address)).toBe(true);
 
         const plainTx = await env.blockchain.sendMessage(

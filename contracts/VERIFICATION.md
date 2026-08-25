@@ -50,11 +50,11 @@ See the project security posture in [`../docs/specs/SECURITY.md`](../docs/specs/
   `package.json` (`"@tact-lang/compiler": ">=1.6.13 <2.0.0"`). Before verifying,
   record the **exact resolved version** and pin it so the build is reproducible:
 
-  ```bash
-  cd contracts
-  npm ls @tact-lang/compiler   # note the exact installed version, e.g. 1.6.13
-  # then pin it in package.json (drop the range) and commit package-lock.json
-  ```
+    ```bash
+    cd contracts
+    npm ls @tact-lang/compiler   # note the exact installed version, e.g. 1.6.13
+    # then pin it in package.json (drop the range) and commit package-lock.json
+    ```
 
 - All source files a contract imports (Tact `import` graph) must be available to the
   verifier, plus `tact.config.json` for the project's build options.
@@ -65,32 +65,32 @@ Build projects and options come from [`tact.config.json`](tact.config.json)
 (`debug: false`, `external: false`, `mode: "full"` for every project). Verify each
 deployed contract against its source:
 
-| Contract | Source | tact.config project |
-|----------|--------|---------------------|
-| BurnJettonMaster | `jetton/burn-jetton-master.tact` | `BurnJettonMaster` |
-| StakingPool | `staking/staking-pool.tact` | `StakingPool` |
-| StakingMaster | `staking/staking-master.tact` | `StakingMaster` |
-| Governor | `governance/governor.tact` | `Governor` |
-| Timelock | `governance/timelock.tact` | `Timelock` |
-| Treasury | `treasury/treasury.tact` | `Treasury` |
-| Vesting | `vesting/vesting.tact` | `Vesting` |
+| Contract         | Source                           | tact.config project |
+| ---------------- | -------------------------------- | ------------------- |
+| BurnJettonMaster | `jetton/burn-jetton-master.tact` | `BurnJettonMaster`  |
+| StakingPool      | `staking/staking-pool.tact`      | `StakingPool`       |
+| StakingMaster    | `staking/staking-master.tact`    | `StakingMaster`     |
+| Governor         | `governance/governor.tact`       | `Governor`          |
+| Timelock         | `governance/timelock.tact`       | `Timelock`          |
+| Treasury         | `treasury/treasury.tact`         | `Treasury`          |
+| Vesting          | `vesting/vesting.tact`           | `Vesting`           |
 
 > The Jetton **wallet** code (`jetton/burn-jetton-wallet.tact`) is deployed per holder
 > by the master; verify a representative wallet address if desired.
 
 ### Current testnet deployment (from `deployments/testnet.json`, 2026-06-28)
 
-| Contract | Testnet address |
-|----------|-----------------|
-| jettonMaster | `kQD-ZhhzrzyI3k4WarDMPhxAJTdc6MStCZYyCyHHw7Jx-NjD` |
-| treasury | `kQCnUzQM-U0cMdChXCaRUy3WSEc5rvnOAEaAbVqHJ-mrNV7P` |
-| stakingPool | `kQD0Z08_0tB-rT249cyzdYDhQw03IE2XcFAsHhtHRGbuXD6Q` |
-| stakingMaster | `kQCotwKsH0ZAd09msYeJLsEeXzvks_Q6sp8gZj-jE5LgV7M5` |
-| governor | `kQB53bI7Y1NdovwTyjox45Lx2opXD6QfuluFTAs4nT0ybC-M` |
-| timelock | `kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT` |
-| vestingDeveloper | `kQD2BAcU3dMmDQziMyu3MYWYSbaPkw5l0bCPfnHUEg9arnQS` |
-| vestingEcosystem | `kQCT6xj5b5loCcCk48pwQpMtQJpwZyDhFRxDJmMoeT4krt2c` |
-| vestingReserve | `kQBL9ahUgiHppEcRZ4kyrJ0Voumg48M8BwzmE9Noe8Ve_K-6` |
+| Contract                 | Testnet address                                    |
+| ------------------------ | -------------------------------------------------- |
+| jettonMaster             | `kQD-ZhhzrzyI3k4WarDMPhxAJTdc6MStCZYyCyHHw7Jx-NjD` |
+| treasury                 | `kQCnUzQM-U0cMdChXCaRUy3WSEc5rvnOAEaAbVqHJ-mrNV7P` |
+| stakingPool              | `kQD0Z08_0tB-rT249cyzdYDhQw03IE2XcFAsHhtHRGbuXD6Q` |
+| stakingMaster            | `kQCotwKsH0ZAd09msYeJLsEeXzvks_Q6sp8gZj-jE5LgV7M5` |
+| governor                 | `kQB53bI7Y1NdovwTyjox45Lx2opXD6QfuluFTAs4nT0ybC-M` |
+| timelock                 | `kQAV1au0ntabRd_tBJhtEZKZ37KOAPoIAqKYvTSDVRW2jueT` |
+| vestingDeveloper         | `kQD2BAcU3dMmDQziMyu3MYWYSbaPkw5l0bCPfnHUEg9arnQS` |
+| vestingEcosystem         | `kQCT6xj5b5loCcCk48pwQpMtQJpwZyDhFRxDJmMoeT4krt2c` |
+| vestingReserve           | `kQBL9ahUgiHppEcRZ4kyrJ0Voumg48M8BwzmE9Noe8Ve_K-6` |
 | vestingStakingAllocation | `kQBXJNQc_yssOLZgPYm7dR_wYD9_plLbMmc9-QOagmcp0ORN` |
 
 ## Step-by-step
@@ -113,9 +113,9 @@ Then, per contract:
    relevant `tact.config.json` build options (`debug=false`, `external=false`,
    `mode=full`).
 5. Submit. The verifier recompiles and compares the `code hash`.
-   - **Match** → verifier nodes sign, sources published to IPFS + sources-registry.
-   - **Mismatch** → almost always a compiler-version or build-option difference;
-     re-pin the exact version/settings used at deploy and retry.
+    - **Match** → verifier nodes sign, sources published to IPFS + sources-registry.
+    - **Mismatch** → almost always a compiler-version or build-option difference;
+      re-pin the exact version/settings used at deploy and retry.
 6. Repeat for each deployed contract.
 
 ## Confirm it worked
@@ -123,8 +123,8 @@ Then, per contract:
 - Open the address on **[testnet.tonscan.org](https://testnet.tonscan.org)** (or
   `tonscan.org` for mainnet) → the contract should show a **verified / source
   available** indicator and let you browse the code.
-  - Legacy/optional: [testnet.tonviewer.com](https://testnet.tonviewer.com) /
-    `tonviewer.com` — not required for ops; prefer tonscan when explorers disagree.
+    - Legacy/optional: [testnet.tonviewer.com](https://testnet.tonviewer.com) /
+      `tonviewer.com` — not required for ops; prefer tonscan when explorers disagree.
 - Cross-check the on-chain `code hash` equals the hash of your local `build/` output.
 
 ## Mainnet notes

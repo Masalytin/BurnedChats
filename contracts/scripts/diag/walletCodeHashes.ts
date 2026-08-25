@@ -1,18 +1,10 @@
-import {
-    WalletContractV3R1,
-    WalletContractV3R2,
-    WalletContractV4,
-    WalletContractV5R1,
-} from '@ton/ton';
+import { WalletContractV3R1, WalletContractV3R2, WalletContractV4, WalletContractV5R1 } from '@ton/ton';
 import { beginCell, Cell, storeStateInit } from '@ton/core';
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 
 // Code cell hash is independent of the public key, so any 32-byte key works.
-const publicKey = Buffer.from(
-    '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
-    'hex',
-);
+const publicKey = Buffer.from('00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff', 'hex');
 
 // Mirror of Java WalletStateInitParser.extractPublicKeyFromData offsets.
 function extractKeyJavaWay(data: Cell, version: string): string {
@@ -72,10 +64,7 @@ for (const w of wallets) {
     props.push(`${w.label}.addressHash=${hashHex}`);
 }
 
-const outPath = resolve(
-    __dirname,
-    '../../../backend/src/test/resources/ton/wallet-state-init-fixtures.properties',
-);
+const outPath = resolve(__dirname, '../../../backend/src/test/resources/ton/wallet-state-init-fixtures.properties');
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, props.join('\n') + '\n', 'utf8');
 console.log(`\nWrote fixtures: ${outPath}`);

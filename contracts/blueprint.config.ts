@@ -20,13 +20,7 @@ initDeployEnv(resolve(__dirname));
  */
 const RETRY_HTTP_STATUS = new Set<number>([429, 500, 502, 503, 504]);
 const RETRY_BODY_PATTERN = /lite[_\s-]?server[_\s-]?notready|cannot\s+build\s+block\s+proof|not\s+ready/i;
-const RETRY_NETWORK_CODES = new Set<string>([
-    'ETIMEDOUT',
-    'ECONNRESET',
-    'ECONNABORTED',
-    'ENOTFOUND',
-    'EAI_AGAIN',
-]);
+const RETRY_NETWORK_CODES = new Set<string>(['ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN']);
 const MAX_ATTEMPTS = 8;
 const BASE_DELAY_MS = 1_500;
 const MAX_DELAY_MS = 30_000;
@@ -72,12 +66,9 @@ axios.interceptors.response.use(undefined, async (error: AxiosError) => {
     }
     cfg.__retryCount = nextAttempt;
     const delay = backoffDelayMs(nextAttempt);
-    const reason =
-        error.response?.status !== undefined ? `HTTP ${error.response.status}` : (error.code ?? 'unknown');
+    const reason = error.response?.status !== undefined ? `HTTP ${error.response.status}` : (error.code ?? 'unknown');
     const target = `${(cfg.method ?? 'GET').toUpperCase()} ${cfg.url ?? '<no-url>'}`;
-    console.warn(
-        `[rpc-retry] ${target} attempt ${nextAttempt}/${MAX_ATTEMPTS} (${reason}) — sleeping ${delay}ms`,
-    );
+    console.warn(`[rpc-retry] ${target} attempt ${nextAttempt}/${MAX_ATTEMPTS} (${reason}) — sleeping ${delay}ms`);
     await new Promise<void>((r) => setTimeout(r, delay));
     return axios(cfg);
 });

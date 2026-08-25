@@ -12,14 +12,7 @@ import { describe, expect, it } from '@jest/globals';
 import { Address, beginCell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import type { BlockchainTransaction } from '@ton/sandbox';
-import {
-    deployJetton,
-    getWallet,
-    MINT_TON,
-    NANO_PER_BURN,
-    TRANSFER_TON,
-    type JettonDeployedContext,
-} from './helpers';
+import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, TRANSFER_TON, type JettonDeployedContext } from './helpers';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import {
     BurnJettonWallet as BurnJettonWalletBase,
@@ -233,12 +226,7 @@ describe('IMP-MNAUD-F22 — SetGasParams governance surface', () => {
         const ctx = await prepareFeeCtx();
         const fakeMaster = await ctx.blockchain.treasury('f22-fake-master');
         const holder = await ctx.blockchain.treasury('f22-holder');
-        const base = await BurnJettonWalletBase.fromInit(
-            holder.address,
-            fakeMaster.address,
-            0n,
-            beginCell().endCell(),
-        );
+        const base = await BurnJettonWalletBase.fromInit(holder.address, fakeMaster.address, 0n, beginCell().endCell());
         const wallet = ctx.blockchain.openContract(base);
 
         const cfgMsg = (gas: GasParams): JettonUpdateFeeConfig => ({
@@ -294,11 +282,15 @@ describe('IMP-MNAUD-F22 — SetGasParams governance surface', () => {
         // The wrapper's 0.02 attach OOGs on long excluded chains (recursive scan) —
         // attach more gas per add; list capacity itself is MAX_EXCLUDED_ADDRESSES = 64.
         const addExcluded = async (address: Address) =>
-            ctx.master.send(ctx.deployer.getSender(), { value: toNano('0.5') }, {
-                $$type: 'AddExcluded',
-                queryId: 0n,
-                address,
-            });
+            ctx.master.send(
+                ctx.deployer.getSender(),
+                { value: toNano('0.5') },
+                {
+                    $$type: 'AddExcluded',
+                    queryId: 0n,
+                    address,
+                },
+            );
         for (let i = 0; i < 63; i++) {
             const holder = await ctx.blockchain.treasury(`f22-excl-${i}`);
             const r = await addExcluded(holder.address);

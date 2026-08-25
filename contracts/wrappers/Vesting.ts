@@ -1,8 +1,4 @@
-import {
-    type VestEmergencyRevoke,
-    type VestRelease,
-    Vesting as VestingBase,
-} from '../build/Vesting/Vesting_Vesting';
+import { type VestEmergencyRevoke, type VestRelease, Vesting as VestingBase } from '../build/Vesting/Vesting_Vesting';
 import { Address, ContractProvider, Sender, toNano } from '@ton/core';
 import type { SendMessageResult } from '@ton/sandbox';
 import { BurnJettonMaster } from './BurnJettonMaster';

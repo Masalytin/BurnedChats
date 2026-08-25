@@ -14,28 +14,15 @@
  * These tests feed both stack shapes to `readPendingAction` (lib/gov.ts):
  * red against the wrapper path, green with the tolerant direct parser.
  */
-import {
-    Address,
-    beginCell,
-    Cell,
-    Contract,
-    ContractProvider,
-    openContract,
-    TupleItem,
-    TupleReader,
-} from '@ton/core';
+import { Address, beginCell, Cell, Contract, ContractProvider, openContract, TupleItem, TupleReader } from '@ton/core';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
 import { readPendingAction } from '../testnet-scenarios/lib/gov';
 import '@ton/test-utils';
 
 const TIMELOCK_ADDR = Address.parse('EQBmkM_xe-12_YjfTqUBeh3JnqR8PttyPALYHBwcr_0ryvMH');
-const PROPOSAL_CONTRACT = Address.parseRaw(
-    '0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9',
-);
-const TARGET = Address.parseRaw(
-    '0:6b64561111111111111111111111111111111111111111111111111111111111',
-);
+const PROPOSAL_CONTRACT = Address.parseRaw('0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9');
+const TARGET = Address.parseRaw('0:6b64561111111111111111111111111111111111111111111111111111111111');
 
 /** Canonical TreasurySpend opcode — realistic `method` value. */
 const OP_TREASURY_SPEND = 0x5a1c9010n;
@@ -74,9 +61,7 @@ function toncenterV2GetPendingStack(p: typeof PENDING | null): TupleReader {
         p.scheduledTime,
         p.executed ? -1n : 0n,
     ];
-    return new TupleReader([
-        { type: 'tuple', items: rawItems as unknown as TupleItem[] } as TupleItem,
-    ]);
+    return new TupleReader([{ type: 'tuple', items: rawItems as unknown as TupleItem[] } as TupleItem]);
 }
 
 /** Well-formed shape (sandbox / TonClient4 / liteclient): proper TupleItem objects. */

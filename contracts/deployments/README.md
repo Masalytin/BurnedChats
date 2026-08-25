@@ -1,10 +1,10 @@
 # Deployment manifests
 
-| File | Role |
-|------|------|
-| `testnet.json` | **Shared tip** — canonical testnet addresses for Mini App / backend / frontend. Written by `deploy:burn:testnet` (+ `syncAppConfigs`). |
-| `testnet-lab.json` | **Lab tip** — separate stack for destructive scenarios and short-timer governance. Tracked; **never** synced into app env. |
-| `mainnet.json` | Mainnet tip (production). |
+| File               | Role                                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `testnet.json`     | **Shared tip** — canonical testnet addresses for Mini App / backend / frontend. Written by `deploy:burn:testnet` (+ `syncAppConfigs`). |
+| `testnet-lab.json` | **Lab tip** — separate stack for destructive scenarios and short-timer governance. Tracked; **never** synced into app env.             |
+| `mainnet.json`     | Mainnet tip (production).                                                                                                              |
 
 `testnet.json` / `mainnet.json` are written by `contracts/scripts/deploy.ts` after a successful deploy. Lab is produced via backup→deploy→copy→restore (see private `RUNBOOK-redeploy.md`); the live runner selects it with:
 
@@ -120,12 +120,12 @@ Env load order for `--testnet`: `.env.testnet` → `.env`. Blueprint reads `WALL
 
 ### Multisig holders and fee smoke wallets
 
-| Env var | Purpose |
-|---------|---------|
-| `LIQUIDITY_MULTISIG` | LP allocation holder (300 BURN mint). **Excluded** from transfer fees by design. Set to a dedicated address — not the deployer — so deployer is not both liquidity holder and smoke sender. |
-| `AIRDROP_MULTISIG` | Community airdrop holder (200 BURN). Non-excluded; bootstrap syncs `feeConfig` after mint (IMP-JETTON-FEE-03). |
-| `BURN_SMOKE_TEST_OWNER` | Non-excluded wallet for post-deploy burn transfer smoke (`scripts/post-deploy-burn-transfer-smoke.sh`). Root `.env.example`. |
-| `FEE_TEST_SENDER` | Optional alias for fee-split verification scripts (IMP-JETTON-FEE-02). |
+| Env var                 | Purpose                                                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIQUIDITY_MULTISIG`    | LP allocation holder (300 BURN mint). **Excluded** from transfer fees by design. Set to a dedicated address — not the deployer — so deployer is not both liquidity holder and smoke sender. |
+| `AIRDROP_MULTISIG`      | Community airdrop holder (200 BURN). Non-excluded; bootstrap syncs `feeConfig` after mint (IMP-JETTON-FEE-03).                                                                              |
+| `BURN_SMOKE_TEST_OWNER` | Non-excluded wallet for post-deploy burn transfer smoke (`scripts/post-deploy-burn-transfer-smoke.sh`). Root `.env.example`.                                                                |
+| `FEE_TEST_SENDER`       | Optional alias for fee-split verification scripts (IMP-JETTON-FEE-02).                                                                                                                      |
 
 Without `LIQUIDITY_MULTISIG`, deployer becomes liquidity holder → `addExcluded` → fee smoke from deployer
 wallet shows 100% to recipient (misleading «fee not working»). Use `BURN_SMOKE_TEST_OWNER` or a separate
@@ -136,14 +136,14 @@ airdrop/non-excluded wallet for fee verification.
 Owner decision 2026-08-08: on **mainnet** `Timelock.governor` is a multisig
 (not a single EOA). Bootstrap reads:
 
-| Env var | Required when | Purpose |
-|---------|---------------|---------|
-| `TIMELOCK_GOVERNOR` | `--mainnet` / `MAINNET_FINALIZE=1` | Multisig address → Timelock init `governor` |
-| `TIMELOCK_GOVERNOR_MULTISIG` | alias | Same as `TIMELOCK_GOVERNOR` |
-| `MULTISIG_KIND` | lab agent tests (optional) | Hint for future harness (`ton-multisig-v2`, …) |
-| `MULTISIG_THRESHOLD` | lab agent tests (optional) | e.g. `2` for 2-of-3 |
-| `MULTISIG_SIGNER_{1,2,3}_MNEMONIC` | lab agent tests | Throwaway **testnet** signer seeds (≥ threshold) |
-| `MULTISIG_SIGNER_{1,2,3}_ADDRESS` | optional | Override if address ≠ default V5R1 derivation |
+| Env var                            | Required when                      | Purpose                                          |
+| ---------------------------------- | ---------------------------------- | ------------------------------------------------ |
+| `TIMELOCK_GOVERNOR`                | `--mainnet` / `MAINNET_FINALIZE=1` | Multisig address → Timelock init `governor`      |
+| `TIMELOCK_GOVERNOR_MULTISIG`       | alias                              | Same as `TIMELOCK_GOVERNOR`                      |
+| `MULTISIG_KIND`                    | lab agent tests (optional)         | Hint for future harness (`ton-multisig-v2`, …)   |
+| `MULTISIG_THRESHOLD`               | lab agent tests (optional)         | e.g. `2` for 2-of-3                              |
+| `MULTISIG_SIGNER_{1,2,3}_MNEMONIC` | lab agent tests                    | Throwaway **testnet** signer seeds (≥ threshold) |
+| `MULTISIG_SIGNER_{1,2,3}_ADDRESS`  | optional                           | Override if address ≠ default V5R1 derivation    |
 
 **Ordinary lab (current default):** leave `TIMELOCK_GOVERNOR` unset →
 `Timelock.governor =` deployer (`WALLET_MNEMONIC`). Scenario runner still signs

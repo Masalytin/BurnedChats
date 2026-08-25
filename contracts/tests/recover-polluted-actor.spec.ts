@@ -30,10 +30,30 @@ import {
 
 /** Fixed dummy 24-word list — NOT a real seed (tests must never touch secrets). */
 const DUMMY_WORDS = [
-    'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot',
-    'golf', 'hotel', 'india', 'juliett', 'kilo', 'lima',
-    'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo',
-    'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray',
+    'alpha',
+    'bravo',
+    'charlie',
+    'delta',
+    'echo',
+    'foxtrot',
+    'golf',
+    'hotel',
+    'india',
+    'juliett',
+    'kilo',
+    'lima',
+    'mike',
+    'november',
+    'oscar',
+    'papa',
+    'quebec',
+    'romeo',
+    'sierra',
+    'tango',
+    'uniform',
+    'victor',
+    'whiskey',
+    'xray',
 ];
 
 function v5r1Address(publicKey: Buffer): Address {
@@ -124,9 +144,7 @@ describe('recover-polluted-actor CLI parsing', () => {
 describe('recover-polluted-actor hard gate', () => {
     it('expected address constants parse and agree with the F09 RCA', () => {
         const polluted = Address.parse(EXPECTED_POLLUTED_RAW);
-        expect(polluted.toRawString()).toBe(
-            '0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9',
-        );
+        expect(polluted.toRawString()).toBe('0:79a475a6d84427cdb897c954e4bcffd147fcdd3be9b01df9e48da28d08fca1c9');
         const clean = Address.parse(EXPECTED_CLEAN_FRIENDLY);
         expect(clean.toRawString().startsWith('0:6b6456')).toBe(true);
         expect(() => Address.parse(SOURCE_WALLET_FRIENDLY)).not.toThrow();

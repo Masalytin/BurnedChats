@@ -99,10 +99,7 @@ async function contractBalance(blockchain: Blockchain, addr: Address): Promise<b
     return (await blockchain.getContract(addr)).balance;
 }
 
-async function governanceStackBalance(
-    env: GovEnv,
-    proposal: SandboxContract<Proposal>,
-): Promise<bigint> {
+async function governanceStackBalance(env: GovEnv, proposal: SandboxContract<Proposal>): Promise<bigint> {
     const gov = await contractBalance(env.blockchain, env.governor.address);
     const sm = await contractBalance(env.blockchain, env.stakingMaster.address);
     const prop = await contractBalance(env.blockchain, proposal.address);

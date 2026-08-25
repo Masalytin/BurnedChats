@@ -13,22 +13,10 @@
  *
  * Stub NetworkProvider pattern mirrors gov-proposal-selection.spec.ts.
  */
-import {
-    Address,
-    beginCell,
-    Contract,
-    ContractProvider,
-    openContract,
-    TupleItem,
-    TupleReader,
-} from '@ton/core';
+import { Address, beginCell, Contract, ContractProvider, openContract, TupleItem, TupleReader } from '@ton/core';
 import { expect } from '@jest/globals';
 import type { NetworkProvider } from '@ton/blueprint';
-import {
-    computeLockedBeyondVp,
-    ensureLockedVotingPower,
-    resolveStakingLockAddr,
-} from '../testnet-scenarios/lib/gov';
+import { computeLockedBeyondVp, ensureLockedVotingPower, resolveStakingLockAddr } from '../testnet-scenarios/lib/gov';
 import { NANO_PER_BURN } from '../testnet-scenarios/lib/balances';
 import { STAKE_AMOUNT_HAPPY, type StakeRecordView } from '../testnet-scenarios/lib/staking';
 import type { ScenarioContext } from '../testnet-scenarios/types';
@@ -51,12 +39,7 @@ const MULTIPLIERS = new Map<bigint, bigint>([
     [3n, 300n],
 ]);
 
-function stakeRecord(input: {
-    amount: bigint;
-    tier: bigint;
-    unlockTime: bigint;
-    startTime?: bigint;
-}): StakeRecordView {
+function stakeRecord(input: { amount: bigint; tier: bigint; unlockTime: bigint; startTime?: bigint }): StakeRecordView {
     return {
         amount: input.amount,
         tier: input.tier,
@@ -87,9 +70,7 @@ describe('IMP-TNFS-F15 — computeLockedBeyondVp (contract formula mirror)', () 
                 unlockTime: NOW + 15_552_000n, // 180 d lock
             }),
         ];
-        expect(computeLockedBeyondVp(records, MULTIPLIERS, VOTE_END)).toBe(
-            (5n * NANO_PER_BURN * 150n) / 100n,
-        );
+        expect(computeLockedBeyondVp(records, MULTIPLIERS, VOTE_END)).toBe((5n * NANO_PER_BURN * 150n) / 100n);
     });
 
     it('mixed tiers: only stakes with unlockTime beyond the window count', () => {
@@ -99,20 +80,15 @@ describe('IMP-TNFS-F15 — computeLockedBeyondVp (contract formula mirror)', () 
             stakeRecord({ amount: 2n * NANO_PER_BURN, tier: 2n, unlockTime: VOTE_END - 60n }),
             stakeRecord({ amount: 1n * NANO_PER_BURN, tier: 3n, unlockTime: VOTE_END + 999n }),
         ];
-        const expected =
-            (5n * NANO_PER_BURN * 150n) / 100n + (1n * NANO_PER_BURN * 300n) / 100n;
+        const expected = (5n * NANO_PER_BURN * 150n) / 100n + (1n * NANO_PER_BURN * 300n) / 100n;
         expect(computeLockedBeyondVp(records, MULTIPLIERS, VOTE_END)).toBe(expected);
     });
 
     it('boundary: unlockTime == voteEndTime does NOT count (contract uses strict >)', () => {
-        const records = [
-            stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END }),
-        ];
+        const records = [stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END })];
         expect(computeLockedBeyondVp(records, MULTIPLIERS, VOTE_END)).toBe(0n);
         // One second later it counts.
-        const beyond = [
-            stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END + 1n }),
-        ];
+        const beyond = [stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END + 1n })];
         expect(computeLockedBeyondVp(beyond, MULTIPLIERS, VOTE_END)).toBeGreaterThan(0n);
     });
 
@@ -131,12 +107,8 @@ describe('IMP-TNFS-F15 — computeLockedBeyondVp (contract formula mirror)', () 
     });
 
     it('throws on a missing tier multiplier instead of silently dropping VP', () => {
-        const records = [
-            stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END + 1n }),
-        ];
-        expect(() => computeLockedBeyondVp(records, new Map(), VOTE_END)).toThrow(
-            /missing multiplier/,
-        );
+        const records = [stakeRecord({ amount: 5n * NANO_PER_BURN, tier: 1n, unlockTime: VOTE_END + 1n })];
+        expect(() => computeLockedBeyondVp(records, new Map(), VOTE_END)).toThrow(/missing multiplier/);
     });
 });
 
@@ -200,8 +172,7 @@ function makeEnsureCtx(opts: StubOptions): ScenarioContext {
                         }
                         // Tier 0 served RAW (bare bigint) — pins the toncenter-v2
                         // tolerant read path (IMP-TNFS-F09 client shape family).
-                        const item =
-                            tier === 0 ? (mult as unknown as TupleItem) : intItem(mult);
+                        const item = tier === 0 ? (mult as unknown as TupleItem) : intItem(mult);
                         return { stack: new TupleReader([item]) };
                     }
                     throw new Error(`lock stub: unexpected getter ${name}`);
@@ -210,9 +181,7 @@ function makeEnsureCtx(opts: StubOptions): ScenarioContext {
                     if (name === 'get_stake') {
                         const tier = Number((args[1] as { type: 'int'; value: bigint }).value);
                         const record = opts.stakes[tier];
-                        const item: TupleItem = record
-                            ? stakeTupleItem(record)
-                            : ({ type: 'null' } as TupleItem);
+                        const item: TupleItem = record ? stakeTupleItem(record) : ({ type: 'null' } as TupleItem);
                         return { stack: new TupleReader([item]) };
                     }
                     throw new Error(`master stub: unexpected getter ${name}`);
@@ -223,8 +192,7 @@ function makeEnsureCtx(opts: StubOptions): ScenarioContext {
 
     const provider = {
         provider: providerFor,
-        open: <T extends Contract>(contract: T) =>
-            openContract(contract, (p) => providerFor(p.address)),
+        open: <T extends Contract>(contract: T) => openContract(contract, (p) => providerFor(p.address)),
         sender: () => {
             throw new Error('ensureLockedVotingPower must not send when locked VP is sufficient');
         },
@@ -251,12 +219,7 @@ function makeEnsureCtx(opts: StubOptions): ScenarioContext {
     } as ScenarioContext;
 }
 
-const ACTOR_ENV_KEYS = [
-    'STAKE_TEST_SENDER',
-    'FEE_TEST_SENDER',
-    'TEST_ACTOR',
-    'BURN_SMOKE_TEST_OWNER',
-] as const;
+const ACTOR_ENV_KEYS = ['STAKE_TEST_SENDER', 'FEE_TEST_SENDER', 'TEST_ACTOR', 'BURN_SMOKE_TEST_OWNER'] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 describe('IMP-TNFS-F15 — ensureLockedVotingPower (idempotent decision)', () => {
@@ -301,9 +264,9 @@ describe('IMP-TNFS-F15 — ensureLockedVotingPower (idempotent decision)', () =>
         // Zero locked VP → ensure moves past the idempotent return to the BURN
         // funding gate (stubbed jetton wallet reads as 0 balance) — the honest
         // insufficient-BURN error, never a silent "sufficient" return.
-        await expect(
-            ensureLockedVotingPower(ctx, { minVoteEndTime: VOTE_END }),
-        ).rejects.toThrow(/insufficient test wallet BURN/);
+        await expect(ensureLockedVotingPower(ctx, { minVoteEndTime: VOTE_END })).rejects.toThrow(
+            /insufficient test wallet BURN/,
+        );
     });
 
     it('tier-1 stake unlocking exactly at voteEndTime is NOT sufficient (strict >)', async () => {
@@ -312,9 +275,9 @@ describe('IMP-TNFS-F15 — ensureLockedVotingPower (idempotent decision)', () =>
                 1: stakeRecord({ amount: STAKE_AMOUNT_HAPPY, tier: 1n, unlockTime: VOTE_END }),
             },
         });
-        await expect(
-            ensureLockedVotingPower(ctx, { minVoteEndTime: VOTE_END }),
-        ).rejects.toThrow(/insufficient test wallet BURN/);
+        await expect(ensureLockedVotingPower(ctx, { minVoteEndTime: VOTE_END })).rejects.toThrow(
+            /insufficient test wallet BURN/,
+        );
     });
 
     it('resolveStakingLockAddr: governor getter first, manifest fallback on failure', async () => {

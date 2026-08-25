@@ -15,11 +15,7 @@ export interface AssertRelayFlowCleanOptions {
  * Count internal messages with empty body between two partner contracts (either direction).
  * Used to detect RC-A cashback ping-pong (IMP-GOVOTE-02/08, IMP-RELAY-01).
  */
-export function countEmptyBodyHopsBetween(
-    transactions: RelayTransactions,
-    addrA: Address,
-    addrB: Address,
-): number {
+export function countEmptyBodyHopsBetween(transactions: RelayTransactions, addrA: Address, addrB: Address): number {
     let count = 0;
     for (const tx of transactions) {
         const inMsg = tx.inMessage;
@@ -28,8 +24,7 @@ export function countEmptyBodyHopsBetween(
         }
         const from = inMsg.info.src;
         const to = inMsg.info.dest;
-        const isHop =
-            (from.equals(addrA) && to.equals(addrB)) || (from.equals(addrB) && to.equals(addrA));
+        const isHop = (from.equals(addrA) && to.equals(addrB)) || (from.equals(addrB) && to.equals(addrA));
         if (!isHop) {
             continue;
         }
@@ -74,10 +69,7 @@ function assertNoOutOfGas(transactions: RelayTransactions): void {
  * Relay-audit regression gate: bounded tx count, no out-of-gas, zero empty-body partner hops.
  * See docs/specs/SECURITY.md (governance on-chain / relay flows).
  */
-export function assertRelayFlowClean(
-    transactions: RelayTransactions,
-    options: AssertRelayFlowCleanOptions = {},
-): void {
+export function assertRelayFlowClean(transactions: RelayTransactions, options: AssertRelayFlowCleanOptions = {}): void {
     const maxTx = options.maxTx ?? 15;
     expect(transactions.length).toBeLessThan(maxTx);
     assertNoOutOfGas(transactions);

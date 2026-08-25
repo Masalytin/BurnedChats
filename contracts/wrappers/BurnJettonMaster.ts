@@ -142,7 +142,11 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
         return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 
-    async sendSetFeeParams(provider: ContractProvider, via: Sender, p: { burnBps: bigint; stakingBps: bigint; treasuryBps: bigint }) {
+    async sendSetFeeParams(
+        provider: ContractProvider,
+        via: Sender,
+        p: { burnBps: bigint; stakingBps: bigint; treasuryBps: bigint },
+    ) {
         const msg: SetFeeParamsPayload = {
             $$type: 'SetFeeParams',
             queryId: 0n,
@@ -179,7 +183,12 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
         return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 
-    async sendSetFeeDestinations(provider: ContractProvider, via: Sender, stakingPoolOwner: Address, treasuryOwner: Address) {
+    async sendSetFeeDestinations(
+        provider: ContractProvider,
+        via: Sender,
+        stakingPoolOwner: Address,
+        treasuryOwner: Address,
+    ) {
         const msg: SetFeeDestinationsPayload = {
             $$type: 'SetFeeDestinations',
             queryId: 0n,
@@ -225,7 +234,11 @@ export class BurnJettonMaster extends BurnJettonMasterBase {
         return this.send(provider, via, { value: toNano('0.02') }, msg);
     }
 
-    async sendSetDynamicBurnThresholds(provider: ContractProvider, via: Sender, p: { largeTxThreshold: bigint; activityThreshold: bigint }) {
+    async sendSetDynamicBurnThresholds(
+        provider: ContractProvider,
+        via: Sender,
+        p: { largeTxThreshold: bigint; activityThreshold: bigint },
+    ) {
         const msg: SetDynamicBurnThresholdsPayload = {
             $$type: 'SetDynamicBurnThresholds',
             queryId: 0n,

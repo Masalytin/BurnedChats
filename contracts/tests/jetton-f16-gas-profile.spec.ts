@@ -8,13 +8,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { toNano } from '@ton/core';
 import '@ton/test-utils';
-import {
-    deployJetton,
-    getWallet,
-    MINT_TON,
-    NANO_PER_BURN,
-    type JettonDeployedContext,
-} from './helpers';
+import { deployJetton, getWallet, MINT_TON, NANO_PER_BURN, type JettonDeployedContext } from './helpers';
 
 async function prepareFeeCtx(): Promise<JettonDeployedContext> {
     const ctx = await deployJetton();
@@ -78,9 +72,9 @@ describe('IMP-MNAUD-F16/F17 gas floors', () => {
     it('fee-path: DEX-default attach fails; 1.01 TON credits (gate 1.0 + fwd)', async () => {
         const ctxLo = await prepareFeeCtx();
         const destLo = await ctxLo.blockchain.treasury('f16-fee-lo');
-        expect(
-            await credited(ctxLo, ctxLo.userX.address, destLo.address, toNano('0.3'), ctxLo.userX.getSender()),
-        ).toBe(false);
+        expect(await credited(ctxLo, ctxLo.userX.address, destLo.address, toNano('0.3'), ctxLo.userX.getSender())).toBe(
+            false,
+        );
 
         const ctxHi = await prepareFeeCtx();
         const destHi = await ctxHi.blockchain.treasury('f16-fee-hi');
@@ -96,25 +90,13 @@ describe('IMP-MNAUD-F16/F17 gas floors', () => {
         const ctxLo = await prepareExcludedCtx();
         const destLo = await ctxLo.blockchain.treasury('f16-ex-lo');
         expect(
-            await credited(
-                ctxLo,
-                ctxLo.staking.address,
-                destLo.address,
-                toNano('0.60'),
-                ctxLo.staking.getSender(),
-            ),
+            await credited(ctxLo, ctxLo.staking.address, destLo.address, toNano('0.60'), ctxLo.staking.getSender()),
         ).toBe(false);
 
         const ctxHi = await prepareExcludedCtx();
         const destHi = await ctxHi.blockchain.treasury('f16-ex-hi');
         expect(
-            await credited(
-                ctxHi,
-                ctxHi.staking.address,
-                destHi.address,
-                toNano('1.01'),
-                ctxHi.staking.getSender(),
-            ),
+            await credited(ctxHi, ctxHi.staking.address, destHi.address, toNano('1.01'), ctxHi.staking.getSender()),
         ).toBe(true);
     }, 180_000);
 });

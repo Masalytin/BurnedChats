@@ -1,7 +1,5 @@
 import { Address, Slice, toNano } from '@ton/core';
-import {
-    type ProvideWalletAddress as ProvideWalletAddressMsg,
-} from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
+import { type ProvideWalletAddress as ProvideWalletAddressMsg } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { BurnJettonMaster } from '../wrappers/BurnJettonMaster';
 import { deployJetton, type JettonDeployedContext } from './helpers';
 import '@ton/test-utils';
@@ -29,11 +27,7 @@ function loadTep89TakeWalletAddress(slice: Slice) {
     return { queryId, walletAddress, ownerAddress };
 }
 
-function extractTakeWalletAddress(
-    transactions: SandboxTransactions,
-    from: Address,
-    to: Address,
-) {
+function extractTakeWalletAddress(transactions: SandboxTransactions, from: Address, to: Address) {
     for (const tx of transactions) {
         const im = tx.inMessage;
         if (!im || im.info.type !== 'internal') {

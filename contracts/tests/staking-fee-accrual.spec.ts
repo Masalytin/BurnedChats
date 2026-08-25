@@ -3,13 +3,7 @@ import { filterTransactions } from '@ton/test-utils';
 import { loadJettonTransferInternal } from '../build/BurnJettonMaster/BurnJettonMaster_BurnJettonMaster';
 import { BurnJettonWallet } from '../wrappers/BurnJettonWallet';
 import { StakingMaster } from '../wrappers/StakingMaster';
-import {
-    mintAndSyncUser,
-    NANO_PER_BURN,
-    setupStakingEnvironment,
-    stakeAs,
-    MIN_STAKE_NANO,
-} from './staking-helpers';
+import { mintAndSyncUser, NANO_PER_BURN, setupStakingEnvironment, stakeAs, MIN_STAKE_NANO } from './staking-helpers';
 import { MINT_TON } from './helpers';
 import '@ton/test-utils';
 
@@ -75,9 +69,9 @@ describe('IMP-JETTON-GAS-01 — StakeFeeRewardsAccrue without Pool↔Master ping
         const tx = await env.pool.sendRelayStakeFeeAccrual(masterSender, feeAmount);
 
         expect(tx.transactions).toHaveTransaction({ success: true });
-        expect(countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address)).toBeLessThanOrEqual(
-            2,
-        );
+        expect(
+            countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address),
+        ).toBeLessThanOrEqual(2);
         expect(await env.stakingMaster.getGetRewardPerShare(0n)).toBe(rpsBefore + expectedDeltaRps);
     });
 
@@ -110,9 +104,9 @@ describe('IMP-JETTON-GAS-01 — StakeFeeRewardsAccrue without Pool↔Master ping
         });
 
         expect(tx.transactions).toHaveTransaction({ success: true });
-        expect(countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address)).toBeLessThanOrEqual(
-            2,
-        );
+        expect(
+            countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address),
+        ).toBeLessThanOrEqual(2);
         expect(await env.stakingMaster.getGetRewardPerShare(0n)).toBe(rpsBefore + expectedDeltaRps);
     });
 
@@ -162,9 +156,9 @@ describe('IMP-JETTON-GAS-03 — reduced pool staking-leg forward TON', () => {
         const poolFwd = poolStakingLegForwardNano(tx.transactions, aliceJwAddr, poolJwAddr);
         expect(poolFwd).toBeLessThanOrEqual(GAS_POOL_FORWARD_MAX_NANO);
         expect(poolFwd).toBeGreaterThan(toNano('0.06'));
-        expect(countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address)).toBeLessThanOrEqual(
-            2,
-        );
+        expect(
+            countPoolMasterTransfers(tx.transactions, env.pool.address, env.stakingMaster.address),
+        ).toBeLessThanOrEqual(2);
         expect(await env.pool.getGetPoolBalance()).toBe(poolBalBefore + expectedStakingFee);
         expect(await env.stakingMaster.getGetRewardPerShare(0n)).toBe(rpsBefore + expectedDeltaRps);
     });
