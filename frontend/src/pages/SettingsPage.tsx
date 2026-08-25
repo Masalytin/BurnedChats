@@ -469,17 +469,20 @@ export function SettingsPage({
               ) : null}
             </div>
           ) : null}
-          <button
-            type="button"
-            className={`settings-security__button${isClearingKeys ? ' settings-security__button--loading' : ''}`}
-            onClick={() => void handleClearLocalKeys()}
-            disabled={isClearingKeys}
-            aria-busy={isClearingKeys}
-          >
-            {isClearingKeys ? t('common.loading') : t('settings.security.clearKeys')}
-          </button>
           <div className="settings-security__burn-all">
-            <p className="settings-security__burn-all-label">{t('settings.burnAll.dataAction')}</p>
+            <p className="settings-security__burn-all-label">{t('settings.security.clearKeys')}</p>
+            <button
+              type="button"
+              className={`settings-security__button settings-security__button--burn-all${isClearingKeys ? ' settings-security__button--loading' : ''}`}
+              onClick={() => void handleClearLocalKeys()}
+              disabled={isClearingKeys}
+              aria-busy={isClearingKeys}
+            >
+              {isClearingKeys ? t('common.loading') : t('settings.security.clearKeys')}
+            </button>
+            <p className="settings-security__burn-all-label settings-security__burn-all-label--account">
+              {t('settings.burnAll.dataAction')}
+            </p>
             <button
               type="button"
               className="settings-security__button settings-security__button--burn-all"
