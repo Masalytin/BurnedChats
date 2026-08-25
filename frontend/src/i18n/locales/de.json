@@ -52,6 +52,13 @@
     "featureE2eeDesc": "Nachrichten werden auf Ihrem Gerät verschlüsselt. Selbst wir können sie nicht lesen.",
     "featureBurnTitle": "Selbstzerstörung",
     "featureBurnDesc": "Zerstören Sie alle Spuren Ihres Gesprächs mit einem Tippen.",
+    "redisLossBanner": "Der Server speichert kein Chat-Backup. Wurde Redis gelöscht, sind Räume und Sitzungen dieses Kontos weg — die Verschlüsselungsschlüssel haben dieses Gerät nie verlassen.",
+    "emptyRoomsCta": "Erstellen Sie einen Raum oder fügen Sie einen Einladungslink ein.",
+    "onboardingTitle": "Dieser Chat ist vergänglich",
+    "onboardingKeys": "Verschlüsselungsschlüssel liegen nur im Speicher dieses Geräts. Das Schließen der Mini App oder etwa 45 Sekunden im Hintergrund zerstört sie.",
+    "onboardingInvite": "Um mit jemandem zu chatten, suchen Sie nach @username oder Internal ID oder teilen Sie einen Raum-Einladungslink.",
+    "onboardingRooms": "Räume laufen ab. Es gibt kein serverseitiges Verlaufs-Backup.",
+    "onboardingContinue": "Verstanden",
     "joinViaQr": "Per QR beitreten",
     "sectionDmInvite": "Zum persönlichen Chat einladen",
     "dmInviteHint": "In der Nähe? Zeige deinen QR oder scanne ihren — kein Benutzername nötig.",
@@ -776,6 +783,7 @@
   "room": {
     "sectionMyRooms": "Meine Räume",
     "emptyRooms": "Noch keine Räume",
+    "burnedOffline": "{{count}} Raum/Räume wurden verbrannt, während Sie offline waren.",
     "createRoomButton": "Raum erstellen",
     "roleOwner": "Besitzer",
     "roleMember": "Mitglied",
@@ -1142,7 +1150,10 @@
     "errorProofSignature": "Wallet-Signatur stimmte nicht überein. Verbinden Sie die Wallet erneut; wenn das Problem bestehen bleibt — wechseln Sie die Wallet.",
     "errorProofRequest": "Ungültige Anmeldeanfrage. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
     "errorTimeout": "Verbindung abgelaufen. Überprüfen Sie Ihr Netzwerk und versuchen Sie es erneut.",
-    "errorNetwork": "Server nicht erreichbar. Überprüfen Sie Ihre Verbindung und die API-URL."
+    "errorNetwork": "Server nicht erreichbar. Überprüfen Sie Ihre Verbindung und die API-URL.",
+    "errorCspBlocked": "Der Browser hat Wallet-Netzwerkanfragen blockiert (CSP). Laden Sie die Seite neu. Wenn das Problem bleibt — informieren Sie den Admin: CSP connect-src / TON Connect bridges. Siehe docs/improvements/tonconnect-csp-and-manifest/REPORT.md.",
+    "errorManifestInvalid": "Die Wallet hat das App-Manifest abgelehnt. Server-Konfigurationsfehler — wenden Sie sich an den Support (Stichwort: tonconnect-manifest).",
+    "errorWallet": "Die Wallet hat einen Fehler gemeldet. Versuchen Sie eine andere Wallet oder verbinden Sie sich erneut."
   },
   "wallet": {
     "segment": {
@@ -1271,7 +1282,8 @@
     "pinnedStaking": "Staking master",
     "pinnedGovernor": "Governor",
     "pinnedTreasury": "Treasury",
-    "pinnedBuildId": "Build fingerprint"
+    "pinnedBuildId": "Build fingerprint",
+    "preSignReview": "Sie signieren eine BURN-Überweisung von {{amount}} an die Jetton-Wallet {{dest}} (aus dem pinned Master abgeleitet, nicht manuell eingegeben)."
   },
   "staking": {
     "tierFlexible": "Flexibel",
