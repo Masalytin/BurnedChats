@@ -19,6 +19,7 @@ import dev.burnedchats.metrics.GrowthMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -58,7 +59,7 @@ public class DmInviteService {
     /**
      * Mint a single-use personal DM invite for the authenticated owner.
      */
-    public Mono<DmInviteMintedEvent> mint(ParticipantContext owner, PowSolution pow) {
+    public Mono<DmInviteMintedEvent> mint(ParticipantContext owner, @Nullable PowSolution pow) {
         return enforceMintGate(owner, pow)
                 .then(Mono.defer(() -> persistNewToken(owner)))
                 .doOnSuccess(e -> LOG.info("DM invite minted by owner={}", owner.internalId()))
@@ -71,7 +72,7 @@ public class DmInviteService {
      *
      * @return same {@link CreateSessionResult} as {@code session.create} business path
      */
-    public Mono<CreateSessionResult> redeem(ParticipantContext redeemer, String tokenValue) {
+    public Mono<CreateSessionResult> redeem(ParticipantContext redeemer, @Nullable String tokenValue) {
         return rateLimitService.enforceRateLimit(redeemer.internalId(), RateLimitType.DM_INVITE_REDEEM)
                 .then(Mono.defer(() -> consumeAndCreate(redeemer, tokenValue)))
                 .doOnSuccess(result -> {
@@ -106,7 +107,7 @@ public class DmInviteService {
         return "https://t.me/" + botUsername + "/app?startapp=" + STARTAPP_PREFIX + tokenValue;
     }
 
-    private Mono<Void> enforceMintGate(ParticipantContext owner, PowSolution pow) {
+    private Mono<Void> enforceMintGate(ParticipantContext owner, @Nullable PowSolution pow) {
         Mono<Void> powGate = Mono.empty();
         if (powProperties.isEnabled()) {
             powGate = adaptiveDifficultyService.recordGatedAttempt()

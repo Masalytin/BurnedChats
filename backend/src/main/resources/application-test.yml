@@ -35,6 +35,12 @@ telegram:
     auth:
       max-age: 3600  # Extended for tests
 
+# Writable on Linux CI (default /data/files/ is not). Windows local also uses tmp.
+app:
+  files:
+    storage-path: ${java.io.tmpdir}/burnedchats-test-files/
+    cleanup-enabled: false
+
 # Disable rate limiting in tests
 rate-limit:
   enabled: false

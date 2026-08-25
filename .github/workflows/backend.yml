@@ -28,6 +28,8 @@ on:
 jobs:
     build-test:
         runs-on: ubuntu-latest
+        env:
+            FILE_STORAGE_PATH: ${{ runner.temp }}/burnedchats-files
         steps:
             - uses: actions/checkout@v4
 
