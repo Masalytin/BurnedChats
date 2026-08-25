@@ -1,9 +1,13 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import App from './App';
 import { isTelegramMiniApp } from './env/detector';
 import { LandingPage } from './pages/LandingPage/LandingPage';
 import { rootLandingRedirect } from './utils/inviteLink';
+
+const TokenPage = lazy(() =>
+  import('./pages/TokenPage').then((m) => ({ default: m.TokenPage }))
+);
 
 /**
  * Redirects Telegram Mini App users from `/` to `/app` (hash preserved);
@@ -31,6 +35,14 @@ export function AppRouter() {
             <TelegramLandingGuard>
               <LandingPage />
             </TelegramLandingGuard>
+          }
+        />
+        <Route
+          path="/token"
+          element={
+            <Suspense fallback={null}>
+              <TokenPage />
+            </Suspense>
           }
         />
         <Route path="/join" element={<App />} />

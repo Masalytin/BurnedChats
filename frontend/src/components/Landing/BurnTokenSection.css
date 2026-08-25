@@ -138,6 +138,13 @@
   white-space: nowrap;
 }
 
+.burn-token-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .burn-token-cta {
   display: inline-flex;
   align-items: center;
@@ -178,6 +185,15 @@
 .burn-token-cta svg {
   width: 18px;
   height: 18px;
+}
+
+.burn-token-cta--primary {
+  color: var(--lp-orange);
+  border-color: color-mix(in srgb, var(--bc-brand-primary) 40%, transparent);
+}
+
+.burn-token-cta--primary:hover {
+  color: var(--lp-orange);
 }
 
 @media (min-width: 768px) {

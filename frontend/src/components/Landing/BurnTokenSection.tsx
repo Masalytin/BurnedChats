@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
+import { Link } from 'react-router-dom';
 import './BurnTokenSection.css';
 
 const TOKENOMICS_URL =
@@ -128,7 +129,15 @@ export function BurnTokenSection() {
           ))}
         </div>
 
-        <motion.div variants={item}>
+        <motion.div className="burn-token-cta-row" variants={item}>
+          <Link
+            to="/token"
+            className="burn-token-cta burn-token-cta--primary"
+            aria-label="Explore the BURN token page"
+          >
+            Explore the token
+            <ArrowRightIcon />
+          </Link>
           <a
             href={TOKENOMICS_URL}
             className="burn-token-cta"
@@ -172,6 +181,15 @@ function TreasuryIcon() {
       <path d="M12 15v2" />
       <path d="M6 15v2" />
       <path d="M18 15v2" />
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
     </svg>
   );
 }
