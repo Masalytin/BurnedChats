@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import { writeTextToClipboard } from '../../utils/clipboard';
 import './TokenPage.css';
 
 const TOKENOMICS_URL =
@@ -9,6 +11,22 @@ const TOKENOMICS_URL =
 const TON_NETWORK = import.meta.env.VITE_TON_NETWORK === 'testnet' ? 'testnet' : 'mainnet';
 const EXPLORER_BASE =
   TON_NETWORK === 'testnet' ? 'https://testnet.tonviewer.com/' : 'https://tonviewer.com/';
+
+/** Canonical TON mainnet addresses from contracts/deployments/mainnet.json (2026-08-23). */
+const MAINNET = {
+  jettonMaster: 'EQB_BXje-o9PaFNkeenhq47MTUHXOEXCCqm_WTISgwKk8sPa',
+  stakingMaster: 'EQAStcNFaLaHJ9YtUI-Nyq-EwKj4DA6xOhfBpvtLIxZog6Mv',
+  stakingPool: 'EQByqimQJwEjTZZV-mYY46Qmhy8-dxSm6WCh_4XViykf-JL6',
+  governor: 'EQDg8eru-72BQ-F3-CT1cFPJD_olGZp3CWaUExd_lekbA90f',
+  treasury: 'EQBVUSLX2gSL0_ixhi950GO1XLPRSoeB1655TsymZHIh-2WB',
+  airdropHolder: 'EQD5iBzYOb6vVZ-0TDksbFhffe7EUdvIHl_6ou6DAI4Km-9D',
+  liquidityHolder: 'EQDJ_T4KvEFY9mnAzQy8aVgoa-oJyLvG1EnM2PMSsu5k7lu5',
+  vestingEcosystem: 'EQCCdHDOjCyUwnFi5XKUwftj706D0PRx8R5GwURX2z8vVTee',
+  vestingReserve: 'EQB3HgdoNOtZZQOLYfQ8KqycGuKLUW8Y2pKbqNEOWi62vTKb',
+  vestingDeveloper: 'EQDfRFvoWfeNQt3p2euqfrNn0seJNUXwObAAym4MF8k5JSQW',
+} as const;
+
+const JETTON_MASTER = import.meta.env.VITE_BURN_JETTON_MASTER || MAINNET.jettonMaster;
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
@@ -28,12 +46,12 @@ const feeSegments = [
 ] as const;
 
 const allocations = [
-  { label: 'Community Airdrop', amount: '200 BURN', percent: 20, note: 'Early Burned Chats users' },
-  { label: 'Staking Rewards', amount: '300 BURN', percent: 30, note: 'Released linearly over 3 years, enforced on-chain' },
-  { label: 'Liquidity Pool', amount: '300 BURN', percent: 30, note: 'Held for DEX pools, gated by governance' },
-  { label: 'Ecosystem', amount: '150 BURN', percent: 15, note: 'Grants & partnerships, 2-year vesting' },
-  { label: 'Reserve', amount: '43 BURN', percent: 4.3, note: 'Locked for 3 years' },
-  { label: 'Developer', amount: '7 BURN', percent: 0.7, note: '12-month linear vesting — no rug pull by design' },
+  { label: 'Community Airdrop', amount: '200 BURN', percent: 20, note: 'Early Burned Chats users', address: MAINNET.airdropHolder },
+  { label: 'Staking Rewards', amount: '300 BURN', percent: 30, note: 'Released linearly over 3 years, enforced on-chain', address: MAINNET.stakingPool },
+  { label: 'Liquidity Pool', amount: '300 BURN', percent: 30, note: 'Held for DEX pools, gated by governance', address: MAINNET.liquidityHolder },
+  { label: 'Ecosystem', amount: '150 BURN', percent: 15, note: 'Grants & partnerships, 2-year vesting', address: MAINNET.vestingEcosystem },
+  { label: 'Reserve', amount: '43 BURN', percent: 4.3, note: 'Locked for 3 years', address: MAINNET.vestingReserve },
+  { label: 'Developer', amount: '7 BURN', percent: 0.7, note: '12-month linear vesting — no rug pull by design', address: MAINNET.vestingDeveloper },
 ] as const;
 
 const tiers = [
@@ -58,14 +76,14 @@ const utilities = [
 ] as const;
 
 const contractAddresses = [
-  { label: 'Jetton Master', address: import.meta.env.VITE_BURN_JETTON_MASTER },
-  { label: 'Staking Master', address: import.meta.env.VITE_STAKING_MASTER },
-  { label: 'Governor', address: import.meta.env.VITE_GOVERNOR_ADDRESS },
-  { label: 'Treasury', address: import.meta.env.VITE_TREASURY_ADDRESS },
-].filter((row): row is { label: string; address: string } => Boolean(row.address));
+  { label: 'Jetton Master', address: JETTON_MASTER },
+  { label: 'Staking Master', address: import.meta.env.VITE_STAKING_MASTER || MAINNET.stakingMaster },
+  { label: 'Governor', address: import.meta.env.VITE_GOVERNOR_ADDRESS || MAINNET.governor },
+  { label: 'Treasury', address: import.meta.env.VITE_TREASURY_ADDRESS || MAINNET.treasury },
+];
 
 function truncateAddress(address: string): string {
-  return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+  return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
 }
 
 export function TokenPage() {
@@ -114,6 +132,7 @@ export function TokenPage() {
                 <span className="tp-status-dot" aria-hidden="true" />
                 Contracts live on TON {TON_NETWORK}
               </span>
+              <JettonMasterCard address={JETTON_MASTER} />
               <span className="tp-status-note">
                 Always verify contract addresses below before interacting.
               </span>
@@ -296,6 +315,7 @@ export function TokenPage() {
                   <div className="tp-allocation-fill" style={{ width: `${row.percent}%` }} />
                 </div>
                 <p className="tp-allocation-note">{row.note}</p>
+                <ExplorerAddress address={row.address} label={`${row.label} holder`} />
               </motion.li>
             ))}
           </motion.ul>
@@ -487,17 +507,7 @@ export function TokenPage() {
             {contractAddresses.map((row) => (
               <motion.div key={row.label} className="tp-onchain-row" variants={item}>
                 <span className="tp-onchain-label">{row.label}</span>
-                <a
-                  className="tp-onchain-address"
-                  href={`${EXPLORER_BASE}${row.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={row.address}
-                  aria-label={`${row.label} contract ${row.address} on TON explorer (opens in new tab)`}
-                >
-                  {truncateAddress(row.address)}
-                  <ExternalLinkIcon />
-                </a>
+                <ExplorerAddress address={row.address} label={row.label} />
               </motion.div>
             ))}
           </motion.div>
@@ -528,6 +538,64 @@ export function TokenPage() {
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function explorerHref(address: string): string {
+  return `${EXPLORER_BASE}${address}`;
+}
+
+function ExplorerAddress({ address, label }: { address: string; label: string }) {
+  return (
+    <a
+      className="tp-addr"
+      href={explorerHref(address)}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={address}
+      aria-label={`${label} ${address} on tonviewer (opens in new tab)`}
+    >
+      {truncateAddress(address)}
+      <ExternalLinkIcon />
+    </a>
+  );
+}
+
+function JettonMasterCard({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyAddress() {
+    const ok = await writeTextToClipboard(address);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className="tp-hero-jetton">
+      <span className="tp-hero-jetton-label">Jetton Master</span>
+      <div className="tp-hero-jetton-row">
+        <a
+          className="tp-hero-jetton-addr"
+          href={explorerHref(address)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Jetton Master ${address} on tonviewer (opens in new tab)`}
+        >
+          {address}
+          <ExternalLinkIcon />
+        </a>
+        <button
+          type="button"
+          className="tp-copy"
+          onClick={() => void copyAddress()}
+          aria-label={copied ? 'Jetton Master address copied' : 'Copy Jetton Master address'}
+        >
+          {copied ? <CheckIcon /> : <CopyGlyph />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -576,6 +644,23 @@ function SparkleIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+    </svg>
+  );
+}
+
+function CopyGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
     </svg>
   );
 }

@@ -23,8 +23,10 @@
   --lp-radius-sm: var(--bc-radius-md);
 
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--lp-bg);
   color: var(--lp-text);
   font-family: var(--lp-font);
@@ -176,6 +178,109 @@
 .tp-status-note {
   font-size: 0.8rem;
   color: var(--lp-text-muted);
+}
+
+.tp-hero-jetton {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 40rem;
+  padding: 1rem 1.25rem;
+  background: var(--lp-bg-card);
+  border: 1px solid var(--lp-border);
+  border-radius: var(--lp-radius);
+  text-align: left;
+}
+
+.tp-hero-jetton-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lp-text-muted);
+}
+
+.tp-hero-jetton-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tp-hero-jetton-addr {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex: 1 1 12rem;
+  min-height: var(--bc-touch-target);
+  padding: 0.5rem 0;
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--lp-orange);
+  text-decoration: none;
+  word-break: break-all;
+  border-radius: var(--lp-radius-sm);
+  transition: color var(--bc-transition-normal) var(--bc-ease-out);
+}
+
+.tp-hero-jetton-addr:hover {
+  color: var(--lp-text);
+}
+
+.tp-hero-jetton-addr:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.tp-hero-jetton-addr svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.tp-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  padding: 0.5rem 0.9rem;
+  font-family: var(--lp-font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--lp-text);
+  background: var(--lp-bg-elevated);
+  border: 1px solid var(--lp-border);
+  border-radius: var(--bc-radius-full);
+  cursor: pointer;
+  transition:
+    border-color var(--bc-transition-normal) var(--bc-ease-out),
+    background-color var(--bc-transition-normal) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
+}
+
+.tp-copy:hover {
+  border-color: var(--lp-orange);
+  background: var(--bc-accent-muted);
+}
+
+.tp-copy:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.tp-copy:active {
+  transform: scale(0.97);
+}
+
+.tp-copy svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ---------- Philosophy ---------- */
@@ -387,6 +492,10 @@
   color: var(--lp-text-muted);
 }
 
+.tp-allocation .tp-addr {
+  margin-top: 0.35rem;
+}
+
 /* ---------- Staking tiers ---------- */
 
 .tp-tiers {
@@ -442,6 +551,15 @@
 .tp-tier-extras {
   font-size: 0.8rem;
   color: var(--lp-text-dim);
+}
+
+.tp-staking-note {
+  font-size: 0.9rem;
+  color: var(--lp-text-dim);
+  line-height: 1.6;
+  text-align: center;
+  max-width: 620px;
+  margin: 2rem auto 0;
 }
 
 /* ---------- Governance ---------- */
@@ -585,7 +703,7 @@
   color: var(--lp-text-dim);
 }
 
-.tp-onchain-address {
+.tp-addr {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -599,16 +717,16 @@
   transition: color var(--bc-transition-normal) var(--bc-ease-out);
 }
 
-.tp-onchain-address:hover {
+.tp-addr:hover {
   color: var(--lp-text);
 }
 
-.tp-onchain-address:focus-visible {
+.tp-addr:focus-visible {
   outline: 2px solid var(--bc-brand-primary);
   outline-offset: 2px;
 }
 
-.tp-onchain-address svg {
+.tp-addr svg {
   width: 14px;
   height: 14px;
 }
@@ -694,6 +812,16 @@
  * RESPONSIVE
  * ============================================ */
 
+@media (max-width: 767px) {
+  .tp-hero {
+    padding: 3rem 0 2.5rem;
+  }
+
+  .tp-hero-jetton-addr {
+    font-size: 0.72rem;
+  }
+}
+
 @media (min-width: 768px) {
   .tp-stats { grid-template-columns: repeat(3, 1fr); }
   .tp-card-row { grid-template-columns: 1fr 1fr; }
@@ -717,7 +845,8 @@
       background-color var(--bc-transition-normal) var(--bc-ease-out);
   }
 
-  .tp-cta:active {
+  .tp-cta:active,
+  .tp-copy:active {
     transform: none;
   }
 }
