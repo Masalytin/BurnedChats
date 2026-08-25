@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     id("java")
     id("org.springframework.boot") version "3.3.0"
@@ -81,6 +83,8 @@ tasks.named<Test>("test") {
     useJUnitPlatform {
         excludeTags("integration")
     }
+    // Belt-and-suspenders: a silent Redis hang must not occupy a runner for 30+ min.
+    timeout.set(Duration.ofMinutes(8))
 }
 
 // Docker-backed integration tests — opt-in; requires Docker Engine (see IMP-AUDIT-32).

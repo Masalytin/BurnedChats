@@ -67,6 +67,8 @@ public final class OpenApiExporter {
         defaults.put("spring.main.lazy-initialization", "true");
         defaults.put("spring.data.redis.host", "localhost");
         defaults.put("spring.data.redis.port", "6379");
+        defaults.put("spring.data.redis.timeout", "2s");
+        defaults.put("spring.data.redis.connect-timeout", "2s");
         defaults.put("telegram.bot.token", "");
         defaults.put("telegram.bot.username", "ExportBot");
         defaults.put("telegram.bot.webhook.enabled", "false");

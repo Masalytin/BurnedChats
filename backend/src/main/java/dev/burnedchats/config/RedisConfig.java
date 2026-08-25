@@ -59,6 +59,9 @@ public class RedisConfig {
     @Value("${spring.data.redis.timeout:10s}")
     private Duration commandTimeout;
 
+    @Value("${spring.data.redis.connect-timeout:10s}")
+    private Duration connectTimeout;
+
     @Value("${spring.data.redis.lettuce.pool.max-active:10}")
     private int maxActive;
 
@@ -119,7 +122,7 @@ public class RedisConfig {
 
         // Socket options for connection reliability
         SocketOptions socketOptions = SocketOptions.builder()
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(connectTimeout)
                 .keepAlive(true)
                 .build();
 

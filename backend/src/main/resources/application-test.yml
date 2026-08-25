@@ -4,10 +4,13 @@
 spring:
   data:
     redis:
-      # Testcontainers will override these
+      # Testcontainers will override these. Short timeouts so CI without Redis
+      # fails in seconds instead of hanging on Lettuce connect (10s default).
       host: localhost
       port: 6379
       password: ""
+      timeout: 2s
+      connect-timeout: 2s
 
 server:
   port: 0  # Random port for tests
