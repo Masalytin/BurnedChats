@@ -131,7 +131,12 @@ public class AuthController {
         if (body == null || blank(body.initData()) || blank(body.walletAddress()) || blank(body.walletProof())) {
             return Mono.just(error(HttpStatus.BAD_REQUEST, "initData, walletAddress and walletProof are required"));
         }
-        return authAccountLinkService.linkWallet(body.initData(), body.walletAddress(), body.walletProof())
+        return authAccountLinkService.linkWallet(
+                        body.initData(),
+                        body.walletAddress(),
+                        body.walletProof(),
+                        body.walletPublicKey(),
+                        body.walletStateInit())
                 .map(this::linkedAccountsOk)
                 .onErrorResume(WalletProofException.class, e -> Mono.just(walletProofError(e)))
                 .onErrorResume(AuthenticationException.class,
@@ -246,7 +251,11 @@ public class AuthController {
                         body.sessionToken(),
                         body.walletAddress(),
                         body.walletProof(),
-                        body.previousWalletProof())
+                        body.previousWalletProof(),
+                        body.walletPublicKey(),
+                        body.walletStateInit(),
+                        body.previousWalletPublicKey(),
+                        body.previousWalletStateInit())
                 .map(this::linkedAccountsOk)
                 .onErrorResume(WalletProofException.class, e -> Mono.just(walletProofError(e)))
                 .onErrorResume(AuthenticationException.class,
@@ -408,7 +417,12 @@ public class AuthController {
             String walletStateInit) {
     }
 
-    public record LinkWalletRequest(String initData, String walletAddress, String walletProof) {
+    public record LinkWalletRequest(
+            String initData,
+            String walletAddress,
+            String walletProof,
+            String walletPublicKey,
+            String walletStateInit) {
     }
 
     public record SwitchWalletRequest(
@@ -416,7 +430,11 @@ public class AuthController {
             String sessionToken,
             String walletAddress,
             String walletProof,
-            String previousWalletProof) {
+            String previousWalletProof,
+            String walletPublicKey,
+            String walletStateInit,
+            String previousWalletPublicKey,
+            String previousWalletStateInit) {
     }
 
     public record SessionTokenOnlyRequest(String sessionToken) {

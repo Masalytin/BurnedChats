@@ -34,6 +34,14 @@ components:
           type: "string"
         previousWalletProof:
           type: "string"
+        walletPublicKey:
+          type: "string"
+        walletStateInit:
+          type: "string"
+        previousWalletPublicKey:
+          type: "string"
+        previousWalletStateInit:
+          type: "string"
     LinkedAccountsQuery:
       type: "object"
       properties:
@@ -49,6 +57,10 @@ components:
         walletAddress:
           type: "string"
         walletProof:
+          type: "string"
+        walletPublicKey:
+          type: "string"
+        walletStateInit:
           type: "string"
     LinkTelegramCompleteRequest:
       type: "object"

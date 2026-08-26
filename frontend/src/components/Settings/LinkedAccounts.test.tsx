@@ -108,9 +108,19 @@ function bothLinked(overrides: Partial<LinkedAccountsDto> = {}): LinkedAccountsD
   };
 }
 
-function mockWallet(rawAddress: string) {
+const IDENTITY_PK = 'aa'.repeat(32);
+const IDENTITY_STATE_INIT = 'te6ccgEBAQEAAgAAAA==';
+
+function mockWallet(
+  rawAddress: string,
+  identity?: { publicKey: string; walletStateInit: string },
+) {
   return {
-    account: { address: rawAddress, chain: '-239' },
+    account: {
+      address: rawAddress,
+      chain: '-239' as const,
+      ...(identity ?? {}),
+    },
     connectItems: {
       tonProof: {
         name: 'ton_proof' as const,
@@ -186,7 +196,9 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
       bothLinked({ walletLinked: false, walletAddress: '', linkedMethodCount: 1 }),
     );
     linkWalletTelegram.mockResolvedValue(bothLinked());
-    connectWalletWithTonProof.mockResolvedValue(mockWallet(RAW_NEW));
+    connectWalletWithTonProof.mockResolvedValue(
+      mockWallet(RAW_NEW, { publicKey: IDENTITY_PK, walletStateInit: IDENTITY_STATE_INIT }),
+    );
 
     await loadedAccounts(tmaCreds);
     expect(screen.getByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeTruthy();
@@ -196,6 +208,12 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     await waitFor(() => {
       expect(linkWalletTelegram).toHaveBeenCalled();
     });
+    const linkPayload = linkWalletTelegram.mock.calls[0][0] as {
+      walletPublicKey?: string;
+      walletStateInit?: string;
+    };
+    expect(linkPayload.walletPublicKey).toBe(IDENTITY_PK);
+    expect(linkPayload.walletStateInit).toBe(IDENTITY_STATE_INIT);
     expect(await screen.findByRole('button', { name: i18n.t('accountLinking.switch') })).toBeTruthy();
     expect(screen.queryByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeNull();
   });
@@ -314,9 +332,13 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
       initData?: string;
       sessionToken?: string;
       previousWalletProof?: string;
+      walletPublicKey?: string;
+      walletStateInit?: string;
     };
     expect(payload.initData).toBe('init-data');
     expect(payload.previousWalletProof).toBeFalsy();
+    expect(payload.walletPublicKey).toBeUndefined();
+    expect(payload.walletStateInit).toBeUndefined();
     expect(applyLinkedAccounts).toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByText(i18n.t('accountLinking.switchTitle'))).toBeNull();
@@ -325,8 +347,12 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
 
   it('web Switch: two-proof sequence; first proof must be the linked wallet', async () => {
     connectWalletWithTonProof
-      .mockResolvedValueOnce(mockWallet(RAW_LINKED))
-      .mockResolvedValueOnce(mockWallet(RAW_NEW));
+      .mockResolvedValueOnce(
+        mockWallet(RAW_LINKED, { publicKey: IDENTITY_PK, walletStateInit: IDENTITY_STATE_INIT }),
+      )
+      .mockResolvedValueOnce(
+        mockWallet(RAW_NEW, { publicKey: 'bb'.repeat(32), walletStateInit: IDENTITY_STATE_INIT }),
+      );
 
     await loadedAccounts(webCreds);
     await openSwitchSheet();
@@ -343,10 +369,14 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
       sessionToken?: string;
       previousWalletProof?: string;
       walletProof?: string;
+      walletPublicKey?: string;
+      previousWalletPublicKey?: string;
     };
     expect(payload.sessionToken).toBe('session-token');
     expect(payload.previousWalletProof).toBeTruthy();
     expect(payload.walletProof).toBeTruthy();
+    expect(payload.previousWalletPublicKey).toBe(IDENTITY_PK);
+    expect(payload.walletPublicKey).toBe('bb'.repeat(32));
   });
 
   it('web Switch: Connect ≠ linked on the first proof does not POST', async () => {

@@ -30,9 +30,26 @@ public class AuthAccountLinkService {
      * Telegram Mini App session links a verified TON wallet address to the same internal id.
      */
     public Mono<UnifiedUser> linkWallet(String initData, String walletAddress, String walletProof) {
+        return linkWallet(initData, walletAddress, walletProof, null, null);
+    }
+
+    public Mono<UnifiedUser> linkWallet(
+            String initData,
+            String walletAddress,
+            String walletProof,
+            String walletPublicKey,
+            String walletStateInit) {
+        if (incompleteIdentityPair(walletPublicKey, walletStateInit)) {
+            return Mono.error(new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST,
+                    "walletPublicKey and walletStateInit must be provided together",
+                    null));
+        }
         String maskedAddress = maskWalletAddress(walletAddress);
+        AuthCredentials walletCreds = walletProofCredentials(
+                walletProof, walletAddress, walletPublicKey, walletStateInit);
         return authenticationService.authenticate(AuthCredentials.telegram(initData))
-                .flatMap(tgUser -> tonProofVerifier.verify(AuthCredentials.wallet(walletProof, walletAddress))
+                .flatMap(tgUser -> tonProofVerifier.verify(walletCreds)
                         .flatMap(verified -> userIdentityRepository
                                 .linkWallet(tgUser.internalId(), verified.walletAddress())
                                 .then(userIdentityRepository.findById(tgUser.internalId()))
@@ -59,6 +76,29 @@ public class AuthAccountLinkService {
             return "BAD_REQUEST";
         }
         return "INTERNAL";
+    }
+
+    static AuthCredentials walletProofCredentials(
+            String walletProof,
+            String walletAddress,
+            String walletPublicKey,
+            String walletStateInit) {
+        if (hasIdentityPair(walletPublicKey, walletStateInit)) {
+            return AuthCredentials.wallet(walletProof, walletAddress, walletPublicKey, walletStateInit);
+        }
+        return AuthCredentials.wallet(walletProof, walletAddress);
+    }
+
+    static boolean hasIdentityPair(String publicKey, String stateInit) {
+        return !blank(publicKey) && !blank(stateInit);
+    }
+
+    static boolean incompleteIdentityPair(String publicKey, String stateInit) {
+        return blank(publicKey) != blank(stateInit);
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static String maskWalletAddress(String address) {
@@ -128,6 +168,28 @@ public class AuthAccountLinkService {
             String walletAddress,
             String walletProof,
             String previousWalletProof) {
+        return switchWallet(
+                initData, sessionToken, walletAddress, walletProof, previousWalletProof,
+                null, null, null, null);
+    }
+
+    public Mono<UnifiedUser> switchWallet(
+            String initData,
+            String sessionToken,
+            String walletAddress,
+            String walletProof,
+            String previousWalletProof,
+            String walletPublicKey,
+            String walletStateInit,
+            String previousWalletPublicKey,
+            String previousWalletStateInit) {
+        if (incompleteIdentityPair(walletPublicKey, walletStateInit)
+                || incompleteIdentityPair(previousWalletPublicKey, previousWalletStateInit)) {
+            return Mono.error(new WalletProofException(
+                    WalletProofException.Reason.INVALID_REQUEST,
+                    "walletPublicKey and walletStateInit must be provided together",
+                    null));
+        }
         boolean webViewer = sessionToken != null && !sessionToken.isBlank();
         String maskedAddress = maskWalletAddress(walletAddress);
         return loadLinkedIdentity(initData, sessionToken)
@@ -147,7 +209,11 @@ public class AuthAccountLinkService {
                                     "previousWalletProof is required"));
                         }
                         previousGate = tonProofVerifier
-                                .verify(AuthCredentials.wallet(previousWalletProof, currentWallet))
+                                .verify(walletProofCredentials(
+                                        previousWalletProof,
+                                        currentWallet,
+                                        previousWalletPublicKey,
+                                        previousWalletStateInit))
                                 .flatMap(verifiedPrev -> {
                                     if (!userIdentityRepository.walletsEqual(
                                             verifiedPrev.walletAddress(), currentWallet)) {
@@ -158,8 +224,8 @@ public class AuthAccountLinkService {
                                 });
                     }
                     return previousGate
-                            .then(tonProofVerifier.verify(
-                                    AuthCredentials.wallet(walletProof, walletAddress)))
+                            .then(tonProofVerifier.verify(walletProofCredentials(
+                                    walletProof, walletAddress, walletPublicKey, walletStateInit)))
                             .flatMap(verifiedNew -> {
                                 if (!userIdentityRepository.walletsEqual(
                                         verifiedNew.walletAddress(), walletAddress)) {

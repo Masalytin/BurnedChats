@@ -102,6 +102,8 @@ export async function linkWalletTelegram(payload: {
   initData: string;
   walletAddress: string;
   walletProof: string;
+  walletPublicKey?: string;
+  walletStateInit?: string;
 }): Promise<LinkedAccountsDto> {
   const res = await fetch(`${API_BASE()}/api/auth/link-wallet`, {
     method: 'POST',
@@ -153,6 +155,10 @@ export async function switchWallet(payload: {
   walletAddress: string;
   walletProof: string;
   previousWalletProof?: string | null;
+  walletPublicKey?: string;
+  walletStateInit?: string;
+  previousWalletPublicKey?: string;
+  previousWalletStateInit?: string;
 }): Promise<LinkedAccountsDto> {
   const res = await fetch(`${API_BASE()}/api/auth/switch-wallet`, {
     method: 'POST',
@@ -167,6 +173,10 @@ export async function switchWallet(payload: {
       walletAddress: payload.walletAddress,
       walletProof: payload.walletProof,
       previousWalletProof: payload.previousWalletProof ?? null,
+      walletPublicKey: payload.walletPublicKey,
+      walletStateInit: payload.walletStateInit,
+      previousWalletPublicKey: payload.previousWalletPublicKey,
+      previousWalletStateInit: payload.previousWalletStateInit,
     }),
   });
   const body = (await readBody(res)) as LinkedAccountsDto;

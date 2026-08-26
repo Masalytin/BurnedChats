@@ -9,6 +9,7 @@ import { AccountLinkError, switchWallet, type LinkedAccountsDto } from '../../se
 import {
   accountToFriendlyAddress,
   connectWalletWithTonProof,
+  extractAccountIdentity,
   isTonProofSuccess,
   serializeTonProof,
   shortenTonDisplayAddress,
@@ -109,6 +110,7 @@ export function SwitchWalletSheet({
       onBeforeTonWalletFlow?.();
 
       let previousWalletProof: string | undefined;
+      let previousIdentity: ReturnType<typeof extractAccountIdentity> = {};
       if (isWeb) {
         setStepHint(t('accountLinking.switchProveLinked'));
         const linkedWallet = await connectWalletWithTonProof();
@@ -126,6 +128,7 @@ export function SwitchWalletSheet({
           return;
         }
         previousWalletProof = serializeTonProof(previousProof);
+        previousIdentity = extractAccountIdentity(linkedWallet.account);
       }
 
       setStepHint(t('accountLinking.switchProveNew'));
@@ -136,6 +139,7 @@ export function SwitchWalletSheet({
       }
       const walletAddress = accountToFriendlyAddress(wallet.account);
       const walletProof = serializeTonProof(proof);
+      const identity = extractAccountIdentity(wallet.account);
 
       const dto = await switchWallet({
         initData: credentials.kind === 'telegram' ? credentials.initData : null,
@@ -143,6 +147,10 @@ export function SwitchWalletSheet({
         walletAddress,
         walletProof,
         previousWalletProof,
+        walletPublicKey: identity.publicKey,
+        walletStateInit: identity.walletStateInit,
+        previousWalletPublicKey: previousIdentity.publicKey,
+        previousWalletStateInit: previousIdentity.walletStateInit,
       });
       onSwitched(dto);
       onClose();

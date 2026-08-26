@@ -12,6 +12,7 @@ import {
 import {
   accountToFriendlyAddress,
   connectWalletWithTonProof,
+  extractAccountIdentity,
   serializeTonProof,
   isTonProofSuccess,
 } from '../../ton/connector';
@@ -47,10 +48,13 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
       if (!isTonProofSuccess(proof)) throw new Error('no proof');
       const walletAddress = accountToFriendlyAddress(wallet.account);
       const walletProof = serializeTonProof(proof);
+      const identity = extractAccountIdentity(wallet.account);
       const dto = await linkWalletTelegram({
         initData: credentials.initData,
         walletAddress,
         walletProof,
+        walletPublicKey: identity.publicKey,
+        walletStateInit: identity.walletStateInit,
       });
       applyLinkedAccounts(dto);
       onLinked?.(dto);

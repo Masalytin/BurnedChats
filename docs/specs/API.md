@@ -172,7 +172,13 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   **no Redis write**. Merge of two `internalId`s is forbidden. Last-method
   `unlink-wallet` / `unlink-telegram` stay **400**. Search by the **old** address
   no longer resolves this person; `session_token:*` is **not** revoked. Proof
-  failures use the same HTTP map as `link-wallet`. Paths/schemas: [openapi.yaml](./openapi.yaml).
+  failures use the same HTTP map as `link-wallet`. Optional `walletPublicKey` +
+  `walletStateInit` (and on web `previousWalletPublicKey` +
+  `previousWalletStateInit`) are the same identity pair as `POST /api/auth/wallet`:
+  both fields or neither; a half-pair is `INVALID_REQUEST` / 400. When the pair
+  is present, verification uses the local `client_provided` path and does not
+  call TonCenter. `POST /api/auth/link-wallet` accepts the same new-wallet pair.
+  Paths/schemas: [openapi.yaml](./openapi.yaml).
 
 ---
 

@@ -23,12 +23,15 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,11 +63,13 @@ class AuthControllerSwitchWalletTest {
     @Test
     @DisplayName("TMA happy path without previous proof returns 200 linked payload")
     void tmaHappyPathReturns200() {
-        when(authAccountLinkService.switchWallet(eq(INIT_DATA), isNull(), eq(WALLET_B), eq(NEW_PROOF), isNull()))
+        when(authAccountLinkService.switchWallet(
+                        eq(INIT_DATA), isNull(), eq(WALLET_B), eq(NEW_PROOF), isNull(),
+                        isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(Mono.just(linkedUser(WALLET_B)));
 
         StepVerifier.create(controller.switchWallet(new AuthController.SwitchWalletRequest(
-                        INIT_DATA, null, WALLET_B, NEW_PROOF, null)))
+                        INIT_DATA, null, WALLET_B, NEW_PROOF, null, null, null, null, null)))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(resp.getBody()).containsEntry("ok", Boolean.TRUE);
@@ -81,11 +86,12 @@ class AuthControllerSwitchWalletTest {
     @DisplayName("web happy path with both proofs returns 200")
     void webHappyPathReturns200() {
         when(authAccountLinkService.switchWallet(
-                        isNull(), eq(SESSION), eq(WALLET_B), eq(NEW_PROOF), eq(PREV_PROOF)))
+                        isNull(), eq(SESSION), eq(WALLET_B), eq(NEW_PROOF), eq(PREV_PROOF),
+                        isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(Mono.just(linkedUser(WALLET_B)));
 
         StepVerifier.create(controller.switchWallet(new AuthController.SwitchWalletRequest(
-                        null, SESSION, WALLET_B, NEW_PROOF, PREV_PROOF)))
+                        null, SESSION, WALLET_B, NEW_PROOF, PREV_PROOF, null, null, null, null)))
                 .assertNext(resp -> assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK))
                 .verifyComplete();
     }
@@ -93,11 +99,11 @@ class AuthControllerSwitchWalletTest {
     @Test
     @DisplayName("foreign internalId returns 409 CONFLICT with no-write semantics from service")
     void conflictReturns409WithCode() {
-        when(authAccountLinkService.switchWallet(any(), any(), any(), any(), any()))
+        when(authAccountLinkService.switchWallet(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.error(new IllegalStateException("Wallet already linked to another account")));
 
         StepVerifier.create(controller.switchWallet(new AuthController.SwitchWalletRequest(
-                        INIT_DATA, null, WALLET_B, NEW_PROOF, null)))
+                        INIT_DATA, null, WALLET_B, NEW_PROOF, null, null, null, null, null)))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
                     assertBodyCode(resp, "CONFLICT");
@@ -110,14 +116,14 @@ class AuthControllerSwitchWalletTest {
     @Test
     @DisplayName("proof failure uses the same HTTP map as link-wallet")
     void proofFailureSameHttpMapAsLinkWallet() {
-        when(authAccountLinkService.switchWallet(any(), any(), any(), any(), any()))
+        when(authAccountLinkService.switchWallet(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.error(new WalletProofException(
                         WalletProofException.Reason.SIGNATURE_INVALID,
                         "signature mismatch",
                         null)));
 
         StepVerifier.create(controller.switchWallet(new AuthController.SwitchWalletRequest(
-                        INIT_DATA, null, WALLET_B, NEW_PROOF, null)))
+                        INIT_DATA, null, WALLET_B, NEW_PROOF, null, null, null, null, null)))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
                     assertBodyCode(resp, "SIGNATURE_INVALID");
@@ -129,7 +135,7 @@ class AuthControllerSwitchWalletTest {
     @DisplayName("missing walletAddress/walletProof → 400")
     void missingRequiredFieldsReturns400() {
         StepVerifier.create(controller.switchWallet(new AuthController.SwitchWalletRequest(
-                        INIT_DATA, null, "", NEW_PROOF, null)))
+                        INIT_DATA, null, "", NEW_PROOF, null, null, null, null, null)))
                 .assertNext(resp -> assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST))
                 .verifyComplete();
     }
@@ -259,6 +265,32 @@ class AuthControllerSwitchWalletTest {
                     .verify();
 
             verify(userIdentityRepository, never()).switchWallet(anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("web switch forwards identity on previous and new proofs")
+        void webSwitchForwardsIdentityOnBothProofs() {
+            UnifiedUser both = linkedUser(WALLET_A);
+            when(sessionTokenService.validateAndRefresh(SESSION)).thenReturn(Mono.just("user-1"));
+            when(userIdentityRepository.findById("user-1"))
+                    .thenReturn(Mono.just(both), Mono.just(linkedUser(WALLET_B)));
+            when(tonProofVerifier.verify(any(AuthCredentials.class)))
+                    .thenReturn(Mono.just(new TonProofVerifier.VerifiedTonProof(WALLET_A, "prev", 1L)))
+                    .thenReturn(Mono.just(new TonProofVerifier.VerifiedTonProof(WALLET_B, "new", 1L)));
+            when(userIdentityRepository.switchWallet("user-1", WALLET_B)).thenReturn(Mono.empty());
+
+            StepVerifier.create(service.switchWallet(
+                            null, SESSION, WALLET_B, NEW_PROOF, PREV_PROOF,
+                            "new-pk", "new-si", "prev-pk", "prev-si"))
+                    .assertNext(user -> assertThat(user.walletAddress()).isEqualTo(WALLET_B))
+                    .verifyComplete();
+
+            ArgumentCaptor<AuthCredentials> captor = ArgumentCaptor.forClass(AuthCredentials.class);
+            verify(tonProofVerifier, times(2)).verify(captor.capture());
+            assertThat(captor.getAllValues().get(0).walletPublicKey()).isEqualTo("prev-pk");
+            assertThat(captor.getAllValues().get(0).walletStateInit()).isEqualTo("prev-si");
+            assertThat(captor.getAllValues().get(1).walletPublicKey()).isEqualTo("new-pk");
+            assertThat(captor.getAllValues().get(1).walletStateInit()).isEqualTo("new-si");
         }
 
         private void stubTelegramWebUser() {
