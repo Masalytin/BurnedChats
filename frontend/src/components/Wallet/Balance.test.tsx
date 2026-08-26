@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import i18n from '@/i18n';
@@ -70,17 +71,19 @@ function renderBalance(
   } as ReturnType<typeof useWallet>);
 
   return render(
-    <I18nextProvider i18n={i18n}>
-      <Balance
-        burn={{ ...defaultBurn, ...burnOverrides }}
-        ton={{ ...defaultTon, ...tonOverrides }}
-        onReceiveToggle={vi.fn()}
-        receiveExpanded={false}
-        onSend={vi.fn()}
-        onHistory={vi.fn()}
-        onBurnToken={onBurnToken}
-      />
-    </I18nextProvider>,
+    <MemoryRouter>
+      <I18nextProvider i18n={i18n}>
+        <Balance
+          burn={{ ...defaultBurn, ...burnOverrides }}
+          ton={{ ...defaultTon, ...tonOverrides }}
+          onReceiveToggle={vi.fn()}
+          receiveExpanded={false}
+          onSend={vi.fn()}
+          onHistory={vi.fn()}
+          onBurnToken={onBurnToken}
+        />
+      </I18nextProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -230,4 +233,54 @@ describe('Balance network supply line', () => {
     expect(screen.queryByText(/Network circulating/i)).toBeNull();
   });
 });
+
+describe('Balance How BURN works link', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.clearAllMocks();
+  });
+
+  function howBurnLink() {
+    return screen.getByRole('link', { name: /How BURN works/i });
+  }
+
+  it('renders a text link to /token?from=wallet under the amount', () => {
+    renderBalance();
+
+    const link = howBurnLink();
+    expect(link.getAttribute('href')).toBe('/token?from=wallet');
+    expect(link.getAttribute('target')).toBeNull();
+  });
+
+  it('is not inside the Send/Receive/History actions row', () => {
+    renderBalance();
+
+    const actionsRow = document.querySelector('[class*="actionsRow"]');
+    expect(actionsRow).toBeTruthy();
+    expect(actionsRow?.textContent).toMatch(/Receive/);
+    expect(actionsRow?.textContent).toMatch(/Send/);
+    expect(actionsRow?.textContent).toMatch(/History/);
+    expect(actionsRow?.textContent).not.toMatch(/How BURN works/);
+    expect(actionsRow?.querySelector('a')).toBeNull();
+  });
+
+  it('stays visible when BURN balance is loading', () => {
+    renderBalance({}, { balance: undefined, isLoading: true, error: null });
+
+    expect(howBurnLink()).toBeTruthy();
+  });
+
+  it('stays visible when BURN balance is zero', () => {
+    renderBalance({}, { balance: 0n });
+
+    expect(howBurnLink()).toBeTruthy();
+  });
+
+  it('stays visible when BURN balance failed to load', () => {
+    renderBalance({}, { balance: undefined, error: new Error('rpc down') });
+
+    expect(howBurnLink()).toBeTruthy();
+  });
+});
+
 

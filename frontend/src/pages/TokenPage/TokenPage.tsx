@@ -1,8 +1,32 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useBackButton } from '../../hooks/useBackButton';
 import { writeTextToClipboard } from '../../utils/clipboard';
 import './TokenPage.css';
+
+const WALLET_FROM = 'wallet';
+const WALLET_BACK_TO = '/app/wallet';
+const HOME_BACK_TO = '/';
+
+function resolveTokenPageBack(from: string | null) {
+  if (from === WALLET_FROM) {
+    return {
+      to: WALLET_BACK_TO,
+      topLabel: 'Back to wallet',
+      footerLabel: 'Back to wallet',
+      aria: 'Back to wallet',
+      fromWallet: true,
+    };
+  }
+  return {
+    to: HOME_BACK_TO,
+    topLabel: 'Burned Chats',
+    footerLabel: 'Back to Burned Chats',
+    aria: 'Back to Burned Chats home',
+    fromWallet: false,
+  };
+}
 
 const TOKENOMICS_URL =
   import.meta.env.VITE_TOKENOMICS_URL ||
@@ -88,6 +112,14 @@ function truncateAddress(address: string): string {
 
 export function TokenPage() {
   const prefersReducedMotion = useReducedMotion();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const back = resolveTokenPageBack(searchParams.get('from'));
+
+  useBackButton({
+    visible: back.fromWallet,
+    onBack: back.fromWallet ? () => navigate(WALLET_BACK_TO) : undefined,
+  });
 
   const reveal = {
     hidden: { opacity: 0, y: prefersReducedMotion ? 0 : 24 },
@@ -107,9 +139,9 @@ export function TokenPage() {
   return (
     <div className="token-page" lang="en">
       <header className="tp-topbar">
-        <Link to="/" className="tp-back" aria-label="Back to Burned Chats home">
+        <Link to={back.to} className="tp-back" aria-label={back.aria}>
           <FlameIcon />
-          Burned Chats
+          {back.topLabel}
         </Link>
       </header>
 
@@ -528,8 +560,8 @@ export function TokenPage() {
               Read the full tokenomics
               <ExternalLinkIcon />
             </a>
-            <Link to="/" className="tp-cta">
-              Back to Burned Chats
+            <Link to={back.to} className="tp-cta">
+              {back.footerLabel}
             </Link>
           </div>
           <p className="tp-footer-disclaimer">

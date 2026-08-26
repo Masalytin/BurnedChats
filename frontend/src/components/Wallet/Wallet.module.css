@@ -148,6 +148,34 @@
   opacity: 0.72;
 }
 
+.howBurnWorks {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--bc-touch-target);
+  margin-top: var(--bc-spacing-sm);
+  color: var(--bc-text-link);
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color var(--bc-transition-fast) var(--bc-ease-out),
+    transform var(--bc-transition-fast) var(--bc-ease-out);
+}
+
+.howBurnWorks:hover {
+  text-decoration: underline;
+}
+
+.howBurnWorks:active {
+  transform: scale(0.97);
+}
+
+.howBurnWorks:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
 .balanceSkeleton {
   margin: 0 auto;
   max-width: 12rem;

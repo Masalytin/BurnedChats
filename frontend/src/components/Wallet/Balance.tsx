@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 
 import { debugLog } from '@/components/DebugPanel';
@@ -129,6 +130,13 @@ export function Balance({
             {burnLine}
           </div>
         )}
+        <Link
+          to="/token?from=wallet"
+          className={styles.howBurnWorks}
+          aria-label={t('wallet.howBurnWorksAria')}
+        >
+          {t('wallet.howBurnWorks')}
+        </Link>
         {showBurnRetry ? (
           <button
             type="button"
