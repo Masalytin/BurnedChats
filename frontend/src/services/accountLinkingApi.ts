@@ -56,11 +56,14 @@ function buildLinkWalletError(res: Response, body: unknown): AccountLinkError {
     body && typeof body === 'object'
       ? (body as { code?: unknown; message?: unknown })
       : {};
-  const code = typeof parsed.code === 'string' ? parsed.code : 'UNKNOWN';
   const message =
     typeof parsed.message === 'string' && parsed.message.length > 0
       ? parsed.message
       : `HTTP ${res.status}`;
+  if (res.status === 429) {
+    return new AccountLinkError('RATE_LIMITED', 429, message);
+  }
+  const code = typeof parsed.code === 'string' ? parsed.code : 'UNKNOWN';
   return new AccountLinkError(code, res.status, message);
 }
 
@@ -141,6 +144,33 @@ export async function completeTelegramWalletLink(challengeId: string, initData: 
   });
   const body = (await readBody(res)) as LinkedAccountsDto;
   if (!res.ok) throw buildError(res, body);
+  return body;
+}
+
+export async function switchWallet(payload: {
+  initData?: string | null;
+  sessionToken?: string | null;
+  walletAddress: string;
+  walletProof: string;
+  previousWalletProof?: string | null;
+}): Promise<LinkedAccountsDto> {
+  const res = await fetch(`${API_BASE()}/api/auth/switch-wallet`, {
+    method: 'POST',
+    credentials: 'omit',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      initData: payload.initData ?? null,
+      sessionToken: payload.sessionToken ?? null,
+      walletAddress: payload.walletAddress,
+      walletProof: payload.walletProof,
+      previousWalletProof: payload.previousWalletProof ?? null,
+    }),
+  });
+  const body = (await readBody(res)) as LinkedAccountsDto;
+  if (!res.ok) throw buildLinkWalletError(res, body);
   return body;
 }
 

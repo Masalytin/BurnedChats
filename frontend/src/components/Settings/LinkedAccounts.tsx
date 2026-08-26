@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuthContext } from '../../auth/AuthContext';
+import { AuthType } from '../../auth/types';
 import {
   fetchLinkedAccounts,
   unlinkTelegram,
   unlinkWallet,
   type LinkedAccountsDto,
 } from '../../services/accountLinkingApi';
-import { shortenTonDisplayAddress } from '../../ton/connector';
 import { Button } from '../Button';
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog';
+import { AccountLinking } from './AccountLinking';
+import { shortLinkedTonAddress, SwitchWalletSheet } from './SwitchWalletSheet';
 import './LinkedAccounts.css';
 
 export interface LinkedAccountsAuth {
@@ -24,17 +28,41 @@ export type LinkedAccountsCredentials = LinkedAccountsAuth | LinkedAccountsWalle
 
 interface LinkedAccountsProps {
   credentials: LinkedAccountsCredentials | null;
+  authType?: AuthType;
   onChanged?: () => void;
   /** Telegram MA: mount wallet chrome once a linked wallet is detected (lazy gate). */
   onTonWalletLinkedDetected?: () => void;
+  onBeforeTonWalletFlow?: () => void;
+  onLinked?: () => void;
 }
 
-export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetected }: LinkedAccountsProps) {
+export function LinkedAccounts({
+  credentials,
+  authType,
+  onChanged,
+  onTonWalletLinkedDetected,
+  onBeforeTonWalletFlow,
+  onLinked,
+}: LinkedAccountsProps) {
   const { t } = useTranslation();
+  const { applyLinkedAccounts } = useAuthContext();
   const [snapshot, setSnapshot] = useState<LinkedAccountsDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyKind, setBusyKind] = useState<'wallet' | 'telegram' | null>(null);
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const resolvedAuthType =
+    authType ?? (credentials?.kind === 'telegram' ? AuthType.TELEGRAM : AuthType.WALLET);
+
+  const applySnapshot = useCallback(
+    (dto: LinkedAccountsDto) => {
+      setSnapshot(dto);
+      applyLinkedAccounts(dto);
+    },
+    [applyLinkedAccounts],
+  );
 
   const reload = useCallback(async () => {
     if (!credentials) {
@@ -48,14 +76,14 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
         credentials.kind === 'telegram'
           ? await fetchLinkedAccounts({ initData: credentials.initData })
           : await fetchLinkedAccounts({ sessionToken: credentials.sessionToken });
-      setSnapshot(dto);
+      applySnapshot(dto);
     } catch (e) {
       setSnapshot(null);
       setError(e instanceof Error ? e.message : t('accountLinking.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [credentials, t]);
+  }, [applySnapshot, credentials, t]);
 
   useEffect(() => {
     void reload();
@@ -73,7 +101,8 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
     setError(null);
     try {
       const dto = await unlinkWallet(credentials.initData);
-      setSnapshot(dto);
+      applySnapshot(dto);
+      setUnlinkOpen(false);
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('accountLinking.unlinkFailed'));
@@ -88,7 +117,7 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
     setError(null);
     try {
       const dto = await unlinkTelegram(credentials.sessionToken);
-      setSnapshot(dto);
+      applySnapshot(dto);
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('accountLinking.unlinkFailed'));
@@ -118,8 +147,11 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
 
   const count = snapshot?.linkedMethodCount ?? 0;
   const allowUnlink = count >= 2;
+  const canSwitch = Boolean(snapshot?.walletLinked && snapshot?.telegramLinked && snapshot.walletAddress);
+  const showLink =
+    resolvedAuthType === AuthType.TELEGRAM ? !snapshot?.walletLinked : !snapshot?.telegramLinked;
 
-  const walletShown = shortenWallet(snapshot?.walletAddress);
+  const walletShown = shortLinkedTonAddress(snapshot?.walletAddress ?? '');
   const tgLabel =
     snapshot?.telegramLabel ||
     (snapshot?.telegramLinked && snapshot?.telegramId != null ? `#${snapshot.telegramId}` : '');
@@ -138,13 +170,13 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
                 : t('accountLinking.notLinked')}
             </span>
           </div>
-          {credentials.kind === 'wallet' && snapshot?.telegramLinked ? (
+          {credentials.kind === 'wallet' && snapshot?.telegramLinked && allowUnlink ? (
             <Button
               variant="ghost"
               size="sm"
               type="button"
               isLoading={busyKind === 'telegram'}
-              disabled={!allowUnlink || busyKind !== null}
+              disabled={busyKind !== null}
               onClick={() => void onUnlinkTelegram()}
             >
               {t('accountLinking.unlink')}
@@ -158,25 +190,71 @@ export function LinkedAccounts({ credentials, onChanged, onTonWalletLinkedDetect
               {snapshot?.walletLinked && walletShown ? walletShown : t('accountLinking.notLinked')}
             </span>
           </div>
-          {credentials.kind === 'telegram' && snapshot?.walletLinked ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              isLoading={busyKind === 'wallet'}
-              disabled={!allowUnlink || busyKind !== null}
-              onClick={() => void onUnlinkWallet()}
-            >
-              {t('accountLinking.unlink')}
-            </Button>
-          ) : null}
+          <div className="linked-account-actions">
+            {canSwitch ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                disabled={busyKind !== null}
+                onClick={() => setSwitchOpen(true)}
+              >
+                {t('accountLinking.switch')}
+              </Button>
+            ) : null}
+            {credentials.kind === 'telegram' && snapshot?.walletLinked && allowUnlink ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                isLoading={busyKind === 'wallet'}
+                disabled={busyKind !== null}
+                onClick={() => setUnlinkOpen(true)}
+              >
+                {t('accountLinking.unlink')}
+              </Button>
+            ) : null}
+          </div>
         </li>
       </ul>
+
+      {showLink ? (
+        <AccountLinking
+          authType={resolvedAuthType}
+          credentials={credentials}
+          onLinked={() => {
+            void reload();
+            onLinked?.();
+            onChanged?.();
+          }}
+          onBeforeTonWalletFlow={onBeforeTonWalletFlow ?? onTonWalletLinkedDetected}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        isOpen={unlinkOpen}
+        onClose={() => setUnlinkOpen(false)}
+        onConfirm={() => void onUnlinkWallet()}
+        title={t('accountLinking.unlinkWalletTitle')}
+        description={t('accountLinking.unlinkWalletBody')}
+        confirmLabel={t('accountLinking.unlinkConfirm')}
+        variant="destructive"
+        isLoading={busyKind === 'wallet'}
+      />
+
+      {snapshot?.walletAddress ? (
+        <SwitchWalletSheet
+          isOpen={switchOpen}
+          onClose={() => setSwitchOpen(false)}
+          credentials={credentials}
+          linkedWalletAddress={snapshot.walletAddress}
+          onBeforeTonWalletFlow={onBeforeTonWalletFlow ?? onTonWalletLinkedDetected}
+          onSwitched={(dto) => {
+            applySnapshot(dto);
+            onChanged?.();
+          }}
+        />
+      ) : null}
     </div>
   );
-}
-
-function shortenWallet(addr: string | undefined): string {
-  if (!addr) return '';
-  return shortenTonDisplayAddress(addr.trim());
 }

@@ -7,13 +7,25 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Address } from '@ton/core';
+import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import WebApp from '@twa-dev/sdk';
 import { getEnvironment } from '../env/detector';
+import {
+  fetchLinkedAccounts,
+  type LinkedAccountsDto,
+} from '../services/accountLinkingApi';
 import { telegramInternalId } from './internalId';
 import { TelegramAuthProvider } from './TelegramAuthProvider';
 import { WalletAuthProvider } from './WalletAuthProvider';
 import { setActiveCredentials } from './authCredentialsAccessor';
 import { AuthType, type AuthCredentials, type AuthProvider, type AuthResult, type AuthUser } from './types';
+
+/** Server-owned linked wallet. Do not use {@link AuthUser.walletAddress} as this. */
+export interface LinkedWalletSnapshot {
+  walletLinked: boolean;
+  walletAddress: string;
+}
 
 interface AuthContextValue {
   provider: AuthProvider | null;
@@ -24,6 +36,27 @@ interface AuthContextValue {
   login: () => Promise<void>;
   logout: () => void;
   getCredentials: () => AuthCredentials | null;
+  /** Server `walletLinked` + raw `walletAddress`. IMP-WSWITCH-03 reads this. */
+  linkedWallet: LinkedWalletSnapshot | null;
+  applyLinkedAccounts: (dto: LinkedAccountsDto) => void;
+  refreshLinkedAccounts: () => Promise<void>;
+}
+
+function toFriendlyDisplay(rawOrFriendly: string): string {
+  const trimmed = rawOrFriendly.trim();
+  if (!trimmed) return '';
+  try {
+    return toUserFriendlyAddress(Address.parse(trimmed).toRawString());
+  } catch {
+    return trimmed;
+  }
+}
+
+function dtoToLinkedWallet(dto: LinkedAccountsDto): LinkedWalletSnapshot {
+  return {
+    walletLinked: Boolean(dto.walletLinked),
+    walletAddress: typeof dto.walletAddress === 'string' ? dto.walletAddress : '',
+  };
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -37,6 +70,7 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [linkedWallet, setLinkedWallet] = useState<LinkedWalletSnapshot | null>(null);
 
   const buildTelegramUser = useCallback((): AuthUser | null => {
     const tgUser = WebApp.initDataUnsafe?.user;
@@ -87,7 +121,43 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
     provider?.logout();
     setUser(null);
     setIsAuthenticated(false);
+    setLinkedWallet(null);
   }, [provider]);
+
+  const applyLinkedAccounts = useCallback((dto: LinkedAccountsDto) => {
+    setLinkedWallet(dtoToLinkedWallet(dto));
+    setUser((prev) => {
+      if (!prev || prev.authType !== AuthType.WALLET) {
+        return prev;
+      }
+      const raw = typeof dto.walletAddress === 'string' ? dto.walletAddress : '';
+      if (!raw) {
+        return prev;
+      }
+      const friendly = toFriendlyDisplay(raw);
+      if (prev.walletAddress === friendly) {
+        return prev;
+      }
+      return { ...prev, walletAddress: friendly };
+    });
+  }, []);
+
+  const refreshLinkedAccounts = useCallback(async () => {
+    if (!provider || !provider.isAuthenticated()) {
+      setLinkedWallet(null);
+      return;
+    }
+    const creds = provider.getCredentials();
+    try {
+      const dto = await fetchLinkedAccounts({
+        initData: creds.initData,
+        sessionToken: creds.sessionToken,
+      });
+      applyLinkedAccounts(dto);
+    } catch {
+      /* Snapshot is best-effort; login must not fail if /linked-accounts is down. */
+    }
+  }, [applyLinkedAccounts, provider]);
 
   const getCredentials = useCallback((): AuthCredentials | null => {
     if (!provider || !provider.isAuthenticated()) {
@@ -155,6 +225,13 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
     }
   }, [provider, user, isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !provider || !provider.isAuthenticated()) {
+      return;
+    }
+    void refreshLinkedAccounts();
+  }, [isAuthenticated, provider, refreshLinkedAccounts]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       provider,
@@ -165,8 +242,22 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
       login,
       logout,
       getCredentials,
+      linkedWallet,
+      applyLinkedAccounts,
+      refreshLinkedAccounts,
     }),
-    [provider, user, isAuthenticated, isLoading, login, logout, getCredentials],
+    [
+      provider,
+      user,
+      isAuthenticated,
+      isLoading,
+      login,
+      logout,
+      getCredentials,
+      linkedWallet,
+      applyLinkedAccounts,
+      refreshLinkedAccounts,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

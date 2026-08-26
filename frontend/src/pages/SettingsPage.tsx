@@ -5,7 +5,6 @@ import { AuthType } from '../auth/types';
 import { Avatar, LanguageSwitcher } from '../components';
 import { ExitDialog } from '../components/ExitDialog/ExitDialog';
 import { useToast } from '../components/Toast';
-import { AccountLinking } from '../components/Settings/AccountLinking';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
 import { burnAll } from '../crypto/keyStore';
 import { useTelegram, type HomeScreenStatus } from '../hooks/useTelegram';
@@ -336,14 +335,11 @@ export function SettingsPage({
             <LinkedAccounts
               key={linkedRefresh}
               credentials={linkedAccountsCredentials}
+              authType={user.authType}
               onChanged={() => setLinkedRefresh((key) => key + 1)}
               onTonWalletLinkedDetected={onTonWalletChromeNeeded}
-            />
-            <AccountLinking
-              authType={user.authType}
-              credentials={linkedAccountsCredentials}
-              onLinked={() => setLinkedRefresh((key) => key + 1)}
               onBeforeTonWalletFlow={onTonWalletChromeNeeded}
+              onLinked={() => setLinkedRefresh((key) => key + 1)}
             />
           </div>
         </section>

@@ -14,6 +14,7 @@ import {
   serializeTonProof,
   isTonProofSuccess,
 } from '../../ton/connector';
+import { useAuthContext } from '../../auth/AuthContext';
 import type { LinkedAccountsCredentials } from './LinkedAccounts';
 import { AuthType } from '../../auth/types';
 import { Button } from '../Button';
@@ -29,6 +30,7 @@ interface AccountLinkingProps {
 
 export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWalletFlow }: AccountLinkingProps) {
   const { t } = useTranslation();
+  const { applyLinkedAccounts } = useAuthContext();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [challengePayload, setChallengePayload] = useState<TelegramLinkChallengeDto | null>(null);
@@ -44,18 +46,19 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
       if (!isTonProofSuccess(proof)) throw new Error('no proof');
       const walletAddress = accountToFriendlyAddress(wallet.account);
       const walletProof = serializeTonProof(proof);
-      await linkWalletTelegram({
+      const dto = await linkWalletTelegram({
         initData: credentials.initData,
         walletAddress,
         walletProof,
       });
+      applyLinkedAccounts(dto);
       onLinked?.();
     } catch (e) {
       setError(mapLinkError(e, t));
     } finally {
       setBusy(false);
     }
-  }, [credentials, onLinked, onBeforeTonWalletFlow, t]);
+  }, [applyLinkedAccounts, credentials, onLinked, onBeforeTonWalletFlow, t]);
 
   const handlePrepareTelegramLink = useCallback(async () => {
     if (!credentials || credentials.kind !== 'wallet') return;

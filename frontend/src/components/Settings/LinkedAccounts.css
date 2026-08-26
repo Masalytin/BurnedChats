@@ -63,3 +63,97 @@
   font-size: var(--bc-text-sm);
   color: var(--bc-text-muted);
 }
+
+.linked-account-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  flex-wrap: wrap;
+}
+
+.switch-wallet-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  background: var(--bc-bg-overlay);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.switch-wallet-sheet-panel {
+  width: 100%;
+  max-width: var(--bc-sheet-max);
+  max-height: min(92vh, 45rem);
+  border-radius: var(--bc-radius-lg) var(--bc-radius-lg) 0 0;
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-primary);
+  box-shadow: var(--bc-shadow-lg);
+}
+
+.switch-wallet-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-2xs);
+  padding: var(--bc-spacing-2xs) var(--bc-spacing-md);
+  border-bottom: 1px solid var(--bc-border-color);
+}
+
+.switch-wallet-sheet-title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-destructive);
+}
+
+.switch-wallet-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  padding: 0;
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-primary);
+  cursor: pointer;
+}
+
+.switch-wallet-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+}
+
+.switch-wallet-sheet-copy {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-secondary);
+}
+
+.switch-wallet-sheet-address {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--bc-spacing-xs);
+}
+
+.switch-wallet-sheet-hint {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-muted);
+}
+
+.switch-wallet-sheet-error {
+  margin: 0;
+  font-size: var(--bc-text-sm);
+  color: var(--bc-destructive);
+}
