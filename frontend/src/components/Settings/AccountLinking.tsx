@@ -7,6 +7,7 @@ import {
   telegramBotMiniAppLink,
   AccountLinkError,
   type TelegramLinkChallengeDto,
+  type LinkedAccountsDto,
 } from '../../services/accountLinkingApi';
 import {
   accountToFriendlyAddress,
@@ -23,7 +24,7 @@ import './LinkedAccounts.css';
 interface AccountLinkingProps {
   authType: AuthType;
   credentials: LinkedAccountsCredentials | null;
-  onLinked?: () => void;
+  onLinked?: (dto: LinkedAccountsDto) => void;
   /** Telegram MA: ensure WalletChrome mounts before TonConnect wallet proof flow. */
   onBeforeTonWalletFlow?: () => void;
 }
@@ -52,7 +53,7 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
         walletProof,
       });
       applyLinkedAccounts(dto);
-      onLinked?.();
+      onLinked?.(dto);
     } catch (e) {
       setError(mapLinkError(e, t));
     } finally {

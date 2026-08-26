@@ -223,8 +223,8 @@ export function LinkedAccounts({
         <AccountLinking
           authType={resolvedAuthType}
           credentials={credentials}
-          onLinked={() => {
-            void reload();
+          onLinked={(dto) => {
+            applySnapshot(dto);
             onLinked?.();
             onChanged?.();
           }}

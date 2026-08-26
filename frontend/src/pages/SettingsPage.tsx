@@ -151,7 +151,6 @@ export function SettingsPage({
   const toast = useToast();
   const { showConfirm, addToHomeScreen, checkHomeScreenStatus } = useTelegram();
   const { prefs, setPref } = usePreferences();
-  const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [isClearingKeys, setIsClearingKeys] = useState(false);
   const [homeScreenStatus, setHomeScreenStatus] = useState<HomeScreenStatus | null>(null);
   const [selectedPeriodDays, setSelectedPeriodDays] = useState<DeadmanPeriodDays>(
@@ -333,13 +332,10 @@ export function SettingsPage({
           <p className="settings-section__subtitle">{t('accountLinking.sectionSubtitle')}</p>
           <div className="settings-section__card">
             <LinkedAccounts
-              key={linkedRefresh}
               credentials={linkedAccountsCredentials}
               authType={user.authType}
-              onChanged={() => setLinkedRefresh((key) => key + 1)}
               onTonWalletLinkedDetected={onTonWalletChromeNeeded}
               onBeforeTonWalletFlow={onTonWalletChromeNeeded}
-              onLinked={() => setLinkedRefresh((key) => key + 1)}
             />
           </div>
         </section>

@@ -12,6 +12,7 @@ const fetchLinkedAccounts = vi.fn();
 const unlinkWallet = vi.fn();
 const unlinkTelegram = vi.fn();
 const switchWallet = vi.fn();
+const linkWalletTelegram = vi.fn();
 const applyLinkedAccounts = vi.fn();
 const connectWalletWithTonProof = vi.fn();
 
@@ -23,7 +24,7 @@ vi.mock('../../services/accountLinkingApi', async (importOriginal) => {
     unlinkWallet: (...args: unknown[]) => unlinkWallet(...args),
     unlinkTelegram: (...args: unknown[]) => unlinkTelegram(...args),
     switchWallet: (...args: unknown[]) => switchWallet(...args),
-    linkWalletTelegram: vi.fn(),
+    linkWalletTelegram: (...args: unknown[]) => linkWalletTelegram(...args),
     requestTelegramLinkChallenge: vi.fn(),
   };
 });
@@ -160,6 +161,7 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     unlinkWallet.mockReset();
     unlinkTelegram.mockReset();
     switchWallet.mockReset();
+    linkWalletTelegram.mockReset();
     applyLinkedAccounts.mockReset();
     connectWalletWithTonProof.mockReset();
     fetchLinkedAccounts.mockResolvedValue(bothLinked());
@@ -176,6 +178,25 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     expect(switchBtn).toBeTruthy();
     expect(switchBtn.className).toMatch(/button--secondary/);
     expect(switchBtn.className).not.toMatch(/button--ghost/);
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeNull();
+  });
+
+  it('TMA: after linkWallet, Link is replaced by Switch even if a later fetch is stale', async () => {
+    fetchLinkedAccounts.mockResolvedValue(
+      bothLinked({ walletLinked: false, walletAddress: '', linkedMethodCount: 1 }),
+    );
+    linkWalletTelegram.mockResolvedValue(bothLinked());
+    connectWalletWithTonProof.mockResolvedValue(mockWallet(RAW_NEW));
+
+    await loadedAccounts(tmaCreds);
+    expect(screen.getByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.linkWallet') }));
+
+    await waitFor(() => {
+      expect(linkWalletTelegram).toHaveBeenCalled();
+    });
+    expect(await screen.findByRole('button', { name: i18n.t('accountLinking.switch') })).toBeTruthy();
     expect(screen.queryByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeNull();
   });
 
