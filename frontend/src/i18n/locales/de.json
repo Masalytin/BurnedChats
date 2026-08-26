@@ -671,6 +671,9 @@
     "unlinkWalletTitle": "Diese Wallet trennen?",
     "unlinkWalletBody": "Die Wallet wird eine eigene Person, wenn du dich im Web mit ihr anmeldest. Deine Telegram-Chats bleiben hier.",
     "unlinkConfirm": "Wallet trennen",
+    "unlinkTelegramTitle": "Telegram trennen?",
+    "unlinkTelegramBody": "Im Web bleibst du diese Wallet. Mini-App-Chats dieses Kontos bleiben hier, bis du Telegram wieder verknüpfst.",
+    "unlinkTelegramConfirm": "Telegram trennen",
     "copyAddress": "Adresse kopieren",
     "addressCopied": "Kopiert"
   },

@@ -72,6 +72,7 @@ import { LazyWalletProvider } from './components/Wallet/LazyWalletProvider';
 import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
+import { completeAndApplyTelegramWalletLink } from './auth/linkedWalletSnapshot';
 import {
   buildTelegramDmInviteDeepLink,
   buildTelegramInviteDeepLink,
@@ -1891,8 +1892,12 @@ function AppContent() {
 
     void (async () => {
       try {
-        const dto = await completeTelegramWalletLink(challengeId, initData);
-        applyLinkedAccounts(dto);
+        await completeAndApplyTelegramWalletLink(
+          completeTelegramWalletLink,
+          applyLinkedAccounts,
+          challengeId,
+          initData,
+        );
         notificationOccurred('success');
         toast.success(t('accountLinking.telegramLinkedToast'));
       } catch (err) {

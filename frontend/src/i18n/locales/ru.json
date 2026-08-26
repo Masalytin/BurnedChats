@@ -213,6 +213,9 @@
     "unlinkWalletTitle": "Отвязать этот кошелёк?",
     "unlinkWalletBody": "Кошелёк станет отдельным человеком, если им зайти с web. Чаты Telegram-аккаунта останутся здесь.",
     "unlinkConfirm": "Отвязать кошелёк",
+    "unlinkTelegramTitle": "Отвязать Telegram?",
+    "unlinkTelegramBody": "На web вы останетесь этим кошельком. Чаты Mini App этого аккаунта останутся здесь, пока снова не привяжете Telegram.",
+    "unlinkTelegramConfirm": "Отвязать Telegram",
     "copyAddress": "Скопировать адрес",
     "addressCopied": "Скопировано"
   },

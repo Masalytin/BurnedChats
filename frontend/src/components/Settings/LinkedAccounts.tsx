@@ -50,7 +50,7 @@ export function LinkedAccounts({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyKind, setBusyKind] = useState<'wallet' | 'telegram' | null>(null);
-  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinkKind, setUnlinkKind] = useState<'wallet' | 'telegram' | null>(null);
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const resolvedAuthType =
@@ -102,7 +102,7 @@ export function LinkedAccounts({
     try {
       const dto = await unlinkWallet(credentials.initData);
       applySnapshot(dto);
-      setUnlinkOpen(false);
+      setUnlinkKind(null);
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('accountLinking.unlinkFailed'));
@@ -118,6 +118,7 @@ export function LinkedAccounts({
     try {
       const dto = await unlinkTelegram(credentials.sessionToken);
       applySnapshot(dto);
+      setUnlinkKind(null);
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('accountLinking.unlinkFailed'));
@@ -177,7 +178,7 @@ export function LinkedAccounts({
               type="button"
               isLoading={busyKind === 'telegram'}
               disabled={busyKind !== null}
-              onClick={() => void onUnlinkTelegram()}
+              onClick={() => setUnlinkKind('telegram')}
             >
               {t('accountLinking.unlink')}
             </Button>
@@ -193,7 +194,7 @@ export function LinkedAccounts({
           <div className="linked-account-actions">
             {canSwitch ? (
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 type="button"
                 disabled={busyKind !== null}
@@ -209,7 +210,7 @@ export function LinkedAccounts({
                 type="button"
                 isLoading={busyKind === 'wallet'}
                 disabled={busyKind !== null}
-                onClick={() => setUnlinkOpen(true)}
+                onClick={() => setUnlinkKind('wallet')}
               >
                 {t('accountLinking.unlink')}
               </Button>
@@ -232,14 +233,32 @@ export function LinkedAccounts({
       ) : null}
 
       <ConfirmDialog
-        isOpen={unlinkOpen}
-        onClose={() => setUnlinkOpen(false)}
-        onConfirm={() => void onUnlinkWallet()}
-        title={t('accountLinking.unlinkWalletTitle')}
-        description={t('accountLinking.unlinkWalletBody')}
-        confirmLabel={t('accountLinking.unlinkConfirm')}
+        isOpen={unlinkKind !== null}
+        onClose={() => setUnlinkKind(null)}
+        onConfirm={() => {
+          if (unlinkKind === 'telegram') {
+            void onUnlinkTelegram();
+            return;
+          }
+          void onUnlinkWallet();
+        }}
+        title={
+          unlinkKind === 'telegram'
+            ? t('accountLinking.unlinkTelegramTitle')
+            : t('accountLinking.unlinkWalletTitle')
+        }
+        description={
+          unlinkKind === 'telegram'
+            ? t('accountLinking.unlinkTelegramBody')
+            : t('accountLinking.unlinkWalletBody')
+        }
+        confirmLabel={
+          unlinkKind === 'telegram'
+            ? t('accountLinking.unlinkTelegramConfirm')
+            : t('accountLinking.unlinkConfirm')
+        }
         variant="destructive"
-        isLoading={busyKind === 'wallet'}
+        isLoading={busyKind !== null}
       />
 
       {snapshot?.walletAddress ? (

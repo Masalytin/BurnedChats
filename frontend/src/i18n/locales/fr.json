@@ -779,6 +779,9 @@
     "unlinkFailed": "Impossible de dissocier.",
     "unlinkWalletBody": "Le portefeuille deviendra une personne distincte s'il est utilisé sur le web. Vos chats Telegram restent ici.",
     "unlinkWalletTitle": "Dissocier ce portefeuille ?",
+    "unlinkTelegramTitle": "Dissocier Telegram ?",
+    "unlinkTelegramBody": "Sur le web vous restez ce portefeuille. Les chats Mini App de ce compte restent ici jusqu'à ce que vous reliez Telegram.",
+    "unlinkTelegramConfirm": "Dissocier Telegram",
     "walletInstructions": "Ce portefeuille est le compte. Pour le changer et garder vos chats, liez d'abord Telegram."
   },
   "chatRequest": {

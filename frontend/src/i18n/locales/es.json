@@ -779,6 +779,9 @@
     "unlinkFailed": "No se pudo desvincular.",
     "unlinkWalletBody": "La wallet será otra persona si entras con ella en la web. Tus chats de Telegram se quedan aquí.",
     "unlinkWalletTitle": "¿Desvincular esta wallet?",
+    "unlinkTelegramTitle": "¿Desvincular Telegram?",
+    "unlinkTelegramBody": "En la web seguirás siendo esta wallet. Los chats de Mini App de esta cuenta se quedan aquí hasta que vuelvas a vincular Telegram.",
+    "unlinkTelegramConfirm": "Desvincular Telegram",
     "walletInstructions": "Esta wallet es la cuenta. Para cambiarla y conservar tus chats, vincula Telegram primero."
   },
   "chatRequest": {

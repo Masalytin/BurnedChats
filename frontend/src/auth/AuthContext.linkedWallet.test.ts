@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { LinkedAccountsDto } from '../services/accountLinkingApi';
 import {
+  completeAndApplyTelegramWalletLink,
   createLinkedRefreshGate,
   dtoToLinkedWallet,
   runLinkedAccountsRefresh,
@@ -60,7 +61,30 @@ describe('linked refresh generation (IMP-WSWITCH-04)', () => {
 
     expect(writes).toEqual(['0:bbb']);
   });
+});
 
+describe('completeAndApplyTelegramWalletLink (IMP-WSWITCH-04)', () => {
+  it('applies the completed DTO before returning', async () => {
+    const applied: LinkedAccountsDto[] = [];
+    const dto: LinkedAccountsDto = {
+      telegramLinked: true,
+      walletLinked: true,
+      walletAddress: '0:linked',
+    };
+    const result = await completeAndApplyTelegramWalletLink(
+      async () => dto,
+      (next) => {
+        applied.push(next);
+      },
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'init-data',
+    );
+    expect(result).toEqual(dto);
+    expect(applied).toEqual([dto]);
+  });
+});
+
+describe('linked refresh abort (IMP-WSWITCH-04)', () => {
   it('beginRefresh aborts the previous in-flight signal', () => {
     const gate = createLinkedRefreshGate();
     const first = gate.beginRefresh();

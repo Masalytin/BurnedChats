@@ -779,6 +779,9 @@
     "unlinkFailed": "无法取消关联。",
     "unlinkWalletBody": "若在网页端用该钱包登录，它会成为另一个身份。你的 Telegram 聊天仍留在这里。",
     "unlinkWalletTitle": "取消关联此钱包？",
+    "unlinkTelegramTitle": "取消关联 Telegram？",
+    "unlinkTelegramBody": "网页端你仍是这个钱包。此账户的 Mini App 聊天会留在这里，直到你再次关联 Telegram。",
+    "unlinkTelegramConfirm": "取消关联 Telegram",
     "walletInstructions": "这个钱包就是账户。要更换并保留聊天，请先关联 Telegram。"
   },
   "chatRequest": {

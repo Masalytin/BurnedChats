@@ -1,7 +1,18 @@
 import { useAuthContext } from '../auth/AuthContext';
 
 export function useAuth() {
-  const { user, isAuthenticated, isLoading, authType, login, logout, getCredentials } = useAuthContext();
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    authType,
+    login,
+    logout,
+    getCredentials,
+    linkedWallet,
+    applyLinkedAccounts,
+    refreshLinkedAccounts,
+  } = useAuthContext();
 
   return {
     user,
@@ -11,5 +22,8 @@ export function useAuth() {
     login,
     logout,
     getCredentials,
+    linkedWallet,
+    applyLinkedAccounts,
+    refreshLinkedAccounts,
   };
 }

@@ -213,6 +213,9 @@
     "unlinkWalletTitle": "Unlink this wallet?",
     "unlinkWalletBody": "The wallet will become a separate person if used on the web. Your Telegram chats stay here.",
     "unlinkConfirm": "Unlink wallet",
+    "unlinkTelegramTitle": "Unlink Telegram?",
+    "unlinkTelegramBody": "You will stay as this wallet on the web. Telegram Mini App chats for this account stay here until you link Telegram again.",
+    "unlinkTelegramConfirm": "Unlink Telegram",
     "copyAddress": "Copy address",
     "addressCopied": "Copied"
   },

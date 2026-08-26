@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Address } from '@ton/core';
-
 import { useAuthContext } from '@/auth/AuthContext';
 import { AuthType, type AuthCredentials } from '@/auth/types';
 import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
@@ -9,6 +7,7 @@ import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
 import {
   shortLinkedTonAddress,
   SwitchWalletSheet,
+  tonAddressesEqual,
   type SwitchWalletSheetProps,
 } from '@/components/Settings/SwitchWalletSheet';
 import { useToast } from '@/components/Toast';
@@ -19,15 +18,6 @@ import { SendModal } from './SendModal';
 import { TokenBurnModal } from './TokenBurnModal';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
-
-/** Same TON workchain+hash, any encoding. Not normalizeWallet / string compare. */
-function tonAddressesEqual(a: string, b: string): boolean {
-  try {
-    return Address.parse(a.trim()).equals(Address.parse(b.trim()));
-  } catch {
-    return false;
-  }
-}
 
 function toSwitchCredentials(creds: AuthCredentials | null): SwitchWalletSheetProps['credentials'] | null {
   if (!creds) {

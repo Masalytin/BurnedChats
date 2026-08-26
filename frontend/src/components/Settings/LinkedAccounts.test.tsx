@@ -10,6 +10,7 @@ import { LinkedAccounts, type LinkedAccountsCredentials } from './LinkedAccounts
 
 const fetchLinkedAccounts = vi.fn();
 const unlinkWallet = vi.fn();
+const unlinkTelegram = vi.fn();
 const switchWallet = vi.fn();
 const applyLinkedAccounts = vi.fn();
 const connectWalletWithTonProof = vi.fn();
@@ -20,7 +21,7 @@ vi.mock('../../services/accountLinkingApi', async (importOriginal) => {
     ...actual,
     fetchLinkedAccounts: (...args: unknown[]) => fetchLinkedAccounts(...args),
     unlinkWallet: (...args: unknown[]) => unlinkWallet(...args),
-    unlinkTelegram: vi.fn(),
+    unlinkTelegram: (...args: unknown[]) => unlinkTelegram(...args),
     switchWallet: (...args: unknown[]) => switchWallet(...args),
     linkWalletTelegram: vi.fn(),
     requestTelegramLinkChallenge: vi.fn(),
@@ -157,11 +158,13 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     await i18n.changeLanguage('en');
     fetchLinkedAccounts.mockReset();
     unlinkWallet.mockReset();
+    unlinkTelegram.mockReset();
     switchWallet.mockReset();
     applyLinkedAccounts.mockReset();
     connectWalletWithTonProof.mockReset();
     fetchLinkedAccounts.mockResolvedValue(bothLinked());
     unlinkWallet.mockResolvedValue(bothLinked({ walletLinked: false, walletAddress: '', linkedMethodCount: 1 }));
+    unlinkTelegram.mockResolvedValue(bothLinked({ telegramLinked: false, telegramId: null, telegramLabel: '', linkedMethodCount: 1 }));
     switchWallet.mockResolvedValue(bothLinked({ walletAddress: RAW_NEW }));
     connectWalletWithTonProof.mockResolvedValue(mockWallet(RAW_NEW));
   });
@@ -169,7 +172,10 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
   it('TMA: shows Switch and hides Link when the wallet is already linked', async () => {
     await loadedAccounts(tmaCreds);
 
-    expect(screen.getByRole('button', { name: i18n.t('accountLinking.switch') })).toBeTruthy();
+    const switchBtn = screen.getByRole('button', { name: i18n.t('accountLinking.switch') });
+    expect(switchBtn).toBeTruthy();
+    expect(switchBtn.className).toMatch(/button--secondary/);
+    expect(switchBtn.className).not.toMatch(/button--ghost/);
     expect(screen.queryByRole('button', { name: i18n.t('accountLinking.linkWallet') })).toBeNull();
   });
 
@@ -223,6 +229,29 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     await waitFor(() => {
       expect(unlinkWallet).toHaveBeenCalledTimes(1);
       expect(unlinkWallet).toHaveBeenCalledWith('init-data');
+    });
+  });
+
+  it('web Unlink Telegram opens ConfirmDialog and does not call the API until confirm', async () => {
+    await loadedAccounts(webCreds);
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlink') }));
+
+    expect(await screen.findByText(i18n.t('accountLinking.unlinkTelegramTitle'))).toBeTruthy();
+    expect(unlinkTelegram).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.cancel') }));
+    await waitFor(() => {
+      expect(screen.queryByText(i18n.t('accountLinking.unlinkTelegramTitle'))).toBeNull();
+    });
+    expect(unlinkTelegram).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlink') }));
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlinkTelegramConfirm') }));
+
+    await waitFor(() => {
+      expect(unlinkTelegram).toHaveBeenCalledTimes(1);
+      expect(unlinkTelegram).toHaveBeenCalledWith('session-token');
     });
   });
 

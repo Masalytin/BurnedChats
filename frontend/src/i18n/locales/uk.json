@@ -779,6 +779,9 @@
     "unlinkFailed": "Не вдалося відв'язати.",
     "unlinkWalletBody": "Гаманець стане окремою людиною, якщо увійти ним у вебі. Чати Telegram залишаться тут.",
     "unlinkWalletTitle": "Відв'язати цей гаманець?",
+    "unlinkTelegramTitle": "Відв'язати Telegram?",
+    "unlinkTelegramBody": "У вебі ви залишитеся цим гаманцем. Чати Mini App цього акаунта залишаться тут, поки знову не прив'яжете Telegram.",
+    "unlinkTelegramConfirm": "Відв'язати Telegram",
     "walletInstructions": "Цей гаманець і є акаунт. Щоб змінити його й зберегти чати — спочатку прив'яжіть Telegram."
   },
   "chatRequest": {

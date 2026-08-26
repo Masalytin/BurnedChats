@@ -43,6 +43,17 @@ export function createLinkedRefreshGate(): LinkedRefreshGate {
   };
 }
 
+export async function completeAndApplyTelegramWalletLink(
+  complete: (challengeId: string, initData: string) => Promise<LinkedAccountsDto>,
+  apply: (dto: LinkedAccountsDto) => void,
+  challengeId: string,
+  initData: string,
+): Promise<LinkedAccountsDto> {
+  const dto = await complete(challengeId, initData);
+  apply(dto);
+  return dto;
+}
+
 export async function runLinkedAccountsRefresh(opts: {
   gate: LinkedRefreshGate;
   fetchDto: () => Promise<LinkedAccountsDto>;
