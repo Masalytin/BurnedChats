@@ -13,6 +13,9 @@ import dev.burnedchats.security.TelegramInitData;
 import dev.burnedchats.ton.TonProofVerifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -218,6 +221,48 @@ public class AuthController {
                 .onErrorResume(e -> Mono.just(error(HttpStatus.INTERNAL_SERVER_ERROR, "Linked accounts unavailable")));
     }
 
+    /**
+     * Atomically rotate the linked TON wallet for the same internalId.
+     */
+    @PostMapping("/switch-wallet")
+    @Operation(summary = "Atomically rotate the linked TON wallet for the same internalId")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200",
+            description = "Linked-accounts payload after switch or same-wallet TTL refresh"),
+        @ApiResponse(responseCode = "400",
+            description = "No wallet, no Telegram, missing previous proof on web, "
+                + "previous proof does not match linked wallet, or invalid viewer"),
+        @ApiResponse(responseCode = "401",
+            description = "Invalid initData, session token, or ton_proof"),
+        @ApiResponse(responseCode = "409",
+            description = "New address owned by another internalId (CONFLICT, no write)")
+    })
+    public Mono<ResponseEntity<Map<String, Object>>> switchWallet(@RequestBody SwitchWalletRequest body) {
+        if (body == null || blank(body.walletAddress()) || blank(body.walletProof())) {
+            return Mono.just(error(HttpStatus.BAD_REQUEST, "walletAddress and walletProof are required"));
+        }
+        return authAccountLinkService.switchWallet(
+                        body.initData(),
+                        body.sessionToken(),
+                        body.walletAddress(),
+                        body.walletProof(),
+                        body.previousWalletProof())
+                .map(this::linkedAccountsOk)
+                .onErrorResume(WalletProofException.class, e -> Mono.just(walletProofError(e)))
+                .onErrorResume(AuthenticationException.class,
+                        e -> Mono.just(error(HttpStatus.UNAUTHORIZED, e.getMessage())))
+                .onErrorResume(IllegalArgumentException.class,
+                        e -> Mono.just(error(HttpStatus.BAD_REQUEST, e.getMessage())))
+                .onErrorResume(IllegalStateException.class, e -> Mono.just(conflictError(e.getMessage())))
+                .onErrorResume(e -> {
+                    LOG.warn(
+                            "switch-wallet internal error: address={}",
+                            maskWalletAddress(body.walletAddress()),
+                            e);
+                    return Mono.just(internalError("Wallet switch failed"));
+                });
+    }
+
     @PostMapping("/unlink-wallet")
     public Mono<ResponseEntity<Map<String, Object>>> unlinkWallet(@RequestBody InitDataOnlyRequest body) {
         if (body == null || blank(body.initData())) {
@@ -364,6 +409,14 @@ public class AuthController {
     }
 
     public record LinkWalletRequest(String initData, String walletAddress, String walletProof) {
+    }
+
+    public record SwitchWalletRequest(
+            String initData,
+            String sessionToken,
+            String walletAddress,
+            String walletProof,
+            String previousWalletProof) {
     }
 
     public record SessionTokenOnlyRequest(String sessionToken) {

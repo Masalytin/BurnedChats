@@ -118,6 +118,72 @@ public class AuthAccountLinkService {
                                 })));
     }
 
+    /**
+     * Rotate the linked TON wallet on the same {@code internalId}. Telegram must stay linked.
+     * Web viewers must prove the currently linked address; TMA may omit the previous proof (lost seed).
+     */
+    public Mono<UnifiedUser> switchWallet(
+            String initData,
+            String sessionToken,
+            String walletAddress,
+            String walletProof,
+            String previousWalletProof) {
+        boolean webViewer = sessionToken != null && !sessionToken.isBlank();
+        String maskedAddress = maskWalletAddress(walletAddress);
+        return loadLinkedIdentity(initData, sessionToken)
+                .flatMap(user -> {
+                    if (user.telegramId() == null) {
+                        return Mono.error(new IllegalArgumentException(
+                                "Telegram is required to switch wallet"));
+                    }
+                    String currentWallet = user.walletAddress();
+                    if (currentWallet == null || currentWallet.isBlank()) {
+                        return Mono.error(new IllegalArgumentException("No wallet linked"));
+                    }
+                    Mono<Void> previousGate = Mono.empty();
+                    if (webViewer) {
+                        if (previousWalletProof == null || previousWalletProof.isBlank()) {
+                            return Mono.error(new IllegalArgumentException(
+                                    "previousWalletProof is required"));
+                        }
+                        previousGate = tonProofVerifier
+                                .verify(AuthCredentials.wallet(previousWalletProof, currentWallet))
+                                .flatMap(verifiedPrev -> {
+                                    if (!userIdentityRepository.walletsEqual(
+                                            verifiedPrev.walletAddress(), currentWallet)) {
+                                        return Mono.error(new IllegalArgumentException(
+                                                "previousWalletProof does not match the linked wallet"));
+                                    }
+                                    return Mono.empty();
+                                });
+                    }
+                    return previousGate
+                            .then(tonProofVerifier.verify(
+                                    AuthCredentials.wallet(walletProof, walletAddress)))
+                            .flatMap(verifiedNew -> {
+                                if (!userIdentityRepository.walletsEqual(
+                                        verifiedNew.walletAddress(), walletAddress)) {
+                                    return Mono.error(new IllegalArgumentException(
+                                            "walletProof does not match walletAddress"));
+                                }
+                                return userIdentityRepository
+                                        .switchWallet(user.internalId(), verifiedNew.walletAddress())
+                                        .then(userIdentityRepository.findById(user.internalId()))
+                                        .switchIfEmpty(Mono.error(new IllegalStateException(
+                                                "User not found after switch")));
+                            });
+                })
+                .doOnError(ex -> {
+                    if (ex instanceof WalletProofException) {
+                        return;
+                    }
+                    LOG.warn(
+                            "switch-wallet failed: reason={} address={}",
+                            linkFailureReason(ex),
+                            maskedAddress);
+                });
+    }
+
     /** Resolve Telegram or wallet-authenticated viewer and load merged identity including cross-links. */
     public Mono<UnifiedUser> loadLinkedIdentity(String initData, String sessionToken) {
         boolean hasInit = initData != null && !initData.isBlank();

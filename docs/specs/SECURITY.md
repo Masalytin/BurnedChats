@@ -603,6 +603,27 @@ Server still does not store private keys; verification uses only public wallet d
 
 See [API.md](./API.md) (`/api/auth/wallet`).
 
+### Wallet switch (`POST /api/auth/switch-wallet`)
+
+Rotation of `auth_wallet:` on the **same** `internalId`. Not a merge of two
+accounts (P3-2-2-3). Existing `link-wallet` / `unlink-*` stay.
+
+- **Web** requires `previousWalletProof` (`ton_proof` of the currently linked
+  address). A stolen browser `session_token` cannot rotate the wallet without
+  the old seed. Lost-seed on web → switch from Mini App (TMA does not require
+  the previous proof).
+- **No merge.** If `auth_wallet:{new}` already points at another `internalId` →
+  HTTP **409** `CONFLICT`, Redis unchanged.
+- **Bans stay on `internalId`.** After switch the ban follows the person, not
+  the old address.
+- **Login with the old address after switch** goes through `findOrCreateByWallet`
+  and creates a **new** person (new `internalId`). The previous owner is no
+  longer reachable via that address.
+- **`session_token:*` is not revoked.** The web session remains the same
+  `internalId`.
+- Stored mapping is canonical raw (`0:hex`). Address comparison is TON
+  workchain+hash, not `normalizeWallet` (trim+lowercase only).
+
 ---
 
 ## TON Connect Mini App signing surface

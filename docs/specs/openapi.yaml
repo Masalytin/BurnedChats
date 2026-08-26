@@ -21,6 +21,19 @@ components:
       properties:
         sessionToken:
           type: "string"
+    SwitchWalletRequest:
+      type: "object"
+      properties:
+        initData:
+          type: "string"
+        sessionToken:
+          type: "string"
+        walletAddress:
+          type: "string"
+        walletProof:
+          type: "string"
+        previousWalletProof:
+          type: "string"
     LinkedAccountsQuery:
       type: "object"
       properties:
@@ -113,7 +126,7 @@ components:
 info:
   title: "Burned Chats API"
   description: "REST surface for Burned Chats Telegram Mini App"
-  version: "0.1.0-SNAPSHOT"
+  version: "0.1.0"
 openapi: "3.0.1"
 paths:
   /api/auth/link-telegram/challenge:
@@ -210,6 +223,52 @@ paths:
                 type: "object"
                 additionalProperties:
                   type: "string"
+  /api/auth/switch-wallet:
+    post:
+      tags:
+      - "auth-controller"
+      summary: "Atomically rotate the linked TON wallet for the same internalId"
+      operationId: "switchWallet"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchWalletRequest"
+        required: true
+      responses:
+        "400":
+          description: "No wallet, no Telegram, missing previous proof on web, previous\
+            \ proof does not match linked wallet, or invalid viewer"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+        "200":
+          description: "Linked-accounts payload after switch or same-wallet TTL refresh"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+        "409":
+          description: "New address owned by another internalId (CONFLICT, no write)"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
+        "401":
+          description: "Invalid initData, session token, or ton_proof"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
   /api/auth/unlink-telegram:
     post:
       tags:

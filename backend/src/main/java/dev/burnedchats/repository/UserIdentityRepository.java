@@ -4,12 +4,15 @@ import dev.burnedchats.model.UnifiedUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
+import org.ton.ton4j.address.Address;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -22,6 +25,42 @@ public class UserIdentityRepository {
     private static final String AUTH_TG_PREFIX = "auth_tg:";
     private static final String AUTH_WALLET_PREFIX = "auth_wallet:";
     private static final Duration TTL = Duration.ofDays(90);
+
+    /**
+     * Atomic wallet rotation. Conflict is checked <em>before</em> {@code DEL} so a 409 cannot
+     * orphan the current {@code auth_wallet:} mapping (see IMP-WSWITCH-01 decision log).
+     */
+    private static final RedisScript<String> SWITCH_WALLET = RedisScript.of(
+            """
+            local userKey = KEYS[1]
+            local newAuthKey = KEYS[2]
+            local internalId = ARGV[1]
+            local newCanonical = ARGV[2]
+            local ttl = tonumber(ARGV[3])
+            local prefix = ARGV[4]
+
+            local current = redis.call('HGET', userKey, 'walletAddress')
+            if (not current) or current == '' then
+              return 'NO_WALLET'
+            end
+
+            local existing = redis.call('GET', newAuthKey)
+            if existing and existing ~= '' and existing ~= internalId then
+              return 'CONFLICT'
+            end
+
+            local oldAuthKey = prefix .. current
+            if oldAuthKey ~= newAuthKey then
+              redis.call('DEL', oldAuthKey)
+            end
+
+            redis.call('SET', newAuthKey, internalId)
+            redis.call('EXPIRE', newAuthKey, ttl)
+            redis.call('HSET', userKey, 'walletAddress', newCanonical)
+            redis.call('EXPIRE', userKey, ttl)
+            return 'OK'
+            """,
+            String.class);
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
@@ -139,6 +178,55 @@ public class UserIdentityRepository {
                             }
                             return applyTelegramLink(internalId, telegramId);
                         })));
+    }
+
+    /**
+     * Atomically rotates {@code auth_wallet:} and {@code user.walletAddress} to the canonical raw
+     * form of {@code walletAddress}. Does not touch {@code auth_tg:} or {@code session_token:*}.
+     *
+     * @throws IllegalArgumentException when no wallet is linked or the address is invalid
+     * @throws IllegalStateException when the new address is owned by another internalId
+     */
+    public Mono<Void> switchWallet(String internalId, String walletAddress) {
+        if (internalId == null || internalId.isBlank()) {
+            return Mono.error(new IllegalArgumentException("internalId is required"));
+        }
+        String canonical;
+        try {
+            canonical = canonicalWalletRaw(walletAddress);
+        } catch (IllegalArgumentException ex) {
+            return Mono.error(ex);
+        }
+        String userKey = USER_PREFIX + internalId;
+        String newAuthKey = AUTH_WALLET_PREFIX + canonical;
+        String ttlSeconds = String.valueOf(TTL.getSeconds());
+        return redisTemplate.execute(
+                        SWITCH_WALLET,
+                        List.of(userKey, newAuthKey),
+                        List.of(internalId, canonical, ttlSeconds, AUTH_WALLET_PREFIX))
+                .next()
+                .switchIfEmpty(Mono.error(new IllegalStateException("Failed to switch wallet")))
+                .flatMap(result -> switch (result) {
+                    case "OK" -> Mono.empty();
+                    case "CONFLICT" -> Mono.error(
+                            new IllegalStateException("Wallet already linked to another account"));
+                    case "NO_WALLET" -> Mono.error(new IllegalArgumentException("No wallet linked"));
+                    default -> Mono.error(new IllegalStateException("Failed to switch wallet"));
+                });
+    }
+
+    /**
+     * TON workchain+hash equality. Not {@link #normalizeWallet} (trim+lowercase only).
+     */
+    public boolean walletsEqual(String left, String right) {
+        if (left == null || right == null || left.isBlank() || right.isBlank()) {
+            return false;
+        }
+        try {
+            return Address.of(left.trim()).equals(Address.of(right.trim()));
+        } catch (RuntimeException | Error ex) {
+            return false;
+        }
     }
 
     /** Removes wallet mapping; Telegram must remain linked. */
@@ -271,6 +359,20 @@ public class UserIdentityRepository {
      */
     public String normalizeWallet(String walletAddress) {
         return walletAddress == null ? "" : walletAddress.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Canonical TON raw {@code workchain:hex} used as {@code auth_wallet:} suffix after link/switch.
+     */
+    public String canonicalWalletRaw(String walletAddress) {
+        if (walletAddress == null || walletAddress.isBlank()) {
+            throw new IllegalArgumentException("Wallet address is required");
+        }
+        try {
+            return Address.of(walletAddress.trim()).toRaw();
+        } catch (RuntimeException | Error ex) {
+            throw new IllegalArgumentException("Invalid wallet address", ex);
+        }
     }
 
     /**

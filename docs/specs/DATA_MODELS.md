@@ -217,7 +217,7 @@ HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
   authType      "WALLET"
   displayName   "EQBx...7JfP"
   telegramId    ""
-  walletAddress "EQBx7..."
+  walletAddress "0:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 ```
 
 **Legacy Telegram cache** (`UserRepository`): separate hash `user:{tgId}` for fast
@@ -232,10 +232,20 @@ External authentication mappings to unified `internalId`:
 
 ```redis
 SET auth_tg:111222333 "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
-SET auth_wallet:EQ... "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
+SET auth_wallet:0:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef "d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33"
 EXPIRE auth_tg:111222333 7776000
-EXPIRE auth_wallet:EQ... 7776000
+EXPIRE auth_wallet:0:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef 7776000
 ```
+
+After `link-wallet` / `switch-wallet` the stored suffix is **canonical raw**
+(`workchain:hex` from `TonProofVerifier` / `VerifiedTonProof.walletAddress`), not
+a friendly `EQ…` / `UQ…` string. `POST /api/auth/switch-wallet` rotates in one
+Lua eval: `HGET` current → abort **409** if `GET auth_wallet:{newRaw}` is another
+`internalId` (no `DEL`) → `DEL auth_wallet:{currentFromHash}` (hash value, not a
+client-supplied old address) → `SET` + `HSET` + `EXPIRE` 90d.
+`auth_tg:` is not touched. Search by the previous address no longer resolves
+this `internalId`. Friendly 48-char lookup against raw keys is a known follow-up
+(not this card).
 
 #### Lifecycle on `burnAllForUser`
 

@@ -159,8 +159,20 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   committed OpenAPI. Bot /burn command uses inline keyboard callbacks stored at
   Redis ot:burn:nonce:{nonce} (TTL 60 s, one-time).
 - **Wallet TON proof** error codes (WalletProofException.Reason) and HTTP mapping
-  are in OpenAPI; session **secret answer** normalization (	rim → lowercase → SHA-256
+  are in OpenAPI; session **secret answer** normalization (trim → lowercase → SHA-256
   → Base64) is STOMP-side — see CREATE_SESSION below.
+- **`POST /api/auth/switch-wallet`** rotates `auth_wallet:` on the same `internalId`
+  (Lua, TTL 90d). Exactly one viewer (`initData` **or** `sessionToken`). New
+  `ton_proof` is always required. **Web** also requires `previousWalletProof` of the
+  currently linked address (stolen browser session cannot rotate without the old
+  wallet). **TMA** may omit the previous proof (lost-seed). Telegram must already
+  be linked; a wallet must already be linked — otherwise **400**. Same wallet
+  (TON workchain+hash, EQ / UQ / raw) → **200** no-op + TTL refresh. New address
+  owned by another `internalId` → **409** `{ error, code: CONFLICT, message }` and
+  **no Redis write**. Merge of two `internalId`s is forbidden. Last-method
+  `unlink-wallet` / `unlink-telegram` stay **400**. Search by the **old** address
+  no longer resolves this person; `session_token:*` is **not** revoked. Proof
+  failures use the same HTTP map as `link-wallet`. Paths/schemas: [openapi.yaml](./openapi.yaml).
 
 ---
 
