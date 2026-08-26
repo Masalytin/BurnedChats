@@ -167,8 +167,8 @@ function renderConnectedWalletPanel(
   return { ton };
 }
 
-function linkedSnapshot(address = RAW_LINKED): LinkedWalletSnapshot {
-  return { walletLinked: true, walletAddress: address };
+function linkedSnapshot(address = RAW_LINKED, telegramLinked = true): LinkedWalletSnapshot {
+  return { walletLinked: true, walletAddress: address, telegramLinked };
 }
 
 describe('WalletPanel pinned contracts (IMP-SEC-07)', () => {
@@ -300,5 +300,48 @@ describe('WalletPanel connected-vs-linked banner (IMP-WSWITCH-03)', () => {
     expect(helpDialog.textContent).toContain(PINNED_TREASURY);
 
     vi.unstubAllEnvs();
+  });
+});
+
+describe('WalletPanel Make primary web-gate (IMP-WSWITCH-04)', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    linkedWalletRef.current = null;
+  });
+
+  afterEach(() => {
+    linkedWalletRef.current = null;
+    vi.clearAllMocks();
+  });
+
+  it('web without Telegram: mismatch shows Disconnect and link copy, not Make primary', () => {
+    getCredentials.mockReturnValue({ type: AuthType.WALLET, sessionToken: 'session-token' });
+    linkedWalletRef.current = { ...linkedSnapshot(RAW_LINKED), telegramLinked: false };
+    renderConnectedWalletPanel({ walletAddress: EQ_OTHER });
+
+    expect(screen.getByRole('status')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: i18n.t('wallet.mismatchMakePrimary') })).toBeNull();
+    expect(screen.getByRole('button', { name: i18n.t('wallet.mismatchDisconnect') })).toBeTruthy();
+    expect(screen.getByText(i18n.t('accountLinking.walletInstructions'))).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: i18n.t('accountLinking.switchTitle') })).toBeNull();
+  });
+
+  it('web without Telegram: cannot open SwitchWalletSheet from the banner', () => {
+    getCredentials.mockReturnValue({ type: AuthType.WALLET, sessionToken: 'session-token' });
+    linkedWalletRef.current = { ...linkedSnapshot(RAW_LINKED), telegramLinked: false };
+    renderConnectedWalletPanel({ walletAddress: EQ_OTHER });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('heading', { name: i18n.t('accountLinking.switchTitle') })).toBeNull();
+  });
+
+  it('web with Telegram linked: Make primary still opens SwitchWalletSheet', () => {
+    getCredentials.mockReturnValue({ type: AuthType.WALLET, sessionToken: 'session-token' });
+    linkedWalletRef.current = { ...linkedSnapshot(RAW_LINKED), telegramLinked: true };
+    renderConnectedWalletPanel({ walletAddress: EQ_OTHER });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.mismatchMakePrimary') }));
+
+    expect(screen.getByRole('heading', { name: i18n.t('accountLinking.switchTitle') })).toBeTruthy();
   });
 });

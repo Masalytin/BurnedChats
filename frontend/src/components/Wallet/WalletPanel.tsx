@@ -127,6 +127,10 @@ export function WalletPanel({
     connectedAddr && linkedAddr && !tonAddressesEqual(connectedAddr, linkedAddr),
   );
   const switchCredentials = useMemo(() => toSwitchCredentials(getCredentials()), [getCredentials]);
+  const canMakePrimary = Boolean(
+    switchCredentials &&
+      (switchCredentials.kind === 'telegram' || Boolean(linkedWallet?.telegramLinked)),
+  );
 
   const isHelpControlled = helpOpenProp !== undefined;
   const helpOpen = isHelpControlled ? helpOpenProp : internalHelpOpen;
@@ -224,19 +228,21 @@ export function WalletPanel({
                   linked: shortLinkedTonAddress(linkedAddr),
                 })}
               </p>
+              {!canMakePrimary ? (
+                <p className={styles.mismatchBannerText}>{t('accountLinking.walletInstructions')}</p>
+              ) : null}
               <div className={styles.mismatchBannerActions}>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  disabled={!switchCredentials}
-                  onClick={() => {
-                    if (switchCredentials) {
+                {canMakePrimary ? (
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    onClick={() => {
                       setSwitchOpen(true);
-                    }
-                  }}
-                >
-                  {t('wallet.mismatchMakePrimary')}
-                </button>
+                    }}
+                  >
+                    {t('wallet.mismatchMakePrimary')}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={styles.actionBtn}
@@ -278,7 +284,7 @@ export function WalletPanel({
         topicKey="wallet.about"
         values={pinnedHelpValues()}
       />
-      {switchCredentials ? (
+      {canMakePrimary && switchCredentials ? (
         <SwitchWalletSheet
           isOpen={switchOpen}
           onClose={() => setSwitchOpen(false)}

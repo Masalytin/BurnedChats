@@ -45,6 +45,19 @@ vi.mock('./env/detector', () => ({
 
 vi.mock('./auth', () => ({
   AuthContextProvider: ({ children }: { children: unknown }) => children,
+  useAuthContext: () => ({
+    user: harness.isAuthenticated
+      ? { internalId: 'u1', displayName: 'Test', authType: 'WALLET' }
+      : null,
+    isLoading: harness.isAuthLoading,
+    isAuthenticated: harness.isAuthenticated,
+    login: asyncNoop,
+    logout: noop,
+    getCredentials: () => null,
+    linkedWallet: null,
+    applyLinkedAccounts: noop,
+    refreshLinkedAccounts: asyncNoop,
+  }),
 }));
 
 vi.mock('./hooks/useAuth', () => ({

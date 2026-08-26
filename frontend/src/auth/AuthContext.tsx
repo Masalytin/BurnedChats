@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -20,12 +21,14 @@ import { TelegramAuthProvider } from './TelegramAuthProvider';
 import { WalletAuthProvider } from './WalletAuthProvider';
 import { setActiveCredentials } from './authCredentialsAccessor';
 import { AuthType, type AuthCredentials, type AuthProvider, type AuthResult, type AuthUser } from './types';
+import {
+  createLinkedRefreshGate,
+  dtoToLinkedWallet,
+  runLinkedAccountsRefresh,
+  type LinkedWalletSnapshot,
+} from './linkedWalletSnapshot';
 
-/** Server-owned linked wallet. Do not use {@link AuthUser.walletAddress} as this. */
-export interface LinkedWalletSnapshot {
-  walletLinked: boolean;
-  walletAddress: string;
-}
+export type { LinkedWalletSnapshot };
 
 interface AuthContextValue {
   provider: AuthProvider | null;
@@ -36,7 +39,7 @@ interface AuthContextValue {
   login: () => Promise<void>;
   logout: () => void;
   getCredentials: () => AuthCredentials | null;
-  /** Server `walletLinked` + raw `walletAddress`. IMP-WSWITCH-03 reads this. */
+  /** Server `walletLinked` + `walletAddress` + `telegramLinked`. IMP-WSWITCH-03/04 read this. */
   linkedWallet: LinkedWalletSnapshot | null;
   applyLinkedAccounts: (dto: LinkedAccountsDto) => void;
   refreshLinkedAccounts: () => Promise<void>;
@@ -52,13 +55,6 @@ function toFriendlyDisplay(rawOrFriendly: string): string {
   }
 }
 
-function dtoToLinkedWallet(dto: LinkedAccountsDto): LinkedWalletSnapshot {
-  return {
-    walletLinked: Boolean(dto.walletLinked),
-    walletAddress: typeof dto.walletAddress === 'string' ? dto.walletAddress : '',
-  };
-}
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 interface AuthProviderProps {
@@ -71,6 +67,7 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [linkedWallet, setLinkedWallet] = useState<LinkedWalletSnapshot | null>(null);
+  const linkedRefreshGateRef = useRef(createLinkedRefreshGate());
 
   const buildTelegramUser = useCallback((): AuthUser | null => {
     const tgUser = WebApp.initDataUnsafe?.user;
@@ -119,12 +116,14 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(() => {
     provider?.logout();
+    linkedRefreshGateRef.current.invalidate();
     setUser(null);
     setIsAuthenticated(false);
     setLinkedWallet(null);
   }, [provider]);
 
   const applyLinkedAccounts = useCallback((dto: LinkedAccountsDto) => {
+    linkedRefreshGateRef.current.invalidate();
     setLinkedWallet(dtoToLinkedWallet(dto));
     setUser((prev) => {
       if (!prev || prev.authType !== AuthType.WALLET) {
@@ -148,15 +147,15 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
       return;
     }
     const creds = provider.getCredentials();
-    try {
-      const dto = await fetchLinkedAccounts({
-        initData: creds.initData,
-        sessionToken: creds.sessionToken,
-      });
-      applyLinkedAccounts(dto);
-    } catch {
-      /* Snapshot is best-effort; login must not fail if /linked-accounts is down. */
-    }
+    await runLinkedAccountsRefresh({
+      gate: linkedRefreshGateRef.current,
+      fetchDto: () =>
+        fetchLinkedAccounts({
+          initData: creds.initData,
+          sessionToken: creds.sessionToken,
+        }),
+      apply: applyLinkedAccounts,
+    });
   }, [applyLinkedAccounts, provider]);
 
   const getCredentials = useCallback((): AuthCredentials | null => {

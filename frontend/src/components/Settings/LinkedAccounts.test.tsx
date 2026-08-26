@@ -343,4 +343,21 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     expect(screen.getByRole('button', { name: i18n.t('accountLinking.switchRetry') })).toBeTruthy();
     expect(screen.getByText(i18n.t('accountLinking.switchTitle'))).toBeTruthy();
   });
+
+  it('429 on nonce: keeps the sheet open and surfaces the same retry UI as POST', async () => {
+    connectWalletWithTonProof.mockRejectedValue(
+      new Error('Failed to fetch wallet auth nonce: HTTP 429'),
+    );
+
+    await loadedAccounts(tmaCreds);
+    await openSwitchSheet();
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.switchContinue') }));
+
+    await waitFor(() => {
+      expect(screen.getByText(i18n.t('accountLinking.switchRateLimited'))).toBeTruthy();
+    });
+    expect(screen.getByRole('button', { name: i18n.t('accountLinking.switchRetry') })).toBeTruthy();
+    expect(screen.getByText(i18n.t('accountLinking.switchTitle'))).toBeTruthy();
+    expect(switchWallet).not.toHaveBeenCalled();
+  });
 });

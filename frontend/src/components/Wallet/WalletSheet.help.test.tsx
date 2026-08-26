@@ -50,6 +50,15 @@ vi.mock('@/components/Toast', () => ({
   }),
 }));
 
+vi.mock('@/auth/AuthContext', () => ({
+  useAuthContext: () => ({
+    linkedWallet: null,
+    getCredentials: () => null,
+    applyLinkedAccounts: vi.fn(),
+    refreshLinkedAccounts: vi.fn(),
+  }),
+}));
+
 vi.mock('./WalletProvider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./WalletProvider')>();
   return {

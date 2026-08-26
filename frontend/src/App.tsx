@@ -3,10 +3,9 @@ import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
-import { AuthContextProvider } from './auth';
+import { AuthContextProvider, useAuthContext } from './auth';
 import { AuthType } from './auth/types';
 import { getEnvironment } from './env/detector';
-import { useAuth } from './hooks/useAuth';
 import { useTelegram } from './hooks/useTelegram';
 import { useTelegramViewport } from './hooks/useTelegramViewport';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -210,7 +209,8 @@ function AppContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isLoading: isAuthLoading, isAuthenticated, login, logout, getCredentials } = useAuth();
+  const { user, isLoading: isAuthLoading, isAuthenticated, login, logout, getCredentials, applyLinkedAccounts } =
+    useAuthContext();
   const { 
     isReady, 
     isInTelegram,
@@ -1891,7 +1891,8 @@ function AppContent() {
 
     void (async () => {
       try {
-        await completeTelegramWalletLink(challengeId, initData);
+        const dto = await completeTelegramWalletLink(challengeId, initData);
+        applyLinkedAccounts(dto);
         notificationOccurred('success');
         toast.success(t('accountLinking.telegramLinkedToast'));
       } catch (err) {
@@ -1901,7 +1902,7 @@ function AppContent() {
         toast.error(msg, { title: t('accountLinking.sectionTitle') });
       }
     })();
-  }, [environment, isReady, notificationOccurred, startParam, t, toast]);
+  }, [applyLinkedAccounts, environment, isReady, notificationOccurred, startParam, t, toast]);
 
   // Notification deep link: dm_{sessionId} → resume chat or show incoming request (IMP-TGUX-03)
   useEffect(() => {

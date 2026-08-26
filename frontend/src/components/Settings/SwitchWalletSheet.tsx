@@ -53,6 +53,14 @@ export function tonAddressesEqual(a: string, b: string): boolean {
   }
 }
 
+function isSwitchRateLimited(e: unknown): boolean {
+  if (e instanceof AccountLinkError) {
+    return e.code === 'RATE_LIMITED' || e.httpStatus === 429;
+  }
+  const msg = e instanceof Error ? e.message : '';
+  return /\b429\b/.test(msg);
+}
+
 export function SwitchWalletSheet({
   isOpen,
   onClose,
@@ -144,11 +152,11 @@ export function SwitchWalletSheet({
           setError(t('accountLinking.switchConflict'));
           return;
         }
-        if (e.code === 'RATE_LIMITED' || e.httpStatus === 429) {
-          setRateLimited(true);
-          setError(t('accountLinking.switchRateLimited'));
-          return;
-        }
+      }
+      if (isSwitchRateLimited(e)) {
+        setRateLimited(true);
+        setError(t('accountLinking.switchRateLimited'));
+        return;
       }
       const msg = e instanceof Error ? e.message : '';
       if (msg.toLowerCase().includes('cancel')) {
