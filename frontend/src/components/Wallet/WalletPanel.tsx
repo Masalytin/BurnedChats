@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Address } from '@ton/core';
 
+import { useAuthContext } from '@/auth/AuthContext';
+import { AuthType, type AuthCredentials } from '@/auth/types';
 import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
+import {
+  shortLinkedTonAddress,
+  SwitchWalletSheet,
+  type SwitchWalletSheetProps,
+} from '@/components/Settings/SwitchWalletSheet';
 import { useToast } from '@/components/Toast';
 
 import { Balance } from './Balance';
@@ -11,6 +19,28 @@ import { SendModal } from './SendModal';
 import { TokenBurnModal } from './TokenBurnModal';
 import { useWallet } from './WalletProvider';
 import styles from './Wallet.module.css';
+
+/** Same TON workchain+hash, any encoding. Not normalizeWallet / string compare. */
+function tonAddressesEqual(a: string, b: string): boolean {
+  try {
+    return Address.parse(a.trim()).equals(Address.parse(b.trim()));
+  } catch {
+    return false;
+  }
+}
+
+function toSwitchCredentials(creds: AuthCredentials | null): SwitchWalletSheetProps['credentials'] | null {
+  if (!creds) {
+    return null;
+  }
+  if (creds.type === AuthType.TELEGRAM && creds.initData) {
+    return { kind: 'telegram', initData: creds.initData };
+  }
+  if (creds.type === AuthType.WALLET && creds.sessionToken) {
+    return { kind: 'wallet', sessionToken: creds.sessionToken };
+  }
+  return null;
+}
 
 function pinnedAddress(envKey: string): string {
   const raw = (import.meta.env as Record<string, string | undefined>)[envKey];
@@ -80,6 +110,7 @@ export function WalletPanel({
   suppressHelpTrigger = false,
 }: WalletPanelProps) {
   const { burn, ton, refreshWallet, isRefreshing } = useWallet();
+  const { linkedWallet, getCredentials, applyLinkedAccounts } = useAuthContext();
 
   const { t } = useTranslation();
   const toast = useToast();
@@ -88,6 +119,14 @@ export function WalletPanel({
   const [tokenBurnOpen, setTokenBurnOpen] = useState(false);
   const [internalHelpOpen, setInternalHelpOpen] = useState(false);
   const [receiveExpanded, setReceiveExpanded] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const connectedAddr = ton.walletAddress?.trim() ?? '';
+  const linkedAddr = linkedWallet?.walletLinked ? linkedWallet.walletAddress.trim() : '';
+  const showMismatch = Boolean(
+    connectedAddr && linkedAddr && !tonAddressesEqual(connectedAddr, linkedAddr),
+  );
+  const switchCredentials = useMemo(() => toSwitchCredentials(getCredentials()), [getCredentials]);
 
   const isHelpControlled = helpOpenProp !== undefined;
   const helpOpen = isHelpControlled ? helpOpenProp : internalHelpOpen;
@@ -177,6 +216,39 @@ export function WalletPanel({
               <HelpTrigger onOpen={() => setHelpOpen(true)} />
             </div>
           ) : null}
+          {showMismatch ? (
+            <div className={styles.mismatchBanner} role="status">
+              <p className={styles.mismatchBannerText}>
+                {t('wallet.mismatchBanner', {
+                  connected: shortLinkedTonAddress(connectedAddr),
+                  linked: shortLinkedTonAddress(linkedAddr),
+                })}
+              </p>
+              <div className={styles.mismatchBannerActions}>
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  disabled={!switchCredentials}
+                  onClick={() => {
+                    if (switchCredentials) {
+                      setSwitchOpen(true);
+                    }
+                  }}
+                >
+                  {t('wallet.mismatchMakePrimary')}
+                </button>
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  onClick={() => {
+                    void ton.disconnect();
+                  }}
+                >
+                  {t('wallet.mismatchDisconnect')}
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Balance
             burn={burn}
             ton={ton}
@@ -206,6 +278,15 @@ export function WalletPanel({
         topicKey="wallet.about"
         values={pinnedHelpValues()}
       />
+      {switchCredentials ? (
+        <SwitchWalletSheet
+          isOpen={switchOpen}
+          onClose={() => setSwitchOpen(false)}
+          credentials={switchCredentials}
+          linkedWalletAddress={linkedAddr}
+          onSwitched={applyLinkedAccounts}
+        />
+      ) : null}
     </>
   );
 }

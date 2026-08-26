@@ -892,6 +892,41 @@
   margin-bottom: var(--bc-spacing-2xs);
 }
 
+.mismatchBanner {
+  margin-bottom: var(--bc-spacing-md);
+  padding: var(--bc-spacing-md);
+  border-radius: var(--bc-radius-md);
+  background: color-mix(in srgb, var(--bc-warning) 10%, var(--bc-bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--bc-warning) 38%, var(--bc-border-color));
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 200ms var(--bc-ease-out),
+    transform 200ms var(--bc-ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.mismatchBannerText {
+  margin: 0 0 var(--bc-spacing-sm);
+  font-size: var(--bc-text-sm);
+  line-height: var(--bc-leading-normal);
+  color: var(--bc-text-primary);
+}
+
+.mismatchBannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-sm);
+}
+
+.mismatchBannerActions .actionBtn {
+  flex: 1 1 8rem;
+}
+
 .panelConnectWrap {
   display: flex;
   justify-content: center;
@@ -924,8 +959,13 @@
   }
 
   .balancePrimary,
-  .balanceAmountValue {
+  .balanceAmountValue,
+  .mismatchBanner {
     transition: none;
+  }
+
+  .mismatchBanner {
+    transform: none;
   }
 
   .balancePrimary[data-refreshing],
