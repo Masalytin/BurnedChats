@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { Link } from 'react-router-dom';
 
 const TELEGRAM_BOT_URL = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';
 const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/Masalytin/BurnedChats';
@@ -60,6 +61,9 @@ export function FooterSection() {
         <a href={`${GITHUB_URL}/tree/master/docs`} className="footer-link" target="_blank" rel="noopener noreferrer">
           <DocIcon /> Docs
         </a>
+        <Link to="/token" className="footer-link">
+          BURN
+        </Link>
       </div>
     </footer>
   );
