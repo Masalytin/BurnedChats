@@ -46,6 +46,9 @@ import type { DecryptedFileMessage, DecryptedMessage } from '@/types';
 import '@/styles/ChatScreen.css';
 import './RoomChatRoom.css';
 
+/** Mirrors `RETRY_INTERVAL_MS` in useRequestKeyBundle — hook is read-only for IMP-RCATCH-04. */
+const KEY_REQUEST_STALE_MS = 12_000;
+
 // ============================================
 // Component Props
 // ============================================
@@ -142,6 +145,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const isOwnerRekeying =
     rekeyStatus === 'fetching-keys' || rekeyStatus === 'rekeying';
   const showKeySpinner = isRequestingKey || isOwnerRekeying;
+  const [ownerWaitTimedOut, setOwnerWaitTimedOut] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
@@ -172,6 +176,18 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     });
     return () => cancelAnimationFrame(frameId);
   }, [hasKey, roomId]);
+
+  useEffect(() => {
+    if (hasKey || isOwner) {
+      setOwnerWaitTimedOut(false);
+      return;
+    }
+    setOwnerWaitTimedOut(false);
+    const timerId = window.setTimeout(() => {
+      setOwnerWaitTimedOut(true);
+    }, KEY_REQUEST_STALE_MS);
+    return () => window.clearTimeout(timerId);
+  }, [hasKey, isOwner, roomId, isRequestingKey]);
 
   useEffect(() => {
     if (messageSelection.mode !== 'selecting') {
@@ -532,15 +548,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     ? isOwnerRekeying
       ? t('room.chat.ownerRekeying')
       : t('room.chat.keyLost')
-    : isRequestingKey
-      ? t('room.chat.requestingKey')
-      : t('room.chat.waitingForKey');
+    : t('room.chat.keysBurnedTitle');
 
   const placeholderHint = isOwner
     ? isOwnerRekeying
       ? t('room.chat.ownerRekeyingHint')
       : t('room.chat.keyLostHint')
-    : t('room.chat.ownerOfflineHint');
+    : t('room.chat.keysBurnedHint');
+
+  const memberHistoryHint = isOwner ? null : t('room.chat.historyLostHint');
+  const memberStatusHint =
+    isOwner || !ownerWaitTimedOut ? null : t('room.chat.ownerUnavailable');
 
   const subtitle = hasKey
     ? memberCount != null
@@ -727,6 +745,12 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             </div>
             <div className="room-chat-room-placeholder-text">{placeholderTitle}</div>
             <div className="room-chat-room-placeholder-hint">{placeholderHint}</div>
+            {memberHistoryHint && (
+              <div className="room-chat-room-placeholder-hint">{memberHistoryHint}</div>
+            )}
+            {memberStatusHint && (
+              <div className="room-chat-room-placeholder-hint">{memberStatusHint}</div>
+            )}
             <div className="room-chat-room-placeholder-actions">
               {isOwner ? (
                 isOwnerRekeying ? (

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { ComponentProps } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
 import { ToastProvider } from '@/components/Toast';
@@ -146,7 +146,23 @@ describe('RoomChatRoom key recovery placeholder (IMP-RKR-05)', () => {
     expect(scoped.queryByRole('button', { name: i18n.t('room.recovery.recoverButton') })).toBeNull();
   });
 
-  it('member without key shows waitingForKey with Retry and Leave (T3/T4)', () => {
+  it('owner idle without key keeps keyLostHint copy (IMP-RCATCH-04 owner branch)', () => {
+    renderRoomChatRoom({
+      isOwner: true,
+      rekeyStatus: 'idle' as RekeyStatus,
+    });
+
+    const placeholder = document.querySelector('.room-chat-room-placeholder');
+    const scoped = within(placeholder as HTMLElement);
+
+    expect(scoped.getByText(i18n.t('room.chat.keyLost'))).toBeTruthy();
+    expect(scoped.getByText(i18n.t('room.chat.keyLostHint'))).toBeTruthy();
+    expect(scoped.queryByText(i18n.t('room.chat.keysBurnedTitle'))).toBeNull();
+    expect(scoped.queryByText(i18n.t('room.chat.historyLostHint'))).toBeNull();
+    expect(scoped.queryByText(i18n.t('room.chat.ownerUnavailable'))).toBeNull();
+  });
+
+  it('member without key sees honest RAM-burn cause and history-lost consequence', () => {
     const { onRequestKey, onLeave } = renderRoomChatRoom({
       isOwner: false,
       isRequestingKey: false,
@@ -156,21 +172,80 @@ describe('RoomChatRoom key recovery placeholder (IMP-RKR-05)', () => {
     expect(placeholder).toBeTruthy();
     const scoped = within(placeholder as HTMLElement);
 
-    expect(scoped.getByText(i18n.t('room.chat.waitingForKey'))).toBeTruthy();
+    expect(scoped.getByText(i18n.t('room.chat.keysBurnedTitle'))).toBeTruthy();
+    expect(scoped.getByText(i18n.t('room.chat.keysBurnedHint'))).toBeTruthy();
+    expect(scoped.getByText(i18n.t('room.chat.historyLostHint'))).toBeTruthy();
+    expect(scoped.queryByText(i18n.t('room.chat.waitingForKey'))).toBeNull();
+    expect(scoped.queryByText(i18n.t('room.chat.ownerOfflineHint'))).toBeNull();
     expect(scoped.getByRole('button', { name: i18n.t('room.chat.retryKey') })).toBeTruthy();
     expect(scoped.getByRole('button', { name: i18n.t('room.manage.leaveButton') })).toBeTruthy();
     expect(onRequestKey).not.toHaveBeenCalled();
     expect(onLeave).not.toHaveBeenCalled();
   });
 
-  it('member retry button invokes onRequestKey', () => {
+  it('member retry button invokes onRequestKey and is not framed as history restore', () => {
     const { onRequestKey } = renderRoomChatRoom({
       isOwner: false,
       isRequestingKey: false,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('room.chat.retryKey') }));
+    const retry = screen.getByRole('button', { name: i18n.t('room.chat.retryKey') });
+    expect(retry.textContent).toBe(i18n.t('room.chat.retryKey'));
+    fireEvent.click(retry);
     expect(onRequestKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('member requesting key shows in-flight copy, not owner-unavailable', () => {
+    renderRoomChatRoom({
+      isOwner: false,
+      isRequestingKey: true,
+    });
+
+    const placeholder = document.querySelector('.room-chat-room-placeholder');
+    const scoped = within(placeholder as HTMLElement);
+
+    expect(scoped.getByText(i18n.t('room.chat.keysBurnedTitle'))).toBeTruthy();
+    expect(scoped.getByText(i18n.t('room.chat.requestingKey'))).toBeTruthy();
+    expect(scoped.queryByText(i18n.t('room.chat.ownerUnavailable'))).toBeNull();
+    expect(placeholder?.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('member sees owner-unavailable copy after one key-request retry interval', () => {
+    vi.useFakeTimers();
+    try {
+      renderRoomChatRoom({
+        isOwner: false,
+        isRequestingKey: true,
+      });
+
+      const placeholder = document.querySelector('.room-chat-room-placeholder');
+      const scoped = within(placeholder as HTMLElement);
+
+      expect(scoped.queryByText(i18n.t('room.chat.ownerUnavailable'))).toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(12_000);
+      });
+
+      expect(scoped.getByText(i18n.t('room.chat.ownerUnavailable'))).toBeTruthy();
+      expect(scoped.getByText(i18n.t('room.chat.keysBurnedTitle'))).toBeTruthy();
+      expect(scoped.getByText(i18n.t('room.chat.historyLostHint'))).toBeTruthy();
+      expect(scoped.getByRole('button', { name: i18n.t('room.manage.leaveButton') })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('member placeholder focuses the retry button', async () => {
+    renderRoomChatRoom({
+      isOwner: false,
+      isRequestingKey: false,
+    });
+
+    const retry = screen.getByRole('button', { name: i18n.t('room.chat.retryKey') });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(retry);
+    });
   });
 });
 
