@@ -166,6 +166,7 @@
           "Du kannst gehaltenes BURN (nicht gestakt) auch freiwillig per TEP-74 JettonBurn an deiner Jetton-Wallet verbrennen. Das ist keine Überweisung an eine Burn-Adresse. Es kann nicht rückgängig gemacht werden.",
           "Die verbundene Wallet ist die TON-Connect-Sitzung auf diesem Gerät. Senden, Staken und Abstimmen nutzen diesen Schlüssel; die angezeigten Guthaben gehören ihm — nicht einem kontoweiten Topf.",
           "Die verknüpfte Wallet ist die Adresse in deinem Burned-Chats-Konto. Unterscheiden sie sich, mache den verbundenen Schlüssel primär oder trenne diese Sitzung.",
+          "„Verknüpfung aufheben“ entfernt die Kontoverknüpfung und die TON-Connect-Sitzung. Trennen beendet nur die Sitzung — das ist kein Unlink.",
           "Vergleiche diese Build-Zeit-Vertragsadressen mit einer unabhängigen Quelle. Eine kompromittierte CDN-App könnte andere Werte zeigen.",
           "Jetton master: {{pinnedJetton}}",
           "Staking master: {{pinnedStaking}}",

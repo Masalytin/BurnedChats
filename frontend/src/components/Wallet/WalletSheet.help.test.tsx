@@ -1,9 +1,13 @@
 // @vitest-environment happy-dom
+import { Address } from '@ton/core';
+import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { LinkedWalletSnapshot } from '@/auth/AuthContext';
+import { AuthType } from '@/auth/types';
 import i18n from '@/i18n';
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
@@ -14,6 +18,8 @@ import { useWallet } from './WalletProvider';
 const useReducedMotionMock = vi.fn(() => false);
 const backButtonClickHandlers: Array<() => void> = [];
 const closeSheet = vi.fn();
+const getCredentials = vi.fn(() => null as { type: AuthType; initData?: string; sessionToken?: string } | null);
+const linkedWalletRef: { current: LinkedWalletSnapshot | null } = { current: null };
 
 vi.mock('motion/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('motion/react')>();
@@ -52,8 +58,8 @@ vi.mock('@/components/Toast', () => ({
 
 vi.mock('@/auth/AuthContext', () => ({
   useAuthContext: () => ({
-    linkedWallet: null,
-    getCredentials: () => null,
+    linkedWallet: linkedWalletRef.current,
+    getCredentials,
     applyLinkedAccounts: vi.fn(),
     refreshLinkedAccounts: vi.fn(),
   }),
@@ -103,10 +109,15 @@ const defaultTon: Pick<
   connect: vi.fn(),
 };
 
-function renderOpenWalletSheet() {
+const RAW_LINKED = '0:83dfd552e63729b472fcbcc8c45ebcc6691702558b68ec7527e1ba403a0f31a8';
+const EQ_LINKED = toUserFriendlyAddress(Address.parse(RAW_LINKED).toRawString());
+
+function renderOpenWalletSheet(
+  tonOverrides: Partial<Pick<UseTonConnectResult, 'walletAddress' | 'isConnected' | 'connect' | 'disconnect'>> = {},
+) {
   mockUseWallet.mockReturnValue({
     burn: defaultBurn as UseBurnToken,
-    ton: defaultTon as UseTonConnectResult,
+    ton: { ...defaultTon, disconnect: vi.fn().mockResolvedValue(undefined), ...tonOverrides } as UseTonConnectResult,
     tonBalance: {
       nano: 1_500_000_000n,
       isLoading: false,
@@ -136,6 +147,8 @@ describe('WalletSheet nested HelpSheet', () => {
     await i18n.changeLanguage('en');
     closeSheet.mockClear();
     backButtonClickHandlers.length = 0;
+    linkedWalletRef.current = null;
+    getCredentials.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -218,5 +231,25 @@ describe('WalletSheet nested HelpSheet', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(walletCloseBtn);
     });
+  });
+
+  it('blocks wallet sheet close while Unlink confirm is open', () => {
+    getCredentials.mockReturnValue({ type: AuthType.TELEGRAM, initData: 'init-data' });
+    linkedWalletRef.current = {
+      walletLinked: true,
+      walletAddress: RAW_LINKED,
+      telegramLinked: true,
+    };
+    renderOpenWalletSheet({ walletAddress: EQ_LINKED, isConnected: true });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlink') }));
+    expect(screen.getByText(i18n.t('accountLinking.unlinkWalletTitle'))).toBeTruthy();
+
+    for (const handler of [...backButtonClickHandlers]) {
+      handler();
+    }
+
+    expect(closeSheet).not.toHaveBeenCalled();
+    expect(screen.getByText(i18n.t('accountLinking.unlinkWalletTitle'))).toBeTruthy();
   });
 });

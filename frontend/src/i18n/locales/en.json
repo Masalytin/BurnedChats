@@ -817,6 +817,7 @@
           "You can also voluntarily burn BURN you hold (not staked) with a TEP-74 JettonBurn on your jetton wallet. That is not a transfer to a burn address. It cannot be undone.",
           "The connected wallet is the TON Connect session on this device. Send, stake, and vote use that key, and the balances shown belong to it — not to an account-wide pot.",
           "The linked wallet is the address stored on your Burned Chats account. If they differ, make the connected key primary or disconnect this session.",
+          "Unlink removes the account link and the TON Connect session. Disconnect only ends the session — it does not unlink the wallet from your account.",
           "Compare these build-time contract addresses with an independent source. A CDN-compromised app could show different values.",
           "Jetton master: {{pinnedJetton}}",
           "Staking master: {{pinnedStaking}}",

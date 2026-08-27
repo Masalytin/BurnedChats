@@ -157,6 +157,7 @@
           "También puedes quemar voluntariamente el BURN que tienes (no en stake) con un JettonBurn TEP-74 en tu jetton wallet. No es una transferencia a una dirección de quema. No se puede deshacer.",
           "La wallet conectada es la sesión de TON Connect en este dispositivo. Enviar, hacer stake y votar usan esa clave; los saldos que ves son suyos, no un saldo de cuenta.",
           "La wallet vinculada es la dirección guardada en tu cuenta de Burned Chats. Si no coinciden, haz primaria la clave conectada o desconecta esta sesión.",
+          "Desvincular quita el vínculo de la cuenta y la sesión de TON Connect. Desconectar solo cierra la sesión — no es Desvincular.",
           "Compara estas direcciones de contratos de la build con una fuente independiente. Una app comprometida en el CDN podría mostrar otros valores.",
           "Jetton master: {{pinnedJetton}}",
           "Staking master: {{pinnedStaking}}",

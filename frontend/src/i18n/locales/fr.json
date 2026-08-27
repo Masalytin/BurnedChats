@@ -157,6 +157,7 @@
           "Vous pouvez aussi brûler volontairement le BURN que vous détenez (non staké) via un JettonBurn TEP-74 sur votre jetton wallet. Ce n’est pas un transfert vers une adresse de brûlage. C’est irréversible.",
           "Le portefeuille connecté est la session TON Connect sur cet appareil. Envoi, staking et vote utilisent cette clé ; les soldes affichés sont les siens — pas un solde de compte.",
           "Le portefeuille lié est l'adresse enregistrée sur votre compte Burned Chats. S'ils diffèrent, définissez la clé connectée comme principale ou déconnectez cette session.",
+          "Dissocier retire le lien du compte et la session TON Connect. Déconnecter termine uniquement la session — ce n'est pas Dissocier.",
           "Comparez ces adresses de contrats au moment de la compilation avec une source indépendante. Une app compromise via le CDN pourrait afficher d’autres valeurs.",
           "Jetton master : {{pinnedJetton}}",
           "Staking master : {{pinnedStaking}}",

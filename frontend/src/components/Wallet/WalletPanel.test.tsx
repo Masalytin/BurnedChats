@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Address } from '@ton/core';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -110,7 +110,7 @@ const PINNED_TREASURY = 'EQPinnedTreasuryAddress0000000000000000000004';
 
 const defaultBurn: Pick<
   UseBurnToken,
-  'balance' | 'isLoading' | 'error' | 'refetch' | 'isRefreshing' | 'burn' | 'transferProgress'
+  'balance' | 'isLoading' | 'error' | 'refetch' | 'isRefreshing' | 'burn' | 'transferProgress' | 'history'
 > = {
   balance: 1_000_000_000n,
   isLoading: false,
@@ -119,6 +119,7 @@ const defaultBurn: Pick<
   isRefreshing: false,
   burn: vi.fn(),
   transferProgress: null,
+  history: [],
 };
 
 const defaultTon: Pick<UseTonConnectResult, 'walletAddress' | 'isConnected' | 'connect' | 'disconnect'> = {
@@ -269,8 +270,18 @@ describe('WalletPanel connected-vs-linked banner (IMP-WSWITCH-03)', () => {
     linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
     renderConnectedWalletPanel({ walletAddress: EQ_OTHER });
 
+    const status = screen.getByRole('status');
+    expect(within(status).queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
     expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
     expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlinkConfirm') })).toBeNull();
+  });
+
+  it('shows Unlink on matched TMA main panel, not on mismatch', () => {
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeTruthy();
   });
 
   it('hides the banner when the linked snapshot is missing', () => {
@@ -343,5 +354,126 @@ describe('WalletPanel Make primary web-gate (IMP-WSWITCH-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.mismatchMakePrimary') }));
 
     expect(screen.getByRole('heading', { name: i18n.t('accountLinking.switchTitle') })).toBeTruthy();
+  });
+});
+
+describe('WalletPanel unlink and leftover (IMP-WUNLINK-02)', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    linkedWalletRef.current = null;
+    getCredentials.mockReturnValue({ type: AuthType.TELEGRAM, initData: 'init-data' });
+    unlinkWallet.mockResolvedValue({
+      walletLinked: false,
+      walletAddress: '',
+      telegramLinked: true,
+    });
+  });
+
+  afterEach(() => {
+    linkedWalletRef.current = null;
+    vi.clearAllMocks();
+  });
+
+  it('TMA matched: Unlink confirm calls unlink, apply, and disconnect', async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED, disconnect });
+
+    const unlinkBtn = screen.getByRole('button', { name: i18n.t('accountLinking.unlink') });
+    expect(unlinkBtn.className).toMatch(/button--ghost/);
+    fireEvent.click(unlinkBtn);
+
+    expect(await screen.findByText(i18n.t('accountLinking.unlinkWalletTitle'))).toBeTruthy();
+    expect(screen.getByText(i18n.t('accountLinking.unlinkWalletBody'))).toBeTruthy();
+    expect(unlinkWallet).not.toHaveBeenCalled();
+    expect(disconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlinkConfirm') }));
+
+    await waitFor(() => {
+      expect(unlinkWallet).toHaveBeenCalledTimes(1);
+      expect(unlinkWallet).toHaveBeenCalledWith('init-data');
+      expect(applyLinkedAccounts).toHaveBeenCalledTimes(1);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('web wallet session: no Unlink even when telegramLinked', () => {
+    getCredentials.mockReturnValue({ type: AuthType.WALLET, sessionToken: 'session-token' });
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+  });
+
+  it('last-method without Telegram: no Unlink', () => {
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED, false);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+  });
+
+  it('leftover connected without linked wallet: Disconnect, not Unlink, Balance stays', () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    linkedWalletRef.current = null;
+    renderConnectedWalletPanel({ walletAddress: EQ_OTHER, disconnect });
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+    expect(screen.getByRole('button', { name: i18n.t('wallet.mismatchDisconnect') })).toBeTruthy();
+    expect(screen.getByRole('button', { name: i18n.t('wallet.send') })).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.mismatchDisconnect') }));
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(unlinkWallet).not.toHaveBeenCalled();
+  });
+
+  it('history panel does not show Unlink', () => {
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.history') }));
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+  });
+
+  it('hides Unlink while Send is open', () => {
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.send') }));
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+  });
+
+  it('hides Unlink while TokenBurn is open', () => {
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('wallet.burnToken') }));
+
+    expect(screen.queryByRole('button', { name: i18n.t('accountLinking.unlink') })).toBeNull();
+  });
+
+  it('help.wallet.about explains Unlink vs Disconnect and keeps pins', () => {
+    vi.stubEnv('VITE_BURN_JETTON_MASTER', PINNED_JETTON);
+    vi.stubEnv('VITE_STAKING_MASTER', PINNED_STAKING);
+    vi.stubEnv('VITE_GOVERNOR_ADDRESS', PINNED_GOVERNOR);
+    vi.stubEnv('VITE_TREASURY_ADDRESS', PINNED_TREASURY);
+
+    linkedWalletRef.current = linkedSnapshot(RAW_LINKED);
+    renderConnectedWalletPanel({ walletAddress: EQ_LINKED });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('help.common.trigger') }));
+
+    const helpDialog = screen.getByRole('dialog');
+    expect(helpDialog.textContent).toMatch(/connected wallet/i);
+    expect(helpDialog.textContent).toMatch(/linked wallet/i);
+    expect(helpDialog.textContent).toMatch(/Unlink removes the account link/i);
+    expect(helpDialog.textContent).toMatch(/does not unlink/i);
+    expect(helpDialog.textContent).toContain(PINNED_JETTON);
+    expect(helpDialog.textContent).toContain(PINNED_STAKING);
+
+    vi.unstubAllEnvs();
   });
 });

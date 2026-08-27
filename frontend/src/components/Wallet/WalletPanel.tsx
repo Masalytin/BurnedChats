@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '@/auth/AuthContext';
+import { unlinkWalletThenDisconnect } from '@/auth/linkedWalletSnapshot';
 import { AuthType, type AuthCredentials } from '@/auth/types';
+import { Button } from '@/components/Button';
+import { ConfirmDialog } from '@/components/ConfirmDialog/ConfirmDialog';
 import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { PullToRefresh } from '@/components/PullToRefresh/PullToRefresh';
 import {
@@ -11,6 +14,7 @@ import {
   type SwitchWalletSheetProps,
 } from '@/components/Settings/SwitchWalletSheet';
 import { useToast } from '@/components/Toast';
+import { unlinkWallet } from '@/services/accountLinkingApi';
 
 import { Balance } from './Balance';
 import { History } from './History';
@@ -83,6 +87,8 @@ export interface WalletPanelProps {
   helpOpen?: boolean;
   /** Sheet shell blocks close while nested HelpSheet is open. */
   onHelpOpenChange?: (open: boolean) => void;
+  /** Sheet shell blocks close while Unlink ConfirmDialog is open. */
+  onUnlinkConfirmOpenChange?: (open: boolean) => void;
   /** Hide inline HelpTrigger when the parent sheet renders it in the header. */
   suppressHelpTrigger?: boolean;
 }
@@ -97,6 +103,7 @@ export function WalletPanel({
   onTokenBurnOpenChange,
   helpOpen: helpOpenProp,
   onHelpOpenChange,
+  onUnlinkConfirmOpenChange,
   suppressHelpTrigger = false,
 }: WalletPanelProps) {
   const { burn, ton, refreshWallet, isRefreshing } = useWallet();
@@ -110,6 +117,8 @@ export function WalletPanel({
   const [internalHelpOpen, setInternalHelpOpen] = useState(false);
   const [receiveExpanded, setReceiveExpanded] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
 
   const connectedAddr = ton.walletAddress?.trim() ?? '';
   const linkedAddr = linkedWallet?.walletLinked ? linkedWallet.walletAddress.trim() : '';
@@ -121,6 +130,18 @@ export function WalletPanel({
     switchCredentials &&
       (switchCredentials.kind === 'telegram' || Boolean(linkedWallet?.telegramLinked)),
   );
+  const telegramInitData =
+    switchCredentials?.kind === 'telegram' ? switchCredentials.initData : '';
+  const canUnlink = Boolean(
+    telegramInitData &&
+      linkedWallet?.walletLinked &&
+      linkedWallet.telegramLinked &&
+      !showMismatch &&
+      panel === 'main' &&
+      !sendOpen &&
+      !tokenBurnOpen,
+  );
+  const showLeftoverDisconnect = Boolean(ton.isConnected && !linkedAddr && panel === 'main');
 
   const isHelpControlled = helpOpenProp !== undefined;
   const helpOpen = isHelpControlled ? helpOpenProp : internalHelpOpen;
@@ -160,6 +181,30 @@ export function WalletPanel({
       onHelpOpenChange?.(helpOpen);
     }
   }, [helpOpen, isHelpControlled, onHelpOpenChange]);
+
+  useEffect(() => {
+    onUnlinkConfirmOpenChange?.(unlinkOpen);
+  }, [unlinkOpen, onUnlinkConfirmOpenChange]);
+
+  const handleUnlinkConfirm = useCallback(async () => {
+    if (!telegramInitData) {
+      return;
+    }
+    setUnlinkBusy(true);
+    try {
+      await unlinkWalletThenDisconnect({
+        initData: telegramInitData,
+        unlink: unlinkWallet,
+        apply: applyLinkedAccounts,
+        disconnect: () => ton.disconnect(),
+      });
+      setUnlinkOpen(false);
+    } catch {
+      /* Keep the dialog open; leftover Disconnect is the escape hatch if disconnect failed after 200. */
+    } finally {
+      setUnlinkBusy(false);
+    }
+  }, [telegramInitData, applyLinkedAccounts, ton]);
 
   const handleSent = useCallback(() => {
     toast.success(t('wallet.sendSuccess'));
@@ -254,6 +299,33 @@ export function WalletPanel({
             onHistory={() => setPanel('history')}
             onBurnToken={() => setTokenBurnOpen(true)}
           />
+          {canUnlink ? (
+            <div className={styles.panelIdentityRow}>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                isLoading={unlinkBusy}
+                onClick={() => setUnlinkOpen(true)}
+              >
+                {t('accountLinking.unlink')}
+              </Button>
+            </div>
+          ) : null}
+          {showLeftoverDisconnect ? (
+            <div className={styles.panelIdentityRow}>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => {
+                  void ton.disconnect();
+                }}
+              >
+                {t('wallet.mismatchDisconnect')}
+              </Button>
+            </div>
+          ) : null}
         </PullToRefresh>
       )}
       <SendModal
@@ -283,6 +355,22 @@ export function WalletPanel({
           onSwitched={applyLinkedAccounts}
         />
       ) : null}
+      <ConfirmDialog
+        isOpen={unlinkOpen}
+        onClose={() => {
+          if (!unlinkBusy) {
+            setUnlinkOpen(false);
+          }
+        }}
+        onConfirm={() => {
+          void handleUnlinkConfirm();
+        }}
+        title={t('accountLinking.unlinkWalletTitle')}
+        description={t('accountLinking.unlinkWalletBody')}
+        confirmLabel={t('accountLinking.unlinkConfirm')}
+        variant="destructive"
+        isLoading={unlinkBusy}
+      />
     </>
   );
 }

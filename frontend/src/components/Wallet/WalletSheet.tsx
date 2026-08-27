@@ -24,8 +24,9 @@ export function WalletSheet() {
   const [sendOpen, setSendOpen] = useState(false);
   const [tokenBurnOpen, setTokenBurnOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
 
-  const blockChildOverlay = sendOpen || tokenBurnOpen || helpOpen;
+  const blockChildOverlay = sendOpen || tokenBurnOpen || helpOpen || unlinkConfirmOpen;
 
   const handleBack = useCallback(() => {
     if (!blockChildOverlay) {
@@ -38,6 +39,7 @@ export function WalletSheet() {
       setSendOpen(false);
       setTokenBurnOpen(false);
       setHelpOpen(false);
+      setUnlinkConfirmOpen(false);
       setPanelView('main');
     }
   }, [sheetOpen]);
@@ -87,6 +89,7 @@ export function WalletSheet() {
           onTokenBurnOpenChange={setTokenBurnOpen}
           helpOpen={helpOpen}
           onHelpOpenChange={setHelpOpen}
+          onUnlinkConfirmOpenChange={setUnlinkConfirmOpen}
           suppressHelpTrigger
         />
       </div>

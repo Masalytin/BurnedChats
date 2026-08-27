@@ -892,6 +892,12 @@
   margin-bottom: var(--bc-spacing-2xs);
 }
 
+.panelIdentityRow {
+  display: flex;
+  justify-content: center;
+  margin: calc(var(--bc-spacing-sm) * -1) 0 var(--bc-spacing-md);
+}
+
 .mismatchBanner {
   margin-bottom: var(--bc-spacing-md);
   padding: var(--bc-spacing-md);
