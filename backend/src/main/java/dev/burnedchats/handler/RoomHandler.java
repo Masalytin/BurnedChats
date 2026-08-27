@@ -58,6 +58,7 @@ import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMutedRepository;
 import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
+import dev.burnedchats.repository.RoomKeyRequestInboxRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
 import dev.burnedchats.repository.RoomMessageRepository;
 import dev.burnedchats.repository.RoomPresenceRepository;
@@ -148,6 +149,7 @@ public class RoomHandler {
     private final OnlineStatusRepository onlineStatusRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final RoomTelegramNotifyService roomTelegramNotifyService;
+    private final RoomKeyRequestInboxRepository keyRequestInboxRepository;
 
     @MessageMapping("/room.create")
     public void createRoom(@Payload @Valid CreateRoomRequest request, Principal principal) {
@@ -563,6 +565,11 @@ public class RoomHandler {
             RequestKeyBundleRequest request, ParticipantContext caller, Room room) {
         return memberPublicKeyRepository
                 .put(request.getRoomId(), caller.internalId(), request.getPublicKey())
+                .then(keyRequestInboxRepository.record(
+                        room.getOwnerInternalId(),
+                        request.getRoomId(),
+                        caller.internalId(),
+                        System.currentTimeMillis()))
                 .then(resolveDisplayName(caller))
                 .map(displayName -> KeyBundleRequestOutcome.notifyOwner(room, displayName));
     }

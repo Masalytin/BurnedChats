@@ -8,6 +8,7 @@ import dev.burnedchats.model.EncryptedKeyBundle;
 import dev.burnedchats.model.Room;
 import dev.burnedchats.repository.InviteTokenRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
+import dev.burnedchats.repository.RoomKeyRequestInboxRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -37,6 +38,7 @@ import reactor.core.publisher.Mono;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -48,7 +50,8 @@ import static org.mockito.Mockito.when;
 /**
  * Branches of {@code /app/room.requestKeyBundle}: serve the stored current-epoch
  * bundle when the caller's ECDH pubkey is unchanged; otherwise fall back to
- * notifying the owner. IMP-RCATCH-02.
+ * notifying the owner (IMP-RCATCH-02). Notify path also persists a key-request
+ * inbox fact for an offline owner (IMP-RCATCH-03).
  */
 @ExtendWith(MockitoExtension.class)
 class RoomHandlerKeyBundleServeTest {
@@ -79,6 +82,7 @@ class RoomHandlerKeyBundleServeTest {
     @Mock private RoomTopicSubscriptionService roomTopicSubscriptionService;
     @Mock private OnlineStatusRepository onlineStatusRepository;
     @Mock private SimpMessagingTemplate messagingTemplate;
+    @Mock private RoomKeyRequestInboxRepository keyRequestInboxRepository;
 
     @InjectMocks
     private RoomHandler roomHandler;
@@ -108,6 +112,7 @@ class RoomHandlerKeyBundleServeTest {
         verify(stompUserMessenger, never()).convertAndSendToInternalId(
                 eq(OWNER_INTERNAL), eq(JOIN_REQUESTS_DESTINATION), any());
         verify(memberPublicKeyRepository, never()).put(anyString(), anyString(), anyString());
+        verify(keyRequestInboxRepository, never()).record(anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -130,6 +135,7 @@ class RoomHandlerKeyBundleServeTest {
     @Test
     void requestKeyBundle_newPubkey_savesKeyNotifiesOwnerAndDoesNotServeStoredBundle() {
         stubMemberCaller();
+        stubInboxRecord();
         when(memberPublicKeyRepository.get(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(STORED_PUBKEY));
         when(memberPublicKeyRepository.put(ROOM, MEMBER_INTERNAL, NEW_PUBKEY)).thenReturn(Mono.empty());
 
@@ -145,6 +151,7 @@ class RoomHandlerKeyBundleServeTest {
     @Test
     void requestKeyBundle_samePubkeyButMissingBundle_notifiesOwner() {
         stubMemberCaller();
+        stubInboxRecord();
         when(memberPublicKeyRepository.get(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(STORED_PUBKEY));
         when(roomKeysRepository.getCurrentEpoch(ROOM)).thenReturn(Mono.just(1));
         when(roomKeysRepository.getEncryptedKey(ROOM, 1, MEMBER_INTERNAL)).thenReturn(Mono.empty());
@@ -161,6 +168,7 @@ class RoomHandlerKeyBundleServeTest {
     @Test
     void requestKeyBundle_noStoredPubkey_treatsAsNewAndDoesNotServeBundle() {
         stubMemberCaller();
+        stubInboxRecord();
         when(memberPublicKeyRepository.get(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.empty());
         when(memberPublicKeyRepository.put(ROOM, MEMBER_INTERNAL, STORED_PUBKEY)).thenReturn(Mono.empty());
 
@@ -174,6 +182,36 @@ class RoomHandlerKeyBundleServeTest {
     }
 
     @Test
+    void requestKeyBundle_newPubkey_recordsInboxForOwner() {
+        stubMemberCaller();
+        stubInboxRecord();
+        when(memberPublicKeyRepository.get(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(STORED_PUBKEY));
+        when(memberPublicKeyRepository.put(ROOM, MEMBER_INTERNAL, NEW_PUBKEY)).thenReturn(Mono.empty());
+
+        roomHandler.requestKeyBundle(request(NEW_PUBKEY), memberPrincipal());
+
+        verify(keyRequestInboxRepository, timeout(1000))
+                .record(eq(OWNER_INTERNAL), eq(ROOM), eq(MEMBER_INTERNAL), anyLong());
+        verifyOwnerNotified(NEW_PUBKEY);
+    }
+
+    @Test
+    void requestKeyBundle_samePubkeyButMissingBundle_recordsInboxForOwner() {
+        stubMemberCaller();
+        stubInboxRecord();
+        when(memberPublicKeyRepository.get(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(STORED_PUBKEY));
+        when(roomKeysRepository.getCurrentEpoch(ROOM)).thenReturn(Mono.just(1));
+        when(roomKeysRepository.getEncryptedKey(ROOM, 1, MEMBER_INTERNAL)).thenReturn(Mono.empty());
+        when(memberPublicKeyRepository.put(ROOM, MEMBER_INTERNAL, STORED_PUBKEY)).thenReturn(Mono.empty());
+
+        roomHandler.requestKeyBundle(request(STORED_PUBKEY), memberPrincipal());
+
+        verify(keyRequestInboxRepository, timeout(1000))
+                .record(eq(OWNER_INTERNAL), eq(ROOM), eq(MEMBER_INTERNAL), anyLong());
+        verifyOwnerNotified(STORED_PUBKEY);
+    }
+
+    @Test
     void requestKeyBundle_notMember_doesNotServeBundleOrNotifyOwner() {
         when(roomService.isOwner(any(Room.class), eq(MEMBER_INTERNAL))).thenReturn(false);
         when(roomMembersRepository.isMember(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(false));
@@ -184,6 +222,7 @@ class RoomHandlerKeyBundleServeTest {
         verify(roomKeysRepository, never()).getEncryptedKey(anyString(), anyInt(), anyString());
         verify(memberPublicKeyRepository, never()).put(anyString(), anyString(), anyString());
         verify(stompUserMessenger, never()).convertAndSendToInternalId(anyString(), anyString(), any());
+        verify(keyRequestInboxRepository, never()).record(anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -220,6 +259,11 @@ class RoomHandlerKeyBundleServeTest {
     private void stubMemberCaller() {
         when(roomService.isOwner(any(Room.class), eq(MEMBER_INTERNAL))).thenReturn(false);
         when(roomMembersRepository.isMember(ROOM, MEMBER_INTERNAL)).thenReturn(Mono.just(true));
+    }
+
+    private void stubInboxRecord() {
+        when(keyRequestInboxRepository.record(anyString(), anyString(), anyString(), anyLong()))
+                .thenReturn(Mono.empty());
     }
 
     private KeyBundleEvent captureKeyBundleSentTo(String internalId) {

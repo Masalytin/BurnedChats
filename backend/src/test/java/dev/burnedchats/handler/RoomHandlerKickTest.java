@@ -13,6 +13,7 @@ import dev.burnedchats.repository.RoomBurnInboxRepository;
 import dev.burnedchats.service.RoomTelegramNotifyService;
 import dev.burnedchats.repository.RoomBansRepository;
 import dev.burnedchats.repository.RoomJoinRequestRepository;
+import dev.burnedchats.repository.RoomKeyRequestInboxRepository;
 import dev.burnedchats.repository.RoomKeysRepository;
 import dev.burnedchats.repository.RoomMemberPublicKeyRepository;
 import dev.burnedchats.repository.RoomMembersRepository;
@@ -97,6 +98,7 @@ class RoomHandlerKickTest {
     @Mock private PasswordProofService passwordProofService;
     @Mock private RoomBurnInboxRepository roomBurnInboxRepository;
     @Mock private RoomTelegramNotifyService roomTelegramNotifyService;
+    @Mock private RoomKeyRequestInboxRepository keyRequestInboxRepository;
 
     private RoomService roomService;
 
@@ -140,7 +142,8 @@ class RoomHandlerKickTest {
                 rateLimitService,
                 onlineStatusRepository,
                 messagingTemplate,
-                roomTelegramNotifyService);
+                roomTelegramNotifyService,
+                keyRequestInboxRepository);
         when(rateLimitService.enforceRateLimit(anyString(), eq(RateLimitType.SESSION_ACTION)))
                 .thenReturn(Mono.empty());
         lenient().when(roomRepository.findById(ROOM)).thenReturn(Mono.just(ownerRoom()));

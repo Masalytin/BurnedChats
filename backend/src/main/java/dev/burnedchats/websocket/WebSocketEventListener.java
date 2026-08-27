@@ -88,6 +88,7 @@ public class WebSocketEventListener {
     private final UserMapper userMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final MessagesProperties messagesProperties;
+    private final RoomKeyRequestInboxDelivery keyRequestInboxDelivery;
 
     /**
      * Handle WebSocket session connected event.
@@ -143,6 +144,7 @@ public class WebSocketEventListener {
         }
 
         sendPendingRequests(internalId);
+        keyRequestInboxDelivery.deliverOnConnect(internalId);
 
         if (messagesProperties.getServerPushSync().isEnabled()) {
             pushPendingMessagesFanOut(internalId);

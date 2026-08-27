@@ -6,7 +6,7 @@
 
 ### Key Overview
 
-Complete inventory of **50** Redis key families (source of truth — code).
+Complete inventory of **51** Redis key families (source of truth — code).
 Detailed sections below cover the most frequently used patterns; the rest are
 summarized in the table.
 
@@ -44,6 +44,7 @@ summarized in the table.
 | `user:deadman:cfg:{internalId}` | string | **no TTL** | `{ periodDays, wipeIdentity }` — deleted on disable/expiry |
 | `room_members:{roomId}` | set | 30d | Members (internalId) |
 | `room_burn_inbox:{internalId}` | list | 7d | Offline burn facts (`roomId|burnedAt`), no names |
+| `room_key_request_inbox:{ownerInternalId}` | hash | 7d | Offline key-request facts; field `{roomId}:{requesterInternalId}` → `requestedAt` ms; cap 100 |
 | `member_rooms:{internalId}` | set | 30d | User room reverse index |
 | `room_keys:{roomId}:{epoch}` | hash | **7d** | Wrapped group keys |
 | `room_key_epoch:{roomId}` | string | 30d | Current rekey epoch |
@@ -424,6 +425,34 @@ SADD room_members:uuid-room-1 "d2f44f7b-..." "f74f67a1-..."
 ```
 
 Deleted on BURN_ROOM.
+
+### `room_key_request_inbox:{ownerInternalId}`
+
+Offline inbox of group-key wrap requests for a room owner (IMP-RCATCH-03 / T2.3).
+HASH (not LIST) so a 12s client retry of the same `(roomId, requesterInternalId)` pair
+overwrites one field without reading the collection.
+
+Zero-knowledge: **identifiers and timestamp only**. No ciphertext, ECDH pubkey, or
+display names. On owner connect the server drains the HASH, checks membership/ban,
+then reads a fresh pubkey from `room_member_pubkey:{roomId}`.
+
+```redis
+HSET room_key_request_inbox:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33
+  "uuid-room-1:f74f67a1-2b3c-4d5e-8f90-abcdef123456"  "1724000000000"
+
+EXPIRE room_key_request_inbox:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 604800
+```
+
+| Rule | Value |
+|------|-------|
+| Type | HASH |
+| Field | `{roomId}:{requesterInternalId}` |
+| Value | `requestedAt` epoch millis (string) |
+| TTL | 7 days (refreshed on each `HSET`) |
+| Cap | 100 fields; overflow evicts the oldest `requestedAt`, not the newest |
+| Dedup | same pair → overwrite timestamp; HASH length does not grow |
+| Write | notify-owner branch of `/app/room.requestKeyBundle` only (not the serve-bundle branch) |
+| Drain | owner STOMP CONNECT → `HGETALL` + `DEL`, then `RoomJoinRequestEvent.autoApproved` |
 
 ### `room_bans:{roomId}`
 
