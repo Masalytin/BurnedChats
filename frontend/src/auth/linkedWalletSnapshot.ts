@@ -54,6 +54,22 @@ export async function completeAndApplyTelegramWalletLink(
   return dto;
 }
 
+export async function unlinkWalletThenDisconnect(opts: {
+  initData: string;
+  unlink: (initData: string) => Promise<LinkedAccountsDto>;
+  apply: (dto: LinkedAccountsDto) => void;
+  disconnect: () => Promise<void>;
+}): Promise<LinkedAccountsDto> {
+  const dto = await opts.unlink(opts.initData);
+  opts.apply(dto);
+  try {
+    await opts.disconnect();
+  } catch {
+    /* Snapshot is already correct; leftover Disconnect is IMP-WUNLINK-02. */
+  }
+  return dto;
+}
+
 export async function runLinkedAccountsRefresh(opts: {
   gate: LinkedRefreshGate;
   fetchDto: () => Promise<LinkedAccountsDto>;

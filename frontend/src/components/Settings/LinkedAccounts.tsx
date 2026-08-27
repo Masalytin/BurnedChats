@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '../../auth/AuthContext';
+import { unlinkWalletThenDisconnect } from '../../auth/linkedWalletSnapshot';
 import { AuthType } from '../../auth/types';
 import {
   fetchLinkedAccounts,
@@ -8,6 +9,7 @@ import {
   unlinkWallet,
   type LinkedAccountsDto,
 } from '../../services/accountLinkingApi';
+import { getTonConnectUI } from '../../ton/connector';
 import { Button } from '../Button';
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog';
 import { AccountLinking } from './AccountLinking';
@@ -100,8 +102,12 @@ export function LinkedAccounts({
     setBusyKind('wallet');
     setError(null);
     try {
-      const dto = await unlinkWallet(credentials.initData);
-      applySnapshot(dto);
+      await unlinkWalletThenDisconnect({
+        initData: credentials.initData,
+        unlink: unlinkWallet,
+        apply: applySnapshot,
+        disconnect: () => getTonConnectUI().disconnect(),
+      });
       setUnlinkKind(null);
       onChanged?.();
     } catch (e) {

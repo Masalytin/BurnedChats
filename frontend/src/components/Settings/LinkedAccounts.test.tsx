@@ -15,6 +15,7 @@ const switchWallet = vi.fn();
 const linkWalletTelegram = vi.fn();
 const applyLinkedAccounts = vi.fn();
 const connectWalletWithTonProof = vi.fn();
+const tonDisconnect = vi.fn();
 
 vi.mock('../../services/accountLinkingApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/accountLinkingApi')>();
@@ -42,6 +43,7 @@ vi.mock('../../ton/connector', async (importOriginal) => {
   return {
     ...actual,
     connectWalletWithTonProof: (...args: unknown[]) => connectWalletWithTonProof(...args),
+    getTonConnectUI: () => ({ disconnect: (...args: unknown[]) => tonDisconnect(...args) }),
   };
 });
 
@@ -174,6 +176,8 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     linkWalletTelegram.mockReset();
     applyLinkedAccounts.mockReset();
     connectWalletWithTonProof.mockReset();
+    tonDisconnect.mockReset();
+    tonDisconnect.mockResolvedValue(undefined);
     fetchLinkedAccounts.mockResolvedValue(bothLinked());
     unlinkWallet.mockResolvedValue(bothLinked({ walletLinked: false, walletAddress: '', linkedMethodCount: 1 }));
     unlinkTelegram.mockResolvedValue(bothLinked({ telegramLinked: false, telegramId: null, telegramLabel: '', linkedMethodCount: 1 }));
@@ -261,6 +265,7 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
       expect(screen.queryByText(i18n.t('accountLinking.unlinkWalletTitle'))).toBeNull();
     });
     expect(unlinkWallet).not.toHaveBeenCalled();
+    expect(tonDisconnect).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlink') }));
     fireEvent.click(screen.getByRole('button', { name: i18n.t('accountLinking.unlinkConfirm') }));
@@ -268,7 +273,9 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     await waitFor(() => {
       expect(unlinkWallet).toHaveBeenCalledTimes(1);
       expect(unlinkWallet).toHaveBeenCalledWith('init-data');
+      expect(tonDisconnect).toHaveBeenCalledTimes(1);
     });
+    expect(screen.getByText(i18n.t('accountLinking.notLinked'))).toBeTruthy();
   });
 
   it('web Unlink Telegram opens ConfirmDialog and does not call the API until confirm', async () => {
@@ -292,6 +299,8 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
       expect(unlinkTelegram).toHaveBeenCalledTimes(1);
       expect(unlinkTelegram).toHaveBeenCalledWith('session-token');
     });
+    expect(unlinkWallet).not.toHaveBeenCalled();
+    expect(tonDisconnect).not.toHaveBeenCalled();
   });
 
   it('hides Unlink when linkedMethodCount is below 2', async () => {

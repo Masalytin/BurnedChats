@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { LinkedAccountsDto } from '../services/accountLinkingApi';
 import {
@@ -6,6 +6,7 @@ import {
   createLinkedRefreshGate,
   dtoToLinkedWallet,
   runLinkedAccountsRefresh,
+  unlinkWalletThenDisconnect,
 } from './linkedWalletSnapshot';
 
 const dtoA: LinkedAccountsDto = {
@@ -94,5 +95,71 @@ describe('linked refresh abort (IMP-WSWITCH-04)', () => {
     expect(second.signal.aborted).toBe(false);
     expect(gate.isCurrent(first.token)).toBe(false);
     expect(gate.isCurrent(second.token)).toBe(true);
+  });
+});
+
+describe('unlinkWalletThenDisconnect (IMP-WUNLINK-01)', () => {
+  const unlinked: LinkedAccountsDto = {
+    walletLinked: false,
+    walletAddress: '',
+    telegramLinked: true,
+  };
+
+  it('applies the DTO and disconnects once after unlink 200', async () => {
+    const applied: LinkedAccountsDto[] = [];
+    const unlink = vi.fn().mockResolvedValue(unlinked);
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+
+    const result = await unlinkWalletThenDisconnect({
+      initData: 'init-data',
+      unlink,
+      apply: (dto) => {
+        applied.push(dto);
+      },
+      disconnect,
+    });
+
+    expect(unlink).toHaveBeenCalledTimes(1);
+    expect(unlink).toHaveBeenCalledWith('init-data');
+    expect(applied).toEqual([unlinked]);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(unlinked);
+  });
+
+  it('does not disconnect when unlink throws', async () => {
+    const unlink = vi.fn().mockRejectedValue(new Error('unlink failed'));
+    const apply = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      unlinkWalletThenDisconnect({
+        initData: 'init-data',
+        unlink,
+        apply,
+        disconnect,
+      }),
+    ).rejects.toThrow('unlink failed');
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(disconnect).not.toHaveBeenCalled();
+  });
+
+  it('resolves after apply when disconnect throws', async () => {
+    const applied: LinkedAccountsDto[] = [];
+    const unlink = vi.fn().mockResolvedValue(unlinked);
+    const disconnect = vi.fn().mockRejectedValue(new Error('bridge down'));
+
+    const result = await unlinkWalletThenDisconnect({
+      initData: 'init-data',
+      unlink,
+      apply: (dto) => {
+        applied.push(dto);
+      },
+      disconnect,
+    });
+
+    expect(applied).toEqual([unlinked]);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(unlinked);
   });
 });
