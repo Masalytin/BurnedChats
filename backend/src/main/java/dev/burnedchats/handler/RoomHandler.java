@@ -519,29 +519,11 @@ public class RoomHandler {
                                 if (!isMember) {
                                     return Mono.error(new SecurityException("NOT_MEMBER"));
                                 }
-                                return memberPublicKeyRepository
-                                        .put(request.getRoomId(), caller.internalId(), request.getPublicKey())
-                                        .then(resolveDisplayName(caller))
-                                        .map(displayName -> new RoomOwnerNotify(room, displayName));
+                                return resolveKeyBundleRequest(request, caller, room);
                             });
                 })
                 .subscribe(
-                        notify -> {
-                            sendStompToInternalId(notify.room().getOwnerInternalId(), JOIN_REQUESTS_DESTINATION,
-                                    RoomJoinRequestEvent.autoApproved(
-                                            request.getRoomId(),
-                                            caller.internalId(),
-                                            caller.telegramId(),
-                                            caller.username(),
-                                            notify.displayName(),
-                                            System.currentTimeMillis(),
-                                            request.getPublicKey()
-                                    ));
-                            LOG.info(
-                                    "REQUEST_KEY_BUNDLE: notified owner internalId={} to send KEY_BUNDLE "
-                                            + "for member {} in room {}",
-                                    notify.room().getOwnerInternalId(), caller.internalId(), request.getRoomId());
-                        },
+                        outcome -> deliverKeyBundleRequestOutcome(request, caller, outcome),
                         error -> {
                             String code = error instanceof IllegalArgumentException iae ? iae.getMessage()
                                     : error instanceof IllegalStateException ise ? ise.getMessage()
@@ -553,7 +535,71 @@ public class RoomHandler {
             );
     }
 
-    private record RoomOwnerNotify(Room room, String displayName) {
+    /**
+     * Compare the submitted ECDH pubkey with {@code room_member_pubkey} <em>before</em>
+     * overwriting it. An unchanged key plus a current-epoch blob in
+     * {@code room_keys:{roomId}:{epoch}} can be relayed without waking the owner.
+     * A new pubkey, a missing stored pubkey, or a missing current-epoch blob fall
+     * back to the previous notify-owner path. Stale epochs are never served.
+     */
+    private Mono<KeyBundleRequestOutcome> resolveKeyBundleRequest(
+            RequestKeyBundleRequest request, ParticipantContext caller, Room room) {
+        return memberPublicKeyRepository.get(request.getRoomId(), caller.internalId())
+                .filter(stored -> stored.equals(request.getPublicKey()))
+                .flatMap(unchanged -> serveCurrentEpochBundle(request, caller.internalId()))
+                .switchIfEmpty(Mono.defer(() -> notifyOwnerForKeyBundle(request, caller, room)));
+    }
+
+    private Mono<KeyBundleRequestOutcome> serveCurrentEpochBundle(
+            RequestKeyBundleRequest request, String callerInternalId) {
+        return roomKeysRepository.getCurrentEpoch(request.getRoomId())
+                .defaultIfEmpty(0)
+                .flatMap(epoch -> roomKeysRepository.getEncryptedKey(
+                        request.getRoomId(), epoch, callerInternalId))
+                .map(KeyBundleRequestOutcome::served);
+    }
+
+    private Mono<KeyBundleRequestOutcome> notifyOwnerForKeyBundle(
+            RequestKeyBundleRequest request, ParticipantContext caller, Room room) {
+        return memberPublicKeyRepository
+                .put(request.getRoomId(), caller.internalId(), request.getPublicKey())
+                .then(resolveDisplayName(caller))
+                .map(displayName -> KeyBundleRequestOutcome.notifyOwner(room, displayName));
+    }
+
+    private void deliverKeyBundleRequestOutcome(
+            RequestKeyBundleRequest request, ParticipantContext caller, KeyBundleRequestOutcome outcome) {
+        if (outcome.servedBundle() != null) {
+            sendStompToInternalId(caller.internalId(), KEY_BUNDLE_DESTINATION,
+                    KeyBundleEvent.from(outcome.servedBundle()));
+            LOG.info("REQUEST_KEY_BUNDLE: served stored bundle roomId={}, callerInternalId={}, epoch={}",
+                    request.getRoomId(), caller.internalId(), outcome.servedBundle().getEpoch());
+            return;
+        }
+        sendStompToInternalId(outcome.room().getOwnerInternalId(), JOIN_REQUESTS_DESTINATION,
+                RoomJoinRequestEvent.autoApproved(
+                        request.getRoomId(),
+                        caller.internalId(),
+                        caller.telegramId(),
+                        caller.username(),
+                        outcome.displayName(),
+                        System.currentTimeMillis(),
+                        request.getPublicKey()
+                ));
+        LOG.info(
+                "REQUEST_KEY_BUNDLE: notified owner internalId={} to send KEY_BUNDLE "
+                        + "for member {} in room {}",
+                outcome.room().getOwnerInternalId(), caller.internalId(), request.getRoomId());
+    }
+
+    private record KeyBundleRequestOutcome(Room room, String displayName, EncryptedKeyBundle servedBundle) {
+        static KeyBundleRequestOutcome served(EncryptedKeyBundle bundle) {
+            return new KeyBundleRequestOutcome(null, null, bundle);
+        }
+
+        static KeyBundleRequestOutcome notifyOwner(Room room, String displayName) {
+            return new KeyBundleRequestOutcome(room, displayName, null);
+        }
     }
 
     @MessageMapping("/room.rekey")

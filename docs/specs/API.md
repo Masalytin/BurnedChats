@@ -801,7 +801,7 @@ Legacy queue names (`messages`, `peer-public-key`, `session-burned`, `verificati
 | `/user/queue/room-invite-info` | Token info |
 | `/user/queue/room-join-requests` | Join requests |
 | `/user/queue/room-join-result` | Join result (approve/reject) |
-| `/user/queue/key-bundle` | Key bundle |
+| `/user/queue/key-bundle` | Key bundle (owner `sendKeyBundle` / `rekey`, or stored current-epoch blob on `requestKeyBundle`) |
 | `/user/queue/room-rekey` | Rekey |
 | `/user/queue/member-pubkeys` | Member pubkeys |
 | `/user/queue/room-list` | User's room list |
@@ -1111,6 +1111,41 @@ Owner delivers encrypted group key to new member.
 | `iv` | string (Base64) | Yes | 12-byte GCM IV |
 
 **Delivery** — `/user/queue/key-bundle` to recipient by `recipientInternalId`.
+
+---
+
+### REQUEST_KEY_BUNDLE (`/app/room.requestKeyBundle`)
+
+Existing member asks for the group key after losing in-memory crypto state
+(WebSocket drop, short background, app restart). Request shape is unchanged:
+`{ roomId, publicKey }`. No new inbound `@MessageMapping`.
+
+| Field | Type | Required | Description |
+|------|-----|-------------|----------|
+| `roomId` | string | Yes | Room UUID |
+| `publicKey` | string (Base64 SPKI) | Yes | Caller's current ECDH P-256 public key |
+
+Owner calls are rejected (`OWNER_SHOULD_REKEY`). Non-members are rejected
+(`NOT_MEMBER`). The server never decrypts the bundle.
+
+**Response branches** (pubkey is compared with `room_member_pubkey:{roomId}`
+**before** any overwrite):
+
+| Condition | What the caller gets | Owner |
+|-----------|----------------------|--------|
+| `publicKey` equals the stored value **and** a blob exists in `room_keys:{roomId}:{epoch}` for the **current** epoch and the caller's `internalId` | `KeyBundleEvent` on `/user/queue/key-bundle` (same event as `sendKeyBundle`) | Not notified |
+| `publicKey` is new, no stored pubkey, or no current-epoch blob (TTL 7 days expired) | Nothing on `/user/queue/key-bundle`. Stored blob is **not** returned — it is wrapped for the previous pubkey | Notified on `/user/queue/room-join-requests` (`RoomJoinRequestEvent` auto-approved); pubkey is saved |
+
+Stale epochs are never served: only `room_key_epoch:{roomId}` (default 0) is
+read. A leftover blob from a previous epoch is ignored so the caller cannot
+treat an old group key as current.
+
+**Benefit boundary:** this helps only while the member's private ECDH key is
+still in RAM (rekey during a short background or a dropped WS). After a full
+app restart the client generates a new keypair (`useRequestKeyBundle`); the
+stored blob cannot be unwrapped. That is a consequence of the RAM-only key
+invariant, not a server defect. Do not treat this endpoint as recovery after
+process death.
 
 ---
 
