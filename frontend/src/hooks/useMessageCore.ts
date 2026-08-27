@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage, decryptMessage } from '@/crypto/aes';
 import { encryptFileMetadata, decryptFileMetadata } from '@/crypto/fileEncryption';
-import { resolveDecryptionKey, resolveDecryptionKeyForRoomMessage, getAESKey, hasGroupKey } from '@/crypto/keyStore';
+import {
+  resolveDecryptionKey,
+  resolveDecryptionKeyForRoomMessage,
+  resolveGroupKeyForCiphertext,
+  getAESKey,
+  hasGroupKey,
+} from '@/crypto/keyStore';
 import { downloadThumbnail } from '@/services/fileDownloadService';
 import { enqueueUpload, cancelAll } from '@/services/transferQueue';
 import { FileTransferError, fileTransferErrorI18nKey } from '@/services/fileTransferErrors';
@@ -97,7 +103,24 @@ export interface BuildFileMessageParams {
 
 export async function decryptWireFileMessage(params: BuildFileMessageParams): Promise<DecryptedMessage> {
   const { wire, contextId, timestamp, messageType, replyToMessageId, editedAt, logTag, buildBase } = params;
-  const aesKey = getEncryptionKey(contextId);
+
+  let aesKey: CryptoKey | undefined;
+  let keyEpoch: number | undefined;
+
+  if (wire.encryptedMeta && hasGroupKey(contextId)) {
+    try {
+      const resolved = await resolveGroupKeyForCiphertext(contextId, wire.encryptedMeta);
+      aesKey = resolved.key;
+      keyEpoch = resolved.epoch;
+    } catch {
+      // No stored epoch decrypts meta — keep today's latest-key path so the
+      // feed still renders a placeholder instead of throwing.
+      aesKey = getEncryptionKey(contextId);
+    }
+  } else {
+    aesKey = getEncryptionKey(contextId);
+  }
+
   if (!aesKey) {
     throw new Error(`[${logTag}] No encryption key for context ${contextId}`);
   }
@@ -145,6 +168,7 @@ export async function decryptWireFileMessage(params: BuildFileMessageParams): Pr
     thumbnailUrl,
     replyToMessageId,
     ...(editedAt != null ? { editedAt } : {}),
+    ...(keyEpoch !== undefined ? { keyEpoch } : {}),
   });
 }
 

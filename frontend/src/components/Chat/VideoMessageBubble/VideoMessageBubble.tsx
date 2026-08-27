@@ -117,7 +117,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   });
   const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
-  const decryptionKey = useDecryptionKey(message.sessionId);
+  const decryptionKey = useDecryptionKey(message.sessionId, message.keyEpoch);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);

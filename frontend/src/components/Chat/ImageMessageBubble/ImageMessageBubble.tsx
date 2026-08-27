@@ -109,7 +109,7 @@ export const ImageMessageBubble = memo(function ImageMessageBubble({
   const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
   const shouldInteract = menuEnabled || isSelecting;
-  const decryptionKey = useDecryptionKey(message.sessionId);
+  const decryptionKey = useDecryptionKey(message.sessionId, message.keyEpoch);
 
   // Own message still being encrypted/uploaded (Variant B optimistic bubble).
   const isUploading =

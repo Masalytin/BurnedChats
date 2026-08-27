@@ -113,7 +113,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   });
   const handlers = mergeMessagePointerHandlers(longPress, onSwipeReply ? swipe : null);
 
-  const decryptionKey = useDecryptionKey(message.sessionId);
+  const decryptionKey = useDecryptionKey(message.sessionId, message.keyEpoch);
 
   const [docState, setDocState] = useState<DocState>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);

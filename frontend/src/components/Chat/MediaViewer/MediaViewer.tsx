@@ -36,7 +36,7 @@ export const MediaViewer = memo(function MediaViewer({
   const { t } = useTranslation();
   const { showAlert, platform, isInTelegram } = useTelegram();
   const toast = useToast();
-  const decryptionKey = useDecryptionKey(message.sessionId);
+  const decryptionKey = useDecryptionKey(message.sessionId, message.keyEpoch);
 
   const [state, setState] = useState<ViewerState>('loading');
   const [file, setFile] = useState<DecryptedFile | null>(null);

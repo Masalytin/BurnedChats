@@ -26,6 +26,7 @@ import {
   getGroupKeyForEpoch,
   getGroupKeyEpochs,
   resolveDecryptionKeyForRoomMessage,
+  resolveGroupKeyForCiphertext,
   getFingerprint,
   isHandshakeComplete,
   hasSession,
@@ -49,6 +50,7 @@ import {
   generateFingerprint,
 } from './ecdh';
 import { encryptMessage } from './aes';
+import { encryptFileMetadata } from './fileEncryption';
 import type { KeyPair, SharedSecret } from '@/types';
 
 // ============================================
@@ -488,6 +490,72 @@ describe('Key Storage', () => {
         await expect(
           resolveDecryptionKeyForRoomMessage(roomId, encrypted.ciphertext, encrypted.iv),
         ).rejects.toThrow();
+      });
+
+      it('should resolve the older epoch CryptoKey when encryptedMeta uses that epoch', async () => {
+        const roomId = 'room-file-epoch-fallback';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+
+        storeGroupKey(roomId, 0, key0);
+        const encryptedMeta = await encryptFileMetadata(
+          { fileName: 'old-epoch.png', mimeType: 'image/png' },
+          key0,
+        );
+        storeGroupKey(roomId, 1, key1);
+
+        const resolved = await resolveGroupKeyForCiphertext(roomId, encryptedMeta);
+        expect(resolved.key).toBe(key0);
+        expect(resolved.epoch).toBe(0);
+      });
+
+      it('should resolve the current epoch CryptoKey on the first matching probe', async () => {
+        const roomId = 'room-file-epoch-current';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+
+        storeGroupKey(roomId, 0, key0);
+        storeGroupKey(roomId, 1, key1);
+        const encryptedMeta = await encryptFileMetadata(
+          { fileName: 'current.png', mimeType: 'image/png' },
+          key1,
+        );
+
+        const resolved = await resolveGroupKeyForCiphertext(roomId, encryptedMeta);
+        expect(resolved.key).toBe(key1);
+        expect(resolved.epoch).toBe(1);
+      });
+
+      it('should throw when no stored epoch key can decrypt encryptedMeta', async () => {
+        const roomId = 'room-file-epoch-fail';
+        const key0 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const key1 = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        const encryptedMeta = await encryptFileMetadata(
+          { fileName: 'orphan.png', mimeType: 'image/png' },
+          key1,
+        );
+
+        storeGroupKey(roomId, 0, key0);
+
+        await expect(resolveGroupKeyForCiphertext(roomId, encryptedMeta)).rejects.toThrow();
       });
     });
   });

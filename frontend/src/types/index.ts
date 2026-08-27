@@ -191,6 +191,12 @@ export interface DecryptedFileMessage extends DecryptedMessage {
    * Mirrors {@link UploadStage} ('encrypting' | 'uploading'). Never on the wire.
    */
   uploadStage?: 'encrypting' | 'uploading';
+  /**
+   * Client-only group-key epoch that decrypted this file message.
+   * Set during feed decrypt so bubbles/viewer reuse the same epoch for
+   * thumbnail and full-file download. Never sent on the wire.
+   */
+  keyEpoch?: number;
 }
 
 // ============================================

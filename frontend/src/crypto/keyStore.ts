@@ -16,6 +16,7 @@
 
 import type { KeyPair, SharedSecret } from '@/types';
 import { decryptMessage } from '@/crypto/aes';
+import { decryptFileMetadata } from '@/crypto/fileEncryption';
 import { clearHiddenMessagesStorage } from '@/utils/hiddenMessagesStorage';
 
 // ============================================
@@ -672,6 +673,47 @@ export async function resolveDecryptionKeyForRoomMessage(
     throw lastError;
   }
   throw new Error(`Failed to decrypt room message for ${roomId}`);
+}
+
+/**
+ * Group key that successfully decrypted a file-metadata probe, plus its epoch.
+ * Client-only: wire file messages do not carry `keyEpoch`.
+ */
+export interface ResolvedGroupKey {
+  key: CryptoKey;
+  epoch: number;
+}
+
+/**
+ * Tries each stored room epoch key (newest first) until `encryptedMeta` decrypts.
+ * Probe is file metadata, not caption: empty-caption ciphertext cannot distinguish
+ * "wrong epoch" from "no caption".
+ */
+export async function resolveGroupKeyForCiphertext(
+  roomId: string,
+  encryptedMeta: string,
+): Promise<ResolvedGroupKey> {
+  const epochs = getGroupKeyEpochs(roomId);
+  if (epochs.length === 0) {
+    throw new Error(`No group keys for room ${roomId}`);
+  }
+
+  let lastError: unknown;
+  for (const epoch of epochs) {
+    const key = getGroupKeyForEpoch(roomId, epoch);
+    if (!key) continue;
+    try {
+      await decryptFileMetadata(encryptedMeta, key);
+      return { key, epoch };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error(`Failed to resolve group key for file metadata in ${roomId}`);
 }
 
 /**
