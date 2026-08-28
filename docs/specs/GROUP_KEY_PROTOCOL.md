@@ -300,31 +300,76 @@ Owner                          Server                     Members A, B, C
 
 ### Behavior for Offline Members
 
-If a member was offline at the time of rekey:
-- Their bundle is stored in Redis (`room_keys:{roomId}:{epoch}:{tgId}`) until delivery.
-- On reconnect, the member requests `KEY_BUNDLE` for their tgId and current roomId.
-- The server returns the latest available bundle.
-- Bundle TTL: 7 days (or the room TTL if shorter).
+If a member was offline at the time of rekey, the owner-wrapped bundle for that
+member is stored in Redis HASH `room_keys:{roomId}:{epoch}` (field =
+`internalId`, value = serialized `EncryptedKeyBundle`: `ephemeralPublicKey`,
+`encryptedKey`, `iv`). TTL is 7 days. There is no `:{tgId}` suffix on the key
+name.
+
+On reconnect the member publishes `/app/room.requestKeyBundle` with
+`{ roomId, publicKey }`. The server identifies the caller by session
+`internalId`, not by Telegram id. The submitted ECDH pubkey is compared with
+`room_member_pubkey:{roomId}` **before** any overwrite. Three outcomes:
+
+1. **Serve.** If `publicKey` equals the stored value **and** a blob exists for
+   the **current** epoch (`room_key_epoch:{roomId}`, default 0) and the caller's
+   `internalId`, the server relays that stored blob on `/user/queue/key-bundle`.
+   The owner is not notified. Stale (previous) epochs are never served.
+2. **Notify.** If the pubkey is new, no stored pubkey exists, or no
+   current-epoch blob exists, the server saves the fresh pubkey, records a
+   pending request, and notifies the owner on `/user/queue/room-join-requests`
+   (`RoomJoinRequestEvent` auto-approved) so the owner can wrap the current
+   group key for the new pubkey.
+3. **Inbox.** The notify branch also writes HASH
+   `room_key_request_inbox:{ownerInternalId}` (field
+   `{roomId}:{requesterInternalId}` → `requestedAt` millis, TTL 7 days). If the
+   owner is offline, the live STOMP notify is lost; the inbox is drained on the
+   owner's next CONNECT and replayed as the same auto-approved event. The serve
+   branch does not write the inbox. Inbox fields are identifiers and a
+   timestamp only — the fresh pubkey is read from `room_member_pubkey` at
+   delivery.
+
+The server does **not** return “the latest available bundle” unconditionally.
+A stored blob is returned only on the serve branch above.
+
+**After an app restart or a key burn the stored bundle is unusable.**
+`useRequestKeyBundle` generates a new ECDH P-256 keypair (`extractable: false`,
+RAM-only) under `room-join:{roomId}`. The private key cannot be exported or
+restored. The Redis blob remains wrapped to the previous pubkey, so serve
+cannot succeed. Recovery then requires an online owner — or the owner's later
+CONNECT, so they can drain the inbox and wrap again.
+
+**A new epoch does not restore previous-epoch history.** Messages encrypted
+under an older epoch stay unreadable even after the member receives a wrap of
+the current group key. Recovery of past ciphertext would require the old group
+key still in RAM; it is never persisted.
 
 ---
 
 ## Redis Storage
 
 ```
-room_keys:{roomId}:{epoch}:{tgId}
-  → { ephemeralPublicKey, encryptedKey, iv }  — encrypted bundle for a specific member
+room_keys:{roomId}:{epoch}
+  → HASH field = internalId, value = { ephemeralPublicKey, encryptedKey, iv }
   → TTL: 7 days
 
 room_key_epoch:{roomId}
   → current epoch (integer)
   → updated on rekey
   → TTL: matches room:{roomId}
+
+room_key_request_inbox:{ownerInternalId}
+  → HASH field = {roomId}:{requesterInternalId}, value = requestedAt (epoch millis)
+  → written only on the notify-owner branch of /app/room.requestKeyBundle
+  → drained on owner CONNECT
+  → TTL: 7 days
 ```
 
 **Server guarantees:**
 - The server stores only encrypted bundles (opaque blobs) — decryption without the member's private key is impossible.
 - Bundles for departed/removed members are not created; old ones are deleted on rekey (or by TTL).
 - The server does not store the group key in plaintext.
+- The key-request inbox stores only identifiers and a timestamp — no ciphertext or pubkey.
 
 ---
 
