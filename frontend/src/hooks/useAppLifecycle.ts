@@ -76,6 +76,8 @@ interface UseAppLifecycleOptions {
 
 /** STOMP destination for peer disconnect notification */
 const PEER_DISCONNECT_DESTINATION = '/app/peer.disconnect';
+/** STOMP destination to mark self offline even when no DM session keys remain */
+const PRESENCE_OFFLINE_DESTINATION = '/app/presence.offline';
 
 /**
  * Hook for handling Mini App lifecycle events (5.1.5).
@@ -191,11 +193,10 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
 
     console.log('[AppLifecycle] Performing cleanup...');
 
-    // Get active sessions to notify peers
+    // Notify server/peers before burning keys (pagehide may not finish after wipe)
     const sessionIds = getActiveSessionIds();
 
-    // Try to notify peers via WebSocket (may not succeed if closing)
-    if (isConnected && sessionIds.length > 0) {
+    if (isConnected) {
       try {
         sessionIds.forEach((sessionId) => {
           publish(PEER_DISCONNECT_DESTINATION, {
@@ -203,9 +204,12 @@ export function useAppLifecycle(options: UseAppLifecycleOptions): void {
             reason: 'APP_CLOSED',
           });
         });
-        console.log(`[AppLifecycle] Notified peers for ${sessionIds.length} sessions`);
+        publish(PRESENCE_OFFLINE_DESTINATION, {});
+        if (sessionIds.length > 0) {
+          console.log(`[AppLifecycle] Notified peers for ${sessionIds.length} sessions`);
+        }
       } catch (error) {
-        console.warn('[AppLifecycle] Failed to notify peers:', error);
+        console.warn('[AppLifecycle] Failed to notify peers / mark offline:', error);
       }
     }
 

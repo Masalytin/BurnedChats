@@ -20,7 +20,6 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.metrics.OfflineQueueMetrics;
 import dev.burnedchats.metrics.OfflineSessionType;
 import dev.burnedchats.repository.MessageRepository;
-import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.util.ParticipantContext;
 import dev.burnedchats.service.FileBurnService;
@@ -33,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
@@ -67,7 +67,7 @@ public class MessageHandler {
 
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
-    private final OnlineStatusRepository onlineStatusRepository;
+    private final SimpUserRegistry userRegistry;
     private final StompUserMessenger stompUserMessenger;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
@@ -378,15 +378,12 @@ public class MessageHandler {
                 .deletedByTgId(deleter.telegramId())
                 .deletedAt(deletedAt)
                 .build();
-        return onlineStatusRepository.isOnline(peerInternalId)
-                .flatMap(online -> {
-                    if (Boolean.TRUE.equals(online)) {
-                        stompUserMessenger.convertAndSendToInternalId(
-                                peerInternalId, MESSAGE_DELETED_DESTINATION, ev);
-                        return Mono.<Void>empty();
-                    }
-                    return messageRepository.queueDeletion(peerInternalId, sessionId, tomb).then();
-                });
+        if (hasLiveStompSession(peerInternalId)) {
+            stompUserMessenger.convertAndSendToInternalId(
+                    peerInternalId, MESSAGE_DELETED_DESTINATION, ev);
+            return Mono.<Void>empty();
+        }
+        return messageRepository.queueDeletion(peerInternalId, sessionId, tomb).then();
     }
 
     private void sendDmMessageDeletedEvent(ParticipantContext deleter, MessageDeletedEvent event) {
@@ -456,10 +453,9 @@ public class MessageHandler {
 
         return fileValidation
                 .then(sessionRepository.save(session))
-                .then(onlineStatusRepository.isOnline(recipientInternalId))
-                .flatMap(isRecipientOnline -> {
+                .then(Mono.defer(() -> {
                     Instant serverTimestamp = Instant.now();
-                    if (Boolean.TRUE.equals(isRecipientOnline)) {
+                    if (hasLiveStompSession(recipientInternalId)) {
                         return deliverMessageImmediately(
                                 session, sender, recipientInternalId, recipientTelegramId,
                                 request, serverTimestamp);
@@ -467,7 +463,7 @@ public class MessageHandler {
                     return queueMessageForOfflineDelivery(
                             session, sender, recipientInternalId, recipientTelegramId,
                             request, serverTimestamp);
-                })
+                }))
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for message {} in session {}: {}",
                             messageId, sessionId, ex.getErrorCode());
@@ -700,57 +696,56 @@ public class MessageHandler {
             return Mono.empty();
         }
 
-        return onlineStatusRepository.isOnline(recipientInternalId)
-                .flatMap(online -> messageRepository.updateMessageInQueue(
-                                recipientInternalId, sessionId, messageId,
-                                editor.internalId(), editor.telegramId(),
-                                req.getEncryptedContent(), req.getIv(), editedAt)
-                        .flatMap(updated -> {
-                            if (Boolean.TRUE.equals(updated)) {
-                                sendEditSuccessBoth(sessionId, messageId, req, editedAt,
-                                        editor, recipientInternalId, online);
-                                return Mono.<Void>empty();
-                            }
-                            return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
-                                    .switchIfEmpty(Mono.defer(() -> {
-                                        sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
-                                        return Mono.empty();
-                                    }))
-                                    .flatMap(meta -> {
-                                        if (!ownsDeliveredMessage(meta, editor)) {
-                                            sendMessageEditError(editor, sessionId, messageId, "NOT_OWNER");
+        boolean recipientLive = hasLiveStompSession(recipientInternalId);
+        return messageRepository.updateMessageInQueue(
+                        recipientInternalId, sessionId, messageId,
+                        editor.internalId(), editor.telegramId(),
+                        req.getEncryptedContent(), req.getIv(), editedAt)
+                .flatMap(updated -> {
+                    if (Boolean.TRUE.equals(updated)) {
+                        sendEditSuccessBoth(sessionId, messageId, req, editedAt,
+                                editor, recipientInternalId, recipientLive);
+                        return Mono.<Void>empty();
+                    }
+                    return messageRepository.getDmMessageEditableMeta(sessionId, messageId)
+                            .switchIfEmpty(Mono.defer(() -> {
+                                sendMessageEditError(editor, sessionId, messageId, "NOT_EDITABLE");
+                                return Mono.empty();
+                            }))
+                            .flatMap(meta -> {
+                                if (!ownsDeliveredMessage(meta, editor)) {
+                                    sendMessageEditError(editor, sessionId, messageId, "NOT_OWNER");
+                                    return Mono.<Void>empty();
+                                }
+                                if (isOutsideEditWindow(meta.getServerTimestamp())) {
+                                    sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
+                                    return Mono.<Void>empty();
+                                }
+                                if (recipientLive) {
+                                    sendEditSuccessBoth(sessionId, messageId, req, editedAt,
+                                            editor, recipientInternalId, true);
+                                    return Mono.<Void>empty();
+                                }
+                                MessageEdit edit = MessageEdit.builder()
+                                        .messageId(messageId)
+                                        .sessionId(sessionId)
+                                        .senderId(editor.telegramId())
+                                        .encryptedContent(req.getEncryptedContent())
+                                        .iv(req.getIv())
+                                        .editedAt(editedAt)
+                                        .build();
+                                return messageRepository.queueEdit(recipientInternalId, sessionId, edit)
+                                        .flatMap(ok -> {
+                                            if (!Boolean.TRUE.equals(ok)) {
+                                                sendMessageEditError(
+                                                        editor, sessionId, messageId, "INTERNAL_ERROR");
+                                                return Mono.<Void>empty();
+                                            }
+                                            sendMessageEditSuccess(editor, sessionId, messageId, req, editedAt);
                                             return Mono.<Void>empty();
-                                        }
-                                        if (isOutsideEditWindow(meta.getServerTimestamp())) {
-                                            sendMessageEditError(editor, sessionId, messageId, "WINDOW_EXPIRED");
-                                            return Mono.<Void>empty();
-                                        }
-                                        if (Boolean.TRUE.equals(online)) {
-                                            sendEditSuccessBoth(sessionId, messageId, req, editedAt,
-                                                    editor, recipientInternalId, true);
-                                            return Mono.<Void>empty();
-                                        }
-                                        MessageEdit edit = MessageEdit.builder()
-                                                .messageId(messageId)
-                                                .sessionId(sessionId)
-                                                .senderId(editor.telegramId())
-                                                .encryptedContent(req.getEncryptedContent())
-                                                .iv(req.getIv())
-                                                .editedAt(editedAt)
-                                                .build();
-                                        return messageRepository.queueEdit(recipientInternalId, sessionId, edit)
-                                                .flatMap(ok -> {
-                                                    if (!Boolean.TRUE.equals(ok)) {
-                                                        sendMessageEditError(
-                                                                editor, sessionId, messageId, "INTERNAL_ERROR");
-                                                        return Mono.<Void>empty();
-                                                    }
-                                                    sendMessageEditSuccess(editor, sessionId, messageId, req, editedAt);
-                                                    return Mono.<Void>empty();
-                                                });
-                                    });
-                        })
-                );
+                                        });
+                            });
+                });
     }
 
     private void sendEditSuccessBoth(
@@ -806,6 +801,14 @@ public class MessageHandler {
         }
         Instant o = Instant.ofEpochMilli(originalClient);
         return e.isBefore(o.minus(1, ChronoUnit.MINUTES));
+    }
+
+    /**
+     * Live STOMP session for DM fan-out. Redis {@code online:*} is presence/heartbeat only —
+     * a Mini App kill can leave the TTL key while {@link SimpUserRegistry} is already empty.
+     */
+    private boolean hasLiveStompSession(String internalId) {
+        return StringUtils.hasText(internalId) && userRegistry.getUser(internalId) != null;
     }
 
     private static boolean isOutsideEditWindow(Instant baseServerOrClient) {

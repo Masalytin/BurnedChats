@@ -106,7 +106,8 @@ Compatibility: backend also accepts legacy header/query names `auth-type` / `aut
 | `pow.challenge` (`/app/pow.challenge`) | 10 req | 1 min | `POW_CHALLENGE` (`PowHandler`, not interceptor) |
 | Failed room password proof (`room.requestJoin`) | 5 fails | 10 min | `ROOM_PASSWORD_FAIL` — key `ratelimit:room_password_fail:{roomId}:{internalId}`; yaml `rate-limit.room-password-fail.*`; atomic INCR per attempt, reset on success |
 | Other unmapped `/app/*` | 100 req | 1 min | `GENERAL` fallback in `RateLimitInterceptor` |
-| `/app/heartbeat` | exempt | — | presence heartbeat |
+| `/app/heartbeat` | exempt | — | presence heartbeat (Redis `online:*` TTL, UI only) |
+| `/app/presence.offline` | GENERAL | 100 / min | explicit offline on Mini App cleanup |
 
 When a STOMP limit is exceeded, the SEND frame is dropped; the client receives
 `RATE_LIMIT_EXCEEDED` on `/user/queue/errors` (connection stays open).
@@ -214,7 +215,9 @@ Handlers use `AppPrincipal` / `internalId`; casting to `(TelegramPrincipal)` in 
 
 ### Connection
 
-SockJS endpoint `/ws`. Auth on HTTP handshake (see Authentication). Broker heartbeat 10s; client sends `/app/heartbeat` ~every 20s (Redis `online:*` TTL 30s).
+SockJS endpoint `/ws`. Auth on HTTP handshake (see Authentication). Broker heartbeat 10s; client sends `/app/heartbeat` ~every 20s (Redis `online:*` TTL 30s, **presence UI only**). On Mini App cleanup the client also sends `/app/presence.offline` (and `/app/peer.disconnect` per active DM) **before** burning keys.
+
+**DM immediate vs queue:** `MessageHandler` delivers to `/user/queue/new-message` only when the recipient has a live STOMP session (`SimpUserRegistry.getUser(internalId) != null`). Redis `online:*` is **not** the gate — a killed Mini App can leave the 30s TTL key while the socket is already gone. In that case the message is queued (`messages:{recipient}:{sessionId}`), the sender gets `message-sent` with `queued=true` / `delivered=false` (local status `sent`, so resend can pick it up), and a Telegram bot ping is sent when `telegramId` is present. `/app/peer.disconnect` also calls `setOffline` for the sender after session validation.
 
 ---
 
@@ -571,9 +574,9 @@ Before relay, the server verifies that `fileId` (and `thumbnailFileId`, if prese
 
 **Delivery vs edit metadata:** relay stores best-effort DM edit/delete metadata
 (`putDmMessageEditableMeta`, `putMessageSenderIndex`). A failure writing those keys
-does **not** abort delivery: the recipient still gets `new-message` (online) or the
-message stays queued (offline), and the sender still gets `message-sent` with
-`delivered` / `queued`. Edit/delete for that message may later return
+does **not** abort delivery: the recipient still gets `new-message` (live STOMP
+session) or the message stays queued (no live session), and the sender still gets
+`message-sent` with `delivered` / `queued`. Edit/delete for that message may later return
 `NOT_EDITABLE` / `NOT_FOUND`. Failures of the offline queue itself still yield
 `QUEUE_FAILED` on `message-sent`.
 
@@ -748,6 +751,18 @@ client.subscribe('/user/queue/sync-messages', (message) => {
 offline, keys burned client-side), those queued messages/edits were removed server-side
 during rekey — `message.sync` returns empty messages/edits for that epoch (deletions
 tombstones may still sync). Senders must resend under the new session key.
+
+---
+
+### `PRESENCE_OFFLINE` (`/app/presence.offline`)
+
+Best-effort explicit offline. Body may be empty. Server calls
+`OnlineStatusRepository.setOffline(internalId)`. Does **not** change DM delivery
+(that uses live STOMP). Used from `useAppLifecycle` cleanup even when no DM
+session keys remain. A Mini App kill without `pagehide` is **not** covered here.
+
+`/app/peer.disconnect` (after session validation) also `setOffline`s the sender
+and notifies the peer on `/user/queue/peer-disconnected`.
 
 ---
 

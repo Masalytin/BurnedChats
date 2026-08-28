@@ -33,6 +33,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -61,6 +63,8 @@ class MessageHandlerDeliveryMetaTest {
     private MessageRepository messageRepository;
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
+    @Mock
+    private SimpUserRegistry userRegistry;
     @Mock
     private StompUserMessenger stompUserMessenger;
     @Mock
@@ -179,7 +183,7 @@ class MessageHandlerDeliveryMetaTest {
             Session session = activeSession();
             when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
             when(sessionRepository.save(session)).thenReturn(Mono.just(true));
-            when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(false));
+            when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(null);
             when(messageRepository.queueMessage(any(Message.class))).thenReturn(Mono.just(false));
 
             messageHandler.relayMessage(sendRequest(), walletPrincipal());
@@ -198,14 +202,14 @@ class MessageHandlerDeliveryMetaTest {
         Session session = activeSession();
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
         when(sessionRepository.save(session)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
     }
 
     private void stubOfflineQueueSuccess() {
         Session session = activeSession();
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
         when(sessionRepository.save(session)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(false));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(null);
         when(messageRepository.queueMessage(any(Message.class))).thenReturn(Mono.just(true));
         when(botMessages.getForUser(eq("bot.notify.newMessage"), eq(99L)))
                 .thenReturn(Mono.empty());

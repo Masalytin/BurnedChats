@@ -1,6 +1,6 @@
 {
   "version" : 1,
-  "generatedAt" : "2026-08-12T09:00:30.089904200Z",
+  "generatedAt" : "2026-08-28T11:24:48.823378900Z",
   "inbound" : [ {
     "destination" : "/app/dmInvite.mint",
     "handler" : "dev.burnedchats.handler.DmInviteHandler",
@@ -51,6 +51,11 @@
     "handler" : "dev.burnedchats.handler.PowHandler",
     "method" : "requestChallenge",
     "requestType" : "dev.burnedchats.handler.PowHandler$PowChallengeRequest"
+  }, {
+    "destination" : "/app/presence.offline",
+    "handler" : "dev.burnedchats.handler.HeartbeatHandler",
+    "method" : "markOffline",
+    "requestType" : null
   }, {
     "destination" : "/app/room.acceptJoin",
     "handler" : "dev.burnedchats.handler.RoomHandler",

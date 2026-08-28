@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import reactor.core.publisher.Mono;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +45,7 @@ class MessageHandlerOfflineNotifyTest {
     @Mock private SessionRepository sessionRepository;
     @Mock private MessageRepository messageRepository;
     @Mock private OnlineStatusRepository onlineStatusRepository;
+    @Mock private SimpUserRegistry userRegistry;
     @Mock private StompUserMessenger stompUserMessenger;
     @Mock private BurnedChatsBot telegramBot;
     @Mock private BotMessageService botMessages;
@@ -67,7 +69,7 @@ class MessageHandlerOfflineNotifyTest {
                 .build();
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
         when(sessionRepository.save(session)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(false));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(null);
         when(messageRepository.queueMessage(any(Message.class))).thenReturn(Mono.just(true));
         when(messageRepository.putDmMessageEditableMeta(
                 any(), any(), any(), any(), any(), any(), any()))

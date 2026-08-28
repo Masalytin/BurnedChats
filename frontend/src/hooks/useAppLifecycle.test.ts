@@ -274,3 +274,73 @@ describe('useAppLifecycle recovery regression (IMP-RKR-05)', () => {
     expect(publish).not.toHaveBeenCalledWith('/app/room.rekey', expect.anything());
   });
 });
+
+describe('useAppLifecycle performCleanup presence (IMP-DMRD-01)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function firePageHide() {
+    act(() => {
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+    });
+  }
+
+  it('publishes presence.offline before burnAll when there are no session keys', () => {
+    const publish = vi.fn();
+    const callOrder: string[] = [];
+    publish.mockImplementation((destination: string) => {
+      callOrder.push(destination);
+    });
+    vi.mocked(burnAll).mockImplementation(() => {
+      callOrder.push('burnAll');
+    });
+    vi.mocked(getActiveSessionIds).mockReturnValue([]);
+
+    renderHook(() =>
+      useAppLifecycle({
+        isConnected: true,
+        publish,
+      }),
+    );
+
+    firePageHide();
+
+    expect(publish).toHaveBeenCalledWith('/app/presence.offline', {});
+    expect(publish).not.toHaveBeenCalledWith('/app/peer.disconnect', expect.anything());
+    expect(burnAll).toHaveBeenCalledWith('page_unload');
+    expect(callOrder.indexOf('/app/presence.offline')).toBeLessThan(callOrder.indexOf('burnAll'));
+  });
+
+  it('publishes peer.disconnect then presence.offline before burnAll', () => {
+    const publish = vi.fn();
+    const callOrder: string[] = [];
+    publish.mockImplementation((destination: string) => {
+      callOrder.push(destination);
+    });
+    vi.mocked(burnAll).mockImplementation(() => {
+      callOrder.push('burnAll');
+    });
+    vi.mocked(getActiveSessionIds).mockReturnValue(['sess-1']);
+
+    renderHook(() =>
+      useAppLifecycle({
+        isConnected: true,
+        publish,
+      }),
+    );
+
+    firePageHide();
+
+    expect(publish).toHaveBeenCalledWith('/app/peer.disconnect', {
+      sessionId: 'sess-1',
+      reason: 'APP_CLOSED',
+    });
+    expect(publish).toHaveBeenCalledWith('/app/presence.offline', {});
+    expect(burnAll).toHaveBeenCalledWith('page_unload');
+    expect(callOrder.indexOf('/app/peer.disconnect')).toBeLessThan(
+      callOrder.indexOf('/app/presence.offline'),
+    );
+    expect(callOrder.indexOf('/app/presence.offline')).toBeLessThan(callOrder.indexOf('burnAll'));
+  });
+});

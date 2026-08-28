@@ -27,6 +27,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -57,6 +59,8 @@ class MessageHandlerEditTest {
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
     @Mock
+    private SimpUserRegistry userRegistry;
+    @Mock
     private StompUserMessenger stompUserMessenger;
     @Mock
     private BurnedChatsBot telegramBot;
@@ -79,7 +83,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -108,7 +112,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(false));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(null);
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -135,7 +139,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(TG_EDITOR_INTERNAL, PEER_INTERNAL, TG_ID, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(TG_EDITOR_INTERNAL), eq(TG_ID),
@@ -162,7 +166,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -190,7 +194,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -226,7 +230,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -253,7 +257,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -278,7 +282,7 @@ class MessageHandlerEditTest {
         Session session = activeSession(WALLET_INTERNAL, PEER_INTERNAL, null, 99L);
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.updateMessageInQueue(
                 eq(PEER_INTERNAL), eq(SESSION), eq(MESSAGE_ID),
                 eq(WALLET_INTERNAL), eq(null),
@@ -314,7 +318,7 @@ class MessageHandlerEditTest {
 
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
         when(sessionRepository.save(session)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
         when(messageRepository.putDmMessageEditableMeta(
                 eq(SESSION), eq(MESSAGE_ID), eq(WALLET_INTERNAL), eq(null),
                 any(Instant.class), eq(null), eq(null)))

@@ -15,6 +15,7 @@ import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.dto.event.SessionResumedEvent;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
@@ -62,6 +63,7 @@ public class SessionHandler {
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
 
     private final SessionRepository sessionRepository;
+    private final OnlineStatusRepository onlineStatusRepository;
     private final StompUserMessenger stompUserMessenger;
     private final BurnedChatsBot telegramBot;
     private final BotMessageService botMessages;
@@ -330,6 +332,16 @@ public class SessionHandler {
                                         participant.internalId(), sessionId);
                                 return;
                             }
+
+                            onlineStatusRepository.setOffline(participant.internalId())
+                                    .subscribe(
+                                            ignored -> LOG.debug(
+                                                    "peer.disconnect marked sender offline: internalId={}",
+                                                    participant.internalId()),
+                                            error -> LOG.warn(
+                                                    "peer.disconnect setOffline failed: internalId={}, error={}",
+                                                    participant.internalId(), error.getMessage())
+                                    );
 
                             String peerInternalId = session.getPeerInternalId(participant.internalId());
                             if (peerInternalId == null) {

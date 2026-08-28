@@ -17,7 +17,7 @@ class StompRouteInventoryTest {
     void scansAllInboundRoutes() {
         List<StompRouteInventory.InboundRoute> routes = StompRouteInventory.scan();
 
-        assertThat(routes).hasSize(56);
+        assertThat(routes).hasSize(57);
     }
 
     @Test

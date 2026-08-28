@@ -28,6 +28,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -56,6 +58,8 @@ class MessageHandlerDeleteTest {
     private MessageRepository messageRepository;
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
+    @Mock
+    private SimpUserRegistry userRegistry;
     @Mock
     private UserIdentityRepository userIdentityRepository;
     @Mock
@@ -114,7 +118,7 @@ class MessageHandlerDeleteTest {
                         .build()));
         when(messageRepository.removeMessageSenderIndex(SESSION, MESSAGE_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteDmMessageEditableMeta(SESSION, MESSAGE_ID)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
 
         messageHandler.deleteMessage(req, wallet);
 
@@ -142,7 +146,7 @@ class MessageHandlerDeleteTest {
                         .build()));
         when(messageRepository.removeMessageSenderIndex(SESSION, MESSAGE_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteDmMessageEditableMeta(SESSION, MESSAGE_ID)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
 
         messageHandler.deleteMessage(req, wallet);
 
@@ -168,7 +172,7 @@ class MessageHandlerDeleteTest {
                 .thenReturn(Mono.just(Optional.of(queued)));
         when(messageRepository.removeMessageSenderIndex(SESSION, MESSAGE_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteDmMessageEditableMeta(SESSION, MESSAGE_ID)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(false));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(null);
         when(messageRepository.queueDeletion(eq(PEER_INTERNAL), eq(SESSION), any())).thenReturn(Mono.just(true));
 
         messageHandler.deleteMessage(req, wallet);
@@ -201,7 +205,7 @@ class MessageHandlerDeleteTest {
                         .build()));
         when(messageRepository.removeMessageSenderIndex(SESSION, MESSAGE_ID)).thenReturn(Mono.just(1L));
         when(messageRepository.deleteDmMessageEditableMeta(SESSION, MESSAGE_ID)).thenReturn(Mono.just(true));
-        when(onlineStatusRepository.isOnline(PEER_INTERNAL)).thenReturn(Mono.just(true));
+        when(userRegistry.getUser(PEER_INTERNAL)).thenReturn(org.mockito.Mockito.mock(SimpUser.class));
 
         messageHandler.deleteMessage(req, telegram);
 
