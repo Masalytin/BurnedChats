@@ -27,6 +27,7 @@ import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessag
 import { createFileBlobOutbox, createSessionOutbox } from '@/hooks/sessionOutbox';
 import { resolveExpiredAbsenceCount } from '@/hooks/expiredAbsenceCount';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
+import type { DmInboundWireMessage, UseDmInboundBufferReturn } from '@/hooks/useDmInboundBuffer';
 
 // ============================================
 // Types
@@ -150,6 +151,12 @@ interface UseMessagesOptions {
   bothVerified?: boolean;
   /** Incremented when DM rekey completes — triggers resend of queued own messages (IMP-OQR-02). */
   rekeyResendNonce?: number;
+  /**
+   * App-level ciphertext buffer that owns `/user/queue/new-message` during
+   * handshake / verify / chat (IMP-DMRD-02). When set, this hook does not
+   * subscribe to that destination — it only flushes + decrypts.
+   */
+  inboundBuffer?: UseDmInboundBufferReturn;
 }
 
 interface UseMessagesReturn {
@@ -211,6 +218,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     onEditError,
     bothVerified = false,
     rekeyResendNonce = 0,
+    inboundBuffer,
   } = options;
 
   const ownershipCtx: DmMessageOwnershipContext = {
@@ -259,7 +267,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     onInitialSyncRequest,
     onError,
     subscriptions: [
-      { destination: NEW_MESSAGE_DESTINATION, handlerRef: handleNewMessageRef },
+      ...(inboundBuffer
+        ? []
+        : [{ destination: NEW_MESSAGE_DESTINATION, handlerRef: handleNewMessageRef }]),
       { destination: MESSAGE_SENT_DESTINATION, handlerRef: handleMessageSentRef },
       { destination: SYNC_MESSAGES_RESULT_DESTINATION, handlerRef: handleSyncMessagesRef },
       { destination: MESSAGE_EDITED_DESTINATION, handlerRef: handleMessageEditedRef },
@@ -501,70 +511,111 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     pendingMessagesRef, userTelegramId, validateBeforeSend,
   ]);
 
+  const ingestInboundCiphertext = useCallback(async (
+    event: DmInboundWireMessage,
+  ): Promise<'skipped' | 'done'> => {
+    if (event.sessionId !== sessionId) return 'skipped';
+
+    if (!bothVerified) {
+      debugLog('info', 'Skipping DM decrypt until bothVerified', { sessionId });
+      return 'skipped';
+    }
+
+    if (!getEncryptionKey()) {
+      handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt message - no AES key');
+      return 'skipped';
+    }
+
+    try {
+      const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+      const eventType = toMessageType(event.type);
+      const isFileMsg = eventType !== 'text' && !!event.fileId;
+
+      let decryptedMsg: DecryptedMessage;
+
+      if (isFileMsg) {
+        decryptedMsg = await decryptWireFileMessage({
+          wire: event,
+          contextId: sessionId,
+          timestamp: ts,
+          messageType: eventType,
+          replyToMessageId: event.replyToMessageId || undefined,
+          logTag: LOG_TAG,
+          buildBase: (base) => ({
+            ...base,
+            fromUserId: event.senderId,
+            isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
+          }),
+        });
+      } else {
+        const plaintext = await decryptTextContent(sessionId, event.encryptedContent, event.iv);
+        decryptedMsg = {
+          id: event.messageId,
+          sessionId: event.sessionId,
+          fromUserId: event.senderId,
+          content: plaintext,
+          timestamp: ts,
+          status: 'delivered',
+          isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
+          type: 'text',
+          replyToMessageId: event.replyToMessageId || undefined,
+        };
+      }
+
+      setMessages(prev => {
+        if (prev.some(m => m.id === event.messageId)) return prev;
+        return [...prev, decryptedMsg].sort((a, b) => a.timestamp - b.timestamp);
+      });
+      onNewMessage?.(decryptedMsg);
+      return 'done';
+    } catch (decryptErr) {
+      console.error('[useMessages] Decryption failed:', decryptErr);
+      handleError('DECRYPTION_FAILED', decryptErr instanceof Error ? decryptErr.message : 'Unknown error');
+      return 'done';
+    }
+  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, handleError, getEncryptionKey, setMessages]);
+
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
       const event: NewMessageEvent = JSON.parse(message.body);
       if (!event.success || event.sessionId !== sessionId) return;
-
-      if (!bothVerified) {
-        debugLog('info', 'Skipping DM decrypt until bothVerified', { sessionId });
-        return;
-      }
-
-      if (!getEncryptionKey()) {
-        handleError('NO_ENCRYPTION_KEY', 'Cannot decrypt message - no AES key');
-        return;
-      }
-
-      try {
-        const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
-        const eventType = toMessageType(event.type);
-        const isFileMsg = eventType !== 'text' && !!event.fileId;
-
-        let decryptedMsg: DecryptedMessage;
-
-        if (isFileMsg) {
-          decryptedMsg = await decryptWireFileMessage({
-            wire: event,
-            contextId: sessionId,
-            timestamp: ts,
-            messageType: eventType,
-            replyToMessageId: event.replyToMessageId || undefined,
-            logTag: LOG_TAG,
-            buildBase: (base) => ({
-              ...base,
-              fromUserId: event.senderId,
-              isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
-            }),
-          });
-        } else {
-          const plaintext = await decryptTextContent(sessionId, event.encryptedContent, event.iv);
-          decryptedMsg = {
-            id: event.messageId,
-            sessionId: event.sessionId,
-            fromUserId: event.senderId,
-            content: plaintext,
-            timestamp: ts,
-            status: 'delivered',
-            isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
-            type: 'text',
-            replyToMessageId: event.replyToMessageId || undefined,
-          };
-        }
-
-        setMessages(prev => {
-          if (prev.some(m => m.id === event.messageId)) return prev;
-          return [...prev, decryptedMsg].sort((a, b) => a.timestamp - b.timestamp);
-        });
-        onNewMessage?.(decryptedMsg);
-      } catch (decryptErr) {
-        console.error('[useMessages] Decryption failed:', decryptErr);
-        handleError('DECRYPTION_FAILED', decryptErr instanceof Error ? decryptErr.message : 'Unknown error');
-      }
+      await ingestInboundCiphertext(event);
     } catch (parseErr) {
       console.error('[useMessages] Failed to parse message:', parseErr);
     }
-  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, handleError, getEncryptionKey, setMessages]);
+  }, [sessionId, ingestInboundCiphertext]);
+
+  const bufferedInbound = inboundBuffer?.buffered;
+  const consumeInbound = inboundBuffer?.consume;
+
+  useEffect(() => {
+    if (!consumeInbound || !bothVerified || !bufferedInbound?.length) {
+      return;
+    }
+    const pending = bufferedInbound.filter((event) => event.sessionId === sessionId);
+    if (pending.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const consumed: string[] = [];
+      for (const event of pending) {
+        if (cancelled) return;
+        const result = await ingestInboundCiphertext(event);
+        if (result === 'done') {
+          consumed.push(event.messageId);
+        }
+      }
+      if (!cancelled && consumed.length > 0) {
+        consumeInbound(consumed);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bufferedInbound, consumeInbound, bothVerified, sessionId, ingestInboundCiphertext]);
 
   const handleSyncMessages = useCallback(async (message: IMessage) => {
     try {

@@ -589,6 +589,14 @@ client.subscribe('/user/queue/new-message', (message) => {
 });
 ```
 
+**Client (handshake / verify):** the Mini App keeps `/user/queue/new-message` subscribed
+while the active DM view is `handshake`, `verify`, or `chat`. Events that arrive before
+ChatView mounts (peer resend immediately after rekey) are buffered as **ciphertext only**
+and decrypted only after entering chat **and** `bothVerified`. After rekey,
+`message.sync` may return an empty batch (offline queue already dropped); the buffer is
+the source for that immediate resend. Duplicate `messageId` from a later sync/live event
+is ignored.
+
 **Backend:** `MessageHandler` — `@MessageMapping("/message.send")`, see `SendMessageRequest`, `NewMessageEvent`.
 
 > For **rooms**, a separate handler and `SendRoomMessageRequest` with the same file fields are used; see destination in code (`RoomMessageHandler`).

@@ -88,6 +88,7 @@ import {
   stashPendingInviteToken,
 } from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
+import { useDmInboundBuffer, type UseDmInboundBufferReturn } from './hooks/useDmInboundBuffer';
 import {
   useAppLifecycle,
   shouldShowBackgroundBurnToast,
@@ -1000,6 +1001,15 @@ function AppContent() {
   
   // Active chat state
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
+
+  const dmInboundSessionId = activeChat?.sessionId ?? handshakeResult.sessionId ?? null;
+  const dmInboundBuffer = useDmInboundBuffer({
+    sessionId: dmInboundSessionId,
+    currentView,
+    isConnected,
+    subscribe,
+    unsubscribe,
+  });
 
   const ownsModerationTopic = currentView === 'room-manage' && activeRoomChat != null;
 
@@ -3657,6 +3667,7 @@ function AppContent() {
             ws={{ isConnected, isReconnection, subscribe, unsubscribe, publish }}
             bothVerified={isFullyVerified(activeChat.sessionId)}
             rekeyResendNonce={rekeyResendNonce}
+            inboundBuffer={dmInboundBuffer}
             onBack={handleLeaveChat}
             onBurn={handleBurnFromChat}
             syncMessagesRef={dmSyncMessagesRef}
@@ -4015,6 +4026,8 @@ interface ChatViewContentProps {
   bothVerified: boolean;
   /** Bumped after DM rekey — triggers resend of queued own messages (IMP-OQR-02). */
   rekeyResendNonce?: number;
+  /** Ciphertext buffered while ChatView was unmounted (handshake/verify). */
+  inboundBuffer?: UseDmInboundBufferReturn;
   onBack: () => void;
   onBurn: () => void;
   /**
@@ -4036,6 +4049,7 @@ function ChatViewContent({
   ws,
   bothVerified,
   rekeyResendNonce = 0,
+  inboundBuffer,
   onBack,
   onBurn,
   syncMessagesRef,
@@ -4094,6 +4108,7 @@ function ChatViewContent({
     isReconnection: ws.isReconnection,
     bothVerified,
     rekeyResendNonce,
+    inboundBuffer,
     onError: handleMessageError,
     onEditError: handleDmEditError,
   });
