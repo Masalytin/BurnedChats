@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-29
+
 ### Fixed
 
 - Staking tier cards (Flexible / Silver / Gold / Diamond) now load without a connected wallet; only personal positions stay empty until connect.
@@ -65,7 +67,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.5
 [0.1.4]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.2
