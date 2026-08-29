@@ -1145,11 +1145,17 @@
       "toasts": "Notifications contextuelles",
       "toastsHint": "Infos et succès uniquement ; les erreurs sont toujours affichées"
     },
+    "onboardingReplay": {
+      "action": "Revoir le tutoriel",
+      "hint": "Affiche à nouveau le briefing et la visite de l'accueil sur cet appareil.",
+      "confirm": "Relancer le tutoriel ? Le briefing et la visite de l'accueil s'afficheront à nouveau."
+    },
     "section": {
       "accounts": "Comptes liés",
       "appearance": "Apparence",
       "developer": "Développeur",
       "language": "Langue",
+      "learn": "Apprendre",
       "notifications": "Notifications",
       "profile": "Profil",
       "security": "Sécurité"

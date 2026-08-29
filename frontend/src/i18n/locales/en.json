@@ -39,6 +39,7 @@
       "accounts": "Linked accounts",
       "appearance": "Appearance",
       "notifications": "Notifications",
+      "learn": "Learn",
       "security": "Security",
       "developer": "Developer"
     },
@@ -105,6 +106,11 @@
       "add": "Add to home screen",
       "addHint": "Pin a shortcut for one-tap access",
       "prompt": "Add Burned Chats to your home screen for quicker access?"
+    },
+    "onboardingReplay": {
+      "action": "Take the tour again",
+      "hint": "Shows the briefing and Home tour again on this device.",
+      "confirm": "Replay the onboarding tour? You will see the briefing and Home tour again."
     }
   },
 

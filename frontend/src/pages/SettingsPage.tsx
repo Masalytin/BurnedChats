@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth/types';
 import { AuthType } from '../auth/types';
@@ -16,6 +17,7 @@ import {
   type DeadmanState,
   type SetDeadmanRequest,
 } from '../hooks/useDeadmanSwitch';
+import { resetOnboardingProgress } from '../onboarding';
 import { usePreferences } from '../preferences';
 import type { UserPreferences } from '../preferences';
 import { shortenTonDisplayAddress } from '../ton/connector';
@@ -148,6 +150,7 @@ export function SettingsPage({
   deadman,
 }: SettingsPageProps) {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const toast = useToast();
   const { showConfirm, addToHomeScreen, checkHomeScreenStatus } = useTelegram();
   const { prefs, setPref } = usePreferences();
@@ -296,6 +299,16 @@ export function SettingsPage({
     [setPref],
   );
 
+  const handleReplayOnboarding = useCallback(async () => {
+    const confirmed = await showConfirm(t('settings.onboardingReplay.confirm'));
+    if (!confirmed) {
+      return;
+    }
+
+    resetOnboardingProgress();
+    navigate('/app');
+  }, [navigate, showConfirm, t]);
+
   return (
     <div className="settings-page">
       <h1 className="settings-page__title">{t('settings.title')}</h1>
@@ -403,6 +416,32 @@ export function SettingsPage({
             checked={prefs.toastsEnabled}
             onChange={(checked) => setPref('toastsEnabled', checked)}
           />
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-section__header">{t('settings.section.learn')}</h2>
+        <div className="settings-section__card settings-rows">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => void handleReplayOnboarding()}
+            aria-label={t('settings.onboardingReplay.action')}
+            style={{
+              width: '100%',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              font: 'inherit',
+              textAlign: 'start',
+              color: 'inherit',
+            }}
+          >
+            <div className="settings-row__text">
+              <span className="settings-row__label">{t('settings.onboardingReplay.action')}</span>
+              <p className="settings-row__description">{t('settings.onboardingReplay.hint')}</p>
+            </div>
+          </button>
         </div>
       </section>
 

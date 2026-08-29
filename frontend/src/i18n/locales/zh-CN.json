@@ -1145,11 +1145,17 @@
       "toasts": "弹出通知",
       "toastsHint": "仅信息和成功提示；错误始终显示"
     },
+    "onboardingReplay": {
+      "action": "重新学习",
+      "hint": "在本设备上再次显示简介和首页导览。",
+      "confirm": "重新学习？将再次显示简介和首页导览。"
+    },
     "section": {
       "accounts": "关联账户",
       "appearance": "外观",
       "developer": "开发者",
       "language": "语言",
+      "learn": "学习",
       "notifications": "通知",
       "profile": "个人资料",
       "security": "安全"

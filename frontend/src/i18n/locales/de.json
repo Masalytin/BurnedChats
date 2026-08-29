@@ -1133,6 +1133,7 @@
       "accounts": "Verknüpfte Konten",
       "appearance": "Darstellung",
       "notifications": "Benachrichtigungen",
+      "learn": "Lernen",
       "security": "Sicherheit",
       "developer": "Entwickler"
     },
@@ -1199,6 +1200,11 @@
       "add": "Zum Startbildschirm hinzufügen",
       "addHint": "Shortcut für schnellen Zugriff anheften",
       "prompt": "Burned Chats zum Startbildschirm hinzufügen für schnelleren Zugriff?"
+    },
+    "onboardingReplay": {
+      "action": "Tour erneut durchlaufen",
+      "hint": "Zeigt das Briefing und die Home-Tour auf diesem Gerät erneut.",
+      "confirm": "Onboarding-Tour erneut starten? Briefing und Home-Tour werden wieder angezeigt."
     }
   },
   "walletLogin": {

@@ -1145,11 +1145,17 @@
       "toasts": "Notificaciones emergentes",
       "toastsHint": "Solo info y éxito; los errores siempre se muestran"
     },
+    "onboardingReplay": {
+      "action": "Volver a hacer el tutorial",
+      "hint": "Muestra de nuevo el briefing y el tour de Inicio en este dispositivo.",
+      "confirm": "¿Repetir el tutorial? Volverás a ver el briefing y el tour de Inicio."
+    },
     "section": {
       "accounts": "Cuentas vinculadas",
       "appearance": "Apariencia",
       "developer": "Desarrollador",
       "language": "Idioma",
+      "learn": "Aprender",
       "notifications": "Notificaciones",
       "profile": "Perfil",
       "security": "Seguridad"
