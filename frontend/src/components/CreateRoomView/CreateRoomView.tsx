@@ -1,4 +1,4 @@
-import { useState, useCallback, type FormEvent } from 'react';
+import { useState, useCallback, useEffect, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { Input } from '../Input';
@@ -8,6 +8,7 @@ import { validatePassword } from '../../crypto/kdf';
 import { Lock } from 'lucide-react';
 import { EyeIcon, EyeOffIcon, SparklesIcon } from '../../icons';
 import type { RoomJoinMode } from '../../hooks/useCreateRoom';
+import { loadOnboardingProgress, markOnboardingSeen } from '../../onboarding/onboardingProgress';
 import './CreateRoomView.css';
 
 interface CreateRoomViewProps {
@@ -21,6 +22,8 @@ interface CreateRoomViewProps {
   onCancel?: () => void;
   /** CSS class override */
   className?: string;
+  /** HelpSheet open — App Back must no-op while true (WalletSheet exclusive-Back). */
+  onHelpOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -67,6 +70,7 @@ export function CreateRoomView({
   onSubmit,
   onCancel,
   className = '',
+  onHelpOpenChange,
 }: CreateRoomViewProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -79,7 +83,18 @@ export function CreateRoomView({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(
+    () => loadOnboardingProgress().seen.createRoomHint !== true,
+  );
+
+  useEffect(() => {
+    onHelpOpenChange?.(helpOpen);
+  }, [helpOpen, onHelpOpenChange]);
+
+  const handleHelpClose = useCallback(() => {
+    setHelpOpen(false);
+    markOnboardingSeen('createRoomHint');
+  }, []);
 
   const handleGeneratePassword = useCallback(async () => {
     const generated = generateSecurePassword();
@@ -299,7 +314,7 @@ export function CreateRoomView({
 
       <HelpSheet
         open={helpOpen}
-        onClose={() => setHelpOpen(false)}
+        onClose={handleHelpClose}
         topicKey="rooms.create"
       />
     </div>

@@ -13,6 +13,7 @@ exist yet, and the public API may change without notice.
 ### Added
 
 - Home onboarding tour: three spotlight steps (search, Create Room, My QR) after the first-run briefing.
+- First visit to Create Room auto-opens the existing room-creation help sheet once; Back/Escape close only the sheet.
 
 ### Changed
 

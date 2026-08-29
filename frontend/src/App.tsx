@@ -990,6 +990,7 @@ function AppContent() {
   const [initError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [homeHelpOpen, setHomeHelpOpen] = useState(false);
+  const [createRoomHelpOpen, setCreateRoomHelpOpen] = useState(false);
   const { showBriefing, hideBottomNav: hideNavForBriefing, onBriefingDismiss } = useOnboardingFlow({
     isAuthenticated,
   });
@@ -1175,6 +1176,9 @@ function AppContent() {
     }
 
     if (currentView === 'create-room') {
+      if (createRoomHelpOpen) {
+        return;
+      }
       resetCreateRoom();
       setCurrentView('home');
       return;
@@ -1270,6 +1274,7 @@ function AppContent() {
   }, [
     showChatRequestDialog,
     currentView,
+    createRoomHelpOpen,
     resetSession,
     resetCreateRoom,
     resetJoinRoom,
@@ -1287,7 +1292,9 @@ function AppContent() {
 
   // Show back button on all non-home views (wallet/settings stay on currentView === 'home')
   useBackButton({
-    visible: currentView !== 'home' || showChatRequestDialog,
+    visible:
+      (currentView !== 'home' || showChatRequestDialog) &&
+      !(currentView === 'create-room' && createRoomHelpOpen),
     onBack: handleBackButton,
   });
 
@@ -3717,6 +3724,7 @@ function AppContent() {
               resetCreateRoom();
               setCurrentView('home');
             }}
+            onHelpOpenChange={setCreateRoomHelpOpen}
           />
         </Layout>
         {debugPanelElement}
