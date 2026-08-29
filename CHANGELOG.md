@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Staking tier cards (Flexible / Silver / Gold / Diamond) now load without a connected wallet; only personal positions stay empty until connect.
+
 ## [0.1.4] - 2026-08-29
 
 ### Fixed

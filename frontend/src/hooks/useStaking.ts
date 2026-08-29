@@ -191,20 +191,11 @@ export function useStaking(): UseStaking {
   }, [refreshPendingOnly]);
 
   const loadCore = useCallback(async (): Promise<void> => {
-    if (!walletAddress) {
-      setChainStakes([]);
-      setTierConfigs([]);
-      setPendingRewards({});
-      setLiveTierTvls({});
-      setError(null);
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     try {
       const [stakes, cfgs, tvls] = await Promise.all([
-        getStakes(walletAddress),
+        walletAddress ? getStakes(walletAddress) : Promise.resolve([]),
         getTierConfigs(),
         getLiveTierTvls(),
       ]);
