@@ -20,18 +20,6 @@ function tHome(key: string): string {
   return i18n.t(`home.${key}`);
 }
 
-function tQuiz(key: string): string {
-  return i18n.t(`home.onboardingQuiz.${key}`);
-}
-
-function goToQuiz() {
-  fireEvent.click(screen.getByRole('button', { name: tHome('onboardingContinue') }));
-}
-
-function clickQuizChoice(key: string) {
-  fireEvent.click(screen.getByRole('button', { name: tQuiz(key) }));
-}
-
 describe('OnboardingBriefing', () => {
   it('uses the shared primary Button for Got it, not a bare control', () => {
     renderBriefing();
@@ -41,7 +29,7 @@ describe('OnboardingBriefing', () => {
     );
   });
 
-  it('shows briefing copy and CTA on mount, without the quiz or dismiss', () => {
+  it('shows briefing copy and CTA on mount, without a quiz', () => {
     const { onDismiss } = renderBriefing();
 
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -50,94 +38,17 @@ describe('OnboardingBriefing', () => {
     expect(screen.getByText(tHome('onboardingInvite'))).toBeTruthy();
     expect(screen.getByText(tHome('onboardingRooms'))).toBeTruthy();
     expect(screen.getByRole('button', { name: tHome('onboardingContinue') })).toBeTruthy();
-
-    expect(screen.queryByText(tQuiz('keysQuestion'))).toBeNull();
-    expect(screen.queryByText(tQuiz('burnQuestion'))).toBeNull();
-    expect(screen.queryByRole('button', { name: tQuiz('skip') })).toBeNull();
+    expect(screen.queryByText('Quick check')).toBeNull();
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
-  it('opens the quiz on Continue instead of dismissing', () => {
+  it('dismisses once on Got it and does not open a quiz', () => {
     const { onDismiss } = renderBriefing();
-    goToQuiz();
 
-    expect(screen.getByText(tQuiz('title'))).toBeTruthy();
-    expect(screen.getByText(tQuiz('keysQuestion'))).toBeTruthy();
-    expect(screen.getByRole('button', { name: tQuiz('keysWrong') })).toBeTruthy();
-    expect(screen.getByRole('button', { name: tQuiz('keysRight') })).toBeTruthy();
-    expect(screen.queryByText(tQuiz('burnQuestion'))).toBeNull();
-    expect(screen.queryByRole('button', { name: tHome('onboardingContinue') })).toBeNull();
-    expect(onDismiss).not.toHaveBeenCalled();
-  });
-
-  it('keeps the same keys question and shows a hint after a wrong answer', () => {
-    const { onDismiss } = renderBriefing();
-    goToQuiz();
-    clickQuizChoice('keysWrong');
-
-    expect(screen.getByText(tQuiz('keysHint'))).toBeTruthy();
-    expect(screen.getByText(tQuiz('keysQuestion'))).toBeTruthy();
-    expect(screen.queryByText(tQuiz('burnQuestion'))).toBeNull();
-    expect(onDismiss).not.toHaveBeenCalled();
-  });
-
-  it('advances to the burn question after a right keys answer, then stays after a wrong burn answer', () => {
-    const { onDismiss } = renderBriefing();
-    goToQuiz();
-    clickQuizChoice('keysRight');
-
-    expect(screen.getByText(tQuiz('burnQuestion'))).toBeTruthy();
-    expect(screen.queryByText(tQuiz('keysQuestion'))).toBeNull();
-    expect(onDismiss).not.toHaveBeenCalled();
-
-    clickQuizChoice('burnWrong');
-
-    expect(screen.getByText(tQuiz('burnHint'))).toBeTruthy();
-    expect(screen.getByText(tQuiz('burnQuestion'))).toBeTruthy();
-    expect(onDismiss).not.toHaveBeenCalled();
-  });
-
-  it('dismisses once after two right answers in a row', () => {
-    const { onDismiss } = renderBriefing();
-    goToQuiz();
-    clickQuizChoice('keysRight');
-    clickQuizChoice('burnRight');
+    fireEvent.click(screen.getByRole('button', { name: tHome('onboardingContinue') }));
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
-  });
-
-  it('dismisses once from Skip on the quiz without requiring right answers', () => {
-    const { onDismiss } = renderBriefing();
-    goToQuiz();
-    fireEvent.click(screen.getByRole('button', { name: tQuiz('skip') }));
-
-    expect(onDismiss).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not always put the correct choice last; clicks use i18n keys not index 0', () => {
-    const { onDismiss } = renderBriefing();
-    goToQuiz();
-
-    const keysWrong = screen.getByRole('button', { name: tQuiz('keysWrong') });
-    const keysRight = screen.getByRole('button', { name: tQuiz('keysRight') });
-    const keysOrder = keysWrong.compareDocumentPosition(keysRight);
-    const keysWrongFirst = (keysOrder & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    const keysRightFirst = (keysOrder & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
-    expect(keysWrongFirst || keysRightFirst).toBe(true);
-
-    clickQuizChoice('keysRight');
-
-    const burnWrong = screen.getByRole('button', { name: tQuiz('burnWrong') });
-    const burnRight = screen.getByRole('button', { name: tQuiz('burnRight') });
-    const burnOrder = burnWrong.compareDocumentPosition(burnRight);
-    const burnWrongFirst = (burnOrder & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    const burnRightFirst = (burnOrder & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
-    expect(burnWrongFirst || burnRightFirst).toBe(true);
-
-    const bothQuestionsWrongFirst = keysWrongFirst && burnWrongFirst;
-    expect(bothQuestionsWrongFirst).toBe(false);
-
-    clickQuizChoice('burnRight');
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Quick check')).toBeNull();
+    expect(screen.getByText(tHome('onboardingTitle'))).toBeTruthy();
   });
 });

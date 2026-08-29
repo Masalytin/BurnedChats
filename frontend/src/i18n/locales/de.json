@@ -59,18 +59,6 @@
     "onboardingInvite": "Um mit jemandem zu chatten, suchen Sie nach @username oder Internal ID oder teilen Sie einen Raum-Einladungslink.",
     "onboardingRooms": "Räume laufen ab. Es gibt kein serverseitiges Verlaufs-Backup.",
     "onboardingContinue": "Verstanden",
-    "onboardingQuiz": {
-      "title": "Kurze Prüfung",
-      "keysQuestion": "Wo liegen die Verschlüsselungsschlüssel?",
-      "keysWrong": "Auf dem Server",
-      "keysRight": "Nur im RAM dieses Geräts",
-      "keysHint": "Schlüssel verlassen dieses Gerät nicht. Der Server sieht nur verschlüsselte Daten.",
-      "burnQuestion": "Was macht Burn?",
-      "burnWrong": "Archiviert den Chat auf dem Server",
-      "burnRight": "Zerstört die Chats. Es gibt keine Wiederherstellung.",
-      "burnHint": "Burn löscht Chats. Es gibt kein Archiv für später.",
-      "skip": "Überspringen"
-    },
     "joinViaQr": "Per QR beitreten",
     "sectionDmInvite": "Zum persönlichen Chat einladen",
     "dmInviteHint": "In der Nähe? Zeige deinen QR oder scanne ihren — kein Benutzername nötig.",

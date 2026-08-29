@@ -50,18 +50,6 @@
     "onboardingInvite": "要与他人聊天，请搜索其 @username 或 Internal ID，或分享房间邀请链接。",
     "onboardingRooms": "房间会过期。服务器不保存可恢复的历史记录。",
     "onboardingContinue": "知道了",
-    "onboardingQuiz": {
-      "title": "快速确认",
-      "keysQuestion": "加密密钥存在哪里？",
-      "keysWrong": "在服务器上",
-      "keysRight": "仅在本设备的内存中",
-      "keysHint": "密钥不会离开本设备。服务器只能看到加密数据。",
-      "burnQuestion": "销毁（burn）会做什么？",
-      "burnWrong": "在服务器上归档聊天",
-      "burnRight": "销毁聊天，无法恢复。",
-      "burnHint": "销毁会清除聊天。服务器上没有归档。",
-      "skip": "跳过"
-    },
     "joinViaQr": "扫码加入",
     "sectionDmInvite": "邀请到个人聊天",
     "dmInviteHint": "面对面？展示你的二维码或扫描对方的——无需用户名。",

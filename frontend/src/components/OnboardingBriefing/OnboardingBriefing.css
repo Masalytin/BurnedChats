@@ -37,20 +37,6 @@
   color: var(--bc-text-secondary);
 }
 
-.onboarding-briefing__choices {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bc-spacing-sm);
-  margin-top: var(--bc-spacing-sm);
-}
-
-.onboarding-briefing__hint {
-  margin: 0;
-  font-size: var(--bc-text-sm);
-  line-height: var(--bc-leading-relaxed);
-  color: var(--bc-text-secondary);
-}
-
 .onboarding-briefing__actions {
   margin-top: var(--bc-spacing-sm);
 }

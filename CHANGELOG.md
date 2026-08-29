@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- First-run "Quick check" quiz after the briefing; Got it now goes straight to the Home tour.
+
 ## [0.1.2] - 2026-08-29
 
 ### Fixed
