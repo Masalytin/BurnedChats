@@ -17,10 +17,19 @@ export interface CoachmarkViewport {
   height: number;
 }
 
+export interface CoachmarkTooltipPos {
+  top: number;
+  left: number;
+  maxHeight: number;
+}
+
 /** Matches `--bc-spacing-2xs` (12px). */
 export const COACHMARK_GAP_PX = 12;
 
 export const COACHMARK_MARGIN_PX = 8;
+
+/** Holes in this band keep the tooltip below (search). Mid-page holes prefer above. */
+export const COACHMARK_TOP_BAND = 0.28;
 
 export function readCoachmarkViewport(): CoachmarkViewport {
   const visual = window.visualViewport;
@@ -40,11 +49,19 @@ export function readCoachmarkViewport(): CoachmarkViewport {
   };
 }
 
+function clampAxis(start: number, min: number, max: number): number {
+  if (max < min) {
+    return min;
+  }
+  return Math.min(Math.max(start, min), max);
+}
+
 /**
- * Positions the tooltip next to the spotlight hole, flipping above when
- * there is not enough room below, then clamping into the visual viewport.
- * Overlay still captures pointer events — the tooltip must stay reachable
- * without scrolling the page.
+ * Positions the tooltip next to the spotlight hole without covering it.
+ * Mid-page targets (Create Room) flip above when both sides fit so the
+ * empty-state CTA stays visible. If the tooltip is taller than both
+ * slabs, maxHeight shrinks to the chosen slab — Next stays reachable
+ * via the tooltip's own scroll, not by sliding over the hole.
  */
 export function placeCoachmarkTooltip(
   hole: CoachmarkHoleRect,
@@ -52,39 +69,42 @@ export function placeCoachmarkTooltip(
   viewport: CoachmarkViewport,
   gap = COACHMARK_GAP_PX,
   margin = COACHMARK_MARGIN_PX,
-): { top: number; left: number } {
+): CoachmarkTooltipPos {
   const vpBottom = viewport.top + viewport.height;
   const vpRight = viewport.left + viewport.width;
   const spaceBelow = vpBottom - (hole.top + hole.height) - gap - margin;
   const spaceAbove = hole.top - viewport.top - gap - margin;
+  const inTopBand =
+    hole.top - viewport.top <= viewport.height * COACHMARK_TOP_BAND;
 
-  let top: number;
-  if (tooltip.height <= spaceBelow) {
-    top = hole.top + hole.height + gap;
-  } else if (tooltip.height <= spaceAbove) {
-    top = hole.top - gap - tooltip.height;
-  } else if (spaceAbove > spaceBelow) {
-    top = hole.top - gap - tooltip.height;
+  const canFitBelow = tooltip.height > 0 && tooltip.height <= spaceBelow;
+  const canFitAbove = tooltip.height > 0 && tooltip.height <= spaceAbove;
+
+  let placeBelow: boolean;
+  if (canFitBelow && canFitAbove) {
+    placeBelow = inTopBand;
+  } else if (canFitBelow) {
+    placeBelow = true;
+  } else if (canFitAbove) {
+    placeBelow = false;
   } else {
-    top = hole.top + hole.height + gap;
+    placeBelow = spaceBelow >= spaceAbove;
   }
 
-  const minTop = viewport.top + margin;
-  const maxTop = vpBottom - margin - tooltip.height;
-  if (maxTop < minTop) {
-    top = minTop;
-  } else {
-    top = Math.min(Math.max(top, minTop), maxTop);
-  }
+  const slab = Math.max(0, placeBelow ? spaceBelow : spaceAbove);
+  const maxHeight =
+    tooltip.height > 0 ? Math.max(1, Math.min(tooltip.height, slab || 1)) : slab;
+  const usedHeight = tooltip.height > 0 ? Math.min(tooltip.height, maxHeight) : 0;
 
-  let left = hole.left;
-  const minLeft = viewport.left + margin;
-  const maxLeft = vpRight - margin - tooltip.width;
-  if (maxLeft < minLeft) {
-    left = minLeft;
-  } else {
-    left = Math.min(Math.max(left, minLeft), maxLeft);
-  }
+  const top = placeBelow
+    ? hole.top + hole.height + gap
+    : hole.top - gap - (usedHeight || tooltip.height);
 
-  return { top, left };
+  const left = clampAxis(
+    hole.left,
+    viewport.left + margin,
+    vpRight - margin - tooltip.width,
+  );
+
+  return { top, left, maxHeight };
 }

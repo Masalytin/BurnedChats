@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Home tour no longer covers the Create Room control: the tooltip sits above a mid-page spotlight and shrinks instead of sliding over the hole.
+
 ## [0.1.3] - 2026-08-29
 
 ### Removed

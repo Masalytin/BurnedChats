@@ -35,14 +35,42 @@ describe('placeCoachmarkTooltip', () => {
     );
   });
 
-  it('clamps a tall tooltip so Next stays inside a short visual viewport', () => {
+  it('places a mid-page create-room hole tooltip above so it does not cover the empty-state CTA', () => {
+    const viewport = { top: 0, left: 0, width: 360, height: 640 };
+    const hole = { top: 300, left: 200, width: 120, height: 36 };
+    const tooltip = { width: 280, height: 260 };
+
+    const pos = placeCoachmarkTooltip(hole, tooltip, viewport);
+
+    expect(pos.top + tooltip.height).toBeLessThanOrEqual(
+      hole.top - COACHMARK_GAP_PX,
+    );
+    expect(pos.top).toBeGreaterThanOrEqual(viewport.top + COACHMARK_MARGIN_PX);
+  });
+
+  it('does not slide a too-tall tooltip on top of the hole', () => {
+    const hole = { top: 200, left: 16, width: 120, height: 40 };
+    const tooltip = { width: 280, height: 400 };
+
+    const pos = placeCoachmarkTooltip(hole, tooltip, VIEWPORT);
+    const usedHeight = pos.maxHeight ?? tooltip.height;
+    const tooltipBottom = pos.top + usedHeight;
+    const overlapsHole =
+      pos.top < hole.top + hole.height && tooltipBottom > hole.top;
+
+    expect(overlapsHole).toBe(false);
+    expect(pos.maxHeight).toBeLessThan(tooltip.height);
+  });
+
+  it('shrinks a tall tooltip into the larger slab so Next stays in the viewport', () => {
     const hole = { top: 80, left: 16, width: 328, height: 280 };
     const tooltip = { width: 280, height: 220 };
 
     const pos = placeCoachmarkTooltip(hole, tooltip, VIEWPORT);
+    const usedHeight = pos.maxHeight;
 
-    expect(pos.top).toBeGreaterThanOrEqual(VIEWPORT.top + COACHMARK_MARGIN_PX);
-    expect(pos.top + tooltip.height).toBeLessThanOrEqual(
+    expect(pos.top).toBeGreaterThanOrEqual(hole.top + hole.height + COACHMARK_GAP_PX);
+    expect(pos.top + usedHeight).toBeLessThanOrEqual(
       VIEWPORT.height - COACHMARK_MARGIN_PX,
     );
     expect(pos.left).toBeGreaterThanOrEqual(VIEWPORT.left + COACHMARK_MARGIN_PX);
@@ -51,13 +79,17 @@ describe('placeCoachmarkTooltip', () => {
     );
   });
 
-  it('pins a tooltip taller than the viewport to the top so CSS can scroll it', () => {
+  it('keeps a tooltip taller than the viewport beside the hole, not over it', () => {
     const hole = { top: 200, left: 16, width: 120, height: 40 };
     const tooltip = { width: 280, height: 520 };
 
     const pos = placeCoachmarkTooltip(hole, tooltip, VIEWPORT);
 
-    expect(pos.top).toBe(VIEWPORT.top + COACHMARK_MARGIN_PX);
+    expect(pos.top).toBe(hole.top + hole.height + COACHMARK_GAP_PX);
+    expect(pos.maxHeight).toBeLessThan(tooltip.height);
+    expect(pos.top + pos.maxHeight).toBeLessThanOrEqual(
+      VIEWPORT.height - COACHMARK_MARGIN_PX,
+    );
   });
 
   it('clamps left when the hole sits near the right edge', () => {

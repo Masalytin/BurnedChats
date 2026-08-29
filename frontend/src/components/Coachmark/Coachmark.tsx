@@ -17,6 +17,7 @@ import {
   placeCoachmarkTooltip,
   readCoachmarkViewport,
   type CoachmarkHoleRect,
+  type CoachmarkTooltipPos,
 } from './coachmarkPlacement';
 import './Coachmark.css';
 
@@ -60,9 +61,7 @@ export function Coachmark({
   const [hole, setHole] = useState<CoachmarkHoleRect | null>(() =>
     target ? readHoleRect(target) : null,
   );
-  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(
-    null,
-  );
+  const [tipPos, setTipPos] = useState<CoachmarkTooltipPos | null>(null);
 
   useBackButton({
     visible: true,
@@ -119,7 +118,10 @@ export function Coachmark({
     setTipPos(
       placeCoachmarkTooltip(
         hole,
-        { width: tooltip.offsetWidth, height: tooltip.offsetHeight },
+        {
+          width: tooltip.offsetWidth,
+          height: Math.max(tooltip.offsetHeight, tooltip.scrollHeight),
+        },
         readCoachmarkViewport(),
       ),
     );
@@ -149,7 +151,11 @@ export function Coachmark({
   };
 
   const tooltipStyle = tipPos
-    ? { top: `${tipPos.top}px`, left: `${tipPos.left}px` }
+    ? {
+        top: `${tipPos.top}px`,
+        left: `${tipPos.left}px`,
+        maxHeight: tipPos.maxHeight > 0 ? `${tipPos.maxHeight}px` : undefined,
+      }
     : undefined;
 
   return createPortal(
