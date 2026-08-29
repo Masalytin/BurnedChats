@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import '@/i18n';
+import i18n from '@/i18n';
 import {
   getDefaultPreferences,
   PREFERENCES_STORAGE_KEY,
   savePreferences,
 } from '@/preferences/preferencesStorage';
+import { ONBOARDING_STORAGE_KEY, saveOnboardingProgress } from './onboarding';
 import App from './App';
 
 const { harness, noop, asyncNoop } = vi.hoisted(() => ({
@@ -536,7 +537,9 @@ describe('App BottomNavBar top-level routing', () => {
   beforeEach(() => {
     resetHarness();
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
     setPanelEnabled(false);
+    saveOnboardingProgress({ v: 1, seen: { briefing: true } });
     harness.isAuthenticated = true;
     harness.environment = 'browser';
     harness.isReady = true;
@@ -546,6 +549,7 @@ describe('App BottomNavBar top-level routing', () => {
   afterEach(() => {
     cleanup();
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
   });
 
   function renderSplatApp(path = '/app') {
@@ -586,5 +590,25 @@ describe('App BottomNavBar top-level routing', () => {
 
     expect(screen.getByTestId('wallet-page')).toBeTruthy();
     expect(screen.queryByTestId('home-page')).toBeNull();
+  });
+
+  it('hides BottomNavBar while the first-run briefing is open', () => {
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    renderSplatApp();
+
+    expect(screen.getByRole('button', { name: i18n.t('home.onboardingContinue') })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(document.querySelector('.bottom-nav')).toBeNull();
+  });
+
+  it('shows BottomNavBar after the briefing is dismissed', () => {
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    renderSplatApp();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('home.onboardingContinue') }));
+
+    expect(screen.queryByRole('button', { name: i18n.t('home.onboardingContinue') })).toBeNull();
+    expect(screen.getByRole('tablist')).toBeTruthy();
+    expect(document.querySelector('.bottom-nav')).not.toBeNull();
   });
 });

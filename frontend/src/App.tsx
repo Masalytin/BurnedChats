@@ -38,6 +38,7 @@ import { useRoomTtl } from './hooks/useRoomTtl';
 import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
 import { OnboardingBriefing } from './components/OnboardingBriefing';
+import { useOnboardingFlow } from './onboarding';
 import { RoomBurnedReturnDialog } from './components/RoomBurnedReturnDialog';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -987,7 +988,9 @@ function AppContent() {
   // App state
   const [initError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { showBriefing, hideBottomNav, onBriefingDismiss } = useOnboardingFlow({
+    isAuthenticated,
+  });
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
@@ -1297,6 +1300,7 @@ function AppContent() {
   }, [location.pathname]);
 
   const showBottomNav =
+    !hideBottomNav &&
     !showChatRequestDialog &&
     !IMMERSIVE_VIEWS.includes(currentView) &&
     (isTopLevelPath || currentView === 'home');
@@ -1988,20 +1992,6 @@ function AppContent() {
     writeAccessAskedRef.current = true;
     void requestWriteAccess().catch(() => undefined);
   }, [isReady, isInTelegram, isAuthenticated, requestWriteAccess]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-    try {
-      if (localStorage.getItem('bc:onboarding-seen') === '1') {
-        return;
-      }
-    } catch {
-      /* show once this session */
-    }
-    setShowOnboarding(true);
-  }, [isAuthenticated]);
 
   // Initialize Mini App chrome only in Telegram.
   useEffect(() => {
@@ -3947,17 +3937,8 @@ function AppContent() {
           />
         )}
 
-        {showOnboarding && (
-          <OnboardingBriefing
-            onDismiss={() => {
-              try {
-                localStorage.setItem('bc:onboarding-seen', '1');
-              } catch {
-                /* ignore quota / private mode */
-              }
-              setShowOnboarding(false);
-            }}
-          />
+        {showBriefing && (
+          <OnboardingBriefing onDismiss={onBriefingDismiss} />
         )}
 
         {/* Personal DM invite QR / share (IMP-DMINVITE-02) */}
