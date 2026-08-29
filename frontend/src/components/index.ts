@@ -47,6 +47,10 @@ export type { HelpSheetProps, HelpTriggerProps } from './HelpSheet';
 export { BottomSheet } from './BottomSheet';
 export type { BottomSheetProps } from './BottomSheet';
 
+// Onboarding spotlight (IMP-ONBTOUR-02)
+export { Coachmark } from './Coachmark';
+export type { CoachmarkProps } from './Coachmark';
+
 // Room Components (Phase 2)
 export { JoinRoomView } from './JoinRoomView';
 

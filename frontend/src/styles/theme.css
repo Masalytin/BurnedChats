@@ -200,6 +200,9 @@
   --bc-z-modal: 300;
   --bc-z-toast: 400;
   --bc-z-tooltip: 500;
+  /* Above HelpSheet backdrop (10100) — overlay + tooltip pair */
+  --bc-z-coachmark: 10150;
+  --bc-z-coachmark-tooltip: 10160;
 
   /* App shell height — Telegram SDK sets --tg-viewport-stable-height in TMA */
   --app-height: 100vh;
