@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Initial open-source publication. The project is pre-1.0: no versioned releases
-exist yet, and the public API may change without notice.
+## [0.1.1] - 2026-08-29
 
 ### Added
 
@@ -16,6 +15,10 @@ exist yet, and the public API may change without notice.
 - Home onboarding tour: three spotlight steps (search, Create Room, My QR) after the first-run briefing.
 - First visit to Create Room auto-opens the existing room-creation help sheet once; Back/Escape close only the sheet.
 - Settings can replay onboarding: confirm resets local tour progress and returns to Home for the briefing and tour again.
+
+## [0.1.0] - 2026-08-24
+
+Initial open-source publication. The project is pre-1.0: the public API may change without notice.
 
 ### Changed
 
@@ -40,4 +43,6 @@ exist yet, and the public API may change without notice.
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/commits/main
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.1
+[0.1.0]: https://github.com/Masalytin/BurnedChats/commits/main
