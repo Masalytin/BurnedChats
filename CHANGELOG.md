@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-29
+
 ### Fixed
 
 - Home tour no longer covers the Create Room control: the tooltip sits above a mid-page spotlight and shrinks instead of sliding over the hole.
@@ -59,7 +61,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.1
