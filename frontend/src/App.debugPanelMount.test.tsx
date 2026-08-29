@@ -606,6 +606,7 @@ describe('App BottomNavBar top-level routing', () => {
     renderSplatApp();
 
     fireEvent.click(screen.getByRole('button', { name: i18n.t('home.onboardingContinue') }));
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('home.onboardingQuiz.skip') }));
 
     expect(screen.queryByRole('button', { name: i18n.t('home.onboardingContinue') })).toBeNull();
     expect(screen.getByRole('tablist')).toBeTruthy();

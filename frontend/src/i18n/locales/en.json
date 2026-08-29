@@ -138,6 +138,18 @@
     "onboardingInvite": "To chat with someone, search their @username or Internal ID, or share a room invite link.",
     "onboardingRooms": "Rooms expire. There is no server-side history backup.",
     "onboardingContinue": "Got it",
+    "onboardingQuiz": {
+      "title": "Quick check",
+      "keysQuestion": "Where do encryption keys live?",
+      "keysWrong": "On the server",
+      "keysRight": "Only in RAM on this device",
+      "keysHint": "Keys never leave this device. The server only relays encrypted data.",
+      "burnQuestion": "What does burn do?",
+      "burnWrong": "Archives the chat on the server",
+      "burnRight": "Destroys the chats. There is no recovery.",
+      "burnHint": "Burn wipes chats. Nothing is archived for later.",
+      "skip": "Skip"
+    },
     "joinViaQr": "Join via QR",
     "sectionDmInvite": "Invite to personal chat",
     "dmInviteHint": "Nearby? Show your QR or scan theirs — no username needed.",

@@ -12,6 +12,7 @@ exist yet, and the public API may change without notice.
 
 ### Added
 
+- First-run briefing continues to a two-question quiz (keys stay in RAM; burn destroys chats with no recovery) before dismiss; Skip still marks the briefing seen.
 - Home onboarding tour: three spotlight steps (search, Create Room, My QR) after the first-run briefing.
 - First visit to Create Room auto-opens the existing room-creation help sheet once; Back/Escape close only the sheet.
 

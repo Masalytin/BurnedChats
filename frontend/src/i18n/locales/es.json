@@ -50,6 +50,18 @@
     "onboardingInvite": "Para chatear con alguien, busca su @username o Internal ID, o comparte un enlace de invitación a la sala.",
     "onboardingRooms": "Las salas caducan. No hay copia del historial en el servidor.",
     "onboardingContinue": "Entendido",
+    "onboardingQuiz": {
+      "title": "Comprobación rápida",
+      "keysQuestion": "¿Dónde están las claves de cifrado?",
+      "keysWrong": "En el servidor",
+      "keysRight": "Solo en la RAM de este dispositivo",
+      "keysHint": "Las claves no salen de este dispositivo. El servidor solo ve datos cifrados.",
+      "burnQuestion": "¿Qué hace burn?",
+      "burnWrong": "Archiva el chat en el servidor",
+      "burnRight": "Destruye los chats. No hay recuperación.",
+      "burnHint": "Burn borra los chats. No hay archivo para después.",
+      "skip": "Omitir"
+    },
     "joinViaQr": "Unirse por QR",
     "sectionDmInvite": "Invitar al chat personal",
     "dmInviteHint": "¿Cerca? Muestra tu QR o escanea el suyo — sin nombre de usuario.",

@@ -50,6 +50,18 @@
     "onboardingInvite": "Pour discuter avec quelqu'un, recherchez son @username ou Internal ID, ou partagez un lien d'invitation de salon.",
     "onboardingRooms": "Les salons expirent. Il n'y a pas de sauvegarde d'historique côté serveur.",
     "onboardingContinue": "Compris",
+    "onboardingQuiz": {
+      "title": "Vérification rapide",
+      "keysQuestion": "Où se trouvent les clés de chiffrement ?",
+      "keysWrong": "Sur le serveur",
+      "keysRight": "Uniquement en RAM sur cet appareil",
+      "keysHint": "Les clés ne quittent pas cet appareil. Le serveur ne voit que des données chiffrées.",
+      "burnQuestion": "Que fait burn ?",
+      "burnWrong": "Archive le chat sur le serveur",
+      "burnRight": "Détruit les chats. Il n'y a pas de récupération.",
+      "burnHint": "Burn efface les chats. Rien n'est archivé pour plus tard.",
+      "skip": "Passer"
+    },
     "joinViaQr": "Rejoindre via QR",
     "sectionDmInvite": "Inviter au chat personnel",
     "dmInviteHint": "À proximité ? Montrez votre QR ou scannez le leur — sans nom d'utilisateur.",
