@@ -263,6 +263,93 @@ describe('Coachmark', () => {
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the tooltip and Next inside a short viewport when the hole is near the bottom', () => {
+    const viewportHeight = 480;
+    const tooltipHeight = 180;
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: viewportHeight,
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 360,
+    });
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: {
+        offsetTop: 0,
+        offsetLeft: 0,
+        width: 360,
+        height: viewportHeight,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+    const offsetHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetHeight',
+    );
+    const offsetWidth = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetWidth',
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        if ((this as HTMLElement).classList?.contains('coachmark-tooltip')) {
+          return tooltipHeight;
+        }
+        return offsetHeight?.get?.call(this) ?? 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get() {
+        if ((this as HTMLElement).classList?.contains('coachmark-tooltip')) {
+          return 280;
+        }
+        return offsetWidth?.get?.call(this) ?? 0;
+      },
+    });
+
+    const target = document.createElement('button');
+    target.type = 'button';
+    document.body.appendChild(target);
+    mockTargetRect(target, {
+      top: 400,
+      left: 16,
+      width: 120,
+      height: 40,
+      bottom: 440,
+    });
+
+    try {
+      renderCoachmark({ target });
+      const tooltip = screen.getByRole('dialog');
+      const top = Number.parseFloat(tooltip.style.top);
+      expect(Number.isFinite(top)).toBe(true);
+      expect(top).toBeLessThan(400);
+      expect(top + tooltipHeight).toBeLessThanOrEqual(viewportHeight);
+      expect(screen.getByRole('button', { name: BUTTON_LABELS.next })).toBeTruthy();
+    } finally {
+      target.remove();
+      if (offsetHeight) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight);
+      }
+      if (offsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidth);
+      }
+    }
+  });
+
+  it('declares a max-height so a tall tooltip can scroll to Next', () => {
+    expect(coachmarkCss).toMatch(/max-height:\s*calc\(var\(--app-height/);
+    expect(coachmarkCss).toMatch(/overflow-y:\s*auto/);
+    expect(cssBlock(coachmarkCss, '.coachmark-tooltip__actions')).toMatch(
+      /position:\s*sticky/,
+    );
+  });
+
   it('portals to document.body so a parent stacking context cannot trap it', () => {
     const { container } = render(
       <I18nextProvider i18n={i18n}>

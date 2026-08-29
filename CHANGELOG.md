@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Home onboarding tour keeps the hint and Next button inside the visible viewport (flip/clamp) so a blocked page scroll cannot trap the user.
+
 ## [0.1.1] - 2026-08-29
 
 ### Added

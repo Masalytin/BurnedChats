@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useReducedMotion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +13,11 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/Button';
 import { useBackButton } from '@/hooks/useBackButton';
 
+import {
+  placeCoachmarkTooltip,
+  readCoachmarkViewport,
+  type CoachmarkHoleRect,
+} from './coachmarkPlacement';
 import './Coachmark.css';
 
 export interface CoachmarkProps {
@@ -17,14 +29,7 @@ export interface CoachmarkProps {
   onSkipAll: () => void;
 }
 
-interface HoleRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-function readHoleRect(target: HTMLElement): HoleRect {
+function readHoleRect(target: HTMLElement): CoachmarkHoleRect {
   const rect = target.getBoundingClientRect();
   return {
     top: rect.top,
@@ -50,9 +55,13 @@ export function Coachmark({
   const { t } = useTranslation();
   const titleId = useId();
   const primaryBtnRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
-  const [hole, setHole] = useState<HoleRect | null>(() =>
+  const [hole, setHole] = useState<CoachmarkHoleRect | null>(() =>
     target ? readHoleRect(target) : null,
+  );
+  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(
+    null,
   );
 
   useBackButton({
@@ -101,6 +110,21 @@ export function Coachmark({
     return () => window.removeEventListener('keydown', onKey);
   }, [onSkipAll]);
 
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!hole || !tooltip) {
+      setTipPos(null);
+      return;
+    }
+    setTipPos(
+      placeCoachmarkTooltip(
+        hole,
+        { width: tooltip.offsetWidth, height: tooltip.offsetHeight },
+        readCoachmarkViewport(),
+      ),
+    );
+  }, [hole, topicKey, stepIndex]);
+
   useEffect(() => {
     primaryBtnRef.current?.focus();
   }, [topicKey, stepIndex]);
@@ -124,11 +148,8 @@ export function Coachmark({
     event.stopPropagation();
   };
 
-  const tooltipStyle = hole
-    ? {
-        top: `calc(${hole.top + hole.height}px + var(--bc-spacing-2xs))`,
-        left: `${hole.left}px`,
-      }
+  const tooltipStyle = tipPos
+    ? { top: `${tipPos.top}px`, left: `${tipPos.left}px` }
     : undefined;
 
   return createPortal(
@@ -153,6 +174,7 @@ export function Coachmark({
         />
       ) : null}
       <div
+        ref={tooltipRef}
         className="coachmark-tooltip"
         role="dialog"
         aria-modal="true"
