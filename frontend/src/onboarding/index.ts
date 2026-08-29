@@ -13,3 +13,8 @@ export {
   type UseOnboardingFlowOptions,
   type UseOnboardingFlowResult,
 } from './useOnboardingFlow';
+export {
+  useHomeTourGate,
+  type UseHomeTourGateOptions,
+  type UseHomeTourGateResult,
+} from './useHomeTourGate';

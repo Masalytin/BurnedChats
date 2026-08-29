@@ -51,6 +51,10 @@ export type { BottomSheetProps } from './BottomSheet';
 export { Coachmark } from './Coachmark';
 export type { CoachmarkProps } from './Coachmark';
 
+// Home tour controller (IMP-ONBTOUR-03)
+export { HomeTour } from './HomeTour';
+export type { HomeTourProps } from './HomeTour';
+
 // Room Components (Phase 2)
 export { JoinRoomView } from './JoinRoomView';
 

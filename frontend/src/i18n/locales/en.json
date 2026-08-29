@@ -709,6 +709,34 @@
     "common": {
       "trigger": "What is this?"
     },
+    "tour": {
+      "common": {
+        "next": "Next",
+        "skip": "Skip tour",
+        "done": "Done"
+      },
+      "homeSearch": {
+        "title": "Find someone to chat",
+        "body": [
+          "Search by @username, Internal ID, or wallet to start a one-to-one encrypted chat.",
+          "Share your Internal ID from the profile card so others can find you."
+        ]
+      },
+      "homeCreateRoom": {
+        "title": "Create a room",
+        "body": [
+          "A room is a shared encrypted space with an invite link. You become the owner.",
+          "You can set a password or require approval before anyone joins."
+        ]
+      },
+      "homeMyQr": {
+        "title": "Your personal invite",
+        "body": [
+          "Show this QR so someone nearby can start a private chat with you — no username needed.",
+          "The invite belongs to this session on this device. It is not a permanent public profile."
+        ]
+      }
+    },
     "handshake": {
       "about": {
         "title": "Secure key exchange",

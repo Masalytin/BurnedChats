@@ -88,6 +88,34 @@
     "common": {
       "trigger": "Was ist das?"
     },
+    "tour": {
+      "common": {
+        "next": "Weiter",
+        "skip": "Tour überspringen",
+        "done": "Fertig"
+      },
+      "homeSearch": {
+        "title": "Jemanden zum Chatten finden",
+        "body": [
+          "Suche per @username, Internal ID oder Wallet, um einen verschlüsselten 1:1-Chat zu starten.",
+          "Teile deine Internal ID aus der Profilkarte, damit andere dich finden."
+        ]
+      },
+      "homeCreateRoom": {
+        "title": "Einen Raum erstellen",
+        "body": [
+          "Ein Raum ist ein gemeinsamer verschlüsselter Bereich mit Einladungslink. Du wirst Eigentümer.",
+          "Du kannst ein Passwort setzen oder eine Freigabe verlangen, bevor jemand beitritt."
+        ]
+      },
+      "homeMyQr": {
+        "title": "Deine persönliche Einladung",
+        "body": [
+          "Zeig diesen QR, damit jemand in der Nähe einen privaten Chat mit dir startet — ohne Username.",
+          "Die Einladung gilt für diese Sitzung auf diesem Gerät. Sie ist kein dauerhaftes öffentliches Profil."
+        ]
+      }
+    },
     "handshake": {
       "about": {
         "title": "Sicherer Schlüsselaustausch",

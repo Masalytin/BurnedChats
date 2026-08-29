@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial open-source publication. The project is pre-1.0: no versioned releases
 exist yet, and the public API may change without notice.
 
+### Added
+
+- Home onboarding tour: three spotlight steps (search, Create Room, My QR) after the first-run briefing.
+
 ### Changed
 
 - Default branch renamed from `master` to `main`.

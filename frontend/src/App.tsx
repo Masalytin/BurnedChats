@@ -38,7 +38,8 @@ import { useRoomTtl } from './hooks/useRoomTtl';
 import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
 import { OnboardingBriefing } from './components/OnboardingBriefing';
-import { useOnboardingFlow } from './onboarding';
+import { HomeTour } from './components/HomeTour';
+import { useHomeTourGate, useOnboardingFlow } from './onboarding';
 import { RoomBurnedReturnDialog } from './components/RoomBurnedReturnDialog';
 import { BottomNavBar, type BottomNavItem } from './components/BottomNavBar';
 import { HomeIcon, WalletIcon, SettingsGearIcon } from './icons';
@@ -988,13 +989,35 @@ function AppContent() {
   // App state
   const [initError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
-  const { showBriefing, hideBottomNav, onBriefingDismiss } = useOnboardingFlow({
+  const [homeHelpOpen, setHomeHelpOpen] = useState(false);
+  const { showBriefing, hideBottomNav: hideNavForBriefing, onBriefingDismiss } = useOnboardingFlow({
     isAuthenticated,
   });
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [activeIncomingRequest, setActiveIncomingRequest] = useState<ChatRequest | null>(null);
+  const {
+    showHomeTour,
+    hideBottomNav: hideNavForTour,
+    onHomeTourComplete,
+    onHomeTourSkipAll,
+  } = useHomeTourGate({
+    isAuthenticated,
+    isConnected,
+    currentView,
+    pathname: location.pathname,
+    isJoinRoute,
+    hasIncoming:
+      activeIncomingRequest != null ||
+      incomingRequests.some((request) => request.expiresAt > Date.now()),
+    showChatRequestDialog,
+    helpOpen: homeHelpOpen,
+    showDmInviteSheet,
+    showDmInviteScanner,
+    showBurnedRoomDialog: offlineBurnNotice != null && offlineBurnNotice > 0,
+  });
+  const hideBottomNav = hideNavForBriefing || hideNavForTour;
 
   // Reference to store peer info for handshake
   const handshakePeerRef = useRef<UserInfo | null>(null);
@@ -3928,6 +3951,13 @@ function AppContent() {
           onRefreshRooms={fetchRooms}
           onRefreshAll={() => { fetchRooms(); fetchSessions(); }}
           panicBrandRef={panicBrandRef}
+          onHelpOpenChange={setHomeHelpOpen}
+        />
+
+        <HomeTour
+          open={showHomeTour}
+          onComplete={onHomeTourComplete}
+          onSkipAll={onHomeTourSkipAll}
         />
 
         {offlineBurnNotice != null && offlineBurnNotice > 0 && (

@@ -79,6 +79,34 @@
     "common": {
       "trigger": "Qu'est-ce que c'est ?"
     },
+    "tour": {
+      "common": {
+        "next": "Suivant",
+        "skip": "Passer la visite",
+        "done": "Terminé"
+      },
+      "homeSearch": {
+        "title": "Trouver quelqu’un à qui écrire",
+        "body": [
+          "Recherchez par @username, Internal ID ou portefeuille pour démarrer un chat chiffré en tête-à-tête.",
+          "Partagez votre Internal ID depuis la carte de profil pour que les autres puissent vous trouver."
+        ]
+      },
+      "homeCreateRoom": {
+        "title": "Créer un salon",
+        "body": [
+          "Un salon est un espace chiffré partagé avec un lien d’invitation. Vous en devenez propriétaire.",
+          "Vous pouvez définir un mot de passe ou exiger votre accord avant toute entrée."
+        ]
+      },
+      "homeMyQr": {
+        "title": "Votre invitation personnelle",
+        "body": [
+          "Montrez ce QR pour qu’une personne à proximité démarre un chat privé avec vous — sans nom d’utilisateur.",
+          "L’invitation appartient à cette session sur cet appareil. Ce n’est pas un profil public permanent."
+        ]
+      }
+    },
     "handshake": {
       "about": {
         "title": "Échange de clés sécurisé",

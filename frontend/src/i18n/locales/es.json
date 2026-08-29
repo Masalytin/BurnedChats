@@ -79,6 +79,34 @@
     "common": {
       "trigger": "¿Qué es esto?"
     },
+    "tour": {
+      "common": {
+        "next": "Siguiente",
+        "skip": "Saltar el tour",
+        "done": "Listo"
+      },
+      "homeSearch": {
+        "title": "Encuentra a alguien para chatear",
+        "body": [
+          "Busca por @username, Internal ID o billetera para iniciar un chat cifrado uno a uno.",
+          "Comparte tu Internal ID de la tarjeta de perfil para que otros puedan encontrarte."
+        ]
+      },
+      "homeCreateRoom": {
+        "title": "Crear una sala",
+        "body": [
+          "Una sala es un espacio cifrado compartido con un enlace de invitación. Tú eres el propietario.",
+          "Puedes poner una contraseña o exigir tu aprobación antes de que alguien entre."
+        ]
+      },
+      "homeMyQr": {
+        "title": "Tu invitación personal",
+        "body": [
+          "Muestra este QR para que alguien cerca inicie un chat privado contigo — sin nombre de usuario.",
+          "La invitación pertenece a esta sesión en este dispositivo. No es un perfil público permanente."
+        ]
+      }
+    },
     "handshake": {
       "about": {
         "title": "Intercambio seguro de claves",

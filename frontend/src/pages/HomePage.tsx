@@ -66,6 +66,8 @@ interface HomePageProps {
   onRefreshAll?: () => void;
   /** Ref for panic long-press target (home screen logo). */
   panicBrandRef?: RefObject<HTMLDivElement | null>;
+  /** Home HelpSheet open — tour gate must not start over it. */
+  onHelpOpenChange?: (open: boolean) => void;
 }
 
 /** Default search result state */
@@ -109,10 +111,14 @@ export function HomePage({
   onRefreshRooms,
   onRefreshAll,
   panicBrandRef,
+  onHelpOpenChange,
 }: HomePageProps) {
   const { t } = useTranslation();
   const { canScanQr } = useTelegram();
   const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    onHelpOpenChange?.(helpOpen);
+  }, [helpOpen, onHelpOpenChange]);
   const [localQuery, setLocalQuery] = useState('');
   const [showFab, setShowFab] = useState(false);
   const hadRendezvousRef = useRef(false);
@@ -300,7 +306,7 @@ export function HomePage({
       {/* Search Section */}
       <section className="home-section animate-slide-up" style={{ animationDelay: '100ms' }}>
         <h3 className="home-section-title">{t('home.sectionSearch')}</h3>
-        <form className="home-search" onSubmit={handleSearchSubmit}>
+        <form className="home-search" data-tour="search" onSubmit={handleSearchSubmit}>
           <Input 
             placeholder={t('home.searchPlaceholder')}
             leftIcon={<SearchIcon size={20} />}
@@ -359,6 +365,7 @@ export function HomePage({
                 variant="secondary"
                 size="sm"
                 disabled={!isConnected}
+                data-tour="my-qr"
                 onClick={onShowMyQr}
               >
                 {t('home.myQr')}
@@ -408,6 +415,7 @@ export function HomePage({
             variant="primary"
             size="sm"
             disabled={!isConnected}
+            data-tour="create-room"
             onClick={onCreateRoom}
           >
             {t('room.createRoomButton')}
