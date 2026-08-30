@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Mini App header and bottom bar follow the active Ember / Bone / Nocturne palette instead of always using Telegram `secondary_bg_color`.
 - Telegram theme mode derives elevated surfaces and borders from the client palette and falls back to Ember when contrast is unreadable.
 
 ## [0.1.7] - 2026-08-30

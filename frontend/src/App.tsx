@@ -114,6 +114,7 @@ import {
 } from './crypto/keyStore';
 import { formatShortRoomId, resolveRoomDisplayName } from './crypto/groupKey';
 import { PreferencesProvider, usePreferences } from './preferences';
+import { applyMiniAppChrome, readLiveCanvasTheme, subscribeLiveCanvasTheme } from './theme/applyMiniAppChrome';
 import { clearDownloadCache } from './services/fileDownloadService';
 import { cancelAll } from './services/transferQueue';
 import { performBurnAllLocalCleanup } from './utils/burnAllCleanup';
@@ -213,7 +214,7 @@ const IMMERSIVE_VIEWS: AppView[] = [
  */
 function AppContent() {
   const toast = useToast();
-  const { prefs } = usePreferences();
+  const { prefs, telegramUnsafe } = usePreferences();
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -2042,14 +2043,31 @@ function AppContent() {
     void requestWriteAccess().catch(() => undefined);
   }, [isReady, isInTelegram, isAuthenticated, requestWriteAccess]);
 
-  // Initialize Mini App chrome only in Telegram.
+  // Expand + close-confirm stay on TMA ready. Chrome follows the live canvas
+  // (`data-bc-theme`) so ThemePickScreen preview updates header/bottom bar too.
   useEffect(() => {
     if (!isReady || !isInTelegram) return;
     expand();
     setClosingConfirmation(true);
-    setHeaderColor('secondary_bg_color');
-    setBottomBarColor('secondary_bg_color');
-  }, [isReady, isInTelegram, expand, setClosingConfirmation, setHeaderColor, setBottomBarColor]);
+  }, [isReady, isInTelegram, expand, setClosingConfirmation]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    const paintChrome = () => {
+      const live = readLiveCanvasTheme();
+      applyMiniAppChrome({
+        themeMode: live?.themeMode ?? prefs.themeMode,
+        telegramUnsafe: live?.telegramUnsafe ?? telegramUnsafe,
+        isInTelegram,
+        setHeaderColor,
+        setBottomBarColor,
+      });
+    };
+
+    paintChrome();
+    return subscribeLiveCanvasTheme(paintChrome);
+  }, [isReady, isInTelegram, prefs.themeMode, telegramUnsafe, setHeaderColor, setBottomBarColor]);
 
   // Soft prompt: after N=5 opens, offer add-to-home-screen once (IMP-TGUX-05).
   // Counter + refusal flag live in localStorage only — never WebApp.CloudStorage.
