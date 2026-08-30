@@ -5,6 +5,7 @@ import { clearDownloadCache } from '@/services/fileDownloadService';
 import { cancelAll } from '@/services/transferQueue';
 import { PENDING_DM_INVITE_TOKEN_KEY, PENDING_INVITE_TOKEN_KEY } from '@/utils/inviteLink';
 import { PREFERENCES_STORAGE_KEY } from '@/preferences/preferencesStorage';
+import { STORAGE_KEY as LANGUAGE_PREF_KEY } from '@/i18n/languagePreference';
 import { clearDebugLogs } from '@/components/DebugPanel/DebugPanel';
 import {
   clearStompMessages,
@@ -64,10 +65,21 @@ describe('performBurnAllLocalCleanup', () => {
   });
 
   it('also clears app localStorage when wipeIdentity is true', async () => {
+    localStorage.setItem(LANGUAGE_PREF_KEY, 'ru');
+
     await performBurnAllLocalCleanup({ wipeIdentity: true, disconnectTon });
 
     expect(localStorage.getItem(PREFERENCES_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem('bc:other')).toBeNull();
+    expect(localStorage.getItem(LANGUAGE_PREF_KEY)).toBeNull();
+  });
+
+  it('keeps preferred_language on data-mode burn', async () => {
+    localStorage.setItem(LANGUAGE_PREF_KEY, 'de');
+
+    await performBurnAllLocalCleanup({ wipeIdentity: false, disconnectTon });
+
+    expect(localStorage.getItem(LANGUAGE_PREF_KEY)).toBe('de');
   });
 
   it('clears TonConnect localStorage keys when wipeIdentity is true', async () => {

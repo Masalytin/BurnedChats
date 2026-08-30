@@ -2,7 +2,12 @@ import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { STORAGE_KEY, SUPPORTED_LANGS, type SupportedLanguage } from './index';
+import {
+  STORAGE_KEY,
+  isSupportedLanguage,
+  writeLocalPreferredLanguage,
+  type SupportedLanguage,
+} from './languagePreference';
 
 interface UseLanguageSwitcherReturn {
   currentLang: SupportedLanguage;
@@ -14,44 +19,40 @@ export function useLanguageSwitcher(): UseLanguageSwitcherReturn {
   const { i18n } = useTranslation();
   const { publish, isConnected } = useWebSocket();
   const [currentLang, setCurrentLang] = useState<SupportedLanguage>(
-    (SUPPORTED_LANGS as readonly string[]).includes(i18n.language)
-      ? (i18n.language as SupportedLanguage)
-      : 'en'
+    isSupportedLanguage(i18n.language) ? i18n.language : 'en'
   );
 
   // Sync state when i18n language changes externally (e.g., CloudStorage async load)
   useEffect(() => {
     const handler = (lang: string) => {
-      if (isSupported(lang)) setCurrentLang(lang);
+      if (isSupportedLanguage(lang)) setCurrentLang(lang);
     };
     i18n.on('languageChanged', handler);
     return () => { i18n.off('languageChanged', handler); };
   }, [i18n]);
 
   const isSupported = useCallback(
-    (lang: string): lang is SupportedLanguage =>
-      (SUPPORTED_LANGS as readonly string[]).includes(lang),
+    (lang: string): lang is SupportedLanguage => isSupportedLanguage(lang),
     []
   );
 
   const switchLanguage = useCallback(
     (lang: SupportedLanguage) => {
-      if (lang === currentLang) return;
+      if (lang !== currentLang) {
+        i18n.changeLanguage(lang);
+        setCurrentLang(lang);
+      }
 
-      // 1. Instant — update i18next
-      i18n.changeLanguage(lang);
-      setCurrentLang(lang);
+      writeLocalPreferredLanguage(lang);
 
-      // 2. Save to Telegram CloudStorage (requires Web App >= 6.9)
       try {
         WebApp.CloudStorage.setItem(STORAGE_KEY, lang, (err) => {
           if (err) console.warn('Failed to save language preference', err);
         });
       } catch {
-        // CloudStorage not supported — preference won't persist across sessions
+        // CloudStorage not supported — localStorage still persists on this device
       }
 
-      // 3. Sync with backend (fire-and-forget, does not block UI)
       if (isConnected) {
         publish('/app/user.setLanguage', { languageCode: lang });
       }

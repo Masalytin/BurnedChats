@@ -7,6 +7,7 @@ import {
 } from '@/components/DebugPanel/hooks/useDebugState';
 import { burnAll as burnAllKeys } from '@/crypto/keyStore';
 import { STORAGE_KEY as CLOUD_LANGUAGE_KEY } from '@/i18n';
+import { clearLocalPreferredLanguage } from '@/i18n/languagePreference';
 import { PREFERENCES_STORAGE_KEY } from '@/preferences/preferencesStorage';
 import { clearDownloadCache } from '@/services/fileDownloadService';
 import { cancelAll } from '@/services/transferQueue';
@@ -126,6 +127,7 @@ export async function performBurnAllLocalCleanup(options: BurnAllCleanupOptions)
   if (options.wipeIdentity) {
     clearAppLocalStorage();
     clearTonConnectLocalStorage();
+    clearLocalPreferredLanguage();
     clearCloudLanguagePreference();
   }
 }

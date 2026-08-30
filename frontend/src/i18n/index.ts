@@ -11,23 +11,22 @@ import fr from './locales/fr.json';
 import ru from './locales/ru.json';
 import uk from './locales/uk.json';
 import zhCN from './locales/zh-CN.json';
+import {
+  STORAGE_KEY,
+  isSupportedLanguage,
+  resolveInitialLanguage,
+} from './languagePreference';
 
-export const SUPPORTED_LANGS = ['ar', 'de', 'en', 'es', 'fr', 'ru', 'uk', 'zh-CN'] as const;
-export const STORAGE_KEY = 'preferred_language';
-
-export type SupportedLanguage = (typeof SUPPORTED_LANGS)[number];
-
-/** Normalize Telegram language_code to a supported locale (e.g. zh, zh-hans → zh-CN). */
-function normalizeTelegramLang(code: string): string {
-  const lower = code.toLowerCase();
-  if (lower === 'zh' || lower.startsWith('zh-hans') || lower.startsWith('zh-cn')) return 'zh-CN';
-  return lower;
-}
+export {
+  STORAGE_KEY,
+  SUPPORTED_LANGS,
+  isSupportedLanguage,
+  type SupportedLanguage,
+} from './languagePreference';
 
 const telegramLang = WebApp.initDataUnsafe.user?.language_code;
 const browserLang = typeof navigator !== 'undefined' ? navigator.language : 'en';
-const normalized = normalizeTelegramLang(telegramLang ?? browserLang);
-const initialLang = (SUPPORTED_LANGS as readonly string[]).includes(normalized) ? normalized : 'en';
+const initialLang = resolveInitialLanguage({ telegramLang, browserLang });
 
 i18n
   .use(initReactI18next)
@@ -55,7 +54,7 @@ i18n
 if (isTelegramMiniApp()) {
   try {
     WebApp.CloudStorage.getItem(STORAGE_KEY, (err, savedLang) => {
-      if (!err && savedLang && (SUPPORTED_LANGS as readonly string[]).includes(savedLang)) {
+      if (!err && savedLang && isSupportedLanguage(savedLang)) {
         if (savedLang !== i18n.language) {
           i18n.changeLanguage(savedLang);
         }
