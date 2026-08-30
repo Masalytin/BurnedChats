@@ -1,0 +1,111 @@
+.language-pick {
+  position: fixed;
+  inset: 0;
+  z-index: var(--bc-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-overlay);
+  animation: language-pick-fade 220ms var(--bc-ease-out);
+}
+
+.language-pick__card {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-lg);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  box-shadow: var(--bc-shadow-lg);
+  animation: language-pick-card-in 220ms var(--bc-ease-out);
+}
+
+.language-pick__title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+}
+
+.language-pick__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.language-pick__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--bc-touch-target);
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: transparent;
+  color: var(--bc-text-primary);
+  font-size: var(--bc-text-base);
+  text-align: start;
+  cursor: pointer;
+}
+
+.language-pick__option--active {
+  background: var(--bc-accent-muted);
+}
+
+.language-pick__name {
+  font-weight: 600;
+}
+
+.language-pick__check {
+  flex-shrink: 0;
+  color: var(--bc-text-link);
+}
+
+.language-pick__actions {
+  margin-top: var(--bc-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-xs);
+}
+
+.language-pick__hint {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-secondary);
+  text-align: center;
+}
+
+@keyframes language-pick-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes language-pick-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .language-pick,
+  .language-pick__card {
+    animation: none;
+  }
+}

@@ -1568,5 +1568,26 @@
     "continueInBrowser": "المتابعة في المتصفح",
     "invalidTitle": "رابط دعوة غير صالح",
     "invalidHint": "الرابط ناقص أو غير صحيح. اطلب دعوة جديدة."
+  },
+
+  "onboarding": {
+    "language": {
+      "title": "اختر لغتك",
+      "continue": "متابعة",
+      "hint": "يمكنك تغيير اللغة لاحقًا في الإعدادات"
+    }
+  },
+
+  "language": {
+    "nativeName": {
+      "ar": "العربية",
+      "de": "Deutsch",
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "ru": "Русский",
+      "uk": "Українська",
+      "zh-CN": "简体中文"
+    }
   }
 }

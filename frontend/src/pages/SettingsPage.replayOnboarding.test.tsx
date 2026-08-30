@@ -9,6 +9,7 @@ import {
   ONBOARDING_STORAGE_KEY,
   saveOnboardingProgress,
 } from '../onboarding';
+import { STORAGE_KEY as LANGUAGE_PREF_KEY } from '../i18n/languagePreference';
 import {
   getDefaultPreferences,
   PREFERENCES_STORAGE_KEY,
@@ -162,6 +163,20 @@ describe('SettingsPage replay onboarding', () => {
       expect(readOnboardingRaw()).toEqual({ v: 1, seen: {} });
     });
     expect(screen.getByTestId('home-route')).toBeTruthy();
+  });
+
+  it('does not clear preferred_language when onboarding is reset', async () => {
+    localStorage.setItem(LANGUAGE_PREF_KEY, 'uk');
+    showConfirm.mockResolvedValueOnce(true);
+    await renderSettings();
+
+    fireEvent.click(replayButton());
+
+    await waitFor(() => {
+      expect(readOnboardingRaw()).toEqual({ v: 1, seen: {} });
+    });
+
+    expect(localStorage.getItem(LANGUAGE_PREF_KEY)).toBe('uk');
   });
 
   it('does not change bc:prefs:v1 theme when onboarding is reset', async () => {

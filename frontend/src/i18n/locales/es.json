@@ -1560,5 +1560,26 @@
     "continueInBrowser": "Continuar en el navegador",
     "invalidTitle": "Enlace de invitación no válido",
     "invalidHint": "El enlace falta o es incorrecto. Pide una nueva invitación."
+  },
+
+  "onboarding": {
+    "language": {
+      "title": "Elige tu idioma",
+      "continue": "Continuar",
+      "hint": "Puedes cambiar el idioma más tarde en Ajustes"
+    }
+  },
+
+  "language": {
+    "nativeName": {
+      "ar": "العربية",
+      "de": "Deutsch",
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "ru": "Русский",
+      "uk": "Українська",
+      "zh-CN": "简体中文"
+    }
   }
 }

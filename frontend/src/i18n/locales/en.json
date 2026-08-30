@@ -1600,5 +1600,26 @@
     "continueInBrowser": "Continue in browser",
     "invalidTitle": "Invalid invite link",
     "invalidHint": "This link is missing or incorrect. Ask for a new invite."
+  },
+
+  "onboarding": {
+    "language": {
+      "title": "Choose your language",
+      "continue": "Continue",
+      "hint": "You can change the language later in Settings"
+    }
+  },
+
+  "language": {
+    "nativeName": {
+      "ar": "العربية",
+      "de": "Deutsch",
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "ru": "Русский",
+      "uk": "Українська",
+      "zh-CN": "简体中文"
+    }
   }
 }

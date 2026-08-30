@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import i18n from '../i18n';
+import { useLanguagePrefReady } from '../i18n/useLanguagePrefReady';
+import { isSupportedLanguage, writeLocalPreferredLanguage } from '../i18n/languagePreference';
 import { loadOnboardingProgress, markOnboardingSeen } from './onboardingProgress';
 
 export interface UseOnboardingFlowOptions {
@@ -6,27 +9,40 @@ export interface UseOnboardingFlowOptions {
 }
 
 export interface UseOnboardingFlowResult {
+  showLanguagePick: boolean;
   showBriefing: boolean;
   hideBottomNav: boolean;
+  onLanguagePickConfirm: () => void;
   onBriefingDismiss: () => void;
 }
 
 /**
- * First-run briefing gate. Home tour is owned by useHomeTourGate (IMP-ONBTOUR-03).
+ * First-run gates: language pick (if no saved pref), then briefing.
+ * Home tour is owned by useHomeTourGate (IMP-ONBTOUR-03).
  */
 export function useOnboardingFlow({
   isAuthenticated,
 }: UseOnboardingFlowOptions): UseOnboardingFlowResult {
+  const { ready, hasPref, markPrefSaved } = useLanguagePrefReady({ isAuthenticated });
   const [showBriefing, setShowBriefing] = useState(false);
 
+  const showLanguagePick = isAuthenticated && ready && !hasPref;
+
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !ready || !hasPref) {
       setShowBriefing(false);
       return;
     }
-    const progress = loadOnboardingProgress();
-    setShowBriefing(progress.seen.briefing !== true);
-  }, [isAuthenticated]);
+    setShowBriefing(loadOnboardingProgress().seen.briefing !== true);
+  }, [isAuthenticated, ready, hasPref]);
+
+  const onLanguagePickConfirm = useCallback(() => {
+    const lang = i18n.language;
+    if (isSupportedLanguage(lang)) {
+      writeLocalPreferredLanguage(lang);
+    }
+    markPrefSaved();
+  }, [markPrefSaved]);
 
   const onBriefingDismiss = useCallback(() => {
     markOnboardingSeen('briefing');
@@ -34,8 +50,10 @@ export function useOnboardingFlow({
   }, []);
 
   return {
+    showLanguagePick,
     showBriefing,
-    hideBottomNav: showBriefing,
+    hideBottomNav: isAuthenticated && (!ready || showLanguagePick || showBriefing),
+    onLanguagePickConfirm,
     onBriefingDismiss,
   };
 }

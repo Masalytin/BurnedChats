@@ -38,6 +38,7 @@ import { useRoomTtl } from './hooks/useRoomTtl';
 import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
 import { OnboardingBriefing } from './components/OnboardingBriefing';
+import { LanguagePickScreen } from './components/LanguagePickScreen';
 import { HomeTour } from './components/HomeTour';
 import { useHomeTourGate, useOnboardingFlow } from './onboarding';
 import { RoomBurnedReturnDialog } from './components/RoomBurnedReturnDialog';
@@ -1000,7 +1001,13 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [homeHelpOpen, setHomeHelpOpen] = useState(false);
   const [createRoomHelpOpen, setCreateRoomHelpOpen] = useState(false);
-  const { showBriefing, hideBottomNav: hideNavForBriefing, onBriefingDismiss } = useOnboardingFlow({
+  const {
+    showLanguagePick,
+    showBriefing,
+    hideBottomNav: hideNavForBriefing,
+    onLanguagePickConfirm,
+    onBriefingDismiss,
+  } = useOnboardingFlow({
     isAuthenticated,
   });
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
@@ -3984,6 +3991,10 @@ function AppContent() {
             count={offlineBurnNotice}
             onDismiss={() => setOfflineBurnNotice(null)}
           />
+        )}
+
+        {showLanguagePick && (
+          <LanguagePickScreen onConfirm={onLanguagePickConfirm} />
         )}
 
         {showBriefing && (

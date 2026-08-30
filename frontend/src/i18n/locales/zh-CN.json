@@ -1560,5 +1560,26 @@
     "continueInBrowser": "在浏览器中继续",
     "invalidTitle": "邀请链接无效",
     "invalidHint": "链接缺失或不正确。请索取新的邀请。"
+  },
+
+  "onboarding": {
+    "language": {
+      "title": "选择语言",
+      "continue": "继续",
+      "hint": "之后可在设置中更改语言"
+    }
+  },
+
+  "language": {
+    "nativeName": {
+      "ar": "العربية",
+      "de": "Deutsch",
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "ru": "Русский",
+      "uk": "Українська",
+      "zh-CN": "简体中文"
+    }
   }
 }

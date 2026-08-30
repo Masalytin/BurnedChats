@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- First-run language picker after sign-in when no saved preference exists (native names, one tap to continue).
+
 ## [0.1.6] - 2026-08-30
 
 ### Fixed

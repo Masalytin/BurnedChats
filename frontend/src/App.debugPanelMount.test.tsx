@@ -11,6 +11,7 @@ import {
   savePreferences,
 } from '@/preferences/preferencesStorage';
 import { ONBOARDING_STORAGE_KEY, saveOnboardingProgress } from './onboarding';
+import { STORAGE_KEY as LANGUAGE_PREF_KEY, writeLocalPreferredLanguage } from './i18n/languagePreference';
 import App from './App';
 
 const { harness, noop, asyncNoop } = vi.hoisted(() => ({
@@ -538,7 +539,9 @@ describe('App BottomNavBar top-level routing', () => {
     resetHarness();
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
     localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    localStorage.removeItem(LANGUAGE_PREF_KEY);
     setPanelEnabled(false);
+    writeLocalPreferredLanguage('en');
     saveOnboardingProgress({ v: 1, seen: { briefing: true } });
     harness.isAuthenticated = true;
     harness.environment = 'browser';
@@ -550,6 +553,7 @@ describe('App BottomNavBar top-level routing', () => {
     cleanup();
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
     localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    localStorage.removeItem(LANGUAGE_PREF_KEY);
   });
 
   function renderSplatApp(path = '/app') {

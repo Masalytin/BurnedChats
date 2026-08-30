@@ -1560,5 +1560,26 @@
     "continueInBrowser": "Im Browser fortfahren",
     "invalidTitle": "Ungültiger Einladungslink",
     "invalidHint": "Der Link fehlt oder ist fehlerhaft. Bitten Sie um eine neue Einladung."
+  },
+
+  "onboarding": {
+    "language": {
+      "title": "Sprache wählen",
+      "continue": "Weiter",
+      "hint": "Die Sprache kannst du später in den Einstellungen ändern"
+    }
+  },
+
+  "language": {
+    "nativeName": {
+      "ar": "العربية",
+      "de": "Deutsch",
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "ru": "Русский",
+      "uk": "Українська",
+      "zh-CN": "简体中文"
+    }
   }
 }
