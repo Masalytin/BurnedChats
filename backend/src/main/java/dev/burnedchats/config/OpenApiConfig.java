@@ -21,6 +21,6 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Burned Chats API")
                         .description("REST surface for Burned Chats Telegram Mini App")
-                        .version("0.2.0"));
+                        .version("0.2.1"));
     }
 }
