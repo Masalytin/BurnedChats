@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings «Linked accounts» refetches when the browser tab becomes visible again while Telegram (or the wallet) is still unlinked, so a Mini App complete updates the web snapshot without leaving the page.
 - Web wallet «How BURN works» opens `/token` in a new tab so the in-app session is not torn down; Telegram Mini App still uses same-tab `?from=wallet`.
 
 ## [0.2.0] - 2026-08-30

@@ -91,6 +91,28 @@ export function LinkedAccounts({
     void reload();
   }, [reload]);
 
+  const awaitingPeerLink =
+    snapshot != null &&
+    (credentials?.kind === 'wallet' ? !snapshot.telegramLinked : !snapshot.walletLinked);
+
+  useEffect(() => {
+    if (!awaitingPeerLink) {
+      return;
+    }
+    const refetchIfVisible = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      void reload();
+    };
+    document.addEventListener('visibilitychange', refetchIfVisible);
+    window.addEventListener('focus', refetchIfVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refetchIfVisible);
+      window.removeEventListener('focus', refetchIfVisible);
+    };
+  }, [awaitingPeerLink, reload]);
+
   useEffect(() => {
     if (snapshot?.walletLinked) {
       onTonWalletLinkedDetected?.();

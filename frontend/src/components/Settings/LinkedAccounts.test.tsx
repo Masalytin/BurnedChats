@@ -449,4 +449,36 @@ describe('LinkedAccounts (IMP-WSWITCH-02)', () => {
     expect(screen.getByText(i18n.t('accountLinking.switchTitle'))).toBeTruthy();
     expect(switchWallet).not.toHaveBeenCalled();
   });
+
+  it('web: refetches when the tab becomes visible while Telegram is still unlinked', async () => {
+    fetchLinkedAccounts
+      .mockResolvedValueOnce(
+        bothLinked({ telegramLinked: false, telegramId: null, telegramLabel: '', linkedMethodCount: 1 }),
+      )
+      .mockResolvedValueOnce(bothLinked());
+
+    await loadedAccounts(webCreds);
+    expect(screen.getByText(i18n.t('accountLinking.notLinked'))).toBeTruthy();
+    expect(fetchLinkedAccounts).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(await screen.findByText('@alice')).toBeTruthy();
+    expect(fetchLinkedAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it('web: does not refetch on visibility when Telegram is already linked', async () => {
+    await loadedAccounts(webCreds);
+    expect(fetchLinkedAccounts).toHaveBeenCalledTimes(1);
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 30);
+    });
+    expect(fetchLinkedAccounts).toHaveBeenCalledTimes(1);
+  });
 });
