@@ -1568,6 +1568,11 @@
       "title": "Sprache wählen",
       "continue": "Weiter",
       "hint": "Die Sprache kannst du später in den Einstellungen ändern"
+    },
+    "theme": {
+      "title": "Wähle dein Design",
+      "continue": "Weiter",
+      "hint": "Das Design kannst du später in den Einstellungen ändern"
     }
   },
 

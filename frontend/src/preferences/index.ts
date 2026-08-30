@@ -1,4 +1,4 @@
-export { PreferencesProvider, usePreferences } from './PreferencesContext';
+export { PreferencesProvider, TELEGRAM_UNSAFE_ATTR, usePreferences } from './PreferencesContext';
 export {
   areHapticsEnabled,
   getDefaultPreferences,

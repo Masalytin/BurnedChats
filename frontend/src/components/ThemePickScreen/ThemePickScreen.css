@@ -1,0 +1,73 @@
+.theme-pick {
+  position: fixed;
+  inset: 0;
+  z-index: var(--bc-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bc-spacing-md);
+  background: var(--bc-bg-overlay);
+  animation: theme-pick-fade 220ms var(--bc-ease-out);
+}
+
+.theme-pick__card {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-lg);
+  background: var(--bc-bg-secondary);
+  border-radius: var(--bc-radius-lg);
+  box-shadow: var(--bc-shadow-lg);
+  animation: theme-pick-card-in 220ms var(--bc-ease-out);
+}
+
+.theme-pick__title {
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+  color: var(--bc-text-primary);
+}
+
+.theme-pick__actions {
+  margin-top: var(--bc-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-xs);
+}
+
+.theme-pick__hint {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  line-height: var(--bc-leading-relaxed);
+  color: var(--bc-text-secondary);
+  text-align: center;
+}
+
+@keyframes theme-pick-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes theme-pick-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-pick,
+  .theme-pick__card {
+    animation: none;
+  }
+}

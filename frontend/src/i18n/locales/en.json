@@ -1608,6 +1608,11 @@
       "title": "Choose your language",
       "continue": "Continue",
       "hint": "You can change the language later in Settings"
+    },
+    "theme": {
+      "title": "Choose your look",
+      "continue": "Continue",
+      "hint": "You can change the theme later in Settings"
     }
   },
 

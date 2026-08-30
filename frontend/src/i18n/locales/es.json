@@ -1568,6 +1568,11 @@
       "title": "Elige tu idioma",
       "continue": "Continuar",
       "hint": "Puedes cambiar el idioma más tarde en Ajustes"
+    },
+    "theme": {
+      "title": "Elige tu tema",
+      "continue": "Continuar",
+      "hint": "Puedes cambiar el tema más tarde en Ajustes"
     }
   },
 

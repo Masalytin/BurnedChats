@@ -416,7 +416,11 @@ vi.mock('./components/Wallet/LazyWalletProvider', () => ({
 }));
 
 function setPanelEnabled(enabled: boolean): void {
-  savePreferences({ ...getDefaultPreferences(), debugPanelEnabled: enabled });
+  savePreferences({
+    ...getDefaultPreferences(),
+    debugPanelEnabled: enabled,
+    themeSelected: true,
+  });
 }
 
 function renderApp() {
@@ -542,6 +546,7 @@ describe('App BottomNavBar top-level routing', () => {
     localStorage.removeItem(LANGUAGE_PREF_KEY);
     setPanelEnabled(false);
     writeLocalPreferredLanguage('en');
+    savePreferences({ ...getDefaultPreferences(), themeSelected: true });
     saveOnboardingProgress({ v: 1, seen: { briefing: true } });
     harness.isAuthenticated = true;
     harness.environment = 'browser';

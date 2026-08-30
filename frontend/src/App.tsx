@@ -39,6 +39,7 @@ import { useRoomMessageTtl } from './hooks/useRoomMessageTtl';
 import { Layout } from './components/Layout/Layout';
 import { OnboardingBriefing } from './components/OnboardingBriefing';
 import { LanguagePickScreen } from './components/LanguagePickScreen';
+import { ThemePickScreen } from './components/ThemePickScreen';
 import { HomeTour } from './components/HomeTour';
 import { useHomeTourGate, useOnboardingFlow } from './onboarding';
 import { RoomBurnedReturnDialog } from './components/RoomBurnedReturnDialog';
@@ -1003,9 +1004,11 @@ function AppContent() {
   const [createRoomHelpOpen, setCreateRoomHelpOpen] = useState(false);
   const {
     showLanguagePick,
+    showThemePick,
     showBriefing,
     hideBottomNav: hideNavForBriefing,
     onLanguagePickConfirm,
+    onThemePickConfirm,
     onBriefingDismiss,
   } = useOnboardingFlow({
     isAuthenticated,
@@ -3995,6 +3998,10 @@ function AppContent() {
 
         {showLanguagePick && (
           <LanguagePickScreen onConfirm={onLanguagePickConfirm} />
+        )}
+
+        {showThemePick && (
+          <ThemePickScreen onConfirm={onThemePickConfirm} />
         )}
 
         {showBriefing && (
