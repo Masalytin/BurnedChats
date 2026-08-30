@@ -6,5 +6,6 @@ export {
   PREFERENCES_STORAGE_KEY,
   savePreferences,
   shouldShowToast,
+  type ThemeMode,
   type UserPreferences,
 } from './preferencesStorage';

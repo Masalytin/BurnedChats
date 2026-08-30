@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ember, Bone, and Nocturne appearance palettes; stored `dark` theme migrates to Ember, and new installs default to Ember.
+
 ### Fixed
 
-- Telegram theme mode derives elevated surfaces and borders from the client palette and falls back to the existing dark canvas when contrast is unreadable.
+- Telegram theme mode derives elevated surfaces and borders from the client palette and falls back to Ember when contrast is unreadable.
 
 ## [0.1.7] - 2026-08-30
 

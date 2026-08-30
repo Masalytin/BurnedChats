@@ -79,10 +79,12 @@ function seedOnboardingSeen(): void {
 }
 
 function seedDarkThemePrefs(): void {
-  localStorage.setItem(
-    PREFERENCES_STORAGE_KEY,
-    JSON.stringify({ ...getDefaultPreferences(), themeMode: 'dark' }),
-  );
+  const legacy = {
+    ...getDefaultPreferences(),
+    themeSelected: true,
+  } as Record<string, unknown>;
+  legacy.themeMode = 'dark';
+  localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(legacy));
 }
 
 async function renderSettings() {
@@ -191,7 +193,7 @@ describe('SettingsPage replay onboarding', () => {
     });
 
     expect(JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? 'null')).toEqual(
-      expect.objectContaining({ themeMode: 'dark' }),
+      expect.objectContaining({ themeMode: 'ember' }),
     );
   });
 });

@@ -1,19 +1,66 @@
 /**
- * Forced dark theme — overrides --bc-* tokens only (not --tg-theme-*).
- * Applied when user selects themeMode: 'dark' in Settings.
+ * BurnedChats palettes — hex locked in appearance-themes DESIGN.md.
+ * Telegram+ok uses :root --tg-theme-* + color-mix in theme.css.
+ * Telegram+unsafe shares the Ember sheet; data-bc-theme stays telegram.
  */
-html[data-bc-theme='dark'] {
-  --bc-bg-primary: #0f0f0f;
-  --bc-bg-secondary: #1a1a1a;
-  --bc-bg-elevated: #242424;
-  --bc-text-primary: #ffffff;
-  --bc-text-secondary: #7d7d7d;
-  --bc-text-muted: #7d7d7d;
-  --bc-border-color: rgba(255, 255, 255, 0.08);
-  --bc-border-color-strong: rgba(255, 255, 255, 0.16);
-  --bc-message-incoming-bg: #242424;
-  --bc-message-incoming-text: #ffffff;
-  --bc-button-secondary-bg: #242424;
-  --bc-button-secondary-text: #ffffff;
+
+html[data-bc-theme='ember'],
+html[data-bc-telegram-unsafe] {
+  --bc-bg-primary: #12110F;
+  --bc-bg-secondary: #1C1A17;
+  --bc-bg-elevated: #26231E;
+  --bc-text-primary: #F5F0E8;
+  --bc-text-secondary: #9A9388;
+  --bc-text-muted: #6F6A62;
+  --bc-text-link: #FF8A5B;
+  --bc-text-accent: #FF6B35;
+  --bc-border-color: color-mix(in srgb, #F5F0E8 10%, transparent);
+  --bc-border-color-strong: color-mix(in srgb, #F5F0E8 20%, transparent);
+  --bc-message-outgoing-bg: #FF6B35;
+  --bc-message-outgoing-text: #FFFFFF;
+  --bc-message-incoming-bg: #26231E;
+  --bc-message-incoming-text: #F5F0E8;
+  --bc-button-secondary-bg: #26231E;
+  --bc-button-secondary-text: #F5F0E8;
+  --bc-accent-muted: rgba(255, 107, 53, 0.16);
+}
+
+html[data-bc-theme='bone'] {
+  --bc-bg-primary: #F6F1E8;
+  --bc-bg-secondary: #EBE4D6;
+  --bc-bg-elevated: #FFFCF7;
+  --bc-text-primary: #1A1612;
+  --bc-text-secondary: #6B6358;
+  --bc-text-muted: #8A8276;
+  --bc-text-link: #A83A12;
+  --bc-text-accent: #E85D28;
+  --bc-border-color: color-mix(in srgb, #1A1612 12%, transparent);
+  --bc-border-color-strong: color-mix(in srgb, #1A1612 20%, transparent);
+  --bc-message-outgoing-bg: #FF6B35;
+  --bc-message-outgoing-text: #FFFFFF;
+  --bc-message-incoming-bg: #EBE4D6;
+  --bc-message-incoming-text: #1A1612;
+  --bc-button-secondary-bg: #EBE4D6;
+  --bc-button-secondary-text: #1A1612;
+  --bc-accent-muted: rgba(232, 93, 40, 0.14);
+}
+
+html[data-bc-theme='nocturne'] {
+  --bc-bg-primary: #0B0E14;
+  --bc-bg-secondary: #131821;
+  --bc-bg-elevated: #1A2130;
+  --bc-text-primary: #E8EEF7;
+  --bc-text-secondary: #8B97AB;
+  --bc-text-muted: #6B7688;
+  --bc-text-link: #7EB6FF;
+  --bc-text-accent: #FF6B35;
+  --bc-border-color: color-mix(in srgb, #E8EEF7 10%, transparent);
+  --bc-border-color-strong: color-mix(in srgb, #E8EEF7 20%, transparent);
+  --bc-message-outgoing-bg: #FF6B35;
+  --bc-message-outgoing-text: #FFFFFF;
+  --bc-message-incoming-bg: #1A2130;
+  --bc-message-incoming-text: #E8EEF7;
+  --bc-button-secondary-bg: #1A2130;
+  --bc-button-secondary-text: #E8EEF7;
   --bc-accent-muted: rgba(255, 107, 53, 0.16);
 }

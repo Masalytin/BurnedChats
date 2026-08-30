@@ -114,7 +114,51 @@ describe('PreferencesContext telegram sanitizer', () => {
     document.documentElement.removeAttribute('data-bc-telegram-unsafe');
   });
 
-  it('keeps persisted telegram and paints the dark fallback when contrast is unsafe', () => {
+  it('paints Ember on the first frame when no prefs key exists', () => {
+    render(
+      <PreferencesProvider>
+        <Probe />
+      </PreferencesProvider>,
+    );
+
+    expect(document.documentElement.getAttribute('data-bc-theme')).toBe('ember');
+    expect(document.documentElement.hasAttribute('data-bc-telegram-unsafe')).toBe(false);
+    expect(screen.getByTestId('theme-mode').textContent).toBe('ember');
+    expect(localStorage.getItem(PREFERENCES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('applies bone and nocturne attributes without the telegram unsafe flag', () => {
+    localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ ...getDefaultPreferences(), themeMode: 'bone', themeSelected: true }),
+    );
+
+    const { unmount } = render(
+      <PreferencesProvider>
+        <Probe />
+      </PreferencesProvider>,
+    );
+
+    expect(document.documentElement.getAttribute('data-bc-theme')).toBe('bone');
+    expect(document.documentElement.hasAttribute('data-bc-telegram-unsafe')).toBe(false);
+    unmount();
+
+    localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ ...getDefaultPreferences(), themeMode: 'nocturne', themeSelected: true }),
+    );
+
+    render(
+      <PreferencesProvider>
+        <Probe />
+      </PreferencesProvider>,
+    );
+
+    expect(document.documentElement.getAttribute('data-bc-theme')).toBe('nocturne');
+    expect(document.documentElement.hasAttribute('data-bc-telegram-unsafe')).toBe(false);
+  });
+
+  it('keeps persisted telegram and paints the Ember fallback when contrast is unsafe', () => {
     const raw = persistTelegram();
 
     render(

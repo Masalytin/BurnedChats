@@ -370,8 +370,8 @@ export function SettingsPage({
               id="settings-theme-dark"
               name="settings-theme"
               label={t('settings.appearance.themeDark')}
-              checked={prefs.themeMode === 'dark'}
-              onChange={() => handleThemeChange('dark')}
+              checked={prefs.themeMode === 'ember'}
+              onChange={() => handleThemeChange('ember')}
             />
           </div>
         </div>

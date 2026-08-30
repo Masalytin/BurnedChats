@@ -22,7 +22,7 @@ export const TELEGRAM_UNSAFE_ATTR = 'data-bc-telegram-unsafe';
 interface PreferencesContextValue {
   prefs: UserPreferences;
   setPref: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void;
-  /** Runtime-only: persisted themeMode is still telegram, canvas uses forced-dark tokens. */
+  /** Runtime-only: persisted themeMode is still telegram, canvas uses the Ember sheet. */
   telegramUnsafe: boolean;
 }
 
@@ -33,8 +33,8 @@ function applyThemeMode(
   themeParams: TelegramThemeParams,
 ): boolean {
   const root = document.documentElement;
-  if (themeMode === 'dark') {
-    root.setAttribute('data-bc-theme', 'dark');
+  if (themeMode !== 'telegram') {
+    root.setAttribute('data-bc-theme', themeMode);
     root.removeAttribute(TELEGRAM_UNSAFE_ATTR);
     return false;
   }

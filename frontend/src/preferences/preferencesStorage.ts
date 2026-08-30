@@ -3,21 +3,27 @@
  * Key: bc:prefs:v1
  */
 
+export type ThemeMode = 'telegram' | 'ember' | 'bone' | 'nocturne';
+
 export interface UserPreferences {
   hapticsEnabled: boolean;
   toastsEnabled: boolean;
   debugPanelEnabled: boolean;
-  themeMode: 'telegram' | 'dark';
+  themeMode: ThemeMode;
+  themeSelected: boolean;
   panicGestureEnabled: boolean;
 }
 
 export const PREFERENCES_STORAGE_KEY = 'bc:prefs:v1';
 
+const THEME_MODES = new Set<ThemeMode>(['telegram', 'ember', 'bone', 'nocturne']);
+
 const DEFAULT_PREFERENCES: UserPreferences = {
   hapticsEnabled: true,
   toastsEnabled: true,
   debugPanelEnabled: false,
-  themeMode: 'telegram',
+  themeMode: 'ember',
+  themeSelected: false,
   panicGestureEnabled: false,
 };
 
@@ -25,7 +31,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function validatePreferences(value: unknown): UserPreferences {
+function normalizeThemeMode(value: unknown): ThemeMode {
+  if (value === 'dark') {
+    return 'ember';
+  }
+  if (typeof value === 'string' && THEME_MODES.has(value as ThemeMode)) {
+    return value as ThemeMode;
+  }
+  return 'ember';
+}
+
+export function validatePreferences(value: unknown): UserPreferences {
   if (!isRecord(value)) {
     return { ...DEFAULT_PREFERENCES };
   }
@@ -43,12 +59,21 @@ function validatePreferences(value: unknown): UserPreferences {
       typeof value.debugPanelEnabled === 'boolean'
         ? value.debugPanelEnabled
         : DEFAULT_PREFERENCES.debugPanelEnabled,
-    themeMode: value.themeMode === 'dark' ? 'dark' : 'telegram',
+    themeMode: normalizeThemeMode(value.themeMode),
+    themeSelected:
+      typeof value.themeSelected === 'boolean' ? value.themeSelected : true,
     panicGestureEnabled:
       typeof value.panicGestureEnabled === 'boolean'
         ? value.panicGestureEnabled
         : DEFAULT_PREFERENCES.panicGestureEnabled,
   };
+}
+
+function storedNeedsRewrite(stored: unknown, validated: UserPreferences): boolean {
+  if (!isRecord(stored)) {
+    return false;
+  }
+  return stored.themeMode !== validated.themeMode || stored.themeSelected !== validated.themeSelected;
 }
 
 export function getDefaultPreferences(): UserPreferences {
@@ -61,7 +86,12 @@ export function loadPreferences(): UserPreferences {
     if (!raw) {
       return getDefaultPreferences();
     }
-    return validatePreferences(JSON.parse(raw));
+    const parsed: unknown = JSON.parse(raw);
+    const validated = validatePreferences(parsed);
+    if (storedNeedsRewrite(parsed, validated)) {
+      savePreferences(validated);
+    }
+    return validated;
   } catch {
     return getDefaultPreferences();
   }
@@ -69,7 +99,11 @@ export function loadPreferences(): UserPreferences {
 
 export function savePreferences(prefs: UserPreferences): void {
   try {
-    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(prefs));
+    const normalized: UserPreferences = {
+      ...prefs,
+      themeMode: normalizeThemeMode(prefs.themeMode),
+    };
+    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(normalized));
   } catch {
     // Ignore quota / private-mode storage errors
   }
