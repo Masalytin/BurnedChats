@@ -37,19 +37,44 @@ public class WalletTelegramLinkChallengeStore {
     }
 
     /**
+     * Reads the stored internal id without deleting the challenge.
+     */
+    public Mono<String> peekInternalId(String challengeId) {
+        String key = challengeKey(challengeId);
+        if (key == null) {
+            return Mono.empty();
+        }
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    /**
+     * Deletes a challenge after a successful telegram link.
+     */
+    public Mono<Void> consume(String challengeId) {
+        String key = challengeKey(challengeId);
+        if (key == null) {
+            return Mono.empty();
+        }
+        return redisTemplate.delete(key).then();
+    }
+
+    /**
      * Validates and consumes a challenge id, returning the stored internal id.
+     * Prefer {@link #peekInternalId} then {@link #consume} so a failed link can retry.
      */
     public Mono<String> takeInternalId(String challengeId) {
+        return peekInternalId(challengeId)
+                .flatMap(value -> consume(challengeId).thenReturn(value));
+    }
+
+    private static String challengeKey(String challengeId) {
         if (challengeId == null || challengeId.isBlank()) {
-            return Mono.empty();
+            return null;
         }
         String trimmed = challengeId.trim().toLowerCase();
         if (!trimmed.matches("[a-f0-9]{32}")) {
-            return Mono.empty();
+            return null;
         }
-        String key = PREFIX + trimmed;
-        return redisTemplate.opsForValue()
-                .get(key)
-                .flatMap(value -> redisTemplate.delete(key).thenReturn(value));
+        return PREFIX + trimmed;
     }
 }

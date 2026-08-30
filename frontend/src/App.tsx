@@ -120,9 +120,11 @@ import { shouldRefreshHomeData } from './utils/shouldRefreshHomeData';
 import {
   parseDmInviteStartParam,
   parseDmStartParam,
+  parseLtChallengeStartParam,
   parseRoomStartParam,
   resolveDmDeepLink,
   resolveRoomDeepLink,
+  shouldDeferWebsocketForTelegramLink,
 } from './utils/telegramStartParam';
 import { DmInviteSheet, DmInviteScanner } from './components/DmInvite';
 import {
@@ -329,6 +331,13 @@ function AppContent() {
   }, [environment, location.pathname]);
 
   const telegramWalletLinkAttemptedRef = useRef(false);
+  const [telegramLinkSettled, setTelegramLinkSettled] = useState(false);
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const notificationOccurredRef = useRef(notificationOccurred);
+  notificationOccurredRef.current = notificationOccurred;
 
   // Search hook
   const {
@@ -1926,9 +1935,8 @@ function AppContent() {
   // Telegram Mini App completes wallet ↔ Telegram linking (start_param lt_<challenge>)
   useEffect(() => {
     if (!isReady || environment !== 'telegram') return;
-    if (!startParam?.startsWith('lt_')) return;
-    const challengeId = startParam.slice('lt_'.length);
-    if (!/^[a-fA-F0-9]{32}$/.test(challengeId)) return;
+    const challengeId = parseLtChallengeStartParam(startParam);
+    if (!challengeId) return;
     const initData = WebApp.initData;
     if (!initData) return;
     if (telegramWalletLinkAttemptedRef.current) return;
@@ -1942,16 +1950,17 @@ function AppContent() {
           challengeId,
           initData,
         );
-        notificationOccurred('success');
-        toast.success(t('accountLinking.telegramLinkedToast'));
+        notificationOccurredRef.current('success');
+        toastRef.current.success(tRef.current('accountLinking.telegramLinkedToast'));
       } catch (err) {
-        telegramWalletLinkAttemptedRef.current = false;
-        const msg = err instanceof Error ? err.message : t('accountLinking.linkFailed');
-        notificationOccurred('error');
-        toast.error(msg, { title: t('accountLinking.sectionTitle') });
+        const msg = err instanceof Error ? err.message : tRef.current('accountLinking.linkFailed');
+        notificationOccurredRef.current('error');
+        toastRef.current.error(msg, { title: tRef.current('accountLinking.sectionTitle') });
+      } finally {
+        setTelegramLinkSettled(true);
       }
     })();
-  }, [applyLinkedAccounts, environment, isReady, notificationOccurred, startParam, t, toast]);
+  }, [applyLinkedAccounts, environment, isReady, startParam]);
 
   // Notification deep link: dm_{sessionId} → resume chat or show incoming request (IMP-TGUX-03)
   useEffect(() => {
@@ -2128,8 +2137,10 @@ function AppContent() {
   }, [isAuthenticated, disconnect]);
 
   // Connect to WebSocket only when Telegram auth is available.
+  // Hold the socket during lt_ complete so handshake save() cannot race auth_tg.
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
+    if (shouldDeferWebsocketForTelegramLink(startParam, telegramLinkSettled)) return;
     connect();
 
     return () => {
@@ -2137,7 +2148,7 @@ function AppContent() {
       // Full wipe runs only via the logout effect above (`disconnect(true)`).
       disconnect(false);
     };
-  }, [isReady, isAuthenticated, connect, disconnect]);
+  }, [isReady, isAuthenticated, connect, disconnect, startParam, telegramLinkSettled]);
 
   // Handle "Start Chat" button click from search results
   const handleStartChat = useCallback((targetUser: UserInfo) => {

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
+import { getEnvironment } from '../../env/detector';
+import { openPreparedTelegramLink } from './openPreparedTelegramLink';
 import {
   linkWalletTelegram,
   requestTelegramLinkChallenge,
@@ -82,15 +84,16 @@ export function AccountLinking({ authType, credentials, onLinked, onBeforeTonWal
   const openPreparedLink = () => {
     const link = challengePayload?.telegramLink;
     if (!link?.length) return;
-    try {
-      if (typeof WebApp.openTelegramLink === 'function') {
-        WebApp.openTelegramLink(link);
-        return;
-      }
-    } catch {
-      /* noop */
-    }
-    window.open(link, '_blank', 'noopener,noreferrer');
+    openPreparedTelegramLink(
+      link,
+      getEnvironment(),
+      (url) => {
+        WebApp.openTelegramLink(url);
+      },
+      (url) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      },
+    );
   };
 
   const openBotFallback = () => {

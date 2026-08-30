@@ -159,25 +159,34 @@ public class UserIdentityRepository {
             return Mono.error(new IllegalArgumentException("internalId is required"));
         }
         return findByTelegramId(telegramId)
-                .flatMap(ownerId -> {
-                    if (internalId.equals(ownerId)) {
+                .flatMap(ownerId -> resolveExistingTelegramOwner(internalId, ownerId, telegramId)
+                        .thenReturn(Boolean.TRUE))
+                .switchIfEmpty(Mono.defer(() -> bindUnmappedTelegram(internalId, telegramId)
+                        .thenReturn(Boolean.TRUE)))
+                .then();
+    }
+
+    private Mono<Void> resolveExistingTelegramOwner(String internalId, String ownerId, Long telegramId) {
+        if (internalId.equals(ownerId)) {
+            return refreshTelegramLink(internalId, telegramId);
+        }
+        return absorbWalletLessTelegramStub(internalId, ownerId, telegramId);
+    }
+
+    private Mono<Void> bindUnmappedTelegram(String internalId, Long telegramId) {
+        return findById(internalId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("User profile not found")))
+                .flatMap(user -> {
+                    Long existingTg = user.telegramId();
+                    if (existingTg != null && !existingTg.equals(telegramId)) {
+                        return Mono.error(new IllegalStateException(
+                                "Another Telegram account is already linked; unlink it first"));
+                    }
+                    if (existingTg != null && existingTg.equals(telegramId)) {
                         return refreshTelegramLink(internalId, telegramId);
                     }
-                    return Mono.error(new IllegalStateException("Telegram already linked to another account"));
-                })
-                .switchIfEmpty(Mono.defer(() -> findById(internalId)
-                        .switchIfEmpty(Mono.error(new IllegalArgumentException("User profile not found")))
-                        .flatMap(user -> {
-                            Long existingTg = user.telegramId();
-                            if (existingTg != null && !existingTg.equals(telegramId)) {
-                                return Mono.error(new IllegalStateException(
-                                        "Another Telegram account is already linked; unlink it first"));
-                            }
-                            if (existingTg != null && existingTg.equals(telegramId)) {
-                                return refreshTelegramLink(internalId, telegramId);
-                            }
-                            return applyTelegramLink(internalId, telegramId);
-                        })));
+                    return applyTelegramLink(internalId, telegramId);
+                });
     }
 
     /**
@@ -286,6 +295,25 @@ public class UserIdentityRepository {
                 .then(redisTemplate.opsForHash().put(USER_PREFIX + internalId, "walletAddress", normalized))
                 .then(redisTemplate.expire(USER_PREFIX + internalId, TTL))
                 .then();
+    }
+
+    /**
+     * Mini App handshake may persist a Telegram-only stub ({@code auth_tg} → telegram-derived id,
+     * no wallet). Re-point the mapping at the wallet account. A stub that already has a wallet
+     * is a real conflict.
+     */
+    private Mono<Void> absorbWalletLessTelegramStub(String walletInternalId, String ownerId, Long telegramId) {
+        return findById(ownerId)
+                .switchIfEmpty(Mono.error(new IllegalStateException(
+                        "Telegram already linked to another account")))
+                .flatMap(other -> {
+                    String otherWallet = other.walletAddress();
+                    if (otherWallet != null && !otherWallet.isBlank()) {
+                        return Mono.error(new IllegalStateException(
+                                "Telegram already linked to another account"));
+                    }
+                    return applyTelegramLink(walletInternalId, telegramId);
+                });
     }
 
     private Mono<Void> applyTelegramLink(String internalId, Long telegramId) {

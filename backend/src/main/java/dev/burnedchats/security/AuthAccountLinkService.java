@@ -136,7 +136,7 @@ public class AuthAccountLinkService {
      * Mini App submits initData to bind Telegram to the wallet user referenced by challengeId.
      */
     public Mono<UnifiedUser> completeTelegramLink(String challengeId, String initData) {
-        return challengeStore.takeInternalId(challengeId)
+        return challengeStore.peekInternalId(challengeId)
                 .switchIfEmpty(Mono.error(new AuthenticationException("Invalid or expired link challenge")))
                 .flatMap(internalId -> authenticationService.authenticate(AuthCredentials.telegram(initData))
                         .flatMap(verifiedIdentity -> userIdentityRepository.findById(internalId)
@@ -152,6 +152,7 @@ public class AuthAccountLinkService {
                                     }
                                     return userIdentityRepository
                                             .linkTelegram(internalId, tgId)
+                                            .then(Mono.defer(() -> challengeStore.consume(challengeId)))
                                             .then(userIdentityRepository.findById(internalId))
                                             .switchIfEmpty(Mono.error(new IllegalStateException(
                                                     "User not found after telegram link")));

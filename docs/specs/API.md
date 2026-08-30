@@ -180,6 +180,15 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   is present, verification uses the local `client_provided` path and does not
   call TonCenter. `POST /api/auth/link-wallet` accepts the same new-wallet pair.
   Paths/schemas: [openapi.yaml](./openapi.yaml).
+- **`POST /api/auth/link-telegram/complete`** binds Telegram (`initData` HMAC)
+  to the wallet `internalId` stored in `wallet_tg_link:{challengeId}` (15 min).
+  The challenge is read first and **deleted only after** a successful bind, so a
+  409 can retry the same `startapp=lt_`. If `auth_tg:{tgId}` already points at a
+  **wallet-less** Telegram-only stub (Mini App STOMP handshake `save()`), that
+  mapping is absorbed onto the wallet id. A mapping owned by an account that
+  already has a wallet stays **409** `{ code: CONFLICT }`. This is not a merge of
+  two wallet identities (`switch-wallet` still forbids that). Rooms/DMs left on
+  the stub `internalId` are not migrated.
 
 ---
 

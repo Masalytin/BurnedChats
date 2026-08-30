@@ -37,7 +37,7 @@ summarized in the table.
 | `pow:spent:{challengeId}` | string | 120s | One-time spent marker (SET NX) |
 | `pow:abuse:global` | hash | 60s | Global adaptive difficulty counters |
 | `auth_nonce:{nonce}` | string | 5min | TON proof nonce |
-| `wallet_tg_link:{challengeId}` | string | 15min | Wallet↔Telegram link challenge |
+| `wallet_tg_link:{challengeId}` | string | 15min | Wallet↔Telegram link challenge (deleted only after successful `link-telegram/complete`) |
 | `room:{roomId}` | hash | 30d | Room metadata |
 | `room:autoburn:{roomId}` | string | until `autoBurnAt` | Auto-burn trigger (no refresh) |
 | `user:deadman:{internalId}` | string | `periodDays` | Dead man's switch trigger (refresh on connect) |

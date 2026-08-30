@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Wallet web session can link Telegram without a toast storm: Mini App absorbs a
+  wallet-less Telegram stub, keeps the link challenge until success, completes
+  `lt_` before WebSocket connect, and opens the bot URL in a new tab on web.
+
 ## [0.1.5] - 2026-08-29
 
 ### Fixed

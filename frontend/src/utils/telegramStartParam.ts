@@ -31,6 +31,27 @@ export function parseRoomStartParam(startParam: string | null | undefined): stri
   return roomId.length > 0 ? roomId : null;
 }
 
+const LT_PREFIX = 'lt_';
+const LT_CHALLENGE = /^[a-fA-F0-9]{32}$/;
+
+/** Wallet↔Telegram link challenge from start_param `lt_{32 hex}`. */
+export function parseLtChallengeStartParam(startParam: string | null | undefined): string | null {
+  if (!startParam?.startsWith(LT_PREFIX)) return null;
+  const challengeId = startParam.slice(LT_PREFIX.length);
+  return LT_CHALLENGE.test(challengeId) ? challengeId : null;
+}
+
+/**
+ * Hold STOMP until Mini App `lt_` complete settles so handshake save() cannot
+ * race/overwrite {@code auth_tg} during the link.
+ */
+export function shouldDeferWebsocketForTelegramLink(
+  startParam: string | null | undefined,
+  telegramLinkSettled: boolean,
+): boolean {
+  return parseLtChallengeStartParam(startParam) != null && !telegramLinkSettled;
+}
+
 export type DmDeepLinkTarget =
   | { kind: 'resume'; sessionId: string }
   | { kind: 'incoming'; sessionId: string }
