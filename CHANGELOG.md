@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-30
+
 ### Added
 
 - First-run theme picker after language: Ember preselect, live preview on tap, persist on Continue.
@@ -92,7 +94,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.2.0
 [0.1.7]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.7
 [0.1.6]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.6
 [0.1.5]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.1.5
