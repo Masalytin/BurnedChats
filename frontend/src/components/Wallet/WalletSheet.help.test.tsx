@@ -1,4 +1,8 @@
 // @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { Address } from '@ton/core';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -14,6 +18,28 @@ import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 
 import { WalletSheet } from './WalletSheet';
 import { useWallet } from './WalletProvider';
+import styles from './Wallet.module.css';
+
+const walletDir = path.dirname(fileURLToPath(import.meta.url));
+const walletCss = readFileSync(path.join(walletDir, 'Wallet.module.css'), 'utf-8');
+const bottomNavCss = readFileSync(
+  path.join(walletDir, '../BottomNavBar/BottomNavBar.css'),
+  'utf-8',
+);
+
+function cssBlock(css: string, selector: string): string {
+  const idx = css.indexOf(selector);
+  expect(idx).toBeGreaterThanOrEqual(0);
+  const start = css.indexOf('{', idx);
+  const end = css.indexOf('}', start);
+  return css.slice(start, end + 1);
+}
+
+function declaredZIndex(css: string, selector: string): number {
+  const match = cssBlock(css, selector).match(/z-index:\s*(\d+)/);
+  expect(match).toBeTruthy();
+  return Number(match![1]);
+}
 
 const useReducedMotionMock = vi.fn(() => false);
 const backButtonClickHandlers: Array<() => void> = [];
@@ -251,5 +277,27 @@ describe('WalletSheet nested HelpSheet', () => {
 
     expect(closeSheet).not.toHaveBeenCalled();
     expect(screen.getByText(i18n.t('accountLinking.unlinkWalletTitle'))).toBeTruthy();
+  });
+});
+
+describe('WalletSheet vs BottomNavBar stacking', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    closeSheet.mockClear();
+  });
+
+  it('declares a backdrop z-index above BottomNavBar so the sheet footer is not covered', () => {
+    const sheetZ = declaredZIndex(walletCss, '.backdrop');
+    const navZ = declaredZIndex(bottomNavCss, '.bottom-nav');
+    expect(sheetZ).toBeGreaterThan(navZ);
+  });
+
+  it('portals the sheet to document.body so a parent stacking context cannot trap it', () => {
+    const { container } = renderOpenWalletSheet();
+
+    const backdrop = document.querySelector(`.${styles.backdrop}`);
+    expect(backdrop).toBeTruthy();
+    expect(backdrop?.parentElement).toBe(document.body);
+    expect(container.querySelector(`.${styles.backdrop}`)).toBeNull();
   });
 });

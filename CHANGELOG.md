@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Wallet bottom sheet stacks above the bottom navigation bar so the sheet footer is no longer covered.
+
 ## [0.2.1] - 2026-08-30
 
 ### Fixed

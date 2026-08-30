@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { BottomSheet } from '@/components/BottomSheet';
@@ -13,6 +14,9 @@ type WalletPanelView = 'main' | 'history';
 
 /**
  * Context-driven bottom-sheet wallet surface with focus-trap and Telegram BackButton.
+ *
+ * Rendered via portal to `document.body` so BottomNavBar (z-index 10000) and parent
+ * stacking contexts cannot cover the sheet footer.
  */
 export function WalletSheet() {
   const { t } = useTranslation();
@@ -48,7 +52,7 @@ export function WalletSheet() {
     return null;
   }
 
-  return (
+  return createPortal(
     <BottomSheet
       open={sheetOpen}
       onClose={closeSheet}
@@ -93,6 +97,7 @@ export function WalletSheet() {
           suppressHelpTrigger
         />
       </div>
-    </BottomSheet>
+    </BottomSheet>,
+    document.body,
   );
 }
