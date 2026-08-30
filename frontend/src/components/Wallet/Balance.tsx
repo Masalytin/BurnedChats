@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 
 import { debugLog } from '@/components/DebugPanel';
+import { isTelegramMiniApp } from '@/env/detector';
 import type { UseBurnToken } from '@/hooks/useBurnToken';
 import type { UseTonConnectResult } from '@/hooks/useTonConnect';
 import { BurnTokenError } from '@/ton/burnToken';
@@ -45,6 +46,7 @@ export function Balance({
 }: BalanceProps) {
   const { t } = useTranslation();
   const { tonBalance, isRefreshing, refreshWallet } = useWallet();
+  const inTelegram = isTelegramMiniApp();
 
   useEffect(() => {
     if (!(burn.error instanceof BurnTokenError) || burn.error.code !== 'CONFIG') {
@@ -131,9 +133,12 @@ export function Balance({
           </div>
         )}
         <Link
-          to="/token?from=wallet"
+          to={inTelegram ? '/token?from=wallet' : '/token'}
           className={styles.howBurnWorks}
-          aria-label={t('wallet.howBurnWorksAria')}
+          aria-label={
+            inTelegram ? t('wallet.howBurnWorksAria') : t('wallet.howBurnWorksAriaNewTab')
+          }
+          {...(inTelegram ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
         >
           {t('wallet.howBurnWorks')}
         </Link>

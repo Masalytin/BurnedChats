@@ -13,6 +13,16 @@ import { formatBurn } from '@/utils/format';
 import { Balance } from './Balance';
 import { useWallet } from './WalletProvider';
 
+const { isTelegramMiniApp } = vi.hoisted(() => ({
+  isTelegramMiniApp: vi.fn(() => false),
+}));
+
+vi.mock('@/env/detector', () => ({
+  isTelegramMiniApp,
+  isBrowser: () => !isTelegramMiniApp(),
+  getEnvironment: () => (isTelegramMiniApp() ? 'telegram' : 'browser'),
+}));
+
 vi.mock('./WalletProvider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./WalletProvider')>();
   return {
@@ -238,13 +248,25 @@ describe('Balance How BURN works link', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en');
     vi.clearAllMocks();
+    isTelegramMiniApp.mockReturnValue(false);
   });
 
   function howBurnLink() {
     return screen.getByRole('link', { name: /How BURN works/i });
   }
 
-  it('renders a text link to /token?from=wallet under the amount', () => {
+  it('opens /token in a new tab on web without from=wallet', () => {
+    renderBalance();
+
+    const link = howBurnLink();
+    expect(link.getAttribute('href')).toBe('/token');
+    expect(link.getAttribute('target')).toBe('_blank');
+    const rel = link.getAttribute('rel') ?? '';
+    expect(rel.split(/\s+/)).toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
+  });
+
+  it('keeps same-tab /token?from=wallet in Telegram Mini App', () => {
+    isTelegramMiniApp.mockReturnValue(true);
     renderBalance();
 
     const link = howBurnLink();
