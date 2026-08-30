@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { AuthUser } from '../auth/types';
 import { AuthType } from '../auth/types';
 import { Avatar, LanguageSwitcher } from '../components';
+import { ThemePicker } from '../components/ThemePicker';
 import { ExitDialog } from '../components/ExitDialog/ExitDialog';
 import { useToast } from '../components/Toast';
 import { LinkedAccounts, type LinkedAccountsCredentials } from '../components/Settings/LinkedAccounts';
@@ -84,30 +85,6 @@ function SettingsToggle({ id, label, description, checked, onChange }: SettingsT
   );
 }
 
-interface ThemeOptionProps {
-  id: string;
-  name: string;
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}
-
-function ThemeOption({ id, name, label, checked, onChange }: ThemeOptionProps) {
-  return (
-    <label className={`settings-theme-option${checked ? ' settings-theme-option--active' : ''}`} htmlFor={id}>
-      <input
-        id={id}
-        type="radio"
-        name={name}
-        className="settings-theme-option__input"
-        checked={checked}
-        onChange={onChange}
-      />
-      <span className="settings-theme-option__label">{label}</span>
-    </label>
-  );
-}
-
 interface DeadmanPeriodOptionProps {
   id: string;
   label: string;
@@ -153,7 +130,7 @@ export function SettingsPage({
   const navigate = useNavigate();
   const toast = useToast();
   const { showConfirm, addToHomeScreen, checkHomeScreenStatus } = useTelegram();
-  const { prefs, setPref } = usePreferences();
+  const { prefs, setPref, telegramUnsafe } = usePreferences();
   const [isClearingKeys, setIsClearingKeys] = useState(false);
   const [homeScreenStatus, setHomeScreenStatus] = useState<HomeScreenStatus | null>(null);
   const [selectedPeriodDays, setSelectedPeriodDays] = useState<DeadmanPeriodDays>(
@@ -295,6 +272,7 @@ export function SettingsPage({
   const handleThemeChange = useCallback(
     (themeMode: UserPreferences['themeMode']) => {
       setPref('themeMode', themeMode);
+      setPref('themeSelected', true);
     },
     [setPref],
   );
@@ -358,22 +336,11 @@ export function SettingsPage({
         <h2 className="settings-section__header">{t('settings.section.appearance')}</h2>
         <div className="settings-section__card settings-appearance">
           <p className="settings-row__label">{t('settings.appearance.themeLabel')}</p>
-          <div className="settings-theme-options" role="radiogroup" aria-label={t('settings.appearance.themeLabel')}>
-            <ThemeOption
-              id="settings-theme-telegram"
-              name="settings-theme"
-              label={t('settings.appearance.themeTelegram')}
-              checked={prefs.themeMode === 'telegram'}
-              onChange={() => handleThemeChange('telegram')}
-            />
-            <ThemeOption
-              id="settings-theme-dark"
-              name="settings-theme"
-              label={t('settings.appearance.themeDark')}
-              checked={prefs.themeMode === 'ember'}
-              onChange={() => handleThemeChange('ember')}
-            />
-          </div>
+          <ThemePicker
+            value={prefs.themeMode}
+            telegramUnsafe={telegramUnsafe}
+            onChange={handleThemeChange}
+          />
         </div>
         {showHomeScreenRow ? (
           <div className="settings-section__card settings-rows">

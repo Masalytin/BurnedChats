@@ -181,6 +181,16 @@ describe('SettingsPage replay onboarding', () => {
     expect(localStorage.getItem(LANGUAGE_PREF_KEY)).toBe('uk');
   });
 
+  it('persists themeMode and themeSelected immediately on picker tap', async () => {
+    await renderSettings();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Bone/ }));
+
+    expect(JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? 'null')).toEqual(
+      expect.objectContaining({ themeMode: 'bone', themeSelected: true }),
+    );
+  });
+
   it('does not change bc:prefs:v1 theme when onboarding is reset', async () => {
     seedDarkThemePrefs();
     showConfirm.mockResolvedValueOnce(true);

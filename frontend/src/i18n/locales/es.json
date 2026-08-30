@@ -1114,8 +1114,9 @@
   },
   "settings": {
     "appearance": {
-      "themeDark": "Oscuro",
+      "themeDark": "Ember",
       "themeLabel": "Tema",
+      "telegramUnsafe": "El tema de Telegram no se lee aquí — se usa Ember hasta que el contraste sea seguro.",
       "themeTelegram": "Tema de Telegram"
     },
     "developer": {
@@ -1580,6 +1581,18 @@
       "ru": "Русский",
       "uk": "Українська",
       "zh-CN": "简体中文"
+    }
+  },
+
+  "theme": {
+    "bone": {
+      "hint": "Papel cálido"
+    },
+    "ember": {
+      "hint": "Carbón cálido"
+    },
+    "nocturne": {
+      "hint": "Noche fría"
     }
   }
 }

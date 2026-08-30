@@ -46,7 +46,8 @@
     "appearance": {
       "themeLabel": "Тема",
       "themeTelegram": "Тема Telegram",
-      "themeDark": "Тёмная"
+      "themeDark": "Ember",
+      "telegramUnsafe": "Тема Telegram здесь нечитаема — пока используется Ember, пока контраст не станет безопасным."
     },
     "notifications": {
       "haptics": "Тактильный отклик",
@@ -1638,6 +1639,18 @@
       "ru": "Русский",
       "uk": "Українська",
       "zh-CN": "简体中文"
+    }
+  },
+
+  "theme": {
+    "ember": {
+      "hint": "Тёплый уголь"
+    },
+    "bone": {
+      "hint": "Тёплая бумага"
+    },
+    "nocturne": {
+      "hint": "Холодная тьма"
     }
   }
 }

@@ -1114,8 +1114,9 @@
   },
   "settings": {
     "appearance": {
-      "themeDark": "深色",
+      "themeDark": "Ember",
       "themeLabel": "主题",
+      "telegramUnsafe": "此处 Telegram 主题无法阅读 — 在对比度安全之前使用 Ember。",
       "themeTelegram": "Telegram 主题"
     },
     "developer": {
@@ -1580,6 +1581,18 @@
       "ru": "Русский",
       "uk": "Українська",
       "zh-CN": "简体中文"
+    }
+  },
+
+  "theme": {
+    "bone": {
+      "hint": "暖纸色"
+    },
+    "ember": {
+      "hint": "暖炭灰"
+    },
+    "nocturne": {
+      "hint": "冷夜"
     }
   }
 }

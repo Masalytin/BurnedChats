@@ -1118,8 +1118,9 @@
   },
   "settings": {
     "appearance": {
-      "themeDark": "داكن",
+      "themeDark": "Ember",
       "themeLabel": "المظهر",
+      "telegramUnsafe": "مظهر تليجرام غير مقروء هنا — يُستخدم Ember حتى يصبح التباين آمناً.",
       "themeTelegram": "مظهر تليجرام"
     },
     "developer": {
@@ -1588,6 +1589,18 @@
       "ru": "Русский",
       "uk": "Українська",
       "zh-CN": "简体中文"
+    }
+  },
+
+  "theme": {
+    "bone": {
+      "hint": "ورق دافئ"
+    },
+    "ember": {
+      "hint": "فحم دافئ"
+    },
+    "nocturne": {
+      "hint": "ليل بارد"
     }
   }
 }

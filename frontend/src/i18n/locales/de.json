@@ -1128,7 +1128,8 @@
     "appearance": {
       "themeLabel": "Design",
       "themeTelegram": "Telegram-Design",
-      "themeDark": "Dunkel"
+      "themeDark": "Ember",
+      "telegramUnsafe": "Telegram-Design ist hier unlesbar — Ember gilt, bis der Kontrast sicher ist."
     },
     "notifications": {
       "haptics": "Haptisches Feedback",
@@ -1580,6 +1581,18 @@
       "ru": "Русский",
       "uk": "Українська",
       "zh-CN": "简体中文"
+    }
+  },
+
+  "theme": {
+    "ember": {
+      "hint": "Warme Holzkohle"
+    },
+    "bone": {
+      "hint": "Warmes Papier"
+    },
+    "nocturne": {
+      "hint": "Kalte Nacht"
     }
   }
 }
