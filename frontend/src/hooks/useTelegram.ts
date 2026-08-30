@@ -1,7 +1,12 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { isTelegramMiniApp } from '../env/detector';
 import { areHapticsEnabled } from '../preferences/preferencesStorage';
+
+type WebAppWithThemeEvents = typeof WebApp & {
+  onEvent?: (eventType: string, callback: () => void) => void;
+  offEvent?: (eventType: string, callback: () => void) => void;
+};
 
 export interface TelegramUser {
   id: number;
@@ -150,10 +155,22 @@ interface UseTelegramReturn {
  */
 export function useTelegram(): UseTelegramReturn {
   const [isReady] = useState(true);
+  const [themeParams, setThemeParams] = useState(() => ({ ...WebApp.themeParams }));
 
   // Check if running inside Telegram
   const isInTelegram = useMemo(() => {
     return isTelegramMiniApp();
+  }, []);
+
+  useEffect(() => {
+    const webApp = WebApp as WebAppWithThemeEvents;
+    const sync = () => {
+      setThemeParams({ ...webApp.themeParams });
+    };
+    webApp.onEvent?.('themeChanged', sync);
+    return () => {
+      webApp.offEvent?.('themeChanged', sync);
+    };
   }, []);
 
   // Native dialogs
@@ -458,7 +475,7 @@ export function useTelegram(): UseTelegramReturn {
     isReady,
     isInTelegram,
     colorScheme: WebApp.colorScheme,
-    themeParams: WebApp.themeParams,
+    themeParams,
     hapticFeedback: WebApp.HapticFeedback,
     platform: WebApp.platform,
     version: WebApp.version,

@@ -15,7 +15,7 @@
   /* Background layers */
   --bc-bg-primary: var(--tg-theme-bg-color, #0f0f0f);
   --bc-bg-secondary: var(--tg-theme-secondary-bg-color, #1a1a1a);
-  --bc-bg-elevated: #242424;
+  --bc-bg-elevated: color-mix(in srgb, var(--bc-text-primary) 8%, var(--bc-bg-primary));
   --bc-bg-overlay: rgba(0, 0, 0, 0.6);
   --bc-overlay-scrim-strong: rgba(0, 0, 0, 0.5);
   
@@ -84,9 +84,9 @@
   --bc-button-secondary-bg: var(--bc-bg-elevated);
   --bc-button-secondary-text: var(--bc-text-primary);
   
-  /* Borders & separators */
-  --bc-border-color: rgba(255, 255, 255, 0.08);
-  --bc-border-color-strong: rgba(255, 255, 255, 0.16);
+  /* Borders & separators — derived from text so light Telegram themes stay readable */
+  --bc-border-color: color-mix(in srgb, var(--bc-text-primary) 12%, transparent);
+  --bc-border-color-strong: color-mix(in srgb, var(--bc-text-primary) 20%, transparent);
   --bc-border: var(--bc-border-color);
 
   /* Interactive surfaces */
@@ -416,6 +416,27 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * Telegram sanitizer fallback (IMP-THEME-01).
+ * Same hex as html[data-bc-theme='dark'] in preferencesTheme.css — not a new palette.
+ * data-bc-theme stays telegram; this attribute is runtime-only.
+ */
+html[data-bc-telegram-unsafe] {
+  --bc-bg-primary: #0f0f0f;
+  --bc-bg-secondary: #1a1a1a;
+  --bc-bg-elevated: #242424;
+  --bc-text-primary: #ffffff;
+  --bc-text-secondary: #7d7d7d;
+  --bc-text-muted: #7d7d7d;
+  --bc-border-color: rgba(255, 255, 255, 0.08);
+  --bc-border-color-strong: rgba(255, 255, 255, 0.16);
+  --bc-message-incoming-bg: #242424;
+  --bc-message-incoming-text: #ffffff;
+  --bc-button-secondary-bg: #242424;
+  --bc-button-secondary-text: #ffffff;
+  --bc-accent-muted: rgba(255, 107, 53, 0.16);
 }
 
 

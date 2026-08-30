@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Telegram theme mode derives elevated surfaces and borders from the client palette and falls back to the existing dark canvas when contrast is unreadable.
+
 ## [0.1.7] - 2026-08-30
 
 ### Added
