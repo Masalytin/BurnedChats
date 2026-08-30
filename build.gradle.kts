@@ -7,7 +7,7 @@ plugins {
 
 allprojects {
     group = "dev.burnedchats"
-    version = "0.1.7"
+    version = "0.1.7-SNAPSHOT"
 
     repositories {
         mavenCentral()
