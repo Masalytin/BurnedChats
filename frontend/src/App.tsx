@@ -103,6 +103,7 @@ import {
   shouldRestorePendingRequest,
   type PendingRestoreReason,
 } from './utils/pendingRequestRestore';
+import { resolveSessionCardClick } from './components/SessionCard/sessionCardClick';
 import { useBurnAll } from './hooks/useBurnAll';
 import { useDeadmanSwitch } from './hooks/useDeadmanSwitch';
 import { useExitBurnFlow } from './hooks/useExitBurnFlow';
@@ -2510,8 +2511,17 @@ function AppContent() {
     notificationOccurred('warning');
   }, [activeChat, notificationOccurred]);
 
-  // Handle clicking on an active session (4.6.8)
+  // Handle clicking on an active session (4.6.8). PENDING does not resume (E11).
   const handleSessionClick = useCallback((session: ActiveSession) => {
+    const action = resolveSessionCardClick(session);
+    if (action.type === 'open-pending-request') {
+      setPendingSession(action.pending);
+      setCurrentView('pending-request');
+      return;
+    }
+    if (action.type === 'noop') {
+      return;
+    }
     setResumingSessionId(session.sessionId);
     resumeSession(session.sessionId);
   }, [resumeSession]);

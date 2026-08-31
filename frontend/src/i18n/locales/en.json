@@ -1842,7 +1842,8 @@
     "statusActive": "Active",
     "statusExpired": "Expired",
     "statusBurned": "Burned",
-    "online": "online"
+    "online": "online",
+    "cancelPending": "Cancel pending request"
   },
 
   "antispam": {

@@ -801,7 +801,8 @@
     "statusActive": "活跃",
     "statusExpired": "已过期",
     "statusBurned": "已销毁",
-    "online": "在线"
+    "online": "在线",
+    "cancelPending": "取消待处理请求"
   },
   "accountLinking": {
     "addressCopied": "已复制",

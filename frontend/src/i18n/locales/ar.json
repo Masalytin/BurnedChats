@@ -805,7 +805,8 @@
     "statusActive": "نشط",
     "statusExpired": "منتهي الصلاحية",
     "statusBurned": "محذوف",
-    "online": "متصل"
+    "online": "متصل",
+    "cancelPending": "إلغاء الطلب المعلق"
   },
   "accountLinking": {
     "addressCopied": "تم النسخ",

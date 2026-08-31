@@ -38,6 +38,8 @@ export function SessionCard({
   
   const isActive = status === 'ACTIVE';
   const isHandshaking = status === 'HANDSHAKE';
+  const isPending = status === 'PENDING';
+  const canBurn = (isActive || isHandshaking || isPending) && Boolean(onBurn);
   const bothVerified = verified && peerVerified;
   
   const statusLabel = getStatusLabel(status, t);
@@ -112,14 +114,14 @@ export function SessionCard({
           </div>
         )}
         
-        {/* Burn button for active/handshake sessions (4.6.11) */}
-        {(isActive || isHandshaking) && onBurn && (
+        {/* Burn/Cancel for ACTIVE, HANDSHAKE, and PENDING (IMP-DMPEND-02) */}
+        {canBurn && (
           <div 
             className={`session-card-burn-btn ${isBurning ? 'session-card-burn-btn--loading' : ''}`}
             onClick={handleBurnClick}
             role="button"
             tabIndex={0}
-            aria-label={t('chat.burnSessionAria')}
+            aria-label={isPending ? t('sessionCard.cancelPending') : t('chat.burnSessionAria')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 handleBurnClick(e as unknown as React.MouseEvent);

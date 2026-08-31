@@ -801,7 +801,8 @@
     "statusActive": "Активна",
     "statusExpired": "Застаріла",
     "statusBurned": "Спалено",
-    "online": "онлайн"
+    "online": "онлайн",
+    "cancelPending": "Скасувати очікуючий запит"
   },
   "accountLinking": {
     "addressCopied": "Скопійовано",

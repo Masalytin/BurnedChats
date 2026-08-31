@@ -1859,7 +1859,8 @@
     "statusActive": "Активна",
     "statusExpired": "Истекла",
     "statusBurned": "Сожжена",
-    "online": "в сети"
+    "online": "в сети",
+    "cancelPending": "Отменить ожидающий запрос"
   },
 
   "antispam": {

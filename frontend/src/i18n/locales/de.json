@@ -1138,7 +1138,8 @@
     "statusActive": "Aktiv",
     "statusExpired": "Abgelaufen",
     "statusBurned": "Gelöscht",
-    "online": "online"
+    "online": "online",
+    "cancelPending": "Ausstehende Anfrage abbrechen"
   },
   "nav": {
     "home": "Startseite",

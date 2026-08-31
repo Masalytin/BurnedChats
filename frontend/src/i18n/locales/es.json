@@ -801,7 +801,8 @@
     "statusActive": "Activo",
     "statusExpired": "Expirado",
     "statusBurned": "Destruido",
-    "online": "en línea"
+    "online": "en línea",
+    "cancelPending": "Cancelar solicitud pendiente"
   },
   "accountLinking": {
     "addressCopied": "Copiado",

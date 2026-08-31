@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Outgoing pending DM waiting screen is restored after remount or reconnect from the session list, and accept, reject, and expiry still apply when React state was cleared in the background.
+- PENDING session cards show Cancel/Burn and open the waiting screen instead of calling session resume.
 - Mini App toasts, fatal start/connection screens, StatusBadge, and chrome a11y labels use i18n instead of hardcoded English.
 
 ## [0.2.2] - 2026-08-30
