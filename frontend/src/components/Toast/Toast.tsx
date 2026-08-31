@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuccessIcon, ErrorIcon, WarningIcon, InfoIcon, CloseIcon } from '../../icons';
 import './Toast.css';
 
@@ -29,6 +30,7 @@ export function Toast({
   dismissible = true,
   onDismiss,
 }: ToastProps) {
+  const { t } = useTranslation();
   const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function Toast({
         <button 
           className="toast-dismiss" 
           onClick={handleDismiss}
-          aria-label="Dismiss notification"
+          aria-label={t('common.dismissNotification')}
         >
           <CloseIcon size={16} />
         </button>

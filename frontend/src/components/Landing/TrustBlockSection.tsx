@@ -1,7 +1,9 @@
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { FlameIcon } from '../../icons';
 
 export function TrustBlockSection() {
+  const { t } = useTranslation();
   return (
     <>
       <motion.h2
@@ -11,7 +13,7 @@ export function TrustBlockSection() {
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.6 }}
       >
-        Don&apos;t trust us. You don&apos;t have to.
+        {t('landing.trust.title')}
       </motion.h2>
 
       <div className="trust-columns">
@@ -24,7 +26,7 @@ export function TrustBlockSection() {
         >
           <div className="trust-panel-header">
             <span className="dot" />
-            What the server sees
+            {t('landing.trust.serverSees')}
           </div>
           <div className="trust-panel-body">
             <span className="k">session</span>: <span className="v">a1b2c3d4</span>{'\n'}
@@ -35,7 +37,7 @@ export function TrustBlockSection() {
             <span className="k">ttl</span>: <span className="v">3600s</span>
           </div>
           <div className="trust-panel-caption">
-            Encrypted bytes. Metadata. Nothing else.
+            {t('landing.trust.encryptedNote')}
           </div>
         </motion.div>
 
@@ -48,19 +50,19 @@ export function TrustBlockSection() {
         >
           <div className="trust-panel-header">
             <span className="dot" />
-            What you see
+            {t('landing.trust.youSee')}
           </div>
           <div className="trust-panel-body">
-            <div className="bubble bubble--in">Hey, are we still meeting tomorrow?</div>
-            <div className="bubble bubble--out">Yeah! Let&apos;s do 3pm at the usual place.</div>
-            <div className="bubble bubble--in">Sounds good. I&apos;ll bring the documents.</div>
+            <div className="bubble bubble--in">{t('landing.trust.demoIn1')}</div>
+            <div className="bubble bubble--out">{t('landing.trust.demoIn2')}</div>
+            <div className="bubble bubble--in">{t('landing.trust.demoIn3')}</div>
             <div className="burn-pill" aria-hidden="true">
               <FlameIcon size={16} aria-hidden="true" />
-              Burn Chat
+              {t('landing.trust.burnChat')}
             </div>
           </div>
           <div className="trust-panel-caption">
-            Decrypted on your device. Keys never leave your browser.
+            {t('landing.trust.decryptedNote')}
           </div>
         </motion.div>
       </div>

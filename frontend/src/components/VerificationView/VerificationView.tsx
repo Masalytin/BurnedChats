@@ -168,7 +168,7 @@ export function VerificationView({
                   <h3 className="verification-view__peer-name">
                     {peer.displayName}
                     {peer.premium && (
-                      <span className="verification-view__premium" title="Premium">
+                      <span className="verification-view__premium" title={t('common.premium')}>
                         <Star size={14} aria-hidden="true" />
                       </span>
                     )}
@@ -347,9 +347,10 @@ interface PeerVerificationBadgeProps {
 }
 
 function PeerVerificationBadge({ verified, mismatch }: PeerVerificationBadgeProps) {
+  const { t } = useTranslation();
   if (mismatch) {
     return (
-      <div className="peer-badge peer-badge--mismatch" title="Mismatch reported">
+      <div className="peer-badge peer-badge--mismatch" title={t('verification.mismatchReported')}>
         <AlertIcon size={16} />
       </div>
     );
@@ -357,14 +358,14 @@ function PeerVerificationBadge({ verified, mismatch }: PeerVerificationBadgeProp
   
   if (verified) {
     return (
-      <div className="peer-badge peer-badge--verified" title="Verified">
+      <div className="peer-badge peer-badge--verified" title={t('verification.statusVerified')}>
         <CheckIcon size={16} />
       </div>
     );
   }
 
   return (
-    <div className="peer-badge peer-badge--pending" title="Not yet verified">
+    <div className="peer-badge peer-badge--pending" title={t('verification.notYetVerified')}>
       <span>?</span>
     </div>
   );

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Public landing and `/token` pages use the same 8-locale i18n stack as the Mini App (LANDBURN/TOKPAGE EN-only reversed).
+
+### Fixed
+
+- Mini App toasts, fatal start/connection screens, StatusBadge, and chrome a11y labels use i18n instead of hardcoded English.
+
 ## [0.2.2] - 2026-08-30
 
 ### Fixed

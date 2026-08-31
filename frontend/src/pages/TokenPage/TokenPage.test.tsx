@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '@/i18n';
 
 const mockUseBackButton = vi.fn();
 
@@ -13,16 +15,19 @@ import { TokenPage } from './TokenPage';
 
 function renderTokenPage(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/token" element={<TokenPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/token" element={<TokenPage />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nextProvider>,
   );
 }
 
 describe('TokenPage return contract', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     mockUseBackButton.mockReset();
     mockUseBackButton.mockReturnValue({
       show: vi.fn(),

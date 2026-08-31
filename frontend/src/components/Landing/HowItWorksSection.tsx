@@ -1,14 +1,15 @@
 import { motion } from 'motion/react';
-
-const steps = [
-  { num: 1, title: 'Find', icon: SearchIcon, desc: 'Search for a Telegram user by username or ID.' },
-  { num: 2, title: 'Invite', icon: SendIcon, desc: 'Send an encrypted chat request. They get a Telegram notification.' },
-  { num: 3, title: 'Handshake', icon: HandshakeIcon, desc: 'Both devices perform ECDH key exchange. A shared secret is born — invisible to the server.' },
-  { num: 4, title: 'Verify', icon: ShieldIcon, desc: 'Compare visual fingerprints to confirm no one is in the middle.' },
-  { num: 5, title: 'Chat & Burn', icon: FlameIcon, desc: 'Exchange AES-256-GCM encrypted messages. When done — burn everything.' },
-];
+import { useTranslation } from 'react-i18next';
 
 export function HowItWorksSection() {
+  const { t } = useTranslation();
+  const steps = [
+    { num: 1, title: t('landing.howItWorks.s1Title'), icon: SearchIcon, desc: t('landing.howItWorks.s1Desc') },
+    { num: 2, title: t('landing.howItWorks.s2Title'), icon: SendIcon, desc: t('landing.howItWorks.s2Desc') },
+    { num: 3, title: t('landing.howItWorks.s3Title'), icon: HandshakeIcon, desc: t('landing.howItWorks.s3Desc') },
+    { num: 4, title: t('landing.howItWorks.s4Title'), icon: ShieldIcon, desc: t('landing.howItWorks.s4Desc') },
+    { num: 5, title: t('landing.howItWorks.s5Title'), icon: FlameIcon, desc: t('landing.howItWorks.s5Desc') },
+  ];
   return (
     <>
       <motion.div
@@ -18,8 +19,8 @@ export function HowItWorksSection() {
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.6 }}
       >
-        <h2 className="section-title">How it works</h2>
-        <p className="section-subtitle">A secure chat in 5 steps</p>
+        <h2 className="section-title">{t('landing.howItWorks.title')}</h2>
+        <p className="section-subtitle">{t('landing.howItWorks.subtitle')}</p>
       </motion.div>
 
       <div className="steps-grid">
@@ -48,12 +49,12 @@ export function HowItWorksSection() {
         viewport={{ amount: 0.4 }}
         transition={{ duration: 0.6, delay: 0.15 }}
         role="img"
-        aria-label="ECDH key exchange protocol"
+        aria-label={t('landing.howItWorks.protocolAria')}
       >
         <div className="pv-header">
-          <div className="pv-col">Alice<span>your device</span></div>
-          <div className="pv-col">Server<span>relay only</span></div>
-          <div className="pv-col">Bob<span>peer device</span></div>
+          <div className="pv-col">Alice<span>{t('landing.howItWorks.yourDevice')}</span></div>
+          <div className="pv-col">Server<span>{t('landing.howItWorks.relayOnly')}</span></div>
+          <div className="pv-col">Bob<span>{t('landing.howItWorks.peerDevice')}</span></div>
         </div>
 
         <div className="pv-lines">

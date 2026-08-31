@@ -1,4 +1,5 @@
 import { memo, useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlameIcon } from '../../icons';
 import './BurnAnimation.css';
 
@@ -45,13 +46,15 @@ const ASH_COUNT = 15;
  * ```
  */
 export const BurnAnimation = memo(function BurnAnimation({
-  burnedByName = 'Someone',
+  burnedByName,
   wasSelfBurn = false,
   onComplete,
   duration = 3000,
   className = '',
 }: BurnAnimationProps) {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<'ignite' | 'burn' | 'fade'>('ignite');
+  const peerName = burnedByName || t('common.unknown');
 
   // Generate random particles
   const [particles] = useState(() =>
@@ -118,7 +121,7 @@ export const BurnAnimation = memo(function BurnAnimation({
       className={`burn-animation burn-animation--${phase} ${className}`}
       onClick={handleClick}
       role="presentation"
-      aria-label="Chat destroyed animation"
+      aria-label={t('burnDialog.animationAria')}
     >
       {/* Background flame gradient */}
       <div className="burn-animation__backdrop" />
@@ -166,21 +169,21 @@ export const BurnAnimation = memo(function BurnAnimation({
       <div className="burn-animation__message">
         <h2 className="burn-animation__title">
           <FlameIcon size={28} aria-hidden />
-          <span>{wasSelfBurn ? 'Chat Burned' : 'Chat Destroyed'}</span>
+          <span>{wasSelfBurn ? t('burnDialog.titleBurned') : t('burnDialog.titleDestroyed')}</span>
         </h2>
         <p className="burn-animation__subtitle">
           {wasSelfBurn
-            ? 'You burned this chat'
-            : `${burnedByName} burned this chat`}
+            ? t('burnDialog.selfBurned')
+            : t('burnDialog.peerBurned', { name: peerName })}
         </p>
         <p className="burn-animation__info">
-          All messages and encryption keys have been permanently destroyed.
+          {t('burnDialog.destroyedInfo')}
         </p>
       </div>
 
       {/* Tap to continue hint */}
       <div className="burn-animation__hint">
-        Tap to continue
+        {t('burnDialog.tapToContinue')}
       </div>
     </div>
   );

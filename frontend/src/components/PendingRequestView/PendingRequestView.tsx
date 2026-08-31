@@ -112,7 +112,7 @@ export function PendingRequestView({
                   <h3 className="pending-request-view__user-name">
                     {recipient.displayName}
                     {recipient.premium && (
-                      <span className="pending-request-view__premium" title="Premium">
+                      <span className="pending-request-view__premium" title={t('common.premium')}>
                         &#11088;
                       </span>
                     )}
@@ -144,7 +144,7 @@ export function PendingRequestView({
         {hasSecretQuestion && !isExpired && (
           <div className="pending-request-view__info">
             <span className="pending-request-view__info-icon">?</span>
-            <span>Recipient must answer your secret question</span>
+            <span>{t('pendingRequest.secretQuestionHint')}</span>
           </div>
         )}
 
@@ -152,7 +152,7 @@ export function PendingRequestView({
         {!recipient.online && !isExpired && (
           <div className="pending-request-view__info pending-request-view__info--notification">
             <span className="pending-request-view__info-icon">&#128276;</span>
-            <span>Notification sent via Telegram</span>
+            <span>{t('pendingRequest.notificationSent')}</span>
           </div>
         )}
 

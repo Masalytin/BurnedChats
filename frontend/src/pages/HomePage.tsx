@@ -261,9 +261,9 @@ export function HomePage({
                     <button
                       type="button"
                       className="home-profile-copy"
-                      onClick={() => handleCopy(`@${user.username}`, 'Username')}
-                      aria-label="Copy username"
-                      title="Copy username"
+                      onClick={() => handleCopy(`@${user.username}`, t('home.copyLabelUsername'))}
+                      aria-label={t('home.copyUsername')}
+                      title={t('home.copyUsername')}
                     >
                       <CopyIcon size={14} />
                     </button>
@@ -275,9 +275,9 @@ export function HomePage({
                     <button
                       type="button"
                       className="home-profile-copy"
-                      onClick={() => handleCopy(String(user.telegramId), 'Telegram ID')}
-                      aria-label="Copy ID"
-                      title="Copy ID"
+                      onClick={() => handleCopy(String(user.telegramId), t('home.copyLabelTelegramId'))}
+                      aria-label={t('home.copyTelegramId')}
+                      title={t('home.copyTelegramId')}
                     >
                       <CopyIcon size={14} />
                     </button>
@@ -289,9 +289,9 @@ export function HomePage({
                     <button
                       type="button"
                       className="home-profile-copy"
-                      onClick={() => handleCopy(user.internalId, 'Internal ID')}
-                      aria-label="Copy internal id"
-                      title="Copy internal id"
+                      onClick={() => handleCopy(user.internalId, t('home.copyLabelInternalId'))}
+                      aria-label={t('home.copyInternalId')}
+                      title={t('home.copyInternalId')}
                     >
                       <CopyIcon size={14} />
                     </button>
@@ -315,7 +315,7 @@ export function HomePage({
                 type="button" 
                 className="home-search-clear"
                 onClick={handleClearSearch}
-                aria-label="Clear search"
+                aria-label={t('home.clearSearch')}
               >
                 <CloseIcon size={18} />
               </button>

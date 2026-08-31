@@ -270,7 +270,7 @@ function AppContent() {
     onConnect: () => {
       debugLog('success', 'WebSocket connected');
       notificationOccurred('success');
-      toast.success('Connected to server');
+      toast.success(t('toast.connected'));
     },
     onDisconnect: () => {
       debugLog('warn', 'WebSocket disconnected');
@@ -281,10 +281,10 @@ function AppContent() {
         return;
       }
       if (error.recoverable) {
-        toast.warning('Connection lost. Reconnecting...', { duration: 3000 });
+        toast.warning(t('toast.connectionLost'), { duration: 3000 });
       } else {
         notificationOccurred('error');
-        toast.error(error.message, { title: 'Connection Error' });
+        toast.error(error.message, { title: t('errors.connectionTitle') });
       }
     },
     onReconnect: () => {
@@ -403,7 +403,7 @@ function AppContent() {
       }
       notificationOccurred('error');
       if (errorCode !== 'POW_INVALID' && errorCode !== 'POW_FAILED') {
-        toast.error(`Failed to create session: ${errorCode}`, { title: 'Error' });
+        toast.error(t('toast.failedCreateSession', { error: errorCode }), { title: t('toast.title.error') });
       }
     },
   });
@@ -451,8 +451,8 @@ function AppContent() {
     publish,
     onRequestReceived: (request) => {
       notificationOccurred('success');
-      toast.info(`${request.fromName} wants to chat!`, { 
-        title: 'New Request',
+      toast.info(t('toast.wantsToChat', { name: request.fromName }), { 
+        title: t('toast.title.newRequest'),
         duration: 5000,
       });
       // If we're on home, show the incoming request
@@ -464,7 +464,7 @@ function AppContent() {
     onSessionAccepted: (sessionId, peer) => {
       // Start handshake after accepting a request (we're the responder)
       notificationOccurred('success');
-      toast.success('Request accepted! Establishing secure connection...');
+      toast.success(t('toast.requestAcceptedHandshake'));
       handshakePeerRef.current = peer;
       startHandshake(sessionId, peer);
       setCurrentView('handshake');
@@ -475,7 +475,7 @@ function AppContent() {
       if (pendingSession?.id === sessionId) {
         console.log('[App] Our request was accepted, starting handshake');
         notificationOccurred('success');
-        toast.success('Request accepted! Establishing secure connection...');
+        toast.success(t('toast.requestAcceptedHandshake'));
         handshakePeerRef.current = peer;
         startHandshake(sessionId, peer);
         setCurrentView('handshake');
@@ -494,7 +494,7 @@ function AppContent() {
     },
     onError: (errorCode) => {
       notificationOccurred('error');
-      toast.error(`Request failed: ${errorCode}`, { title: 'Error' });
+      toast.error(t('toast.requestFailed', { error: errorCode }), { title: t('toast.title.error') });
     },
   });
 
@@ -516,7 +516,7 @@ function AppContent() {
       setHandshakeManualRetryCount(0);
       lastHandshakeRetryAtRef.current = 0;
       notificationOccurred('success');
-      toast.success('Secure connection established!');
+      toast.success(t('toast.secureConnectionEstablished'));
       if (pendingRekeyResendRef.current === sessionId) {
         pendingRekeyResendRef.current = null;
         setRekeyResendNonce((n) => n + 1);
@@ -557,7 +557,7 @@ function AppContent() {
       if (errorCode === 'CONNECTION_ERROR') {
         toast.error(t('verification.connectionLost'), { title: t('handshake.errorTitle') });
       } else {
-        toast.error(`Verification failed: ${errorCode}`, { title: 'Error' });
+        toast.error(t('toast.verificationFailed', { error: errorCode }), { title: t('toast.title.error') });
       }
     },
   });
@@ -707,7 +707,7 @@ function AppContent() {
     publish,
     onApproved: (roomId) => {
       notificationOccurred('success');
-      toast.success('Joined room! Loading encryption key…');
+      toast.success(t('toast.joinedRoom'));
       console.log('[App] Joined room:', roomId, '— navigating to room-chat, KEY_BUNDLE incoming');
       // Navigate immediately; RoomChatRoom shows a loading state until KEY_BUNDLE arrives.
       // useKeyBundle.onKeyReceived will update the epoch once the key is delivered.
@@ -726,11 +726,11 @@ function AppContent() {
     },
     onRejected: () => {
       notificationOccurred('error');
-      toast.info('Your join request was rejected.');
+      toast.info(t('toast.joinRequestRejected'));
     },
     onError: (errorCode) => {
       notificationOccurred('error');
-      toast.error(`Join failed: ${errorCode}`, { title: 'Error' });
+      toast.error(t('toast.joinFailed', { error: errorCode }), { title: t('toast.title.error') });
     },
   });
 
@@ -749,7 +749,7 @@ function AppContent() {
     onNewRequest: (request) => {
       notificationOccurred('success');
       const name = request.senderUsername ? `@${request.senderUsername}` : request.senderFirstName;
-      toast.info(`${name} wants to join the room`, { title: 'Join Request', duration: 5000 });
+      toast.info(t('toast.wantsToJoinRoom', { name }), { title: t('toast.title.joinRequest'), duration: 5000 });
     },
   });
 
@@ -761,16 +761,16 @@ function AppContent() {
     onKeyReceived: (roomId, epoch) => {
       debugLog('success', `[KeyBundle] Group key received for room ${roomId} epoch ${epoch}`);
       notificationOccurred('success');
-      toast.success('Room key received!');
+      toast.success(t('toast.roomKeyReceived'));
       setActiveRoomChat({ roomId, epoch });
       setCurrentView('room-chat');
     },
     onError: (roomId, error) => {
       debugLog('error', `[KeyBundle] Failed to unwrap key for room ${roomId}: ${error}`);
       if (error === 'NO_PRIVATE_KEY') {
-        toast.warning('Missing room key pair — cannot decrypt group key.');
+        toast.warning(t('toast.missingRoomKeyPair'));
       } else {
-        toast.error('Failed to receive room encryption key.', { title: 'Key Error' });
+        toast.error(t('toast.failedReceiveRoomKey'), { title: t('toast.title.keyError') });
       }
     },
   });
@@ -797,7 +797,7 @@ function AppContent() {
     onRekeyReceived: (roomId, newEpoch) => {
       debugLog('info', `[Rekey] ROOM_REKEY received: room ${roomId} new epoch ${newEpoch}`);
       // New KEY_BUNDLE is en route — useKeyBundle will handle the actual key update
-      toast.info('Room key is being rotated…', { duration: 2000 });
+      toast.info(t('toast.roomKeyRotating'), { duration: 2000 });
     },
     onRekeyNameUpdated: updateRoomName,
   });
@@ -916,23 +916,23 @@ function AppContent() {
           const fingerprint = getFingerprint(session.sessionId);
           if (fingerprint) {
             setActiveChat({ sessionId: session.sessionId, peer: peerInfo, fingerprint });
-            toast.success(`Resumed chat with ${session.peer.displayName}`);
+            toast.success(t('toast.resumedChat', { name: session.peer.displayName }));
             setCurrentView(isFullyVerified(session.sessionId) ? 'chat' : 'verify');
           } else {
-            toast.info('Restoring secure connection...');
+            toast.info(t('toast.restoringConnection'));
             pendingRekeyResendRef.current = session.sessionId;
             startHandshake(session.sessionId, peerInfo);
             setCurrentView('handshake');
           }
         } else {
-          toast.info('Restoring secure connection...');
+          toast.info(t('toast.restoringConnection'));
           pendingRekeyResendRef.current = session.sessionId;
           startHandshake(session.sessionId, peerInfo);
           setCurrentView('handshake');
         }
       } else if (session.status === 'HANDSHAKE') {
         // Need to complete handshake
-        toast.info('Resuming secure connection...');
+        toast.info(t('toast.resumingConnection'));
         startHandshake(session.sessionId, peerInfo);
         setCurrentView('handshake');
       }
@@ -942,7 +942,7 @@ function AppContent() {
         return;
       }
       notificationOccurred('error');
-      toast.error(`Failed to resume session: ${errorCode}`, { title: 'Error' });
+      toast.error(t('toast.failedResumeSession', { error: errorCode }), { title: t('toast.title.error') });
     },
   });
 
@@ -1650,7 +1650,7 @@ function AppContent() {
         return next;
       });
       notificationOccurred('success');
-      toast.success('Request accepted');
+      toast.success(t('toast.requestAccepted'));
     }, 500);
   }, [
     acceptJoinRequest,
@@ -1673,7 +1673,7 @@ function AppContent() {
         next.delete(key);
         return next;
       });
-      toast.info('Request rejected');
+      toast.info(t('toast.requestRejected'));
     }, 500);
   }, [rejectJoinRequest, removeJoinRequest, toast]);
 
@@ -2621,13 +2621,13 @@ function AppContent() {
           
           // Show notification
           deps.notificationOccurred('success');
-          deps.toast.success('Session burned successfully');
+          deps.toast.success(t('toast.sessionBurned'));
         } else if (!data.success && data.error) {
           // Burn failed
           console.error('[App] Burn failed:', data.error);
           setBurningSessionId(null);
           deps.notificationOccurred('error');
-          deps.toast.error(`Failed to burn session: ${data.error}`, { title: 'Error' });
+          deps.toast.error(t('toast.failedBurnSession', { error: data.error }), { title: t('toast.title.error') });
         }
       } catch (error) {
         console.error('[App] Failed to parse burn signal:', error);
@@ -2746,7 +2746,7 @@ function AppContent() {
           deps.toast.success(t('room.burned'));
         } else if (!data.success && data.error) {
           deps.notificationOccurred('error');
-          deps.toast.error(`Failed to burn room: ${data.error}`, { title: 'Error' });
+          deps.toast.error(t('toast.failedBurnRoom', { error: data.error }), { title: t('toast.title.error') });
         }
       } catch (err) {
         console.error('[App] Failed to parse ROOM_BURNED event:', err);
@@ -2816,7 +2816,7 @@ function AppContent() {
           deps.toast.success(t('room.left'));
         } else if (!data.success && data.error) {
           deps.notificationOccurred('error');
-          deps.toast.error(`Failed to leave room: ${data.error}`, { title: 'Error' });
+          deps.toast.error(t('toast.failedLeaveRoom', { error: data.error }), { title: t('toast.title.error') });
         }
       } catch (err) {
         console.error('[App] Failed to parse ROOM_LEFT event:', err);
@@ -3493,7 +3493,7 @@ function AppContent() {
       <>
         <div className="error-screen">
           <div className="error-icon">&#9888;&#65039;</div>
-          <h2>Cannot Start App</h2>
+          <h2>{t('errors.startTitle')}</h2>
           <p>{initError}</p>
         </div>
         {debugPanelElement}
@@ -3507,13 +3507,13 @@ function AppContent() {
       <>
         <div className="error-screen">
           <div className="error-icon">&#128274;</div>
-          <h2>Connection Error</h2>
+          <h2>{t('errors.connectionTitle')}</h2>
           <p>{wsError.message}</p>
           <button 
             className="retry-button"
             onClick={() => window.location.reload()}
           >
-            Restart App
+            {t('errors.restart')}
           </button>
         </div>
         {debugPanelElement}

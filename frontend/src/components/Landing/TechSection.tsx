@@ -1,10 +1,12 @@
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 
 const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/Masalytin/BurnedChats';
 
 const badges = ['ECDH P-256', 'AES-256-GCM', 'Web Crypto API', 'React', 'Spring Boot', 'Redis', 'TypeScript', 'Java 21'];
 
 export function TechSection() {
+  const { t } = useTranslation();
   return (
     <>
       <motion.div
@@ -14,7 +16,7 @@ export function TechSection() {
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.6 }}
       >
-        <h2 className="section-title">Built in the open</h2>
+        <h2 className="section-title">{t('landing.tech.title')}</h2>
       </motion.div>
 
       <div className="tech-badges">
@@ -39,10 +41,10 @@ export function TechSection() {
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.5 }}
       >
-        <p>Source code is public. Audit it yourself.</p>
-        <a href={GITHUB_URL} className="tech-gh-btn" target="_blank" rel="noopener noreferrer" aria-label="View source code on GitHub">
+        <p>{t('landing.tech.body')}</p>
+        <a href={GITHUB_URL} className="tech-gh-btn" target="_blank" rel="noopener noreferrer" aria-label={t('landing.tech.githubAria')}>
           <GitHubIcon />
-          View on GitHub
+          {t('landing.tech.github')}
         </a>
       </motion.div>
 
@@ -59,7 +61,7 @@ export function TechSection() {
           <span className="dot-g" />
         </div>
         <pre>
-          <span className="cm">{'// All encryption happens in your browser'}</span>{'\n'}
+          <span className="cm">{`// ${t('landing.tech.codeComment')}`}</span>{'\n'}
           <span className="kw">const</span> sharedSecret = <span className="kw">await</span> crypto.subtle.<span className="fn">deriveBits</span>({'\n'}
           {'  '}{'{ '}<span className="pr">name</span>: <span className="st">&apos;ECDH&apos;</span>, <span className="pr">public</span>: peerPublicKey {'},'}{'\n'}
           {'  '}myPrivateKey,{'\n'}

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import './StatusBadge.css';
 
 type StatusType = 'online' | 'offline' | 'connecting' | 'error';
@@ -8,11 +9,19 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md';
 }
 
+const BADGE_KEYS: Record<StatusType, string> = {
+  online: 'status.badge.connected',
+  offline: 'status.badge.disconnected',
+  connecting: 'status.badge.connecting',
+  error: 'status.badge.error',
+};
+
 /**
  * Connection status indicator badge
  */
 export function StatusBadge({ status, label, size = 'md' }: StatusBadgeProps) {
-  const statusLabel = label || getDefaultLabel(status);
+  const { t } = useTranslation();
+  const statusLabel = label || t(BADGE_KEYS[status]);
 
   return (
     <div className={`status-badge status-badge--${status} status-badge--${size}`}>
@@ -21,18 +30,3 @@ export function StatusBadge({ status, label, size = 'md' }: StatusBadgeProps) {
     </div>
   );
 }
-
-function getDefaultLabel(status: StatusType): string {
-  switch (status) {
-    case 'online':
-      return 'Connected';
-    case 'offline':
-      return 'Disconnected';
-    case 'connecting':
-      return 'Connecting...';
-    case 'error':
-      return 'Error';
-  }
-}
-
-

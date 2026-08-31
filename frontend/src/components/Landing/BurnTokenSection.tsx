@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import './BurnTokenSection.css';
 
 const TOKENOMICS_URL =
@@ -8,23 +9,25 @@ const TOKENOMICS_URL =
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
-const stats = [
-  { value: '1,000', label: 'Max supply' },
-  { value: '0.5%', label: 'Burned per transfer' },
-  { value: 'TON', label: 'Jetton (TEP-74)' },
-  { value: '0.7%', label: 'Dev allocation · 12-mo vesting' },
-] as const;
-
-const feeSegments = [
-  { key: 'burn', width: 0.5, label: '0.5% burned', Icon: BurnIcon, tone: 'burn' },
-  { key: 'staking', width: 0.3, label: '0.3% staking', Icon: StakingIcon, tone: 'staking' },
-  { key: 'treasury', width: 0.2, label: '0.2% treasury', Icon: TreasuryIcon, tone: 'treasury' },
-] as const;
-
-const utilityChips = ['Staking', 'Governance', 'Rewards'] as const;
-
 export function BurnTokenSection() {
+  const { t } = useTranslation();
   const prefersReducedMotion = useReducedMotion();
+  const stats = [
+    { value: '1,000', label: t('landing.burnToken.stat0') },
+    { value: '0.5%', label: t('landing.burnToken.stat1') },
+    { value: 'TON', label: t('landing.burnToken.stat2') },
+    { value: '0.7%', label: t('landing.burnToken.stat3') },
+  ];
+  const feeSegments = [
+    { key: 'burn', width: 0.5, label: t('landing.burnToken.seg0'), Icon: BurnIcon, tone: 'burn' },
+    { key: 'staking', width: 0.3, label: t('landing.burnToken.seg1'), Icon: StakingIcon, tone: 'staking' },
+    { key: 'treasury', width: 0.2, label: t('landing.burnToken.seg2'), Icon: TreasuryIcon, tone: 'treasury' },
+  ];
+  const utilityChips = [
+    t('landing.burnToken.chip0'),
+    t('landing.burnToken.chip1'),
+    t('landing.burnToken.chip2'),
+  ];
 
   const reveal = {
     hidden: { opacity: 0, y: prefersReducedMotion ? 0 : 24 },
@@ -62,8 +65,8 @@ export function BurnTokenSection() {
         viewport={{ once: true, amount: 0.5 }}
         variants={reveal}
       >
-        <h2 className="section-title">The BURN Token</h2>
-        <p className="section-subtitle burn-token-hook">Messages burn. So does the token.</p>
+        <h2 className="section-title">{t('landing.burnToken.title')}</h2>
+        <p className="section-subtitle burn-token-hook">{t('landing.burnToken.hook')}</p>
       </motion.div>
 
       <motion.div
@@ -88,9 +91,9 @@ export function BurnTokenSection() {
         viewport={{ once: true, amount: 0.3 }}
         variants={reveal}
       >
-        <p className="burn-token-fee-title">Every transfer splits 1%</p>
+        <p className="burn-token-fee-title">{t('landing.burnToken.feeTitle')}</p>
 
-        <div className="burn-token-fee-bar" role="img" aria-label="Fee split: 0.5% burned, 0.3% staking, 0.2% treasury, 99% to recipient">
+        <div className="burn-token-fee-bar" role="img" aria-label={t('landing.burnToken.feeAria')}>
           {feeSegments.map((segment) => (
             <div
               key={segment.key}
@@ -109,7 +112,7 @@ export function BurnTokenSection() {
             </li>
           ))}
           <li className="burn-token-fee-legend-item burn-token-fee-legend-item--recipient">
-            <span>99% to recipient</span>
+            <span>{t('landing.burnToken.recipient')}</span>
           </li>
         </ul>
       </motion.div>
@@ -133,9 +136,9 @@ export function BurnTokenSection() {
           <Link
             to="/token"
             className="burn-token-cta burn-token-cta--primary"
-            aria-label="Explore the BURN token page"
+            aria-label={t('landing.burnToken.exploreAria')}
           >
-            Explore the token
+            {t('landing.burnToken.explore')}
             <ArrowRightIcon />
           </Link>
           <a
@@ -143,9 +146,9 @@ export function BurnTokenSection() {
             className="burn-token-cta"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Read BURN tokenomics documentation (opens in new tab)"
+            aria-label={t('landing.burnToken.docsAria')}
           >
-            Read tokenomics
+            {t('landing.burnToken.readDocs')}
             <ExternalLinkIcon />
           </a>
         </motion.div>

@@ -1,10 +1,12 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const TELEGRAM_BOT_URL = import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BurnedChatsBot';
 const GITHUB_URL = import.meta.env.VITE_GITHUB_URL || 'https://github.com/Masalytin/BurnedChats';
 
 export function FooterSection() {
+  const { t } = useTranslation();
   return (
     <footer className="landing-footer" style={{ textAlign: 'center' }}>
       <motion.h2
@@ -14,7 +16,7 @@ export function FooterSection() {
         viewport={{ amount: 0.5 }}
         transition={{ duration: 0.6 }}
       >
-        Ready to chat without leaving a trace?
+        {t('landing.footer.ready')}
       </motion.h2>
 
       <motion.div
@@ -29,29 +31,29 @@ export function FooterSection() {
           className="hero-cta"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open Burned Chats in Telegram"
+          aria-label={t('landing.cta.openTelegramAria')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.96 }}
         >
           <TelegramIcon />
-          Open in Telegram
+          {t('landing.cta.openTelegram')}
         </motion.a>
         <motion.a
           href="/app"
           className="hero-cta hero-cta--secondary"
-          aria-label="Open Burned Chats Web App"
+          aria-label={t('landing.cta.openWebAria')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.96 }}
         >
           <GlobeIcon />
-          Launch Web App
+          {t('landing.cta.launchWeb')}
         </motion.a>
       </motion.div>
 
       <hr className="footer-hr" />
 
       <p className="footer-tagline">
-        Burned Chats — ephemeral encrypted messaging inside Telegram.
+        {t('landing.footer.tagline')}
       </p>
 
       <div className="footer-links">
@@ -59,7 +61,7 @@ export function FooterSection() {
           <GhIcon /> GitHub
         </a>
         <a href={`${GITHUB_URL}/tree/master/docs`} className="footer-link" target="_blank" rel="noopener noreferrer">
-          <DocIcon /> Docs
+          <DocIcon /> {t('landing.footer.docs')}
         </a>
         <Link to="/token" className="footer-link">
           BURN

@@ -1,19 +1,27 @@
 // @vitest-environment happy-dom
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { I18nextProvider } from 'react-i18next';
+import { beforeEach, describe, expect, it } from 'vitest';
+import i18n from '@/i18n';
 
 import { FooterSection } from './FooterSection';
 
 function renderFooter() {
   return render(
-    <MemoryRouter>
-      <FooterSection />
-    </MemoryRouter>,
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter>
+        <FooterSection />
+      </MemoryRouter>
+    </I18nextProvider>,
   );
 }
 
 describe('FooterSection token discovery', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+  });
+
   it('adds a third footer-link BURN to /token without opening a new tab', () => {
     renderFooter();
 

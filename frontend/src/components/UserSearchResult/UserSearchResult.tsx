@@ -67,7 +67,7 @@ export function UserSearchResult({
                   <h3 className="search-result__user-name">
                     {user.displayName}
                     {user.premium && (
-                      <span className="search-result__premium" title="Premium">
+                      <span className="search-result__premium" title={t('common.premium')}>
                         <Star size={14} aria-hidden="true" />
                       </span>
                     )}

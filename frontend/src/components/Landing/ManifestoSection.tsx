@@ -1,11 +1,5 @@
 import { motion } from 'motion/react';
-
-const principles = [
-  { icon: ShieldLockIcon, title: 'Zero Knowledge', desc: 'The server never sees your messages, keys, or passwords. It relays encrypted bytes — nothing more.' },
-  { icon: FlameIcon, title: 'Ephemeral by Design', desc: 'Messages exist only in the moment. When you burn a chat, all data is permanently destroyed. No backups, no traces.' },
-  { icon: KeyIcon, title: 'End-to-End Encrypted', desc: 'ECDH key exchange + AES-256-GCM encryption. Keys live only on your device and never leave it.' },
-  { icon: FingerprintIcon, title: 'Verified Identity', desc: 'Visual fingerprint verification protects against man-in-the-middle attacks. You know who you\'re talking to.' },
-];
+import { useTranslation } from 'react-i18next';
 
 const reveal = {
   hidden: { opacity: 0, y: 50, scale: 0.95 },
@@ -14,6 +8,13 @@ const reveal = {
 };
 
 export function ManifestoSection() {
+  const { t } = useTranslation();
+  const principles = [
+    { icon: ShieldLockIcon, title: t('landing.manifesto.p0Title'), desc: t('landing.manifesto.p0Desc') },
+    { icon: FlameIcon, title: t('landing.manifesto.p1Title'), desc: t('landing.manifesto.p1Desc') },
+    { icon: KeyIcon, title: t('landing.manifesto.p2Title'), desc: t('landing.manifesto.p2Desc') },
+    { icon: FingerprintIcon, title: t('landing.manifesto.p3Title'), desc: t('landing.manifesto.p3Desc') },
+  ];
   return (
     <>
       <motion.p
@@ -25,14 +26,14 @@ export function ManifestoSection() {
         transition={{ duration: 0.7 }}
       >
         <span className="q">&ldquo;</span>
-        We can&apos;t read your messages. Even if we wanted to.
+        {t('landing.manifesto.quote')}
         <span className="q">&rdquo;</span>
       </motion.p>
 
       <div className="manifesto-grid">
         {principles.map((p, i) => (
           <motion.div
-            key={p.title}
+            key={i}
             className="m-card"
             initial={{ opacity: 0, y: 60 }}
             whileInView={{ opacity: 1, y: 0 }}

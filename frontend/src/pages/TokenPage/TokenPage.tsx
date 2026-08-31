@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useBackButton } from '../../hooks/useBackButton';
 import { writeTextToClipboard } from '../../utils/clipboard';
 import './TokenPage.css';
@@ -9,21 +11,21 @@ const WALLET_FROM = 'wallet';
 const WALLET_BACK_TO = '/app/wallet';
 const HOME_BACK_TO = '/';
 
-function resolveTokenPageBack(from: string | null) {
+function resolveTokenPageBack(from: string | null, t: TFunction) {
   if (from === WALLET_FROM) {
     return {
       to: WALLET_BACK_TO,
-      topLabel: 'Back to wallet',
-      footerLabel: 'Back to wallet',
-      aria: 'Back to wallet',
+      topLabel: t('tokenPage.backWallet'),
+      footerLabel: t('tokenPage.backWallet'),
+      aria: t('tokenPage.backWallet'),
       fromWallet: true,
     };
   }
   return {
     to: HOME_BACK_TO,
-    topLabel: 'Burned Chats',
-    footerLabel: 'Back to Burned Chats',
-    aria: 'Back to Burned Chats home',
+    topLabel: t('tokenPage.backHomeLabel'),
+    footerLabel: t('tokenPage.backHomeFooter'),
+    aria: t('tokenPage.backHomeAria'),
     fromWallet: false,
   };
 }
@@ -54,67 +56,62 @@ const JETTON_MASTER = import.meta.env.VITE_BURN_JETTON_MASTER || MAINNET.jettonM
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
-const stats = [
-  { value: '1,000', label: 'Max supply' },
-  { value: 'TEP-74', label: 'Jetton on TON' },
-  { value: '9', label: 'Decimals' },
-  { value: '1%', label: 'Total transfer fee' },
-  { value: '0.5%', label: 'Burned per transfer' },
-  { value: '0.7%', label: 'Dev allocation · 12-mo vesting' },
-] as const;
-
-const feeSegments = [
-  { key: 'burn', width: 0.5, label: '0.5% burned forever', tone: 'burn' },
-  { key: 'staking', width: 0.3, label: '0.3% to staking pool', tone: 'staking' },
-  { key: 'treasury', width: 0.2, label: '0.2% to treasury', tone: 'treasury' },
-] as const;
-
-const allocations = [
-  { label: 'Community Airdrop', amount: '200 BURN', percent: 20, note: 'Early Burned Chats users', address: MAINNET.airdropHolder },
-  { label: 'Staking Rewards', amount: '300 BURN', percent: 30, note: 'Released linearly over 3 years, enforced on-chain', address: MAINNET.stakingPool },
-  { label: 'Liquidity Pool', amount: '300 BURN', percent: 30, note: 'Held for DEX pools, gated by governance', address: MAINNET.liquidityHolder },
-  { label: 'Ecosystem', amount: '150 BURN', percent: 15, note: 'Grants & partnerships, 2-year vesting', address: MAINNET.vestingEcosystem },
-  { label: 'Reserve', amount: '43 BURN', percent: 4.3, note: 'Locked for 3 years', address: MAINNET.vestingReserve },
-  { label: 'Developer', amount: '7 BURN', percent: 0.7, note: '12-month linear vesting — no rug pull by design', address: MAINNET.vestingDeveloper },
-] as const;
-
-const tiers = [
-  { name: 'Flexible', lock: 'No lock', share: '5%', vp: '1.0x', extras: 'Instant unstake' },
-  { name: 'Silver', lock: '6 months', share: '10%', vp: '1.5x', extras: null },
-  { name: 'Gold', lock: '1 year', share: '25%', vp: '2.0x', extras: null },
-  { name: 'Diamond', lock: '3 years', share: '60%', vp: '3.0x', extras: 'NFT badge · beta access' },
-] as const;
-
-const proposals = [
-  { type: 'Parameter Change', quorum: '10% VP', approval: '51%', period: '3 days' },
-  { type: 'Feature Priority', quorum: '5% VP', approval: '51%', period: '7 days' },
-  { type: 'Treasury Spend', quorum: '20% VP', approval: '66%', period: '7 days' },
-  { type: 'Emergency', quorum: '30% VP', approval: '75%', period: '24 hours' },
-] as const;
-
-const utilities = [
-  { title: 'Rewards', body: 'Airdrops, referral and community incentives for early Burned Chats users.', Icon: GiftIcon },
-  { title: 'Governance', body: 'Vote on parameters, features and treasury spending.', Icon: VoteIcon },
-  { title: 'Staking', body: 'Stake for pool rewards, voting power and Diamond-tier perks.', Icon: CoinsIcon },
-  { title: 'Status', body: 'Cosmetic upgrades: avatar frames, burn effects, OG holder status.', Icon: SparkleIcon },
-] as const;
-
-const contractAddresses = [
-  { label: 'Jetton Master', address: JETTON_MASTER },
-  { label: 'Staking Master', address: import.meta.env.VITE_STAKING_MASTER || MAINNET.stakingMaster },
-  { label: 'Governor', address: import.meta.env.VITE_GOVERNOR_ADDRESS || MAINNET.governor },
-  { label: 'Treasury', address: import.meta.env.VITE_TREASURY_ADDRESS || MAINNET.treasury },
-];
-
 function truncateAddress(address: string): string {
   return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
 }
 
 export function TokenPage() {
+  const { t, i18n } = useTranslation();
   const prefersReducedMotion = useReducedMotion();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const back = resolveTokenPageBack(searchParams.get('from'));
+  const back = resolveTokenPageBack(searchParams.get('from'), t);
+
+  const stats = [
+    { value: '1,000', label: t('tokenPage.stat0') },
+    { value: 'TEP-74', label: t('tokenPage.stat1') },
+    { value: '9', label: t('tokenPage.stat2') },
+    { value: '1%', label: t('tokenPage.stat3') },
+    { value: '0.5%', label: t('tokenPage.stat4') },
+    { value: '0.7%', label: t('tokenPage.stat5') },
+  ];
+  const feeSegments = [
+    { key: 'burn', width: 0.5, label: t('tokenPage.seg0'), tone: 'burn' },
+    { key: 'staking', width: 0.3, label: t('tokenPage.seg1'), tone: 'staking' },
+    { key: 'treasury', width: 0.2, label: t('tokenPage.seg2'), tone: 'treasury' },
+  ];
+  const allocations = [
+    { label: t('tokenPage.alloc0'), amount: '200 BURN', percent: 20, note: t('tokenPage.alloc0Note'), address: MAINNET.airdropHolder },
+    { label: t('tokenPage.alloc1'), amount: '300 BURN', percent: 30, note: t('tokenPage.alloc1Note'), address: MAINNET.stakingPool },
+    { label: t('tokenPage.alloc2'), amount: '300 BURN', percent: 30, note: t('tokenPage.alloc2Note'), address: MAINNET.liquidityHolder },
+    { label: t('tokenPage.alloc3'), amount: '150 BURN', percent: 15, note: t('tokenPage.alloc3Note'), address: MAINNET.vestingEcosystem },
+    { label: t('tokenPage.alloc4'), amount: '43 BURN', percent: 4.3, note: t('tokenPage.alloc4Note'), address: MAINNET.vestingReserve },
+    { label: t('tokenPage.alloc5'), amount: '7 BURN', percent: 0.7, note: t('tokenPage.alloc5Note'), address: MAINNET.vestingDeveloper },
+  ];
+  const tiers = [
+    { name: t('tokenPage.tier0'), lock: t('tokenPage.tier0Lock'), share: '5%', vp: '1.0x', extras: t('tokenPage.tier0Extra') },
+    { name: t('tokenPage.tier1'), lock: t('tokenPage.tier1Lock'), share: '10%', vp: '1.5x', extras: null },
+    { name: t('tokenPage.tier2'), lock: t('tokenPage.tier2Lock'), share: '25%', vp: '2.0x', extras: null },
+    { name: t('tokenPage.tier3'), lock: t('tokenPage.tier3Lock'), share: '60%', vp: '3.0x', extras: t('tokenPage.tier3Extra') },
+  ];
+  const proposals = [
+    { type: t('tokenPage.prop0'), quorum: '10% VP', approval: '51%', period: t('tokenPage.period3d') },
+    { type: t('tokenPage.prop1'), quorum: '5% VP', approval: '51%', period: t('tokenPage.period7d') },
+    { type: t('tokenPage.prop2'), quorum: '20% VP', approval: '66%', period: t('tokenPage.period7d') },
+    { type: t('tokenPage.prop3'), quorum: '30% VP', approval: '75%', period: t('tokenPage.period24h') },
+  ];
+  const utilities = [
+    { title: t('tokenPage.util0Title'), body: t('tokenPage.util0Body'), Icon: GiftIcon },
+    { title: t('tokenPage.util1Title'), body: t('tokenPage.util1Body'), Icon: VoteIcon },
+    { title: t('tokenPage.util2Title'), body: t('tokenPage.util2Body'), Icon: CoinsIcon },
+    { title: t('tokenPage.util3Title'), body: t('tokenPage.util3Body'), Icon: SparkleIcon },
+  ];
+  const contractAddresses = [
+    { label: t('tokenPage.jettonMaster'), address: JETTON_MASTER },
+    { label: t('tokenPage.stakingMaster'), address: import.meta.env.VITE_STAKING_MASTER || MAINNET.stakingMaster },
+    { label: t('tokenPage.governor'), address: import.meta.env.VITE_GOVERNOR_ADDRESS || MAINNET.governor },
+    { label: t('tokenPage.treasury'), address: import.meta.env.VITE_TREASURY_ADDRESS || MAINNET.treasury },
+  ];
 
   useBackButton({
     visible: back.fromWallet,
@@ -137,7 +134,7 @@ export function TokenPage() {
   };
 
   return (
-    <div className="token-page" lang="en">
+    <div className="token-page" lang={i18n.language}>
       <header className="tp-topbar">
         <Link to={back.to} className="tp-back" aria-label={back.aria}>
           <FlameIcon />
@@ -146,27 +143,26 @@ export function TokenPage() {
       </header>
 
       {/* 1. Hero */}
-      <section className="tp-section tp-hero" aria-label="BURN token overview">
+      <section className="tp-section tp-hero" aria-label={t('tokenPage.aria.hero')}>
         <div className="tp-inner">
           <motion.div initial="hidden" animate="visible" variants={stagger}>
             <motion.h1 className="tp-hero-title" variants={item}>
-              The BURN Token
+              {t('tokenPage.heroTitle')}
             </motion.h1>
             <motion.p className="tp-hero-hook" variants={item}>
-              Messages burn. So does the token.
+              {t('tokenPage.heroHook')}
             </motion.p>
             <motion.p className="tp-hero-lede" variants={item}>
-              A deflationary Jetton on TON built into Burned Chats. Every transfer burns supply,
-              funds staking rewards, and fills a community-governed treasury.
+              {t('tokenPage.heroLede')}
             </motion.p>
             <motion.div className="tp-hero-status" variants={item}>
               <span className="tp-status-pill">
                 <span className="tp-status-dot" aria-hidden="true" />
-                Contracts live on TON {TON_NETWORK}
+                {t('tokenPage.contractsLive', { network: TON_NETWORK })}
               </span>
               <JettonMasterCard address={JETTON_MASTER} />
               <span className="tp-status-note">
-                Always verify contract addresses below before interacting.
+                {t('tokenPage.verifyNote')}
               </span>
             </motion.div>
           </motion.div>
@@ -174,7 +170,7 @@ export function TokenPage() {
       </section>
 
       {/* 2. Philosophy */}
-      <section className="tp-section tp-section--alt" aria-label="Why a token that burns">
+      <section className="tp-section tp-section--alt" aria-label={t('tokenPage.aria.philosophy')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -183,7 +179,7 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Why a token that burns</h2>
+            <h2 className="tp-section-title">{t('tokenPage.philosophyTitle')}</h2>
           </motion.div>
           <motion.div
             className="tp-philosophy"
@@ -193,25 +189,23 @@ export function TokenPage() {
             variants={stagger}
           >
             <motion.p className="tp-philosophy-line" variants={item}>
-              Messages burn — tokens are burned.
+              {t('tokenPage.phil1')}
             </motion.p>
             <motion.p className="tp-philosophy-line" variants={item}>
-              Privacy grows — scarcity increases.
+              {t('tokenPage.phil2')}
             </motion.p>
             <motion.blockquote className="tp-philosophy-quote" variants={item}>
-              The more active the usage — the more gets burned.
+              {t('tokenPage.philQuote')}
             </motion.blockquote>
             <motion.p className="tp-philosophy-body" variants={item}>
-              Burned Chats deletes messages forever. BURN applies the same principle to money:
-              a fixed 0.5% of every transfer is destroyed on-chain, permanently. No buybacks,
-              no re-minting — just less supply with every transaction.
+              {t('tokenPage.philBody')}
             </motion.p>
           </motion.div>
         </div>
       </section>
 
       {/* 3. Key parameters */}
-      <section className="tp-section" aria-label="Key parameters">
+      <section className="tp-section" aria-label={t('tokenPage.aria.params')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -220,7 +214,7 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Key parameters</h2>
+            <h2 className="tp-section-title">{t('tokenPage.paramsTitle')}</h2>
           </motion.div>
           <motion.div
             className="tp-stats"
@@ -240,7 +234,7 @@ export function TokenPage() {
       </section>
 
       {/* 4. Deflationary mechanism */}
-      <section className="tp-section tp-section--alt" aria-label="Deflationary mechanism">
+      <section className="tp-section tp-section--alt" aria-label={t('tokenPage.aria.fee')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -249,7 +243,7 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Every transfer splits 1%</h2>
+            <h2 className="tp-section-title">{t('tokenPage.feeTitle')}</h2>
           </motion.div>
 
           <motion.div
@@ -262,7 +256,7 @@ export function TokenPage() {
             <div
               className="tp-fee-bar"
               role="img"
-              aria-label="Fee split: 0.5% burned, 0.3% staking, 0.2% treasury, 99% to recipient"
+              aria-label={t('tokenPage.feeAria')}
             >
               {feeSegments.map((segment) => (
                 <div
@@ -282,7 +276,7 @@ export function TokenPage() {
               ))}
               <li className="tp-fee-legend-item tp-fee-legend-item--recipient">
                 <span className="tp-fee-swatch" aria-hidden="true" />
-                99% to recipient
+                {t('tokenPage.recipient')}
               </li>
             </ul>
           </motion.div>
@@ -295,18 +289,15 @@ export function TokenPage() {
             variants={stagger}
           >
             <motion.div className="tp-card" variants={item}>
-              <h3 className="tp-card-title">Dynamic burn</h3>
+              <h3 className="tp-card-title">{t('tokenPage.dynamicTitle')}</h3>
               <p className="tp-card-body">
-                The burn rate can scale with usage: +0.25% on large transfers (over 10 BURN) and
-                +0.125% during high network activity (over 100 tx/hour), up to ~0.875%. A hard
-                on-chain ceiling caps the total fee at 5% — no vote or code path can exceed it.
+                {t('tokenPage.dynamicBody')}
               </p>
             </motion.div>
             <motion.div className="tp-card" variants={item}>
-              <h3 className="tp-card-title">Built-in supply floor</h3>
+              <h3 className="tp-card-title">{t('tokenPage.floorTitle')}</h3>
               <p className="tp-card-body">
-                If supply ever falls below 100 BURN, the burn rate automatically drops to 0.1%,
-                slowing deflation as the token becomes scarce.
+                {t('tokenPage.floorBody')}
               </p>
             </motion.div>
           </motion.div>
@@ -314,7 +305,7 @@ export function TokenPage() {
       </section>
 
       {/* 5. Emission distribution */}
-      <section className="tp-section" aria-label="Emission distribution">
+      <section className="tp-section" aria-label={t('tokenPage.aria.allocation')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -323,9 +314,9 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Where the 1,000 BURN go</h2>
+            <h2 className="tp-section-title">{t('tokenPage.allocTitle')}</h2>
             <p className="tp-section-subtitle">
-              Fixed allocation, enforced by vesting and on-chain emission contracts.
+              {t('tokenPage.allocSubtitle')}
             </p>
           </motion.div>
           <motion.ul
@@ -347,7 +338,7 @@ export function TokenPage() {
                   <div className="tp-allocation-fill" style={{ width: `${row.percent}%` }} />
                 </div>
                 <p className="tp-allocation-note">{row.note}</p>
-                <ExplorerAddress address={row.address} label={`${row.label} holder`} />
+                <ExplorerAddress address={row.address} label={t('tokenPage.holderAria', { label: row.label })} />
               </motion.li>
             ))}
           </motion.ul>
@@ -355,7 +346,7 @@ export function TokenPage() {
       </section>
 
       {/* 6. Staking */}
-      <section className="tp-section tp-section--alt" aria-label="Staking tiers">
+      <section className="tp-section tp-section--alt" aria-label={t('tokenPage.aria.staking')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -364,10 +355,9 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Staking tiers</h2>
+            <h2 className="tp-section-title">{t('tokenPage.stakingTitle')}</h2>
             <p className="tp-section-subtitle">
-              Longer locks earn a larger share of pool rewards and more voting power. Rewards
-              inside a tier are proportional to your stake.
+              {t('tokenPage.stakingSubtitle')}
             </p>
           </motion.div>
           <motion.div
@@ -383,11 +373,11 @@ export function TokenPage() {
                 <span className="tp-tier-lock">{tier.lock}</span>
                 <dl className="tp-tier-facts">
                   <div className="tp-tier-fact">
-                    <dt>Reward share</dt>
+                    <dt>{t('tokenPage.rewardShare')}</dt>
                     <dd>{tier.share}</dd>
                   </div>
                   <div className="tp-tier-fact">
-                    <dt>Voting power</dt>
+                    <dt>{t('tokenPage.votingPower')}</dt>
                     <dd>{tier.vp}</dd>
                   </div>
                 </dl>
@@ -402,14 +392,13 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            Yields are not fixed — they depend on pool emission and how many tokens are staked
-            in your tier.
+            {t('tokenPage.stakingNote')}
           </motion.p>
         </div>
       </section>
 
       {/* 7. Governance */}
-      <section className="tp-section" aria-label="Governance">
+      <section className="tp-section" aria-label={t('tokenPage.aria.governance')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -418,9 +407,9 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Governed by stakers</h2>
+            <h2 className="tp-section-title">{t('tokenPage.govTitle')}</h2>
             <p className="tp-section-subtitle">
-              Every staker votes. Voting power grows with lock duration, not just stake size.
+              {t('tokenPage.govSubtitle')}
             </p>
           </motion.div>
 
@@ -431,7 +420,7 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            Voting Power = staked amount × time multiplier
+            {t('tokenPage.govFormula')}
           </motion.p>
 
           <motion.div
@@ -442,13 +431,13 @@ export function TokenPage() {
             variants={reveal}
           >
             <table className="tp-gov-table">
-              <caption>Governance proposal types with quorum, approval threshold and voting period</caption>
+              <caption>{t('tokenPage.govCaption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Proposal type</th>
-                  <th scope="col">Quorum</th>
-                  <th scope="col">Approval</th>
-                  <th scope="col">Voting period</th>
+                  <th scope="col">{t('tokenPage.colType')}</th>
+                  <th scope="col">{t('tokenPage.colQuorum')}</th>
+                  <th scope="col">{t('tokenPage.colApproval')}</th>
+                  <th scope="col">{t('tokenPage.colPeriod')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -471,14 +460,13 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            Stakers control the burn rate (0.1–5%), tier reward shares, staking distribution
-            rate and treasury spending — all within hard on-chain caps.
+            {t('tokenPage.govParams')}
           </motion.p>
         </div>
       </section>
 
       {/* 8. Utility */}
-      <section className="tp-section tp-section--alt" aria-label="What BURN is for">
+      <section className="tp-section tp-section--alt" aria-label={t('tokenPage.aria.utility')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -487,7 +475,7 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">What BURN is for</h2>
+            <h2 className="tp-section-title">{t('tokenPage.utilTitle')}</h2>
           </motion.div>
           <motion.div
             className="tp-utilities"
@@ -510,7 +498,7 @@ export function TokenPage() {
       </section>
 
       {/* 9. On-chain */}
-      <section className="tp-section" aria-label="Contract addresses">
+      <section className="tp-section" aria-label={t('tokenPage.aria.contracts')}>
         <div className="tp-inner">
           <motion.div
             className="tp-section-header"
@@ -519,10 +507,9 @@ export function TokenPage() {
             viewport={{ once: true, amount: 0.5 }}
             variants={reveal}
           >
-            <h2 className="tp-section-title">Verify the contracts</h2>
+            <h2 className="tp-section-title">{t('tokenPage.contractsTitle')}</h2>
             <p className="tp-section-subtitle">
-              BURN is fully on-chain. These are the canonical contract addresses — always
-              double-check them before interacting with any token claiming to be BURN.
+              {t('tokenPage.contractsSubtitle')}
             </p>
           </motion.div>
           <motion.div
@@ -533,8 +520,8 @@ export function TokenPage() {
             variants={stagger}
           >
             <motion.div className="tp-onchain-row" variants={item}>
-              <span className="tp-onchain-label">Network</span>
-              <span className="tp-onchain-value">TON {TON_NETWORK}</span>
+              <span className="tp-onchain-label">{t('tokenPage.network')}</span>
+              <span className="tp-onchain-value">{t('tokenPage.networkValue', { network: TON_NETWORK })}</span>
             </motion.div>
             {contractAddresses.map((row) => (
               <motion.div key={row.label} className="tp-onchain-row" variants={item}>
@@ -547,7 +534,7 @@ export function TokenPage() {
       </section>
 
       {/* 10. Footer */}
-      <footer className="tp-section tp-section--alt tp-footer" aria-label="Token page footer">
+      <footer className="tp-section tp-section--alt tp-footer" aria-label={t('tokenPage.aria.footer')}>
         <div className="tp-inner">
           <div className="tp-footer-ctas">
             <a
@@ -555,9 +542,9 @@ export function TokenPage() {
               className="tp-cta tp-cta--primary"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Read the full BURN tokenomics specification (opens in new tab)"
+              aria-label={t('tokenPage.readTokenomicsAria')}
             >
-              Read the full tokenomics
+              {t('tokenPage.readTokenomics')}
               <ExternalLinkIcon />
             </a>
             <Link to={back.to} className="tp-cta">
@@ -565,8 +552,7 @@ export function TokenPage() {
             </Link>
           </div>
           <p className="tp-footer-disclaimer">
-            BURN is a utility token for the Burned Chats ecosystem. Nothing on this page is
-            investment advice or an offer to sell securities.
+            {t('tokenPage.disclaimer')}
           </p>
         </div>
       </footer>
@@ -579,6 +565,7 @@ function explorerHref(address: string): string {
 }
 
 function ExplorerAddress({ address, label }: { address: string; label: string }) {
+  const { t } = useTranslation();
   return (
     <a
       className="tp-addr"
@@ -586,7 +573,7 @@ function ExplorerAddress({ address, label }: { address: string; label: string })
       target="_blank"
       rel="noopener noreferrer"
       title={address}
-      aria-label={`${label} ${address} on tonviewer (opens in new tab)`}
+      aria-label={t('tokenPage.explorerAria', { label, address })}
     >
       {truncateAddress(address)}
       <ExternalLinkIcon />
@@ -595,6 +582,7 @@ function ExplorerAddress({ address, label }: { address: string; label: string })
 }
 
 function JettonMasterCard({ address }: { address: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   async function copyAddress() {
@@ -606,14 +594,14 @@ function JettonMasterCard({ address }: { address: string }) {
 
   return (
     <div className="tp-hero-jetton">
-      <span className="tp-hero-jetton-label">Jetton Master</span>
+      <span className="tp-hero-jetton-label">{t('tokenPage.jettonMaster')}</span>
       <div className="tp-hero-jetton-row">
         <a
           className="tp-hero-jetton-addr"
           href={explorerHref(address)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Jetton Master ${address} on tonviewer (opens in new tab)`}
+          aria-label={t('tokenPage.jettonAria', { address })}
         >
           {address}
           <ExternalLinkIcon />
@@ -622,10 +610,10 @@ function JettonMasterCard({ address }: { address: string }) {
           type="button"
           className="tp-copy"
           onClick={() => void copyAddress()}
-          aria-label={copied ? 'Jetton Master address copied' : 'Copy Jetton Master address'}
+          aria-label={copied ? t('tokenPage.copiedAria') : t('tokenPage.copyAria')}
         >
           {copied ? <CheckIcon /> : <CopyGlyph />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
+          <span>{copied ? t('tokenPage.copied') : t('tokenPage.copy')}</span>
         </button>
       </div>
     </div>

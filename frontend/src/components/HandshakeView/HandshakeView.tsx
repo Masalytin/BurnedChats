@@ -330,7 +330,7 @@ export function HandshakeView({
                   <h3 className="handshake-view__peer-name">
                     {peer.displayName}
                     {peer.premium && (
-                      <span className="handshake-view__premium" title="Premium">
+                      <span className="handshake-view__premium" title={t('common.premium')}>
                         <Star size={14} aria-hidden="true" />
                       </span>
                     )}

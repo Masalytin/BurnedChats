@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { VisualFingerprintElement } from '../../types';
 import { CheckIcon, FingerprintIcon } from '../../icons';
 import './VisualFingerprint.css';
@@ -42,11 +43,13 @@ export function VisualFingerprint({
   elements,
   size = 'md',
   showLabel = false,
-  label = 'Security Fingerprint',
+  label,
   showHint = false,
   verified = false,
   className = '',
 }: VisualFingerprintProps) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('fingerprint.label');
   if (elements.length === 0) {
     console.warn('VisualFingerprint: empty fingerprint, nothing to render');
     return null;
@@ -57,9 +60,9 @@ export function VisualFingerprint({
       {showLabel && (
         <div className="visual-fingerprint__header">
           <FingerprintIcon size={16} className="visual-fingerprint__icon" />
-          <span className="visual-fingerprint__label">{label}</span>
+          <span className="visual-fingerprint__label">{resolvedLabel}</span>
           {verified && (
-            <span className="visual-fingerprint__verified-badge" title="Verified">
+            <span className="visual-fingerprint__verified-badge" title={t('verification.statusVerified')}>
               <CheckIcon size={10} aria-hidden="true" />
             </span>
           )}
@@ -82,7 +85,7 @@ export function VisualFingerprint({
       
       {showHint && (
         <p className="visual-fingerprint__hint">
-          Compare these emoji with your peer to verify the connection
+          {t('fingerprint.compareHint')}
         </p>
       )}
     </div>
@@ -97,6 +100,7 @@ export function VisualFingerprintCompact({
   verified = false,
   className = '',
 }: Pick<VisualFingerprintProps, 'elements' | 'verified' | 'className'>) {
+  const { t } = useTranslation();
   if (elements.length === 0) {
     return null;
   }
@@ -114,7 +118,7 @@ export function VisualFingerprintCompact({
         </span>
       ))}
       {verified && (
-        <span className="visual-fingerprint-compact__check" title="Verified">
+        <span className="visual-fingerprint-compact__check" title={t('verification.statusVerified')}>
           <CheckIcon size={10} aria-hidden="true" />
         </span>
       )}

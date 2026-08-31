@@ -1,4 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLanguageSwitcher, type SupportedLanguage } from '../../i18n/useLanguageSwitcher';
 import './LanguageSwitcher.css';
 
@@ -48,6 +49,7 @@ function FlagImg({ countryCode, size = 20 }: { countryCode: string; size?: numbe
  * Persists selection via Telegram CloudStorage and syncs with backend.
  */
 export const LanguageSwitcher = memo(function LanguageSwitcher() {
+  const { t } = useTranslation();
   const { currentLang, switchLanguage } = useLanguageSwitcher();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,7 +118,7 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
 
       {/* Dropdown */}
       {isOpen && (
-        <ul className="lang-switcher__dropdown" role="listbox" aria-label="Select language">
+        <ul className="lang-switcher__dropdown" role="listbox" aria-label={t('common.selectLanguage')}>
           {langs.map((lang) => {
             const opt = LANG_OPTIONS[lang];
             const isActive = lang === currentLang;

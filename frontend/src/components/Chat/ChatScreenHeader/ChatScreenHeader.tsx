@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import '@/styles/ChatScreen.css';
 
 export interface ChatScreenHeaderProps {
@@ -15,11 +16,13 @@ export interface ChatScreenHeaderProps {
  */
 export function ChatScreenHeader({
   onBack,
-  backAriaLabel = 'Go back',
+  backAriaLabel,
   left,
   right,
   className = '',
 }: ChatScreenHeaderProps) {
+  const { t } = useTranslation();
+  const resolvedBackAria = backAriaLabel ?? t('common.goBack');
   return (
     <div className={`chat-screen-header ${className}`.trim()}>
       <div className="chat-screen-header-left">
@@ -28,7 +31,7 @@ export function ChatScreenHeader({
             type="button"
             className="chat-screen-icon-btn chat-screen-back"
             onClick={onBack}
-            aria-label={backAriaLabel}
+            aria-label={resolvedBackAria}
           >
             <BackIcon />
           </button>

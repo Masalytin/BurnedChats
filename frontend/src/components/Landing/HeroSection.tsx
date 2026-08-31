@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import Particles, { initParticlesEngine } from '@tsparticles/react';
 import { loadSlim } from '@tsparticles/slim';
@@ -54,6 +55,7 @@ const fadeUp = {
 };
 
 export function HeroSection() {
+  const { t } = useTranslation();
   const [ready, setReady] = useState(false);
   const particlesOptions = useMemo(() => buildParticlesOptions(readBrandColor()), []);
 
@@ -79,14 +81,14 @@ export function HeroSection() {
         </motion.h1>
 
         <motion.p className="hero-tagline" variants={fadeUp}>
-          Messages that leave no trace.
+          {t('landing.hero.tagline')}
         </motion.p>
 
         <motion.p className="hero-features" variants={fadeUp}>
-          <span className="hl">End-to-end encrypted</span>.{' '}
-          <span className="hl">Self-destructing</span>.
+          <span className="hl">{t('landing.hero.e2ee')}</span>.{' '}
+          <span className="hl">{t('landing.hero.selfDestruct')}</span>.
           <br />
-          Built on <span className="hl">zero-knowledge</span> architecture.
+          {t('landing.hero.zkPrefix')} <span className="hl">{t('landing.hero.zk')}</span> {t('landing.hero.zkSuffix')}
         </motion.p>
 
         <motion.div className="hero-cta-group" variants={fadeUp}>
@@ -95,22 +97,22 @@ export function HeroSection() {
             className="hero-cta"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open Burned Chats in Telegram"
+            aria-label={t('landing.cta.openTelegramAria')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.96 }}
           >
             <TelegramIcon />
-            Open in Telegram
+            {t('landing.cta.openTelegram')}
           </motion.a>
           <motion.a
             href="/app"
             className="hero-cta hero-cta--secondary"
-            aria-label="Open Burned Chats Web App"
+            aria-label={t('landing.cta.openWebAria')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.96 }}
           >
             <GlobeIcon />
-            Launch Web App
+            {t('landing.cta.launchWeb')}
           </motion.a>
         </motion.div>
       </motion.div>
@@ -121,7 +123,7 @@ export function HeroSection() {
         animate={{ opacity: 1 }}
         transition={{ delay: 2.5, duration: 1 }}
       >
-        <span>Scroll to explore</span>
+        <span>{t('landing.hero.scroll')}</span>
         <ChevronDownIcon />
       </motion.div>
     </>

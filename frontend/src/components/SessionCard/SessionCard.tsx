@@ -119,7 +119,7 @@ export function SessionCard({
             onClick={handleBurnClick}
             role="button"
             tabIndex={0}
-            aria-label="Burn session"
+            aria-label={t('chat.burnSessionAria')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 handleBurnClick(e as unknown as React.MouseEvent);
