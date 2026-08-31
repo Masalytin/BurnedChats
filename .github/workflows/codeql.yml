@@ -38,7 +38,7 @@ jobs:
 
             - name: Set up Gradle
               if: matrix.language == 'java-kotlin'
-              uses: gradle/actions/setup-gradle@v4
+              uses: gradle/actions/setup-gradle@v6
               with:
                   # Restored Gradle build cache serves compileJava FROM-CACHE;
                   # CodeQL then sees no javac and fails with "didn't build any of it".
