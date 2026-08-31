@@ -21,7 +21,11 @@
       "unitDays": "ي",
       "unitHours": "س",
       "unitMinutes": "د"
-    }
+    },
+    "dismissNotification": "إغلاق الإشعار",
+    "selectLanguage": "اختيار اللغة",
+    "goBack": "رجوع",
+    "premium": "Premium"
   },
   "status": {
     "online": "متصل",
@@ -30,7 +34,13 @@
     "connecting": "جارٍ الاتصال",
     "reconnecting": "جارٍ إعادة الاتصال...",
     "reconnectExhausted": "تعذر إعادة الاتصال بعد {{count}} محاولات",
-    "reconnectNow": "حاول مرة أخرى"
+    "reconnectNow": "حاول مرة أخرى",
+    "badge": {
+      "connected": "متصل",
+      "disconnected": "غير متصل",
+      "connecting": "جارٍ الاتصال…",
+      "error": "خطأ"
+    }
   },
   "home": {
     "sectionSearch": "ابدأ دردشة آمنة",
@@ -66,7 +76,14 @@
       "title": "رمز BURN"
     },
     "internalIdLabel": "Internal ID (شاركه ليتم العثور عليك): {{id}}",
-    "searchHint": "شارك Internal ID (في الملف أعلاه) ليتمكن الآخرون من العثور عليك. يقبل البحث @username وTelegram ID الرقمي وInternal ID الكامل (UUID) أو عنوان المحفظة (EQ…)."
+    "searchHint": "شارك Internal ID (في الملف أعلاه) ليتمكن الآخرون من العثور عليك. يقبل البحث @username وTelegram ID الرقمي وInternal ID الكامل (UUID) أو عنوان المحفظة (EQ…).",
+    "copyUsername": "نسخ اسم المستخدم",
+    "copyTelegramId": "نسخ المعرف",
+    "copyInternalId": "نسخ المعرف الداخلي",
+    "clearSearch": "مسح البحث",
+    "copyLabelUsername": "اسم المستخدم",
+    "copyLabelTelegramId": "معرف Telegram",
+    "copyLabelInternalId": "المعرف الداخلي"
   },
   "aria": {
     "refreshRooms": "تحديث الغرف",
@@ -334,7 +351,8 @@
     "temporarilyUnavailable": "الدردشة غير متاحة مؤقتًا",
     "verificationRequired": "في انتظار التحقق من بصمة الإصبع. قارن البصمات المرئية مع الطرف الآخر قبل إرسال الرسائل.",
     "burnStakeBadge": "BURN {{tier}}",
-    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium",
+    "burnSessionAria": "حرق الجلسة"
   },
   "burnDialog": {
     "title": "حذف هذه الدردشة؟",
@@ -343,7 +361,14 @@
     "listKeys": "مفاتيح التشفير (كلا الجهازين)",
     "listHistory": "سجل جميع الرسائل",
     "listSession": "اتصال الجلسة",
-    "confirmButton": "حذف الدردشة"
+    "confirmButton": "حذف الدردشة",
+    "animationAria": "رسوم تدمير الدردشة",
+    "titleBurned": "أُحرقت الدردشة",
+    "titleDestroyed": "دُمّرت الدردشة",
+    "selfBurned": "أحرقت هذه الدردشة",
+    "peerBurned": "أحرق {{name}} هذه الدردشة",
+    "destroyedInfo": "دُمّرت كل الرسائل ومفاتيح التشفير نهائيًا.",
+    "tapToContinue": "انقر للمتابعة"
   },
   "incomingRequest": {
     "title": "طلب دردشة وارد",
@@ -395,7 +420,9 @@
     "waitingPeer": "في انتظار تحقق الطرف الآخر...",
     "helpText": "اطلب من الطرف الآخر قراءة رموز بصمة الإصبع الخاصة بهم عبر مكالمة صوتية أو شخصيًا. إذا تطابقت، اضغط على \"بصمة الإصبع متطابقة\".",
     "waitingLonger": "يستغرق وقتًا أطول من المعتاد…",
-    "connectionLost": "لا يوجد اتصال — لم يُرسل تأكيدك."
+    "connectionLost": "لا يوجد اتصال — لم يُرسل تأكيدك.",
+    "notYetVerified": "لم يُتحقق بعد",
+    "mismatchReported": "أُبلغ عن عدم تطابق"
   },
   "handshake": {
     "title": "إنشاء اتصال آمن",
@@ -476,7 +503,9 @@
   "pendingRequest": {
     "title": "في انتظار الرد",
     "cancelButton": "إلغاء الطلب",
-    "errorRejected": "تم رفض طلب الدردشة الخاص بك"
+    "errorRejected": "تم رفض طلب الدردشة الخاص بك",
+    "secretQuestionHint": "يجب أن يجيب المستلم على سؤالك السري",
+    "notificationSent": "أُرسل الإشعار عبر Telegram"
   },
   "userSearch": {
     "searching": "جارٍ البحث...",
@@ -855,7 +884,10 @@
     "reload": "إعادة التحميل",
     "report": "إبلاغ",
     "rootMessage": "واجه التطبيق خطأً غير متوقع. أعد تحميل الصفحة، أو انسخ التفاصيل التقنية، أو أرسل لنا تقريرًا.",
-    "rootTitle": "حدث خطأ ما"
+    "rootTitle": "حدث خطأ ما",
+    "startTitle": "تعذر بدء التطبيق",
+    "connectionTitle": "خطأ في الاتصال",
+    "restart": "إعادة تشغيل التطبيق"
   },
   "files": {
     "bubble": {
@@ -1571,7 +1603,6 @@
     "invalidTitle": "رابط دعوة غير صالح",
     "invalidHint": "الرابط ناقص أو غير صحيح. اطلب دعوة جديدة."
   },
-
   "onboarding": {
     "language": {
       "title": "اختر لغتك",
@@ -1584,7 +1615,6 @@
       "hint": "يمكنك تغيير السمة لاحقًا في الإعدادات"
     }
   },
-
   "language": {
     "nativeName": {
       "ar": "العربية",
@@ -1597,7 +1627,6 @@
       "zh-CN": "简体中文"
     }
   },
-
   "theme": {
     "bone": {
       "hint": "ورق دافئ"
@@ -1607,6 +1636,284 @@
     },
     "nocturne": {
       "hint": "ليل بارد"
+    }
+  },
+  "fingerprint": {
+    "label": "بصمة الأمان",
+    "compareHint": "قارن هذه الرموز التعبيرية مع الطرف الآخر للتحقق من الاتصال"
+  },
+  "landing": {
+    "skip": "تخطي إلى المحتوى",
+    "aria": {
+      "hero": "القسم الرئيسي",
+      "principles": "مبادئنا",
+      "howItWorks": "كيف يعمل",
+      "trust": "كتلة الثقة",
+      "comparison": "مقارنة",
+      "burnToken": "رمز BURN",
+      "tech": "التقنية",
+      "footer": "التذييل"
+    },
+    "cta": {
+      "openTelegramAria": "فتح Burned Chats في Telegram",
+      "openTelegram": "فتح في Telegram",
+      "openWebAria": "فتح تطبيق Burned Chats على الويب",
+      "launchWeb": "تشغيل تطبيق الويب"
+    },
+    "hero": {
+      "tagline": "رسائل لا تترك أثرًا.",
+      "e2ee": "تشفير من طرف إلى طرف",
+      "selfDestruct": "تدمير ذاتي",
+      "zkPrefix": "مبني على",
+      "zk": "zero-knowledge",
+      "zkSuffix": "معمارية.",
+      "scroll": "مرّر للاستكشاف"
+    },
+    "manifesto": {
+      "quote": "لا نستطيع قراءة رسائلك. حتى لو أردنا.",
+      "p0Title": "Zero Knowledge",
+      "p0Desc": "الخادم لا يرى رسائلك أو مفاتيحك أو كلمات المرور. ينقل بايتات مشفّرة فقط — لا أكثر.",
+      "p1Title": "مؤقت بالتصميم",
+      "p1Desc": "توجد الرسائل في اللحظة فقط. عندما تحرق دردشة تُدمَّر كل البيانات نهائيًا. بلا نسخ احتياطية ولا آثار.",
+      "p2Title": "تشفير من طرف إلى طرف",
+      "p2Desc": "تبادل مفاتيح ECDH + تشفير AES-256-GCM. المفاتيح تعيش على جهازك فقط ولا تغادره أبدًا.",
+      "p3Title": "هوية مُتحقق منها",
+      "p3Desc": "التحقق البصري من البصمة يحمي من هجمات الرجل في المنتصف. تعرف مع من تتحدث."
+    },
+    "howItWorks": {
+      "title": "كيف يعمل",
+      "subtitle": "دردشة آمنة في 5 خطوات",
+      "protocolAria": "بروتوكول تبادل مفاتيح ECDH",
+      "yourDevice": "جهازك",
+      "relayOnly": "ترحيل فقط",
+      "peerDevice": "جهاز الطرف الآخر",
+      "s1Title": "ابحث",
+      "s1Desc": "ابحث عن مستخدم Telegram باسم المستخدم أو المعرف.",
+      "s2Title": "ادعُ",
+      "s2Desc": "أرسل طلب دردشة مشفّرًا. يصل إشعار عبر Telegram.",
+      "s3Title": "Handshake",
+      "s3Desc": "ينفّذ الجهازان تبادل مفاتيح ECDH. يولد سر مشترك — غير مرئي للخادم.",
+      "s4Title": "تحقق",
+      "s4Desc": "قارن البصمات البصرية لتأكيد أنه لا أحد في المنتصف.",
+      "s5Title": "دردش واحرق",
+      "s5Desc": "تبادل رسائل مشفّرة بـ AES-256-GCM. عند الانتهاء — احرق كل شيء."
+    },
+    "trust": {
+      "title": "لا تثق بنا. لست مضطرًا لذلك.",
+      "serverSees": "ما يراه الخادم",
+      "youSee": "ما تراه أنت",
+      "encryptedNote": "بايتات مشفّرة. بيانات وصفية. لا شيء آخر.",
+      "decryptedNote": "يُفك التشفير على جهازك. المفاتيح لا تغادر متصفحك.",
+      "demoIn1": "مرحباً، هل ما زلنا سنلتقي غداً؟",
+      "demoIn2": "نعم! الساعة الثالثة في المكان المعتاد.",
+      "demoIn3": "حسناً. سأحضر المستندات.",
+      "burnChat": "حرق الدردشة"
+    },
+    "comparison": {
+      "title": "كيف نقارن",
+      "caption": "مقارنة الميزات بين تطبيقات المراسلة",
+      "feature": "الميزة",
+      "telegramSecret": "Telegram Secret",
+      "yes": "نعم",
+      "no": "لا",
+      "partial": "جزئي",
+      "auto": "تلقائي",
+      "timer": "مؤقت",
+      "client": "عميل",
+      "note": "المقارنة مبنية على معلومات عامة. قد تتغير الميزات.",
+      "r0": "تشفير من طرف إلى طرف",
+      "r1": "خادم zero-knowledge",
+      "r2": "رسائل ذاتية التدمير",
+      "r3": "بلا تخزين دائم",
+      "r4": "تحقق بصري",
+      "r5": "بلا رقم هاتف",
+      "r6": "مفتوح المصدر"
+    },
+    "burnToken": {
+      "title": "رمز BURN",
+      "hook": "الرسائل تحترق. والرمز أيضًا.",
+      "feeTitle": "كل تحويل يقسم 1%",
+      "feeAria": "توزيع الرسوم: 0.5% يُحرق، 0.3% ستاكينغ، 0.2% خزانة، 99% للمستلم",
+      "exploreAria": "استكشف صفحة رمز BURN",
+      "explore": "استكشف الرمز",
+      "docsAria": "اقرأ توكنوميكس BURN (يفتح في علامة تبويب جديدة)",
+      "docs": "التوكنوميكس",
+      "readDocs": "اقرأ التوكنوميكس",
+      "recipient": "99% للمستلم",
+      "chip0": "ستاكينغ",
+      "chip1": "حوكمة",
+      "chip2": "مكافآت",
+      "stat0": "الحد الأقصى للعرض",
+      "stat1": "يُحرق لكل تحويل",
+      "stat2": "Jetton (TEP-74)",
+      "stat3": "حصة المطوّر · استحقاق 12 شهرًا",
+      "seg0": "0.5% يُحرق",
+      "seg1": "0.3% ستاكينغ",
+      "seg2": "0.2% خزانة"
+    },
+    "tech": {
+      "title": "مبني في العلن",
+      "body": "شفرة المصدر عامة. دقّقها بنفسك.",
+      "githubAria": "عرض شفرة المصدر على GitHub",
+      "github": "عرض على GitHub",
+      "codeComment": "كل التشفير يحدث في متصفحك"
+    },
+    "footer": {
+      "ready": "مستعد للدردشة دون ترك أثر؟",
+      "tagline": "Burned Chats — مراسلة مشفّرة مؤقتة داخل Telegram.",
+      "docs": "المستندات"
+    }
+  },
+  "tokenPage": {
+    "lang": "ar",
+    "backWallet": "العودة إلى المحفظة",
+    "backHomeLabel": "Burned Chats",
+    "backHomeFooter": "العودة إلى Burned Chats",
+    "backHomeAria": "العودة إلى الصفحة الرئيسية لـ Burned Chats",
+    "aria": {
+      "hero": "نظرة عامة على رمز BURN",
+      "philosophy": "لماذا رمز يحترق",
+      "params": "المعاملات الرئيسية",
+      "fee": "آلية انكماشية",
+      "allocation": "توزيع الإصدار",
+      "staking": "مستويات الستاكينغ",
+      "governance": "الحوكمة",
+      "utility": "فائدة BURN",
+      "contracts": "عناوين العقود",
+      "footer": "تذييل صفحة الرمز"
+    },
+    "heroTitle": "رمز BURN",
+    "heroHook": "الرسائل تحترق. والرمز أيضًا.",
+    "heroLede": "Jetton انكماشي على TON مدمج في Burned Chats. كل تحويل يحرق العرض، ويموّل مكافآت الستاكينغ، ويملأ خزانة يحكمها المجتمع.",
+    "contractsLive": "العقود نشطة على TON {{network}}",
+    "verifyNote": "تحقق دائمًا من عناوين العقود أدناه قبل التفاعل.",
+    "jettonMaster": "Jetton Master",
+    "jettonAria": "Jetton Master {{address}} على tonviewer (يفتح في علامة تبويب جديدة)",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "copyAria": "نسخ عنوان Jetton Master",
+    "copiedAria": "تم نسخ عنوان Jetton Master",
+    "philosophyTitle": "لماذا رمز يحترق",
+    "phil1": "الرسائل تحترق — والرموز تُحرق.",
+    "phil2": "الخصوصية تنمو — والندرة تزداد.",
+    "philQuote": "كلما زاد الاستخدام — زاد الحرق.",
+    "philBody": "يحذف Burned Chats الرسائل إلى الأبد. يطبّق BURN المبدأ نفسه على المال: يُدمَّر 0.5% ثابت من كل تحويل على السلسلة نهائيًا. بلا إعادة شراء ولا إعادة سك — فقط عرض أقل مع كل معاملة.",
+    "paramsTitle": "المعاملات الرئيسية",
+    "stat0": "الحد الأقصى للعرض",
+    "stat1": "Jetton على TON",
+    "stat2": "الخانات العشرية",
+    "stat3": "إجمالي رسوم التحويل",
+    "stat4": "يُحرق لكل تحويل",
+    "stat5": "حصة المطوّر · استحقاق 12 شهرًا",
+    "feeTitle": "كل تحويل يقسم 1%",
+    "feeAria": "توزيع الرسوم: 0.5% يُحرق، 0.3% ستاكينغ، 0.2% خزانة، 99% للمستلم",
+    "seg0": "0.5% يُحرق إلى الأبد",
+    "seg1": "0.3% إلى مجمع الستاكينغ",
+    "seg2": "0.2% إلى الخزانة",
+    "recipient": "99% للمستلم",
+    "dynamicTitle": "حرق ديناميكي",
+    "dynamicBody": "يمكن أن يرتفع معدل الحرق مع الاستخدام: +0.25% على التحويلات الكبيرة (أكثر من 10 BURN) و+0.125% أثناء نشاط الشبكة المرتفع (أكثر من 100 معاملة/ساعة)، حتى ~0.875%. سقف صارم على السلسلة يحد إجمالي الرسوم عند 5% — لا تصويت ولا مسار كود يمكنه تجاوزه.",
+    "floorTitle": "أرضية عرض مدمجة",
+    "floorBody": "إذا انخفض العرض دون 100 BURN، يهبط معدل الحرق تلقائيًا إلى 0.1%، فيبطئ الانكماش عندما يصبح الرمز نادرًا.",
+    "allocTitle": "أين تذهب 1,000 BURN",
+    "allocSubtitle": "توزيع ثابت، يُنفَّذ بالاستحقاق وعقود الإصدار على السلسلة.",
+    "alloc0": "إيردروب مجتمعي",
+    "alloc0Note": "مستخدمو Burned Chats الأوائل",
+    "alloc1": "مكافآت الستاكينغ",
+    "alloc1Note": "تُحرَّر خطيًا على 3 سنوات، على السلسلة",
+    "alloc2": "مجمع السيولة",
+    "alloc2Note": "لبرك DEX، تحت الحوكمة",
+    "alloc3": "النظام البيئي",
+    "alloc3Note": "منح وشراكات، استحقاق سنتين",
+    "alloc4": "الاحتياطي",
+    "alloc4Note": "مقفل 3 سنوات",
+    "alloc5": "المطوّر",
+    "alloc5Note": "استحقاق خطي 12 شهرًا — بلا rug pull بالتصميم",
+    "holderAria": "حامل {{label}}",
+    "explorerAria": "{{label}} {{address}} على tonviewer (يفتح في علامة تبويب جديدة)",
+    "stakingTitle": "مستويات الستاكينغ",
+    "stakingSubtitle": "الأقفال الأطول تكسب حصة أكبر من مكافآت المجمع وقوة تصويت أعلى. داخل المستوى تكون المكافآت متناسبة مع رهانك.",
+    "rewardShare": "حصة المكافأة",
+    "votingPower": "قوة التصويت",
+    "tier0": "Flexible",
+    "tier0Lock": "بلا قفل",
+    "tier0Extra": "إلغاء رهان فوري",
+    "tier1": "Silver",
+    "tier1Lock": "6 أشهر",
+    "tier2": "Gold",
+    "tier2Lock": "سنة واحدة",
+    "tier3": "Diamond",
+    "tier3Lock": "3 سنوات",
+    "tier3Extra": "شارة NFT · وصول تجريبي",
+    "stakingNote": "العوائد غير ثابتة — تعتمد على إصدار المجمع وكمية الرموز المرهونة في مستواك.",
+    "govTitle": "يحكمه المراهنون",
+    "govSubtitle": "يصوّت كل مراهن. تنمو قوة التصويت مع مدة القفل، لا مع حجم الرهان فقط.",
+    "govFormula": "قوة التصويت = المبلغ المرهون × مضاعف الوقت",
+    "govCaption": "أنواع مقترحات الحوكمة مع النصاب وعتبة الموافقة وفترة التصويت",
+    "colType": "نوع المقترح",
+    "colQuorum": "النصاب",
+    "colApproval": "الموافقة",
+    "colPeriod": "فترة التصويت",
+    "prop0": "تغيير معامل",
+    "prop1": "أولوية ميزة",
+    "prop2": "إنفاق الخزانة",
+    "prop3": "طوارئ",
+    "period3d": "3 أيام",
+    "period7d": "7 أيام",
+    "period24h": "24 ساعة",
+    "govParams": "يتحكم المراهنون في معدل الحرق (0.1–5%) وحصص مكافآت المستويات ومعدل توزيع الستاكينغ وإنفاق الخزانة — كله ضمن سقوف صارمة على السلسلة.",
+    "utilTitle": "فائدة BURN",
+    "util0Title": "مكافآت",
+    "util0Body": "إيردروبات وإحالات وحوافز مجتمعية لمستخدمي Burned Chats الأوائل.",
+    "util1Title": "حوكمة",
+    "util1Body": "التصويت على المعاملات والميزات وإنفاق الخزانة.",
+    "util2Title": "ستاكينغ",
+    "util2Body": "راهن لمكافآت المجمع وقوة التصويت ومزايا مستوى Diamond.",
+    "util3Title": "مكانة",
+    "util3Body": "تجميل: إطارات الصورة وتأثيرات الحرق ومكانة حامل OG.",
+    "contractsTitle": "تحقق من العقود",
+    "contractsSubtitle": "BURN بالكامل على السلسلة. هذه العناوين المعيارية — تحقق منها دائمًا قبل التفاعل مع أي رمز يدّعي أنه BURN.",
+    "network": "الشبكة",
+    "networkValue": "TON {{network}}",
+    "stakingMaster": "Staking Master",
+    "governor": "Governor",
+    "treasury": "Treasury",
+    "readTokenomicsAria": "اقرأ مواصفات توكنوميكس BURN الكاملة (يفتح في علامة تبويب جديدة)",
+    "readTokenomics": "اقرأ التوكنوميكس الكاملة",
+    "disclaimer": "BURN رمز خدمي لنظام Burned Chats. لا شيء في هذه الصفحة نصيحة استثمارية أو عرضًا لبيع أوراق مالية."
+  },
+  "toast": {
+    "connected": "تم الاتصال بالخادم",
+    "connectionLost": "فُقد الاتصال. جارٍ إعادة الاتصال…",
+    "failedCreateSession": "فشل إنشاء الجلسة: {{error}}",
+    "wantsToChat": "{{name}} يريد الدردشة!",
+    "requestAcceptedHandshake": "قُبل الطلب! جارٍ إنشاء اتصال آمن…",
+    "requestFailed": "فشل الطلب: {{error}}",
+    "secureConnectionEstablished": "تم إنشاء اتصال آمن!",
+    "verificationFailed": "فشل التحقق: {{error}}",
+    "joinedRoom": "انضممت إلى الغرفة! جارٍ تحميل مفتاح التشفير…",
+    "joinRequestRejected": "رُفض طلب انضمامك.",
+    "joinFailed": "فشل الانضمام: {{error}}",
+    "wantsToJoinRoom": "{{name}} يريد الانضمام إلى الغرفة",
+    "roomKeyReceived": "تم استلام مفتاح الغرفة!",
+    "missingRoomKeyPair": "زوج مفاتيح الغرفة مفقود — تعذر فك تشفير مفتاح المجموعة.",
+    "failedReceiveRoomKey": "فشل استلام مفتاح تشفير الغرفة.",
+    "roomKeyRotating": "جارٍ تدوير مفتاح الغرفة…",
+    "resumedChat": "استُؤنفت الدردشة مع {{name}}",
+    "restoringConnection": "جارٍ استعادة الاتصال الآمن…",
+    "resumingConnection": "جارٍ استئناف الاتصال الآمن…",
+    "failedResumeSession": "فشل استئناف الجلسة: {{error}}",
+    "requestAccepted": "قُبل الطلب",
+    "requestRejected": "رُفض الطلب",
+    "sessionBurned": "تم حرق الجلسة بنجاح",
+    "failedBurnSession": "فشل حرق الجلسة: {{error}}",
+    "failedBurnRoom": "فشل حرق الغرفة: {{error}}",
+    "failedLeaveRoom": "فشل مغادرة الغرفة: {{error}}",
+    "title": {
+      "error": "خطأ",
+      "keyError": "خطأ في المفتاح",
+      "joinRequest": "طلب انضمام",
+      "newRequest": "طلب جديد"
     }
   }
 }

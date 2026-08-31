@@ -21,7 +21,11 @@
       "unitDays": "天",
       "unitHours": "时",
       "unitMinutes": "分"
-    }
+    },
+    "dismissNotification": "关闭通知",
+    "selectLanguage": "选择语言",
+    "goBack": "返回",
+    "premium": "Premium"
   },
   "status": {
     "online": "在线",
@@ -30,7 +34,13 @@
     "connecting": "连接中",
     "reconnecting": "重新连接中...",
     "reconnectExhausted": "{{count}} 次尝试后仍无法重连",
-    "reconnectNow": "再试一次"
+    "reconnectNow": "再试一次",
+    "badge": {
+      "connected": "已连接",
+      "disconnected": "已断开",
+      "connecting": "连接中…",
+      "error": "错误"
+    }
   },
   "home": {
     "sectionSearch": "开始安全聊天",
@@ -66,7 +76,14 @@
       "title": "BURN Token"
     },
     "internalIdLabel": "Internal ID（分享以便被找到）：{{id}}",
-    "searchHint": "分享您的 Internal ID（见上方个人资料）以便他人找到您。搜索支持 @username、数字 Telegram ID、完整 Internal ID (UUID) 或钱包地址 (EQ…)。"
+    "searchHint": "分享您的 Internal ID（见上方个人资料）以便他人找到您。搜索支持 @username、数字 Telegram ID、完整 Internal ID (UUID) 或钱包地址 (EQ…)。",
+    "copyUsername": "复制用户名",
+    "copyTelegramId": "复制 ID",
+    "copyInternalId": "复制内部 ID",
+    "clearSearch": "清除搜索",
+    "copyLabelUsername": "用户名",
+    "copyLabelTelegramId": "Telegram ID",
+    "copyLabelInternalId": "内部 ID"
   },
   "aria": {
     "refreshRooms": "刷新房间",
@@ -334,7 +351,8 @@
     "temporarilyUnavailable": "聊天暂时不可用",
     "verificationRequired": "等待指纹验证。请在发送消息前与对端比对可视化指纹。",
     "burnStakeBadge": "BURN {{tier}}",
-    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium",
+    "burnSessionAria": "销毁会话"
   },
   "burnDialog": {
     "title": "销毁此聊天?",
@@ -343,7 +361,14 @@
     "listKeys": "加密密钥（两台设备）",
     "listHistory": "所有消息历史",
     "listSession": "会话连接",
-    "confirmButton": "销毁聊天"
+    "confirmButton": "销毁聊天",
+    "animationAria": "聊天销毁动画",
+    "titleBurned": "聊天已销毁",
+    "titleDestroyed": "聊天已摧毁",
+    "selfBurned": "你销毁了此聊天",
+    "peerBurned": "{{name}} 销毁了此聊天",
+    "destroyedInfo": "所有消息和加密密钥已被永久销毁。",
+    "tapToContinue": "点按继续"
   },
   "incomingRequest": {
     "title": "收到聊天请求",
@@ -395,7 +420,9 @@
     "waitingPeer": "等待对方验证...",
     "helpText": "请对方通过电话或当面读出他们的指纹符号。如果匹配，请点击「指纹匹配」。",
     "waitingLonger": "比平时花费更长时间…",
-    "connectionLost": "无连接 — 您的确认未发送。"
+    "connectionLost": "无连接 — 您的确认未发送。",
+    "notYetVerified": "尚未验证",
+    "mismatchReported": "已报告不匹配"
   },
   "handshake": {
     "title": "建立安全连接",
@@ -472,7 +499,9 @@
   "pendingRequest": {
     "title": "等待回复",
     "cancelButton": "取消请求",
-    "errorRejected": "您的聊天请求已被拒绝"
+    "errorRejected": "您的聊天请求已被拒绝",
+    "secretQuestionHint": "接收者必须回答你的秘密问题",
+    "notificationSent": "已通过 Telegram 发送通知"
   },
   "userSearch": {
     "searching": "搜索中...",
@@ -851,7 +880,10 @@
     "reload": "重新加载",
     "report": "报告",
     "rootMessage": "应用遇到意外错误。请重新加载页面、复制技术详情或向我们发送报告。",
-    "rootTitle": "出错了"
+    "rootTitle": "出错了",
+    "startTitle": "无法启动应用",
+    "connectionTitle": "连接错误",
+    "restart": "重启应用"
   },
   "files": {
     "bubble": {
@@ -1563,7 +1595,6 @@
     "invalidTitle": "邀请链接无效",
     "invalidHint": "链接缺失或不正确。请索取新的邀请。"
   },
-
   "onboarding": {
     "language": {
       "title": "选择语言",
@@ -1576,7 +1607,6 @@
       "hint": "之后可在设置中更改主题"
     }
   },
-
   "language": {
     "nativeName": {
       "ar": "العربية",
@@ -1589,7 +1619,6 @@
       "zh-CN": "简体中文"
     }
   },
-
   "theme": {
     "bone": {
       "hint": "暖纸色"
@@ -1599,6 +1628,284 @@
     },
     "nocturne": {
       "hint": "冷夜"
+    }
+  },
+  "fingerprint": {
+    "label": "安全指纹",
+    "compareHint": "与对方比对这些表情符号以验证连接"
+  },
+  "landing": {
+    "skip": "跳到内容",
+    "aria": {
+      "hero": "主视觉",
+      "principles": "我们的原则",
+      "howItWorks": "工作原理",
+      "trust": "信任区块",
+      "comparison": "对比",
+      "burnToken": "BURN 代币",
+      "tech": "技术",
+      "footer": "页脚"
+    },
+    "cta": {
+      "openTelegramAria": "在 Telegram 中打开 Burned Chats",
+      "openTelegram": "在 Telegram 中打开",
+      "openWebAria": "打开 Burned Chats Web 应用",
+      "launchWeb": "启动 Web 应用"
+    },
+    "hero": {
+      "tagline": "不留痕迹的消息。",
+      "e2ee": "端到端加密",
+      "selfDestruct": "阅后即焚",
+      "zkPrefix": "基于",
+      "zk": "zero-knowledge",
+      "zkSuffix": "架构构建。",
+      "scroll": "向下滚动探索"
+    },
+    "manifesto": {
+      "quote": "我们读不了你的消息。就算想读也读不到。",
+      "p0Title": "Zero Knowledge",
+      "p0Desc": "服务器从未看到你的消息、密钥或密码。它只转发加密字节——仅此而已。",
+      "p1Title": "天生短暂",
+      "p1Desc": "消息只存在于当下。当你销毁聊天，所有数据被永久清除。没有备份，没有痕迹。",
+      "p2Title": "端到端加密",
+      "p2Desc": "ECDH 密钥交换 + AES-256-GCM 加密。密钥只存在于你的设备，永不离开。",
+      "p3Title": "已验证身份",
+      "p3Desc": "可视化指纹验证抵御中间人攻击。你知道自己在和谁说话。"
+    },
+    "howItWorks": {
+      "title": "工作原理",
+      "subtitle": "5 步建立安全聊天",
+      "protocolAria": "ECDH 密钥交换协议",
+      "yourDevice": "你的设备",
+      "relayOnly": "仅中继",
+      "peerDevice": "对方设备",
+      "s1Title": "查找",
+      "s1Desc": "按用户名或 ID 搜索 Telegram 用户。",
+      "s2Title": "邀请",
+      "s2Desc": "发送加密聊天请求。对方会收到 Telegram 通知。",
+      "s3Title": "握手",
+      "s3Desc": "双方设备执行 ECDH 密钥交换。共享密钥由此诞生——服务器看不见。",
+      "s4Title": "验证",
+      "s4Desc": "比对可视化指纹，确认中间没有第三者。",
+      "s5Title": "聊天并销毁",
+      "s5Desc": "交换 AES-256-GCM 加密消息。结束后——烧掉一切。"
+    },
+    "trust": {
+      "title": "不必信任我们。你也不需要。",
+      "serverSees": "服务器看到的",
+      "youSee": "你看到的",
+      "encryptedNote": "加密字节。元数据。仅此而已。",
+      "decryptedNote": "在你的设备上解密。密钥永不离开浏览器。",
+      "demoIn1": "嘿，我们明天还见面吗？",
+      "demoIn2": "好啊！下午三点还在老地方。",
+      "demoIn3": "行。我带上文件。",
+      "burnChat": "销毁聊天"
+    },
+    "comparison": {
+      "title": "我们如何对比",
+      "caption": "即时通讯应用功能对比",
+      "feature": "功能",
+      "telegramSecret": "Telegram Secret",
+      "yes": "是",
+      "no": "否",
+      "partial": "部分",
+      "auto": "自动",
+      "timer": "计时器",
+      "client": "客户端",
+      "note": "对比基于公开信息。功能可能变化。",
+      "r0": "端到端加密",
+      "r1": "零知识服务器",
+      "r2": "自毁消息",
+      "r3": "无持久存储",
+      "r4": "可视化验证",
+      "r5": "无需手机号",
+      "r6": "开源"
+    },
+    "burnToken": {
+      "title": "BURN 代币",
+      "hook": "消息会烧毁。代币也一样。",
+      "feeTitle": "每笔转账拆分 1%",
+      "feeAria": "手续费拆分：0.5% 销毁，0.3% 质押，0.2% 金库，99% 给接收方",
+      "exploreAria": "探索 BURN 代币页面",
+      "explore": "了解代币",
+      "docsAria": "阅读 BURN 代币经济学文档（在新标签页打开）",
+      "docs": "代币经济学",
+      "readDocs": "阅读代币经济学",
+      "recipient": "99% 给接收方",
+      "chip0": "质押",
+      "chip1": "治理",
+      "chip2": "奖励",
+      "stat0": "最大供应量",
+      "stat1": "每笔转账销毁",
+      "stat2": "Jetton (TEP-74)",
+      "stat3": "开发者份额 · 12 个月归属",
+      "seg0": "0.5% 销毁",
+      "seg1": "0.3% 质押",
+      "seg2": "0.2% 金库"
+    },
+    "tech": {
+      "title": "公开构建",
+      "body": "源代码公开。自行审计。",
+      "githubAria": "在 GitHub 上查看源代码",
+      "github": "在 GitHub 上查看",
+      "codeComment": "所有加密都在你的浏览器中完成"
+    },
+    "footer": {
+      "ready": "准备好无痕聊天了吗？",
+      "tagline": "Burned Chats — Telegram 内的短暂加密消息。",
+      "docs": "文档"
+    }
+  },
+  "tokenPage": {
+    "lang": "zh-CN",
+    "backWallet": "返回钱包",
+    "backHomeLabel": "Burned Chats",
+    "backHomeFooter": "返回 Burned Chats",
+    "backHomeAria": "返回 Burned Chats 首页",
+    "aria": {
+      "hero": "BURN 代币概览",
+      "philosophy": "为何要有会烧毁的代币",
+      "params": "关键参数",
+      "fee": "通缩机制",
+      "allocation": "发行分配",
+      "staking": "质押档位",
+      "governance": "治理",
+      "utility": "BURN 的用途",
+      "contracts": "合约地址",
+      "footer": "代币页页脚"
+    },
+    "heroTitle": "BURN 代币",
+    "heroHook": "消息会烧毁。代币也一样。",
+    "heroLede": "内置于 Burned Chats 的 TON 通缩型 Jetton。每笔转账销毁供应、资助质押奖励，并充实社区治理的金库。",
+    "contractsLive": "合约已在 TON {{network}} 上线",
+    "verifyNote": "交互前请务必核对本页下方的合约地址。",
+    "jettonMaster": "Jetton Master",
+    "jettonAria": "tonviewer 上的 Jetton Master {{address}}（在新标签页打开）",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyAria": "复制 Jetton Master 地址",
+    "copiedAria": "已复制 Jetton Master 地址",
+    "philosophyTitle": "为何要有会烧毁的代币",
+    "phil1": "消息烧毁——代币也被销毁。",
+    "phil2": "隐私增长——稀缺性上升。",
+    "philQuote": "使用越活跃——销毁越多。",
+    "philBody": "Burned Chats 永久删除消息。BURN 把同一原则用在金钱上：每笔转账固定 0.5% 在链上被永久销毁。没有回购，没有再铸造——每笔交易都减少供应。",
+    "paramsTitle": "关键参数",
+    "stat0": "最大供应量",
+    "stat1": "TON 上的 Jetton",
+    "stat2": "小数位",
+    "stat3": "转账总手续费",
+    "stat4": "每笔转账销毁",
+    "stat5": "开发者份额 · 12 个月归属",
+    "feeTitle": "每笔转账拆分 1%",
+    "feeAria": "手续费拆分：0.5% 销毁，0.3% 质押，0.2% 金库，99% 给接收方",
+    "seg0": "0.5% 永久销毁",
+    "seg1": "0.3% 进入质押池",
+    "seg2": "0.2% 进入金库",
+    "recipient": "99% 给接收方",
+    "dynamicTitle": "动态销毁",
+    "dynamicBody": "销毁率可随使用上升：大额转账（超过 10 BURN）+0.25%，网络高活跃（超过 100 笔/小时）+0.125%，最高约 0.875%。链上硬顶将总手续费限制在 5%——任何投票或代码路径都无法突破。",
+    "floorTitle": "内置供应下限",
+    "floorBody": "若供应低于 100 BURN，销毁率自动降至 0.1%，在代币稀缺时放缓通缩。",
+    "allocTitle": "1,000 BURN 去向",
+    "allocSubtitle": "固定分配，由归属与链上发行合约强制执行。",
+    "alloc0": "社区空投",
+    "alloc0Note": "早期 Burned Chats 用户",
+    "alloc1": "质押奖励",
+    "alloc1Note": "3 年线性释放，链上执行",
+    "alloc2": "流动性池",
+    "alloc2Note": "用于 DEX 池，由治理把关",
+    "alloc3": "生态",
+    "alloc3Note": "资助与合作，2 年归属",
+    "alloc4": "储备",
+    "alloc4Note": "锁定 3 年",
+    "alloc5": "开发者",
+    "alloc5Note": "12 个月线性归属——设计上无法 rug pull",
+    "holderAria": "{{label}} 持有人",
+    "explorerAria": "tonviewer 上的 {{label}} {{address}}（在新标签页打开）",
+    "stakingTitle": "质押档位",
+    "stakingSubtitle": "锁定越久，池奖励份额和投票权越大。档位内奖励与你的质押成正比。",
+    "rewardShare": "奖励份额",
+    "votingPower": "投票权",
+    "tier0": "Flexible",
+    "tier0Lock": "无锁定期",
+    "tier0Extra": "即时解除质押",
+    "tier1": "Silver",
+    "tier1Lock": "6 个月",
+    "tier2": "Gold",
+    "tier2Lock": "1 年",
+    "tier3": "Diamond",
+    "tier3Lock": "3 年",
+    "tier3Extra": "NFT 徽章 · 测试版访问",
+    "stakingNote": "收益不固定——取决于池排放以及你所在档位已质押的代币数量。",
+    "govTitle": "由质押者治理",
+    "govSubtitle": "每位质押者都可投票。投票权随锁定期增长，而不仅取决于质押规模。",
+    "govFormula": "投票权 = 质押数量 × 时间乘数",
+    "govCaption": "治理提案类型：法定人数、通过门槛与投票期",
+    "colType": "提案类型",
+    "colQuorum": "法定人数",
+    "colApproval": "通过门槛",
+    "colPeriod": "投票期",
+    "prop0": "参数变更",
+    "prop1": "功能优先级",
+    "prop2": "金库支出",
+    "prop3": "紧急",
+    "period3d": "3 天",
+    "period7d": "7 天",
+    "period24h": "24 小时",
+    "govParams": "质押者控制销毁率（0.1–5%）、档位奖励份额、质押分配速率和金库支出——全部受链上硬顶约束。",
+    "utilTitle": "BURN 的用途",
+    "util0Title": "奖励",
+    "util0Body": "面向早期 Burned Chats 用户的空投、推荐与社区激励。",
+    "util1Title": "治理",
+    "util1Body": "对参数、功能和金库支出投票。",
+    "util2Title": "质押",
+    "util2Body": "质押以获得池奖励、投票权与 Diamond 档权益。",
+    "util3Title": "身份",
+    "util3Body": "外观升级：头像框、销毁特效、OG 持有者身份。",
+    "contractsTitle": "核验合约",
+    "contractsSubtitle": "BURN 完全在链上。这些是规范合约地址——与任何自称 BURN 的代币交互前，请务必再次核对。",
+    "network": "网络",
+    "networkValue": "TON {{network}}",
+    "stakingMaster": "Staking Master",
+    "governor": "Governor",
+    "treasury": "Treasury",
+    "readTokenomicsAria": "阅读完整 BURN 代币经济学规范（在新标签页打开）",
+    "readTokenomics": "阅读完整代币经济学",
+    "disclaimer": "BURN 是 Burned Chats 生态的实用代币。本页任何内容均非投资建议或证券要约。"
+  },
+  "toast": {
+    "connected": "已连接到服务器",
+    "connectionLost": "连接已断开。正在重连…",
+    "failedCreateSession": "创建会话失败：{{error}}",
+    "wantsToChat": "{{name}} 想要聊天！",
+    "requestAcceptedHandshake": "请求已接受！正在建立安全连接…",
+    "requestFailed": "请求失败：{{error}}",
+    "secureConnectionEstablished": "安全连接已建立！",
+    "verificationFailed": "验证失败：{{error}}",
+    "joinedRoom": "已加入房间！正在加载加密密钥…",
+    "joinRequestRejected": "你的加入请求被拒绝。",
+    "joinFailed": "加入失败：{{error}}",
+    "wantsToJoinRoom": "{{name}} 想加入房间",
+    "roomKeyReceived": "已收到房间密钥！",
+    "missingRoomKeyPair": "缺少房间密钥对 — 无法解密群组密钥。",
+    "failedReceiveRoomKey": "未能接收房间加密密钥。",
+    "roomKeyRotating": "房间密钥正在轮换…",
+    "resumedChat": "已恢复与 {{name}} 的聊天",
+    "restoringConnection": "正在恢复安全连接…",
+    "resumingConnection": "正在继续安全连接…",
+    "failedResumeSession": "恢复会话失败：{{error}}",
+    "requestAccepted": "请求已接受",
+    "requestRejected": "请求已拒绝",
+    "sessionBurned": "会话已成功销毁",
+    "failedBurnSession": "销毁会话失败：{{error}}",
+    "failedBurnRoom": "销毁房间失败：{{error}}",
+    "failedLeaveRoom": "离开房间失败：{{error}}",
+    "title": {
+      "error": "错误",
+      "keyError": "密钥错误",
+      "joinRequest": "加入请求",
+      "newRequest": "新请求"
     }
   }
 }

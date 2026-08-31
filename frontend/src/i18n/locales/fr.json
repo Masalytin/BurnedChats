@@ -21,7 +21,11 @@
       "unitDays": "j",
       "unitHours": "h",
       "unitMinutes": "min"
-    }
+    },
+    "dismissNotification": "Fermer la notification",
+    "selectLanguage": "Choisir la langue",
+    "goBack": "Retour",
+    "premium": "Premium"
   },
   "status": {
     "online": "en ligne",
@@ -30,7 +34,13 @@
     "connecting": "connexion",
     "reconnecting": "Reconnexion...",
     "reconnectExhausted": "Impossible de se reconnecter après {{count}} tentatives",
-    "reconnectNow": "Réessayer"
+    "reconnectNow": "Réessayer",
+    "badge": {
+      "connected": "Connecté",
+      "disconnected": "Déconnecté",
+      "connecting": "Connexion…",
+      "error": "Erreur"
+    }
   },
   "home": {
     "sectionSearch": "Démarrer une Discussion Sécurisée",
@@ -66,7 +76,14 @@
       "title": "Token BURN"
     },
     "internalIdLabel": "Internal ID (partagez pour être trouvé) : {{id}}",
-    "searchHint": "Partagez votre Internal ID (dans le profil ci-dessus) pour que d'autres puissent vous trouver. La recherche accepte @username, Telegram ID numérique, Internal ID complet (UUID) ou adresse de portefeuille (EQ…)."
+    "searchHint": "Partagez votre Internal ID (dans le profil ci-dessus) pour que d'autres puissent vous trouver. La recherche accepte @username, Telegram ID numérique, Internal ID complet (UUID) ou adresse de portefeuille (EQ…).",
+    "copyUsername": "Copier le nom d'utilisateur",
+    "copyTelegramId": "Copier l'ID",
+    "copyInternalId": "Copier l'id interne",
+    "clearSearch": "Effacer la recherche",
+    "copyLabelUsername": "Nom d'utilisateur",
+    "copyLabelTelegramId": "ID Telegram",
+    "copyLabelInternalId": "ID interne"
   },
   "aria": {
     "refreshRooms": "Actualiser les salons",
@@ -334,7 +351,8 @@
     "temporarilyUnavailable": "Discussion temporairement indisponible",
     "verificationRequired": "En attente de vérification de l'empreinte. Comparez les empreintes visuelles avec votre correspondant avant d'envoyer des messages.",
     "burnStakeBadge": "BURN {{tier}}",
-    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium"
+    "burnStakeBadgeHint": "Your BURN staking tier — not Telegram Premium",
+    "burnSessionAria": "Brûler la session"
   },
   "burnDialog": {
     "title": "Détruire cette discussion ?",
@@ -343,7 +361,14 @@
     "listKeys": "Clés de chiffrement (les deux appareils)",
     "listHistory": "Tout l'historique des messages",
     "listSession": "Connexion de session",
-    "confirmButton": "Détruire la Discussion"
+    "confirmButton": "Détruire la Discussion",
+    "animationAria": "Animation de destruction du chat",
+    "titleBurned": "Chat brûlé",
+    "titleDestroyed": "Chat détruit",
+    "selfBurned": "Vous avez brûlé ce chat",
+    "peerBurned": "{{name}} a brûlé ce chat",
+    "destroyedInfo": "Tous les messages et clés de chiffrement ont été définitivement détruits.",
+    "tapToContinue": "Appuyez pour continuer"
   },
   "incomingRequest": {
     "title": "Demande de Discussion Entrante",
@@ -395,7 +420,9 @@
     "waitingPeer": "En attente de la vérification du pair...",
     "helpText": "Demandez à votre pair de lire ses symboles d'empreinte par appel vocal ou en personne. S'ils correspondent, appuyez sur \"L'Empreinte Correspond\".",
     "waitingLonger": "Cela prend plus de temps que d'habitude…",
-    "connectionLost": "Pas de connexion — votre confirmation n'a pas été envoyée."
+    "connectionLost": "Pas de connexion — votre confirmation n'a pas été envoyée.",
+    "notYetVerified": "Pas encore vérifié",
+    "mismatchReported": "Incompatibilité signalée"
   },
   "handshake": {
     "title": "Établissement d'une Connexion Sécurisée",
@@ -472,7 +499,9 @@
   "pendingRequest": {
     "title": "En attente de réponse",
     "cancelButton": "Annuler la Demande",
-    "errorRejected": "Votre demande de discussion a été refusée"
+    "errorRejected": "Votre demande de discussion a été refusée",
+    "secretQuestionHint": "Le destinataire doit répondre à votre question secrète",
+    "notificationSent": "Notification envoyée via Telegram"
   },
   "userSearch": {
     "searching": "Recherche...",
@@ -851,7 +880,10 @@
     "reload": "Recharger",
     "report": "Signaler",
     "rootMessage": "L'application a rencontré une erreur inattendue. Rechargez la page, copiez les détails techniques ou envoyez-nous un rapport.",
-    "rootTitle": "Quelque chose s'est mal passé"
+    "rootTitle": "Quelque chose s'est mal passé",
+    "startTitle": "Impossible de démarrer l'application",
+    "connectionTitle": "Erreur de connexion",
+    "restart": "Redémarrer l'application"
   },
   "files": {
     "bubble": {
@@ -1563,7 +1595,6 @@
     "invalidTitle": "Lien d'invitation invalide",
     "invalidHint": "Le lien est manquant ou incorrect. Demandez une nouvelle invitation."
   },
-
   "onboarding": {
     "language": {
       "title": "Choisissez votre langue",
@@ -1576,7 +1607,6 @@
       "hint": "Vous pourrez changer le thème plus tard dans les Réglages"
     }
   },
-
   "language": {
     "nativeName": {
       "ar": "العربية",
@@ -1589,7 +1619,6 @@
       "zh-CN": "简体中文"
     }
   },
-
   "theme": {
     "bone": {
       "hint": "Papier chaud"
@@ -1599,6 +1628,284 @@
     },
     "nocturne": {
       "hint": "Nuit froide"
+    }
+  },
+  "fingerprint": {
+    "label": "Empreinte de sécurité",
+    "compareHint": "Comparez ces emoji avec votre correspondant pour vérifier la connexion"
+  },
+  "landing": {
+    "skip": "Aller au contenu",
+    "aria": {
+      "hero": "Accueil",
+      "principles": "Nos principes",
+      "howItWorks": "Comment ça marche",
+      "trust": "Bloc de confiance",
+      "comparison": "Comparaison",
+      "burnToken": "Token BURN",
+      "tech": "Technologie",
+      "footer": "Pied de page"
+    },
+    "cta": {
+      "openTelegramAria": "Ouvrir Burned Chats dans Telegram",
+      "openTelegram": "Ouvrir dans Telegram",
+      "openWebAria": "Ouvrir l'application web Burned Chats",
+      "launchWeb": "Lancer l'appli web"
+    },
+    "hero": {
+      "tagline": "Des messages qui ne laissent aucune trace.",
+      "e2ee": "Chiffrement de bout en bout",
+      "selfDestruct": "Autodestruction",
+      "zkPrefix": "Construit sur une",
+      "zk": "zero-knowledge",
+      "zkSuffix": "architecture.",
+      "scroll": "Faites défiler pour explorer"
+    },
+    "manifesto": {
+      "quote": "Nous ne pouvons pas lire vos messages. Même si nous le voulions.",
+      "p0Title": "Zero Knowledge",
+      "p0Desc": "Le serveur ne voit jamais vos messages, clés ou mots de passe. Il relaie des octets chiffrés — rien de plus.",
+      "p1Title": "Éphémère par conception",
+      "p1Desc": "Les messages n'existent que dans l'instant. Quand vous brûlez un chat, toutes les données sont définitivement détruites. Pas de sauvegardes, pas de traces.",
+      "p2Title": "Chiffrement de bout en bout",
+      "p2Desc": "Échange de clés ECDH + chiffrement AES-256-GCM. Les clés vivent uniquement sur votre appareil et ne le quittent jamais.",
+      "p3Title": "Identité vérifiée",
+      "p3Desc": "La vérification visuelle d'empreinte protège contre les attaques de l'homme du milieu. Vous savez à qui vous parlez."
+    },
+    "howItWorks": {
+      "title": "Comment ça marche",
+      "subtitle": "Un chat sécurisé en 5 étapes",
+      "protocolAria": "Protocole d'échange de clés ECDH",
+      "yourDevice": "votre appareil",
+      "relayOnly": "relais uniquement",
+      "peerDevice": "appareil du correspondant",
+      "s1Title": "Trouver",
+      "s1Desc": "Recherchez un utilisateur Telegram par nom d'utilisateur ou ID.",
+      "s2Title": "Inviter",
+      "s2Desc": "Envoyez une demande de chat chiffrée. Il reçoit une notification Telegram.",
+      "s3Title": "Handshake",
+      "s3Desc": "Les deux appareils effectuent un échange de clés ECDH. Un secret partagé naît — invisible pour le serveur.",
+      "s4Title": "Vérifier",
+      "s4Desc": "Comparez les empreintes visuelles pour confirmer que personne n'est au milieu.",
+      "s5Title": "Discuter et brûler",
+      "s5Desc": "Échangez des messages chiffrés AES-256-GCM. Quand c'est fini — brûlez tout."
+    },
+    "trust": {
+      "title": "Ne nous faites pas confiance. Vous n'en avez pas besoin.",
+      "serverSees": "Ce que voit le serveur",
+      "youSee": "Ce que vous voyez",
+      "encryptedNote": "Octets chiffrés. Métadonnées. Rien d'autre.",
+      "decryptedNote": "Déchiffré sur votre appareil. Les clés ne quittent jamais votre navigateur.",
+      "demoIn1": "Salut, on se voit toujours demain ?",
+      "demoIn2": "Oui ! 15 h au lieu habituel.",
+      "demoIn3": "Parfait. J'apporte les documents.",
+      "burnChat": "Brûler le chat"
+    },
+    "comparison": {
+      "title": "Comment nous nous comparons",
+      "caption": "Comparaison des fonctionnalités entre messageries",
+      "feature": "Fonctionnalité",
+      "telegramSecret": "Telegram Secret",
+      "yes": "Oui",
+      "no": "Non",
+      "partial": "Partiel",
+      "auto": "auto",
+      "timer": "minuteur",
+      "client": "client",
+      "note": "Comparaison basée sur des informations publiques. Les fonctionnalités peuvent changer.",
+      "r0": "Chiffrement de bout en bout",
+      "r1": "Serveur zero-knowledge",
+      "r2": "Messages autodestructeurs",
+      "r3": "Pas de stockage persistant",
+      "r4": "Vérification visuelle",
+      "r5": "Sans numéro de téléphone",
+      "r6": "Open source"
+    },
+    "burnToken": {
+      "title": "Le token BURN",
+      "hook": "Les messages brûlent. Le token aussi.",
+      "feeTitle": "Chaque transfert répartit 1 %",
+      "feeAria": "Répartition des frais : 0,5 % brûlé, 0,3 % staking, 0,2 % trésorerie, 99 % au destinataire",
+      "exploreAria": "Explorer la page du token BURN",
+      "explore": "Explorer le token",
+      "docsAria": "Lire la tokenomique BURN (s'ouvre dans un nouvel onglet)",
+      "docs": "Tokenomique",
+      "readDocs": "Lire la tokenomique",
+      "recipient": "99 % au destinataire",
+      "chip0": "Staking",
+      "chip1": "Gouvernance",
+      "chip2": "Récompenses",
+      "stat0": "Offre max.",
+      "stat1": "Brûlé par transfert",
+      "stat2": "Jetton (TEP-74)",
+      "stat3": "Allocation dev · vesting 12 mois",
+      "seg0": "0,5 % brûlé",
+      "seg1": "0,3 % staking",
+      "seg2": "0,2 % trésorerie"
+    },
+    "tech": {
+      "title": "Construit au grand jour",
+      "body": "Le code source est public. Auditez-le vous-même.",
+      "githubAria": "Voir le code source sur GitHub",
+      "github": "Voir sur GitHub",
+      "codeComment": "Tout le chiffrement se fait dans votre navigateur"
+    },
+    "footer": {
+      "ready": "Prêt à discuter sans laisser de trace ?",
+      "tagline": "Burned Chats — messagerie chiffrée éphémère dans Telegram.",
+      "docs": "Docs"
+    }
+  },
+  "tokenPage": {
+    "lang": "fr",
+    "backWallet": "Retour au portefeuille",
+    "backHomeLabel": "Burned Chats",
+    "backHomeFooter": "Retour à Burned Chats",
+    "backHomeAria": "Retour à l'accueil Burned Chats",
+    "aria": {
+      "hero": "Aperçu du token BURN",
+      "philosophy": "Pourquoi un token qui brûle",
+      "params": "Paramètres clés",
+      "fee": "Mécanisme déflationniste",
+      "allocation": "Répartition de l'émission",
+      "staking": "Paliers de staking",
+      "governance": "Gouvernance",
+      "utility": "À quoi sert BURN",
+      "contracts": "Adresses des contrats",
+      "footer": "Pied de page du token"
+    },
+    "heroTitle": "Le token BURN",
+    "heroHook": "Les messages brûlent. Le token aussi.",
+    "heroLede": "Un Jetton déflationniste sur TON intégré à Burned Chats. Chaque transfert brûle l'offre, finance les récompenses de staking et alimente une trésorerie gouvernée par la communauté.",
+    "contractsLive": "Contrats en ligne sur TON {{network}}",
+    "verifyNote": "Vérifiez toujours les adresses de contrats ci-dessous avant d'interagir.",
+    "jettonMaster": "Jetton Master",
+    "jettonAria": "Jetton Master {{address}} sur tonviewer (s'ouvre dans un nouvel onglet)",
+    "copy": "Copier",
+    "copied": "Copié",
+    "copyAria": "Copier l'adresse Jetton Master",
+    "copiedAria": "Adresse Jetton Master copiée",
+    "philosophyTitle": "Pourquoi un token qui brûle",
+    "phil1": "Les messages brûlent — les tokens sont brûlés.",
+    "phil2": "La vie privée grandit — la rareté augmente.",
+    "philQuote": "Plus l'usage est actif — plus on brûle.",
+    "philBody": "Burned Chats supprime les messages pour toujours. BURN applique le même principe à l'argent : 0,5 % fixe de chaque transfert est détruit on-chain, définitivement. Pas de rachat, pas de re-mint — seulement moins d'offre à chaque transaction.",
+    "paramsTitle": "Paramètres clés",
+    "stat0": "Offre max.",
+    "stat1": "Jetton sur TON",
+    "stat2": "Décimales",
+    "stat3": "Frais totaux de transfert",
+    "stat4": "Brûlé par transfert",
+    "stat5": "Allocation dev · vesting 12 mois",
+    "feeTitle": "Chaque transfert répartit 1 %",
+    "feeAria": "Répartition des frais : 0,5 % brûlé, 0,3 % staking, 0,2 % trésorerie, 99 % au destinataire",
+    "seg0": "0,5 % brûlé pour toujours",
+    "seg1": "0,3 % vers le pool de staking",
+    "seg2": "0,2 % vers la trésorerie",
+    "recipient": "99 % au destinataire",
+    "dynamicTitle": "Burn dynamique",
+    "dynamicBody": "Le taux de brûlage peut augmenter avec l'usage : +0,25 % sur les gros transferts (plus de 10 BURN) et +0,125 % en forte activité réseau (plus de 100 tx/heure), jusqu'à ~0,875 %. Un plafond on-chain dur limite les frais totaux à 5 % — aucun vote ni chemin de code ne peut le dépasser.",
+    "floorTitle": "Plancher d'offre intégré",
+    "floorBody": "Si l'offre passe sous 100 BURN, le taux de brûlage descend automatiquement à 0,1 %, ralentissant la déflation à mesure que le token se raréfie.",
+    "allocTitle": "Où vont les 1 000 BURN",
+    "allocSubtitle": "Allocation fixe, appliquée par vesting et contrats d'émission on-chain.",
+    "alloc0": "Airdrop communautaire",
+    "alloc0Note": "Premiers utilisateurs de Burned Chats",
+    "alloc1": "Récompenses de staking",
+    "alloc1Note": "Libérées linéairement sur 3 ans, on-chain",
+    "alloc2": "Pool de liquidité",
+    "alloc2Note": "Réservé aux pools DEX, sous gouvernance",
+    "alloc3": "Écosystème",
+    "alloc3Note": "Subventions et partenariats, vesting 2 ans",
+    "alloc4": "Réserve",
+    "alloc4Note": "Verrouillée 3 ans",
+    "alloc5": "Développeur",
+    "alloc5Note": "Vesting linéaire 12 mois — pas de rug pull par conception",
+    "holderAria": "détenteur {{label}}",
+    "explorerAria": "{{label}} {{address}} sur tonviewer (s'ouvre dans un nouvel onglet)",
+    "stakingTitle": "Paliers de staking",
+    "stakingSubtitle": "Des verrouillages plus longs rapportent une plus grande part des récompenses du pool et plus de pouvoir de vote. Dans un palier, les récompenses sont proportionnelles à votre stake.",
+    "rewardShare": "Part de récompense",
+    "votingPower": "Pouvoir de vote",
+    "tier0": "Flexible",
+    "tier0Lock": "Sans verrouillage",
+    "tier0Extra": "Unstake instantané",
+    "tier1": "Silver",
+    "tier1Lock": "6 mois",
+    "tier2": "Gold",
+    "tier2Lock": "1 an",
+    "tier3": "Diamond",
+    "tier3Lock": "3 ans",
+    "tier3Extra": "Badge NFT · accès bêta",
+    "stakingNote": "Les rendements ne sont pas fixes — ils dépendent de l'émission du pool et du nombre de tokens stakés dans votre palier.",
+    "govTitle": "Gouverné par les stakers",
+    "govSubtitle": "Chaque staker vote. Le pouvoir de vote croît avec la durée de verrouillage, pas seulement avec la taille du stake.",
+    "govFormula": "Pouvoir de vote = montant staké × multiplicateur temps",
+    "govCaption": "Types de propositions de gouvernance avec quorum, seuil d'approbation et période de vote",
+    "colType": "Type de proposition",
+    "colQuorum": "Quorum",
+    "colApproval": "Approbation",
+    "colPeriod": "Période de vote",
+    "prop0": "Changement de paramètre",
+    "prop1": "Priorité de fonctionnalité",
+    "prop2": "Dépense de trésorerie",
+    "prop3": "Urgence",
+    "period3d": "3 jours",
+    "period7d": "7 jours",
+    "period24h": "24 heures",
+    "govParams": "Les stakers contrôlent le taux de brûlage (0,1–5 %), les parts de récompense des paliers, le taux de distribution du staking et les dépenses de trésorerie — le tout dans des plafonds on-chain stricts.",
+    "utilTitle": "À quoi sert BURN",
+    "util0Title": "Récompenses",
+    "util0Body": "Airdrops, parrainage et incitations communautaires pour les premiers utilisateurs de Burned Chats.",
+    "util1Title": "Gouvernance",
+    "util1Body": "Votez sur les paramètres, les fonctionnalités et les dépenses de trésorerie.",
+    "util2Title": "Staking",
+    "util2Body": "Stakez pour les récompenses du pool, le pouvoir de vote et les avantages Diamond.",
+    "util3Title": "Statut",
+    "util3Body": "Cosmétique : cadres d'avatar, effets de brûlage, statut de détenteur OG.",
+    "contractsTitle": "Vérifiez les contrats",
+    "contractsSubtitle": "BURN est entièrement on-chain. Voici les adresses canoniques — vérifiez-les toujours avant d'interagir avec un token qui prétend être BURN.",
+    "network": "Réseau",
+    "networkValue": "TON {{network}}",
+    "stakingMaster": "Staking Master",
+    "governor": "Governor",
+    "treasury": "Treasury",
+    "readTokenomicsAria": "Lire la spécification complète de la tokenomique BURN (s'ouvre dans un nouvel onglet)",
+    "readTokenomics": "Lire la tokenomique complète",
+    "disclaimer": "BURN est un token utilitaire de l'écosystème Burned Chats. Rien sur cette page n'est un conseil d'investissement ni une offre de titres."
+  },
+  "toast": {
+    "connected": "Connecté au serveur",
+    "connectionLost": "Connexion perdue. Reconnexion…",
+    "failedCreateSession": "Échec de la création de session : {{error}}",
+    "wantsToChat": "{{name}} veut discuter !",
+    "requestAcceptedHandshake": "Demande acceptée ! Établissement de la connexion sécurisée…",
+    "requestFailed": "Échec de la demande : {{error}}",
+    "secureConnectionEstablished": "Connexion sécurisée établie !",
+    "verificationFailed": "Échec de la vérification : {{error}}",
+    "joinedRoom": "Salon rejoint ! Chargement de la clé de chiffrement…",
+    "joinRequestRejected": "Votre demande d'adhésion a été refusée.",
+    "joinFailed": "Échec de l'adhésion : {{error}}",
+    "wantsToJoinRoom": "{{name}} veut rejoindre le salon",
+    "roomKeyReceived": "Clé du salon reçue !",
+    "missingRoomKeyPair": "Paire de clés du salon manquante — impossible de déchiffrer la clé de groupe.",
+    "failedReceiveRoomKey": "Échec de la réception de la clé de chiffrement du salon.",
+    "roomKeyRotating": "La clé du salon est en cours de rotation…",
+    "resumedChat": "Discussion avec {{name}} reprise",
+    "restoringConnection": "Restauration de la connexion sécurisée…",
+    "resumingConnection": "Reprise de la connexion sécurisée…",
+    "failedResumeSession": "Échec de la reprise de session : {{error}}",
+    "requestAccepted": "Demande acceptée",
+    "requestRejected": "Demande refusée",
+    "sessionBurned": "Session brûlée avec succès",
+    "failedBurnSession": "Échec du brûlage de session : {{error}}",
+    "failedBurnRoom": "Échec du brûlage du salon : {{error}}",
+    "failedLeaveRoom": "Échec de la sortie du salon : {{error}}",
+    "title": {
+      "error": "Erreur",
+      "keyError": "Erreur de clé",
+      "joinRequest": "Demande d'adhésion",
+      "newRequest": "Nouvelle demande"
     }
   }
 }
