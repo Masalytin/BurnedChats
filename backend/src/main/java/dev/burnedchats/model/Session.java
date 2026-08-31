@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -216,9 +217,26 @@ public class Session implements Serializable {
     /**
      * Calculate expiration timestamp based on creation time (5.1.4).
      *
-     * @return expiration instant (1 hour after creation)
+     * <p>PENDING uses {@code pendingTtl} (typically {@code session.request.ttl}).
+     * Other statuses stay on the historical 60-minute logical window.
+     *
+     * @return expiration instant
      */
     public Instant getExpiresAt() {
+        return getExpiresAt(null);
+    }
+
+    /**
+     * Status-aware expiration. PENDING = {@code createdAt + pendingTtl};
+     * ACTIVE / HANDSHAKE / others keep {@link #DEFAULT_TTL_MINUTES}.
+     *
+     * @param pendingTtl request TTL from {@code SessionProperties}; ignored unless PENDING
+     * @return expiration instant
+     */
+    public Instant getExpiresAt(Duration pendingTtl) {
+        if (status == SessionStatus.PENDING && pendingTtl != null) {
+            return createdAt.plus(pendingTtl);
+        }
         return createdAt.plusSeconds(DEFAULT_TTL_MINUTES * 60L);
     }
 
@@ -228,7 +246,17 @@ public class Session implements Serializable {
      * @return true if expired
      */
     public boolean isExpired() {
-        return Instant.now().isAfter(getExpiresAt());
+        return isExpired(null);
+    }
+
+    /**
+     * Status-aware expiry using {@code session.request.ttl} for PENDING.
+     *
+     * @param pendingTtl request TTL from {@code SessionProperties}; ignored unless PENDING
+     * @return true if expired
+     */
+    public boolean isExpired(Duration pendingTtl) {
+        return Instant.now().isAfter(getExpiresAt(pendingTtl));
     }
 
     /**
@@ -237,7 +265,17 @@ public class Session implements Serializable {
      * @return remaining seconds, 0 if expired
      */
     public long getRemainingSeconds() {
-        long remaining = java.time.Duration.between(Instant.now(), getExpiresAt()).getSeconds();
+        return getRemainingSeconds(null);
+    }
+
+    /**
+     * Remaining seconds using the same status-aware window as {@link #getExpiresAt(Duration)}.
+     *
+     * @param pendingTtl request TTL from {@code SessionProperties}; ignored unless PENDING
+     * @return remaining seconds, 0 if expired
+     */
+    public long getRemainingSeconds(Duration pendingTtl) {
+        long remaining = Duration.between(Instant.now(), getExpiresAt(pendingTtl)).getSeconds();
         return Math.max(0, remaining);
     }
 

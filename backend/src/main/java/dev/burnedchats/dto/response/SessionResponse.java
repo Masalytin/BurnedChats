@@ -52,6 +52,16 @@ public class SessionResponse {
      * Last activity timestamp.
      */
     private Instant lastActivityAt;
+
+    /**
+     * Whether the requester is the session initiator.
+     */
+    private boolean isInitiator;
+
+    /**
+     * Logical expiry: PENDING = {@code createdAt + session.request.ttl}.
+     */
+    private Instant expiresAt;
 }
 
 

@@ -17,7 +17,7 @@ summarized in the table.
 | `user:{internalId}` | hash | 90d | Canonical profile (`UserIdentityRepository`) |
 | `user:{tgId}` | hash | **7d** | Legacy TG cache (`UserRepository`); see §below |
 | `lang:pref:{userId}` | string | 90d | Language preferences |
-| `session:{sessionId}` | hash | 24h | DM session metadata |
+| `session:{sessionId}` | hash | PENDING: `session.request.ttl` (300s); else `session.active.ttl` (24h) | DM session metadata |
 | `session_token:{token}` | string | 1h | One-time resume token → `internalId` |
 | `request:{recipientInternalId}` | list | 5min | Incoming chat requests |
 | `online:{internalId}` | string | 30s | Heartbeat presence |
@@ -102,7 +102,11 @@ EXPIRE session:abc123 86400
 
 Participant check: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
 
-**TTL:** 24 hours by default (`session.active.ttl` in `application.yml`).
+**TTL:** depends on `status`. `PENDING` → `session.request.ttl` (default 300 s,
+same as `request:{recipient}`). `HANDSHAKE` / `ACTIVE` / others →
+`session.active.ttl` (default 24 h). Accept already `save()`s after
+`setStatus(HANDSHAKE)`, which **extends** the Redis key so an accept at 4:50
+does not evict the session at 5:00.
 
 ---
 

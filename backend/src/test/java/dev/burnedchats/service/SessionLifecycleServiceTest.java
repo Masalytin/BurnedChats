@@ -1,13 +1,18 @@
 package dev.burnedchats.service;
 
 import dev.burnedchats.config.PowProperties;
+import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.dto.mapper.SessionMapper;
 import dev.burnedchats.dto.mapper.UserMapper;
 import dev.burnedchats.dto.request.AcceptSessionRequest;
 import dev.burnedchats.dto.request.CreateSessionRequest;
+import dev.burnedchats.dto.response.SessionResponse;
+import dev.burnedchats.dto.response.UserResponse;
 import dev.burnedchats.model.ChatRequest;
 import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
+import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.model.enums.AuthType;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.RequestRepository;
 import dev.burnedchats.repository.SessionRepository;
@@ -31,11 +36,13 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -78,6 +85,9 @@ class SessionLifecycleServiceTest {
 
     @BeforeEach
     void setUp() {
+        SessionProperties sessionProperties = new SessionProperties();
+        sessionProperties.getRequest().setTtl(300);
+        sessionProperties.getActive().setTtl(3600);
         service = new SessionLifecycleService(
                 sessionRepository,
                 requestRepository,
@@ -88,7 +98,8 @@ class SessionLifecycleServiceTest {
                 powProperties,
                 powVerificationService,
                 adaptiveDifficultyService,
-                rateLimitService
+                rateLimitService,
+                sessionProperties
         );
         lenient().when(requestRepository.existsBetween(anyString(), anyString()))
                 .thenReturn(Mono.just(false));
@@ -139,6 +150,32 @@ class SessionLifecycleServiceTest {
                     .expectNextMatches(result ->
                             result instanceof CreateSessionResult.Failed failed
                                     && "ALREADY_HAS_SESSION".equals(failed.initiatorEvent().getError()))
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("does not return ALREADY_HAS_SESSION when findActive is empty after PENDING expiry")
+        void afterExpiredPendingDoesNotReturnAlreadyHasSession() {
+            CreateSessionRequest request = CreateSessionRequest.builder()
+                    .recipientInternalId(RECIPIENT_ID)
+                    .build();
+            when(sessionRepository.findActiveByParticipant(eq(INITIATOR_ID))).thenReturn(Mono.empty());
+            when(sessionRepository.findActiveByParticipant(eq(RECIPIENT_ID))).thenReturn(Mono.empty());
+            when(userIdentityRepository.findById(INITIATOR_ID)).thenReturn(Mono.just(
+                    new UnifiedUser(INITIATOR_ID, AuthType.TELEGRAM, "Initiator", INITIATOR_TG, null, null)));
+            when(userIdentityRepository.findById(RECIPIENT_ID)).thenReturn(Mono.just(
+                    new UnifiedUser(RECIPIENT_ID, AuthType.TELEGRAM, "Recipient", RECIPIENT_TG, null, null)));
+            when(sessionRepository.save(any())).thenReturn(Mono.just(true));
+            when(requestRepository.save(any())).thenReturn(Mono.just(1L));
+            when(onlineStatusRepository.isOnline(RECIPIENT_ID)).thenReturn(Mono.just(false));
+            when(userMapper.toResponse(any(UnifiedUser.class), anyBoolean()))
+                    .thenReturn(UserResponse.builder().internalId(RECIPIENT_ID).build());
+
+            StepVerifier.create(service.createSession(initiator(), request))
+                    .assertNext(result -> {
+                        assertThat(result).isInstanceOf(CreateSessionResult.Created.class);
+                        assertThat(result).isNotInstanceOf(CreateSessionResult.Failed.class);
+                    })
                     .verifyComplete();
         }
     }
@@ -225,6 +262,27 @@ class SessionLifecycleServiceTest {
                     .assertNext(result -> assertThat(result.event().getError()).isEqualTo("NOT_PARTICIPANT"))
                     .verifyComplete();
         }
+
+        @Test
+        @DisplayName("expired PENDING returns SESSION_EXPIRED and cleans up")
+        void expiredPendingReturnsSessionExpiredAndCleansUp() {
+            Session expired = pendingSession();
+            expired.setCreatedAt(Instant.now().minus(Duration.ofMinutes(6)));
+            when(sessionRepository.updateStatus(expired.getId(), SessionStatus.EXPIRED))
+                    .thenReturn(Mono.just(true));
+            when(sessionRepository.delete(expired.getId())).thenReturn(Mono.just(1L));
+
+            StepVerifier.create(service.resumeSession(expired, initiator()))
+                    .assertNext(result -> {
+                        assertThat(result.event().getError()).isEqualTo("SESSION_EXPIRED");
+                        assertThat(result.pendingTimeouts()).hasSize(1);
+                        assertThat(result.pendingTimeouts().get(0).initiatorInternalId())
+                                .isEqualTo(INITIATOR_ID);
+                    })
+                    .verifyComplete();
+
+            verify(sessionRepository).delete(expired.getId());
+        }
     }
 
     @Nested
@@ -243,6 +301,124 @@ class SessionLifecycleServiceTest {
                         assertThat(result.expiredSessionIds()).isEmpty();
                     })
                     .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("PENDING older than request TTL is excluded and marked expired")
+        void expiredPendingExcludedAndMarked() {
+            Session expired = pendingSession();
+            expired.setCreatedAt(Instant.now().minus(Duration.ofMinutes(6)));
+            when(sessionRepository.findAllActiveByParticipant(INITIATOR_ID))
+                    .thenReturn(Flux.just(expired));
+
+            StepVerifier.create(service.listActiveSessions(initiator()))
+                    .assertNext(result -> {
+                        assertThat(result.event().getCount()).isZero();
+                        assertThat(result.expiredSessionIds()).containsExactly(expired.getId());
+                        assertThat(result.pendingTimeouts()).hasSize(1);
+                        assertThat(result.pendingTimeouts().get(0).sessionId()).isEqualTo(expired.getId());
+                        assertThat(result.pendingTimeouts().get(0).initiatorInternalId())
+                                .isEqualTo(INITIATOR_ID);
+                    })
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("list SessionResponse includes isInitiator and expiresAt")
+        void listIncludesIsInitiatorAndExpiresAt() {
+            Session live = pendingSession();
+            Instant expiresAt = live.getExpiresAt(Duration.ofSeconds(300));
+            UserResponse peer = UserResponse.builder().internalId(RECIPIENT_ID).build();
+            when(sessionRepository.findAllActiveByParticipant(INITIATOR_ID)).thenReturn(Flux.just(live));
+            when(userIdentityRepository.findById(RECIPIENT_ID)).thenReturn(Mono.just(
+                    new UnifiedUser(RECIPIENT_ID, AuthType.TELEGRAM, "Recipient", RECIPIENT_TG, null, null)));
+            when(onlineStatusRepository.isOnline(RECIPIENT_ID)).thenReturn(Mono.just(true));
+            when(userMapper.toResponse(any(UnifiedUser.class), anyBoolean())).thenReturn(peer);
+            when(sessionMapper.toResponse(eq(live), eq(peer), eq(true), any(Duration.class)))
+                    .thenReturn(SessionResponse.builder()
+                            .sessionId(live.getId())
+                            .isInitiator(true)
+                            .expiresAt(expiresAt)
+                            .build());
+
+            StepVerifier.create(service.listActiveSessions(initiator()))
+                    .assertNext(result -> {
+                        assertThat(result.event().getSessions()).hasSize(1);
+                        SessionResponse response = result.event().getSessions().get(0);
+                        assertThat(response.isInitiator()).isTrue();
+                        assertThat(response.getExpiresAt()).isEqualTo(expiresAt);
+                    })
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("expired ACTIVE cleanup does not emit pending timeout signal")
+        void expiredActiveDoesNotEmitPendingTimeout() {
+            Session expiredActive = activeSession();
+            expiredActive.setCreatedAt(Instant.now().minus(Duration.ofMinutes(61)));
+            when(sessionRepository.findAllActiveByParticipant(INITIATOR_ID))
+                    .thenReturn(Flux.just(expiredActive));
+
+            StepVerifier.create(service.listActiveSessions(initiator()))
+                    .assertNext(result -> {
+                        assertThat(result.event().getCount()).isZero();
+                        assertThat(result.expiredSessionIds()).containsExactly(expiredActive.getId());
+                        assertThat(result.pendingTimeouts()).isEmpty();
+                    })
+                    .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("session expiry (IMP-DMPEND-03)")
+    class SessionExpiry {
+
+        private static final Duration REQUEST_TTL = Duration.ofSeconds(300);
+
+        @Test
+        @DisplayName("PENDING createdAt + 4 min is not expired")
+        void pendingCreatedAtPlus4minIsNotExpired() {
+            Session session = sessionAt(SessionStatus.PENDING, Duration.ofMinutes(4));
+
+            assertThat(session.isExpired(REQUEST_TTL)).isFalse();
+        }
+
+        @Test
+        @DisplayName("PENDING createdAt + 6 min is expired")
+        void pendingCreatedAtPlus6minIsExpired() {
+            Session session = sessionAt(SessionStatus.PENDING, Duration.ofMinutes(6));
+
+            assertThat(session.isExpired(REQUEST_TTL)).isTrue();
+        }
+
+        @Test
+        @DisplayName("ACTIVE createdAt + 6 min is not expired (blast-radius)")
+        void activeCreatedAtPlus6minIsNotExpired() {
+            Session session = sessionAt(SessionStatus.ACTIVE, Duration.ofMinutes(6));
+
+            assertThat(session.isExpired(REQUEST_TTL)).isFalse();
+        }
+
+        @Test
+        @DisplayName("HANDSHAKE createdAt + 6 min is not expired (blast-radius)")
+        void handshakeCreatedAtPlus6minIsNotExpired() {
+            Session session = sessionAt(SessionStatus.HANDSHAKE, Duration.ofMinutes(6));
+
+            assertThat(session.isExpired(REQUEST_TTL)).isFalse();
+        }
+
+        private static Session sessionAt(SessionStatus status, Duration age) {
+            Instant createdAt = Instant.now().minus(age);
+            return Session.builder()
+                    .id(UUID.randomUUID().toString())
+                    .initiatorInternalId(INITIATOR_ID)
+                    .initiatorTelegramId(INITIATOR_TG)
+                    .responderInternalId(RECIPIENT_ID)
+                    .responderTelegramId(RECIPIENT_TG)
+                    .status(status)
+                    .createdAt(createdAt)
+                    .lastActivityAt(createdAt)
+                    .build();
         }
     }
 

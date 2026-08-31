@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- PENDING DM sessions expire with the 5-minute request TTL; the initiator is notified on `/user/queue/request-expired`, and `SessionResponse` now includes `isInitiator` and `expiresAt`.
+
 ### Changed
 
 - Public landing and `/token` pages use the same 8-locale i18n stack as the Mini App (LANDBURN/TOKPAGE EN-only reversed).

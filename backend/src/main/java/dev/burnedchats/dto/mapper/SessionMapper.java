@@ -6,6 +6,8 @@ import dev.burnedchats.model.Session;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.time.Duration;
+
 /**
  * MapStruct mapper for Session to SessionResponse conversion.
  *
@@ -26,6 +28,7 @@ public interface SessionMapper {
      * @param session      the session model
      * @param peer         the peer user response
      * @param isInitiator  whether the requester is the initiator
+     * @param pendingTtl   {@code session.request.ttl} for PENDING {@code expiresAt}
      * @return session response DTO
      */
     @Mapping(target = "sessionId", source = "session.id")
@@ -37,7 +40,9 @@ public interface SessionMapper {
             expression = "java(isInitiator ? session.isResponderVerified() : session.isInitiatorVerified())")
     @Mapping(target = "createdAt", source = "session.createdAt")
     @Mapping(target = "lastActivityAt", source = "session.lastActivityAt")
-    SessionResponse toResponse(Session session, UserResponse peer, boolean isInitiator);
+    @Mapping(target = "isInitiator", source = "isInitiator")
+    @Mapping(target = "expiresAt", expression = "java(session.getExpiresAt(pendingTtl))")
+    SessionResponse toResponse(Session session, UserResponse peer, boolean isInitiator, Duration pendingTtl);
 
     /**
      * Simple conversion without peer info (for internal use).
@@ -49,6 +54,8 @@ public interface SessionMapper {
     @Mapping(target = "peer", ignore = true)
     @Mapping(target = "verified", constant = "false")
     @Mapping(target = "peerVerified", constant = "false")
+    @Mapping(target = "isInitiator", constant = "false")
+    @Mapping(target = "expiresAt", expression = "java(session.getExpiresAt())")
     SessionResponse toBasicResponse(Session session);
 }
 

@@ -394,6 +394,11 @@ client.publish({
 | `createdAt`, `expiresAt` | ISO-8601 | Request TTL (5 min) |
 
 Pending queue: Redis `request:{recipientInternalId}` (see [DATA_MODELS.md](./DATA_MODELS.md)).
+A `PENDING` session lives the same horizon as the inbox: `session.request.ttl`
+(default 300 s). Redis `EXPIRE session:{id}` uses that TTL until accept
+(`HANDSHAKE` / `ACTIVE` → `session.active.ttl`). Logical `Session.isExpired()`
+for `PENDING` is `createdAt + session.request.ttl`; other statuses stay on the
+historical 60-minute window.
 
 **Error codes** (`success: false` on `/user/queue/session-created`):
 `SELF_REQUEST`, `INVALID_RECIPIENT`, `EXPECTED_ANSWER_REQUIRED`,
@@ -486,6 +491,27 @@ Invite validation errors on `/user/queue/session-created` (`success: false`):
 **Request:** `{ "sessionId": "uuid" }`. Initiator receives `/user/queue/session-rejected`.
 
 **Backend:** `SessionHandler` — `@MessageMapping("/session.reject")`. Delivery by `internalId`.
+
+---
+
+### Pending request timeout (`/user/queue/request-expired`)
+
+Outbound only — no inbound `@MessageMapping`. Lazy cleanup on
+`/app/session.active.list` and resume of an expired `PENDING` session:
+
+- Session → `EXPIRED` + `DEL session:{id}`
+- If the initiator is online: `RequestExpiredEvent` `{ sessionId, reason: TIMEOUT, timestamp }`
+  to **the initiator only** on `/user/queue/request-expired`
+- Recipient inbox is already gone (`request:*` TTL)
+- Do **not** send this event when cleaning up `ACTIVE` / `HANDSHAKE`
+- Reject / cancel / burn stay on their existing queues (`session-rejected`, burn)
+
+`session.active.list` and `session.resume` `SessionResponse` (additive):
+
+| Field | Type | Description |
+|------|-----|----------|
+| `isInitiator` | boolean | Requester is the session initiator |
+| `expiresAt` | ISO-8601 | PENDING = `createdAt + session.request.ttl` |
 
 ---
 
@@ -804,6 +830,7 @@ All server events are sent to user personal queues
 | `/user/queue/dm-invite-minted` | `DmInviteMintedEvent` | Response to `dmInvite.mint` |
 | `/user/queue/session-accepted` | `SessionAcceptedEvent` | Request accepted |
 | `/user/queue/session-rejected` | `SessionRejectedEvent` | Request rejected |
+| `/user/queue/request-expired` | `RequestExpiredEvent` | Pending request timed out (`reason=TIMEOUT`, initiator only) |
 | `/user/queue/session-status` | `SessionStatusEvent` | Session status |
 | `/user/queue/incoming-request` | `IncomingRequestEvent` | Incoming chat request |
 | `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer disconnected |

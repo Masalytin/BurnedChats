@@ -2,6 +2,7 @@ package dev.burnedchats.handler;
 
 import dev.burnedchats.dto.event.ActiveSessionsListEvent;
 import dev.burnedchats.dto.event.PeerDisconnectedEvent;
+import dev.burnedchats.dto.event.RequestExpiredEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
 import dev.burnedchats.dto.event.SessionStatusEvent;
@@ -24,7 +25,9 @@ import dev.burnedchats.exception.PowRequiredException;
 import dev.burnedchats.exception.RateLimitException;
 import dev.burnedchats.service.SessionLifecycleService;
 import dev.burnedchats.service.SessionLifecycleService.AcceptSessionResult;
+import dev.burnedchats.service.SessionLifecycleService.ActiveSessionsResult;
 import dev.burnedchats.service.SessionLifecycleService.CreateSessionResult;
+import dev.burnedchats.service.SessionLifecycleService.PendingTimeoutSignal;
 import dev.burnedchats.telegram.BurnedChatsBot;
 import dev.burnedchats.telegram.BotMessageService;
 import dev.burnedchats.util.ParticipantContext;
@@ -38,6 +41,7 @@ import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,6 +65,7 @@ public class SessionHandler {
     private static final String PEER_DISCONNECTED_DESTINATION = "/queue/peer-disconnected";
     private static final String ACTIVE_SESSIONS_DESTINATION = "/queue/active-sessions";
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
+    private static final String REQUEST_EXPIRED_DESTINATION = "/queue/request-expired";
 
     private final SessionRepository sessionRepository;
     private final OnlineStatusRepository onlineStatusRepository;
@@ -290,7 +295,7 @@ public class SessionHandler {
                                 return;
                             }
 
-                            if (session.isExpired()) {
+                            if (session.isExpired(sessionLifecycleService.pendingTtl())) {
                                 sendSessionStatus(participant, SessionStatusEvent.expired(sessionId));
                                 return;
                             }
@@ -298,8 +303,8 @@ public class SessionHandler {
                             sendSessionStatus(participant, SessionStatusEvent.active(
                                     sessionId,
                                     session.getStatus(),
-                                    session.getExpiresAt(),
-                                    session.getRemainingSeconds()
+                                    session.getExpiresAt(sessionLifecycleService.pendingTtl()),
+                                    session.getRemainingSeconds(sessionLifecycleService.pendingTtl())
                             ));
                         },
                         error -> {
@@ -396,13 +401,7 @@ public class SessionHandler {
                 participant.internalId(), participant.telegramId());
 
         sessionLifecycleService.listActiveSessions(participant)
-                .flatMap(result -> {
-                    if (!result.expiredSessionIds().isEmpty()) {
-                        return sessionLifecycleService.cleanupExpiredSessions(result.expiredSessionIds())
-                                .thenReturn(result);
-                    }
-                    return Mono.just(result);
-                })
+                .flatMap(result -> cleanupExpiredAndNotify(result).thenReturn(result))
                 .subscribe(
                         result -> {
                             if (principal instanceof AppPrincipal appPrincipal) {
@@ -442,7 +441,10 @@ public class SessionHandler {
                 }))
                 .flatMap(session -> sessionLifecycleService.resumeSession(session, participant))
                 .subscribe(
-                        result -> sendResumeEvent(participant, result.event()),
+                        result -> {
+                            publishPendingTimeouts(result.pendingTimeouts());
+                            sendResumeEvent(participant, result.event());
+                        },
                         error -> {
                             LOG.error("Error resuming session {}: {}", sessionId, error.getMessage());
                             sendResumeEvent(participant, SessionResumedEvent.error(sessionId, "INTERNAL_ERROR"));
@@ -453,4 +455,37 @@ public class SessionHandler {
     private void sendResumeEvent(ParticipantContext participant, SessionResumedEvent event) {
         sendStompToInternalId(participant.internalId(), SESSION_RESUMED_DESTINATION, event);
     }
+
+    private Mono<Void> cleanupExpiredAndNotify(ActiveSessionsResult result) {
+        Mono<Void> cleanup = result.expiredSessionIds().isEmpty()
+                ? Mono.empty()
+                : sessionLifecycleService.cleanupExpiredSessions(result.expiredSessionIds());
+        return cleanup.doOnSuccess(ignored -> publishPendingTimeouts(result.pendingTimeouts()));
+    }
+
+    private void publishPendingTimeouts(List<PendingTimeoutSignal> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return;
+        }
+        for (PendingTimeoutSignal signal : signals) {
+            publishPendingTimeoutIfOnline(signal);
+        }
+    }
+
+    private void publishPendingTimeoutIfOnline(PendingTimeoutSignal signal) {
+        if (signal == null) {
+            return;
+        }
+        String initiatorId = signal.initiatorInternalId();
+        RequestExpiredEvent event = RequestExpiredEvent.timeout(signal.sessionId());
+        onlineStatusRepository.isOnline(initiatorId)
+                .filter(Boolean::booleanValue)
+                .subscribe(
+                        ignored -> sendStompToInternalId(
+                                initiatorId, REQUEST_EXPIRED_DESTINATION, event),
+                        error -> LOG.warn(
+                                "request-expired online check failed: initiator={}, error={}",
+                                initiatorId, error.getMessage()));
+    }
+
 }

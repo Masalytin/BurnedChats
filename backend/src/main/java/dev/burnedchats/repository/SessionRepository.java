@@ -35,7 +35,8 @@ import java.util.Map;
  *   <li>secretAnswerHash - Base64 SHA-256 of normalized expected answer (if question set)</li>
  * </ul>
  *
- * <p>Session key TTL: {@code session.active.ttl} in {@code application.yml} (default 24h).
+ * <p>Session key TTL depends on status: PENDING uses {@code session.request.ttl};
+ * HANDSHAKE / ACTIVE / others use {@code session.active.ttl}.
  *
  * @see Session
  */
@@ -47,13 +48,15 @@ public class SessionRepository {
     private static final String KEY_PREFIX = "session:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
-    private final Duration sessionTtl;
+    private final Duration pendingTtl;
+    private final Duration activeTtl;
 
     public SessionRepository(
             ReactiveRedisTemplate<String, String> redisTemplate,
             SessionProperties sessionProperties) {
         this.redisTemplate = redisTemplate;
-        this.sessionTtl = Duration.ofSeconds(sessionProperties.getActive().getTtl());
+        this.pendingTtl = Duration.ofSeconds(sessionProperties.getRequest().getTtl());
+        this.activeTtl = Duration.ofSeconds(sessionProperties.getActive().getTtl());
     }
 
     /**
@@ -94,7 +97,7 @@ public class SessionRepository {
 
         return redisTemplate.opsForHash()
                 .putAll(key, hash)
-                .then(redisTemplate.expire(key, sessionTtl))
+                .then(redisTemplate.expire(key, ttlFor(session)))
                 .doOnSuccess(result -> LOG.debug("Saved session: {}, status: {}",
                         session.getId(), session.getStatus()));
     }
@@ -268,7 +271,7 @@ public class SessionRepository {
      * @return true if TTL was set
      */
     public Mono<Boolean> refreshTtl(String sessionId) {
-        return redisTemplate.expire(keyFor(sessionId), sessionTtl);
+        return redisTemplate.expire(keyFor(sessionId), activeTtl);
     }
 
     /**
@@ -293,7 +296,8 @@ public class SessionRepository {
                         .map(this::mapToSession))
                 .filter(session -> session.isParticipant(userId)
                         && session.getStatus() != SessionStatus.BURNED
-                        && session.getStatus() != SessionStatus.EXPIRED)
+                        && session.getStatus() != SessionStatus.EXPIRED
+                        && !isLogicallyExpiredPending(session))
                 .next()
                 .doOnSuccess(session -> {
                     if (session != null) {
@@ -337,6 +341,17 @@ public class SessionRepository {
 
     public Flux<Session> findAllActiveByParticipant(Long telegramId) {
         return findAllActiveByParticipant(InternalIds.forTelegramId(telegramId));
+    }
+
+    private Duration ttlFor(Session session) {
+        if (session.getStatus() == SessionStatus.PENDING) {
+            return pendingTtl;
+        }
+        return activeTtl;
+    }
+
+    private boolean isLogicallyExpiredPending(Session session) {
+        return session.getStatus() == SessionStatus.PENDING && session.isExpired(pendingTtl);
     }
 
     private String keyFor(String sessionId) {

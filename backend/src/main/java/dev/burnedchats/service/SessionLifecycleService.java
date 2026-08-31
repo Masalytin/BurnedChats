@@ -1,6 +1,7 @@
 package dev.burnedchats.service;
 
 import dev.burnedchats.config.PowProperties;
+import dev.burnedchats.config.SessionProperties;
 import dev.burnedchats.dto.event.ActiveSessionsListEvent;
 import dev.burnedchats.dto.event.IncomingRequestEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
@@ -39,6 +40,7 @@ import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,7 +53,7 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@SuppressWarnings("checkstyle:LineLength")
+@SuppressWarnings({"checkstyle:LineLength", "checkstyle:ParameterNumber"})
 public class SessionLifecycleService {
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
@@ -67,6 +69,7 @@ public class SessionLifecycleService {
     private final PowVerificationService powVerificationService;
     private final AdaptiveDifficultyService adaptiveDifficultyService;
     private final RateLimitService rateLimitService;
+    private final SessionProperties sessionProperties;
 
     @Autowired(required = false)
     private GrowthMetrics growthMetrics;
@@ -104,10 +107,20 @@ public class SessionLifecycleService {
     public record RejectSessionResult(String initiatorInternalId, SessionRejectedEvent event) {
     }
 
-    public record ResumeSessionResult(SessionResumedEvent event) {
+    public record PendingTimeoutSignal(String sessionId, String initiatorInternalId) {
     }
 
-    public record ActiveSessionsResult(ActiveSessionsListEvent event, List<String> expiredSessionIds) {
+    public record ResumeSessionResult(SessionResumedEvent event, List<PendingTimeoutSignal> pendingTimeouts) {
+        public ResumeSessionResult(SessionResumedEvent event) {
+            this(event, List.of());
+        }
+    }
+
+    public record ActiveSessionsResult(
+            ActiveSessionsListEvent event,
+            List<String> expiredSessionIds,
+            List<PendingTimeoutSignal> pendingTimeouts
+    ) {
     }
 
     /**
@@ -238,15 +251,20 @@ public class SessionLifecycleService {
 
     public Mono<ActiveSessionsResult> listActiveSessions(ParticipantContext participant) {
         List<String> expiredSessionIds = new ArrayList<>();
+        List<PendingTimeoutSignal> pendingTimeouts = new ArrayList<>();
 
         return sessionRepository.findAllActiveByParticipant(participant.internalId())
-                .flatMap(session -> mapSessionToListResponse(session, participant.internalId(), expiredSessionIds))
+                .flatMap(session -> mapSessionToListResponse(
+                        session, participant.internalId(), expiredSessionIds, pendingTimeouts))
                 .collectList()
                 .map(sessions -> {
                     ActiveSessionsListEvent event = sessions.isEmpty()
                             ? ActiveSessionsListEvent.empty()
                             : ActiveSessionsListEvent.success(sessions);
-                    return new ActiveSessionsResult(event, new ArrayList<>(expiredSessionIds));
+                    return new ActiveSessionsResult(
+                            event,
+                            new ArrayList<>(expiredSessionIds),
+                            new ArrayList<>(pendingTimeouts));
                 });
     }
 
@@ -276,10 +294,17 @@ public class SessionLifecycleService {
                     SessionResumedEvent.error(sessionId, "SESSION_BURNED")));
         }
 
-        if (session.getStatus() == SessionStatus.EXPIRED || session.isExpired()) {
+        if (session.getStatus() == SessionStatus.EXPIRED || session.isExpired(pendingTtl())) {
             LOG.debug("Session {} is expired, cannot resume", sessionId);
-            return sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED)
-                    .thenReturn(new ResumeSessionResult(SessionResumedEvent.expired(sessionId)));
+            List<PendingTimeoutSignal> pendingTimeouts = session.getStatus() == SessionStatus.PENDING
+                    ? List.of(new PendingTimeoutSignal(sessionId, session.getInitiatorInternalId()))
+                    : List.of();
+            Mono<Boolean> markExpired = sessionRepository.updateStatus(sessionId, SessionStatus.EXPIRED);
+            Mono<?> cleanup = pendingTimeouts.isEmpty()
+                    ? markExpired
+                    : markExpired.then(sessionRepository.delete(sessionId));
+            return cleanup.thenReturn(
+                    new ResumeSessionResult(SessionResumedEvent.expired(sessionId), pendingTimeouts));
         }
 
         return doResumeSession(session, participant);
@@ -443,14 +468,15 @@ public class SessionLifecycleService {
                 .then(sessionRepository.refreshTtl(sessionId))
                 .then(getUserResponseByInternalId(peerInternalId))
                 .map(peerResponse -> {
-                    SessionResponse sessionResponse = sessionMapper.toResponse(session, peerResponse, isInitiator);
+                    SessionResponse sessionResponse = sessionMapper.toResponse(
+                            session, peerResponse, isInitiator, pendingTtl());
 
                     SessionResumedEvent event = SessionResumedEvent.success(
                             sessionId,
                             sessionResponse,
                             session.getStatus(),
-                            session.getExpiresAt(),
-                            session.getRemainingSeconds(),
+                            session.getExpiresAt(pendingTtl()),
+                            session.getRemainingSeconds(pendingTtl()),
                             peerResponse.isOnline());
 
                     LOG.info("Session resumed: sessionId={}, internalId={}, status={}, peerOnline={}",
@@ -461,10 +487,15 @@ public class SessionLifecycleService {
     }
 
     private Mono<SessionResponse> mapSessionToListResponse(Session session, String userInternalId,
-                                                             List<String> expiredSessionIds) {
-        if (session.isExpired()) {
+                                                             List<String> expiredSessionIds,
+                                                             List<PendingTimeoutSignal> pendingTimeouts) {
+        if (session.isExpired(pendingTtl())) {
             synchronized (expiredSessionIds) {
                 expiredSessionIds.add(session.getId());
+                if (session.getStatus() == SessionStatus.PENDING) {
+                    pendingTimeouts.add(new PendingTimeoutSignal(
+                            session.getId(), session.getInitiatorInternalId()));
+                }
             }
             LOG.debug("Session {} is expired, marking for cleanup", session.getId());
             return Mono.empty();
@@ -474,7 +505,12 @@ public class SessionLifecycleService {
         boolean isInitiator = session.isInitiator(userInternalId);
 
         return getUserResponseByInternalId(peerInternalId)
-                .map(peerResponse -> sessionMapper.toResponse(session, peerResponse, isInitiator));
+                .map(peerResponse -> sessionMapper.toResponse(
+                        session, peerResponse, isInitiator, pendingTtl()));
+    }
+
+    public Duration pendingTtl() {
+        return Duration.ofSeconds(sessionProperties.getRequest().getTtl());
     }
 
     private Mono<IncomingRequestEvent> buildIncomingRequestEvent(ChatRequest request) {

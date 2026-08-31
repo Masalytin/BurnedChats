@@ -37,11 +37,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for SessionRepository.
- *
- * <p>Tests session storage operations with mocked Redis.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("SessionRepository")
@@ -63,6 +58,7 @@ class SessionRepositoryTest {
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        sessionProperties.getRequest().setTtl(300);
         sessionProperties.getActive().setTtl(3600);
         sessionRepository = new SessionRepository(redisTemplate, sessionProperties);
     }
@@ -184,6 +180,23 @@ class SessionRepositoryTest {
                     .verifyComplete();
 
             verify(hashOperations).putAll(eq(key), anyMap());
+            verify(redisTemplate).expire(eq(key), eq(Duration.ofSeconds(300)));
+        }
+
+        @Test
+        @DisplayName("HANDSHAKE save uses session.active.ttl (accept extends Redis key)")
+        void saveHandshakeUsesActiveTtl() {
+            Session session = createTestSession();
+            session.setStatus(SessionStatus.HANDSHAKE);
+            String key = "session:" + TEST_SESSION_ID;
+
+            when(hashOperations.putAll(eq(key), anyMap())).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
+
+            StepVerifier.create(sessionRepository.save(session))
+                    .expectNext(true)
+                    .verifyComplete();
+
             verify(redisTemplate).expire(eq(key), eq(Duration.ofSeconds(3600)));
         }
 
@@ -400,6 +413,43 @@ class SessionRepositoryTest {
             // When & Then
             StepVerifier.create(sessionRepository.exists(TEST_SESSION_ID))
                     .expectNext(false)
+                    .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("findActiveByParticipant")
+    class FindActiveByParticipant {
+
+        @Test
+        @DisplayName("excludes logically expired PENDING")
+        void excludesLogicallyExpiredPending() {
+            Session session = createTestSession();
+            session.setCreatedAt(Instant.now().minus(Duration.ofMinutes(6)));
+            session.setStatus(SessionStatus.PENDING);
+            String key = "session:" + TEST_SESSION_ID;
+            String initiatorInternalId = InternalIds.forTelegramId(INITIATOR_ID);
+
+            when(redisTemplate.keys("session:*")).thenReturn(Flux.just(key));
+            when(hashOperations.entries(key)).thenReturn(Flux.fromIterable(sessionToHashMap(session).entrySet()));
+
+            StepVerifier.create(sessionRepository.findActiveByParticipant(initiatorInternalId))
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("returns live PENDING")
+        void returnsLivePending() {
+            Session session = createTestSession();
+            session.setStatus(SessionStatus.PENDING);
+            String key = "session:" + TEST_SESSION_ID;
+            String initiatorInternalId = InternalIds.forTelegramId(INITIATOR_ID);
+
+            when(redisTemplate.keys("session:*")).thenReturn(Flux.just(key));
+            when(hashOperations.entries(key)).thenReturn(Flux.fromIterable(sessionToHashMap(session).entrySet()));
+
+            StepVerifier.create(sessionRepository.findActiveByParticipant(initiatorInternalId))
+                    .assertNext(found -> assertEquals(TEST_SESSION_ID, found.getId()))
                     .verifyComplete();
         }
     }
