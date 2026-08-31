@@ -1,5 +1,6 @@
 package dev.burnedchats.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -55,7 +56,9 @@ public class SessionResponse {
 
     /**
      * Whether the requester is the session initiator.
+     * Jackson would otherwise serialize {@code is*} as {@code initiator}.
      */
+    @JsonProperty("isInitiator")
     private boolean isInitiator;
 
     /**
