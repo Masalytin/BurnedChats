@@ -39,7 +39,7 @@ dependencies {
     implementation("io.projectreactor:reactor-core")
     
     // Connection pooling for Redis (required for Lettuce pooling)
-    implementation("org.apache.commons:commons-pool2:2.12.0")
+    implementation("org.apache.commons:commons-pool2:2.13.1")
 
     // Telegram Bot
     implementation("org.telegram:telegrambots:$telegramBotsVersion")
