@@ -107,6 +107,8 @@ Validate locale completeness:
 node scripts/i18n/check-i18n.mjs --strict          # full audit (CI / pre-release)
 node scripts/i18n/check-i18n.mjs --check-help      # help.* namespace gate
 npm run i18n:check --prefix help --strict          # from frontend/
+node scripts/i18n/scan-hardcoded-ui.mjs --strict   # no hardcoded JSX/toast literals
+npm run i18n:scan -- --strict                      # from frontend/
 ```
 
 Reference locale: `en.json` (frontend), `messages.properties` (backend). Use
