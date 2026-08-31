@@ -12,7 +12,7 @@
   "dependencies": {
     "@clack/prompts": "^0.10.1",
     "dotenv": "^16.5.0",
-    "execa": "^9.5.2",
+    "execa": "^10.0.1",
     "picocolors": "^1.1.1",
     "zod": "^3.24.2"
   },
