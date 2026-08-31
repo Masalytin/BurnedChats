@@ -500,6 +500,7 @@
     "title": "等待回复",
     "cancelButton": "取消请求",
     "errorRejected": "您的聊天请求已被拒绝",
+    "expired": "聊天请求已过期",
     "secretQuestionHint": "接收者必须回答你的秘密问题",
     "notificationSent": "已通过 Telegram 发送通知"
   },

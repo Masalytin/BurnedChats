@@ -98,6 +98,11 @@ import {
   shouldShowBackgroundBurnToast,
   type BackgroundKeysBurnedInfo,
 } from './hooks/useAppLifecycle';
+import {
+  shouldClearPendingOnBackgroundBurn,
+  shouldRestorePendingRequest,
+  type PendingRestoreReason,
+} from './utils/pendingRequestRestore';
 import { useBurnAll } from './hooks/useBurnAll';
 import { useDeadmanSwitch } from './hooks/useDeadmanSwitch';
 import { useExitBurnFlow } from './hooks/useExitBurnFlow';
@@ -363,6 +368,13 @@ function AppContent() {
   const dmInviteMarkRedeemedRef = useRef<() => void>(() => {});
   const dmInviteMarkFailedRef = useRef<(code: string) => void>(() => {});
   const dmInviteResetRef = useRef<() => void>(() => {});
+  /** Back from waiting does not burn; restore must not bounce the user back (E4). */
+  const dismissedPendingInDocumentRef = useRef(false);
+  /** First list after remount/reconnect may restore; later fetches must not (E4). */
+  const pendingRestoreOnNextListRef = useRef(true);
+  const pendingRestoreReasonRef = useRef<PendingRestoreReason>('remount');
+  const handleSessionsLoadedForRestoreRef = useRef<(sessions: ActiveSession[]) => void>(() => {});
+  const fetchSessionsRef = useRef<() => void>(() => {});
 
   const {
     result: sessionResult,
@@ -383,6 +395,7 @@ function AppContent() {
       }
       notificationOccurred('success');
       toast.success(t('dmInvite.redeemSuccess'));
+      dismissedPendingInDocumentRef.current = false;
       setCurrentView('pending-request');
       setPendingSession(session);
       setShowChatRequestDialog(false);
@@ -470,20 +483,17 @@ function AppContent() {
       setCurrentView('handshake');
     },
     onOurRequestAccepted: (sessionId, peer) => {
-      // Our pending request was accepted (we're the initiator)
-      // Only process if we have a matching pending session
-      if (pendingSession?.id === sessionId) {
-        console.log('[App] Our request was accepted, starting handshake');
-        notificationOccurred('success');
-        toast.success(t('toast.requestAcceptedHandshake'));
-        handshakePeerRef.current = peer;
-        startHandshake(sessionId, peer);
-        setCurrentView('handshake');
-        setPendingSession(null);
-      }
+      // Match by sessionId only — pendingSession may be null after background (E5)
+      console.log('[App] Our request was accepted, starting handshake');
+      notificationOccurred('success');
+      toast.success(t('toast.requestAcceptedHandshake'));
+      handshakePeerRef.current = peer;
+      startHandshake(sessionId, peer);
+      setCurrentView('handshake');
+      setPendingSession(null);
     },
     onOurRequestRejected: (sessionId) => {
-      if (pendingSession?.id !== sessionId) return;
+      // Match by sessionId only — pendingSession may be null after background (E6)
       console.log('[App] Our request was rejected by peer:', sessionId);
       notificationOccurred('error');
       toast.info(t('pendingRequest.errorRejected'));
@@ -491,6 +501,17 @@ function AppContent() {
       setCurrentView('home');
       resetSession();
       clearSearch();
+    },
+    onRequestExpired: (sessionId) => {
+      console.log('[App] Pending request expired:', sessionId);
+      dismissedPendingInDocumentRef.current = true;
+      notificationOccurred('warning');
+      toast.info(t('pendingRequest.expired'));
+      setPendingSession(null);
+      setCurrentView('home');
+      resetSession();
+      clearSearch();
+      fetchSessionsRef.current();
     },
     onError: (errorCode) => {
       notificationOccurred('error');
@@ -903,6 +924,9 @@ function AppContent() {
     unsubscribe,
     publish,
     autoFetch: true,
+    onSessionsLoaded: (sessions) => {
+      handleSessionsLoadedForRestoreRef.current(sessions);
+    },
     onSessionResumed: (session) => {
       notificationOccurred('success');
       console.log('[App] Session resumed:', session.sessionId);
@@ -945,6 +969,7 @@ function AppContent() {
       toast.error(t('toast.failedResumeSession', { error: errorCode }), { title: t('toast.title.error') });
     },
   });
+  fetchSessionsRef.current = fetchSessions;
 
   // Invite token state (P2-2.1.3)
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -1018,6 +1043,32 @@ function AppContent() {
   const [showChatRequestDialog, setShowChatRequestDialog] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [activeIncomingRequest, setActiveIncomingRequest] = useState<ChatRequest | null>(null);
+
+  handleSessionsLoadedForRestoreRef.current = (sessions) => {
+    const reason: PendingRestoreReason = pendingRestoreOnNextListRef.current
+      ? pendingRestoreReasonRef.current
+      : 'list-refresh';
+    if (pendingRestoreOnNextListRef.current) {
+      pendingRestoreOnNextListRef.current = false;
+    }
+    const restored = shouldRestorePendingRequest({
+      sessions,
+      reason,
+      dismissedInThisDocument: dismissedPendingInDocumentRef.current,
+    });
+    if (restored && currentView === 'home') {
+      setPendingSession(restored);
+      setCurrentView('pending-request');
+    }
+  };
+
+  useEffect(() => {
+    if (!isConnected) {
+      pendingRestoreOnNextListRef.current = true;
+      pendingRestoreReasonRef.current = 'reconnect';
+    }
+  }, [isConnected]);
+
   const {
     showHomeTour,
     hideBottomNav: hideNavForTour,
@@ -1231,6 +1282,7 @@ function AppContent() {
     }
     
     if (currentView === 'pending-request') {
+      dismissedPendingInDocumentRef.current = true;
       setCurrentView('home');
       setPendingSession(null);
       resetSession();
@@ -2217,6 +2269,17 @@ function AppContent() {
     }
   }, [resetSession, clearSearch, pendingSession, burnSessionEverywhere]);
 
+  const handlePendingRequestExpire = useCallback(() => {
+    dismissedPendingInDocumentRef.current = true;
+    notificationOccurred('warning');
+    toast.info(t('pendingRequest.expired'));
+    setPendingSession(null);
+    setCurrentView('home');
+    resetSession();
+    clearSearch();
+    fetchSessions();
+  }, [notificationOccurred, toast, t, resetSession, clearSearch, fetchSessions]);
+
   // Handle accepting an incoming request
   const handleAcceptRequest = useCallback((secretAnswer?: string) => {
     if (!activeIncomingRequest) return;
@@ -3097,15 +3160,32 @@ function AppContent() {
       clearVerificationStatus(sessionId);
     }
 
+    const pendingId = burnSignalDepsRef.current.pendingSession?.id ?? null;
+    const keepPending = !shouldClearPendingOnBackgroundBurn({
+      pendingId,
+      sessionIdsBurned: info.sessionIdsBurned,
+    });
+    const stayOnPending =
+      keepPending &&
+      pendingId != null &&
+      visibilitySyncDepsRef.current.currentView === 'pending-request';
+
     setActiveChat(null);
     setActiveRoomChat(null);
-    setPendingSession(null);
     setActiveIncomingRequest(null);
     handshakePeerRef.current = null;
     cancelHandshake();
     resetHandshake();
-    resetSession();
     clearSearch();
+
+    if (stayOnPending) {
+      return;
+    }
+
+    if (!keepPending) {
+      setPendingSession(null);
+      resetSession();
+    }
     setCurrentView('home');
   }, [
     clearVerificationStatus,
@@ -3638,6 +3718,7 @@ function AppContent() {
           <PendingRequestView
             session={pendingSession}
             onCancel={handleCancelPendingRequest}
+            onExpire={handlePendingRequestExpire}
           />
         </Layout>
         {debugPanelElement}

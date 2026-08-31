@@ -1525,6 +1525,7 @@
     "title": "Waiting for response",
     "cancelButton": "Cancel Request",
     "errorRejected": "Your chat request was declined",
+    "expired": "Your chat request has expired",
     "secretQuestionHint": "Recipient must answer your secret question",
     "notificationSent": "Notification sent via Telegram"
   },

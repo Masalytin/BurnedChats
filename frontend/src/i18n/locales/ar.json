@@ -504,6 +504,7 @@
     "title": "في انتظار الرد",
     "cancelButton": "إلغاء الطلب",
     "errorRejected": "تم رفض طلب الدردشة الخاص بك",
+    "expired": "انتهت صلاحية طلب الدردشة",
     "secretQuestionHint": "يجب أن يجيب المستلم على سؤالك السري",
     "notificationSent": "أُرسل الإشعار عبر Telegram"
   },

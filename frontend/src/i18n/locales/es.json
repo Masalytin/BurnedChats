@@ -500,6 +500,7 @@
     "title": "Esperando respuesta",
     "cancelButton": "Cancelar Solicitud",
     "errorRejected": "Tu solicitud de chat fue rechazada",
+    "expired": "Tu solicitud de chat ha expirado",
     "secretQuestionHint": "El destinatario debe responder tu pregunta secreta",
     "notificationSent": "Notificación enviada por Telegram"
   },

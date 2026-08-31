@@ -31,6 +31,10 @@ export interface ActiveSession {
   peerVerified: boolean;
   createdAt: number;
   lastActivityAt: number;
+  /** True when the current user created this session (IMP-DMPEND-03 wire). */
+  isInitiator: boolean;
+  /** Unix ms. PENDING uses request TTL; same parse as createdAt. */
+  expiresAt: number;
 }
 
 /** Error codes for active sessions */
@@ -65,6 +69,8 @@ interface ServerActiveSessionsEvent {
     peerVerified: boolean;
     createdAt: string;
     lastActivityAt: string;
+    isInitiator?: boolean;
+    expiresAt?: string;
   }>;
   count: number;
   serverTimestamp: string;
@@ -85,12 +91,16 @@ interface ServerSessionResumedEvent {
     peerVerified?: boolean;
     createdAt?: string;
     lastActivityAt?: string;
+    isInitiator?: boolean;
+    expiresAt?: string;
   };
   peer?: WireUserResponse;
   verified?: boolean;
   peerVerified?: boolean;
   createdAt?: string;
   lastActivityAt?: string;
+  isInitiator?: boolean;
+  expiresAt?: string;
   error?: string;
 }
 
@@ -211,14 +221,19 @@ export function useActiveSessions({
    * Parse server session to client format
    */
   const parseSession = useCallback((serverSession: ServerActiveSessionsEvent['sessions'][0]): ActiveSession => {
+    const createdAt = new Date(serverSession.createdAt).getTime();
     return {
       sessionId: serverSession.sessionId,
       status: serverSession.status as SessionStatus,
       peer: mapWireUser(serverSession.peer),
       verified: serverSession.verified,
       peerVerified: serverSession.peerVerified,
-      createdAt: new Date(serverSession.createdAt).getTime(),
+      createdAt,
       lastActivityAt: new Date(serverSession.lastActivityAt).getTime(),
+      isInitiator: serverSession.isInitiator === true,
+      expiresAt: serverSession.expiresAt
+        ? new Date(serverSession.expiresAt).getTime()
+        : createdAt + 5 * 60 * 1000,
     };
   }, []);
 
@@ -277,18 +292,22 @@ export function useActiveSessions({
       const peer = data.session?.peer ?? data.peer;
       if (data.success && peer) {
         const sessionPayload = data.session ?? data;
+        const createdAt = (sessionPayload.createdAt ?? data.createdAt)
+          ? new Date(sessionPayload.createdAt ?? data.createdAt!).getTime()
+          : Date.now();
+        const expiresAtRaw = sessionPayload.expiresAt;
         const resumedSession: ActiveSession = {
           sessionId: data.sessionId,
           status: (data.status ?? sessionPayload.status ?? 'ACTIVE') as SessionStatus,
           peer: mapWireUser(peer),
           verified: sessionPayload.verified ?? data.verified ?? false,
           peerVerified: sessionPayload.peerVerified ?? data.peerVerified ?? false,
-          createdAt: (sessionPayload.createdAt ?? data.createdAt)
-            ? new Date(sessionPayload.createdAt ?? data.createdAt!).getTime()
-            : Date.now(),
+          createdAt,
           lastActivityAt: (sessionPayload.lastActivityAt ?? data.lastActivityAt)
             ? new Date(sessionPayload.lastActivityAt ?? data.lastActivityAt!).getTime()
             : Date.now(),
+          isInitiator: sessionPayload.isInitiator === true,
+          expiresAt: expiresAtRaw ? new Date(expiresAtRaw).getTime() : createdAt + 5 * 60 * 1000,
         };
 
         setResumeResult({

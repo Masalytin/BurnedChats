@@ -837,6 +837,7 @@
     "title": "Warte auf Antwort",
     "cancelButton": "Anfrage abbrechen",
     "errorRejected": "Ihre Chat-Anfrage wurde abgelehnt",
+    "expired": "Ihre Chat-Anfrage ist abgelaufen",
     "secretQuestionHint": "Der Empfänger muss Ihre geheime Frage beantworten",
     "notificationSent": "Benachrichtigung über Telegram gesendet"
   },

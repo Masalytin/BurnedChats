@@ -12,6 +12,9 @@ const SESSION_ACCEPTED_DESTINATION = '/user/queue/session-accepted';
 /** Destination for session rejected event (initiator receives when peer declines) */
 const SESSION_REJECTED_DESTINATION = '/user/queue/session-rejected';
 
+/** Destination for pending-request expiry (initiator; IMP-DMPEND-03) */
+const REQUEST_EXPIRED_DESTINATION = '/user/queue/request-expired';
+
 /** Destination for accept request action */
 const ACCEPT_SESSION_DESTINATION = '/app/session.accept';
 
@@ -65,6 +68,13 @@ interface ServerSessionRejectedEvent {
   rejectedAt?: string;
 }
 
+/** Pending request expired (TIMEOUT only on this wedge) */
+interface ServerRequestExpiredEvent {
+  sessionId: string;
+  reason?: 'TIMEOUT';
+  timestamp?: string;
+}
+
 /** Action result state */
 export interface ActionResult {
   status: ActionStatus;
@@ -90,6 +100,8 @@ interface UseIncomingRequestsOptions {
   onOurRequestAccepted?: (sessionId: string, peer: UserInfo) => void;
   /** Callback when OUR request is rejected by the peer (as initiator) */
   onOurRequestRejected?: (sessionId: string) => void;
+  /** Callback when a pending request expires (TIMEOUT); match by sessionId */
+  onRequestExpired?: (sessionId: string) => void;
   /** Callback when we locally reject an incoming request (as responder) */
   onRequestRejected?: (sessionId: string) => void;
   /** Callback when an error occurs */
@@ -172,6 +184,7 @@ export function useIncomingRequests({
   onSessionAccepted,
   onOurRequestAccepted,
   onOurRequestRejected,
+  onRequestExpired,
   onRequestRejected,
   onError,
 }: UseIncomingRequestsOptions): UseIncomingRequestsReturn {
@@ -186,6 +199,7 @@ export function useIncomingRequests({
   const onSessionAcceptedRef = useRef(onSessionAccepted);
   const onOurRequestAcceptedRef = useRef(onOurRequestAccepted);
   const onOurRequestRejectedRef = useRef(onOurRequestRejected);
+  const onRequestExpiredRef = useRef(onRequestExpired);
   const onRequestRejectedRef = useRef(onRequestRejected);
   const onErrorRef = useRef(onError);
 
@@ -195,6 +209,7 @@ export function useIncomingRequests({
     onSessionAcceptedRef.current = onSessionAccepted;
     onOurRequestAcceptedRef.current = onOurRequestAccepted;
     onOurRequestRejectedRef.current = onOurRequestRejected;
+    onRequestExpiredRef.current = onRequestExpired;
     onRequestRejectedRef.current = onRequestRejected;
     onErrorRef.current = onError;
   });
@@ -323,6 +338,25 @@ export function useIncomingRequests({
   }, []);
 
   /**
+   * Handle request-expired (TIMEOUT). Match by sessionId; pendingSession may be null.
+   */
+  const handleRequestExpired = useCallback((message: IMessage) => {
+    try {
+      const data: ServerRequestExpiredEvent = JSON.parse(message.body);
+      const sessionId = data.sessionId;
+      if (!sessionId) {
+        console.warn('[useIncomingRequests] Request expired event missing sessionId');
+        return;
+      }
+      setRequests((prev) => prev.filter((r) => r.id !== sessionId));
+      onRequestExpiredRef.current?.(sessionId);
+      console.log('[useIncomingRequests] Request expired:', sessionId);
+    } catch (error) {
+      console.error('[useIncomingRequests] Failed to parse request expired event:', error);
+    }
+  }, []);
+
+  /**
    * Register subscriptions immediately (even before connected).
    * This ensures the WebSocket hook can apply them when connection is established,
    * preventing race conditions where server sends messages before subscriptions are ready.
@@ -333,6 +367,7 @@ export function useIncomingRequests({
       subscribe(INCOMING_REQUEST_DESTINATION, handleIncomingRequest);
       subscribe(SESSION_ACCEPTED_DESTINATION, handleSessionAccepted);
       subscribe(SESSION_REJECTED_DESTINATION, handleSessionRejected);
+      subscribe(REQUEST_EXPIRED_DESTINATION, handleRequestExpired);
       isSubscribedRef.current = true;
       console.log('[useIncomingRequests] Registered subscriptions for incoming requests');
     }
@@ -342,11 +377,12 @@ export function useIncomingRequests({
         unsubscribe(INCOMING_REQUEST_DESTINATION);
         unsubscribe(SESSION_ACCEPTED_DESTINATION);
         unsubscribe(SESSION_REJECTED_DESTINATION);
+        unsubscribe(REQUEST_EXPIRED_DESTINATION);
         isSubscribedRef.current = false;
         console.log('[useIncomingRequests] Unsubscribed from incoming requests');
       }
     };
-  }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted, handleSessionRejected]);
+  }, [subscribe, unsubscribe, handleIncomingRequest, handleSessionAccepted, handleSessionRejected, handleRequestExpired]);
 
   /**
    * Fetch pending requests explicitly when connected.

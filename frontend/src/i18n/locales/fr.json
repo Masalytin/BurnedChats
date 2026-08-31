@@ -500,6 +500,7 @@
     "title": "En attente de réponse",
     "cancelButton": "Annuler la Demande",
     "errorRejected": "Votre demande de discussion a été refusée",
+    "expired": "Votre demande de discussion a expiré",
     "secretQuestionHint": "Le destinataire doit répondre à votre question secrète",
     "notificationSent": "Notification envoyée via Telegram"
   },
