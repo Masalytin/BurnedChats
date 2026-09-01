@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `GET /api/wallet/staking-profile` now returns lock-tier configs and live TVL, supports catalog-only without an address, and accepts `fresh=1` to bust the user cache.
+- `GET /api/wallet/ton-balance` returns native TON balance as a nano decimal string; prod clients read burn-balance and ton-balance from this API only (no Toncenter fallback).
 
 ### Fixed
 

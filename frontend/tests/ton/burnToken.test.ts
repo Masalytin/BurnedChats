@@ -1,11 +1,13 @@
 import { Address } from '@ton/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addressToSliceStackBoc,
   getBurnBalance,
   getEffectiveFeeParams,
+  setBurnTokenReadDevForTests,
   txResultToBurnError,
 } from '@/ton/burnToken';
+import { BurnTokenError } from '@/ton/burnTokenError';
 import { formatBurn, parseBurn } from '@/utils/format';
 
 const MASTER = Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c').toString({
@@ -29,13 +31,19 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 describe('burnToken RPC helpers', () => {
+  afterEach(() => {
+    setBurnTokenReadDevForTests(undefined);
+    vi.unstubAllEnvs();
+  });
+
   it('addressToSliceStackBoc is stable BoC payload for tvm.Slice stack arg', () => {
     const b64 = addressToSliceStackBoc(USER);
     expect(b64.length).toBeGreaterThan(10);
     expect(addressToSliceStackBoc(USER)).toBe(b64);
   });
 
-  it('getBurnBalance uses Ton Center when backend base URL is absent', async () => {
+  it('getBurnBalance uses Ton Center when backend base URL is absent (DEV)', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     const sliceB64 = addressToSliceStackBoc(JETTON_USER_WALLET);
 
     const fetchImpl = vi
@@ -68,32 +76,14 @@ describe('burnToken RPC helpers', () => {
     });
   });
 
-  it('getBurnBalance falls back to Ton Center after backend burn-balance 404', async () => {
+  it('getBurnBalance uses own API on 200', async () => {
     vi.stubEnv('VITE_API_URL', 'https://api.stub');
-
-    const sliceB64 = addressToSliceStackBoc(JETTON_USER_WALLET);
-
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ message: 'not found' }, 404))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          ok: true,
-          result: { exit_code: 0, stack: [['tvm.Slice', sliceB64]] },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          jettonWalletAddress: JETTON_USER_WALLET,
-          ownerAddress: USER,
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          ok: true,
-          result: { exit_code: 0, stack: [['num', '0x3b9aca00']] },
-        }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        balanceNano: '1000000000',
+        address: USER,
+      }),
+    );
 
     const nano = await getBurnBalance(USER, {
       fetchImpl,
@@ -102,21 +92,50 @@ describe('burnToken RPC helpers', () => {
     });
 
     expect(nano).toBe(1_000_000_000n);
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/burn-balance');
-    const walletAddrCall = fetchImpl.mock.calls[1]?.[1] as { body: string };
-    expect(JSON.parse(walletAddrCall.body)).toMatchObject({
-      address: MASTER,
-      method: 'get_wallet_address',
-    });
-    expect(String(fetchImpl.mock.calls[2]?.[0])).toContain('/api/wallet/jetton-wallet');
-    const walletDataCall = fetchImpl.mock.calls[3]?.[1] as { body: string };
-    expect(JSON.parse(walletDataCall.body)).toMatchObject({
-      address: JETTON_USER_WALLET,
-      method: 'get_wallet_data',
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('toncenter');
+  });
+
+  it('getBurnBalance on 502 throws and does not call Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/burn-balance')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      return jsonResponse({ ok: true, result: { exit_code: 0, stack: [] } });
     });
 
-    vi.unstubAllEnvs();
+    await expect(
+      getBurnBalance(USER, {
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toBeInstanceOf(BurnTokenError);
+
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('empty VITE_API_URL on prod-path errors and does not default to Toncenter', async () => {
+    setBurnTokenReadDevForTests(false);
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchImpl = vi.fn();
+
+    await expect(
+      getBurnBalance(USER, {
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFIG' });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('getEffectiveFeeParams falls back to static TOKENOMICS split on Ton error', async () => {

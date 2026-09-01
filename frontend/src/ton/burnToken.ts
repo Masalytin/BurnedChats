@@ -74,6 +74,27 @@ const CONFIRM_POLL_INTERVAL_MS = 1_500;
 /** Extra native TON beyond message attachment (wallet fees, aligns with connector GAS_BUFFER). */
 const TON_GAS_BUFFER_NANOTON = 10_000_000n;
 
+const BURN_BALANCE_UNAVAILABLE = 'BURN balance API is unavailable';
+
+/** Test-only override. `undefined` restores `import.meta.env.DEV`. */
+let burnTokenReadDevOverride: boolean | undefined;
+
+/**
+ * Vite inlines `import.meta.env.DEV`; tests use {@link setBurnTokenReadDevForTests}
+ * (same pattern as staking / DebugPanel payload gates).
+ */
+export function isBurnTokenReadDev(): boolean {
+  if (burnTokenReadDevOverride !== undefined) {
+    return burnTokenReadDevOverride;
+  }
+  return import.meta.env.DEV === true;
+}
+
+/** Force DEV/prod burn-balance read-path in unit tests. Pass `undefined` to restore. */
+export function setBurnTokenReadDevForTests(dev: boolean | undefined): void {
+  burnTokenReadDevOverride = dev;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -284,54 +305,64 @@ async function fetchBurnBalanceNanoRpc(ownerAddress: string, deps: ResolvedDeps)
   return n ?? 0n;
 }
 
-async function tryBackendBurnBalance(address: string, fetchImpl: typeof fetch): Promise<bigint | null> {
-  const base = normalizeApiBase();
-  if (!base) {
-    return null;
+function parseBurnBalanceBody(body: unknown): bigint | null {
+  if (typeof body === 'string' && /^-?\d+$/.test(body)) {
+    return BigInt(body);
   }
-  const url = `${base}/api/wallet/burn-balance?address=${encodeURIComponent(address)}`;
-  let response: Response;
-  try {
-    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
-  } catch {
-    return null;
-  }
-  if (response.status === 404 || response.status === 501) {
-    return null;
-  }
-  if (!response.ok) {
-    return null;
-  }
-  try {
-    const body = (await response.json()) as unknown;
-    if (typeof body === 'string' && /^-?\d+$/.test(body)) {
-      return BigInt(body);
+  if (body && typeof body === 'object') {
+    const r = body as Record<string, unknown>;
+    const nano = r.balanceNano ?? r.nano ?? r.balance;
+    if (typeof nano === 'string' && /^-?\d+$/.test(nano)) {
+      return BigInt(nano);
     }
-    if (body && typeof body === 'object') {
-      const r = body as Record<string, unknown>;
-      const nano = r.balanceNano ?? r.nano ?? r.balance;
-      if (typeof nano === 'string' && /^-?\d+$/.test(nano)) {
-        return BigInt(nano);
-      }
-      if (typeof nano === 'number' && Number.isFinite(nano)) {
-        return BigInt(Math.trunc(nano));
-      }
+    if (typeof nano === 'number' && Number.isFinite(nano)) {
+      return BigInt(Math.trunc(nano));
     }
-  } catch {
-    return null;
   }
   return null;
 }
 
+async function fetchBurnBalanceFromApi(
+  address: string,
+  fetchImpl: typeof fetch,
+  base: string,
+): Promise<bigint> {
+  const url = `${base}/api/wallet/burn-balance?address=${encodeURIComponent(address)}`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', BURN_BALANCE_UNAVAILABLE, { cause: e });
+  }
+  if (!response.ok) {
+    throw new BurnTokenError('NETWORK_ERROR', BURN_BALANCE_UNAVAILABLE);
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', BURN_BALANCE_UNAVAILABLE, { cause: e });
+  }
+  const nano = parseBurnBalanceBody(body);
+  if (nano === null) {
+    throw new BurnTokenError('NETWORK_ERROR', BURN_BALANCE_UNAVAILABLE);
+  }
+  return nano;
+}
+
 /**
  * BURN jetton balance in nano units (1 BURN = 1e9 nano).
- * Tries backend `/api/wallet/burn-balance` when available, otherwise Ton Center RPC.
+ * Prod-read is `/api/wallet/burn-balance` only. DEV may use Ton Center RPC
+ * only when `VITE_API_URL` is empty.
  */
 export async function getBurnBalance(address: string, deps?: BurnTokenDeps): Promise<bigint> {
   const r = resolveDeps(deps);
-  const viaBackend = await tryBackendBurnBalance(address, r.fetchImpl);
-  if (viaBackend !== null) {
-    return viaBackend;
+  const base = normalizeApiBase();
+  if (base) {
+    return fetchBurnBalanceFromApi(address, r.fetchImpl, base);
+  }
+  if (!isBurnTokenReadDev()) {
+    throw new BurnTokenError('CONFIG', 'API base URL is not configured (VITE_API_URL)');
   }
   return fetchBurnBalanceNanoRpc(address, r);
 }

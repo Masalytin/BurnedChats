@@ -1,10 +1,14 @@
 package dev.burnedchats.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.burnedchats.controller.WalletController.BurnBalanceResponse;
 import dev.burnedchats.controller.WalletController.JettonWalletResponse;
+import dev.burnedchats.controller.WalletController.TonBalanceResponse;
 import dev.burnedchats.model.enums.StakingTier;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.StakingVerifier;
+import dev.burnedchats.ton.TonService;
 import dev.burnedchats.ton.dto.StakeInfo;
 import dev.burnedchats.ton.dto.TierConfigDto;
 import dev.burnedchats.ton.dto.UserStakingProfile;
@@ -36,13 +40,16 @@ class WalletControllerTest {
 
     private JettonService jettonService;
     private StakingVerifier stakingVerifier;
+    private TonService tonService;
     private WalletController controller;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         jettonService = mock(JettonService.class);
         stakingVerifier = mock(StakingVerifier.class);
-        controller = new WalletController(jettonService, stakingVerifier);
+        tonService = mock(TonService.class);
+        controller = new WalletController(jettonService, stakingVerifier, tonService);
     }
 
     @Test
@@ -283,6 +290,66 @@ class WalletControllerTest {
                 .assertNext(resp -> assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK))
                 .verifyComplete();
         verify(stakingVerifier).getStakingProfile(VALID_ADDRESS, true);
+    }
+
+    @Test
+    @DisplayName("GET /api/wallet/ton-balance returns 200 with balanceNano")
+    void tonBalanceHappyPath() {
+        ObjectNode account = objectMapper.createObjectNode();
+        account.put("balance", "1500000000");
+        when(tonService.getAccount(anyString())).thenReturn(Mono.just(account));
+
+        StepVerifier.create(controller.tonBalance(VALID_ADDRESS))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isInstanceOf(TonBalanceResponse.class);
+                    TonBalanceResponse body = (TonBalanceResponse) resp.getBody();
+                    assertThat(body.balanceNano()).isEqualTo("1500000000");
+                    assertThat(body.address()).isEqualTo(VALID_ADDRESS);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("ton-balance missing address returns 400")
+    void tonBalanceMissingAddress() {
+        StepVerifier.create(controller.tonBalance(null))
+                .assertNext(resp -> assertBadRequest(resp, "address is required"))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("ton-balance blank address returns 400")
+    void tonBalanceBlankAddress() {
+        StepVerifier.create(controller.tonBalance("   "))
+                .assertNext(resp -> assertBadRequest(resp, "address is required"))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("ton-balance invalid address returns 400")
+    void tonBalanceInvalidAddress() {
+        StepVerifier.create(controller.tonBalance("not-a-ton-address"))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(resp.getBody()).isInstanceOf(Map.class);
+                    assertThat(((Map<?, ?>) resp.getBody()).get("message")).isNotNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("ton-balance Ton RPC failure returns 502")
+    void tonBalanceRpcFailure() {
+        when(tonService.getAccount(anyString()))
+                .thenReturn(Mono.error(new TonRpcException("Ton Center account error")));
+
+        StepVerifier.create(controller.tonBalance(VALID_ADDRESS))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center account error"));
+                })
+                .verifyComplete();
     }
 
     private static void assertBadRequest(ResponseEntity<Object> resp, String expectedMessage) {

@@ -189,6 +189,12 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   normal GET). Nano fields are **decimal strings**. Same REST bucket as other
   `/api/wallet/**` (60/min). Prod clients must not fall back to Toncenter on
   non-200 (IMP-TONREAD-03).
+- **`GET /api/wallet/ton-balance?address=`** is a public native-TON balance
+  (no auth). Missing/blank/invalid address → **400** `{message}`. Account RPC
+  exhausted or missing `balance` → **502** `{message}`. **200**
+  `{ address, balanceNano }` with nano as a **decimal string**. Same REST
+  bucket as other `/api/wallet/**` (60/min). Prod clients must not fall back
+  to Toncenter on ton-balance or burn-balance (IMP-TONREAD-06).
 - **`POST /api/auth/link-telegram/complete`** binds Telegram (`initData` HMAC)
   to the wallet `internalId` stored in `wallet_tg_link:{challengeId}` (15 min).
   The challenge is read first and **deleted only after** a successful bind, so a

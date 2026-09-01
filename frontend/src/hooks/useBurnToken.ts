@@ -40,6 +40,7 @@ export interface UseBurnToken {
 
 /**
  * BURN balance / history / fee params with 30s polling when the document is visible.
+ * Balance read goes through {@link getBurnBalance} (own API in prod).
  * WebSocket real-time updates are not wired (optional in Phase 5 — backend/SSE can replace polling later).
  */
 export function useBurnToken(): UseBurnToken {

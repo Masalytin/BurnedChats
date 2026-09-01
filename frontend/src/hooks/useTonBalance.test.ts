@@ -69,7 +69,7 @@ describe('useTonBalance', () => {
     expect(result.current.errorKind).toBeNull();
   });
 
-  it('refetches and keeps snapshot on flaky RPC', async () => {
+  it('refetches and keeps snapshot on flaky refresh', async () => {
     mockedGetTonBalanceNano.mockResolvedValueOnce(2_000_000_000n);
 
     const { result } = renderHook(() => useTonBalance('EQtest_address', true));

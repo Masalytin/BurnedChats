@@ -1,8 +1,10 @@
 package dev.burnedchats.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.TonAddressBoc;
+import dev.burnedchats.ton.TonService;
 import dev.burnedchats.ton.dto.UserStakingProfile;
 import dev.burnedchats.ton.exception.TonRpcException;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -32,6 +34,7 @@ public class WalletController {
 
     private final JettonService jettonService;
     private final StakingVerifier stakingVerifier;
+    private final TonService tonService;
 
     /**
      * BURN jetton balance in nano units (decimal string). Public read; no auth.
@@ -82,6 +85,34 @@ public class WalletController {
     }
 
     /**
+     * Native TON balance in nano units (decimal string). Public read; no auth.
+     */
+    @GetMapping("/ton-balance")
+    @Operation(summary = "Native TON balance in nano (decimal string)")
+    @ApiResponse(responseCode = "200", description = "TON balance",
+            content = @Content(schema = @Schema(implementation = TonBalanceResponse.class)))
+    public Mono<ResponseEntity<Object>> tonBalance(
+            @Parameter(description = "TON wallet (friendly or raw)")
+            @RequestParam(required = false) @Nullable String address) {
+        if (address == null || address.isBlank()) {
+            return Mono.just(badRequest("address is required"));
+        }
+        String trimmed = address.trim();
+        try {
+            TonAddressBoc.parse(trimmed);
+        } catch (TonRpcException e) {
+            return Mono.just(badRequest(e.getMessage()));
+        }
+        return tonService
+                .getAccount(trimmed)
+                .map(account -> ResponseEntity.<Object>ok(new TonBalanceResponse(balanceNano(account), trimmed)))
+                .onErrorResume(
+                        TonRpcException.class,
+                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
+                                .body(Map.of("message", e.getMessage()))));
+    }
+
+    /**
      * Aggregated staking snapshot (stakes, VP, lock catalog, TVL). Public read; no auth.
      * Omit {@code address} for catalog-only. {@code fresh=1} busts the user cache (1/15s).
      */
@@ -123,11 +154,21 @@ public class WalletController {
                                 .body(Map.of("message", e.getMessage()))));
     }
 
+    private static String balanceNano(JsonNode account) {
+        String nano = account.path("balance").asText(null);
+        if (nano == null || nano.isBlank()) {
+            throw new TonRpcException("TON account missing balance");
+        }
+        return nano;
+    }
+
     private static ResponseEntity<Object> badRequest(String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", message));
     }
 
     public record BurnBalanceResponse(String balanceNano, String address) {}
+
+    public record TonBalanceResponse(String balanceNano, String address) {}
 
     public record JettonWalletResponse(@Nullable String jettonWalletAddress, String ownerAddress) {}
 }

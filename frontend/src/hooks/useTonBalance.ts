@@ -26,7 +26,7 @@ function errorKindFromUnknown(err: unknown): TonBalanceErrorKind {
 }
 
 /**
- * Fetches native TON balance via Ton Center RPC.
+ * Fetches native TON balance via {@link getTonBalanceNano} (own API in prod).
  * Stale-while-revalidate on refetch; resets when disconnected or address is empty.
  */
 export function useTonBalance(walletAddress: string | null, isConnected: boolean): UseTonBalance {
