@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-01
+
 ### Added
 
 - `GET /api/wallet/staking-profile` now returns lock-tier configs and live TVL, supports catalog-only without an address, and accepts `fresh=1` to bust the user cache.
@@ -132,7 +134,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.3.0
 [0.2.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.2.1
