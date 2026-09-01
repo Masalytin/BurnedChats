@@ -218,6 +218,7 @@ app:
       api-key: ${TONCENTER_API_KEY:}
       timeout-ms: ${TONCENTER_TIMEOUT_MS:5000}
       retry-attempts: ${TONCENTER_RETRY_ATTEMPTS:3}
+      max-in-flight: ${TONCENTER_MAX_IN_FLIGHT:5}
     cache:
       ttl-seconds: ${TONCACHE_TTL_SECONDS:60}
     addresses:

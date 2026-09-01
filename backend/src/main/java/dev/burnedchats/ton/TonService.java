@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -22,15 +23,25 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.util.retry.Retry;
 
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * Reactive Ton Center v2 HTTP client with Redis caching for stable reads.
@@ -44,12 +55,16 @@ public class TonService {
     private static final String METRIC_ERRORS = "burnedchats.ton.rpc.errors";
     private static final String METRIC_CACHE_HITS = "burnedchats.ton.rpc.cache_hits";
     private static final String TAG_OPERATION = "operation";
+    private static final long RETRY_AFTER_CAP_MS = 30_000L;
+    private static final long EXPONENTIAL_BASE_MS = 250L;
 
     private final WebClient tonWebClient;
     private final TonSettings settings;
     private final ReactiveRedisTemplate<String, String> stringRedis;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, Mono<JsonNode>> inFlight = new ConcurrentHashMap<>();
+    private final OutboundGate outboundGate;
 
     public TonService(
             @Qualifier("tonWebClient") WebClient tonWebClient,
@@ -62,6 +77,7 @@ public class TonService {
         this.stringRedis = stringRedis;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.outboundGate = new OutboundGate(() -> Math.max(1, settings.getRpc().getMaxInFlight()));
     }
 
     /**
@@ -79,8 +95,33 @@ public class TonService {
         Duration cacheTtl = cacheTtl();
 
         return readFromCache(cacheKey, "runGetMethod")
-                .switchIfEmpty(Mono.defer(() -> postRunGetMethod(addr, method, args)
+                .switchIfEmpty(singleFlight(cacheKey, () -> postRunGetMethod(addr, method, args)
                         .flatMap(result -> writeCache(cacheKey, result, cacheTtl).then(Mono.just(result)))));
+    }
+
+    /**
+     * Drop a Redis {@code ton:rpc:…} entry and any in-memory singleflight for that key.
+     * No-op when the key is absent or Redis delete fails.
+     */
+    public Mono<Void> evict(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank()) {
+            return Mono.empty();
+        }
+        inFlight.remove(cacheKey);
+        return stringRedis.delete(cacheKey)
+                .then()
+                .onErrorResume(e -> {
+                    LOG.debug("TON cache evict skipped for {}: {}", cacheKey, e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /**
+     * Cache / singleflight key: {@code ton:rpc:{address}:{method}:{argsHash}}.
+     */
+    public String cacheKey(String contractAddress, String method, List<Object> args) {
+        String addr = normalizeAddress(contractAddress);
+        return cacheKey(addr, method, hashArgs(args));
     }
 
     /**
@@ -92,7 +133,7 @@ public class TonService {
         Duration cacheTtl = cacheTtl();
 
         return readFromCache(cacheKey, "getAccount")
-                .switchIfEmpty(Mono.defer(() -> fetchAddressInformation(addr)
+                .switchIfEmpty(singleFlight(cacheKey, () -> fetchAddressInformation(addr)
                         .flatMap(result -> writeCache(cacheKey, result, cacheTtl).then(Mono.just(result)))));
     }
 
@@ -149,13 +190,13 @@ public class TonService {
         body.set("method", objectMapper.valueToTree(method));
         body.set("stack", stack);
 
-        Mono<String> response = tonWebClient.post()
+        Mono<String> response = withOutboundLimit(tonWebClient.post()
                 .uri("/runGetMethod")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(body))
                 .retrieve()
                 .bodyToMono(String.class)
-                .transform(m -> withRetry(m, "runGetMethod"))
+                .transform(m -> withRetry(m, "runGetMethod")))
                 .doOnSuccess(s -> LOG.debug("runGetMethod address={} method={} stackSize={} latencyMs={}",
                         address, method, stack.size(), latencyMs(startNs)));
 
@@ -167,11 +208,11 @@ public class TonService {
     private Mono<JsonNode> fetchAddressInformation(String address) {
         long startNs = System.nanoTime();
         recordRequest("getAccount");
-        Mono<String> response = tonWebClient.get()
+        Mono<String> response = withOutboundLimit(tonWebClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/getAddressInformation").queryParam("address", address).build())
                 .retrieve()
                 .bodyToMono(String.class)
-                .transform(m -> withRetry(m, "getAccount"))
+                .transform(m -> withRetry(m, "getAccount")))
                 .doOnSuccess(s -> LOG.debug("getAddressInformation address={} latencyMs={}",
                         address, latencyMs(startNs)));
 
@@ -180,26 +221,100 @@ public class TonService {
     }
 
     private Mono<List<TransactionDto>> fetchTransactions(String address, int limit) {
-        return tonWebClient.get()
+        return withOutboundLimit(tonWebClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/getTransactions")
                         .queryParam("address", address)
                         .queryParam("limit", limit)
                         .build())
                 .retrieve()
                 .bodyToMono(String.class)
-                .transform(m -> withRetry(m, "getTransactions"))
+                .transform(m -> withRetry(m, "getTransactions")))
                 .flatMap(raw -> parseTonResultArray(raw, "getTransactions"))
                 .doOnError(e -> recordError("getTransactions"));
     }
 
+    private Mono<JsonNode> singleFlight(String cacheKey, Supplier<Mono<JsonNode>> loader) {
+        return Mono.defer(() -> {
+            Mono<JsonNode> existing = inFlight.get(cacheKey);
+            if (existing != null) {
+                return existing;
+            }
+            AtomicReference<Mono<JsonNode>> slot = new AtomicReference<>();
+            Mono<JsonNode> created = loader.get()
+                    .cache()
+                    .doFinally(sig -> inFlight.remove(cacheKey, slot.get()));
+            slot.set(created);
+            Mono<JsonNode> winner = inFlight.putIfAbsent(cacheKey, created);
+            return winner != null ? winner : created;
+        });
+    }
+
+    private <T> Mono<T> withOutboundLimit(Mono<T> outbound) {
+        return Mono.defer(() -> outboundGate.acquire()
+                .then(Mono.defer(() -> outbound.doFinally(sig -> outboundGate.release()))));
+    }
+
     private <T> Mono<T> withRetry(Mono<T> mono, String op) {
         int extraTries = Math.max(0, settings.getRpc().getRetryAttempts() - 1);
-        if (extraTries == 0) {
-            return mono;
+        Mono<T> retried = extraTries == 0
+                ? mono
+                : mono.retryWhen(Retry.from(companion -> companion.concatMap(sig -> {
+                    if (!isRetryable(sig.failure()) || sig.totalRetries() >= extraTries) {
+                        return Mono.error(sig.failure());
+                    }
+                    Duration delay = retryDelay(sig.failure(), sig.totalRetries());
+                    LOG.warn("TON RPC retry op={} delayMs={} cause={}",
+                            op, delay.toMillis(), sig.failure().toString());
+                    return Mono.delay(delay);
+                })));
+        return retried.onErrorMap(this::isHttp429, e -> new TonRpcException("TON RPC rate limited: " + op, e));
+    }
+
+    private Duration retryDelay(Throwable failure, long retryIndex) {
+        if (isHttp429(failure)) {
+            Duration fromHeader = retryAfterFrom(unwrap(failure));
+            if (fromHeader != null) {
+                return fromHeader;
+            }
+            long shift = Math.min(Math.max(retryIndex, 0), 16);
+            long expMs = EXPONENTIAL_BASE_MS << shift;
+            return Duration.ofMillis(Math.min(expMs, RETRY_AFTER_CAP_MS));
         }
-        return mono.retryWhen(Retry.fixedDelay(extraTries, Duration.ofMillis(250))
-                .filter(this::isRetryable)
-                .doBeforeRetry(sig -> LOG.warn("TON RPC retry op={} cause={}", op, sig.failure().toString())));
+        return Duration.ofMillis(EXPONENTIAL_BASE_MS);
+    }
+
+    private Duration retryAfterFrom(Throwable error) {
+        if (!(error instanceof WebClientResponseException ex)) {
+            return null;
+        }
+        String header = ex.getHeaders().getFirst(HttpHeaders.RETRY_AFTER);
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        String trimmed = header.trim();
+        try {
+            long seconds = Long.parseLong(trimmed);
+            if (seconds < 0) {
+                return null;
+            }
+            return Duration.ofMillis(Math.min(seconds * 1000L, RETRY_AFTER_CAP_MS));
+        } catch (NumberFormatException ignored) {
+            try {
+                Instant when = Instant.from(DateTimeFormatter.RFC_1123_DATE_TIME.parse(trimmed));
+                long delayMs = when.toEpochMilli() - System.currentTimeMillis();
+                if (delayMs <= 0) {
+                    return Duration.ZERO;
+                }
+                return Duration.ofMillis(Math.min(delayMs, RETRY_AFTER_CAP_MS));
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+    }
+
+    private boolean isHttp429(Throwable t) {
+        Throwable e = unwrap(t);
+        return e instanceof WebClientResponseException ex && ex.getStatusCode().value() == 429;
     }
 
     private boolean isRetryable(Throwable t) {
@@ -310,7 +425,10 @@ public class TonService {
         throw new TonRpcException("Invalid runGetMethod stack arg; use [type, value] list or map type/value");
     }
 
-    private String cacheKey(String address, String method, String argsHash) {
+    /**
+     * Cache / singleflight key: {@code ton:rpc:{address}:{method}:{argsHash}}.
+     */
+    public String cacheKey(String address, String method, String argsHash) {
         return "ton:rpc:" + address + ":" + method + ":" + argsHash;
     }
 
@@ -347,5 +465,62 @@ public class TonService {
 
     private static long latencyMs(long startNs) {
         return (System.nanoTime() - startNs) / 1_000_000L;
+    }
+
+    /**
+     * Non-blocking outbound permit. Waiters park on a {@link Sinks.One}; never
+     * {@link java.util.concurrent.Semaphore#acquire()} on the event loop.
+     */
+    static final class OutboundGate {
+        private final IntSupplier maxPermits;
+        private final AtomicInteger inUse = new AtomicInteger(0);
+        private final ConcurrentLinkedQueue<Sinks.One<Void>> waiters = new ConcurrentLinkedQueue<>();
+
+        OutboundGate(IntSupplier maxPermits) {
+            this.maxPermits = maxPermits;
+        }
+
+        Mono<Void> acquire() {
+            return Mono.defer(() -> {
+                if (tryAcquire()) {
+                    return Mono.empty();
+                }
+                Sinks.One<Void> waiter = Sinks.one();
+                waiters.offer(waiter);
+                if (tryAcquire()) {
+                    if (waiters.remove(waiter)) {
+                        return Mono.empty();
+                    }
+                    release();
+                    return waiter.asMono();
+                }
+                return waiter.asMono().doOnCancel(() -> waiters.remove(waiter));
+            });
+        }
+
+        void release() {
+            Sinks.One<Void> waiter = waiters.poll();
+            if (waiter == null) {
+                inUse.updateAndGet(used -> Math.max(0, used - 1));
+                return;
+            }
+            Sinks.EmitResult result = waiter.tryEmitEmpty();
+            if (result.isFailure()) {
+                release();
+            }
+        }
+
+        private boolean tryAcquire() {
+            int cap = Math.max(1, maxPermits.getAsInt());
+            while (true) {
+                int used = inUse.get();
+                if (used >= cap) {
+                    return false;
+                }
+                if (inUse.compareAndSet(used, used + 1)) {
+                    return true;
+                }
+            }
+        }
     }
 }

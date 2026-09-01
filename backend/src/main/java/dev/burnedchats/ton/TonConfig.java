@@ -78,6 +78,10 @@ public class TonConfig {
              * Total HTTP attempts per logical call (first try plus retries on transient failures).
              */
             private int retryAttempts = 3;
+            /**
+             * Max concurrent outbound Ton Center HTTP calls per JVM (non-blocking permit).
+             */
+            private int maxInFlight = 5;
 
             public String getEndpoint() {
                 return endpoint;
@@ -109,6 +113,14 @@ public class TonConfig {
 
             public void setRetryAttempts(int retryAttempts) {
                 this.retryAttempts = retryAttempts;
+            }
+
+            public int getMaxInFlight() {
+                return maxInFlight;
+            }
+
+            public void setMaxInFlight(int maxInFlight) {
+                this.maxInFlight = maxInFlight;
             }
         }
 
