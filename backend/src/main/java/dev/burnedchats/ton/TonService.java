@@ -23,7 +23,6 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
 import reactor.util.retry.Retry;
 
 import java.io.IOException;
@@ -37,10 +36,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -122,6 +118,13 @@ public class TonService {
     public String cacheKey(String contractAddress, String method, List<Object> args) {
         String addr = normalizeAddress(contractAddress);
         return cacheKey(addr, method, hashArgs(args));
+    }
+
+    /**
+     * Cache / singleflight key: {@code ton:rpc:{address}:{method}:{argsHash}}.
+     */
+    public String cacheKey(String address, String method, String argsHash) {
+        return "ton:rpc:" + address + ":" + method + ":" + argsHash;
     }
 
     /**
@@ -425,13 +428,6 @@ public class TonService {
         throw new TonRpcException("Invalid runGetMethod stack arg; use [type, value] list or map type/value");
     }
 
-    /**
-     * Cache / singleflight key: {@code ton:rpc:{address}:{method}:{argsHash}}.
-     */
-    public String cacheKey(String address, String method, String argsHash) {
-        return "ton:rpc:" + address + ":" + method + ":" + argsHash;
-    }
-
     private String normalizeAddress(String address) {
         Objects.requireNonNull(address, "address");
         return address.trim();
@@ -465,62 +461,5 @@ public class TonService {
 
     private static long latencyMs(long startNs) {
         return (System.nanoTime() - startNs) / 1_000_000L;
-    }
-
-    /**
-     * Non-blocking outbound permit. Waiters park on a {@link Sinks.One}; never
-     * {@link java.util.concurrent.Semaphore#acquire()} on the event loop.
-     */
-    static final class OutboundGate {
-        private final IntSupplier maxPermits;
-        private final AtomicInteger inUse = new AtomicInteger(0);
-        private final ConcurrentLinkedQueue<Sinks.One<Void>> waiters = new ConcurrentLinkedQueue<>();
-
-        OutboundGate(IntSupplier maxPermits) {
-            this.maxPermits = maxPermits;
-        }
-
-        Mono<Void> acquire() {
-            return Mono.defer(() -> {
-                if (tryAcquire()) {
-                    return Mono.empty();
-                }
-                Sinks.One<Void> waiter = Sinks.one();
-                waiters.offer(waiter);
-                if (tryAcquire()) {
-                    if (waiters.remove(waiter)) {
-                        return Mono.empty();
-                    }
-                    release();
-                    return waiter.asMono();
-                }
-                return waiter.asMono().doOnCancel(() -> waiters.remove(waiter));
-            });
-        }
-
-        void release() {
-            Sinks.One<Void> waiter = waiters.poll();
-            if (waiter == null) {
-                inUse.updateAndGet(used -> Math.max(0, used - 1));
-                return;
-            }
-            Sinks.EmitResult result = waiter.tryEmitEmpty();
-            if (result.isFailure()) {
-                release();
-            }
-        }
-
-        private boolean tryAcquire() {
-            int cap = Math.max(1, maxPermits.getAsInt());
-            while (true) {
-                int used = inUse.get();
-                if (used >= cap) {
-                    return false;
-                }
-                if (inUse.compareAndSet(used, used + 1)) {
-                    return true;
-                }
-            }
-        }
     }
 }
