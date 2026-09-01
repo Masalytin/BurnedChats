@@ -1231,12 +1231,15 @@
     "title": "Paramètres"
   },
   "staking": {
+    "amountBelowMin": "Le stake minimum est de 0.01 BURN.",
     "amountInvalid": "Saisissez un montant valide.",
     "amountLabel": "Montant (BURN)",
+    "amountNeedMore": "Le stake minimum est de 0.01 BURN. Ajoutez encore {{shortfall}}.",
     "amountOverBalance": "Le montant dépasse le solde du portefeuille.",
     "amountPositive": "Le montant doit être supérieur à zéro.",
     "amountSliderAria": "Pourcentage du solde pour le stake",
     "back": "Retour",
+    "balanceBelowMin": "Il vous faut au moins 0.01 BURN dans le portefeuille pour staker.",
     "calculator": {
       "activity": {
         "high": "Élevée",
@@ -1310,6 +1313,7 @@
     "lockConfirm": "Vos tokens seront verrouillés jusqu'au {{date}}. Vous ne pourrez pas unstaker avant.",
     "lockFlexible": "Flexible",
     "max": "Max",
+    "minChip": "Min",
     "modalClose": "Fermer",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "Vous n'avez pas encore de portefeuille Jetton BURN. Recevez d'abord des BURN sur votre adresse, puis réessayez.",

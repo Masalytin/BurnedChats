@@ -3,6 +3,7 @@ import { Address, Cell } from '@ton/core';
 import { addressToSliceStackBoc, BurnTokenError } from '@/ton/burnToken';
 import { firstStackSliceCellB64 } from '@/ton/jettonWalletResolve';
 import { estimateStakeNet } from '@/ton/estimateStakeNet';
+import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { resolveUserJettonWalletAddress } from '@/ton/jettonWalletResolve';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
 import { resolveApiKey } from '@/ton/rpc';
@@ -847,6 +848,12 @@ export async function stakeTx(params: StakeActionParams, deps?: StakingDeps): Pr
   const r = resolveDeps(deps);
   const master = Address.parse(r.stakingMaster.trim());
   const netEstimate = await estimateStakeNetForStake(params, r);
+  if (netEstimate.netNano < MIN_STAKE_NANO) {
+    throw new StakingError(
+      'INSUFFICIENT_BALANCE',
+      'Stake amount is below the minimum (0.01 BURN)',
+    );
+  }
   let jw: string;
   try {
     jw = await getUserJettonWalletAddress(params.walletAddress.trim(), r);

@@ -186,6 +186,28 @@
   font-size: var(--bc-text-sm);
 }
 
+.alertSlot {
+  min-height: calc(2 * var(--bc-text-sm) * 1.4);
+  margin-top: var(--bc-spacing-sm);
+  display: flex;
+  align-items: flex-start;
+}
+
+.alertSlotText {
+  margin: 0;
+  color: var(--bc-destructive);
+  font-size: var(--bc-text-sm);
+  line-height: 1.4;
+  opacity: 0;
+  transition:
+    opacity 180ms var(--bc-ease-out),
+    color 180ms var(--bc-ease-out);
+}
+
+.alertSlotTextVisible {
+  opacity: 1;
+}
+
 .grid {
   display: flex;
   flex-direction: column;

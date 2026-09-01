@@ -588,6 +588,103 @@ describe('stakeTx', () => {
     });
     expect(sendTransactionImpl).toHaveBeenCalledTimes(1);
   });
+
+  it('throws and does not send when net is below MIN_STAKE_NANO', async () => {
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+
+    const jwCell = beginCell().storeAddress(Address.parse(JETTON_USER_WALLET)).endCell();
+    const jwB64 = jwCell.toBoc({ idx: false }).toString('base64');
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+      if (method === 'get_wallet_address') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['tvm.Slice', jwB64]] },
+        });
+      }
+      if (method === 'get_is_excluded') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '0xffffffffffffffff']] },
+        });
+      }
+      if (method === 'get_effective_fee_params') {
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [['num', '0x32'], ['num', '0x1e'], ['num', '0x14']],
+          },
+        });
+      }
+      return jsonResponse({ ok: false, error: method }, 500);
+    });
+
+    await expect(
+      stakeTx(
+        { tier: StakingTier.Flexible, amount: 4_950n, walletAddress: USER },
+        {
+          fetchImpl,
+          rpcBaseUrl: 'https://stub.ton/api/v2',
+          stakingMaster: STAKING_MASTER,
+          jettonMaster: JETTON_MASTER,
+          sendTransactionImpl: sendTransactionImpl as StakingDeps['sendTransactionImpl'],
+        },
+      ),
+    ).rejects.toBeInstanceOf(StakingError);
+
+    expect(sendTransactionImpl).not.toHaveBeenCalled();
+  });
+
+  it('sends when amount is at least MIN_STAKE_NANO (excluded net = gross)', async () => {
+    const sendTransactionImpl = vi.fn().mockResolvedValue({ ok: true, boc: 'abcd' });
+
+    const jwCell = beginCell().storeAddress(Address.parse(JETTON_USER_WALLET)).endCell();
+    const jwB64 = jwCell.toBoc({ idx: false }).toString('base64');
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const method = body.method as string;
+      if (method === 'get_wallet_address') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['tvm.Slice', jwB64]] },
+        });
+      }
+      if (method === 'get_is_excluded') {
+        return jsonResponse({
+          ok: true,
+          result: { exit_code: 0, stack: [['num', '0xffffffffffffffff']] },
+        });
+      }
+      if (method === 'get_effective_fee_params') {
+        return jsonResponse({
+          ok: true,
+          result: {
+            exit_code: 0,
+            stack: [['num', '0x32'], ['num', '0x1e'], ['num', '0x14']],
+          },
+        });
+      }
+      return jsonResponse({ ok: false, error: method }, 500);
+    });
+
+    const res = await stakeTx(
+      { tier: StakingTier.Flexible, amount: 10_000_000n, walletAddress: USER },
+      {
+        fetchImpl,
+        rpcBaseUrl: 'https://stub.ton/api/v2',
+        stakingMaster: STAKING_MASTER,
+        jettonMaster: JETTON_MASTER,
+        sendTransactionImpl: sendTransactionImpl as StakingDeps['sendTransactionImpl'],
+      },
+    );
+
+    expect(res.tx).toEqual({ ok: true, boc: 'abcd' });
+    expect(sendTransactionImpl).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('staking-format i18n helpers', () => {

@@ -1235,12 +1235,15 @@
     "title": "الإعدادات"
   },
   "staking": {
+    "amountBelowMin": "الحد الأدنى للـ stake هو 0.01 BURN.",
     "amountInvalid": "أدخل مبلغًا صالحًا.",
     "amountLabel": "المبلغ (BURN)",
+    "amountNeedMore": "الحد الأدنى للـ stake هو 0.01 BURN. أضف {{shortfall}} أخرى.",
     "amountOverBalance": "المبلغ يتجاوز رصيد المحفظة.",
     "amountPositive": "يجب أن يكون المبلغ أكبر من صفر.",
     "amountSliderAria": "نسبة مبلغ Staking من الرصيد",
     "back": "رجوع",
+    "balanceBelowMin": "تحتاج إلى 0.01 BURN على الأقل في المحفظة للـ stake.",
     "calculator": {
       "activity": {
         "high": "عالية",
@@ -1314,6 +1317,7 @@
     "lockConfirm": "سيتم قفل الرموز حتى {{date}}. لا يمكنك إلغاء Staking قبل ذلك.",
     "lockFlexible": "مرن",
     "max": "الحد الأقصى",
+    "minChip": "الحد الأدنى",
     "modalClose": "إغلاق",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "ليس لديك محفظة رمز BURN بعد. استلم بعض BURN على عنوانك أولاً، ثم أعد المحاولة.",

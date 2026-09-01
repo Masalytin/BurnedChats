@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { StakingTier } from '@/types/ton';
 import {
   calculateApyForInput,
@@ -73,6 +74,7 @@ describe('calculateApyForInput', () => {
 
   it('enforces minimum meaningful stake threshold only at UI layer', () => {
     expect(MIN_MEANINGFUL_STAKE_NANO).toBe(10_000_000n);
+    expect(MIN_MEANINGFUL_STAKE_NANO).toBe(MIN_STAKE_NANO);
     const tiny = calculateApyForInput(1_000_000n, StakingTier.Flexible, nano(50), daily, 5);
     expect(tiny).not.toBeNull();
   });

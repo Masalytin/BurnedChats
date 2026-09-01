@@ -1231,12 +1231,15 @@
     "title": "Ajustes"
   },
   "staking": {
+    "amountBelowMin": "El stake mínimo es 0.01 BURN.",
     "amountInvalid": "Introduce una cantidad válida.",
     "amountLabel": "Cantidad (BURN)",
+    "amountNeedMore": "El stake mínimo es 0.01 BURN. Añade {{shortfall}} más.",
     "amountOverBalance": "La cantidad supera el saldo de la wallet.",
     "amountPositive": "La cantidad debe ser mayor que cero.",
     "amountSliderAria": "Porcentaje de cantidad de Staking del saldo",
     "back": "Atrás",
+    "balanceBelowMin": "Necesitas al menos 0.01 BURN en la wallet para hacer stake.",
     "calculator": {
       "activity": {
         "high": "Alta",
@@ -1310,6 +1313,7 @@
     "lockConfirm": "Tus tokens estarán bloqueados hasta {{date}}. No puedes hacer unstake antes.",
     "lockFlexible": "Flexible",
     "max": "Máx",
+    "minChip": "Mín.",
     "modalClose": "Cerrar",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "Aún no tienes una wallet de token BURN. Recibe algo de BURN en tu dirección primero e intenta de nuevo.",

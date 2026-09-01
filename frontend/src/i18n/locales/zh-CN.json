@@ -1231,12 +1231,15 @@
     "title": "设置"
   },
   "staking": {
+    "amountBelowMin": "最低质押为 0.01 BURN。",
     "amountInvalid": "请输入有效金额。",
     "amountLabel": "金额 (BURN)",
+    "amountNeedMore": "最低质押为 0.01 BURN。还差 {{shortfall}}。",
     "amountOverBalance": "金额超过钱包余额。",
     "amountPositive": "金额必须大于零。",
     "amountSliderAria": "Stake 金额占余额的百分比",
     "back": "返回",
+    "balanceBelowMin": "钱包里至少需要 0.01 BURN 才能质押。",
     "calculator": {
       "activity": {
         "high": "高",
@@ -1310,6 +1313,7 @@
     "lockConfirm": "您的代币将锁定至 {{date}}。您无法提前 Unstake。",
     "lockFlexible": "Flexible",
     "max": "最大",
+    "minChip": "最小",
     "modalClose": "关闭",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "您还没有 BURN token 钱包。请先向您的地址接收一些 BURN，然后重试。",

@@ -7,9 +7,11 @@ import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sen
 import { useTonConnect } from '@/hooks/useTonConnect';
 import { estimateStakeNet, type StakeNetEstimate } from '@/ton/estimateStakeNet';
 import { estimateStakeTon } from '@/ton/estimateStakeTon';
+import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { getTonBalanceNano } from '@/ton/tonBalance';
 import { StakingTier, type TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
+import { evaluateStakeAmount } from '@/utils/stakeAmountGate';
 
 import { TierPickGrid } from './TierPickGrid';
 import { StakeMiniApyBlock } from './StakeMiniApy';
@@ -59,6 +61,8 @@ export function StakeModal({
 
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
   const [stakeNetEstimate, setStakeNetEstimate] = useState<StakeNetEstimate | null>(null);
+  const [stakeNetStatus, setStakeNetStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  const alertSlotId = 'stake-amount-error';
 
   const stakingMasterAddress = (import.meta.env.VITE_STAKING_MASTER ?? '').trim();
 
@@ -121,12 +125,20 @@ export function StakeModal({
 
   useEffect(() => {
     const addr = walletAddress?.trim();
-    if (!open || !addr || !stakingMasterAddress || amountNano <= 0n) {
+    if (!open || !addr || amountNano <= 0n) {
       setStakeNetEstimate(null);
+      setStakeNetStatus('idle');
+      return;
+    }
+    if (!stakingMasterAddress) {
+      setStakeNetEstimate(null);
+      setStakeNetStatus('failed');
       return;
     }
 
     let cancelled = false;
+    setStakeNetStatus('loading');
+    setStakeNetEstimate(null);
     void estimateStakeNet({
       ownerAddress: addr,
       stakingMaster: stakingMasterAddress,
@@ -135,16 +147,13 @@ export function StakeModal({
       .then((est) => {
         if (!cancelled) {
           setStakeNetEstimate(est);
+          setStakeNetStatus('ready');
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setStakeNetEstimate({
-            willChargeFee: true,
-            grossNano: amountNano,
-            feeNano: 0n,
-            netNano: amountNano,
-          });
+          setStakeNetEstimate(null);
+          setStakeNetStatus('failed');
         }
       });
 
@@ -210,29 +219,64 @@ export function StakeModal({
     setAmountStr(s || '0');
   }, [balance]);
 
+  const minChipDisabled = walletBalanceNano === null || walletBalanceNano < MIN_STAKE_NANO;
+
+  const handleMin = useCallback(() => {
+    if (minChipDisabled) {
+      return;
+    }
+    const s = formatBurn(MIN_STAKE_NANO).replace(/\s*BURN\s*$/i, '').trim();
+    setAmountStr(s || '0.01');
+  }, [minChipDisabled]);
+
+  const estimateReady = amountNano <= 0n || stakeNetStatus === 'ready';
+
+  const gate = useMemo(
+    () =>
+      evaluateStakeAmount({
+        amountStr,
+        balanceNano: walletBalanceNano,
+        netNano: stakeNetEstimate?.netNano ?? null,
+        estimateReady,
+        insufficientTon,
+      }),
+    [amountStr, estimateReady, insufficientTon, stakeNetEstimate?.netNano, walletBalanceNano],
+  );
+
+  const gateAlertText = gate.i18nKey
+    ? t(gate.i18nKey, {
+        ...gate.i18nParams,
+        attach: nanoToAmountString(tonEstimate.recommendedNano),
+      })
+    : null;
+
   const validateAndSubmit = useCallback(async () => {
     setError(null);
+    const live = evaluateStakeAmount({
+      amountStr,
+      balanceNano: walletBalanceNano,
+      netNano: stakeNetEstimate?.netNano ?? null,
+      estimateReady,
+      insufficientTon,
+    });
+    if (!live.confirmEnabled) {
+      if (live.i18nKey) {
+        const msg = t(live.i18nKey, {
+          ...live.i18nParams,
+          attach: nanoToAmountString(tonEstimate.recommendedNano),
+        });
+        setError(msg);
+        if (live.state === 'noTon') {
+          toast.error(msg, { title: t('staking.stakeFailed') });
+        }
+      }
+      return;
+    }
     let nano: bigint;
     try {
       nano = parseBurn(amountStr);
     } catch {
       setError(t('staking.amountInvalid'));
-      return;
-    }
-    if (nano <= 0n) {
-      setError(t('staking.amountPositive'));
-      return;
-    }
-    if (nano > balance) {
-      setError(t('staking.amountOverBalance'));
-      return;
-    }
-    if (insufficientTon) {
-      const msg = t('staking.insufficientTonForStake', {
-        attach: nanoToAmountString(tonEstimate.recommendedNano),
-      });
-      setError(msg);
-      toast.error(msg, { title: t('staking.stakeFailed') });
       return;
     }
     setPhase('signing');
@@ -242,13 +286,20 @@ export function StakeModal({
     } else {
       setPhase('edit');
     }
-  }, [amountStr, balance, insufficientTon, onConfirmStake, t, tier, toast, tonEstimate.recommendedNano]);
+  }, [
+    amountStr,
+    estimateReady,
+    insufficientTon,
+    onConfirmStake,
+    stakeNetEstimate?.netNano,
+    t,
+    tier,
+    toast,
+    tonEstimate.recommendedNano,
+    walletBalanceNano,
+  ]);
 
-  const confirmDisabled =
-    balance <= 0n ||
-    insufficientTon ||
-    amountNano <= 0n ||
-    amountNano > balance;
+  const confirmDisabled = !gate.confirmEnabled || phase === 'signing';
 
   if (!open) {
     return null;
@@ -321,9 +372,19 @@ export function StakeModal({
                 autoComplete="off"
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
-                aria-invalid={error != null}
-                aria-describedby={error ? 'stake-amount-error' : 'stake-balance-hint'}
+                aria-invalid={
+                  gate.state === 'parsing' || gate.state === 'dust' || gate.state === 'overBalance'
+                }
+                aria-describedby={`${alertSlotId} stake-balance-hint`}
               />
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnGhost}`}
+                onClick={handleMin}
+                disabled={minChipDisabled}
+              >
+                {t('staking.minChip')}
+              </button>
               <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleMax}>
                 {t('staking.max')}
               </button>
@@ -386,19 +447,24 @@ export function StakeModal({
               </p>
             ) : null}
 
-            {error || insufficientTon ? (
-              <p id="stake-amount-error" className={styles.errText} role="alert">
-                {error ??
-                  t('staking.insufficientTonForStake', {
-                    attach: nanoToAmountString(tonEstimate.recommendedNano),
-                  })}
-              </p>
-            ) : null}
+            <div id={alertSlotId} className={styles.alertSlot}>
+              {gateAlertText || error ? (
+                <p
+                  className={`${styles.alertSlotText} ${styles.alertSlotTextVisible} ${styles.errText}`}
+                  role={gate.state === 'blocked' ? 'status' : 'alert'}
+                >
+                  {gateAlertText ?? error}
+                </p>
+              ) : (
+                <p className={styles.alertSlotText} aria-hidden="true" />
+              )}
+            </div>
 
             <button
               type="button"
               className={`${styles.btn} ${styles.btnPrimary} ${styles.fullWidth} ${styles.mtMd}`}
               disabled={confirmDisabled}
+              aria-describedby={alertSlotId}
               onClick={() => void validateAndSubmit()}
             >
               {t('staking.stakeConfirm')}

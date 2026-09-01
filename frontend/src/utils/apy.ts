@@ -1,3 +1,4 @@
+import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { PHASE1_DAILY_EMISSION_NANO } from '@/ton/staking';
 import { StakingTier } from '@/types/ton';
 
@@ -25,8 +26,8 @@ export interface ApyResult {
   shareOfTier: number;
 }
 
-/** Minimum stake for a meaningful APY line (0.01 BURN). */
-export const MIN_MEANINGFUL_STAKE_NANO = 10_000_000n;
+/** Minimum stake for a meaningful APY line — same as `MIN_STAKE_NANO`. */
+export const MIN_MEANINGFUL_STAKE_NANO = MIN_STAKE_NANO;
 
 /** Daily nano-BURN directed to staking pool from tx fees only (Phase 2). Based on TOKENOMICS deflation table: avg tx 0.1 BURN, 0.3% to staking. */
 export function phase2DailyStakingPoolEmissionNano(preset: NetworkActivityPreset): bigint {

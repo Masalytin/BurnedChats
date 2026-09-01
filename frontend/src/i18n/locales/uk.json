@@ -1231,12 +1231,15 @@
     "title": "Налаштування"
   },
   "staking": {
+    "amountBelowMin": "Мінімум стейка — 0.01 BURN.",
     "amountInvalid": "Введіть коректну сумму.",
     "amountLabel": "Сумма (BURN)",
+    "amountNeedMore": "Мінімум стейка — 0.01 BURN. Не вистачає {{shortfall}}.",
     "amountOverBalance": "Сума перевищує баланс гаманця.",
     "amountPositive": "Сумма має быть більше нуля.",
     "amountSliderAria": "Частка балансу для стейку",
     "back": "Назад",
+    "balanceBelowMin": "Щоб стейкати, потрібно щонайменше 0.01 BURN на гаманці.",
     "calculator": {
       "activity": {
         "high": "Высокая",
@@ -1310,6 +1313,7 @@
     "lockConfirm": "Токени будуть заблоковані до {{date}}. Достроковий вивід неможливий.",
     "lockFlexible": "Гнучкий",
     "max": "Макс",
+    "minChip": "Мін.",
     "modalClose": "Закрити",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "У вас ще немає гаманця токена BURN. Отримайте BURN на свою адресу, потім повторіть спробу.",
