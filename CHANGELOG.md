@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-01
+
 ### Added
 
 - `GET /api/wallet/ton-balance` returns native TON balance as a nano decimal string; prod clients read burn-balance and ton-balance from this API only (no Toncenter fallback).
@@ -138,7 +140,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.3.0
 [0.2.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.2.2
