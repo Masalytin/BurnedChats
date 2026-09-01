@@ -241,6 +241,15 @@
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
+    },
+    "staking": {
+      "minStake": {
+        "title": "为什么最少要 0.01？",
+        "body": [
+          "极小的存入会被视为灰尘。合约会退回，而不会开启质押。",
+          "BURN 会回到钱包。这笔交易的网络手续费仍会扣除。"
+        ]
+      }
     }
   },
   "chat": {
@@ -1314,6 +1323,7 @@
     "lockFlexible": "Flexible",
     "max": "最大",
     "minChip": "最小",
+    "minStakeHint": "过小的金额会被退回，但仍会消耗网络手续费。",
     "modalClose": "关闭",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "您还没有 BURN token 钱包。请先向您的地址接收一些 BURN，然后重试。",

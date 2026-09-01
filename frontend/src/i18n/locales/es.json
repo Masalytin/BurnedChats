@@ -241,6 +241,15 @@
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
+    },
+    "staking": {
+      "minStake": {
+        "title": "¿Por qué un mínimo de 0,01?",
+        "body": [
+          "Un depósito minúsculo se trata como polvo. El contrato lo devuelve en lugar de abrir el stake.",
+          "Tus BURN vuelven a la cartera. Las comisiones de red de la transacción se cobran igual."
+        ]
+      }
     }
   },
   "chat": {
@@ -1314,6 +1323,7 @@
     "lockFlexible": "Flexible",
     "max": "Máx",
     "minChip": "Mín.",
+    "minStakeHint": "Los depósitos demasiado pequeños se devuelven, pero igual se cobran las comisiones de red.",
     "modalClose": "Cerrar",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "Aún no tienes una wallet de token BURN. Recibe algo de BURN en tu dirección primero e intenta de nuevo.",

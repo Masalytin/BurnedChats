@@ -9,6 +9,20 @@ import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { StakingTier, type TierConfig } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
 
+vi.mock('@twa-dev/sdk', () => ({
+  default: {
+    initData: 'test-init-data',
+    initDataUnsafe: { user: { language_code: 'en' } },
+    CloudStorage: { getItem: () => {} },
+    BackButton: {
+      show: vi.fn(),
+      hide: vi.fn(),
+      onClick: vi.fn(),
+      offClick: vi.fn(),
+    },
+  },
+}));
+
 vi.mock('@/hooks/useTonConnect', () => ({
   useTonConnect: () => ({
     walletAddress: 'EQwallet________________________________________________________00',
@@ -178,5 +192,60 @@ describe('StakeModal min-stake live gate', () => {
 
     fireEvent.click(confirmButton());
     expect(onConfirmStake).not.toHaveBeenCalled();
+  });
+});
+
+describe('StakeModal min-stake hint and help', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.stubEnv('VITE_STAKING_MASTER', 'EQ____________________________________________________________00');
+    vi.clearAllMocks();
+  });
+
+  it('shows minStakeHint at the amount field without contract jargon', () => {
+    renderStakeModal();
+
+    expect(screen.getByText(i18n.t('staking.minStakeHint'))).toBeTruthy();
+    expect(screen.queryByText(/MinStakeNano/i)).toBeNull();
+    expect(screen.queryByText(/DEX/i)).toBeNull();
+  });
+
+  it('opens help.staking.minStake from HelpTrigger next to amount', () => {
+    renderStakeModal();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('help.common.trigger') }));
+
+    expect(screen.getByRole('heading', { level: 2, name: i18n.t('help.staking.minStake.title') })).toBeTruthy();
+    expect(screen.getByText(i18n.t('help.staking.minStake.body.0'))).toBeTruthy();
+    expect(screen.queryByText(/MinStakeNano/i)).toBeNull();
+    expect(screen.queryByText(/DEX/i)).toBeNull();
+  });
+
+  it('does not close the stake sheet on Escape while HelpSheet is open', async () => {
+    const { onClose } = renderStakeModal();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('help.common.trigger') }));
+    expect(screen.getAllByRole('dialog').length).toBe(2);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('dialog').length).toBe(1);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: i18n.t('staking.stakeModalTitle') })).toBeTruthy();
+  });
+
+  it('does not close the stake sheet on backdrop click while HelpSheet is open', () => {
+    const { onClose } = renderStakeModal();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('help.common.trigger') }));
+    expect(screen.getAllByRole('dialog').length).toBe(2);
+
+    const stakeDialog = screen.getByRole('dialog', { name: i18n.t('staking.stakeModalTitle') });
+    fireEvent.click(stakeDialog.parentElement as HTMLElement);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('dialog').length).toBe(2);
   });
 });

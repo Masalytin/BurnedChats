@@ -241,6 +241,15 @@
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
+    },
+    "staking": {
+      "minStake": {
+        "title": "لماذا الحد الأدنى 0.01؟",
+        "body": [
+          "الودائع الضئيلة تُعامل كغبار. العقد يعيدها بدل بدء الستاكينغ.",
+          "يعود BURN إلى المحفظة. رسوم الشبكة لهذه المعاملة تُخصم على أي حال."
+        ]
+      }
     }
   },
   "chat": {
@@ -1318,6 +1327,7 @@
     "lockFlexible": "مرن",
     "max": "الحد الأقصى",
     "minChip": "الحد الأدنى",
+    "minStakeHint": "الودائع الصغيرة تُعاد ومع ذلك تُخصم رسوم الشبكة.",
     "modalClose": "إغلاق",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "ليس لديك محفظة رمز BURN بعد. استلم بعض BURN على عنوانك أولاً، ثم أعد المحاولة.",

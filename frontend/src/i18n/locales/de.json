@@ -253,6 +253,15 @@
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
+    },
+    "staking": {
+      "minStake": {
+        "title": "Warum mindestens 0,01?",
+        "body": [
+          "Mini-Einlagen gelten als Staub. Der Vertrag schickt sie zurück, statt einen Stake zu öffnen.",
+          "Dein BURN kommt zurück in die Wallet. Die Netzwerkgebühren der Transaktion werden trotzdem abgebucht."
+        ]
+      }
     }
   },
   "chat": {
@@ -1467,6 +1476,8 @@
     "amountBelowMin": "Mindest-Stake beträgt 0.01 BURN.",
     "balanceBelowMin": "Zum Staken brauchst du mindestens 0.01 BURN in der Wallet.",
     "minChip": "Min.",
+    "minStakeHint": "Zu kleine Einlagen werden zurückgeschickt, Netzwerkgebühren fallen trotzdem an.",
+    "minStakeHint": "Zu kleine Einlagen werden zurückgeschickt, Netzwerkgebühren fallen trotzdem an.",
     "tonBalanceLabel": "{{symbol}}: {{amount}}",
     "tonGasDepositHint": "~{{attach}} {{symbol}} sind für Netzwerk-Gas angehängt; ungenutztes {{symbol}} kehrt auf Ihre Wallet zurück.",
     "insufficientTonForStake": "Halten Sie mindestens ~{{attach}} {{symbol}} in Ihrer Wallet zum Staken.",

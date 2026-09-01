@@ -756,6 +756,8 @@
     "amountBelowMin": "Minimum stake is 0.01 BURN.",
     "balanceBelowMin": "You need at least 0.01 BURN in the wallet to stake.",
     "minChip": "Min",
+    "minStakeHint": "Small deposits are returned and still spend network fees.",
+    "minStakeHint": "Small deposits are returned and still spend network fees.",
     "tonBalanceLabel": "{{symbol}}: {{amount}}",
     "tonGasDepositHint": "~{{attach}} {{symbol}} is attached for network gas; unused {{symbol}} returns to your wallet.",
     "insufficientTonForStake": "Keep at least ~{{attach}} {{symbol}} in your wallet to stake.",
@@ -1167,6 +1169,15 @@
           "Governor: {{pinnedGovernor}}",
           "Treasury: {{pinnedTreasury}}",
           "Build fingerprint: {{pinnedBuildId}}"
+        ]
+      }
+    },
+    "staking": {
+      "minStake": {
+        "title": "Why a 0.01 minimum?",
+        "body": [
+          "Tiny deposits are treated as dust. The contract sends them back instead of opening a stake.",
+          "Your BURN returns to the wallet. Network fees attached for the transaction are still spent."
         ]
       }
     }

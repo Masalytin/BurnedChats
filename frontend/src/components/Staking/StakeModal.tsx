@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { useToast } from '@/components/Toast';
 import { CloseIcon, SuccessIcon } from '@/icons';
 import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sendModalGasReserve';
@@ -70,6 +71,7 @@ export function StakeModal({
   const [amountStr, setAmountStr] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<'edit' | 'signing' | 'done'>('edit');
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -77,6 +79,7 @@ export function StakeModal({
       setAmountStr('0');
       setError(null);
       setPhase('edit');
+      setHelpOpen(false);
       queueMicrotask(() => closeRef.current?.focus());
     }
   }, [open, initialTier]);
@@ -86,13 +89,13 @@ export function StakeModal({
       return;
     }
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && phase === 'edit') {
+      if (e.key === 'Escape' && phase === 'edit' && !helpOpen) {
         onClose();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, phase]);
+  }, [open, onClose, phase, helpOpen]);
 
   useEffect(() => {
     const addr = walletAddress?.trim();
@@ -314,7 +317,7 @@ export function StakeModal({
       className={styles.backdrop}
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && phase === 'edit') {
+        if (e.target === e.currentTarget && phase === 'edit' && !helpOpen) {
           onClose();
         }
       }}
@@ -361,9 +364,11 @@ export function StakeModal({
             </p>
             <TierPickGrid tierConfigs={sortedConfigs} selectedTier={tier} onSelect={setTier} />
 
-            <label className={styles.fieldLabel} htmlFor="stake-amount-input">
-              {t('staking.amountLabel')}
-            </label>
+            <div className={styles.fieldLabel}>
+              <label htmlFor="stake-amount-input">{t('staking.amountLabel')}</label>
+              <HelpTrigger onOpen={() => setHelpOpen(true)} />
+            </div>
+            <p className={`${styles.muted} ${styles.textSm}`}>{t('staking.minStakeHint')}</p>
             <div className={styles.inputRow}>
               <input
                 id="stake-amount-input"
@@ -472,6 +477,11 @@ export function StakeModal({
           </>
         ) : null}
       </div>
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicKey="staking.minStake"
+      />
     </div>
   );
 }

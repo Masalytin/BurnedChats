@@ -241,6 +241,15 @@
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
+    },
+    "staking": {
+      "minStake": {
+        "title": "Pourquoi un minimum de 0,01 ?",
+        "body": [
+          "Un tout petit dépôt est traité comme de la poussière. Le contrat le renvoie au lieu d’ouvrir un stake.",
+          "Vos BURN reviennent dans le portefeuille. Les frais réseau de la transaction sont tout de même débités."
+        ]
+      }
     }
   },
   "chat": {
@@ -1314,6 +1323,7 @@
     "lockFlexible": "Flexible",
     "max": "Max",
     "minChip": "Min",
+    "minStakeHint": "Les trop petits dépôts sont renvoyés, mais les frais réseau sont tout de même prélevés.",
     "modalClose": "Fermer",
     "multiplierShort": "{{value}}× VP",
     "noJettonWallet": "Vous n'avez pas encore de portefeuille Jetton BURN. Recevez d'abord des BURN sur votre adresse, puis réessayez.",
