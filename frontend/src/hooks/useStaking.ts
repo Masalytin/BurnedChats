@@ -14,11 +14,8 @@ import {
 
 import { useTonConnect } from './useTonConnect';
 
-const PENDING_POLL_MS = 15_000;
+const PENDING_POLL_MS = 30_000;
 const OPTIMISTIC_CLEAR_MS = 8_000;
-const TX_REFRESH_INITIAL_MS = 5_000;
-const TX_REFRESH_RETRY_MS = 3_000;
-const TX_REFRESH_ATTEMPTS = 3;
 
 const ALL_TIERS: StakingTier[] = [
   StakingTier.Flexible,
@@ -92,6 +89,16 @@ function applyPendingToStakes(
   });
 }
 
+function pendingFromStakes(stakes: StakeInfo[]): Partial<Record<StakingTier, bigint>> {
+  const pr: Partial<Record<StakingTier, bigint>> = {};
+  for (const s of stakes) {
+    if (s.pendingReward > 0n) {
+      pr[s.tier] = s.pendingReward;
+    }
+  }
+  return pr;
+}
+
 /** Reactive staking state + Ton Connect–backed write operations. */
 export interface UseStaking {
   stakes: StakeInfo[];
@@ -140,7 +147,6 @@ export function useStakingController(): UseStaking {
   const [tierConfigsFallback, setTierConfigsFallback] = useState(false);
 
   const visibleRef = useRef(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
-  const txRefreshTimersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -153,13 +159,13 @@ export function useStakingController(): UseStaking {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      for (const id of txRefreshTimersRef.current) {
-        window.clearTimeout(id);
-      }
-      txRefreshTimersRef.current = [];
-    };
+  const applyFullSnapshot = useCallback((snap: Awaited<ReturnType<typeof getStakingSnapshot>>): void => {
+    const pr = pendingFromStakes(snap.stakes);
+    setChainStakes(snap.stakes);
+    setTierConfigs(snap.tierConfigs);
+    setTierConfigsFallback(getLastTierConfigSource() === 'fallback');
+    setLiveTierTvls(snap.liveTierTvls);
+    setPendingRewards(pr);
   }, []);
 
   const refreshPendingOnly = useCallback(async (): Promise<void> => {
@@ -169,12 +175,7 @@ export function useStakingController(): UseStaking {
     setRewardsRefreshing(true);
     try {
       const snap = await getStakingSnapshot({ address: walletAddress });
-      const pr: Partial<Record<StakingTier, bigint>> = {};
-      for (const s of snap.stakes) {
-        if (s.pendingReward > 0n) {
-          pr[s.tier] = s.pendingReward;
-        }
-      }
+      const pr = pendingFromStakes(snap.stakes);
       setPendingRewards(pr);
       setChainStakes((prev) => applyPendingToStakes(prev, pr));
       setLiveTierTvls(snap.liveTierTvls);
@@ -185,25 +186,20 @@ export function useStakingController(): UseStaking {
     }
   }, [walletAddress]);
 
-  const scheduleTxTriggeredRefresh = useCallback(() => {
-    for (const id of txRefreshTimersRef.current) {
-      window.clearTimeout(id);
+  const refreshAfterSuccessfulTx = useCallback(async (): Promise<void> => {
+    if (!walletAddress) {
+      return;
     }
-    txRefreshTimersRef.current = [];
-
-    let attempt = 0;
-    const runRefresh = (): void => {
-      attempt += 1;
-      void refreshPendingOnly();
-      if (attempt < TX_REFRESH_ATTEMPTS) {
-        const retryId = window.setTimeout(runRefresh, TX_REFRESH_RETRY_MS);
-        txRefreshTimersRef.current.push(retryId);
-      }
-    };
-
-    const initialId = window.setTimeout(runRefresh, TX_REFRESH_INITIAL_MS);
-    txRefreshTimersRef.current.push(initialId);
-  }, [refreshPendingOnly]);
+    setRewardsRefreshing(true);
+    try {
+      const snap = await getStakingSnapshot({ address: walletAddress, fresh: true });
+      applyFullSnapshot(snap);
+    } catch {
+      /* keep last snapshot on flaky REST */
+    } finally {
+      setRewardsRefreshing(false);
+    }
+  }, [walletAddress, applyFullSnapshot]);
 
   const loadCore = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -212,23 +208,13 @@ export function useStakingController(): UseStaking {
       const snap = await getStakingSnapshot({
         address: walletAddress ?? undefined,
       });
-      setChainStakes(snap.stakes);
-      setTierConfigs(snap.tierConfigs);
-      setTierConfigsFallback(getLastTierConfigSource() === 'fallback');
-      setLiveTierTvls(snap.liveTierTvls);
-      const pr: Partial<Record<StakingTier, bigint>> = {};
-      for (const s of snap.stakes) {
-        if (s.pendingReward > 0n) {
-          pr[s.tier] = s.pendingReward;
-        }
-      }
-      setPendingRewards(pr);
+      applyFullSnapshot(snap);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, applyFullSnapshot]);
 
   useEffect(() => {
     void loadCore();
@@ -271,12 +257,12 @@ export function useStakingController(): UseStaking {
           ...prev,
           [params.tier]: (prev[params.tier] ?? 0n) + netStakedNano,
         }));
-        scheduleTxTriggeredRefresh();
+        await refreshAfterSuccessfulTx();
         scheduleOptimisticClear();
       }
       return tx;
     },
-    [walletAddress, scheduleOptimisticClear, scheduleTxTriggeredRefresh],
+    [walletAddress, scheduleOptimisticClear, refreshAfterSuccessfulTx],
   );
 
   const unstake = useCallback(
@@ -291,12 +277,11 @@ export function useStakingController(): UseStaking {
         return txResultFromError(e);
       }
       if (tx.ok) {
-        scheduleTxTriggeredRefresh();
-        window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
+        await refreshAfterSuccessfulTx();
       }
       return tx;
     },
-    [walletAddress, loadCore, scheduleTxTriggeredRefresh],
+    [walletAddress, refreshAfterSuccessfulTx],
   );
 
   const claim = useCallback(
@@ -311,12 +296,11 @@ export function useStakingController(): UseStaking {
         return txResultFromError(e);
       }
       if (tx.ok) {
-        scheduleTxTriggeredRefresh();
-        window.setTimeout(() => void loadCore(), TX_REFRESH_INITIAL_MS);
+        await refreshAfterSuccessfulTx();
       }
       return tx;
     },
-    [walletAddress, loadCore, scheduleTxTriggeredRefresh],
+    [walletAddress, refreshAfterSuccessfulTx],
   );
 
   const calculateApy = useCallback((tier: StakingTier, stakeAmount: bigint): number => {
