@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/wallet/staking-profile` now returns lock-tier configs and live TVL, supports catalog-only without an address, and accepts `fresh=1` to bust the user cache.
+
 ### Fixed
 
 - Ton Center reads coalesce in-flight get-methods and cap outbound RPC so a staking stampede does not 429 the relay.

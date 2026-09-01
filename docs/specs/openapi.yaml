@@ -69,6 +69,86 @@ components:
           type: "string"
         initData:
           type: "string"
+    StakeInfo:
+      type: "object"
+      properties:
+        tier:
+          type: "string"
+          enum:
+          - "FLEXIBLE"
+          - "SILVER"
+          - "GOLD"
+          - "DIAMOND"
+        amount:
+          type: "string"
+          description: "Stake amount in nano (decimal string)"
+        startTime:
+          type: "integer"
+          format: "int64"
+        unlockTime:
+          type: "integer"
+          format: "int64"
+        lastClaimTime:
+          type: "integer"
+          format: "int64"
+        pendingRewards:
+          type: "string"
+          description: "Pending rewards in nano (decimal string)"
+        unlocked:
+          type: "boolean"
+    TierConfigDto:
+      type: "object"
+      properties:
+        tier:
+          type: "string"
+          enum:
+          - "FLEXIBLE"
+          - "SILVER"
+          - "GOLD"
+          - "DIAMOND"
+        lockDurationSec:
+          type: "integer"
+          format: "int64"
+        multiplier:
+          type: "number"
+          format: "double"
+        rewardSharePercent:
+          type: "integer"
+          format: "int32"
+      description: "Staking lock config for one tier"
+    UserStakingProfile:
+      type: "object"
+      properties:
+        address:
+          type: "string"
+        highestTier:
+          type: "string"
+          enum:
+          - "FLEXIBLE"
+          - "SILVER"
+          - "GOLD"
+          - "DIAMOND"
+        totalStakedNano:
+          type: "string"
+          description: "Total staked nano (decimal string)"
+        votingPowerNano:
+          type: "string"
+          description: "Voting power nano (decimal string)"
+        stakes:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/StakeInfo"
+        tierConfigs:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/TierConfigDto"
+        liveTierTvls:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            description: "Per-tier TVL nano strings; omitted keys were not available"
+          description: "Per-tier TVL nano strings; omitted keys were not available"
+      description: "Staking snapshot; omit address for catalog-only (empty stakes)"
     ProposalSummary:
       type: "object"
       properties:
@@ -601,17 +681,37 @@ paths:
     get:
       tags:
       - "wallet-controller"
+      summary: "Staking snapshot (positions + catalog); omit address for catalog-only"
       operationId: "stakingProfile"
       parameters:
       - name: "address"
         in: "query"
+        description: "TON wallet; omit for catalog-only"
+        required: false
+        schema:
+          type: "string"
+      - name: "fresh"
+        in: "query"
+        description: "1 = bust user profile + computed get-keys (rate-limited 1/15s)"
         required: false
         schema:
           type: "string"
       responses:
-        "200":
-          description: "OK"
+        "400":
+          description: "Invalid TON address"
           content:
             '*/*':
               schema:
                 type: "object"
+        "502":
+          description: "User RPC or catalog RPC exhausted"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+        "200":
+          description: "Snapshot or catalog-only"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserStakingProfile"

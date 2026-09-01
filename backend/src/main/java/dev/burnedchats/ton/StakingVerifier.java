@@ -1,11 +1,12 @@
 package dev.burnedchats.ton;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.burnedchats.model.enums.StakingTier;
 import dev.burnedchats.ton.TonConfig.TonSettings;
 import dev.burnedchats.ton.dto.StakeInfo;
+import dev.burnedchats.ton.dto.TierConfigDto;
 import dev.burnedchats.ton.dto.UserStakingProfile;
 import dev.burnedchats.ton.exception.TonContractException;
 import dev.burnedchats.ton.exception.TonRpcException;
@@ -20,22 +21,28 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Reads staking positions and voting power from {@code StakingMaster} / {@code StakingLock}.
+ * Reads staking positions, catalog (lock configs + TVL), and voting power from chain.
  */
 @Service
 public class StakingVerifier {
 
     private static final Logger LOG = LoggerFactory.getLogger(StakingVerifier.class);
 
-    private static final String CACHE_VER = "v1";
+    private static final String PROFILE_CACHE_VER = "v2";
+    private static final String TIERCFG_CACHE_VER = "v2";
+    private static final String LOCK_CACHE_VER = "v1";
+    private static final String TVL_CACHE_VER = "v2";
     private static final Duration USER_PROFILE_TTL = Duration.ofSeconds(30);
     private static final Duration LOCK_ADDR_TTL = Duration.ofHours(1);
     private static final Duration TIER_CFG_TTL = Duration.ofHours(1);
+    private static final Duration TVL_TTL = Duration.ofSeconds(180);
+    private static final Duration FRESH_TTL = Duration.ofSeconds(15);
 
     private final TonService tonService;
     private final TonSettings settings;
@@ -82,7 +89,7 @@ public class StakingVerifier {
         String master = requireStakingMaster();
         List<Object> args = List.of(TonAddressBoc.sliceStackArg(userAddress), TonAddressBoc.numStackArg(tier.getId()));
         return tonService.runGetMethod(master, "get_pending_reward", args)
-                .map(StakingVerifier::firstStackNum)
+                .map(StakingStackCodec::firstStackNum)
                 .defaultIfEmpty(BigInteger.ZERO)
                 .onErrorResume(TonContractException.class, e -> Mono.just(BigInteger.ZERO));
     }
@@ -94,7 +101,7 @@ public class StakingVerifier {
         String master = requireStakingMaster();
         List<Object> args = List.of(TonAddressBoc.sliceStackArg(userAddress));
         return tonService.runGetMethod(master, "get_voting_power", args)
-                .map(StakingVerifier::firstStackNum)
+                .map(StakingStackCodec::firstStackNum)
                 .defaultIfEmpty(BigInteger.ZERO)
                 .onErrorResume(ex -> {
                     LOG.debug("getVotingPower fallback 0: {}", ex.toString());
@@ -112,44 +119,128 @@ public class StakingVerifier {
         if (userAddresses == null || userAddresses.isEmpty()) {
             return Flux.empty();
         }
-        return ensureTierConfigCache()
-                .thenMany(Flux.fromIterable(userAddresses).flatMap(this::profileForUser, 5));
+        return Flux.fromIterable(userAddresses)
+                .flatMap(this::profileForUser, 5)
+                .flatMap(p -> loadCatalog(false).map(c -> p.withCatalog(c.configs(), c.tvls())), 1)
+                .onErrorMap(this::wrapRpc);
     }
 
     /** Single-address convenience wrapper over {@link #getStakingProfiles(List)} (Redis TTL 30 s). */
     public Mono<UserStakingProfile> getStakingProfile(String userAddress) {
-        return getStakingProfiles(List.of(userAddress)).next();
+        return getStakingProfile(userAddress, false);
     }
 
     /**
-     * Warms {@code StakingLock} multiplier map in Redis (TTL {@value #TIER_CFG_TTL} hours) when missing.
+     * User snapshot. {@code fresh} busts profile v2 + computed user get-keys once per 15 s (SET NX).
      */
-    private Mono<Void> ensureTierConfigCache() {
+    public Mono<UserStakingProfile> getStakingProfile(String userAddress, boolean fresh) {
+        Mono<Void> prep = fresh ? bustUserCachesIfNx(userAddress) : Mono.empty();
+        return prep.then(getStakingProfiles(List.of(userAddress)).next());
+    }
+
+    /**
+     * Shared lock configs + TVL with empty stakes. Catalog miss after RPC retries → error.
+     */
+    public Mono<UserStakingProfile> getCatalogSnapshot() {
+        return loadCatalog(true)
+                .map(cat -> new UserStakingProfile(
+                        null,
+                        null,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        List.of(),
+                        cat.configs(),
+                        cat.tvls()))
+                .onErrorMap(this::wrapRpc);
+    }
+
+    private Throwable wrapRpc(Throwable e) {
+        return e instanceof TonRpcException ? e : new TonRpcException("TON staking RPC failed", e);
+    }
+
+    private Mono<Void> bustUserCachesIfNx(String userAddress) {
+        String freshKey = "ton:staking:fresh:" + TonAddressBoc.normalizeKey(userAddress);
+        return stringRedis.opsForValue()
+                .setIfAbsent(freshKey, "1", FRESH_TTL)
+                .defaultIfEmpty(false)
+                .flatMap(won -> Boolean.TRUE.equals(won) ? evictUserKeys(userAddress) : Mono.empty());
+    }
+
+    private Mono<Void> evictUserKeys(String userAddress) {
+        String master = requireStakingMaster();
+        List<Mono<Void>> ops = new ArrayList<>();
+        ops.add(stringRedis.delete(profileCacheKey(userAddress)).then());
+        List<Object> vpArgs = List.of(TonAddressBoc.sliceStackArg(userAddress));
+        ops.add(tonService.evict(tonService.cacheKey(master, "get_voting_power", vpArgs)));
+        for (StakingTier tier : StakingTier.values()) {
+            List<Object> args = List.of(
+                    TonAddressBoc.sliceStackArg(userAddress), TonAddressBoc.numStackArg(tier.getId()));
+            ops.add(tonService.evict(tonService.cacheKey(master, "get_stake", args)));
+            ops.add(tonService.evict(tonService.cacheKey(master, "get_pending_reward", args)));
+        }
+        return Flux.concat(ops).then();
+    }
+
+    private record StakingCatalog(List<TierConfigDto> configs, Map<StakingTier, BigInteger> tvls) {
+    }
+
+    private Mono<StakingCatalog> loadCatalog(boolean requireConfigs) {
+        return loadTierConfigs(requireConfigs)
+                .zipWith(loadTvls())
+                .map(t -> new StakingCatalog(t.getT1(), t.getT2()));
+    }
+
+    private Mono<List<TierConfigDto>> loadTierConfigs(boolean require) {
         return stakingLockAddress().flatMap(lock -> {
             String redisKey = tierCfgCacheKey(lock);
-            return stringRedis.opsForValue()
-                    .get(redisKey)
-                    .filter(s -> !s.isBlank())
-                    .hasElement()
-                    .flatMap(exists -> Boolean.TRUE.equals(exists)
-                            ? Mono.empty()
-                            : fetchTierConfigsIntoRedis(lock, redisKey));
+            return readJson(redisKey, new TypeReference<List<TierConfigDto>>() { })
+                    .filter(list -> !list.isEmpty())
+                    .switchIfEmpty(fetchTierConfigsIntoRedis(lock, redisKey))
+                    .onErrorResume(e -> require
+                            ? Mono.error(e instanceof TonRpcException te
+                                    ? te : new TonRpcException("tier catalog unavailable", e))
+                            : readJson(redisKey, new TypeReference<List<TierConfigDto>>() { })
+                                    .defaultIfEmpty(List.of()));
         });
     }
 
-    private Mono<Void> fetchTierConfigsIntoRedis(String lock, String redisKey) {
+    private Mono<List<TierConfigDto>> fetchTierConfigsIntoRedis(String lock, String redisKey) {
         return Flux.fromArray(StakingTier.values())
                 .flatMap(t -> tonService.runGetMethod(
                                 lock, "get_lock_config", List.of(TonAddressBoc.numStackArg(t.getId())))
-                        .map(r -> Map.entry(t.getId(), parseMultiplierBx100(r))))
-                .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                        .map(r -> StakingStackCodec.parseLockConfig(r, t)), 4)
+                .collectList()
+                .flatMap(list -> writeJson(redisKey, list, TIER_CFG_TTL).thenReturn(list));
+    }
+
+    private Mono<Map<StakingTier, BigInteger>> loadTvls() {
+        String master = requireStakingMaster();
+        String redisKey = tvlCacheKey(master);
+        return readJson(redisKey, new TypeReference<Map<StakingTier, BigInteger>>() { })
+                .filter(m -> !m.isEmpty())
+                .switchIfEmpty(fetchTvlsIntoRedis(master, redisKey))
+                .onErrorResume(e -> {
+                    LOG.debug("TVL catalog degraded: {}", e.toString());
+                    return readJson(redisKey, new TypeReference<Map<StakingTier, BigInteger>>() { })
+                            .defaultIfEmpty(Map.of());
+                });
+    }
+
+    private Mono<Map<StakingTier, BigInteger>> fetchTvlsIntoRedis(String master, String redisKey) {
+        return Flux.fromArray(StakingTier.values())
+                .flatMap(t -> tonService.runGetMethod(
+                                master, "get_master_total_stake", List.of(TonAddressBoc.numStackArg(t.getId())))
+                        .map(r -> Map.entry(t, StakingStackCodec.firstStackNum(r)))
+                        .onErrorResume(e -> {
+                            LOG.debug("get_master_total_stake {}: {}", t, e.toString());
+                            return Mono.empty();
+                        }), 4)
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue, () -> new EnumMap<>(StakingTier.class))
                 .flatMap(m -> {
-                    try {
-                        String json = objectMapper.writeValueAsString(m);
-                        return stringRedis.opsForValue().set(redisKey, json, TIER_CFG_TTL).then();
-                    } catch (JsonProcessingException e) {
-                        return Mono.error(new TonRpcException("tier cfg cache", e));
+                    if (m.isEmpty()) {
+                        return Mono.just(Map.<StakingTier, BigInteger>of());
                     }
+                    return writeJson(redisKey, m, TVL_TTL).thenReturn(Map.copyOf(m));
                 });
     }
 
@@ -169,7 +260,9 @@ public class StakingVerifier {
                                     hi.orElse(null),
                                     tot,
                                     vp,
-                                    stakes));
+                                    stakes,
+                                    List.of(),
+                                    Map.of()));
                         })
                         .flatMap(p -> writeProfile(key, p).thenReturn(p)));
     }
@@ -178,7 +271,7 @@ public class StakingVerifier {
         List<Object> args = List.of(TonAddressBoc.sliceStackArg(userAddress), TonAddressBoc.numStackArg(tier.getId()));
         return tonService.runGetMethod(master, "get_stake", args)
                 .flatMap(r -> {
-                    Optional<StakeInfo> base = parseStake(r, tier);
+                    Optional<StakeInfo> base = StakingStackCodec.parseStake(r, tier);
                     if (base.isEmpty()) {
                         return Mono.just(Optional.<StakeInfo>empty());
                     }
@@ -193,63 +286,6 @@ public class StakingVerifier {
                 });
     }
 
-    private Optional<StakeInfo> parseStake(JsonNode result, StakingTier tier) {
-        List<JsonNode> flat = flattenStackNodes(result);
-        if (flat.size() < 5) {
-            return Optional.empty();
-        }
-        BigInteger amount = parseNum(flat.get(0));
-        if (amount.signum() <= 0) {
-            return Optional.empty();
-        }
-        int tierNum = parseNum(flat.get(1)).intValueExact();
-        long start = parseNum(flat.get(2)).longValueExact();
-        long lastClaim = parseNum(flat.get(3)).longValueExact();
-        long unlock = parseNum(flat.get(4)).longValueExact();
-        StakingTier onChain = StakingTier.fromId(tierNum);
-        if (onChain != tier) {
-            LOG.trace("Stake tier mismatch param={} chain={}", tier, onChain);
-        }
-        return Optional.of(new StakeInfo(onChain, amount, start, unlock, lastClaim, BigInteger.ZERO));
-    }
-
-    private static List<JsonNode> flattenStackNodes(JsonNode result) {
-        JsonNode stack = result.get("stack");
-        if (stack == null || !stack.isArray()) {
-            return List.of();
-        }
-        if (stack.size() == 1 && stack.get(0).isArray()) {
-            JsonNode sole = stack.get(0);
-            String soleType = sole.size() >= 2 ? sole.get(0).asText("") : "";
-            if ("tuple".equalsIgnoreCase(soleType) || "list".equalsIgnoreCase(soleType)) {
-                JsonNode tuple = sole.get(1);
-                List<JsonNode> out = new ArrayList<>();
-                // Ton Center v2 wraps tuple/list values as {"@type":"tvm.tuple","elements":[...]};
-                // a bare JSON array is kept for relay/test compatibility.
-                JsonNode elements = tuple != null && tuple.isObject() ? tuple.get("elements") : tuple;
-                if (elements != null && elements.isArray()) {
-                    for (JsonNode n : elements) {
-                        out.add(n);
-                    }
-                }
-                return out;
-            }
-        }
-        List<JsonNode> out = new ArrayList<>();
-        for (JsonNode n : stack) {
-            out.add(n);
-        }
-        return out;
-    }
-
-    private static BigInteger firstStackNum(JsonNode result) {
-        JsonNode stack = result.get("stack");
-        if (stack == null || stack.size() < 1) {
-            return BigInteger.ZERO;
-        }
-        return parseNum(stack.get(0));
-    }
-
     private Mono<String> stakingLockAddress() {
         String master = requireStakingMaster();
         String key = lockCacheKey(master);
@@ -257,90 +293,52 @@ public class StakingVerifier {
                 .get(key)
                 .filter(s -> !s.isBlank())
                 .switchIfEmpty(Mono.defer(() -> tonService.runGetMethod(master, "get_staking_lock", List.of())
-                        .map(StakingVerifier::extractAddressFromStack)
+                        .map(StakingStackCodec::extractAddressFromStack)
                         .flatMap(addr -> stringRedis.opsForValue().set(key, addr, LOCK_ADDR_TTL).thenReturn(addr))));
     }
 
-    private static String extractAddressFromStack(JsonNode result) {
-        JsonNode stack = result.get("stack");
-        if (stack == null || stack.size() < 1) {
-            throw new TonRpcException("empty stack for address");
-        }
-        JsonNode first = stack.get(0);
-        String b64 = cellBase64(first);
-        return TonAddressBoc.decodeRawAddressFromSingleRootBoc(b64);
-    }
-
-    private static int parseMultiplierBx100(JsonNode result) {
-        List<JsonNode> flat = flattenStackNodes(result);
-        if (flat.size() < 2) {
-            throw new TonRpcException("get_lock_config stack too small");
-        }
-        return parseNum(flat.get(1)).intValueExact();
-    }
-
-    private static BigInteger parseNum(JsonNode item) {
-        String raw;
-        if (item.isArray() && item.size() >= 2) {
-            raw = item.get(1).asText();
-        } else if (item.has("number")) {
-            // tvm.stackEntryNumber tuple element: {"number":{"@type":"tvm.numberDecimal","number":"<dec>"}}
-            JsonNode n = item.get("number");
-            raw = n.isObject() && n.has("number") ? n.get("number").asText() : n.asText();
-        } else if (item.has("value")) {
-            raw = item.get("value").asText();
-        } else {
-            raw = item.asText();
-        }
-        raw = raw.trim();
-        if (raw.startsWith("0x") || raw.startsWith("0X")) {
-            return new BigInteger(raw.substring(2), 16);
-        }
-        return new BigInteger(raw);
-    }
-
-    private static String cellBase64(JsonNode stackEntry) {
-        if (stackEntry.isArray() && stackEntry.size() >= 2) {
-            JsonNode v = stackEntry.get(1);
-            if (v.isTextual()) {
-                return v.asText();
-            }
-            if (v.isObject() && v.has("bytes")) {
-                return v.get("bytes").asText();
-            }
-        }
-        if (stackEntry.isObject() && stackEntry.has("bytes")) {
-            return stackEntry.get("bytes").asText();
-        }
-        throw new TonRpcException("Cannot read cell/slice value");
-    }
-
     private Mono<UserStakingProfile> readProfile(String key) {
-        return stringRedis.opsForValue()
-                .get(key)
-                .filter(s -> !s.isBlank())
-                .flatMap(json -> Mono.fromCallable(() -> objectMapper.readValue(json, UserStakingProfile.class)));
+        return readJson(key, new TypeReference<UserStakingProfile>() { });
     }
 
     private Mono<Boolean> writeProfile(String key, UserStakingProfile p) {
+        return writeJson(key, p, USER_PROFILE_TTL);
+    }
+
+    private <T> Mono<T> readJson(String key, TypeReference<T> type) {
+        return stringRedis.opsForValue()
+                .get(key)
+                .filter(s -> !s.isBlank())
+                .flatMap(json -> Mono.fromCallable(() -> objectMapper.readValue(json, type))
+                        .onErrorResume(e -> {
+                            LOG.debug("Ignore corrupt cache {}: {}", key, e.toString());
+                            return Mono.empty();
+                        }));
+    }
+
+    private Mono<Boolean> writeJson(String key, Object value, Duration ttl) {
         try {
-            String json = objectMapper.writeValueAsString(p);
-            return stringRedis.opsForValue().set(key, json, USER_PROFILE_TTL).defaultIfEmpty(false);
+            String json = objectMapper.writeValueAsString(value);
+            return stringRedis.opsForValue().set(key, json, ttl).defaultIfEmpty(false);
         } catch (JsonProcessingException e) {
-            return Mono.error(new TonRpcException("serialize profile", e));
+            return Mono.error(new TonRpcException("serialize staking cache", e));
         }
     }
 
     private String profileCacheKey(String userAddress) {
-        return "ton:staking:profile:" + CACHE_VER + ":" + TonAddressBoc.normalizeKey(userAddress);
+        return "ton:staking:profile:" + PROFILE_CACHE_VER + ":" + TonAddressBoc.normalizeKey(userAddress);
     }
 
     private String lockCacheKey(String stakingMaster) {
-        return "ton:staking:lock:" + CACHE_VER + ":" + TonAddressBoc.normalizeKey(stakingMaster);
+        return "ton:staking:lock:" + LOCK_CACHE_VER + ":" + TonAddressBoc.normalizeKey(stakingMaster);
     }
 
     private String tierCfgCacheKey(String lockAddress) {
-        return "ton:staking:tiercfg:" + CACHE_VER + ":" + TonAddressBoc.normalizeKey(lockAddress);
+        return "ton:staking:tiercfg:" + TIERCFG_CACHE_VER + ":" + TonAddressBoc.normalizeKey(lockAddress);
+    }
+
+    private String tvlCacheKey(String stakingMaster) {
+        return "ton:staking:tvl:" + TVL_CACHE_VER + ":" + TonAddressBoc.normalizeKey(stakingMaster);
     }
 
     private String requireStakingMaster() {

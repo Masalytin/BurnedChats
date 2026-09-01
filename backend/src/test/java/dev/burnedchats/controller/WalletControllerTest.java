@@ -6,6 +6,7 @@ import dev.burnedchats.model.enums.StakingTier;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.dto.StakeInfo;
+import dev.burnedchats.ton.dto.TierConfigDto;
 import dev.burnedchats.ton.dto.UserStakingProfile;
 import dev.burnedchats.ton.exception.TonRpcException;
 import java.math.BigInteger;
@@ -20,8 +21,11 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DisplayName("WalletController")
@@ -182,10 +186,12 @@ class WalletControllerTest {
                 StakingTier.GOLD,
                 new BigInteger("10000000000"),
                 new BigInteger("20000000000"),
-                List.of(goldStake));
-        when(stakingVerifier.getStakingProfile(anyString())).thenReturn(Mono.just(profile));
+                List.of(goldStake),
+                List.of(),
+                Map.of());
+        when(stakingVerifier.getStakingProfile(anyString(), anyBoolean())).thenReturn(Mono.just(profile));
 
-        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS))
+        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS, null))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(resp.getBody()).isInstanceOf(UserStakingProfile.class);
@@ -199,17 +205,51 @@ class WalletControllerTest {
     }
 
     @Test
-    @DisplayName("staking-profile missing address returns 400")
-    void stakingProfileMissingAddress() {
-        StepVerifier.create(controller.stakingProfile(null))
-                .assertNext(resp -> assertBadRequest(resp, "address is required"))
+    @DisplayName("staking-profile without address returns 200 catalog-only")
+    void stakingProfileMissingAddressCatalogOnly() {
+        UserStakingProfile catalog = new UserStakingProfile(
+                null,
+                null,
+                BigInteger.ZERO,
+                BigInteger.ZERO,
+                List.of(),
+                List.of(new TierConfigDto(StakingTier.FLEXIBLE, 0L, 1.0, 5)),
+                Map.of(StakingTier.FLEXIBLE, new BigInteger("1")));
+        when(stakingVerifier.getCatalogSnapshot()).thenReturn(Mono.just(catalog));
+
+        StepVerifier.create(controller.stakingProfile(null, null))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    UserStakingProfile body = (UserStakingProfile) resp.getBody();
+                    assertThat(body.address()).isNull();
+                    assertThat(body.stakes()).isEmpty();
+                    assertThat(body.tierConfigs()).hasSize(1);
+                    assertThat(body.liveTierTvls()).isNotEmpty();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("staking-profile blank address returns 200 catalog-only")
+    void stakingProfileBlankAddressCatalogOnly() {
+        UserStakingProfile catalog = new UserStakingProfile(
+                null, null, BigInteger.ZERO, BigInteger.ZERO, List.of(), List.of(), Map.of());
+        when(stakingVerifier.getCatalogSnapshot()).thenReturn(Mono.just(catalog));
+
+        StepVerifier.create(controller.stakingProfile("   ", null))
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    UserStakingProfile body = (UserStakingProfile) resp.getBody();
+                    assertThat(body.address()).isNull();
+                    assertThat(body.stakes()).isEmpty();
+                })
                 .verifyComplete();
     }
 
     @Test
     @DisplayName("staking-profile invalid address returns 400")
     void stakingProfileInvalidAddress() {
-        StepVerifier.create(controller.stakingProfile("not-a-ton-address"))
+        StepVerifier.create(controller.stakingProfile("not-a-ton-address", null))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
                     assertThat(resp.getBody()).isInstanceOf(Map.class);
@@ -221,15 +261,28 @@ class WalletControllerTest {
     @Test
     @DisplayName("staking-profile Ton RPC failure returns 502")
     void stakingProfileRpcFailure() {
-        when(stakingVerifier.getStakingProfile(anyString()))
+        when(stakingVerifier.getStakingProfile(anyString(), anyBoolean()))
                 .thenReturn(Mono.error(new TonRpcException("Ton Center staking error")));
 
-        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS))
+        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS, null))
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                     assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center staking error"));
                 })
                 .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("staking-profile fresh=1 is forwarded to verifier")
+    void stakingProfileFreshFlag() {
+        UserStakingProfile profile = new UserStakingProfile(
+                VALID_ADDRESS, null, BigInteger.ZERO, BigInteger.ZERO, List.of(), List.of(), Map.of());
+        when(stakingVerifier.getStakingProfile(anyString(), eq(true))).thenReturn(Mono.just(profile));
+
+        StepVerifier.create(controller.stakingProfile(VALID_ADDRESS, "1"))
+                .assertNext(resp -> assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK))
+                .verifyComplete();
+        verify(stakingVerifier).getStakingProfile(VALID_ADDRESS, true);
     }
 
     private static void assertBadRequest(ResponseEntity<Object> resp, String expectedMessage) {

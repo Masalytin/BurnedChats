@@ -62,7 +62,11 @@ summarized in the table.
 | `ton:jetton:balance:v1:{wc}:{hex}` | string | 30s | Jetton balance cache |
 | `ton:jetton:info:v1:{wc}:{hex}` | string | 1h | Jetton master info |
 | `ton:jetton:fees:v1:{wc}:{hex}` | string | 5min | Effective fee params |
-| `ton:staking:profile\|lock\|tiercfg:v1:{wc}:{hex}` | string | 30s / 1h | Staking cache |
+| `ton:staking:profile:v2:{wc}:{hex}` | string | 30s | Staking user snapshot JSON |
+| `ton:staking:lock:v1:{wc}:{hex}` | string | 1h | StakingLock address |
+| `ton:staking:tiercfg:v2:{wc}:{hex}` | string | 1h | Full lock-config catalog JSON |
+| `ton:staking:tvl:v2:{wc}:{hex}` | string | 180s | Per-tier TVL map |
+| `ton:staking:fresh:{wc}:{hex}` | string | 15s NX | fresh=1 rate-limit per address |
 | `ton:governance:summary\|detail:v1:{id}` | string | 30s | Governance proposal cache |
 | `health:test:{timestamp}` | string | 10s | Redis health probe |
 
@@ -330,9 +334,13 @@ Address in the key suffix is normalized as `workchain:hex` (see `TonAddressBoc.n
 
 | Key pattern | TTL | Value |
 |--------------|-----|----------|
-| `ton:staking:profile:v1:{workchain}:{hex}` | 30 s | JSON `UserStakingProfile` |
-| `ton:staking:lock:v1:{workchain}:{hex}` | 1 h | `StakingLock` address for the given staking-master |
-| `ton:staking:tiercfg:v1:{workchain}:{hex}` | 1 h | Tier config cache read from lock contract |
+| `ton:staking:profile:v2:{workchain}:{hex}` | 30 s | JSON `UserStakingProfile` (user fields; catalog attached at read) |
+| `ton:staking:lock:v1:{workchain}:{hex}` | 1 h | `StakingLock` address for the given staking-master (shape unchanged) |
+| `ton:staking:tiercfg:v2:{workchain}:{hex}` | 1 h | JSON array of full `TierConfig` (`lockDurationSec`, `multiplier`, `rewardSharePercent`). v1 multiplier-only keys are not read |
+| `ton:staking:tvl:v2:{workchain}:{hex}` | 180 s | JSON map of per-tier TVL nano (`get_master_total_stake` × 4) |
+| `ton:staking:fresh:{workchain}:{hex}` | 15 s | SET NX gate for `?fresh=1` (one bust per address per window) |
+
+`?fresh=1` DELs `profile:v2` and computed `ton:rpc:{master}:{get_stake\|get_pending_reward\|get_voting_power}:{argsHash}` for that user slice via `TonService.evict`. Catalog / lock / tvl keys are not deleted. No `SCAN`.
 
 ---
 

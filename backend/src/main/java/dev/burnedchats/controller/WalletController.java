@@ -3,12 +3,19 @@ package dev.burnedchats.controller;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.TonAddressBoc;
+import dev.burnedchats.ton.dto.UserStakingProfile;
 import dev.burnedchats.ton.exception.TonRpcException;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -75,13 +82,31 @@ public class WalletController {
     }
 
     /**
-     * Aggregated staking profile for one wallet (stakes, voting power, pending rewards). Public read; no auth.
-     * Response shape matches frontend {@code staking.ts} {@code tryBackendStakes} / {@code mapBackendStake}.
+     * Aggregated staking snapshot (stakes, VP, lock catalog, TVL). Public read; no auth.
+     * Omit {@code address} for catalog-only. {@code fresh=1} busts the user cache (1/15s).
      */
     @GetMapping("/staking-profile")
-    public Mono<ResponseEntity<Object>> stakingProfile(@RequestParam(required = false) @Nullable String address) {
+    @Operation(summary = "Staking snapshot (positions + catalog); omit address for catalog-only")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Snapshot or catalog-only",
+                content = @Content(schema = @Schema(implementation = UserStakingProfile.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid TON address"),
+        @ApiResponse(responseCode = "502", description = "User RPC or catalog RPC exhausted")
+    })
+    public Mono<ResponseEntity<Object>> stakingProfile(
+            @Parameter(description = "TON wallet; omit for catalog-only")
+            @RequestParam(required = false) @Nullable String address,
+            @Parameter(description = "1 = bust user profile + computed get-keys (rate-limited 1/15s)")
+            @RequestParam(required = false) @Nullable String fresh) {
+        boolean refresh = "1".equals(fresh);
         if (address == null || address.isBlank()) {
-            return Mono.just(badRequest("address is required"));
+            return stakingVerifier
+                    .getCatalogSnapshot()
+                    .map(profile -> ResponseEntity.<Object>ok(profile))
+                    .onErrorResume(
+                            TonRpcException.class,
+                            e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
+                                    .body(Map.of("message", e.getMessage()))));
         }
         String trimmed = address.trim();
         try {
@@ -90,7 +115,7 @@ public class WalletController {
             return Mono.just(badRequest(e.getMessage()));
         }
         return stakingVerifier
-                .getStakingProfile(trimmed)
+                .getStakingProfile(trimmed, refresh)
                 .map(profile -> ResponseEntity.<Object>ok(profile))
                 .onErrorResume(
                         TonRpcException.class,

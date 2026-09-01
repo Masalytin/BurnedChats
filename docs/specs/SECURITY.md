@@ -783,6 +783,9 @@ E2EE payload (messages, group keys, file blobs) remains opaque; PoW protects **s
 - **Limits:** see "Layer 0" table (MESSAGE 60/min, SESSION_CREATE 3/min, …).
 - **Room password brute-force ():** bucket `ROOM_PASSWORD_FAIL` — implemented in
   `RateLimitService` (`ROOM_PASSWORD_FAIL`, fixed-window per room).
+- **Public `GET /api/wallet/staking-profile?fresh=1`:** cache-bust amplification
+  (not a ZK leak — on-chain public state). Mitigations: outbound semaphore
+  (TonService), Redis SET NX 15 s per address, REST 60/min on `/api/wallet/**`.
 
 ### Edge rate-limit (nginx)
 

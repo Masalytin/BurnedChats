@@ -180,6 +180,15 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   is present, verification uses the local `client_provided` path and does not
   call TonCenter. `POST /api/auth/link-wallet` accepts the same new-wallet pair.
   Paths/schemas: [openapi.yaml](./openapi.yaml).
+- **`GET /api/wallet/staking-profile`** is a public snapshot (no auth). Omit
+  `address` → **200** catalog-only (`stakes: []`, `address: null`, lock configs +
+  TVL). Invalid address → **400** `{message}`. User-RPC exhausted → **502**
+  `{message}` (catalog last-good in Redis is not overwritten). User OK + TVL miss
+  → **200** with last TVL or omitted TVL keys. `?fresh=1` busts profile v2 and
+  computed `ton:rpc` get-keys for that user (SET NX 15 s; repeat in-window is a
+  normal GET). Nano fields are **decimal strings**. Same REST bucket as other
+  `/api/wallet/**` (60/min). Prod clients must not fall back to Toncenter on
+  non-200 (IMP-TONREAD-03).
 - **`POST /api/auth/link-telegram/complete`** binds Telegram (`initData` HMAC)
   to the wallet `internalId` stored in `wallet_tg_link:{challengeId}` (15 min).
   The challenge is read first and **deleted only after** a successful bind, so a
