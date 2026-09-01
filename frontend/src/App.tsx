@@ -74,6 +74,7 @@ import { GovernancePage } from './pages/GovernancePage';
 import { StakingPage } from './pages/StakingPage';
 import { LazyWalletProvider } from './components/Wallet/LazyWalletProvider';
 import { WalletErrorBoundary } from './components/Wallet/WalletErrorBoundary';
+import { StakingProvider } from './components/Staking/StakingProvider';
 import type { LinkedAccountsCredentials } from './components/Settings/LinkedAccounts';
 import { completeTelegramWalletLink } from './services/accountLinkingApi';
 import { completeAndApplyTelegramWalletLink } from './auth/linkedWalletSnapshot';
@@ -3504,17 +3505,27 @@ function AppContent() {
   const shouldMountWalletProvider =
     showWalletProvider && (environment === 'browser' || telegramWalletChromeRequested);
 
-  const wrapWalletProvider = (children: ReactNode): ReactNode => {
-    if (!shouldMountWalletProvider) {
+  // Authenticated root (IMP-TONREAD-04): ChatRoom always calls useStaking.
+  // Must NOT follow shouldMountWalletProvider — Telegram chat without a linked
+  // wallet has no wallet chrome but still needs the catalog/tier badge.
+  const wrapStakingProvider = (children: ReactNode): ReactNode => {
+    if (!showWalletProvider) {
       return children;
     }
-    return (
-      <WalletErrorBoundary>
-        <Suspense fallback={children}>
-          <LazyWalletProvider>{children}</LazyWalletProvider>
-        </Suspense>
-      </WalletErrorBoundary>
-    );
+    return <StakingProvider>{children}</StakingProvider>;
+  };
+
+  const wrapWalletProvider = (children: ReactNode): ReactNode => {
+    const withWallet = !shouldMountWalletProvider
+      ? children
+      : (
+          <WalletErrorBoundary>
+            <Suspense fallback={children}>
+              <LazyWalletProvider>{children}</LazyWalletProvider>
+            </Suspense>
+          </WalletErrorBoundary>
+        );
+    return wrapStakingProvider(withWallet);
   };
 
   const debugPanelElement = prefs.debugPanelEnabled ? (

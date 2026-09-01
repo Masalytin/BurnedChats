@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
-import { renderHook, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
+import { render, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { StakingProvider } from '@/components/Staking/StakingProvider';
 import { useStaking } from '@/hooks/useStaking';
 import { useTonConnect } from '@/hooks/useTonConnect';
 import * as staking from '@/ton/staking';
@@ -20,6 +22,10 @@ vi.mock('@/hooks/useTonConnect', () => ({
 }));
 
 const mockUseTonConnect = vi.mocked(useTonConnect);
+
+function stakingWrapper({ children }: { children: ReactNode }) {
+  return createElement(StakingProvider, null, children);
+}
 
 describe('useStaking catalog vs wallet', () => {
   beforeEach(() => {
@@ -46,7 +52,7 @@ describe('useStaking catalog vs wallet', () => {
       isConnected: false,
     } as ReturnType<typeof useTonConnect>);
 
-    const { result } = renderHook(() => useStaking());
+    const { result } = renderHook(() => useStaking(), { wrapper: stakingWrapper });
 
     await waitFor(() => {
       expect(result.current.tierConfigs).toEqual(CATALOG);
@@ -83,7 +89,7 @@ describe('useStaking catalog vs wallet', () => {
       liveTierTvls: {},
     });
 
-    const { result } = renderHook(() => useStaking());
+    const { result } = renderHook(() => useStaking(), { wrapper: stakingWrapper });
 
     await waitFor(() => {
       expect(result.current.tierConfigs).toEqual(CATALOG);
@@ -106,7 +112,7 @@ describe('useStaking catalog vs wallet', () => {
       new StakingError('NETWORK_ERROR', 'staking.rpcUnavailable'),
     );
 
-    const { result } = renderHook(() => useStaking());
+    const { result } = renderHook(() => useStaking(), { wrapper: stakingWrapper });
 
     await waitFor(() => {
       expect(result.current.error).toBeInstanceOf(StakingError);
@@ -130,7 +136,7 @@ describe('useStaking catalog vs wallet', () => {
       isConnected: false,
     } as ReturnType<typeof useTonConnect>);
 
-    renderHook(() => useStaking());
+    renderHook(() => useStaking(), { wrapper: stakingWrapper });
 
     await waitFor(() => {
       expect(staking.getStakingSnapshot).toHaveBeenCalled();
@@ -138,5 +144,38 @@ describe('useStaking catalog vs wallet', () => {
 
     expect(staking.getStakingSnapshot).toHaveBeenCalledTimes(1);
     expect(staking.getLiveTierTvls).not.toHaveBeenCalled();
+  });
+
+  it('throws when used outside StakingProvider', () => {
+    expect(() => renderHook(() => useStaking())).toThrow(
+      'useStaking must be used within a StakingProvider',
+    );
+  });
+
+  it('two useStaking consumers share one getStakingSnapshot load', async () => {
+    mockUseTonConnect.mockReturnValue({
+      walletAddress: null,
+      isConnected: false,
+    } as ReturnType<typeof useTonConnect>);
+
+    function Reader() {
+      useStaking();
+      return null;
+    }
+
+    render(
+      createElement(
+        StakingProvider,
+        null,
+        createElement(Reader),
+        createElement(Reader),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(staking.getStakingSnapshot).toHaveBeenCalled();
+    });
+
+    expect(staking.getStakingSnapshot).toHaveBeenCalledTimes(1);
   });
 });

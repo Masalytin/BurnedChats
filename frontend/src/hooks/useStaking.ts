@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import type { TxResult } from '@/ton/types';
 import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
@@ -115,7 +115,18 @@ export interface UseStaking {
   calculateApy(tier: StakingTier, stakeAmount: bigint): number;
 }
 
+export const StakingContext = createContext<UseStaking | null>(null);
+
 export function useStaking(): UseStaking {
+  const ctx = useContext(StakingContext);
+  if (!ctx) {
+    throw new Error('useStaking must be used within a StakingProvider');
+  }
+  return ctx;
+}
+
+/** Single store body — call once from {@link StakingProvider}, not from consumers. */
+export function useStakingController(): UseStaking {
   const { walletAddress, isConnected } = useTonConnect();
 
   const [chainStakes, setChainStakes] = useState<StakeInfo[]>([]);
