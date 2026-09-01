@@ -268,7 +268,7 @@ export function StakingDashboard({
       {error ? (
         <div className={styles.banner} role="alert">
           <p className={`${styles.errText} ${styles.textReset}`}>
-            {error.message}
+            {t('staking.rpcUnavailable')}
           </p>
           <button
             type="button"

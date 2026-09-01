@@ -1,7 +1,19 @@
 import { Address, beginCell } from '@ton/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { calculateApy, getLastTierConfigSource, getMasterTotalStake, getStakes, getTierConfigs, PHASE1_DAILY_EMISSION_NANO, stakeTx, type StakingDeps } from '@/ton/staking';
+import {
+  calculateApy,
+  getLastTierConfigSource,
+  getMasterTotalStake,
+  getStakes,
+  getStakingSnapshot,
+  getTierConfigs,
+  PHASE1_DAILY_EMISSION_NANO,
+  setStakingReadDevForTests,
+  stakeTx,
+  StakingError,
+  type StakingDeps,
+} from '@/ton/staking';
 import { StakingTier } from '@/types/ton';
 import { formatLockDuration, formatTierName, formatTimeRemaining } from '@/utils/staking-format';
 
@@ -66,8 +78,133 @@ describe('calculateApy', () => {
   });
 });
 
+describe('getStakingSnapshot / prod read', () => {
+  afterEach(() => {
+    setStakingReadDevForTests(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  it('getStakes on 502 throws and does not call Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.burned.test');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/staking-profile')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      return jsonResponse({ ok: true, result: { exit_code: 0, stack: [] } });
+    });
+
+    await expect(
+      getStakes(USER, {
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        stakingMaster: STAKING_MASTER,
+      }),
+    ).rejects.toBeInstanceOf(StakingError);
+
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+  });
+
+  it('200 maps additive tierConfigs, liveTierTvls, and nano strings', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.burned.test');
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        address: USER,
+        highestTier: 'GOLD',
+        totalStakedNano: '5000000000',
+        votingPowerNano: '10000000000',
+        stakes: [
+          {
+            tier: 'GOLD',
+            amount: '5000000000',
+            startTime: 100,
+            unlockTime: 1000,
+            lastClaimTime: 200,
+            pendingRewards: '1234567890123456789',
+          },
+        ],
+        tierConfigs: [
+          { tier: 'FLEXIBLE', lockDurationSec: 0, multiplier: 1.0, rewardSharePercent: 5 },
+          { tier: 'SILVER', lockDurationSec: 15_552_000, multiplier: 1.5, rewardSharePercent: 10 },
+          { tier: 'GOLD', lockDurationSec: 31_536_000, multiplier: 2.0, rewardSharePercent: 25 },
+          { tier: 'DIAMOND', lockDurationSec: 94_608_000, multiplier: 3.0, rewardSharePercent: 60 },
+        ],
+        liveTierTvls: {
+          FLEXIBLE: '1000000000',
+          GOLD: '9000000000000000000',
+        },
+      }),
+    );
+
+    const snap = await getStakingSnapshot({ address: USER, fetchImpl });
+    expect(snap.stakes).toHaveLength(1);
+    expect(snap.stakes[0]?.tier).toBe(StakingTier.Gold);
+    expect(snap.stakes[0]?.amount).toBe(5_000_000_000n);
+    expect(snap.stakes[0]?.pendingReward).toBe(1_234_567_890_123_456_789n);
+    expect(snap.tierConfigs).toHaveLength(4);
+    expect(snap.tierConfigs.find((c) => c.tier === StakingTier.Gold)?.rewardSharePercent).toBe(25);
+    expect(snap.liveTierTvls[StakingTier.Flexible]).toBe(1_000_000_000n);
+    expect(snap.liveTierTvls[StakingTier.Gold]).toBe(9_000_000_000_000_000_000n);
+    expect(snap.liveTierTvls[StakingTier.Silver]).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/staking-profile');
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('toncenter');
+  });
+
+  it('empty VITE_API_URL on prod-path errors and does not default to Toncenter', async () => {
+    setStakingReadDevForTests(false);
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchImpl = vi.fn();
+
+    await expect(
+      getStakes(USER, {
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        stakingMaster: STAKING_MASTER,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFIG' });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('coalesces in-flight snapshot fetches for the same address', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.burned.test');
+    let resolveFetch: ((value: Response) => void) | undefined;
+    const fetchImpl = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    const a = getStakingSnapshot({ address: USER, fetchImpl });
+    const b = getStakingSnapshot({ address: USER, fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    resolveFetch!(
+      jsonResponse({
+        address: USER,
+        stakes: [],
+        tierConfigs: [],
+        liveTierTvls: {},
+      }),
+    );
+    const [snapA, snapB] = await Promise.all([a, b]);
+    expect(snapA).toEqual(snapB);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('getStakes RPC', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('aggregates non-zero tiers from get_stake + get_pending_reward', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(String(init.body)) : {};
       const method = body.method as string;
@@ -135,6 +272,7 @@ describe('getStakes RPC', () => {
   });
 
   it('parses real Ton Center v2 shape: StakeInfoView? as ["tuple", {elements}] / null as ["list", {elements: []}]', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     const numEl = (dec: string) => ({
       '@type': 'tvm.stackEntryNumber',
       number: { '@type': 'tvm.numberDecimal', number: dec },
@@ -221,34 +359,49 @@ describe('getMasterTotalStake', () => {
 });
 
 describe('getTierConfigs cache', () => {
-  it('stores tier configs in localStorage for 1h window', async () => {
-    const store: Record<string, string> = {};
-
-    const ls = {
-      getItem: (k: string) => store[k] ?? null,
-      setItem: (k: string, v: string) => {
-        store[k] = v;
-      },
-      removeItem: (k: string) => {
-        delete store[k];
-      },
-    };
-    vi.stubGlobal('localStorage', ls);
-
-    const first = await getTierConfigs();
-    expect(first).toHaveLength(4);
-    const raw = store['burn-staking-tier-config-v2'];
-    expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw!) as { configs: unknown[]; at: number };
-    expect(parsed.configs).toHaveLength(4);
-
-    const second = await getTierConfigs();
-    expect(second).toEqual(first);
-
+  afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
+  it('uses snapshot catalog when API is configured (no Toncenter)', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.burned.test');
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        address: null,
+        stakes: [],
+        tierConfigs: [
+          { tier: 'FLEXIBLE', lockDurationSec: 0, multiplier: 1.0, rewardSharePercent: 5 },
+          { tier: 'SILVER', lockDurationSec: 1, multiplier: 1.5, rewardSharePercent: 10 },
+          { tier: 'GOLD', lockDurationSec: 2, multiplier: 2.0, rewardSharePercent: 25 },
+          { tier: 'DIAMOND', lockDurationSec: 3, multiplier: 3.0, rewardSharePercent: 60 },
+        ],
+        liveTierTvls: {},
+      }),
+    );
+    const configs = await getTierConfigs({
+      fetchImpl,
+      rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+      stakingMaster: STAKING_MASTER,
+    });
+    expect(configs).toHaveLength(4);
+    expect(getLastTierConfigSource()).toBe('chain');
+    expect(fetchImpl.mock.calls.every(([url]) => !String(url).includes('runGetMethod'))).toBe(true);
+  });
+
+  it('uses hardcoded configs when snapshot 200 omits tierConfigs', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.burned.test');
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({ address: null, stakes: [], liveTierTvls: {} }),
+    );
+    const configs = await getTierConfigs({ fetchImpl, stakingMaster: STAKING_MASTER });
+    expect(configs).toHaveLength(4);
+    expect(configs[2]?.rewardSharePercent).toBe(25);
+    expect(getLastTierConfigSource()).toBe('fallback');
+  });
+
   it('reads lock duration and shares from StakingLock getters', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     const store: Record<string, string> = {};
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => store[k] ?? null,
@@ -310,29 +463,22 @@ describe('getTierConfigs cache', () => {
     vi.unstubAllGlobals();
   });
 
-  it('falls back to hardcoded configs and warns when RPC fails', async () => {
-    const store: Record<string, string> = {};
+  it('throws when DEV RPC for tier configs fails (no silent hardcoded fallback)', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     vi.stubGlobal('localStorage', {
       getItem: () => null,
-      setItem: (k: string, v: string) => {
-        store[k] = v;
-      },
+      setItem: () => {},
       removeItem: () => {},
     });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'));
 
-    const configs = await getTierConfigs({
-      fetchImpl,
-      rpcBaseUrl: 'https://stub.ton/api/v2',
-      stakingMaster: STAKING_MASTER,
-    });
-    expect(configs).toHaveLength(4);
-    expect(configs[2]?.rewardSharePercent).toBe(25);
-    expect(getLastTierConfigSource()).toBe('fallback');
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
-    vi.unstubAllGlobals();
+    await expect(
+      getTierConfigs({
+        fetchImpl,
+        rpcBaseUrl: 'https://stub.ton/api/v2',
+        stakingMaster: STAKING_MASTER,
+      }),
+    ).rejects.toBeInstanceOf(StakingError);
   });
 });
 

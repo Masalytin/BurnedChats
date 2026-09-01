@@ -1326,6 +1326,7 @@
     "positionStarted": "منذ",
     "positionUnlock": "فتح القفل",
     "retry": "إعادة المحاولة",
+    "rpcUnavailable": "بيانات الستيكينغ غير متاحة مؤقتًا. حاول مرة أخرى.",
     "rewardsEmpty": "لا توجد مكافآت معلقة حاليًا.",
     "rewardsTitle": "المكافآت",
     "stakeConfirm": "Staking والتوقيع",

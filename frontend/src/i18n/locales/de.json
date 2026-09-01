@@ -1414,6 +1414,7 @@
     "connectHint": "Verbinden Sie Ihre TON-Wallet, um Positionen anzuzeigen und BURN zu staken.",
     "connectWallet": "Wallet verbinden",
     "retry": "Wiederholen",
+    "rpcUnavailable": "Staking-Daten sind vorübergehend nicht verfügbar. Bitte erneut versuchen.",
     "headerTotalStaked": "Gesamt gestakt",
     "headerTotalVp": "Anzeige-VP",
     "headerVoteVp": "Stimmberechtigte VP",

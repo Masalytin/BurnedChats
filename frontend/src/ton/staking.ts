@@ -50,6 +50,25 @@ export class StakingError extends Error {
   }
 }
 
+/** Test-only override. `undefined` restores `import.meta.env.DEV`. */
+let stakingReadDevOverride: boolean | undefined;
+
+/**
+ * Vite inlines `import.meta.env.DEV`; tests use {@link setStakingReadDevForTests}
+ * (same pattern as DebugPanel payload / debugLog gates).
+ */
+export function isStakingReadDev(): boolean {
+  if (stakingReadDevOverride !== undefined) {
+    return stakingReadDevOverride;
+  }
+  return import.meta.env.DEV === true;
+}
+
+/** Force DEV/prod staking read-path in unit tests. Pass `undefined` to restore. */
+export function setStakingReadDevForTests(dev: boolean | undefined): void {
+  stakingReadDevOverride = dev;
+}
+
 export interface StakingDeps {
   rpcBaseUrl?: string;
   /** BURN jetton master (friendly or raw). */
@@ -337,44 +356,156 @@ function pendingRewardsMapFromStakes(stakes: StakeInfo[]): Partial<Record<Stakin
   return pr;
 }
 
-async function tryBackendStakes(address: string, fetchImpl: typeof fetch): Promise<StakeInfo[] | null> {
-  const base = normalizeApiBase();
-  if (!base) {
+export type StakingSnapshot = {
+  stakes: StakeInfo[];
+  tierConfigs: TierConfig[];
+  liveTierTvls: Partial<Record<StakingTier, bigint>>;
+};
+
+const SNAPSHOT_UNAVAILABLE = 'staking.rpcUnavailable';
+
+export type TierConfigSource = 'chain' | 'cache' | 'fallback';
+
+let lastTierConfigSource: TierConfigSource = 'fallback';
+
+export function getLastTierConfigSource(): TierConfigSource {
+  return lastTierConfigSource;
+}
+
+const snapshotInflight = new Map<string, Promise<StakingSnapshot>>();
+
+function snapshotInflightKey(address?: string): string {
+  const trimmed = address?.trim();
+  return trimmed ? trimmed : 'catalog';
+}
+
+function mapStakesFromBody(root: Record<string, unknown>): StakeInfo[] {
+  const stakesRaw = root.stakes ?? root.stakeList;
+  if (!Array.isArray(stakesRaw)) {
+    return [];
+  }
+  const out: StakeInfo[] = [];
+  for (const s of stakesRaw) {
+    if (s && typeof s === 'object') {
+      const m = mapBackendStake(s as BackendStakeRow);
+      if (m) {
+        out.push(m);
+      }
+    }
+  }
+  return out;
+}
+
+function mapTierConfigsFromBody(raw: unknown): TierConfig[] | null {
+  if (!Array.isArray(raw)) {
     return null;
   }
-  const url = `${base}/api/wallet/staking-profile?address=${encodeURIComponent(address)}`;
+  const out: TierConfig[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') {
+      continue;
+    }
+    const r = row as Record<string, unknown>;
+    const multiplierRaw = r.multiplier;
+    const multiplier =
+      typeof multiplierRaw === 'number' && Number.isFinite(multiplierRaw)
+        ? multiplierRaw
+        : Number(multiplierRaw);
+    out.push({
+      tier: tierFromUnknown(r.tier),
+      lockDurationSec: Number(r.lockDurationSec ?? 0) || 0,
+      multiplier: Number.isFinite(multiplier) ? multiplier : 0,
+      rewardSharePercent: Number(r.rewardSharePercent ?? 0) || 0,
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+function mapLiveTierTvlsFromBody(raw: unknown): Partial<Record<StakingTier, bigint>> {
+  if (!raw || typeof raw !== 'object') {
+    return {};
+  }
+  const out: Partial<Record<StakingTier, bigint>> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    out[tierFromUnknown(k)] = bigIntFromJsonField(v);
+  }
+  return out;
+}
+
+async function fetchStakingSnapshot(opts: {
+  address?: string;
+  fresh?: boolean;
+  fetchImpl?: typeof fetch;
+}): Promise<StakingSnapshot> {
+  const base = normalizeApiBase();
+  if (!base) {
+    throw new StakingError('CONFIG', SNAPSHOT_UNAVAILABLE);
+  }
+  const fetchImpl = opts.fetchImpl ?? defaultFetch();
+  const params = new URLSearchParams();
+  const addr = opts.address?.trim();
+  if (addr) {
+    params.set('address', addr);
+  }
+  if (opts.fresh) {
+    params.set('fresh', '1');
+  }
+  const qs = params.toString();
+  const url = `${base}/api/wallet/staking-profile${qs ? `?${qs}` : ''}`;
   let response: Response;
   try {
     response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
-  } catch {
-    return null;
-  }
-  if (response.status === 404 || response.status === 501) {
-    return null;
+  } catch (e) {
+    throw new StakingError('NETWORK_ERROR', SNAPSHOT_UNAVAILABLE, { cause: e });
   }
   if (!response.ok) {
-    return null;
+    throw new StakingError('NETWORK_ERROR', SNAPSHOT_UNAVAILABLE);
   }
+  let body: unknown;
   try {
-    const body = (await response.json()) as unknown;
-    const root = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
-    const stakesRaw = root?.stakes ?? root?.stakeList;
-    if (!Array.isArray(stakesRaw)) {
-      return null;
-    }
-    const out: StakeInfo[] = [];
-    for (const s of stakesRaw) {
-      if (s && typeof s === 'object') {
-        const m = mapBackendStake(s as BackendStakeRow);
-        if (m) {
-          out.push(m);
-        }
-      }
-    }
-    return out;
-  } catch {
+    body = await response.json();
+  } catch (e) {
+    throw new StakingError('NETWORK_ERROR', SNAPSHOT_UNAVAILABLE, { cause: e });
+  }
+  const root = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const mappedConfigs = mapTierConfigsFromBody(root.tierConfigs);
+  lastTierConfigSource = mappedConfigs ? 'chain' : 'fallback';
+  return {
+    stakes: mapStakesFromBody(root),
+    tierConfigs: mappedConfigs ?? [...STABLE_TIER_CONFIGS],
+    liveTierTvls: mapLiveTierTvlsFromBody(root.liveTierTvls),
+  };
+}
+
+/**
+ * One GET `/api/wallet/staking-profile`. In-flight Promise keyed `address|catalog`.
+ */
+export async function getStakingSnapshot(opts?: {
+  address?: string;
+  fresh?: boolean;
+  fetchImpl?: typeof fetch;
+}): Promise<StakingSnapshot> {
+  const key = snapshotInflightKey(opts?.address);
+  const existing = snapshotInflight.get(key);
+  if (existing) {
+    return existing;
+  }
+  const pending = fetchStakingSnapshot(opts ?? {}).finally(() => {
+    snapshotInflight.delete(key);
+  });
+  snapshotInflight.set(key, pending);
+  return pending;
+}
+
+async function readViaSnapshot(opts: {
+  address?: string;
+  fresh?: boolean;
+  fetchImpl?: typeof fetch;
+}): Promise<StakingSnapshot | null> {
+  if (!normalizeApiBase()) {
     return null;
   }
+  return getStakingSnapshot(opts);
 }
 
 async function loadStakeFromRpc(
@@ -422,14 +553,18 @@ async function loadStakeFromRpc(
 }
 
 /**
- * All active (non-zero) stakes for the owner. Prefer backend `/api/wallet/staking-profile` when deployed.
+ * All active (non-zero) stakes for the owner. Prod-read is snapshot-only.
+ * DEV may use serialized RPC only when `VITE_API_URL` is empty.
  */
 export async function getStakes(address: string, deps?: StakingDeps): Promise<StakeInfo[]> {
-  const r = resolveDeps(deps);
-  const viaBackend = await tryBackendStakes(address.trim(), r.fetchImpl);
-  if (viaBackend !== null) {
-    return viaBackend;
+  const via = await readViaSnapshot({ address: address.trim(), fetchImpl: deps?.fetchImpl });
+  if (via) {
+    return via.stakes;
   }
+  if (!isStakingReadDev()) {
+    throw new StakingError('CONFIG', SNAPSHOT_UNAVAILABLE);
+  }
+  const r = resolveDeps(deps);
   const tiers = [StakingTier.Flexible, StakingTier.Silver, StakingTier.Gold, StakingTier.Diamond];
   const rows = await Promise.all(tiers.map((t) => loadStakeFromRpc(address.trim(), t, r)));
   return rows.flatMap((x) => (x ? [x] : []));
@@ -496,18 +631,21 @@ async function fetchPendingRewardResolved(
 }
 
 /**
- * Pending rewards per tier. Prefer backend `/api/wallet/staking-profile` when deployed; per-tier RPC fallback.
+ * Pending rewards per tier. Prod-read is snapshot-only; DEV RPC only if API base is empty.
  */
 export async function getPendingRewards(
   address: string,
   deps?: StakingDeps,
 ): Promise<Partial<Record<StakingTier, bigint>>> {
-  const r = resolveDeps(deps);
   const trimmed = address.trim();
-  const viaBackend = await tryBackendStakes(trimmed, r.fetchImpl);
-  if (viaBackend !== null) {
-    return pendingRewardsMapFromStakes(viaBackend);
+  const via = await readViaSnapshot({ address: trimmed, fetchImpl: deps?.fetchImpl });
+  if (via) {
+    return pendingRewardsMapFromStakes(via.stakes);
   }
+  if (!isStakingReadDev()) {
+    throw new StakingError('CONFIG', SNAPSHOT_UNAVAILABLE);
+  }
+  const r = resolveDeps(deps);
   const rewardEntries = await Promise.all(
     ALL_STAKING_TIERS.map(async (tier) => {
       const v = await fetchPendingRewardResolved(trimmed, tier, r);
@@ -551,6 +689,13 @@ export async function getMasterTotalStake(tier: StakingTier, deps?: StakingDeps)
 }
 
 export async function getLiveTierTvls(deps?: StakingDeps): Promise<Partial<Record<StakingTier, bigint>>> {
+  const via = await readViaSnapshot({ fetchImpl: deps?.fetchImpl });
+  if (via) {
+    return via.liveTierTvls;
+  }
+  if (!isStakingReadDev()) {
+    throw new StakingError('CONFIG', SNAPSHOT_UNAVAILABLE);
+  }
   const entries = await Promise.all(
     ALL_STAKING_TIERS.map(async (tier) => {
       try {
@@ -568,14 +713,6 @@ export async function getLiveTierTvls(deps?: StakingDeps): Promise<Partial<Recor
     }
   }
   return out;
-}
-
-export type TierConfigSource = 'chain' | 'cache' | 'fallback';
-
-let lastTierConfigSource: TierConfigSource = 'fallback';
-
-export function getLastTierConfigSource(): TierConfigSource {
-  return lastTierConfigSource;
 }
 
 function addressFromGetMethodStack(stackUnknown: unknown): string | null {
@@ -656,26 +793,27 @@ async function fetchTierConfigsFromLock(deps?: StakingDeps): Promise<TierConfig[
 }
 
 /**
- * Tier lock / share / VP from StakingLock (`get_lock_config`). Cached 1h.
- * Hardcoded TOKENOMICS table is fallback only when RPC fails (IMP-STKUX-02).
+ * Tier lock / share / VP. Prod-read is snapshot-only.
+ * Hardcoded TOKENOMICS table is used only when snapshot 200 omits `tierConfigs`.
+ * DEV may use serialized RPC only when `VITE_API_URL` is empty.
  */
 export async function getTierConfigs(deps?: StakingDeps): Promise<TierConfig[]> {
+  const via = await readViaSnapshot({ fetchImpl: deps?.fetchImpl });
+  if (via) {
+    return via.tierConfigs;
+  }
+  if (!isStakingReadDev()) {
+    throw new StakingError('CONFIG', SNAPSHOT_UNAVAILABLE);
+  }
   const hit = readCachedTierConfigs();
   if (hit) {
     lastTierConfigSource = 'cache';
     return hit;
   }
-  try {
-    const fromChain = await fetchTierConfigsFromLock(deps);
-    lastTierConfigSource = 'chain';
-    writeCachedTierConfigs(fromChain);
-    return fromChain;
-  } catch (e) {
-    lastTierConfigSource = 'fallback';
-    console.warn('[staking] getTierConfigs: RPC unavailable, using hardcoded fallback', e);
-    writeCachedTierConfigs(STABLE_TIER_CONFIGS);
-    return [...STABLE_TIER_CONFIGS];
-  }
+  const fromChain = await fetchTierConfigsFromLock(deps);
+  lastTierConfigSource = 'chain';
+  writeCachedTierConfigs(fromChain);
+  return fromChain;
 }
 
 export function calculateApy(

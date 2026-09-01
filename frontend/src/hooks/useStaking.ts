@@ -5,11 +5,8 @@ import { StakingTier, type StakeInfo, type TierConfig } from '@/types/ton';
 import {
   calculateApy as calculateApyOnChain,
   claimTx,
-  getPendingRewards,
-  getStakes,
   getLastTierConfigSource,
-  getLiveTierTvls,
-  getTierConfigs,
+  getStakingSnapshot,
   stakeTx,
   unstakeTx,
   StakingError,
@@ -160,11 +157,18 @@ export function useStaking(): UseStaking {
     }
     setRewardsRefreshing(true);
     try {
-      const pr = await getPendingRewards(walletAddress);
+      const snap = await getStakingSnapshot({ address: walletAddress });
+      const pr: Partial<Record<StakingTier, bigint>> = {};
+      for (const s of snap.stakes) {
+        if (s.pendingReward > 0n) {
+          pr[s.tier] = s.pendingReward;
+        }
+      }
       setPendingRewards(pr);
       setChainStakes((prev) => applyPendingToStakes(prev, pr));
+      setLiveTierTvls(snap.liveTierTvls);
     } catch {
-      /* keep last snapshot on flaky RPC */
+      /* keep last snapshot on flaky REST */
     } finally {
       setRewardsRefreshing(false);
     }
@@ -194,17 +198,15 @@ export function useStaking(): UseStaking {
     setIsLoading(true);
     setError(null);
     try {
-      const [stakes, cfgs, tvls] = await Promise.all([
-        walletAddress ? getStakes(walletAddress) : Promise.resolve([]),
-        getTierConfigs(),
-        getLiveTierTvls(),
-      ]);
-      setChainStakes(stakes);
-      setTierConfigs(cfgs);
+      const snap = await getStakingSnapshot({
+        address: walletAddress ?? undefined,
+      });
+      setChainStakes(snap.stakes);
+      setTierConfigs(snap.tierConfigs);
       setTierConfigsFallback(getLastTierConfigSource() === 'fallback');
-      setLiveTierTvls(tvls);
+      setLiveTierTvls(snap.liveTierTvls);
       const pr: Partial<Record<StakingTier, bigint>> = {};
-      for (const s of stakes) {
+      for (const s of snap.stakes) {
         if (s.pendingReward > 0n) {
           pr[s.tier] = s.pendingReward;
         }
@@ -220,14 +222,6 @@ export function useStaking(): UseStaking {
   useEffect(() => {
     void loadCore();
   }, [walletAddress, loadCore]);
-
-  useEffect(() => {
-    void getLiveTierTvls()
-      .then(setLiveTierTvls)
-      .catch(() => {
-        setLiveTierTvls({});
-      });
-  }, []);
 
   useEffect(() => {
     if (!walletAddress || !isConnected) {

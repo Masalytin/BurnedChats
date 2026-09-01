@@ -1322,6 +1322,7 @@
     "positionStarted": "С",
     "positionUnlock": "Розблокування",
     "retry": "Повторити",
+    "rpcUnavailable": "Дані стейкінгу тимчасово недоступні. Спробуйте ще раз.",
     "rewardsEmpty": "Зараз немає очікуваних винагород.",
     "rewardsTitle": "Винагороди",
     "stakeConfirm": "Стейк і підпис",

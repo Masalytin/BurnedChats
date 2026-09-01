@@ -1322,6 +1322,7 @@
     "positionStarted": "Depuis",
     "positionUnlock": "Déverrouillage",
     "retry": "Réessayer",
+    "rpcUnavailable": "Les données de staking sont temporairement indisponibles. Réessayez.",
     "rewardsEmpty": "Aucune récompense en attente pour l'instant.",
     "rewardsTitle": "Récompenses",
     "stakeConfirm": "Staker et signer",

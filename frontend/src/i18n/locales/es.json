@@ -1322,6 +1322,7 @@
     "positionStarted": "Desde",
     "positionUnlock": "Desbloqueo",
     "retry": "Reintentar",
+    "rpcUnavailable": "Los datos de staking no están disponibles temporalmente. Inténtalo de nuevo.",
     "rewardsEmpty": "No hay recompensas pendientes ahora.",
     "rewardsTitle": "Recompensas",
     "stakeConfirm": "Stake & firmar",

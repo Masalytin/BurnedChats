@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Staking dashboard reads come from `GET /api/wallet/staking-profile` only; a 502 or missing API URL no longer fans out to Toncenter from the browser.
 - Ton Center reads coalesce in-flight get-methods and cap outbound RPC so a staking stampede does not 429 the relay.
 
 ## [0.3.0] - 2026-08-31

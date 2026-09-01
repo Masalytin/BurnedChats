@@ -703,6 +703,7 @@
     "connectHint": "Connect your TON wallet to view positions and stake BURN.",
     "connectWallet": "Connect wallet",
     "retry": "Retry",
+    "rpcUnavailable": "Staking data is temporarily unavailable. Try again.",
     "headerTotalStaked": "Total staked",
     "headerTotalVp": "Display VP",
     "headerVoteVp": "Vote-eligible VP",

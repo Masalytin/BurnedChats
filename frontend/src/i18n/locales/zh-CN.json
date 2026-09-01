@@ -1322,6 +1322,7 @@
     "positionStarted": "自",
     "positionUnlock": "解锁",
     "retry": "重试",
+    "rpcUnavailable": "质押数据暂时不可用。请重试。",
     "rewardsEmpty": "目前没有待领取奖励。",
     "rewardsTitle": "奖励",
     "stakeConfirm": "Stake 并签名",

@@ -711,6 +711,7 @@
     "connectHint": "Подключите TON-кошелёк, чтобы видеть позиции и стейкать BURN.",
     "connectWallet": "Подключить кошелёк",
     "retry": "Повторить",
+    "rpcUnavailable": "Данные стейкинга временно недоступны. Попробуйте ещё раз.",
     "headerTotalStaked": "Всего в стейке",
     "headerTotalVp": "Отображаемая VP",
     "headerVoteVp": "VP для голосования",
