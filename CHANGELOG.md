@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-01
+
 ### Fixed
 
 - Stake sheet blocks deposits below 0.01 BURN before the wallet signs, so the contract refund path is not reached from the form.
