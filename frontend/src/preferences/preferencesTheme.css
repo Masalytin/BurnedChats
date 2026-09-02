@@ -5,7 +5,9 @@
  */
 
 html[data-bc-theme='ember'],
-html[data-bc-telegram-unsafe] {
+html.standalone-mode[data-bc-theme='ember'],
+html[data-bc-telegram-unsafe],
+html.standalone-mode[data-bc-telegram-unsafe] {
   --bc-bg-primary: #12110F;
   --bc-bg-secondary: #1C1A17;
   --bc-bg-elevated: #26231E;
@@ -25,7 +27,8 @@ html[data-bc-telegram-unsafe] {
   --bc-accent-muted: rgba(255, 107, 53, 0.16);
 }
 
-html[data-bc-theme='bone'] {
+html[data-bc-theme='bone'],
+html.standalone-mode[data-bc-theme='bone'] {
   --bc-bg-primary: #F6F1E8;
   --bc-bg-secondary: #EBE4D6;
   --bc-bg-elevated: #FFFCF7;
@@ -45,7 +48,8 @@ html[data-bc-theme='bone'] {
   --bc-accent-muted: rgba(232, 93, 40, 0.14);
 }
 
-html[data-bc-theme='nocturne'] {
+html[data-bc-theme='nocturne'],
+html.standalone-mode[data-bc-theme='nocturne'] {
   --bc-bg-primary: #0B0E14;
   --bc-bg-secondary: #131821;
   --bc-bg-elevated: #1A2130;

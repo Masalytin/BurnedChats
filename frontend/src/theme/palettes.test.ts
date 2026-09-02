@@ -111,4 +111,30 @@ describe('Burned palette CSS sheets', () => {
       '--bc-bg-elevated: color-mix(in srgb, var(--bc-text-primary) 8%, var(--bc-bg-primary))',
     );
   });
+
+  it('Bone ink on Bone elevated meets 4.5:1; the standalone-dark leak pair does not', () => {
+    const bone = BURNED_PALETTES.bone.tokens;
+    expect(hexContrast(bone.textPrimary, bone.bgElevated)).toBeGreaterThanOrEqual(TEXT_CONTRAST_MIN);
+    // :root.standalone-mode + prefers-color-scheme:dark used to force this hex over Bone.
+    expect(hexContrast(bone.textPrimary, '#1e293b')).toBeLessThan(TEXT_CONTRAST_MIN);
+  });
+
+  it('standalone --bc-bg-elevated is scoped to Telegram theme, not Burned palettes', () => {
+    const css = readCss('../styles/standalone-theme.css');
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    const elevatedRules = rules.filter(([, , body]) => /--bc-bg-elevated\s*:/.test(body));
+    expect(elevatedRules.length).toBeGreaterThan(0);
+    for (const [, rawSelector] of elevatedRules) {
+      const selector = rawSelector.replace(/@media[^{]*$/, '').trim();
+      expect(selector).toMatch(/data-bc-theme='telegram'|:not\(\[data-bc-theme\]\)/);
+      expect(selector).not.toBe(':root.standalone-mode');
+    }
+  });
+
+  it('palette sheets include standalone-mode so they beat :root.standalone-mode', () => {
+    const css = readCss('../preferences/preferencesTheme.css');
+    for (const id of BURNED_PALETTE_IDS) {
+      expect(css).toContain(`html.standalone-mode[data-bc-theme='${id}']`);
+    }
+  });
 });

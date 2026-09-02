@@ -2,6 +2,11 @@
  * Browser / wallet standalone palette — literal --tg-theme-* values (no self-reference).
  * Loaded after theme.css; :root.standalone-mode is set by env/initializer.ts for non-TMA.
  * Telegram inline injection still wins in Mini App (higher specificity / later cascade).
+ *
+ * --tg-theme-* always apply in standalone (Telegram theme + :root fallbacks).
+ * --bc-* surface tokens apply only for themeMode=telegram — Burned palettes own
+ * those variables in preferencesTheme.css. :root.standalone-mode (0,2,0) used
+ * to beat html[data-bc-theme='bone'] (0,1,1) and paint dark elevated on Bone.
  */
 :root.standalone-mode {
   --tg-theme-bg-color: #f7f8fa;
@@ -17,7 +22,10 @@
   --tg-theme-section-header-text-color: #6b7280;
   --tg-theme-subtitle-text-color: #6b7280;
   --tg-theme-destructive-text-color: #dc2626;
+}
 
+:root.standalone-mode[data-bc-theme='telegram'],
+:root.standalone-mode:not([data-bc-theme]) {
   --bc-bg-elevated: #ffffff;
   --bc-bg-hover: color-mix(in srgb, var(--bc-text-primary) 6%, var(--bc-bg-elevated));
   --bc-bg-overlay: rgba(17, 24, 39, 0.4);
@@ -52,7 +60,10 @@
     --tg-theme-section-header-text-color: #94a3b8;
     --tg-theme-subtitle-text-color: #94a3b8;
     --tg-theme-destructive-text-color: #f87171;
+  }
 
+  :root.standalone-mode[data-bc-theme='telegram'],
+  :root.standalone-mode:not([data-bc-theme]) {
     --bc-bg-elevated: #1e293b;
     --bc-bg-hover: color-mix(in srgb, var(--bc-text-primary) 8%, var(--bc-bg-elevated));
     --bc-bg-overlay: rgba(15, 23, 42, 0.66);

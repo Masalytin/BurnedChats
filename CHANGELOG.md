@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Incoming chat requests no longer show a hardcoded Connected/online badge.
+- Bone (and other Burned palettes) keep their elevated surfaces in standalone browser mode, so input text no longer blends into a dark field when the OS is in dark mode.
 
 ## [0.4.2] - 2026-09-01
 
