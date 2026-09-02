@@ -20,7 +20,7 @@ summarized in the table.
 | `session:{sessionId}` | hash | PENDING: `session.request.ttl` (300s); else `session.active.ttl` (24h) | DM session metadata |
 | `session_token:{token}` | string | 1h | One-time resume token → `internalId` |
 | `request:{recipientInternalId}` | list | 5min | Incoming chat requests |
-| `online:{internalId}` | string | 30s | Heartbeat presence |
+| `online:{internalId}` | string | 30s | Heartbeat presence (UI SoT; value = lastSeen epoch ms) |
 | `messages:{recipientId}:{sessionId}` | list | 24h | DM offline queue (E2EE blobs) |
 | `messages:count:{recipientId}` | string | ⚠️ expire when `count==1` | Pending DM counter |
 | `dm-editable:{sessionId}:{messageId}` | string | **20min** | DM edit window meta |
@@ -190,14 +190,26 @@ EXPIRE request:f74f67a1-2b3c-4d5e-8f90-abcdef123456 300
 
 ### `online:{internalId}`
 
-Online status (heartbeat).
+Online status (heartbeat). **UI source of truth** — does not gate DM delivery
+(`SimpUserRegistry` does).
 
 ```redis
 SET online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 "1704067200000"
 EXPIRE online:d2f44f7b-5e67-3c70-8d91-d5f8f4f62a33 30
 ```
 
-Client sends heartbeat every 20 seconds; TTL 30 seconds.
+Client sends heartbeat every 20 seconds; TTL 30 seconds. Value is last-seen
+epoch millis (coarse `lastSeen` in events is rounded down to the minute).
+
+**Live DM fan-out:** on CONNECT (newly online), DISCONNECT, `/app/presence.offline`,
+`/app/peer.disconnect`, and Redis keyspace `expired` for this key, the server
+publishes `PresenceEvent` to `/user/queue/presence` for the other participant of
+each PENDING / HANDSHAKE / ACTIVE session. Heartbeat that only refreshes TTL
+does **not** broadcast.
+
+**Multi-instance:** Redis pub/sub channel `presence:fanout` (JSON payload:
+`internalId`, `online`, `lastSeen`, `watchers[]`). Each instance delivers to
+locally connected watchers. Not a stored key (no TTL).
 
 ---
 

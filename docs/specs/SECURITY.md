@@ -557,6 +557,7 @@ channel that the server cannot align with a substituted key without both clients
 | **Filesystem / file backup leak** | Physical access to server disk | Only `.enc` files without keys; separate access to target user device required |
 | **File "metadata" leak** | Traffic or Redis analysis | Name and MIME sent only in `encryptedMeta`; server cannot read them |
 | **Room presence** | Room member requests snapshot or subscribes to topic | Sees `online` + coarse `lastSeen` of other members — **not** message content |
+| **DM presence** | Peer of a PENDING / HANDSHAKE / ACTIVE session | Sees `online` + coarse `lastSeen` of that peer — **not** message content |
 
 ### Room Presence (metadata)
 
@@ -571,6 +572,18 @@ This **reduces privacy** relative to "nobody knows who is online":
 - Optional room-level presence disable — not implemented.
 
 Mitigations in current version: member-only access, coarse last-seen, short TTL.
+
+### DM Presence (metadata)
+
+> Implementation: Redis `online:{internalId}` (TTL 30s) + `/user/queue/presence`.
+
+Same class of leak as room presence, narrower ACL:
+
+- Only the other participant of a non-burned DM session (PENDING / HANDSHAKE / ACTIVE) receives `PresenceEvent`.
+- `lastSeen` is rounded **to the minute**. Heartbeat does not broadcast (TTL refresh only).
+- Search / request-dialog show a one-shot `UserResponse.online` snapshot; live updates start after `session.create`.
+- No inbound “watch any `internalId`”. Does not affect zero-knowledge for messages or keys.
+- `/user/queue/peer-disconnected` is a compatibility signal on explicit Mini App cleanup; UI should follow `PresenceEvent`.
 
 ### What the Attacker Sees
 

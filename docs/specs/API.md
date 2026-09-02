@@ -820,7 +820,39 @@ Best-effort explicit offline. Body may be empty. Server calls
 session keys remain. A Mini App kill without `pagehide` is **not** covered here.
 
 `/app/peer.disconnect` (after session validation) also `setOffline`s the sender
-and notifies the peer on `/user/queue/peer-disconnected`.
+and notifies the peer on `/user/queue/peer-disconnected` **and**
+`/user/queue/presence` (`PresenceEvent`, `online: false`).
+
+### `PRESENCE` (server → `/user/queue/presence`)
+
+Live DM presence for **session peers only** (PENDING / HANDSHAKE / ACTIVE).
+Not a public lookup: there is no inbound `/app/presence.watch` and no
+`GET` of an arbitrary `internalId`.
+
+**Payload** (`PresenceEvent`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `internalId` | string | Subject whose presence changed |
+| `online` | boolean | Redis `online:{internalId}` after the transition |
+| `lastSeen` | number? | Epoch ms, rounded **down to the minute** |
+
+**Triggers (fan-out):** STOMP CONNECT (newly online), DISCONNECT,
+`/app/presence.offline`, `/app/peer.disconnect`, Redis TTL expiry of
+`online:{internalId}`. **`/app/heartbeat` does not broadcast** if the key
+already existed (TTL refresh only).
+
+**Watchers:** the other participant of each non-burned, non-expired DM
+session with the subject. Room members keep `/topic/room/{roomId}`
+`RoomPresenceEvent` (see below); they are not extra DM watchers.
+
+**Multi-instance:** server publishes the same payload on Redis channel
+`presence:fanout`; each instance delivers to locally connected watchers
+via `StompUserMessenger`.
+
+`/user/queue/peer-disconnected` remains for compatibility (pagehide path).
+Clients should drive the indicator from `PresenceEvent`. Search results
+stay a one-shot `UserResponse.online` snapshot until a session exists.
 
 ---
 
@@ -848,7 +880,8 @@ All server events are sent to user personal queues
 | `/user/queue/request-expired` | `RequestExpiredEvent` | Pending request timed out (`reason=TIMEOUT`, initiator only) |
 | `/user/queue/session-status` | `SessionStatusEvent` | Session status |
 | `/user/queue/incoming-request` | `IncomingRequestEvent` | Incoming chat request |
-| `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer disconnected |
+| `/user/queue/peer-disconnected` | `PeerDisconnectedEvent` | Peer disconnected (compat; prefer `PresenceEvent`) |
+| `/user/queue/presence` | `PresenceEvent` | Live DM presence (`online` + coarse `lastSeen`) |
 | `/user/queue/active-sessions` | `ActiveSessionsListEvent` | List of active sessions |
 | `/user/queue/session-resumed` | `SessionResumedEvent` | Resume after reconnect |
 | `/user/queue/peer-key` | `PeerPublicKeyEvent` | Peer public key |
