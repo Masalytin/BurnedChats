@@ -64,6 +64,8 @@ interface RoomChatRoomProps {
   userTelegramId?: number;
   ws: UseRoomMessagesWebSocket;
   memberCount?: number;
+  /** Live online members from PresenceStore (IMP-PRESENCE-05). */
+  onlineCount?: number;
   /** Whether the current user is the room owner (delete-for-everyone, key UI). */
   isOwner?: boolean;
   /** Whether the current user can post when the room is read-only (owner or admin). */
@@ -117,6 +119,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   userTelegramId,
   ws,
   memberCount,
+  onlineCount,
   isOwner = false,
   canBypassReadOnly = false,
   isRequestingKey = false,
@@ -561,9 +564,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     isOwner || !ownerWaitTimedOut ? null : t('room.chat.ownerUnavailable');
 
   const subtitle = hasKey
-    ? memberCount != null
-      ? t('room.chat.memberCount', { count: memberCount })
-      : t('room.chat.epochSubtitle', { epoch })
+    ? onlineCount != null
+      ? t('room.manage.onlineCount', { count: onlineCount })
+      : memberCount != null
+        ? t('room.chat.memberCount', { count: memberCount })
+        : t('room.chat.epochSubtitle', { epoch })
     : placeholderTitle;
 
   const placeholderIcon = showKeySpinner ? (

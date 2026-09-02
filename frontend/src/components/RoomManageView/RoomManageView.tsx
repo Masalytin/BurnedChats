@@ -54,6 +54,7 @@ import {
   formatPresenceRelativeTime,
   type MemberPresence,
 } from '../../hooks/useRoomPresence';
+import { usePresence } from '../../hooks/usePresence';
 import './RoomManageView.css';
 
 /** Max invite rows shown before collapsing the rest. */
@@ -332,17 +333,21 @@ export function RoomMemberRow({
   actions,
 }: RoomMemberRowProps) {
   const { t } = useTranslation();
+  const livePresence = usePresence(
+    member.internalId,
+    presence ? { online: presence.online, lastSeen: presence.lastSeen } : undefined,
+  );
   const displayName = member.displayName?.trim();
   const label = displayName
     || t('room.manage.memberFallback', { id: shortInternalId(member.internalId) });
 
   void presenceTick;
 
-  const presenceLabel = presence?.online
+  const presenceLabel = livePresence.online
     ? t('room.manage.online')
-    : presence?.lastSeen != null
+    : livePresence.lastSeen != null
       ? t('room.manage.lastSeen', {
-        time: formatPresenceRelativeTime(presence.lastSeen, t),
+        time: formatPresenceRelativeTime(livePresence.lastSeen, t),
       })
       : null;
 
@@ -361,13 +366,13 @@ export function RoomMemberRow({
       <div className="room-member-row__info">
         <span className="room-member-row__name">{label}</span>
         <div className="room-member-row__meta">
-          {presence?.online && (
+          {livePresence.online && (
             <span className="room-member-row__presence room-member-row__presence--online">
               <span className="room-member-row__online-dot" aria-hidden="true" />
               {t('room.manage.online')}
             </span>
           )}
-          {!presence?.online && presenceLabel != null && (
+          {!livePresence.online && presenceLabel != null && (
             <span className="room-member-row__last-seen">{presenceLabel}</span>
           )}
           {isYou && (

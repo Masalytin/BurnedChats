@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Live DM presence: session watchers receive `PresenceEvent` on `/user/queue/presence`, and ChatRoom, pending/incoming requests, and session cards update online/offline without navigation.
+- Room chat header shows how many members are online from the same presence store.
 
 ### Fixed
 

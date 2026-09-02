@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import type { TFunction } from 'i18next';
 import type { TopicMultiplexer } from './useSetRoomName';
+import {
+  applyPresenceEvent,
+  derivePresence,
+  getPresence,
+  subscribePresence,
+  PRESENCE_TICK_MS,
+} from '../presence/presenceStore';
 
 const GET_ROOM_PRESENCE_DESTINATION = '/app/room.getPresence';
 const ROOM_PRESENCE_DESTINATION = '/user/queue/room-presence';
@@ -43,34 +50,6 @@ interface UseRoomPresenceReturn {
   presence: Map<string, MemberPresence>;
   onlineCount: number;
   fetchPresence: (roomId: string) => void;
-}
-
-function applyMemberEntry(
-  prev: Map<string, MemberPresence>,
-  internalId: string,
-  online: boolean,
-  lastSeen?: number,
-): Map<string, MemberPresence> {
-  const next = new Map(prev);
-  const existing = prev.get(internalId);
-  next.set(internalId, {
-    online,
-    lastSeen: lastSeen ?? existing?.lastSeen,
-  });
-  return next;
-}
-
-function applySnapshotMembers(
-  members: NonNullable<PresenceSnapshotEvent['members']>,
-): Map<string, MemberPresence> {
-  const map = new Map<string, MemberPresence>();
-  for (const member of members) {
-    map.set(member.internalId, {
-      online: member.online,
-      lastSeen: member.lastSeen,
-    });
-  }
-  return map;
 }
 
 function parseLivePresenceEvent(message: IMessage): PresenceLiveEvent | null {
@@ -118,7 +97,8 @@ export function formatPresenceRelativeTime(epochMs: number, t: TFunction): strin
 }
 
 /**
- * Room member presence: GET snapshot + live updates on the room topic.
+ * Room member presence: GET snapshot + live topic events write the shared
+ * PresenceStore. The returned map is a derived view, not a second SoT.
  */
 export function useRoomPresence({
   isConnected,
@@ -128,7 +108,8 @@ export function useRoomPresence({
   unsubscribe,
   publish,
 }: UseRoomPresenceOptions): UseRoomPresenceReturn {
-  const [presence, setPresence] = useState<Map<string, MemberPresence>>(() => new Map());
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [storeVersion, setStoreVersion] = useState(0);
 
   const publishRef = useRef(publish);
   useEffect(() => { publishRef.current = publish; }, [publish]);
@@ -137,8 +118,15 @@ export function useRoomPresence({
   useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
 
   useEffect(() => {
-    setPresence(new Map());
+    setMemberIds([]);
   }, [roomId]);
+
+  useEffect(() => subscribePresence(() => setStoreVersion((v) => v + 1)), []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setStoreVersion((v) => v + 1), PRESENCE_TICK_MS);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const fetchPresence = useCallback((targetRoomId: string) => {
     if (!isConnected) return;
@@ -163,7 +151,10 @@ export function useRoomPresence({
         if (roomIdRef.current && event.roomId && event.roomId !== roomIdRef.current) {
           return;
         }
-        setPresence(applySnapshotMembers(event.members));
+        for (const member of event.members) {
+          applyPresenceEvent(member.internalId, member.online, member.lastSeen);
+        }
+        setMemberIds(event.members.map((member) => member.internalId));
       } catch (e) {
         console.error('[useRoomPresence] Failed to parse room-presence snapshot:', e);
       }
@@ -175,11 +166,9 @@ export function useRoomPresence({
 
   const handleLiveEvent = useCallback((event: PresenceLiveEvent) => {
     if (!roomIdRef.current || event.roomId !== roomIdRef.current) return;
-    setPresence(prev => applyMemberEntry(
-      prev,
-      event.internalId,
-      event.online,
-      event.lastSeen,
+    applyPresenceEvent(event.internalId, event.online, event.lastSeen);
+    setMemberIds((prev) => (
+      prev.includes(event.internalId) ? prev : [...prev, event.internalId]
     ));
   }, []);
 
@@ -198,7 +187,16 @@ export function useRoomPresence({
     return () => topicMultiplexer.unsubscribe(destination, handler);
   }, [isConnected, roomId, topicMultiplexer, handleLiveEvent]);
 
-  const onlineCount = [...presence.values()].filter(entry => entry.online).length;
+  const presence = useMemo(() => {
+    const now = Date.now();
+    const map = new Map<string, MemberPresence>();
+    for (const id of memberIds) {
+      map.set(id, derivePresence(getPresence(id), undefined, now));
+    }
+    return map;
+  }, [memberIds, storeVersion]);
+
+  const onlineCount = [...presence.values()].filter((entry) => entry.online).length;
 
   return {
     presence,

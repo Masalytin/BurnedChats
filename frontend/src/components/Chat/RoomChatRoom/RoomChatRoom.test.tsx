@@ -321,3 +321,22 @@ describe('RoomChatRoom share invite shortcut (IMP-TGUX-02)', () => {
     expect(shareBtn.getAttribute('aria-busy')).toBe('true');
   });
 });
+
+describe('RoomChatRoom presence subtitle (IMP-PRESENCE-05)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(keyStore.hasGroupKey).mockReturnValue(true);
+    void i18n.changeLanguage('en');
+  });
+
+  it('shows online-count in the header when the store reports members online', () => {
+    renderRoomChatRoom({
+      memberCount: 5,
+      onlineCount: 2,
+    });
+
+    expect(screen.getByText(i18n.t('room.manage.onlineCount', { count: 2 }))).toBeTruthy();
+    expect(screen.queryByText(i18n.t('room.chat.memberCount', { count: 5 }))).toBeNull();
+  });
+});
+

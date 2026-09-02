@@ -1222,16 +1222,17 @@ function AppContent() {
     publish,
   });
 
-  const manageRoomIdForPresence = currentView === 'room-manage'
-    ? activeRoomChat?.roomId ?? null
-    : null;
+  const presenceRoomId =
+    currentView === 'room-manage' || currentView === 'room-chat'
+      ? activeRoomChat?.roomId ?? null
+      : null;
 
   const {
     presence: roomMemberPresence,
     onlineCount: roomOnlineMemberCount,
   } = useRoomPresence({
     isConnected,
-    roomId: manageRoomIdForPresence,
+    roomId: presenceRoomId,
     topicMultiplexer,
     subscribe,
     unsubscribe,
@@ -3957,6 +3958,9 @@ function AppContent() {
             onOwnerRecoverKeys={isRoomOwner && activeRoomNeedsKey ? handleOwnerRecoverKeys : undefined}
             memberCount={
               activeRoomChat && !isMembersLoading ? roomMembers.length : undefined
+            }
+            onlineCount={
+              roomMemberPresence.size > 0 ? roomOnlineMemberCount : undefined
             }
             onBack={() => {
               setActiveRoomChat(null);
