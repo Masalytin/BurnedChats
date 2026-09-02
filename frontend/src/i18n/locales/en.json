@@ -122,6 +122,11 @@
   "status": {
     "online": "online",
     "offline": "offline",
+    "lastSeen": "last seen {{time}} ago",
+    "lastSeenJustNow": "just now",
+    "lastSeenMinutes": "{{count}} min",
+    "lastSeenHours": "{{count}} h",
+    "lastSeenDays": "{{count}} d",
     "typing": "typing...",
     "connecting": "connecting",
     "reconnecting": "Reconnecting...",

@@ -122,6 +122,11 @@
   "status": {
     "online": "в сети",
     "offline": "не в сети",
+    "lastSeen": "был(а) {{time}} назад",
+    "lastSeenJustNow": "только что",
+    "lastSeenMinutes": "{{count}} мин",
+    "lastSeenHours": "{{count}} ч",
+    "lastSeenDays": "{{count}} д",
     "typing": "печатает...",
     "connecting": "подключение",
     "reconnecting": "Переподключение...",

@@ -30,6 +30,11 @@
   "status": {
     "online": "在线",
     "offline": "离线",
+    "lastSeen": "{{time}}前在线",
+    "lastSeenJustNow": "刚刚",
+    "lastSeenMinutes": "{{count}} 分钟",
+    "lastSeenHours": "{{count}} 小时",
+    "lastSeenDays": "{{count}} 天",
     "typing": "正在输入...",
     "connecting": "连接中",
     "reconnecting": "重新连接中...",

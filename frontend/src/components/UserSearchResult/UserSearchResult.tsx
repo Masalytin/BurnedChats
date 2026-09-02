@@ -4,7 +4,7 @@ import type { SearchResult, UserInfo } from '../../types';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
-import { StatusBadge } from '../StatusBadge';
+import { PresenceBadge } from '../PresenceBadge';
 import { LoaderIcon, AlertIcon, UserIcon } from '../../icons';
 import './UserSearchResult.css';
 
@@ -72,8 +72,10 @@ export function UserSearchResult({
                       </span>
                     )}
                   </h3>
-                  <StatusBadge
-                    status={user.online ? 'online' : 'offline'}
+                  <PresenceBadge
+                    internalId={user.internalId}
+                    snapshotOnline={user.online}
+                    live={false}
                     size="sm"
                   />
                 </div>

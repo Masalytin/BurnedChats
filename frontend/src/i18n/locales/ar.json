@@ -30,6 +30,11 @@
   "status": {
     "online": "متصل",
     "offline": "غير متصل",
+    "lastSeen": "شوهد منذ {{time}}",
+    "lastSeenJustNow": "الآن",
+    "lastSeenMinutes": "{{count}} د",
+    "lastSeenHours": "{{count}} س",
+    "lastSeenDays": "{{count}} ي",
     "typing": "يكتب...",
     "connecting": "جارٍ الاتصال",
     "reconnecting": "جارٍ إعادة الاتصال...",

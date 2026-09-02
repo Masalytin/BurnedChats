@@ -6,7 +6,7 @@ import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
 import { Input } from '../Input';
-import { StatusBadge } from '../StatusBadge';
+import { PresenceBadge } from '../PresenceBadge';
 import { CheckIcon, CloseIcon, LockIcon } from '../../icons';
 import './IncomingRequestView.css';
 
@@ -163,7 +163,11 @@ export function IncomingRequestView({
                   <h3 className="incoming-request-view__user-name">
                     {fromName}
                   </h3>
-                  <StatusBadge status="online" size="sm" />
+                  <PresenceBadge
+                    internalId={request.fromInternalId}
+                    snapshotOnline={request.fromOnline}
+                    size="sm"
+                  />
                 </div>
                 {fromUsername && (
                   <p className="incoming-request-view__user-username">

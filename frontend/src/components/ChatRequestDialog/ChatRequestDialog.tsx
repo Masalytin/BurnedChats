@@ -6,7 +6,7 @@ import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { PowProgress } from '../Pow/PowProgress';
-import { StatusBadge } from '../StatusBadge';
+import { PresenceBadge } from '../PresenceBadge';
 import { CloseIcon, LockIcon, SendIcon } from '../../icons';
 import './ChatRequestDialog.css';
 
@@ -179,7 +179,12 @@ export function ChatRequestDialog({
                   </span>
                 )}
               </h3>
-              <StatusBadge status={user.online ? 'online' : 'offline'} size="sm" />
+              <PresenceBadge
+                internalId={user.internalId}
+                snapshotOnline={user.online}
+                live={false}
+                size="sm"
+              />
             </div>
             {user.username && (
               <p className="chat-request-dialog__user-username">@{user.username}</p>

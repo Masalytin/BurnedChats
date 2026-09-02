@@ -30,6 +30,11 @@
   "status": {
     "online": "онлайн",
     "offline": "офлайн",
+    "lastSeen": "був(ла) {{time}} тому",
+    "lastSeenJustNow": "щойно",
+    "lastSeenMinutes": "{{count}} хв",
+    "lastSeenHours": "{{count}} год",
+    "lastSeenDays": "{{count}} д",
     "typing": "друкує...",
     "connecting": "підключення",
     "reconnecting": "Перепідключення...",

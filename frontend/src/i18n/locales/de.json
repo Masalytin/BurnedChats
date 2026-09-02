@@ -42,6 +42,11 @@
   "status": {
     "online": "online",
     "offline": "offline",
+    "lastSeen": "zuletzt {{time}} gesehen",
+    "lastSeenJustNow": "gerade eben",
+    "lastSeenMinutes": "{{count}} Min.",
+    "lastSeenHours": "{{count}} Std.",
+    "lastSeenDays": "{{count}} T.",
     "typing": "schreibt...",
     "connecting": "verbindet",
     "reconnecting": "Wiederverbindung...",

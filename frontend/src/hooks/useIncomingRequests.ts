@@ -231,6 +231,7 @@ export function useIncomingRequests({
         secretQuestion: data.secretQuestion,
         createdAt: new Date(data.createdAt).getTime(),
         expiresAt: new Date(data.expiresAt).getTime(),
+        fromOnline: sender.online,
       };
 
       setRequests((prev) => {

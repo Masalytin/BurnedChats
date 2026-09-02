@@ -30,6 +30,11 @@
   "status": {
     "online": "en ligne",
     "offline": "hors ligne",
+    "lastSeen": "vu {{time}}",
+    "lastSeenJustNow": "à l'instant",
+    "lastSeenMinutes": "{{count}} min",
+    "lastSeenHours": "{{count}} h",
+    "lastSeenDays": "{{count}} j",
     "typing": "écrit...",
     "connecting": "connexion",
     "reconnecting": "Reconnexion...",

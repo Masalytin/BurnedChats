@@ -4,7 +4,8 @@ import type { PendingSession } from '../../hooks/useSession';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { Card, CardContent } from '../Card';
-import { StatusBadge } from '../StatusBadge';
+import { PresenceBadge } from '../PresenceBadge';
+import { usePresence } from '../../hooks/usePresence';
 import { LoaderIcon, CloseIcon } from '../../icons';
 import './PendingRequestView.css';
 
@@ -36,6 +37,7 @@ export function PendingRequestView({
 }: PendingRequestViewProps) {
   const { t } = useTranslation();
   const { recipient, hasSecretQuestion, expiresAt } = session;
+  const recipientPresence = usePresence(recipient.internalId, { online: recipient.online });
 
   // Calculate remaining time
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
@@ -117,8 +119,9 @@ export function PendingRequestView({
                       </span>
                     )}
                   </h3>
-                  <StatusBadge
-                    status={recipient.online ? 'online' : 'offline'}
+                  <PresenceBadge
+                    internalId={recipient.internalId}
+                    snapshotOnline={recipient.online}
                     size="sm"
                   />
                 </div>
@@ -149,7 +152,7 @@ export function PendingRequestView({
         )}
 
         {/* Notification sent indicator */}
-        {!recipient.online && !isExpired && (
+        {!recipientPresence.online && !isExpired && (
           <div className="pending-request-view__info pending-request-view__info--notification">
             <span className="pending-request-view__info-icon">&#128276;</span>
             <span>{t('pendingRequest.notificationSent')}</span>

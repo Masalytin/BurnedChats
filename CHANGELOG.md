@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Live DM presence: session watchers receive `PresenceEvent` on `/user/queue/presence`, and ChatRoom, pending/incoming requests, and session cards update online/offline without navigation.
+
+### Fixed
+
+- Incoming chat requests no longer show a hardcoded Connected/online badge.
+
 ## [0.4.2] - 2026-09-01
 
 ### Fixed

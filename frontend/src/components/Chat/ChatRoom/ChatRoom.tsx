@@ -26,6 +26,8 @@ import { Avatar } from '@/components/Avatar';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { UploadStage } from '../UploadProgressOverlay';
 import type { DecryptedMessage, DecryptedFileMessage, UserInfo } from '@/types';
+import { usePresence } from '@/hooks/usePresence';
+import { formatPresenceRelativeTime } from '@/presence/formatPresenceRelativeTime';
 import '@/styles/ChatScreen.css';
 import './ChatRoom.css';
 
@@ -132,6 +134,7 @@ export const ChatRoom = memo(function ChatRoom({
   onDeleteForEveryone,
 }: ChatRoomProps) {
   const { t } = useTranslation();
+  const peerPresence = usePresence(peer.internalId, { online: peer.online });
   const toast = useToast();
   const haptics = useHaptics();
   const messageSelection = useMessageSelection();
@@ -418,8 +421,12 @@ export const ChatRoom = memo(function ChatRoom({
         <div className="chat-room-peer-status">
           {isPeerTyping ? (
             <span className="chat-room-typing">{t('status.typing')}</span>
-          ) : peer.online ? (
+          ) : peerPresence.online ? (
             <span className="chat-room-online">{t('status.online')}</span>
+          ) : peerPresence.lastSeen != null ? (
+            <span className="chat-room-offline">
+              {t('status.lastSeen', { time: formatPresenceRelativeTime(peerPresence.lastSeen, t) })}
+            </span>
           ) : (
             <span className="chat-room-offline">{t('status.offline')}</span>
           )}

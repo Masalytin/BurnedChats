@@ -1,0 +1,33 @@
+.presence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+}
+
+.presence-badge--sm {
+  font-size: var(--bc-text-xs);
+}
+
+.presence-badge--md {
+  font-size: var(--bc-text-sm);
+}
+
+.presence-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.presence-badge--online .presence-badge-dot {
+  background: var(--bc-success);
+  box-shadow: 0 0 6px var(--bc-success);
+}
+
+.presence-badge--offline .presence-badge-dot {
+  background: var(--bc-text-muted);
+}
+
+.presence-badge-label {
+  color: var(--bc-text-secondary);
+}

@@ -1,6 +1,7 @@
 import { Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ActiveSession } from '../../hooks/useActiveSessions';
+import { usePresence } from '../../hooks/usePresence';
 import { Avatar } from '../Avatar';
 import { FlameIcon, ShieldIcon, ShieldCheckIcon } from '../../icons';
 import './SessionCard.css';
@@ -35,6 +36,7 @@ export function SessionCard({
 }: SessionCardProps) {
   const { t } = useTranslation();
   const { peer, status, verified, peerVerified, lastActivityAt } = session;
+  const peerPresence = usePresence(peer.internalId, { online: peer.online });
   
   const isActive = status === 'ACTIVE';
   const isHandshaking = status === 'HANDSHAKE';
@@ -72,8 +74,8 @@ export function SessionCard({
           size="md"
         />
         <span 
-          className={`session-card-presence ${peer.online ? 'session-card-presence--online' : 'session-card-presence--offline'}`}
-          title={peer.online ? 'Online' : 'Offline'}
+          className={`session-card-presence ${peerPresence.online ? 'session-card-presence--online' : 'session-card-presence--offline'}`}
+          title={peerPresence.online ? t('status.online') : t('status.offline')}
         />
       </div>
       
@@ -86,7 +88,7 @@ export function SessionCard({
             </span>
           )}
           {/* Online text indicator (4.6.10) */}
-          {peer.online && <span className="session-card-online-text">{t('sessionCard.online')}</span>}
+          {peerPresence.online && <span className="session-card-online-text">{t('sessionCard.online')}</span>}
         </div>
         
         {peer.username && (

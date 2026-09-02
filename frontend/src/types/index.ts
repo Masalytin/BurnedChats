@@ -104,6 +104,8 @@ export interface ChatRequest {
   secretQuestion?: string;
   createdAt: number;
   expiresAt: number;
+  /** Snapshot at request arrival; live status comes from PresenceStore. */
+  fromOnline?: boolean;
 }
 
 // ============================================

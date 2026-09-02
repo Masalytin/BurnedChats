@@ -52,6 +52,25 @@ describe('useIncomingRequests', () => {
     );
   }
 
+  it('keeps sender.online as fromOnline seed for PresenceStore', () => {
+    const { result } = renderRequests();
+
+    act(() => {
+      handlers[INCOMING_REQUEST_DESTINATION](
+        stompMessage({
+          sessionId: 'sess-pending',
+          sender: PEER,
+          fromInternalId: 'peer-1',
+          hasSecretQuestion: false,
+          createdAt: '2026-08-31T18:00:00Z',
+          expiresAt: '2026-08-31T18:05:00Z',
+        }),
+      );
+    });
+
+    expect(result.current.requests[0]?.fromOnline).toBe(false);
+  });
+
   it('subscribes to request-expired together with accept/reject queues', () => {
     renderRequests();
 
