@@ -24,6 +24,7 @@ import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.security.RoomTopicSubscribeInterceptor;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.service.DeadmanService;
+import dev.burnedchats.service.PresenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -78,6 +79,7 @@ public class WebSocketEventListener {
     private static final String ROOM_TOPIC_PREFIX = RoomTopicSubscribeInterceptor.ROOM_TOPIC_PREFIX;
 
     private final OnlineStatusRepository onlineStatusRepository;
+    private final PresenceService presenceService;
     private final DeadmanService deadmanService;
     private final RoomMembersRepository roomMembersRepository;
     private final RoomPresenceRepository roomPresenceRepository;
@@ -128,7 +130,7 @@ public class WebSocketEventListener {
         LOG.info("User connected: internalId={}, telegramId={}, sessionId={}",
                 internalId, telegramUserId, sessionId);
 
-        onlineStatusRepository.setOnline(internalId)
+        presenceService.markOnline(internalId)
                 .doOnSuccess(v -> LOG.debug("User {} marked as online", internalId))
                 .subscribe();
 
@@ -175,7 +177,7 @@ public class WebSocketEventListener {
             LOG.info("User disconnected: internalId={}, sessionId={}, closeStatus={}",
                     internalId, event.getSessionId(), event.getCloseStatus());
 
-            onlineStatusRepository.setOffline(internalId)
+            presenceService.markOffline(internalId)
                     .doOnSuccess(v -> LOG.debug("User {} marked as offline", internalId))
                     .subscribe();
 
@@ -348,7 +350,7 @@ public class WebSocketEventListener {
                 .username(request.getSenderUsername())
                 .displayName(displayName)
                 .photoUrl(request.getSenderPhotoUrl())
-                .online(true)
+                .online(false)
                 .premium(false)
                 .build();
     }

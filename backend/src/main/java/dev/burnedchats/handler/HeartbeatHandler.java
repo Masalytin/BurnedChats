@@ -1,7 +1,7 @@
 package dev.burnedchats.handler;
 
-import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.security.AppPrincipal;
+import dev.burnedchats.service.PresenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -23,14 +23,14 @@ import java.security.Principal;
  *   <li>{@code /app/presence.offline} — explicit offline (Mini App cleanup)</li>
  * </ul>
  *
- * @see OnlineStatusRepository
+ * @see PresenceService
  */
 @Slf4j
 @Controller
 @RequiredArgsConstructor
 public class HeartbeatHandler {
 
-    private final OnlineStatusRepository onlineStatusRepository;
+    private final PresenceService presenceService;
 
     /**
      * Handle heartbeat from client to refresh presence TTL in Redis.
@@ -50,9 +50,10 @@ public class HeartbeatHandler {
 
         String internalId = appPrincipal.getInternalId();
 
-        onlineStatusRepository.setOnline(internalId)
+        presenceService.markOnline(internalId)
+                .doOnSuccess(unused -> LOG.trace("Heartbeat received: internalId={}", internalId))
                 .subscribe(
-                        result -> LOG.trace("Heartbeat received: internalId={}", internalId),
+                        unused -> { },
                         error -> LOG.warn("Failed to process heartbeat for user {}: {}",
                                 internalId, error.getMessage())
             );
@@ -78,9 +79,10 @@ public class HeartbeatHandler {
 
         String internalId = appPrincipal.getInternalId();
 
-        onlineStatusRepository.setOffline(internalId)
+        presenceService.markOffline(internalId)
+                .doOnSuccess(unused -> LOG.debug("User marked offline: internalId={}", internalId))
                 .subscribe(
-                        result -> LOG.debug("User marked offline: internalId={}", internalId),
+                        unused -> { },
                         error -> LOG.warn("Failed to mark user offline {}: {}",
                                 internalId, error.getMessage())
             );

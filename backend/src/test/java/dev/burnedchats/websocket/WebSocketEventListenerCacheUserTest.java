@@ -15,6 +15,7 @@ import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.security.TelegramInitData;
 import dev.burnedchats.service.DeadmanService;
+import dev.burnedchats.service.PresenceService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +62,8 @@ class WebSocketEventListenerCacheUserTest {
     private SimpMessagingTemplate messagingTemplate;
     @Mock
     private MessagesProperties messagesProperties;
+    @Mock
+    private PresenceService presenceService;
 
     @InjectMocks
     private WebSocketEventListener listener;

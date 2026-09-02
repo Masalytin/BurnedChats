@@ -23,6 +23,7 @@ import dev.burnedchats.security.StompAuthInterceptor.TelegramPrincipal;
 import dev.burnedchats.exception.PowInvalidException;
 import dev.burnedchats.exception.PowRequiredException;
 import dev.burnedchats.exception.RateLimitException;
+import dev.burnedchats.service.PresenceService;
 import dev.burnedchats.service.SessionLifecycleService;
 import dev.burnedchats.service.SessionLifecycleService.AcceptSessionResult;
 import dev.burnedchats.service.SessionLifecycleService.ActiveSessionsResult;
@@ -74,6 +75,7 @@ public class SessionHandler {
     private final BotMessageService botMessages;
     private final WebSocketExceptionHandler webSocketExceptionHandler;
     private final SessionLifecycleService sessionLifecycleService;
+    private final PresenceService presenceService;
 
     private void sendStompToInternalId(String internalId, String destination, Object payload) {
         if (!StringUtils.hasText(internalId)) {
@@ -338,13 +340,11 @@ public class SessionHandler {
                                 return;
                             }
 
-                            onlineStatusRepository.setOffline(participant.internalId())
+                            presenceService.markOffline(participant.internalId())
                                     .subscribe(
-                                            ignored -> LOG.debug(
-                                                    "peer.disconnect marked sender offline: internalId={}",
-                                                    participant.internalId()),
+                                            ignored -> { },
                                             error -> LOG.warn(
-                                                    "peer.disconnect setOffline failed: internalId={}, error={}",
+                                                    "peer.disconnect markOffline failed: internalId={}, error={}",
                                                     participant.internalId(), error.getMessage())
                                     );
 
@@ -354,7 +354,7 @@ public class SessionHandler {
                             }
 
                             PeerDisconnectedEvent event = PeerDisconnectedEvent.appClosed(
-                                    sessionId, participant.telegramId());
+                                    sessionId, participant.telegramId(), participant.internalId());
                             sendStompToInternalId(peerInternalId, PEER_DISCONNECTED_DESTINATION, event);
 
                             LOG.info(

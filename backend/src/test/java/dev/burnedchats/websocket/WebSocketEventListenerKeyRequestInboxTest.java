@@ -11,6 +11,7 @@ import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.security.AppPrincipal;
 import dev.burnedchats.service.DeadmanService;
+import dev.burnedchats.service.PresenceService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,7 @@ class WebSocketEventListenerKeyRequestInboxTest {
     @Mock private SimpMessagingTemplate messagingTemplate;
     @Mock private MessagesProperties messagesProperties;
     @Mock private RoomKeyRequestInboxDelivery keyRequestInboxDelivery;
+    @Mock private PresenceService presenceService;
 
     @InjectMocks
     private WebSocketEventListener listener;
@@ -58,7 +60,7 @@ class WebSocketEventListenerKeyRequestInboxTest {
         MessagesProperties.ServerPushSync push = new MessagesProperties.ServerPushSync();
         push.setEnabled(false);
         when(messagesProperties.getServerPushSync()).thenReturn(push);
-        when(onlineStatusRepository.setOnline(OWNER)).thenReturn(Mono.empty());
+        when(presenceService.markOnline(OWNER)).thenReturn(Mono.empty());
         when(deadmanService.syncStateOnConnect(OWNER)).thenReturn(Mono.empty());
         when(requestRepository.findByRecipient(OWNER)).thenReturn(Flux.empty());
         when(roomMembersRepository.getRoomsForMember(OWNER)).thenReturn(Flux.empty());

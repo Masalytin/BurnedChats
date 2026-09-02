@@ -12,6 +12,7 @@ import dev.burnedchats.repository.RoomPresenceRepository;
 import dev.burnedchats.repository.UserIdentityRepository;
 import dev.burnedchats.repository.UserRepository;
 import dev.burnedchats.service.DeadmanService;
+import dev.burnedchats.service.PresenceService;
 import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,8 @@ class WebSocketEventListenerServerPushTest {
     private SimpMessagingTemplate messagingTemplate;
     @Mock
     private MessagesProperties messagesProperties;
+    @Mock
+    private PresenceService presenceService;
 
     @InjectMocks
     private WebSocketEventListener listener;

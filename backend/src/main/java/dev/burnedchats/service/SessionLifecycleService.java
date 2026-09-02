@@ -549,7 +549,7 @@ public class SessionLifecycleService {
                 .username(request.getSenderUsername())
                 .displayName(displayName)
                 .photoUrl(request.getSenderPhotoUrl())
-                .online(true)
+                .online(false)
                 .premium(false)
                 .build();
     }

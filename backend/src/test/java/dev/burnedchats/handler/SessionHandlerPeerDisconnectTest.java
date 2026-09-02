@@ -9,6 +9,7 @@ import dev.burnedchats.model.enums.AuthType;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.StompAuthInterceptor.WalletPrincipal;
+import dev.burnedchats.service.PresenceService;
 import dev.burnedchats.service.SessionLifecycleService;
 import dev.burnedchats.telegram.BotMessageService;
 import dev.burnedchats.telegram.BurnedChatsBot;
@@ -50,6 +51,8 @@ class SessionHandlerPeerDisconnectTest {
     private SessionLifecycleService sessionLifecycleService;
     @Mock
     private OnlineStatusRepository onlineStatusRepository;
+    @Mock
+    private PresenceService presenceService;
 
     @InjectMocks
     private SessionHandler sessionHandler;
@@ -65,13 +68,13 @@ class SessionHandlerPeerDisconnectTest {
                 .status(SessionStatus.ACTIVE)
                 .build();
         when(sessionRepository.findById(SESSION)).thenReturn(Mono.just(session));
-        when(onlineStatusRepository.setOffline(SENDER_INTERNAL)).thenReturn(Mono.just(1L));
+        when(presenceService.markOffline(SENDER_INTERNAL)).thenReturn(Mono.empty());
 
         sessionHandler.handlePeerDisconnect(
                 new PeerDisconnectRequest(SESSION, "APP_CLOSED"),
                 walletPrincipal());
 
-        verify(onlineStatusRepository).setOffline(SENDER_INTERNAL);
+        verify(presenceService).markOffline(SENDER_INTERNAL);
         verify(stompUserMessenger).convertAndSendToInternalId(
                 eq(PEER_INTERNAL), eq("/queue/peer-disconnected"), any());
     }
@@ -91,7 +94,7 @@ class SessionHandlerPeerDisconnectTest {
                 new PeerDisconnectRequest(SESSION, "APP_CLOSED"),
                 walletPrincipal());
 
-        verify(onlineStatusRepository, never()).setOffline(SENDER_INTERNAL);
+        verify(presenceService, never()).markOffline(SENDER_INTERNAL);
         verify(stompUserMessenger, never()).convertAndSendToInternalId(any(), any(), any());
     }
 

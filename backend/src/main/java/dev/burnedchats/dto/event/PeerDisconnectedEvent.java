@@ -32,6 +32,11 @@ public class PeerDisconnectedEvent {
     private final Long peerId;
 
     /**
+     * Stable internal id of the disconnected peer (wallet-safe).
+     */
+    private final String internalId;
+
+    /**
      * Reason for disconnect.
      */
     private final DisconnectReason reason;
@@ -71,9 +76,14 @@ public class PeerDisconnectedEvent {
      * Create event for app closed.
      */
     public static PeerDisconnectedEvent appClosed(String sessionId, Long peerId) {
+        return appClosed(sessionId, peerId, null);
+    }
+
+    public static PeerDisconnectedEvent appClosed(String sessionId, Long peerId, String internalId) {
         return PeerDisconnectedEvent.builder()
                 .sessionId(sessionId)
                 .peerId(peerId)
+                .internalId(internalId)
                 .reason(DisconnectReason.APP_CLOSED)
                 .build();
     }

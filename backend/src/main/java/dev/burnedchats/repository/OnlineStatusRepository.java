@@ -241,4 +241,15 @@ public class OnlineStatusRepository {
     private String keyFor(String internalId) {
         return KEY_PREFIX + internalId;
     }
+
+    public static boolean isOnlineKey(String redisKey) {
+        return redisKey != null && redisKey.startsWith(KEY_PREFIX) && redisKey.length() > KEY_PREFIX.length();
+    }
+
+    public static String parseInternalIdFromOnlineKey(String redisKey) {
+        if (!isOnlineKey(redisKey)) {
+            return null;
+        }
+        return redisKey.substring(KEY_PREFIX.length());
+    }
 }
