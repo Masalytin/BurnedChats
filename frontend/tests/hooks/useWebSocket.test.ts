@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Critical-path test for {@link useWebSocket}: subscription restoration on (re)connect (IMP-AUDIT-16).
@@ -263,5 +263,55 @@ describe('useWebSocket reconnect exhausted CTA (IMP-OFFLINE-05)', () => {
     await waitFor(() => expect(result.current.isConnected).toBe(true));
     expect(result.current.reconnectExhausted).toBe(false);
     expect(result.current.reconnectAttempt).toBe(0);
+  });
+});
+
+describe('useWebSocket hidden-tab presence pause (IMP-PRESENCE-03)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    h.state.connected = false;
+    h.state.config = null;
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  });
+
+  it('publishes presence.offline after hidden grace and heartbeats again on visible', async () => {
+    const { result } = renderHook(() => useWebSocket({ getCredentials: walletCredentials }));
+
+    act(() => {
+      result.current.connect();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.isConnected).toBe(true);
+
+    h.publishMock.mockClear();
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(h.publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: '/app/presence.offline' }),
+    );
+
+    h.publishMock.mockClear();
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(h.publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: '/app/heartbeat' }),
+    );
   });
 });

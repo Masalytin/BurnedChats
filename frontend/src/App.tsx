@@ -29,6 +29,7 @@ import { useGetInviteLink } from './hooks/useGetInviteLink';
 import { useManageInvites } from './hooks/useManageInvites';
 import { useRoomMembers } from './hooks/useRoomMembers';
 import { useRoomPresence } from './hooks/useRoomPresence';
+import { usePresenceSubscription } from './hooks/usePresenceSubscription';
 import { useRoomRoles } from './hooks/useRoomRoles';
 import { useKickMember } from './hooks/useKickMember';
 import { useManageBans } from './hooks/useManageBans';
@@ -299,6 +300,8 @@ function AppContent() {
       setWsReconnectNonce((n) => n + 1);
     },
   });
+
+  usePresenceSubscription({ subscribe, unsubscribe });
 
   const myInternalId = user?.internalId ?? null;
   const telegramUserId = user?.telegramId ?? null;

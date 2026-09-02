@@ -20,6 +20,7 @@ import { debugLog, incrementMessagesSent, incrementMessagesReceived, logStompMes
 import { buildStompErrorDebugData } from '../components/DebugPanel/DebugPanel';
 import { buildWebSocketHandshakeUrl } from './webSocketHandshakeUrl';
 import { isReconnectExhausted } from './reconnectExhausted';
+import { PRESENCE_HIDDEN_GRACE_MS } from '../presence/presenceStore';
 
 /** WebSocket connection error types */
 export type WebSocketErrorType = 
@@ -121,6 +122,7 @@ const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
  */
 const PRESENCE_HEARTBEAT_INTERVAL = 20000;
 const PRESENCE_HEARTBEAT_DESTINATION = '/app/heartbeat';
+const PRESENCE_OFFLINE_DESTINATION = '/app/presence.offline';
 
 /**
  * Extract roomId from STOMP ERROR frame for room topic subscribe denial (IMP-ROOM-22/26).
@@ -699,43 +701,88 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     };
   }, [autoConnect, connect, disconnect]);
 
-  // Application-level presence heartbeat (refreshes Redis online TTL)
-  // Server online status key has 30s TTL; we refresh every 20s to keep it alive.
-  // Without this, after 30s the server considers the user offline and queues messages.
+  // Application-level presence heartbeat (refreshes Redis online TTL).
+  // Hidden tab: after grace, pause heartbeats and publish presence.offline so
+  // DM watchers flip offline before the 30s key expires.
   useEffect(() => {
     if (!isConnected) return;
 
-    // Send heartbeat immediately on connect to refresh TTL
-    if (clientRef.current?.connected) {
+    const publishJson = (destination: string, log: string) => {
+      if (!clientRef.current?.connected) {
+        return;
+      }
       try {
         clientRef.current.publish({
-          destination: PRESENCE_HEARTBEAT_DESTINATION,
+          destination,
           body: '{}',
           headers: { 'content-type': 'application/json' },
         });
-        debugLog('info', 'Presence heartbeat sent (initial)');
+        debugLog('info', log);
       } catch (e) {
-        debugLog('warn', 'Failed to send initial presence heartbeat', { error: String(e) });
+        debugLog('warn', `Failed to publish ${destination}`, { error: String(e) });
       }
+    };
+
+    const sendHeartbeat = (reason: string) => {
+      publishJson(PRESENCE_HEARTBEAT_DESTINATION, `Presence heartbeat sent (${reason})`);
+    };
+
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const stopInterval = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
+
+    const startInterval = () => {
+      if (intervalId != null) {
+        return;
+      }
+      intervalId = setInterval(() => {
+        if (!document.hidden) {
+          sendHeartbeat('interval');
+        }
+      }, PRESENCE_HEARTBEAT_INTERVAL);
+    };
+
+    const onHiddenGraceElapsed = () => {
+      if (!document.hidden) {
+        return;
+      }
+      stopInterval();
+      publishJson(PRESENCE_OFFLINE_DESTINATION, 'Presence offline sent (hidden grace)');
+    };
+
+    const onVisibilityChange = () => {
+      if (hiddenTimer != null) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = undefined;
+      }
+      if (document.hidden) {
+        hiddenTimer = setTimeout(onHiddenGraceElapsed, PRESENCE_HIDDEN_GRACE_MS);
+        return;
+      }
+      sendHeartbeat('visible');
+      startInterval();
+    };
+
+    if (document.hidden) {
+      hiddenTimer = setTimeout(onHiddenGraceElapsed, PRESENCE_HIDDEN_GRACE_MS);
+    } else {
+      sendHeartbeat('initial');
+      startInterval();
     }
 
-    const intervalId = setInterval(() => {
-      if (clientRef.current?.connected) {
-        try {
-          clientRef.current.publish({
-            destination: PRESENCE_HEARTBEAT_DESTINATION,
-            body: '{}',
-            headers: { 'content-type': 'application/json' },
-          });
-          debugLog('info', 'Presence heartbeat sent');
-        } catch (e) {
-          debugLog('warn', 'Failed to send presence heartbeat', { error: String(e) });
-        }
-      }
-    }, PRESENCE_HEARTBEAT_INTERVAL);
-
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      clearInterval(intervalId);
+      stopInterval();
+      if (hiddenTimer != null) {
+        clearTimeout(hiddenTimer);
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [isConnected]);
 
