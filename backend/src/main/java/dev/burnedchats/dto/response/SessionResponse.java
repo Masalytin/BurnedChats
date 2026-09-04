@@ -65,6 +65,13 @@ public class SessionResponse {
      * Logical expiry: PENDING = {@code createdAt + session.request.ttl}.
      */
     private Instant expiresAt;
+
+    /**
+     * Per-session message auto-destruction timer in seconds; {@code 0} = off.
+     * Additive snapshot for remount / list / resume / status / accept.
+     */
+    @Builder.Default
+    private int messageTtlSeconds = 0;
 }
 
 

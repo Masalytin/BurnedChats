@@ -26,4 +26,18 @@ class SessionResponseJsonTest {
         assertThat(json.get("isInitiator").booleanValue()).isTrue();
         assertThat(json.has("initiator")).isFalse();
     }
+
+    @Test
+    @DisplayName("serializes additive messageTtlSeconds")
+    void serializesMessageTtlSeconds() throws Exception {
+        SessionResponse response = SessionResponse.builder()
+                .sessionId("sess-1")
+                .messageTtlSeconds(300)
+                .build();
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
+
+        assertThat(json.has("messageTtlSeconds")).isTrue();
+        assertThat(json.get("messageTtlSeconds").intValue()).isEqualTo(300);
+    }
 }

@@ -158,6 +158,82 @@ class SessionRepositoryTest {
                     })
                     .verifyComplete();
         }
+
+        @Test
+        @DisplayName("missing messageTtl hash field maps to 0")
+        void missingMessageTtlDefaultsToZero() {
+            Session session = createTestSession();
+            Map<Object, Object> hashMap = sessionToHashMap(session);
+            String key = "session:" + TEST_SESSION_ID;
+            when(hashOperations.entries(key)).thenReturn(Flux.fromIterable(hashMap.entrySet()));
+
+            StepVerifier.create(sessionRepository.findById(TEST_SESSION_ID))
+                    .assertNext(found -> assertEquals(0, found.getMessageTtl()))
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("messageTtl hash field 300 maps through")
+        void messageTtlFieldMapsThrough() {
+            Session session = createTestSession();
+            Map<Object, Object> hashMap = sessionToHashMap(session);
+            hashMap.put("messageTtl", "300");
+            String key = "session:" + TEST_SESSION_ID;
+            when(hashOperations.entries(key)).thenReturn(Flux.fromIterable(hashMap.entrySet()));
+
+            StepVerifier.create(sessionRepository.findById(TEST_SESSION_ID))
+                    .assertNext(found -> assertEquals(300, found.getMessageTtl()))
+                    .verifyComplete();
+        }
+    }
+
+    @Nested
+    @DisplayName("updateMessageTtl")
+    class UpdateMessageTtl {
+
+        @Test
+        @DisplayName("HSET session:{id} messageTtl 300")
+        void hsetsMessageTtl() {
+            String key = "session:" + TEST_SESSION_ID;
+            when(hashOperations.put(key, "messageTtl", "300")).thenReturn(Mono.just(true));
+
+            StepVerifier.create(sessionRepository.updateMessageTtl(TEST_SESSION_ID, 300))
+                    .expectNext(true)
+                    .verifyComplete();
+
+            verify(hashOperations).put(key, "messageTtl", "300");
+        }
+
+        @Test
+        @DisplayName("HSET 0 disables prune")
+        void hsetsZero() {
+            String key = "session:" + TEST_SESSION_ID;
+            when(hashOperations.put(key, "messageTtl", "0")).thenReturn(Mono.just(true));
+
+            StepVerifier.create(sessionRepository.updateMessageTtl(TEST_SESSION_ID, 0))
+                    .expectNext(true)
+                    .verifyComplete();
+
+            verify(hashOperations).put(key, "messageTtl", "0");
+        }
+
+        @Test
+        @DisplayName("negative TTL is INVALID_MESSAGE_TTL")
+        void negativeTtlRejected() {
+            StepVerifier.create(sessionRepository.updateMessageTtl(TEST_SESSION_ID, -1))
+                    .expectErrorMatches(e -> e instanceof IllegalArgumentException
+                            && "INVALID_MESSAGE_TTL".equals(e.getMessage()))
+                    .verify();
+        }
+
+        @Test
+        @DisplayName("TTL above 86400 is INVALID_MESSAGE_TTL")
+        void aboveMaxTtlRejected() {
+            StepVerifier.create(sessionRepository.updateMessageTtl(TEST_SESSION_ID, 86401))
+                    .expectErrorMatches(e -> e instanceof IllegalArgumentException
+                            && "INVALID_MESSAGE_TTL".equals(e.getMessage()))
+                    .verify();
+        }
     }
 
     @Nested
@@ -229,6 +305,24 @@ class SessionRepositoryTest {
             assertEquals("hash123", savedMap.get("secretAnswerHash"));
             assertEquals("true", savedMap.get("initiatorVerified"));
             assertNotNull(savedMap.get("handshakeCompletedAt"));
+            assertEquals("0", savedMap.get("messageTtl"));
+        }
+
+        @Test
+        @DisplayName("save writes non-zero messageTtl")
+        void saveWritesMessageTtl() {
+            Session session = createTestSession();
+            session.setMessageTtl(300);
+            String key = "session:" + TEST_SESSION_ID;
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<Map<String, String>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            when(hashOperations.putAll(eq(key), mapCaptor.capture())).thenReturn(Mono.just(true));
+            when(redisTemplate.expire(eq(key), any(Duration.class))).thenReturn(Mono.just(true));
+
+            sessionRepository.save(session).block();
+
+            assertEquals("300", mapCaptor.getValue().get("messageTtl"));
         }
     }
 

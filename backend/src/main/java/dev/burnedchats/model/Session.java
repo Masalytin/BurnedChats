@@ -118,6 +118,14 @@ public class Session implements Serializable {
     private String responderPublicKey;
 
     /**
+     * Per-session message auto-destruction timer in seconds; {@code 0} = disabled
+     * (global offline-queue TTL only). Either ACTIVE participant may set it.
+     * Pruning uses {@code serverTimestamp} metadata only (fallback {@code clientTimestamp}).
+     */
+    @Builder.Default
+    private int messageTtl = 0;
+
+    /**
      * Session status enumeration.
      */
     public enum SessionStatus {

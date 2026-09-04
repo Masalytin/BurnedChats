@@ -97,7 +97,7 @@ Compatibility: backend also accepts legacy header/query names `auth-type` / `aut
 | `CREATE_SESSION` (`/app/session.create`) | 3 req | 1 min | `SESSION_CREATE` (after PoW) |
 | `dmInvite.mint` (`/app/dmInvite.mint`) | 3 req | 1 min | `DM_INVITE_MINT` (after PoW; in-service) |
 | `dmInvite.redeem` (`/app/dmInvite.redeem`) | 10 req | 1 min | `DM_INVITE_REDEEM` (in-service; no heavy PoW) |
-| `session.accept` / `session.reject` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject — in `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` in `RoomHandler`) |
+| `session.accept` / `session.reject` / `session.setMessageTtl` / `verification.confirm`; `room.kick` / `room.ban` / `room.mute` | 10 req | 1 min | `SESSION_ACTION` (accept/reject/setMessageTtl — in `RateLimitInterceptor`; kick/ban/mute — `enforceRateLimit` in `RoomHandler`) |
 | `handshake.key` (`/app/handshake.key`) | 10 req | 1 min | `HANDSHAKE` |
 | `message.edit` / `room.message.edit` | 10 req | 1 min | `MESSAGE_EDIT` |
 | `message.delete` / `room.message.delete` | 30 req | 1 min | `MESSAGE_DELETE` |
@@ -535,6 +535,38 @@ Outbound only — no inbound `@MessageMapping`. Lazy cleanup on
 |------|-----|----------|
 | `isInitiator` | boolean | Requester is the session initiator |
 | `expiresAt` | ISO-8601 | PENDING = `createdAt + session.request.ttl` |
+| `messageTtlSeconds` | number | Per-session disappearing-message timer; `0` = off. Also on accept / status snapshots via `SessionMapper`. |
+
+---
+
+### `SET_SESSION_MESSAGE_TTL` (`/app/session.setMessageTtl`)
+
+**Direction:** Client → Server (any `isParticipant` of an `ACTIVE` session)
+
+**Request** (`SetSessionMessageTtlRequest`):
+
+| Field | Type | Required | Description |
+|------|-----|-------------|----------|
+| `sessionId` | string | Yes | Session UUID |
+| `messageTtlSeconds` | number | Yes | Message self-destruct timer in seconds (`0`–`86400`); `0` = off |
+
+**Server:** any participant + `ACTIVE`; `HSET session:{sessionId} messageTtl {value}` (last-write-wins, no CAS); immediate lazy prune of both
+`messages:{initiatorInternalId}:{sessionId}` and `messages:{responderInternalId}:{sessionId}`
+plus matching `message-edits` / `message-deletions` tombstones. Cutoff =
+`serverTimestamp` (fallback `clientTimestamp`) older than `now - messageTtl`.
+`0` disables prune (does not resurrect already-pruned blobs).
+
+**Errors** (caller only, same user-queue): `NOT_PARTICIPANT`, `SESSION_NOT_ACTIVE`
+(PENDING / HANDSHAKE / BURNED / EXPIRED), `SESSION_NOT_FOUND`, `INVALID_MESSAGE_TTL`,
+`INTERNAL_ERROR`.
+
+**Event after success:** `SESSION_MESSAGE_TTL_UPDATED` to **both** participants on
+`/user/queue/session-message-ttl-updated` (`sessionId`, `messageTtlSeconds`, `updatedAt`).
+No `/topic/session/{id}`. Clients ignore an event whose `updatedAt` is older than
+the value they already applied.
+
+**Backend:** `SessionHandler` — `@MessageMapping("/session.setMessageTtl")`.
+Rate-limit: `SESSION_ACTION`.
 
 ---
 

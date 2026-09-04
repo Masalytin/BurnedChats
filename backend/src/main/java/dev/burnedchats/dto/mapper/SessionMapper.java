@@ -42,6 +42,7 @@ public interface SessionMapper {
     @Mapping(target = "lastActivityAt", source = "session.lastActivityAt")
     @Mapping(target = "isInitiator", source = "isInitiator")
     @Mapping(target = "expiresAt", expression = "java(session.getExpiresAt(pendingTtl))")
+    @Mapping(target = "messageTtlSeconds", source = "session.messageTtl")
     SessionResponse toResponse(Session session, UserResponse peer, boolean isInitiator, Duration pendingTtl);
 
     /**
@@ -56,6 +57,7 @@ public interface SessionMapper {
     @Mapping(target = "peerVerified", constant = "false")
     @Mapping(target = "isInitiator", constant = "false")
     @Mapping(target = "expiresAt", expression = "java(session.getExpiresAt())")
+    @Mapping(target = "messageTtlSeconds", source = "messageTtl")
     SessionResponse toBasicResponse(Session session);
 }
 

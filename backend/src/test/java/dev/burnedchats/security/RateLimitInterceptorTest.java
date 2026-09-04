@@ -173,6 +173,18 @@ class RateLimitInterceptorTest {
     }
 
     @Test
+    @DisplayName("session.setMessageTtl uses SESSION_ACTION not GENERAL")
+    void sessionSetMessageTtlUsesSessionAction() {
+        AppPrincipal principal = mockPrincipal("user-ttl");
+        when(rateLimitService.enforceRateLimit("user-ttl", RateLimitType.SESSION_ACTION))
+                .thenReturn(Mono.empty());
+
+        interceptor.preSend(stompMessage(StompCommand.SEND, "/app/session.setMessageTtl", principal), channel);
+
+        verify(rateLimitService).enforceRateLimit("user-ttl", RateLimitType.SESSION_ACTION);
+    }
+
+    @Test
     @DisplayName("room.getInviteLink uses ROOM_INVITE_MINT bucket not GENERAL")
     void roomGetInviteLinkUsesDedicatedBucket() {
         AppPrincipal principal = mockPrincipal("user-invite");

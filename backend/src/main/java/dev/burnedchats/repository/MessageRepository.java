@@ -21,8 +21,11 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Redis repository for offline message queue.
@@ -158,6 +161,36 @@ public class MessageRepository {
                 .flatMap(this::deserializeMessage)
                 .doOnComplete(() -> LOG.debug("Retrieved pending messages for user {} in session {}",
                         recipientId, sessionId));
+    }
+
+    /**
+     * Remove messages older than {@code messageTtlSeconds} from both per-recipient queues
+     * and drop matching edit/deletion tombstones.
+     *
+     * <p>No-op when {@code messageTtlSeconds <= 0}. Uses {@link Message#getServerTimestamp()}
+     * with fallback to {@link Message#getClientTimestamp()} — same cutoff as
+     * {@code RoomMessageRepository.isExpired}.
+     */
+    public Mono<Void> pruneExpiredMessages(
+            String sessionId,
+            String initiatorInternalId,
+            String responderInternalId,
+            int messageTtlSeconds) {
+        if (messageTtlSeconds <= 0) {
+            return Mono.empty();
+        }
+        Instant cutoff = Instant.now().minusSeconds(messageTtlSeconds);
+        return rewriteQueueKeepingLive(initiatorInternalId, sessionId, cutoff)
+                .flatMap(prunedA -> rewriteQueueKeepingLive(responderInternalId, sessionId, cutoff)
+                        .flatMap(prunedB -> {
+                            Set<String> prunedIds = new HashSet<>(prunedA);
+                            prunedIds.addAll(prunedB);
+                            if (prunedIds.isEmpty()) {
+                                return Mono.empty();
+                            }
+                            return removeTombstonesForIds(initiatorInternalId, sessionId, prunedIds)
+                                    .then(removeTombstonesForIds(responderInternalId, sessionId, prunedIds));
+                        }));
     }
 
     /**
@@ -910,5 +943,138 @@ public class MessageRepository {
                     LOG.warn("Failed to deserialize message: {}", e.getMessage());
                     return Mono.empty();
                 });
+    }
+
+    /**
+     * Rewrite one per-recipient list, dropping expired blobs. Returns pruned message ids.
+     */
+    private Mono<Set<String>> rewriteQueueKeepingLive(String recipientId, String sessionId, Instant cutoff) {
+        if (recipientId == null || recipientId.isBlank()) {
+            return Mono.just(Set.of());
+        }
+        String key = keyFor(recipientId, sessionId);
+        Duration ttl = messagesProperties.getOfflineQueue().getTtl();
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    if (jsonList.isEmpty()) {
+                        return Mono.just(Set.<String>of());
+                    }
+                    List<String> kept = new ArrayList<>(jsonList.size());
+                    Set<String> prunedIds = new HashSet<>();
+                    for (String json : jsonList) {
+                        Message message = parseMessageOrNull(json);
+                        if (message == null || isExpired(message, cutoff)) {
+                            if (message != null && message.getMessageId() != null) {
+                                prunedIds.add(message.getMessageId());
+                            }
+                        } else {
+                            kept.add(json);
+                        }
+                    }
+                    if (prunedIds.isEmpty() && kept.size() == jsonList.size()) {
+                        return Mono.just(Set.<String>of());
+                    }
+                    long pruned = jsonList.size() - kept.size();
+                    LOG.debug("Pruning {} expired DM messages for recipient {} session {}",
+                            pruned, recipientId, sessionId);
+                    Mono<Void> rewrite;
+                    if (kept.isEmpty()) {
+                        offlineQueueMetrics.removeTrackedListKey(key);
+                        rewrite = redisTemplate.delete(key).then();
+                    } else {
+                        rewrite = redisTemplate.delete(key)
+                                .then(Flux.fromIterable(kept)
+                                        .concatMap(json -> redisTemplate.opsForList().rightPush(key, json))
+                                        .then())
+                                .then(redisTemplate.expire(key, ttl))
+                                .doOnSuccess(ok -> offlineQueueMetrics.setTrackedListSize(key, (long) kept.size()))
+                                .then();
+                    }
+                    String countKey = countKeyFor(recipientId);
+                    Mono<Void> adjustCount = pruned > 0
+                            ? redisTemplate.opsForValue().decrement(countKey, pruned).then()
+                            : Mono.empty();
+                    return rewrite.then(adjustCount).thenReturn(prunedIds);
+                });
+    }
+
+    private Mono<Void> removeTombstonesForIds(String recipientId, String sessionId, Set<String> prunedIds) {
+        if (recipientId == null || recipientId.isBlank() || prunedIds.isEmpty()) {
+            return Mono.empty();
+        }
+        return rewriteTombstoneList(
+                editsKeyFor(recipientId, sessionId),
+                messagesProperties.getMessageEdits().getTtl(),
+                json -> tombstoneMessageId(json, MessageEdit.class, MessageEdit::getMessageId, prunedIds))
+                .then(rewriteTombstoneList(
+                        deletionsKeyFor(recipientId, sessionId),
+                        messagesProperties.getMessageDeletions().getTtl(),
+                        json -> tombstoneMessageId(
+                                json, MessageDeletion.class, MessageDeletion::getMessageId, prunedIds)));
+    }
+
+    private <T> boolean tombstoneMessageId(
+            String json, Class<T> type, java.util.function.Function<T, String> idFn, Set<String> prunedIds) {
+        try {
+            return prunedIds.contains(idFn.apply(objectMapper.readValue(json, type)));
+        } catch (JsonProcessingException e) {
+            LOG.warn("Skipping bad tombstone during prune: {}", e.getMessage());
+            return true;
+        }
+    }
+
+    private Mono<Void> rewriteTombstoneList(
+            String key, Duration ttl, java.util.function.Predicate<String> dropIf) {
+        return redisTemplate.opsForList()
+                .range(key, 0, -1)
+                .collectList()
+                .flatMap(jsonList -> {
+                    if (jsonList.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    List<String> kept = new ArrayList<>(jsonList.size());
+                    for (String json : jsonList) {
+                        if (!dropIf.test(json)) {
+                            kept.add(json);
+                        }
+                    }
+                    if (kept.size() == jsonList.size()) {
+                        return Mono.empty();
+                    }
+                    if (kept.isEmpty()) {
+                        return redisTemplate.delete(key).then();
+                    }
+                    return redisTemplate.delete(key)
+                            .then(Flux.fromIterable(kept)
+                                    .concatMap(json -> redisTemplate.opsForList().rightPush(key, json))
+                                    .then())
+                            .then(redisTemplate.expire(key, ttl))
+                            .then();
+                });
+    }
+
+    private Message parseMessageOrNull(String json) {
+        try {
+            return objectMapper.readValue(json, Message.class);
+        } catch (JsonProcessingException e) {
+            LOG.warn("Skipping bad DM list entry during prune: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Same cutoff as {@code RoomMessageRepository}: serverTimestamp, else clientTimestamp.
+     */
+    private static boolean isExpired(Message message, Instant cutoff) {
+        Instant timestamp = message.getServerTimestamp();
+        if (timestamp == null && message.getClientTimestamp() != null) {
+            timestamp = Instant.ofEpochMilli(message.getClientTimestamp());
+        }
+        if (timestamp == null) {
+            return false;
+        }
+        return timestamp.isBefore(cutoff);
     }
 }

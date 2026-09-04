@@ -91,6 +91,7 @@ HSET session:abc123
   secretAnswerHash        "e3b0c44298fc1c149..."
   initiatorVerified       "true"
   responderVerified       "false"
+  messageTtl              "300"           # optional; message self-destruct seconds; 0 or absent = off
 
 EXPIRE session:abc123 86400
 ```
@@ -103,6 +104,7 @@ EXPIRE session:abc123 86400
 | `responderTelegramId` | string? | Recipient's Telegram ID; empty for wallet-only |
 | `status` | enum | `pending` \| `handshake` \| `active` \| `burned` \| `expired` |
 | `secretAnswerHash` | string? | Base64(SHA-256) of the normalized expected answer (`trim` → `toLowerCase`) |
+| `messageTtl` | number | Optional: DM message self-destruct timer in **seconds**; `0` or missing field = off (only global list TTL). Set by either ACTIVE participant via `/app/session.setMessageTtl`. Absent on legacy keys maps to `0` without rewriting the hash. |
 
 Participant check: `session.isParticipant(internalId)`. Peer: `session.getPeerInternalId(myInternalId)`.
 
@@ -122,6 +124,15 @@ Queue of encrypted messages for the recipient when they are offline at delivery 
 |------|-----|----------|
 | `messages:{recipientInternalId}:{sessionId}` | List | JSON-serialized `Message` (E2EE blob), FIFO order |
 | `messages:count:{recipientInternalId}` | String | Aggregate count of undelivered messages across all user sessions |
+
+**Per-session message TTL:** when `session:{sessionId}` has `messageTtl > 0`, server on
+`/app/message.send`, `/app/message.sync`, and `/app/session.setMessageTtl` performs **lazy prune**
+of **both** per-recipient lists (`messages:{initiatorInternalId}:{sessionId}` and
+`messages:{responderInternalId}:{sessionId}`): removes elements with `serverTimestamp`
+(fallback `clientTimestamp`) older than `now - messageTtl`. Matching ids are dropped from
+`message-edits` / `message-deletions` tombstone queues. Server does not decrypt ciphertext —
+only time metadata. `messageTtl = 0` — prune disabled, only the list key TTL applies.
+A spoofed future `clientTimestamp` does not extend life when `serverTimestamp` is present.
 
 **TTL `messages:count:*`:** EXPIRE is set only when the counter transitions to `1`
 

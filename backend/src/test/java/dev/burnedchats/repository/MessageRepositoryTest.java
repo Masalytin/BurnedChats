@@ -636,4 +636,148 @@ class MessageRepositoryTest {
             verify(listOperations).trim(key, -50L, -1L);
         }
     }
+
+    @Nested
+    @DisplayName("pruneExpiredMessages")
+    class PruneExpiredMessages {
+
+        private static final String INITIATOR = "init-uuid";
+        private static final String RESPONDER = "resp-uuid";
+
+        @Test
+        @DisplayName("drops blobs older than cutoff from both queues by serverTimestamp")
+        void dropsExpiredFromBothQueues() {
+            Message stale = message("msg-stale", Instant.now().minusSeconds(7200), System.currentTimeMillis());
+            Message fresh = message("msg-fresh", Instant.now(), System.currentTimeMillis());
+            String initiatorKey = "messages:" + INITIATOR + ":" + TEST_SESSION_ID;
+            String responderKey = "messages:" + RESPONDER + ":" + TEST_SESSION_ID;
+
+            when(listOperations.range(initiatorKey, 0, -1))
+                    .thenReturn(Flux.just(toJson(stale), toJson(fresh)));
+            when(listOperations.range(responderKey, 0, -1))
+                    .thenReturn(Flux.just(toJson(stale)));
+            when(redisTemplate.delete(initiatorKey)).thenReturn(Mono.just(1L));
+            when(redisTemplate.delete(responderKey)).thenReturn(Mono.just(1L));
+            when(listOperations.rightPush(eq(initiatorKey), eq(toJson(fresh)))).thenReturn(Mono.just(1L));
+            when(redisTemplate.expire(eq(initiatorKey), any(Duration.class))).thenReturn(Mono.just(true));
+            when(valueOperations.decrement(eq("messages:count:" + INITIATOR), eq(1L))).thenReturn(Mono.just(0L));
+            when(valueOperations.decrement(eq("messages:count:" + RESPONDER), eq(1L))).thenReturn(Mono.just(0L));
+            stubEmptyTombstones(INITIATOR);
+            stubEmptyTombstones(RESPONDER);
+
+            StepVerifier.create(messageRepository.pruneExpiredMessages(
+                            TEST_SESSION_ID, INITIATOR, RESPONDER, 3600))
+                    .verifyComplete();
+
+            verify(redisTemplate).delete(initiatorKey);
+            verify(listOperations).rightPush(initiatorKey, toJson(fresh));
+            verify(redisTemplate).delete(responderKey);
+        }
+
+        @Test
+        @DisplayName("ttl=0 is a no-op")
+        void noOpWhenTtlZero() {
+            StepVerifier.create(messageRepository.pruneExpiredMessages(
+                            TEST_SESSION_ID, INITIATOR, RESPONDER, 0))
+                    .verifyComplete();
+
+            verify(listOperations, org.mockito.Mockito.never()).range(anyString(), eq(0L), eq(-1L));
+        }
+
+        @Test
+        @DisplayName("future clientTimestamp does not save a blob with old serverTimestamp")
+        void futureClientTimestampDoesNotExtendLife() {
+            long futureClient = System.currentTimeMillis() + 86_400_000L;
+            Message spoofed = message("msg-spoof", Instant.now().minusSeconds(7200), futureClient);
+            String initiatorKey = "messages:" + INITIATOR + ":" + TEST_SESSION_ID;
+            String responderKey = "messages:" + RESPONDER + ":" + TEST_SESSION_ID;
+
+            when(listOperations.range(initiatorKey, 0, -1)).thenReturn(Flux.just(toJson(spoofed)));
+            when(listOperations.range(responderKey, 0, -1)).thenReturn(Flux.empty());
+            when(redisTemplate.delete(initiatorKey)).thenReturn(Mono.just(1L));
+            when(valueOperations.decrement(eq("messages:count:" + INITIATOR), eq(1L))).thenReturn(Mono.just(0L));
+            stubEmptyTombstones(INITIATOR);
+            stubEmptyTombstones(RESPONDER);
+
+            StepVerifier.create(messageRepository.pruneExpiredMessages(
+                            TEST_SESSION_ID, INITIATOR, RESPONDER, 3600))
+                    .verifyComplete();
+
+            verify(redisTemplate).delete(initiatorKey);
+        }
+
+        @Test
+        @DisplayName("removes edit and deletion tombstones for pruned message ids")
+        void removesTombstonesForPrunedIds() {
+            Message stale = message("msg-stale", Instant.now().minusSeconds(7200), System.currentTimeMillis());
+            String initiatorKey = "messages:" + INITIATOR + ":" + TEST_SESSION_ID;
+            String responderKey = "messages:" + RESPONDER + ":" + TEST_SESSION_ID;
+            String editsKey = "message-edits:" + INITIATOR + ":" + TEST_SESSION_ID;
+            String deletionsKey = "message-deletions:" + INITIATOR + ":" + TEST_SESSION_ID;
+            MessageEdit staleEdit = MessageEdit.builder()
+                    .messageId("msg-stale")
+                    .sessionId(TEST_SESSION_ID)
+                    .encryptedContent("x")
+                    .iv("y")
+                    .editedAt(Instant.now())
+                    .build();
+            MessageDeletion staleDeletion = MessageDeletion.builder()
+                    .messageId("msg-stale")
+                    .deletedByTgId(SENDER_ID)
+                    .build();
+
+            when(listOperations.range(initiatorKey, 0, -1)).thenReturn(Flux.just(toJson(stale)));
+            when(listOperations.range(responderKey, 0, -1)).thenReturn(Flux.empty());
+            when(redisTemplate.delete(initiatorKey)).thenReturn(Mono.just(1L));
+            when(valueOperations.decrement(eq("messages:count:" + INITIATOR), eq(1L))).thenReturn(Mono.just(0L));
+            when(listOperations.range(editsKey, 0, -1)).thenReturn(Flux.just(editJson(staleEdit)));
+            when(listOperations.range(deletionsKey, 0, -1)).thenReturn(Flux.just(deletionJson(staleDeletion)));
+            when(redisTemplate.delete(editsKey)).thenReturn(Mono.just(1L));
+            when(redisTemplate.delete(deletionsKey)).thenReturn(Mono.just(1L));
+            stubEmptyTombstones(RESPONDER);
+
+            StepVerifier.create(messageRepository.pruneExpiredMessages(
+                            TEST_SESSION_ID, INITIATOR, RESPONDER, 3600))
+                    .verifyComplete();
+
+            verify(redisTemplate).delete(editsKey);
+            verify(redisTemplate).delete(deletionsKey);
+        }
+
+        private void stubEmptyTombstones(String participant) {
+            when(listOperations.range("message-edits:" + participant + ":" + TEST_SESSION_ID, 0, -1))
+                    .thenReturn(Flux.empty());
+            when(listOperations.range("message-deletions:" + participant + ":" + TEST_SESSION_ID, 0, -1))
+                    .thenReturn(Flux.empty());
+        }
+
+        private Message message(String id, Instant serverTimestamp, long clientTimestamp) {
+            return Message.builder()
+                    .messageId(id)
+                    .sessionId(TEST_SESSION_ID)
+                    .senderId(SENDER_ID)
+                    .recipientId(RECIPIENT_ID)
+                    .encryptedContent("c")
+                    .iv("iv")
+                    .clientTimestamp(clientTimestamp)
+                    .serverTimestamp(serverTimestamp)
+                    .build();
+        }
+
+        private String editJson(MessageEdit edit) {
+            try {
+                return objectMapper.writeValueAsString(edit);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private String deletionJson(MessageDeletion deletion) {
+            try {
+                return objectMapper.writeValueAsString(deletion);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }

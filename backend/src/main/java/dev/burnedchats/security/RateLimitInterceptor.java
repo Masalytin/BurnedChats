@@ -78,6 +78,7 @@ public class RateLimitInterceptor implements ChannelInterceptor {
             // session.create: rate limit applied in SessionHandler after PoW (DESIGN.md §6.2)
             Map.entry("/app/session.accept", RateLimitType.SESSION_ACTION),
             Map.entry("/app/session.reject", RateLimitType.SESSION_ACTION),
+            Map.entry("/app/session.setMessageTtl", RateLimitType.SESSION_ACTION),
             Map.entry("/app/message.send", RateLimitType.MESSAGE),
             Map.entry("/app/message.sync", RateLimitType.MESSAGE),
             Map.entry("/app/room.message.send", RateLimitType.MESSAGE),

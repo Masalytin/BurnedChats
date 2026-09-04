@@ -22,6 +22,7 @@ import dev.burnedchats.util.InternalIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,7 +32,10 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -196,5 +200,38 @@ class MessageHandlerSyncTest {
                 eq(internalA), eq("/queue/sync-messages"), eventCap.capture());
         assertThat(eventCap.getValue().getEdits()).isEmpty();
         assertThat(eventCap.getValue().getDeletedIds()).containsExactly("m-both");
+    }
+
+    @Test
+    void syncMessages_prunesBothQueuesBeforeDeliveringLeftover() throws Exception {
+        Session session = Session.builder()
+                .id(SESSION_ID)
+                .initiatorInternalId(InternalIds.forTelegramId(USER_A))
+                .initiatorTelegramId(USER_A)
+                .responderInternalId(InternalIds.forTelegramId(USER_B))
+                .responderTelegramId(USER_B)
+                .status(SessionStatus.ACTIVE)
+                .messageTtl(300)
+                .build();
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Mono.just(session));
+        when(messageRepository.pruneExpiredMessages(any(), any(), any(), anyInt()))
+                .thenReturn(Mono.empty());
+
+        String internalA = InternalIds.forTelegramId(USER_A);
+        String internalB = InternalIds.forTelegramId(USER_B);
+        when(messageRepository.getPendingMessages(internalA, SESSION_ID)).thenReturn(Flux.empty());
+        when(messageRepository.getPendingEdits(internalA, SESSION_ID)).thenReturn(Flux.empty());
+        when(messageRepository.getPendingDeletions(internalA, SESSION_ID)).thenReturn(Flux.empty());
+
+        TelegramPrincipal principal = org.mockito.Mockito.mock(TelegramPrincipal.class);
+        when(principal.getUserId()).thenReturn(USER_A);
+        when(principal.getInternalId()).thenReturn(internalA);
+
+        messageHandler.syncMessages(new SyncMessagesRequest(SESSION_ID), principal);
+        Thread.sleep(300);
+
+        InOrder order = inOrder(messageRepository);
+        order.verify(messageRepository).pruneExpiredMessages(SESSION_ID, internalA, internalB, 300);
+        order.verify(messageRepository).getPendingMessages(internalA, SESSION_ID);
     }
 }

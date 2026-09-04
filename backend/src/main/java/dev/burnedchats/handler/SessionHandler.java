@@ -5,6 +5,7 @@ import dev.burnedchats.dto.event.PeerDisconnectedEvent;
 import dev.burnedchats.dto.event.RequestExpiredEvent;
 import dev.burnedchats.dto.event.SessionAcceptedEvent;
 import dev.burnedchats.dto.event.SessionCreatedEvent;
+import dev.burnedchats.dto.event.SessionMessageTtlUpdatedEvent;
 import dev.burnedchats.dto.event.SessionStatusEvent;
 import dev.burnedchats.dto.request.AcceptSessionRequest;
 import dev.burnedchats.dto.request.CreateSessionRequest;
@@ -12,10 +13,13 @@ import dev.burnedchats.dto.request.PeerDisconnectRequest;
 import dev.burnedchats.dto.request.RejectSessionRequest;
 import dev.burnedchats.dto.request.ResumeSessionRequest;
 import dev.burnedchats.dto.request.SessionStatusRequest;
+import dev.burnedchats.dto.request.SetSessionMessageTtlRequest;
 import dev.burnedchats.messaging.StompUserMessenger;
 import dev.burnedchats.dto.event.SessionResumedEvent;
+import dev.burnedchats.model.Session;
 import dev.burnedchats.model.Session.SessionStatus;
 import dev.burnedchats.model.UnifiedUser;
+import dev.burnedchats.repository.MessageRepository;
 import dev.burnedchats.repository.OnlineStatusRepository;
 import dev.burnedchats.repository.SessionRepository;
 import dev.burnedchats.security.AppPrincipal;
@@ -39,9 +43,11 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
+import jakarta.validation.Valid;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -67,8 +73,10 @@ public class SessionHandler {
     private static final String ACTIVE_SESSIONS_DESTINATION = "/queue/active-sessions";
     private static final String SESSION_RESUMED_DESTINATION = "/queue/session-resumed";
     private static final String REQUEST_EXPIRED_DESTINATION = "/queue/request-expired";
+    private static final String SESSION_MESSAGE_TTL_DESTINATION = "/queue/session-message-ttl-updated";
 
     private final SessionRepository sessionRepository;
+    private final MessageRepository messageRepository;
     private final OnlineStatusRepository onlineStatusRepository;
     private final StompUserMessenger stompUserMessenger;
     private final BurnedChatsBot telegramBot;
@@ -454,6 +462,89 @@ public class SessionHandler {
 
     private void sendResumeEvent(ParticipantContext participant, SessionResumedEvent event) {
         sendStompToInternalId(participant.internalId(), SESSION_RESUMED_DESTINATION, event);
+    }
+
+    @MessageMapping("/session.setMessageTtl")
+    public void setMessageTtl(@Payload @Valid SetSessionMessageTtlRequest request, Principal principal) {
+        ParticipantContext caller = ParticipantContext.from(principal);
+        if (caller == null) {
+            LOG.warn("SET_SESSION_MESSAGE_TTL rejected: unsupported principal");
+            return;
+        }
+        String sessionId = request.getSessionId();
+        Integer ttl = request.getMessageTtlSeconds();
+        if (ttl == null || ttl < 0 || ttl > 86400) {
+            sendMessageTtlError(caller.internalId(), sessionId, "INVALID_MESSAGE_TTL");
+            return;
+        }
+
+        LOG.info("SET_SESSION_MESSAGE_TTL requested: sessionId={}, internalId={}, messageTtlSeconds={}",
+                sessionId, caller.internalId(), ttl);
+
+        sessionRepository.findById(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    sendMessageTtlError(caller.internalId(), sessionId, "SESSION_NOT_FOUND");
+                    return Mono.empty();
+                }))
+                .flatMap(session -> applySessionMessageTtl(session, caller, ttl))
+                .subscribe(
+                        fanout -> {
+                            sendStompToInternalId(
+                                    fanout.initiatorInternalId(), SESSION_MESSAGE_TTL_DESTINATION, fanout.event());
+                            sendStompToInternalId(
+                                    fanout.responderInternalId(), SESSION_MESSAGE_TTL_DESTINATION, fanout.event());
+                            LOG.info("SESSION_MESSAGE_TTL_UPDATED sent: sessionId={}, messageTtlSeconds={}",
+                                    sessionId, fanout.event().getMessageTtlSeconds());
+                        },
+                        error -> {
+                            String code = error instanceof IllegalArgumentException iae
+                                    ? iae.getMessage()
+                                    : "INTERNAL_ERROR";
+                            LOG.warn("SET_SESSION_MESSAGE_TTL failed: sessionId={}, internalId={}, error={}",
+                                    sessionId, caller.internalId(), code);
+                            sendMessageTtlError(caller.internalId(), sessionId, code);
+                        }
+            );
+    }
+
+    private Mono<SessionMessageTtlFanout> applySessionMessageTtl(
+            Session session, ParticipantContext caller, int ttl) {
+        if (!session.isParticipant(caller.internalId())) {
+            sendMessageTtlError(caller.internalId(), session.getId(), "NOT_PARTICIPANT");
+            return Mono.empty();
+        }
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            sendMessageTtlError(caller.internalId(), session.getId(), "SESSION_NOT_ACTIVE");
+            return Mono.empty();
+        }
+        return sessionRepository.updateMessageTtl(session.getId(), ttl)
+                .flatMap(ok -> {
+                    if (!Boolean.TRUE.equals(ok)) {
+                        return Mono.error(new IllegalStateException("INTERNAL_ERROR"));
+                    }
+                    return messageRepository.pruneExpiredMessages(
+                                    session.getId(),
+                                    session.getInitiatorInternalId(),
+                                    session.getResponderInternalId(),
+                                    ttl)
+                            .thenReturn(new SessionMessageTtlFanout(
+                                    session.getInitiatorInternalId(),
+                                    session.getResponderInternalId(),
+                                    SessionMessageTtlUpdatedEvent.of(session.getId(), ttl, Instant.now())));
+                });
+    }
+
+    private void sendMessageTtlError(String callerInternalId, String sessionId, String errorCode) {
+        sendStompToInternalId(
+                callerInternalId,
+                SESSION_MESSAGE_TTL_DESTINATION,
+                SessionMessageTtlUpdatedEvent.error(sessionId, errorCode));
+    }
+
+    private record SessionMessageTtlFanout(
+            String initiatorInternalId,
+            String responderInternalId,
+            SessionMessageTtlUpdatedEvent event) {
     }
 
     private Mono<Void> cleanupExpiredAndNotify(ActiveSessionsResult result) {

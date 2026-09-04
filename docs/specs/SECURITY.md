@@ -266,6 +266,16 @@ public class SendMessageRequest {
 }
 ```
 
+### Disappearing-message TTL (time metadata only)
+
+Per-message prune in rooms and DM is **send-time TTL**, not view-once and not
+“burn after read”. The server never uses `MessageStatus.read` / read-receipts as a
+burn condition. Cutoff is `serverTimestamp` (fallback `clientTimestamp` for legacy
+blobs without a server stamp). A client that spoofs `clientTimestamp` into the future
+does **not** extend life when a valid `serverTimestamp` is present (`Message.fromRequest`
+and room send always stamp server time). The relay still sees only encrypted blobs plus
+those timestamps and the integer `messageTtl` on `session:{id}` / `room:{id}`.
+
 ### Encryption (send)
 
 ```typescript

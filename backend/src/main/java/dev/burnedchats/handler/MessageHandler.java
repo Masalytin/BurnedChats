@@ -159,11 +159,12 @@ public class MessageHandler {
                         return Mono.empty();
                     }
 
-                    return Mono.zip(
+                    return pruneSessionQueues(session)
+                            .then(Mono.zip(
                             messageRepository.getPendingMessages(internalId, sessionId).collectList(),
                             messageRepository.getPendingEdits(internalId, sessionId).collectList(),
                             messageRepository.getPendingDeletions(internalId, sessionId).collectList()
-                    ).flatMap(tuple -> {
+                    )).flatMap(tuple -> {
                         List<Message> messages = tuple.getT1();
                         List<MessageEdit> pendingEdits = tuple.getT2();
                         List<MessageDeletion> deletions = tuple.getT3();
@@ -464,6 +465,7 @@ public class MessageHandler {
                             session, sender, recipientInternalId, recipientTelegramId,
                             request, serverTimestamp);
                 }))
+                .then(pruneSessionQueues(session))
                 .onErrorResume(FileValidationException.class, ex -> {
                     LOG.debug("File validation failed for message {} in session {}: {}",
                             messageId, sessionId, ex.getErrorCode());
@@ -654,6 +656,22 @@ public class MessageHandler {
             case EXPIRED -> "SESSION_EXPIRED";
             default -> "INVALID_STATUS";
         };
+    }
+
+    /**
+     * Lazy prune of both DM offline queues. Skips the repository call when TTL is off
+     * so the cutoff engine stays in {@link MessageRepository#pruneExpiredMessages}.
+     */
+    private Mono<Void> pruneSessionQueues(Session session) {
+        int ttl = session.getMessageTtl();
+        if (ttl <= 0) {
+            return Mono.empty();
+        }
+        return messageRepository.pruneExpiredMessages(
+                session.getId(),
+                session.getInitiatorInternalId(),
+                session.getResponderInternalId(),
+                ttl);
     }
 
     private void sendError(ParticipantContext sender, String sessionId, String messageId, String errorCode) {

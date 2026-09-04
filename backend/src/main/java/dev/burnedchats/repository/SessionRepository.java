@@ -21,19 +21,8 @@ import java.util.Map;
  *
  * <p>Stores session data using Redis Hash with key pattern: {@code session:{sessionId}}
  *
- * <p>Session fields stored:
- * <ul>
- *   <li>id - session UUID</li>
- *   <li>initiatorId - Telegram ID of session creator</li>
- *   <li>responderId - Telegram ID of recipient</li>
- *   <li>status - session status enum</li>
- *   <li>createdAt - creation timestamp</li>
- *   <li>lastActivityAt - last activity timestamp</li>
- *   <li>initiatorVerified - whether initiator verified fingerprint</li>
- *   <li>responderVerified - whether responder verified fingerprint</li>
- *   <li>secretQuestion - optional secret question</li>
- *   <li>secretAnswerHash - Base64 SHA-256 of normalized expected answer (if question set)</li>
- * </ul>
+ * <p>Hash fields include participants, status, timestamps, verification flags,
+ * optional secret Q/A, handshake keys, and {@code messageTtl} (absent → 0).
  *
  * <p>Session key TTL depends on status: PENDING uses {@code session.request.ttl};
  * HANDSHAKE / ACTIVE / others use {@code session.active.ttl}.
@@ -116,6 +105,16 @@ public class SessionRepository {
                 .put(key, "status", status.name())
                 .flatMap(result -> updateLastActivity(sessionId))
                 .doOnSuccess(result -> LOG.debug("Updated session {} status to {}", sessionId, status));
+    }
+
+    /** Point HSET of {@code messageTtl}; {@code 0} disables prune. Missing field on read maps to 0. */
+    public Mono<Boolean> updateMessageTtl(String sessionId, int messageTtlSeconds) {
+        if (messageTtlSeconds < 0 || messageTtlSeconds > 86400) {
+            return Mono.error(new IllegalArgumentException("INVALID_MESSAGE_TTL"));
+        }
+        return redisTemplate.opsForHash()
+                .put(keyFor(sessionId), "messageTtl", String.valueOf(messageTtlSeconds))
+                .thenReturn(true);
     }
 
     /**
@@ -391,6 +390,7 @@ public class SessionRepository {
                 .secretAnswerHash(hash.get("secretAnswerHash"))
                 .initiatorPublicKey(hash.get("initiatorPublicKey"))
                 .responderPublicKey(hash.get("responderPublicKey"))
+                .messageTtl(parseIntOrDefault(hash.get("messageTtl"), 0))
                 .build();
     }
 
@@ -440,7 +440,17 @@ public class SessionRepository {
             map.put("responderPublicKey", session.getResponderPublicKey());
         }
 
+        map.put("messageTtl", String.valueOf(session.getMessageTtl()));
+
         return map;
+    }
+
+    private static int parseIntOrDefault(String value, int defaultValue) {
+        try {
+            return (value == null || value.isBlank()) ? defaultValue : Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private Instant parseInstantOrNow(String value) {
