@@ -4,6 +4,7 @@ import {
   addressToSliceStackBoc,
   getBurnBalance,
   getEffectiveFeeParams,
+  getJettonSupply,
   setBurnTokenReadDevForTests,
   txResultToBurnError,
 } from '@/ton/burnToken';
@@ -138,7 +139,8 @@ describe('burnToken RPC helpers', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('getEffectiveFeeParams falls back to static TOKENOMICS split on Ton error', async () => {
+  it('getEffectiveFeeParams falls back to static TOKENOMICS split on Ton error (DEV RPC)', async () => {
+    vi.stubEnv('VITE_API_URL', '');
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ ok: false, error: 'boom' }));
 
     await expect(
@@ -152,6 +154,133 @@ describe('burnToken RPC helpers', () => {
       stakingBps: 30,
       treasuryBps: 20,
     });
+  });
+
+  it('getJettonSupply uses own API on 200', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        circulatingNano: '990000000000',
+        mintable: true,
+      }),
+    );
+
+    const supply = await getJettonSupply({
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      jettonMaster: MASTER,
+    });
+
+    expect(supply.circulating).toBe(990_000_000_000n);
+    expect(supply.mintable).toBe(true);
+    expect(supply.burned).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/jetton-info');
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('toncenter');
+  });
+
+  it('getJettonSupply on 502 throws and does not call Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/jetton-info')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      return jsonResponse({ ok: true, result: { exit_code: 0, stack: [] } });
+    });
+
+    await expect(
+      getJettonSupply({
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toBeInstanceOf(BurnTokenError);
+
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('getJettonSupply empty VITE_API_URL on prod-path errors and does not default to Toncenter', async () => {
+    setBurnTokenReadDevForTests(false);
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchImpl = vi.fn();
+
+    await expect(
+      getJettonSupply({
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFIG' });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('getEffectiveFeeParams uses own API on 200', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        burnBps: 40,
+        stakingBps: 35,
+        treasuryBps: 25,
+      }),
+    );
+
+    const fees = await getEffectiveFeeParams({
+      fetchImpl,
+      rpcBaseUrl: 'https://stub.ton/api/v2',
+      jettonMaster: MASTER,
+    });
+
+    expect(fees).toEqual({ burnBps: 40, stakingBps: 35, treasuryBps: 25 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/api/wallet/fee-params');
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('toncenter');
+  });
+
+  it('getEffectiveFeeParams on 502 throws and does not call Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/fee-params')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      return jsonResponse({ ok: true, result: { exit_code: 0, stack: [] } });
+    });
+
+    await expect(
+      getEffectiveFeeParams({
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toBeInstanceOf(BurnTokenError);
+
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('getEffectiveFeeParams empty VITE_API_URL on prod-path errors and does not default to Toncenter', async () => {
+    setBurnTokenReadDevForTests(false);
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchImpl = vi.fn();
+
+    await expect(
+      getEffectiveFeeParams({
+        fetchImpl,
+        rpcBaseUrl: 'https://testnet.toncenter.com/api/v2',
+        jettonMaster: MASTER,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFIG' });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('maps connector TxResult errors to BurnTokenError codes', () => {

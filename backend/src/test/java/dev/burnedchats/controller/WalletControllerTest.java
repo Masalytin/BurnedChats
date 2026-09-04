@@ -3,12 +3,16 @@ package dev.burnedchats.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.burnedchats.controller.WalletController.BurnBalanceResponse;
+import dev.burnedchats.controller.WalletController.FeeParamsResponse;
+import dev.burnedchats.controller.WalletController.JettonInfoResponse;
 import dev.burnedchats.controller.WalletController.JettonWalletResponse;
 import dev.burnedchats.controller.WalletController.TonBalanceResponse;
 import dev.burnedchats.model.enums.StakingTier;
 import dev.burnedchats.ton.JettonService;
 import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.TonService;
+import dev.burnedchats.ton.dto.EffectiveFeeParams;
+import dev.burnedchats.ton.dto.JettonInfo;
 import dev.burnedchats.ton.dto.StakeInfo;
 import dev.burnedchats.ton.dto.TierConfigDto;
 import dev.burnedchats.ton.dto.UserStakingProfile;
@@ -348,6 +352,74 @@ class WalletControllerTest {
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                     assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center account error"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("GET /api/wallet/jetton-info returns 200 with circulatingNano")
+    void jettonInfoHappyPath() {
+        JettonInfo info = new JettonInfo(
+                new BigInteger("990000000000"),
+                true,
+                "EQAdmin",
+                "te6cckEBAQEAAgAAAA==",
+                "");
+        when(jettonService.getJettonInfo()).thenReturn(Mono.just(info));
+
+        StepVerifier.create(controller.jettonInfo())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isInstanceOf(JettonInfoResponse.class);
+                    JettonInfoResponse body = (JettonInfoResponse) resp.getBody();
+                    assertThat(body.circulatingNano()).isEqualTo("990000000000");
+                    assertThat(body.mintable()).isTrue();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-info Ton RPC failure returns 502")
+    void jettonInfoRpcFailure() {
+        when(jettonService.getJettonInfo())
+                .thenReturn(Mono.error(new TonRpcException("Ton Center jetton info error")));
+
+        StepVerifier.create(controller.jettonInfo())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center jetton info error"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("GET /api/wallet/fee-params returns 200 with bps split")
+    void feeParamsHappyPath() {
+        when(jettonService.getEffectiveFeeParams())
+                .thenReturn(Mono.just(new EffectiveFeeParams(50, 30, 20)));
+
+        StepVerifier.create(controller.feeParams())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+                    assertThat(resp.getBody()).isInstanceOf(FeeParamsResponse.class);
+                    FeeParamsResponse body = (FeeParamsResponse) resp.getBody();
+                    assertThat(body.burnBps()).isEqualTo(50);
+                    assertThat(body.stakingBps()).isEqualTo(30);
+                    assertThat(body.treasuryBps()).isEqualTo(20);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("fee-params Ton RPC failure returns 502")
+    void feeParamsRpcFailure() {
+        when(jettonService.getEffectiveFeeParams())
+                .thenReturn(Mono.error(new TonRpcException("Ton Center fee params error")));
+
+        StepVerifier.create(controller.feeParams())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center fee params error"));
                 })
                 .verifyComplete();
     }

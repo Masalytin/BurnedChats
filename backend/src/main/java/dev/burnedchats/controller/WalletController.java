@@ -113,6 +113,47 @@ public class WalletController {
     }
 
     /**
+     * BURN jetton master supply snapshot (circulating nano + mintable). Public read; no auth.
+     */
+    @GetMapping("/jetton-info")
+    @Operation(summary = "BURN jetton circulating supply (nano decimal string) and mintable flag")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Master supply snapshot",
+                content = @Content(schema = @Schema(implementation = JettonInfoResponse.class))),
+        @ApiResponse(responseCode = "502", description = "Master RPC exhausted")
+    })
+    public Mono<ResponseEntity<Object>> jettonInfo() {
+        return jettonService
+                .getJettonInfo()
+                .map(info -> ResponseEntity.<Object>ok(
+                        new JettonInfoResponse(info.totalSupply().toString(), info.mintable())))
+                .onErrorResume(
+                        TonRpcException.class,
+                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
+                                .body(Map.of("message", e.getMessage()))));
+    }
+
+    /**
+     * Effective fee-on-transfer split from the jetton master. Public read; no auth.
+     */
+    @GetMapping("/fee-params")
+    @Operation(summary = "Effective BURN fee split in basis points")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Fee split",
+                content = @Content(schema = @Schema(implementation = FeeParamsResponse.class))),
+        @ApiResponse(responseCode = "502", description = "Master RPC exhausted")
+    })
+    public Mono<ResponseEntity<Object>> feeParams() {
+        return jettonService
+                .getEffectiveFeeParams()
+                .map(p -> ResponseEntity.<Object>ok(new FeeParamsResponse(p.burnBps(), p.stakingBps(), p.treasuryBps())))
+                .onErrorResume(
+                        TonRpcException.class,
+                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
+                                .body(Map.of("message", e.getMessage()))));
+    }
+
+    /**
      * Aggregated staking snapshot (stakes, VP, lock catalog, TVL). Public read; no auth.
      * Omit {@code address} for catalog-only. {@code fresh=1} busts the user cache (1/15s).
      */
@@ -171,4 +212,8 @@ public class WalletController {
     public record TonBalanceResponse(String balanceNano, String address) {}
 
     public record JettonWalletResponse(@Nullable String jettonWalletAddress, String ownerAddress) {}
+
+    public record JettonInfoResponse(String circulatingNano, boolean mintable) {}
+
+    public record FeeParamsResponse(int burnBps, int stakingBps, int treasuryBps) {}
 }

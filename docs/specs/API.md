@@ -195,6 +195,14 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   `{ address, balanceNano }` with nano as a **decimal string**. Same REST
   bucket as other `/api/wallet/**` (60/min). Prod clients must not fall back
   to Toncenter on ton-balance or burn-balance (IMP-TONREAD-06).
+- **`GET /api/wallet/jetton-info`** is a public BURN master supply snapshot
+  (no auth). RPC exhausted → **502** `{message}`. **200**
+  `{ circulatingNano, mintable }` with circulating as a **decimal string**.
+  Prod clients must not fall back to Toncenter (IMP-TONREAD-07).
+- **`GET /api/wallet/fee-params`** is the public effective fee-on-transfer
+  split (no auth). RPC exhausted → **502** `{message}`. **200**
+  `{ burnBps, stakingBps, treasuryBps }`. Same REST bucket (60/min). Prod
+  clients must not fall back to Toncenter (IMP-TONREAD-07).
 - **`POST /api/auth/link-telegram/complete`** binds Telegram (`initData` HMAC)
   to the wallet `internalId` stored in `wallet_tg_link:{challengeId}` (15 min).
   The challenge is read first and **deleted only after** a successful bind, so a

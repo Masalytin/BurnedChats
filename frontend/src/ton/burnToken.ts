@@ -7,7 +7,7 @@ import type { TxResult } from '@/ton/types';
 import type { BurnTransaction, EffectiveFeeParams } from '@/types/ton';
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 import { parseTonCenterNum } from '@/ton/parseTonCenterNum';
-import { parseJettonDataStack, type JettonSupply } from '@/ton/burnSupply';
+import { jettonSupplyFromParts, parseJettonDataStack, type JettonSupply } from '@/ton/burnSupply';
 
 export type { JettonSupply } from '@/ton/burnSupply';
 import {
@@ -75,6 +75,8 @@ const CONFIRM_POLL_INTERVAL_MS = 1_500;
 const TON_GAS_BUFFER_NANOTON = 10_000_000n;
 
 const BURN_BALANCE_UNAVAILABLE = 'BURN balance API is unavailable';
+const JETTON_INFO_UNAVAILABLE = 'Jetton info API is unavailable';
+const FEE_PARAMS_UNAVAILABLE = 'Fee params API is unavailable';
 
 /** Test-only override. `undefined` restores `import.meta.env.DEV`. */
 let burnTokenReadDevOverride: boolean | undefined;
@@ -367,6 +369,90 @@ export async function getBurnBalance(address: string, deps?: BurnTokenDeps): Pro
   return fetchBurnBalanceNanoRpc(address, r);
 }
 
+function parseJettonInfoBody(body: unknown): JettonSupply | null {
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+  const r = body as Record<string, unknown>;
+  const nano = r.circulatingNano;
+  if (typeof nano !== 'string' || !/^\d+$/.test(nano)) {
+    return null;
+  }
+  if (typeof r.mintable !== 'boolean') {
+    return null;
+  }
+  return jettonSupplyFromParts(BigInt(nano), r.mintable);
+}
+
+async function fetchJettonSupplyFromApi(fetchImpl: typeof fetch, base: string): Promise<JettonSupply> {
+  const url = `${base}/api/wallet/jetton-info`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', JETTON_INFO_UNAVAILABLE, { cause: e });
+  }
+  if (!response.ok) {
+    throw new BurnTokenError('NETWORK_ERROR', JETTON_INFO_UNAVAILABLE);
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', JETTON_INFO_UNAVAILABLE, { cause: e });
+  }
+  const supply = parseJettonInfoBody(body);
+  if (supply === null) {
+    throw new BurnTokenError('NETWORK_ERROR', JETTON_INFO_UNAVAILABLE);
+  }
+  return supply;
+}
+
+function parseFeeParamsBody(body: unknown): EffectiveFeeParams | null {
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+  const r = body as Record<string, unknown>;
+  const burnBps = r.burnBps;
+  const stakingBps = r.stakingBps;
+  const treasuryBps = r.treasuryBps;
+  if (
+    typeof burnBps !== 'number' ||
+    typeof stakingBps !== 'number' ||
+    typeof treasuryBps !== 'number' ||
+    !Number.isFinite(burnBps) ||
+    !Number.isFinite(stakingBps) ||
+    !Number.isFinite(treasuryBps)
+  ) {
+    return null;
+  }
+  return { burnBps, stakingBps, treasuryBps };
+}
+
+async function fetchFeeParamsFromApi(fetchImpl: typeof fetch, base: string): Promise<EffectiveFeeParams> {
+  const url = `${base}/api/wallet/fee-params`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', FEE_PARAMS_UNAVAILABLE, { cause: e });
+  }
+  if (!response.ok) {
+    throw new BurnTokenError('NETWORK_ERROR', FEE_PARAMS_UNAVAILABLE);
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (e) {
+    throw new BurnTokenError('NETWORK_ERROR', FEE_PARAMS_UNAVAILABLE, { cause: e });
+  }
+  const fees = parseFeeParamsBody(body);
+  if (fees === null) {
+    throw new BurnTokenError('NETWORK_ERROR', FEE_PARAMS_UNAVAILABLE);
+  }
+  return fees;
+}
+
 async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<EffectiveFeeParams> {
   const master = resolveJettonMaster(deps.jettonMaster);
   const { exitCode, stackUnknown } = await postRunGetMethod(
@@ -398,10 +484,19 @@ async function fetchEffectiveFeeParamsRpc(deps: ResolvedDeps): Promise<Effective
 }
 
 /**
- * Network circulating / burned from jetton master `get_jetton_data` (Ton Center, not backend cache).
+ * Network circulating / burned from jetton master `get_jetton_data`.
+ * Prod-read is `/api/wallet/jetton-info` only. DEV may use Ton Center RPC
+ * only when `VITE_API_URL` is empty.
  */
 export async function getJettonSupply(deps?: BurnTokenDeps): Promise<JettonSupply> {
   const r = resolveDeps(deps);
+  const base = normalizeApiBase();
+  if (base) {
+    return fetchJettonSupplyFromApi(r.fetchImpl, base);
+  }
+  if (!isBurnTokenReadDev()) {
+    throw new BurnTokenError('CONFIG', 'API base URL is not configured (VITE_API_URL)');
+  }
   const master = resolveJettonMaster(r.jettonMaster);
   const { exitCode, stackUnknown } = await postRunGetMethod(
     r.rpcBaseUrl,
@@ -426,10 +521,19 @@ export async function getJettonSupply(deps?: BurnTokenDeps): Promise<JettonSuppl
 }
 
 /**
- * Dynamic fee params from jetton master `get_effective_fee_params` (fallback: TOKENOMICS static split).
+ * Dynamic fee params from jetton master `get_effective_fee_params`.
+ * Prod-read is `/api/wallet/fee-params` only. DEV RPC (empty `VITE_API_URL`)
+ * falls back to the TOKENOMICS static split on Ton error.
  */
 export async function getEffectiveFeeParams(deps?: BurnTokenDeps): Promise<EffectiveFeeParams> {
   const r = resolveDeps(deps);
+  const base = normalizeApiBase();
+  if (base) {
+    return fetchFeeParamsFromApi(r.fetchImpl, base);
+  }
+  if (!isBurnTokenReadDev()) {
+    throw new BurnTokenError('CONFIG', 'API base URL is not configured (VITE_API_URL)');
+  }
   try {
     return await fetchEffectiveFeeParamsRpc(r);
   } catch (e) {

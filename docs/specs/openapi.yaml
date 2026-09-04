@@ -156,6 +156,25 @@ components:
             description: "Per-tier TVL nano strings; omitted keys were not available"
           description: "Per-tier TVL nano strings; omitted keys were not available"
       description: "Staking snapshot; omit address for catalog-only (empty stakes)"
+    JettonInfoResponse:
+      type: "object"
+      properties:
+        circulatingNano:
+          type: "string"
+        mintable:
+          type: "boolean"
+    FeeParamsResponse:
+      type: "object"
+      properties:
+        burnBps:
+          type: "integer"
+          format: "int32"
+        stakingBps:
+          type: "integer"
+          format: "int32"
+        treasuryBps:
+          type: "integer"
+          format: "int32"
     ProposalSummary:
       type: "object"
       properties:
@@ -662,6 +681,45 @@ paths:
       responses:
         "200":
           description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+  /api/wallet/fee-params:
+    get:
+      tags:
+      - "wallet-controller"
+      summary: "Effective BURN fee split in basis points"
+      operationId: "feeParams"
+      responses:
+        "200":
+          description: "Fee split"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeeParamsResponse"
+        "502":
+          description: "Master RPC exhausted"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+  /api/wallet/jetton-info:
+    get:
+      tags:
+      - "wallet-controller"
+      summary: "BURN jetton circulating supply (nano decimal string) and mintable\
+        \ flag"
+      operationId: "jettonInfo"
+      responses:
+        "200":
+          description: "Master supply snapshot"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JettonInfoResponse"
+        "502":
+          description: "Master RPC exhausted"
           content:
             '*/*':
               schema:

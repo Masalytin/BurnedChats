@@ -114,7 +114,7 @@ public final class OpenApiExporter {
                 sortedPaths.put(entry.getKey(), entry.getValue());
             }
             ObjectNode sortedPathsNode = YAML.createObjectNode();
-            sortedPaths.forEach(sortedPathsNode::set);
+            sortedPaths.forEach((path, node) -> sortedPathsNode.set(path, sortOperationResponses(node)));
             objectNode.set("paths", sortedPathsNode);
         }
 
@@ -129,5 +129,33 @@ public final class OpenApiExporter {
         }
 
         return YAML.writerWithDefaultPrettyPrinter().writeValueAsString(orderedRoot);
+    }
+
+    /**
+     * Springdoc emits HTTP status keys in HashMap order; sort them so export and
+     * the drift check are deterministic (IMP-TONREAD-07).
+     */
+    private static JsonNode sortOperationResponses(JsonNode pathItem) {
+        if (!(pathItem instanceof ObjectNode pathObj)) {
+            return pathItem;
+        }
+        Iterator<Map.Entry<String, JsonNode>> methods = pathObj.fields();
+        while (methods.hasNext()) {
+            Map.Entry<String, JsonNode> method = methods.next();
+            JsonNode op = method.getValue();
+            if (!(op instanceof ObjectNode opObj) || !opObj.has("responses") || !opObj.get("responses").isObject()) {
+                continue;
+            }
+            TreeMap<String, JsonNode> sorted = new TreeMap<>();
+            Iterator<Map.Entry<String, JsonNode>> statuses = opObj.get("responses").fields();
+            while (statuses.hasNext()) {
+                Map.Entry<String, JsonNode> status = statuses.next();
+                sorted.put(status.getKey(), status.getValue());
+            }
+            ObjectNode sortedResponses = YAML.createObjectNode();
+            sorted.forEach(sortedResponses::set);
+            opObj.set("responses", sortedResponses);
+        }
+        return pathObj;
     }
 }
