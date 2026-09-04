@@ -146,7 +146,50 @@ public class WalletController {
     public Mono<ResponseEntity<Object>> feeParams() {
         return jettonService
                 .getEffectiveFeeParams()
-                .map(p -> ResponseEntity.<Object>ok(new FeeParamsResponse(p.burnBps(), p.stakingBps(), p.treasuryBps())))
+                .map(p -> ResponseEntity.<Object>ok(
+                        new FeeParamsResponse(p.burnBps(), p.stakingBps(), p.treasuryBps())))
+                .onErrorResume(TonRpcException.class, WalletController::badGateway)
+                .onErrorResume(TonContractException.class, WalletController::badGateway)
+                .onErrorResume(RuntimeException.class, WalletController::badGateway);
+    }
+
+    /**
+     * Whether a BURN transfer between {@code sender} and {@code recipient} uses the
+     * master excluded path (fee-split bypass). Public read; no auth.
+     */
+    @GetMapping("/excluded-transfer")
+    @Operation(summary = "Whether sender or recipient is on the BURN master excluded list")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Excluded-transfer flag",
+                content = @Content(schema = @Schema(implementation = ExcludedTransferResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Missing or invalid TON address"),
+        @ApiResponse(responseCode = "502", description = "Master RPC exhausted")
+    })
+    public Mono<ResponseEntity<Object>> excludedTransfer(
+            @Parameter(description = "Sender TON wallet (friendly or raw)")
+            @RequestParam(required = false) @Nullable String sender,
+            @Parameter(description = "Recipient TON wallet; omit to check sender only")
+            @RequestParam(required = false) @Nullable String recipient) {
+        if (sender == null || sender.isBlank()) {
+            return Mono.just(badRequest("sender is required"));
+        }
+        String senderTrimmed = sender.trim();
+        try {
+            TonAddressBoc.parse(senderTrimmed);
+        } catch (TonRpcException e) {
+            return Mono.just(badRequest(e.getMessage()));
+        }
+        String recipientTrimmed = recipient == null || recipient.isBlank() ? null : recipient.trim();
+        if (recipientTrimmed != null) {
+            try {
+                TonAddressBoc.parse(recipientTrimmed);
+            } catch (TonRpcException e) {
+                return Mono.just(badRequest(e.getMessage()));
+            }
+        }
+        return jettonService
+                .isExcludedTransfer(senderTrimmed, recipientTrimmed)
+                .map(excluded -> ResponseEntity.<Object>ok(new ExcludedTransferResponse(excluded)))
                 .onErrorResume(TonRpcException.class, WalletController::badGateway)
                 .onErrorResume(TonContractException.class, WalletController::badGateway)
                 .onErrorResume(RuntimeException.class, WalletController::badGateway);
@@ -222,4 +265,6 @@ public class WalletController {
     public record JettonInfoResponse(String circulatingNano, boolean mintable) {}
 
     public record FeeParamsResponse(int burnBps, int stakingBps, int treasuryBps) {}
+
+    public record ExcludedTransferResponse(boolean excluded) {}
 }

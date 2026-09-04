@@ -7,7 +7,33 @@ import { defaultFetch, resolveApiKey, resolveRpcBaseUrl } from '@/ton/rpc';
 /** Stack entry Ton Center `[type, value]` pair. */
 type StackSlot = [string, string];
 
-export type ExcludedTransferPreflightDeps = JettonWalletResolveDeps;
+export type ExcludedTransferPreflightDeps = JettonWalletResolveDeps & {
+  /** Burned Chats API base (`VITE_API_URL`). Prod-read uses this, not Toncenter. */
+  apiBaseUrl?: string;
+};
+
+let excludedReadDevOverride: boolean | undefined;
+
+/**
+ * Vite inlines `import.meta.env.DEV`; tests use {@link setExcludedReadDevForTests}.
+ * Do not import the staking/burnToken seams (IMP-TONREAD-03/06/07).
+ */
+export function isExcludedReadDev(): boolean {
+  if (excludedReadDevOverride !== undefined) {
+    return excludedReadDevOverride;
+  }
+  return import.meta.env.DEV === true;
+}
+
+/** Force DEV/prod excluded-read path in unit tests. Pass `undefined` to restore. */
+export function setExcludedReadDevForTests(dev: boolean | undefined): void {
+  excludedReadDevOverride = dev;
+}
+
+function normalizeApiBase(override?: string): string {
+  const raw = (override ?? import.meta.env.VITE_API_URL ?? '').trim();
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
 
 function addressToSliceStackBoc(userAddress: string): string {
   const addr = Address.parse(userAddress.trim());
@@ -143,12 +169,58 @@ export async function isExcludedBurnHolder(
   return firstStackBool(result.stackUnknown);
 }
 
+function parseExcludedBody(body: unknown): boolean | null {
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+  const excluded = (body as { excluded?: unknown }).excluded;
+  return typeof excluded === 'boolean' ? excluded : null;
+}
+
+async function fetchExcludedTransferFromApi(
+  senderAddress: string,
+  recipientAddress: string | null,
+  fetchImpl: typeof fetch,
+  base: string,
+): Promise<boolean> {
+  const params = new URLSearchParams({ sender: senderAddress.trim() });
+  const recipient = recipientAddress?.trim();
+  if (recipient) {
+    params.set('recipient', recipient);
+  }
+  const url = `${base}/api/wallet/excluded-transfer?${params.toString()}`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+  } catch {
+    return false;
+  }
+  if (!response.ok) {
+    return false;
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return false;
+  }
+  return parseExcludedBody(body) ?? false;
+}
+
 /** Either side excluded → on-chain excluded transfer path (0.7 TON attach). */
 export async function isExcludedTransfer(
   senderAddress: string,
   recipientAddress: string | null,
   deps: ExcludedTransferPreflightDeps,
 ): Promise<boolean> {
+  const base = normalizeApiBase(deps.apiBaseUrl);
+  if (base) {
+    return fetchExcludedTransferFromApi(senderAddress, recipientAddress, deps.fetchImpl, base);
+  }
+  if (!isExcludedReadDev()) {
+    return false;
+  }
+
   const senderExcluded = await isExcludedBurnHolder(senderAddress, deps);
   if (senderExcluded) {
     return true;

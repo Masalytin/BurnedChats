@@ -175,6 +175,11 @@ components:
         treasuryBps:
           type: "integer"
           format: "int32"
+    ExcludedTransferResponse:
+      type: "object"
+      properties:
+        excluded:
+          type: "boolean"
     ProposalSummary:
       type: "object"
       properties:
@@ -354,6 +359,14 @@ paths:
               $ref: "#/components/schemas/SwitchWalletRequest"
         required: true
       responses:
+        "200":
+          description: "Linked-accounts payload after switch or same-wallet TTL refresh"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "object"
         "400":
           description: "No wallet, no Telegram, missing previous proof on web, previous\
             \ proof does not match linked wallet, or invalid viewer"
@@ -363,8 +376,8 @@ paths:
                 type: "object"
                 additionalProperties:
                   type: "object"
-        "200":
-          description: "Linked-accounts payload after switch or same-wallet TTL refresh"
+        "401":
+          description: "Invalid initData, session token, or ton_proof"
           content:
             '*/*':
               schema:
@@ -373,14 +386,6 @@ paths:
                   type: "object"
         "409":
           description: "New address owned by another internalId (CONFLICT, no write)"
-          content:
-            '*/*':
-              schema:
-                type: "object"
-                additionalProperties:
-                  type: "object"
-        "401":
-          description: "Invalid initData, session token, or ton_proof"
           content:
             '*/*':
               schema:
@@ -685,6 +690,44 @@ paths:
             '*/*':
               schema:
                 type: "object"
+  /api/wallet/excluded-transfer:
+    get:
+      tags:
+      - "wallet-controller"
+      summary: "Whether sender or recipient is on the BURN master excluded list"
+      operationId: "excludedTransfer"
+      parameters:
+      - name: "sender"
+        in: "query"
+        description: "Sender TON wallet (friendly or raw)"
+        required: false
+        schema:
+          type: "string"
+      - name: "recipient"
+        in: "query"
+        description: "Recipient TON wallet; omit to check sender only"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "Excluded-transfer flag"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ExcludedTransferResponse"
+        "400":
+          description: "Missing or invalid TON address"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+        "502":
+          description: "Master RPC exhausted"
+          content:
+            '*/*':
+              schema:
+                type: "object"
   /api/wallet/fee-params:
     get:
       tags:
@@ -762,6 +805,12 @@ paths:
         schema:
           type: "string"
       responses:
+        "200":
+          description: "Snapshot or catalog-only"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserStakingProfile"
         "400":
           description: "Invalid TON address"
           content:
@@ -774,12 +823,6 @@ paths:
             '*/*':
               schema:
                 type: "object"
-        "200":
-          description: "Snapshot or catalog-only"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/UserStakingProfile"
   /api/wallet/ton-balance:
     get:
       tags:

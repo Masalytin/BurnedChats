@@ -1,5 +1,5 @@
 import { Address } from '@ton/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { estimateStakeNet } from '@/ton/estimateStakeNet';
 
@@ -28,6 +28,12 @@ function isTonBoolTrue(): string {
 
 describe('estimateStakeNet', () => {
   const gross3 = 3n * 1_000_000_000n;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // RPC-path cases below assume empty VITE_API_URL (DEV).
 
   it('returns full gross when StakingMaster is excluded with signed hex -0x1', async () => {
     const fetchImpl = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
@@ -167,5 +173,67 @@ describe('estimateStakeNet', () => {
 
     expect(est.willChargeFee).toBe(true);
     expect(est.netNano).toBe(2_970_000_000n);
+  });
+
+  it('with VITE_API_URL does not call Toncenter for get_is_excluded', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes('/api/wallet/excluded-transfer')) {
+        return jsonResponse({ excluded: false });
+      }
+      if (u.includes('/api/wallet/fee-params')) {
+        return jsonResponse({ burnBps: 50, stakingBps: 30, treasuryBps: 20 });
+      }
+      return jsonResponse({ ok: false }, 500);
+    });
+
+    const est = await estimateStakeNet(
+      { ownerAddress: USER, stakingMaster: STAKING_MASTER, grossNano: gross3 },
+      {
+        rpcBaseUrl: 'https://toncenter.com/api/v2',
+        jettonMaster: JETTON_MASTER,
+        fetchImpl,
+      },
+    );
+
+    expect(est.willChargeFee).toBe(true);
+    expect(est.netNano).toBe(2_970_000_000n);
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+  });
+
+  it('excluded-transfer 502 does not fall back to Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes('/api/wallet/excluded-transfer')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      if (u.includes('/api/wallet/fee-params')) {
+        return jsonResponse({ burnBps: 50, stakingBps: 30, treasuryBps: 20 });
+      }
+      return jsonResponse({ ok: false }, 500);
+    });
+
+    const est = await estimateStakeNet(
+      { ownerAddress: USER, stakingMaster: STAKING_MASTER, grossNano: gross3 },
+      {
+        rpcBaseUrl: 'https://toncenter.com/api/v2',
+        jettonMaster: JETTON_MASTER,
+        fetchImpl,
+      },
+    );
+
+    expect(est.willChargeFee).toBe(true);
+    expect(est.netNano).toBe(2_970_000_000n);
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
   });
 });

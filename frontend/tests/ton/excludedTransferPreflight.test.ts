@@ -1,10 +1,11 @@
 import { Address } from '@ton/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createExcludedPreflightDeps,
   isExcludedBurnHolder,
   isExcludedTransfer,
+  setExcludedReadDevForTests,
 } from '@/ton/excludedTransferPreflight';
 import { RECOMMENDED_EXCLUDED_PATH_NANO, estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
 
@@ -53,6 +54,13 @@ function notExcludedStackResponse(): Response {
 }
 
 describe('IMP-JETTON-GAS-11 — excludedTransferPreflight', () => {
+  afterEach(() => {
+    setExcludedReadDevForTests(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  // Existing RPC cases assume empty VITE_API_URL (DEV seam).
+
   it('isExcludedBurnHolder returns false for invalid address without RPC', async () => {
     const fetchImpl = vi.fn();
     const result = await isExcludedBurnHolder('bad', deps(fetchImpl));
@@ -125,5 +133,65 @@ describe('IMP-JETTON-GAS-11 — excludedTransferPreflight', () => {
     import.meta.env.VITE_BURN_JETTON_MASTER = '';
     expect(createExcludedPreflightDeps()).toBeNull();
     import.meta.env.VITE_BURN_JETTON_MASTER = prev;
+  });
+
+  it('isExcludedTransfer with VITE_API_URL hits own API and not Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/excluded-transfer')) {
+        return jsonResponse({ excluded: true });
+      }
+      return jsonResponse({ ok: false }, 500);
+    });
+
+    const result = await isExcludedTransfer(SENDER, RECIPIENT, deps(fetchImpl));
+
+    expect(result).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const called = String(fetchImpl.mock.calls[0]?.[0]);
+    expect(called).toContain('https://api.stub/api/wallet/excluded-transfer');
+    expect(called).toContain(`sender=${encodeURIComponent(SENDER)}`);
+    expect(called).toContain(`recipient=${encodeURIComponent(RECIPIENT)}`);
+    expect(called).not.toContain('toncenter');
+    expect(called).not.toContain('runGetMethod');
+  });
+
+  it('isExcludedTransfer API 502 is conservative false and does not fall back to Toncenter', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.stub');
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/wallet/excluded-transfer')) {
+        return jsonResponse({ message: 'rpc exhausted' }, 502);
+      }
+      return jsonResponse({
+        ok: true,
+        result: { exit_code: 0, stack: [['num', '-0x1']] },
+      });
+    });
+
+    const result = await isExcludedTransfer(SENDER, RECIPIENT, {
+      ...deps(fetchImpl),
+      rpcBaseUrl: 'https://toncenter.com/api/v2',
+    });
+
+    expect(result).toBe(false);
+    const toncenterCalls = fetchImpl.mock.calls.filter(([url]) => {
+      const u = String(url);
+      return u.includes('toncenter') || u.includes('runGetMethod');
+    });
+    expect(toncenterCalls).toHaveLength(0);
+  });
+
+  it('empty VITE_API_URL on prod-path is conservative false and does not default to Toncenter', async () => {
+    setExcludedReadDevForTests(false);
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchImpl = vi.fn();
+
+    const result = await isExcludedTransfer(SENDER, RECIPIENT, {
+      ...deps(fetchImpl),
+      rpcBaseUrl: 'https://toncenter.com/api/v2',
+    });
+
+    expect(result).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

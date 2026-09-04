@@ -31,7 +31,8 @@ function resolvePreflightDeps(deps?: ExcludedTransferPreflightDeps): ExcludedTra
 
 /**
  * Expected net BURN staked after jetton transfer fee-split (or full gross when excluded).
- * Uses master `get_is_excluded` preflight + `get_effective_fee_params` (see decision log).
+ * Uses master `get_is_excluded` preflight + `get_effective_fee_params`.
+ * Prod-read: `/api/wallet/excluded-transfer` (and `/fee-params`) when `VITE_API_URL` is set.
  */
 export async function estimateStakeNet(
   params: {

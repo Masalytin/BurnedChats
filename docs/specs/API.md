@@ -203,6 +203,14 @@ ow >= startTime (creationTime + CANCEL_LAG). Casting before
   split (no auth). RPC exhausted → **502** `{message}`. **200**
   `{ burnBps, stakingBps, treasuryBps }`. Same REST bucket (60/min). Prod
   clients must not fall back to Toncenter (IMP-TONREAD-07).
+- **`GET /api/wallet/excluded-transfer?sender=&recipient=`** is a public
+  `get_is_excluded` pair-check (no auth). Missing/blank sender or an invalid
+  address → **400** `{message}`. Recipient may be omitted (sender-only).
+  Master RPC exhausted → **502** `{message}`. **200** `{ excluded }`.
+  Cached via TonService `ton:rpc` (queue + singleflight). Same REST bucket
+  (60/min). Prod clients must not fall back to Toncenter on 4xx/5xx
+  (IMP-TONREAD-09). Stake-form `estimateStakeNet` uses this GET when
+  `VITE_API_URL` is set.
 - **`POST /api/auth/link-telegram/complete`** binds Telegram (`initData` HMAC)
   to the wallet `internalId` stored in `wallet_tg_link:{challengeId}` (15 min).
   The challenge is read first and **deleted only after** a successful bind, so a

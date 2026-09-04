@@ -79,6 +79,32 @@ public class JettonService {
                                         e -> new TonRpcException("serialize JettonInfo", e)))));
     }
 
+    /**
+     * Master {@code get_is_excluded} for a TEP-74 owner. Cached via {@link TonService}
+     * ({@code ton:rpc} TTL). True when the stack bool is TVM {@code -1}.
+     */
+    public Mono<Boolean> isExcluded(String ownerAddress) {
+        String master = requireJettonMaster();
+        List<Object> args = List.of(TonAddressBoc.sliceStackArg(ownerAddress));
+        return tonService.runGetMethod(master, "get_is_excluded", args).map(this::parseExcludedBool);
+    }
+
+    /**
+     * Either side on the master excluded list → on-chain excluded transfer (no fee-split).
+     * Omitting {@code recipientAddress} checks the sender only.
+     */
+    public Mono<Boolean> isExcludedTransfer(String senderAddress, String recipientAddress) {
+        return isExcluded(senderAddress).flatMap(senderExcluded -> {
+            if (Boolean.TRUE.equals(senderExcluded)) {
+                return Mono.just(true);
+            }
+            if (recipientAddress == null || recipientAddress.isBlank()) {
+                return Mono.just(false);
+            }
+            return isExcluded(recipientAddress);
+        });
+    }
+
     public Mono<EffectiveFeeParams> getEffectiveFeeParams() {
         String master = requireJettonMaster();
         String key = feeParamsCacheKey(master);
@@ -174,6 +200,19 @@ public class JettonService {
         String admin = decodeAdminOrEmpty(flat.get(2));
         String codeB64 = decodeWalletCodeOrEmpty(flat.get(4));
         return new JettonInfo(total, mint, admin, codeB64, "");
+    }
+
+    private boolean parseExcludedBool(JsonNode result) {
+        List<JsonNode> flat = flattenStack(result);
+        if (flat.isEmpty()) {
+            return false;
+        }
+        BigInteger n = parseNum(flat.get(0));
+        if (n.equals(BigInteger.ONE.negate())) {
+            return true;
+        }
+        BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+        return n.and(mask64).equals(mask64);
     }
 
     private EffectiveFeeParams parseEffectiveFees(JsonNode result) {

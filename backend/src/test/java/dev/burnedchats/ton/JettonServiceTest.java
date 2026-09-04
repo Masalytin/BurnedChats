@@ -212,6 +212,20 @@ class JettonServiceTest {
     }
 
     @Test
+    @DisplayName("isExcludedTransfer is true when sender get_is_excluded is signed hex -0x1")
+    void isExcludedTransferParsesSignedHexTrue() {
+        when(valueOps.get(anyString())).thenReturn(Mono.empty());
+        String excluded = """
+                {"ok":true,"result":{"exit_code":0,"stack":[["num","-0x1"]]}}
+                """;
+        server.enqueue(new MockResponse().setBody(excluded).addHeader("Content-Type", "application/json"));
+
+        StepVerifier.create(jettonService.isExcludedTransfer(ANY_USER, ANY_USER))
+                .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
     @DisplayName("getEffectiveFeeParams reads basis points from master")
     void effectiveFees() {
         when(valueOps.get(anyString())).thenReturn(Mono.empty());
