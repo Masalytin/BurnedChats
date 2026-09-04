@@ -19,7 +19,8 @@ import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { DmMessageTtlSheet } from '../DmMessageTtlSheet';
-import type { MessageTtlPreset } from '@/utils/messageTtlPresets';
+import { matchMessageTtlPreset, type MessageTtlPreset } from '@/utils/messageTtlPresets';
+import type { TFunction } from 'i18next';
 import { EphemeralChatBadge } from '../EphemeralChatBadge';
 import { isTtlExpired } from '@/utils/ttlAnchor';
 import { ChatSelectionBar } from '../ChatSelectionBar';
@@ -99,8 +100,29 @@ interface ChatRoomProps {
   }>;
   /** Session message TTL in seconds; 0 = off (IMP-DISAPPEAR-02). */
   messageTtlSeconds?: number;
+  /** Live setTtl overlay; omit / null on hydrate or remount (IMP-DISAPPEAR-05). */
+  ttlSetNotice?: number | null;
   onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
   onApplyCustomMessageTtlSeconds?: (seconds: number) => void;
+}
+
+function ttlNoticeText(seconds: number, t: TFunction): string {
+  if (seconds <= 0) {
+    return t('chat.ttl.noticeOff');
+  }
+  const preset = matchMessageTtlPreset(seconds);
+  const duration = preset === '5m'
+    ? t('room.manage.msgTtlPreset5m')
+    : preset === '1h'
+      ? t('room.manage.msgTtlPreset1h')
+      : preset === '24h'
+        ? t('room.manage.msgTtlPreset24h')
+        : seconds % 3600 === 0
+          ? t('chat.ttl.duration', { value: seconds / 3600, unit: t('common.duration.unitHours') })
+          : seconds % 60 === 0
+            ? t('chat.ttl.duration', { value: seconds / 60, unit: t('common.duration.unitMinutes') })
+            : t('chat.ttl.durationSeconds', { count: seconds });
+  return t('chat.ttl.noticeOn', { duration });
 }
 
 /**
@@ -141,6 +163,7 @@ export const ChatRoom = memo(function ChatRoom({
   onEditMessage,
   onDeleteForEveryone,
   messageTtlSeconds = 0,
+  ttlSetNotice = null,
   onApplyMessageTtlPreset,
   onApplyCustomMessageTtlSeconds,
 }: ChatRoomProps) {
@@ -590,6 +613,12 @@ export const ChatRoom = memo(function ChatRoom({
           >
             {t('status.reconnectNow')}
           </button>
+        </div>
+      )}
+
+      {ttlSetNotice != null && (
+        <div className="chat-ttl-set-notice" role="status">
+          <span>{ttlNoticeText(ttlSetNotice, t)}</span>
         </div>
       )}
 

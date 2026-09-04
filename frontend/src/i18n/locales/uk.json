@@ -233,7 +233,8 @@
         "body": [
           "Messages are encrypted on your device. The server only relays ciphertext and cannot read them.",
           "Telegram Premium (star) is the Telegram subscription. A BURN badge is your staking tier on TON — they are not the same.",
-          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens."
+          "Burn chat destroys this conversation and its keys. It does not burn BURN tokens.",
+          "Таймер рахується з моменту надсилання, не з прочитання. У приватному чаті таймер на всю розмову може поставити будь-яка сторона. У кімнаті — лише власник."
         ]
       }
     },
@@ -242,7 +243,7 @@
         "title": "Encrypted files",
         "body": [
           "Files are encrypted on your device before upload. The server stores an opaque blob with a short lifetime.",
-          "You can cancel an upload before it finishes. After send, the file follows the same burn and TTL rules as messages.",
+          "You can cancel an upload before it finishes. When a disappearing timer hides a message, the file bubble hides with it. The encrypted blob on the relay may still live until the file or session TTL ends.",
           "Do not assume a file stays available after you leave the chat or the room expires."
         ]
       }
@@ -321,7 +322,11 @@
     "ttl": {
       "remaining": "{{time}}",
       "remainingAria": "Зникне через {{time}}",
-      "badge": "Зникаючі повідомлення"
+      "badge": "Зникаючі повідомлення",
+      "noticeOn": "Таймер: {{duration}}",
+      "noticeOff": "Таймер вимкнено",
+      "duration": "{{value}} {{unit}}",
+      "durationSeconds": "{{count}} с"
     },
     "sync": {
       "undecryptable": "{{count}} повідомлень не вдалося відновити — попросіть співрозмовника надіслати їх знову",

@@ -90,4 +90,58 @@ describe('useRoomMessageTtl snapshot hydrate (IMP-DISAPPEAR-04)', () => {
     rerender({ initialTtlSeconds: 0 });
     expect(result.current.messageTtlSeconds).toBe(300);
   });
+
+  it('sets ttlSetNotice only on a live ROOM_MESSAGE_TTL_UPDATED, not on GET_MY_ROOMS hydrate', () => {
+    const topicMultiplexer: TopicMultiplexer & {
+      handler?: (message: IMessage) => void;
+    } = {
+      subscribe: vi.fn((_dest, callback) => {
+        topicMultiplexer.handler = callback;
+        return {};
+      }),
+      unsubscribe: vi.fn(),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      (props: { initialTtlSeconds: number }) =>
+        useRoomMessageTtl({
+          isConnected: true,
+          roomId: ROOM_ID,
+          topicMultiplexer,
+          publish,
+          initialTtlSeconds: props.initialTtlSeconds,
+        }),
+      { initialProps: { initialTtlSeconds: 0 } },
+    );
+
+    expect(result.current.ttlSetNotice).toBeNull();
+
+    rerender({ initialTtlSeconds: 300 });
+    expect(result.current.messageTtlSeconds).toBe(300);
+    expect(result.current.ttlSetNotice).toBeNull();
+
+    act(() => {
+      topicMultiplexer.handler!({
+        body: JSON.stringify({
+          eventType: 'ROOM_MESSAGE_TTL_UPDATED',
+          roomId: ROOM_ID,
+          messageTtlSeconds: 300,
+        }),
+      } as IMessage);
+    });
+    expect(result.current.ttlSetNotice).toBe(300);
+
+    unmount();
+    const remount = renderHook(() =>
+      useRoomMessageTtl({
+        isConnected: true,
+        roomId: ROOM_ID,
+        topicMultiplexer: createMultiplexer(),
+        publish,
+        initialTtlSeconds: 300,
+      }),
+    );
+    expect(remount.result.current.messageTtlSeconds).toBe(300);
+    expect(remount.result.current.ttlSetNotice).toBeNull();
+  });
 });

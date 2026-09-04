@@ -101,6 +101,27 @@
   min-height: 0;
 }
 
+/* One-shot "timer was set" row — not a remaining banner (IMP-DISAPPEAR-05) */
+.chat-ttl-set-notice {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: var(--bc-spacing-sm) var(--bc-spacing-md);
+  pointer-events: none;
+  user-select: none;
+}
+
+.chat-ttl-set-notice span {
+  font-size: var(--bc-text-xs);
+  color: var(--bc-text-muted);
+  background-color: var(--bc-bg-secondary);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-md);
+  border-radius: var(--bc-radius-full);
+  text-align: center;
+  max-width: min(100%, 28rem);
+  line-height: 1.35;
+}
+
 /* Fixed input bar at bottom */
 .chat-screen-input {
   flex-shrink: 0;

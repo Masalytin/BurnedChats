@@ -426,3 +426,93 @@ describe('RoomChatRoom disappearing TTL UI (IMP-DISAPPEAR-04)', () => {
   });
 });
 
+describe('RoomChatRoom TTL set overlay (IMP-DISAPPEAR-05)', () => {
+  const noticeOn5m = () =>
+    i18n.t('chat.ttl.noticeOn', { duration: i18n.t('room.manage.msgTtlPreset5m') });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(keyStore.hasGroupKey).mockReturnValue(true);
+    vi.mocked(useRoomMessages).mockReturnValue(emptyRoomMessages);
+    void i18n.changeLanguage('en');
+  });
+
+  it('shows one overlay when a live ROOM_MESSAGE_TTL_UPDATED notice arrives', () => {
+    renderRoomChatRoom({ messageTtlSeconds: 300, ttlSetNotice: 300 });
+
+    expect(screen.getAllByText(noticeOn5m())).toHaveLength(1);
+    expect(document.querySelectorAll('.chat-ttl-set-notice')).toHaveLength(1);
+  });
+
+  it('does not show the overlay after remount; badge stays if TTL is on', () => {
+    const { unmount } = render(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <RoomChatRoom
+            roomId={ROOM_ID}
+            userId="user-internal-1"
+            userTelegramId={1001}
+            ws={mockWs}
+            isOwner={false}
+            onOwnerRecoverKeys={vi.fn()}
+            onRequestKey={vi.fn()}
+            onLeave={vi.fn()}
+            messageTtlSeconds={300}
+            ttlSetNotice={300}
+          />
+        </ToastProvider>
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(noticeOn5m())).toBeTruthy();
+    unmount();
+
+    renderRoomChatRoom({ messageTtlSeconds: 300 });
+
+    expect(screen.queryByText(noticeOn5m())).toBeNull();
+    expect(document.querySelector('.chat-ttl-set-notice')).toBeNull();
+    expect(screen.getByLabelText(i18n.t('chat.ttl.badge'))).toBeTruthy();
+  });
+
+  it('does not create a notice when only RoomInfo / GET_MY_ROOMS hydrate updates TTL', () => {
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <RoomChatRoom
+            roomId={ROOM_ID}
+            userId="user-internal-1"
+            userTelegramId={1001}
+            ws={mockWs}
+            isOwner={false}
+            onOwnerRecoverKeys={vi.fn()}
+            onRequestKey={vi.fn()}
+            onLeave={vi.fn()}
+            messageTtlSeconds={0}
+          />
+        </ToastProvider>
+      </I18nextProvider>,
+    );
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <RoomChatRoom
+            roomId={ROOM_ID}
+            userId="user-internal-1"
+            userTelegramId={1001}
+            ws={mockWs}
+            isOwner={false}
+            onOwnerRecoverKeys={vi.fn()}
+            onRequestKey={vi.fn()}
+            onLeave={vi.fn()}
+            messageTtlSeconds={300}
+          />
+        </ToastProvider>
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByText(noticeOn5m())).toBeNull();
+    expect(document.querySelector('.chat-ttl-set-notice')).toBeNull();
+    expect(screen.getByLabelText(i18n.t('chat.ttl.badge'))).toBeTruthy();
+  });
+});
+

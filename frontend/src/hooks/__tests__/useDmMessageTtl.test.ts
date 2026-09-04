@@ -108,4 +108,31 @@ describe('useDmMessageTtl', () => {
       messageTtlSeconds: 45,
     });
   });
+
+  it('sets ttlSetNotice only on a live SESSION_MESSAGE_TTL_UPDATED, not on snapshot hydrate', () => {
+    const { result, rerender, unmount } = renderTtl(0);
+    expect(result.current.ttlSetNotice).toBeNull();
+
+    rerender({ initialTtlSeconds: 300, sessionId: 'sess-1' });
+    expect(result.current.messageTtlSeconds).toBe(300);
+    expect(result.current.ttlSetNotice).toBeNull();
+
+    act(() => {
+      eventHandler!({
+        body: JSON.stringify({
+          eventType: 'SESSION_MESSAGE_TTL_UPDATED',
+          success: true,
+          sessionId: 'sess-1',
+          messageTtlSeconds: 300,
+          updatedAt: '2026-09-04T12:00:20.000Z',
+        }),
+      } as IMessage);
+    });
+    expect(result.current.ttlSetNotice).toBe(300);
+
+    unmount();
+    const remount = renderTtl(300);
+    expect(remount.result.current.messageTtlSeconds).toBe(300);
+    expect(remount.result.current.ttlSetNotice).toBeNull();
+  });
 });

@@ -1222,6 +1222,7 @@ function AppContent() {
 
   const {
     messageTtlSeconds: roomMessageTtlSeconds,
+    ttlSetNotice: roomTtlSetNotice,
     applyPreset: applyRoomMessageTtlPreset,
     applyCustomSeconds: applyCustomRoomMessageTtlSeconds,
   } = useRoomMessageTtl({
@@ -3994,6 +3995,7 @@ function AppContent() {
             onRoomModeration={handleRoomModerationEvent}
             onRoomMembership={handleRoomMembershipEvent}
             messageTtlSeconds={roomMessageTtlSeconds}
+            ttlSetNotice={roomTtlSetNotice}
           />
           <RoomKeyRecoveryModal
             open={recoveryModalOpen}
@@ -4279,6 +4281,7 @@ function ChatViewContent({
 
   const {
     messageTtlSeconds,
+    ttlSetNotice,
     applyPreset: applyDmMessageTtlPreset,
     applyCustomSeconds: applyDmMessageTtlCustom,
   } = useDmMessageTtl({
@@ -4416,6 +4419,7 @@ function ChatViewContent({
       onEditMessage={handleEditDm}
       onDeleteForEveryone={deleteMessage}
       messageTtlSeconds={messageTtlSeconds}
+      ttlSetNotice={ttlSetNotice}
       onApplyMessageTtlPreset={applyDmMessageTtlPreset}
       onApplyCustomMessageTtlSeconds={applyDmMessageTtlCustom}
     />

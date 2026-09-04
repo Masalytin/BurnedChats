@@ -30,6 +30,8 @@ export interface UseDmMessageTtlOptions {
 
 export interface UseDmMessageTtlReturn {
   messageTtlSeconds: number;
+  /** Live setTtl only — null on hydrate / remount (IMP-DISAPPEAR-05). */
+  ttlSetNotice: number | null;
   setMessageTtl: (messageTtlSeconds: number) => void;
   applyPreset: (preset: MessageTtlPreset) => void;
   applyCustomSeconds: (seconds: number) => void;
@@ -76,6 +78,7 @@ export function useDmMessageTtl({
   initialTtlSeconds = 0,
 }: UseDmMessageTtlOptions): UseDmMessageTtlReturn {
   const [messageTtlSeconds, setMessageTtlSeconds] = useState(initialTtlSeconds);
+  const [ttlSetNotice, setTtlSetNotice] = useState<number | null>(null);
   const lastAcceptedUpdatedAtMsRef = useRef(0);
   const publishRef = useRef(publish);
 
@@ -85,6 +88,7 @@ export function useDmMessageTtl({
 
   useEffect(() => {
     lastAcceptedUpdatedAtMsRef.current = 0;
+    setTtlSetNotice(null);
     setMessageTtlSeconds(initialTtlSeconds);
   }, [sessionId]);
 
@@ -113,6 +117,7 @@ export function useDmMessageTtl({
       }
       lastAcceptedUpdatedAtMsRef.current = updatedAtMs;
       setMessageTtlSeconds(event.messageTtlSeconds);
+      setTtlSetNotice(event.messageTtlSeconds);
     };
 
     subscribe(SESSION_TTL_UPDATED_DESTINATION, handler);
@@ -145,6 +150,7 @@ export function useDmMessageTtl({
 
   return {
     messageTtlSeconds,
+    ttlSetNotice,
     setMessageTtl,
     applyPreset,
     applyCustomSeconds,

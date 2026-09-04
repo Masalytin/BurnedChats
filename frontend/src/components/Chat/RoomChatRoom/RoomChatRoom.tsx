@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { matchMessageTtlPreset } from '@/utils/messageTtlPresets';
 import {
   Home,
   Hourglass,
@@ -101,6 +103,27 @@ interface RoomChatRoomProps {
   onRoomMembership?: (event: RoomMembershipEvent) => void;
   /** Per-message auto-destruction window in seconds; 0 = disabled (IMP-ROOM-19) */
   messageTtlSeconds?: number;
+  /** Live setTtl overlay; omit / null on hydrate or remount (IMP-DISAPPEAR-05). */
+  ttlSetNotice?: number | null;
+}
+
+function ttlNoticeText(seconds: number, t: TFunction): string {
+  if (seconds <= 0) {
+    return t('chat.ttl.noticeOff');
+  }
+  const preset = matchMessageTtlPreset(seconds);
+  const duration = preset === '5m'
+    ? t('room.manage.msgTtlPreset5m')
+    : preset === '1h'
+      ? t('room.manage.msgTtlPreset1h')
+      : preset === '24h'
+        ? t('room.manage.msgTtlPreset24h')
+        : seconds % 3600 === 0
+          ? t('chat.ttl.duration', { value: seconds / 3600, unit: t('common.duration.unitHours') })
+          : seconds % 60 === 0
+            ? t('chat.ttl.duration', { value: seconds / 60, unit: t('common.duration.unitMinutes') })
+            : t('chat.ttl.durationSeconds', { count: seconds });
+  return t('chat.ttl.noticeOn', { duration });
 }
 
 // ============================================
@@ -137,6 +160,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onRoomModeration,
   onRoomMembership,
   messageTtlSeconds = 0,
+  ttlSetNotice = null,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -679,6 +703,11 @@ export const RoomChatRoom = memo(function RoomChatRoom({
 
       {hasKey ? (
         <>
+          {ttlSetNotice != null && (
+            <div className="chat-ttl-set-notice" role="status">
+              <span>{ttlNoticeText(ttlSetNotice, t)}</span>
+            </div>
+          )}
           <MessageList
             messages={messages}
             membershipNotices={membershipNotices}

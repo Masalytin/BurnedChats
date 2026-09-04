@@ -39,6 +39,8 @@ interface UseRoomMessageTtlOptions {
 
 interface UseRoomMessageTtlReturn {
   messageTtlSeconds: number;
+  /** Live setTtl only — null on hydrate / remount (IMP-DISAPPEAR-05). */
+  ttlSetNotice: number | null;
   setMessageTtl: (messageTtlSeconds: number) => void;
   applyPreset: (preset: MessageTtlPreset) => void;
   applyCustomSeconds: (seconds: number) => void;
@@ -80,6 +82,7 @@ export function useRoomMessageTtl({
   initialTtlSeconds = 0,
 }: UseRoomMessageTtlOptions): UseRoomMessageTtlReturn {
   const [messageTtlSeconds, setMessageTtlSeconds] = useState(initialTtlSeconds);
+  const [ttlSetNotice, setTtlSetNotice] = useState<number | null>(null);
   const acceptedLiveEventRef = useRef(false);
 
   const publishRef = useRef(publish);
@@ -87,6 +90,7 @@ export function useRoomMessageTtl({
 
   useEffect(() => {
     acceptedLiveEventRef.current = false;
+    setTtlSetNotice(null);
     setMessageTtlSeconds(initialTtlSeconds);
   }, [roomId]);
 
@@ -100,6 +104,7 @@ export function useRoomMessageTtl({
     if (!roomId || event.roomId !== roomId) return;
     acceptedLiveEventRef.current = true;
     setMessageTtlSeconds(event.messageTtlSeconds);
+    setTtlSetNotice(event.messageTtlSeconds);
   }, [roomId]);
 
   useEffect(() => {
@@ -142,6 +147,7 @@ export function useRoomMessageTtl({
 
   return {
     messageTtlSeconds,
+    ttlSetNotice,
     setMessageTtl,
     applyPreset,
     applyCustomSeconds,
