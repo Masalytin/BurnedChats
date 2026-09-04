@@ -10,9 +10,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StakeModal } from '@/components/Staking/StakeModal';
 import styles from '@/components/Staking/Staking.module.css';
 import i18n from '@/i18n';
+import { getEffectiveFeeParams } from '@/ton/burnToken';
+import { estimateStakeNet } from '@/ton/estimateStakeNet';
 import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { StakingTier, type TierConfig } from '@/types/ton';
 import { parseBurn } from '@/utils/format';
+import { netAfterFeeBps } from '@/utils/stakeAmountGate';
 
 vi.mock('@twa-dev/sdk', () => ({
   default: {
@@ -60,6 +63,35 @@ vi.mock('@/ton/estimateStakeNet', () => ({
     netNano: grossNano,
   })),
 }));
+
+vi.mock('@/ton/burnToken', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/ton/burnToken')>();
+  return {
+    ...actual,
+    getEffectiveFeeParams: vi.fn(async () => ({
+      burnBps: 0,
+      stakingBps: 0,
+      treasuryBps: 0,
+    })),
+  };
+});
+
+const TYPICAL_FEE = { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+
+function feeOnEstimate(grossNano: bigint): {
+  willChargeFee: boolean;
+  grossNano: bigint;
+  feeNano: bigint;
+  netNano: bigint;
+} {
+  const netNano = netAfterFeeBps(grossNano, TYPICAL_FEE);
+  return {
+    willChargeFee: true,
+    grossNano,
+    feeNano: grossNano - netNano,
+    netNano,
+  };
+}
 
 const TIER_CONFIGS: TierConfig[] = [
   { tier: StakingTier.Flexible, multiplier: 1, lockDurationSec: 0, rewardSharePercent: 5 },
@@ -111,6 +143,17 @@ describe('StakeModal min-stake live gate', () => {
     await i18n.changeLanguage('en');
     vi.stubEnv('VITE_STAKING_MASTER', 'EQ____________________________________________________________00');
     vi.clearAllMocks();
+    vi.mocked(estimateStakeNet).mockImplementation(async ({ grossNano }: { grossNano: bigint }) => ({
+      willChargeFee: false,
+      grossNano,
+      feeNano: 0n,
+      netNano: grossNano,
+    }));
+    vi.mocked(getEffectiveFeeParams).mockResolvedValue({
+      burnBps: 0,
+      stakingBps: 0,
+      treasuryBps: 0,
+    });
   });
 
   it('opens with amount 0 and no role=alert', () => {
@@ -174,6 +217,47 @@ describe('StakeModal min-stake live gate', () => {
 
     await waitFor(() => {
       expect(parseBurn(amountInput().value)).toBe(MIN_STAKE_NANO);
+    });
+  });
+
+  it('Min chip at typical 50/30/20 sets gross ≥ ceil(min/0.99) and enables Confirm', async () => {
+    vi.mocked(estimateStakeNet).mockImplementation(async ({ grossNano }: { grossNano: bigint }) =>
+      feeOnEstimate(grossNano),
+    );
+    vi.mocked(getEffectiveFeeParams).mockResolvedValue(TYPICAL_FEE);
+
+    renderStakeModal();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('staking.minChip') }));
+
+    const keepBps = 10000n - 100n;
+    const ceilGross = (MIN_STAKE_NANO * 10000n + keepBps - 1n) / keepBps;
+
+    await waitFor(() => {
+      const gross = parseBurn(amountInput().value);
+      expect(gross).not.toBe(MIN_STAKE_NANO);
+      expect(gross).toBeGreaterThanOrEqual(ceilGross);
+    });
+
+    await waitFor(() => {
+      expect(confirmButton().disabled).toBe(false);
+    });
+  });
+
+  it('Min chip sets max when balance is below fee-adjusted gross (no gate bypass)', async () => {
+    vi.mocked(estimateStakeNet).mockImplementation(async ({ grossNano }: { grossNano: bigint }) =>
+      feeOnEstimate(grossNano),
+    );
+    vi.mocked(getEffectiveFeeParams).mockResolvedValue(TYPICAL_FEE);
+
+    renderStakeModal({ walletBalanceNano: MIN_STAKE_NANO });
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('staking.minChip') }));
+
+    await waitFor(() => {
+      expect(parseBurn(amountInput().value)).toBe(MIN_STAKE_NANO);
+      expect(confirmButton().disabled).toBe(true);
+      expect(screen.getByRole('alert').textContent).toMatch(/0\.01/);
     });
   });
 

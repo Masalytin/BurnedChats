@@ -1,5 +1,48 @@
 import { MIN_STAKE_NANO } from '@/ton/minStake';
+import type { EffectiveFeeParams } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
+
+/** Integer bps floors per leg — same as `computeFeeParts` / `splitBurnFees`. */
+export function netAfterFeeBps(grossNano: bigint, fee: EffectiveFeeParams): bigint {
+  const burn = (grossNano * BigInt(fee.burnBps)) / 10000n;
+  const staking = (grossNano * BigInt(fee.stakingBps)) / 10000n;
+  const treasury = (grossNano * BigInt(fee.treasuryBps)) / 10000n;
+  return grossNano - burn - staking - treasury;
+}
+
+/**
+ * Smallest gross whose fee-split net is ≥ `minNetNano`.
+ * Excluded / fee=0 → exactly `minNetNano`. Typical 50/30/20 starts at
+ * ceil(min / (1 − totalBps/10000)) then walks up if 3-leg floors undershoot.
+ */
+export function grossForNetMin(
+  minNetNano: bigint,
+  opts: { excluded?: boolean; fee?: EffectiveFeeParams | null } = {},
+): bigint {
+  if (minNetNano <= 0n) {
+    return 0n;
+  }
+  if (opts.excluded) {
+    return minNetNano;
+  }
+  const fee = opts.fee;
+  if (!fee) {
+    return minNetNano;
+  }
+  const totalBps = fee.burnBps + fee.stakingBps + fee.treasuryBps;
+  if (totalBps <= 0) {
+    return minNetNano;
+  }
+  if (totalBps >= 10000) {
+    return minNetNano;
+  }
+  const keepBps = 10000n - BigInt(totalBps);
+  let gross = (minNetNano * 10000n + keepBps - 1n) / keepBps;
+  while (netAfterFeeBps(gross, fee) < minNetNano) {
+    gross += 1n;
+  }
+  return gross;
+}
 
 export type StakeAmountState =
   | 'empty'

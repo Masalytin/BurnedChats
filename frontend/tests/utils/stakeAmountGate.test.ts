@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { formatBurn } from '@/utils/format';
-import { evaluateStakeAmount } from '@/utils/stakeAmountGate';
+import { evaluateStakeAmount, grossForNetMin, netAfterFeeBps } from '@/utils/stakeAmountGate';
 
 const TEN_BURN = 10n * 1_000_000_000n;
 const DUST_INCIDENT = 4_950n;
 const FEE_ON_NET_FROM_MIN = 9_900_000n; // 0.01 BURN minus 1%
+const TYPICAL_FEE = { burnBps: 50, stakingBps: 30, treasuryBps: 20 };
+const ZERO_FEE = { burnBps: 0, stakingBps: 0, treasuryBps: 0 };
 
 function gate(
   overrides: Partial<Parameters<typeof evaluateStakeAmount>[0]> = {},
@@ -140,5 +142,27 @@ describe('evaluateStakeAmount', () => {
     });
     expect(r.confirmEnabled).toBe(false);
     expect(r.state).not.toBe('ok');
+  });
+});
+
+describe('grossForNetMin', () => {
+  it('returns MIN_STAKE_NANO when excluded', () => {
+    expect(grossForNetMin(MIN_STAKE_NANO, { excluded: true, fee: TYPICAL_FEE })).toBe(MIN_STAKE_NANO);
+  });
+
+  it('returns MIN_STAKE_NANO when fee is zero or omitted', () => {
+    expect(grossForNetMin(MIN_STAKE_NANO, { excluded: false, fee: ZERO_FEE })).toBe(MIN_STAKE_NANO);
+    expect(grossForNetMin(MIN_STAKE_NANO, { excluded: false, fee: null })).toBe(MIN_STAKE_NANO);
+    expect(grossForNetMin(MIN_STAKE_NANO, { excluded: false })).toBe(MIN_STAKE_NANO);
+  });
+
+  it('covers typical 50/30/20 so net ≥ min and gross ≥ ceil(min / 0.99)', () => {
+    const keepBps = 10000n - 100n;
+    const ceilGross = (MIN_STAKE_NANO * 10000n + keepBps - 1n) / keepBps;
+    const gross = grossForNetMin(MIN_STAKE_NANO, { excluded: false, fee: TYPICAL_FEE });
+
+    expect(gross).toBeGreaterThan(MIN_STAKE_NANO);
+    expect(gross).toBeGreaterThanOrEqual(ceilGross);
+    expect(netAfterFeeBps(gross, TYPICAL_FEE)).toBeGreaterThanOrEqual(MIN_STAKE_NANO);
   });
 });

@@ -7,13 +7,21 @@ import { useToast } from '@/components/Toast';
 import { CloseIcon, SuccessIcon } from '@/icons';
 import { canAffordGasReserve, nanoToAmountString } from '@/components/Wallet/sendModalGasReserve';
 import { useTonConnect } from '@/hooks/useTonConnect';
+import { getEffectiveFeeParams } from '@/ton/burnToken';
 import { estimateStakeNet, type StakeNetEstimate } from '@/ton/estimateStakeNet';
 import { estimateStakeTon } from '@/ton/estimateStakeTon';
 import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { getTonBalanceNano } from '@/ton/tonBalance';
-import { StakingTier, type TierConfig } from '@/types/ton';
+import { StakingTier, type EffectiveFeeParams, type TierConfig } from '@/types/ton';
 import { formatBurn, parseBurn } from '@/utils/format';
-import { evaluateStakeAmount } from '@/utils/stakeAmountGate';
+import { evaluateStakeAmount, grossForNetMin } from '@/utils/stakeAmountGate';
+
+/** Live default / fail-closed when exclusion or fee-params are unknown. */
+const CONSERVATIVE_FEE_ON: EffectiveFeeParams = {
+  burnBps: 50,
+  stakingBps: 30,
+  treasuryBps: 20,
+};
 
 import { TierPickGrid } from './TierPickGrid';
 import { StakeMiniApyBlock } from './StakeMiniApy';
@@ -60,6 +68,7 @@ export function StakeModal({
   const { walletAddress } = useTonConnect();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const minChipReqRef = useRef(0);
 
   const [tonBalanceNano, setTonBalanceNano] = useState<bigint | null>(null);
   const [stakeNetEstimate, setStakeNetEstimate] = useState<StakeNetEstimate | null>(null);
@@ -76,6 +85,7 @@ export function StakeModal({
 
   useEffect(() => {
     if (open) {
+      minChipReqRef.current += 1;
       setTier(initialTier);
       setAmountStr('0');
       setError(null);
@@ -229,9 +239,39 @@ export function StakeModal({
     if (minChipDisabled) {
       return;
     }
-    const s = formatBurn(MIN_STAKE_NANO).replace(/\s*BURN\s*$/i, '').trim();
-    setAmountStr(s || '0.01');
-  }, [minChipDisabled]);
+    const req = ++minChipReqRef.current;
+    void (async () => {
+      let excluded = false;
+      let fee: EffectiveFeeParams | null = null;
+      const addr = walletAddress?.trim();
+      try {
+        if (addr && stakingMasterAddress) {
+          const probe = await estimateStakeNet({
+            ownerAddress: addr,
+            stakingMaster: stakingMasterAddress,
+            grossNano: MIN_STAKE_NANO,
+          });
+          excluded = !probe.willChargeFee;
+        } else {
+          fee = CONSERVATIVE_FEE_ON;
+        }
+        if (!excluded && fee === null) {
+          fee = await getEffectiveFeeParams();
+        }
+      } catch {
+        excluded = false;
+        fee = CONSERVATIVE_FEE_ON;
+      }
+      if (req !== minChipReqRef.current) {
+        return;
+      }
+      const required = grossForNetMin(MIN_STAKE_NANO, { excluded, fee });
+      const toSet =
+        walletBalanceNano !== null && walletBalanceNano < required ? walletBalanceNano : required;
+      const s = formatBurn(toSet).replace(/\s*BURN\s*$/i, '').trim();
+      setAmountStr(s || '0.01');
+    })();
+  }, [minChipDisabled, stakingMasterAddress, walletAddress, walletBalanceNano]);
 
   const estimateReady = amountNano <= 0n || stakeNetStatus === 'ready';
 
