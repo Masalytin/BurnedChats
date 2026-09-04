@@ -94,6 +94,7 @@ import {
   stashPendingInviteToken,
 } from './utils/inviteLink';
 import { useMessages, type UseMessagesWebSocket, type MessageErrorCode } from './hooks/useMessages';
+import { useDmMessageTtl } from './hooks/useDmMessageTtl';
 import { useDmInboundBuffer, type UseDmInboundBufferReturn } from './hooks/useDmInboundBuffer';
 import {
   useAppLifecycle,
@@ -3826,6 +3827,9 @@ function AppContent() {
         <Layout fullBleed>
           <ChatViewContent
             sessionId={activeChat.sessionId}
+            initialMessageTtlSeconds={
+              activeSessions.find((s) => s.sessionId === activeChat.sessionId)?.messageTtlSeconds ?? 0
+            }
             peer={activeChat.peer}
             userId={myInternalId}
             userTelegramId={telegramUserId ?? undefined}
@@ -4191,6 +4195,8 @@ function AppContent() {
  */
 interface ChatViewContentProps {
   sessionId: string;
+  /** Snapshot TTL from SessionResponse (list / resume). */
+  initialMessageTtlSeconds?: number;
   peer: UserInfo;
   /** Current user's stable internal id */
   userId: string;
@@ -4218,6 +4224,7 @@ interface ChatViewContentProps {
 
 function ChatViewContent({
   sessionId,
+  initialMessageTtlSeconds = 0,
   peer,
   userId,
   userTelegramId,
@@ -4262,6 +4269,19 @@ function ChatViewContent({
   const uploadAbortRef = useRef<AbortController | null>(null);
 
   const {
+    messageTtlSeconds,
+    applyPreset: applyDmMessageTtlPreset,
+    applyCustomSeconds: applyDmMessageTtlCustom,
+  } = useDmMessageTtl({
+    sessionId,
+    isConnected: ws.isConnected,
+    subscribe: ws.subscribe,
+    unsubscribe: ws.unsubscribe,
+    publish: ws.publish,
+    initialTtlSeconds: initialMessageTtlSeconds,
+  });
+
+  const {
     messages,
     sendMessage,
     sendFileMessage,
@@ -4284,6 +4304,7 @@ function ChatViewContent({
     bothVerified,
     rekeyResendNonce,
     inboundBuffer,
+    messageTtlSeconds,
     onError: handleMessageError,
     onEditError: handleDmEditError,
   });
@@ -4385,6 +4406,9 @@ function ChatViewContent({
       hideMessages={hideMessages}
       onEditMessage={handleEditDm}
       onDeleteForEveryone={deleteMessage}
+      messageTtlSeconds={messageTtlSeconds}
+      onApplyMessageTtlPreset={applyDmMessageTtlPreset}
+      onApplyCustomMessageTtlSeconds={applyDmMessageTtlCustom}
     />
   );
 }

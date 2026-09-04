@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { encryptMessage } from '@/crypto/aes';
 import { isHandshakeComplete, getDebugInfo } from '@/crypto/keyStore';
@@ -23,6 +23,10 @@ import {
   runUndeliveredResendAfterRekey,
   type FileMessageWireFields,
 } from '@/hooks/useMessageCore';
+import { useMessageExpiry } from '@/hooks/useMessageExpiry';
+import { isTtlExpired, ttlAnchorMs } from '@/utils/ttlAnchor';
+import { enrichReplyTo } from '@/utils/replyPreview';
+import i18n from '@/i18n';
 import { isOwnDmMessage, type DmMessageOwnershipContext } from '@/hooks/dmMessageOwnership';
 import { createFileBlobOutbox, createSessionOutbox } from '@/hooks/sessionOutbox';
 import { resolveExpiredAbsenceCount } from '@/hooks/expiredAbsenceCount';
@@ -157,6 +161,8 @@ interface UseMessagesOptions {
    * subscribe to that destination — it only flushes + decrypts.
    */
   inboundBuffer?: UseDmInboundBufferReturn;
+  /** Per-session disappearing-message timer; 0 = off (IMP-DISAPPEAR-02). */
+  messageTtlSeconds?: number;
 }
 
 interface UseMessagesReturn {
@@ -219,6 +225,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     bothVerified = false,
     rekeyResendNonce = 0,
     inboundBuffer,
+    messageTtlSeconds = 0,
   } = options;
 
   const ownershipCtx: DmMessageOwnershipContext = {
@@ -428,6 +435,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         isOwn: true,
         type: 'text',
         replyToMessageId,
+        ttlAnchorMs: timestamp,
       }),
       buildPublishPayload: ({ messageId, encryptedContent, iv, timestamp, replyToMessageId }) => ({
         sessionId,
@@ -489,6 +497,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         fileSize: f.size,
         fileMeta: { fileName: f.name, mimeType: resolvedMime },
         replyToMessageId,
+        ttlAnchorMs: timestamp,
       } as DecryptedFileMessage),
       buildPublishPayload: (payload) => ({ sessionId, ...payload }),
       validateBeforeSend,
@@ -526,8 +535,20 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       return 'skipped';
     }
 
+    if (shouldSkipDecryptForTtl(
+      event.messageId,
+      event.serverTimestamp,
+      event.clientTimestamp,
+      hiddenIds,
+      messageTtlSeconds,
+    )) {
+      hideMessages(event.messageId);
+      return 'done';
+    }
+
     try {
       const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+      const anchor = ttlAnchorMs(event.serverTimestamp, event.clientTimestamp ?? undefined);
       const eventType = toMessageType(event.type);
       const isFileMsg = eventType !== 'text' && !!event.fileId;
 
@@ -545,6 +566,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
             ...base,
             fromUserId: event.senderId,
             isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
+            ttlAnchorMs: anchor,
           }),
         });
       } else {
@@ -559,6 +581,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           isOwn: isOwnWireSender(event.senderInternalId, event.senderId),
           type: 'text',
           replyToMessageId: event.replyToMessageId || undefined,
+          ttlAnchorMs: anchor,
         };
       }
 
@@ -573,7 +596,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       handleError('DECRYPTION_FAILED', decryptErr instanceof Error ? decryptErr.message : 'Unknown error');
       return 'done';
     }
-  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, handleError, getEncryptionKey, setMessages]);
+  }, [
+    sessionId, bothVerified, isOwnWireSender, onNewMessage, handleError, getEncryptionKey,
+    setMessages, hiddenIds, messageTtlSeconds, hideMessages,
+  ]);
 
   const handleNewMessage = useCallback(async (message: IMessage) => {
     try {
@@ -648,9 +674,21 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         }
 
         const decryptedMessages: DecryptedMessage[] = [];
+        const skipHideIds: string[] = [];
         for (const syncedMsg of toDecrypt) {
+          if (shouldSkipDecryptForTtl(
+            syncedMsg.messageId,
+            syncedMsg.serverTimestamp,
+            syncedMsg.clientTimestamp,
+            hiddenIds,
+            messageTtlSeconds,
+          )) {
+            skipHideIds.push(syncedMsg.messageId);
+            continue;
+          }
           try {
             const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
+            const anchor = ttlAnchorMs(syncedMsg.serverTimestamp, syncedMsg.clientTimestamp ?? undefined);
             const msgType = toMessageType(syncedMsg.type);
             const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
 
@@ -666,6 +704,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                   ...base,
                   fromUserId: syncedMsg.senderId,
                   isOwn: isOwnWireSender(syncedMsg.senderInternalId, syncedMsg.senderId),
+                  ttlAnchorMs: anchor,
                 }),
               });
               decryptedMessages.push(fileMsg);
@@ -682,12 +721,16 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 type: 'text',
                 replyToMessageId: syncedMsg.replyToMessageId || undefined,
                 editedAt: editedAtFromServerIso(syncedMsg.editedAt),
+                ttlAnchorMs: anchor,
               });
             }
           } catch (decryptErr) {
             decryptFailedCount += 1;
             console.error('[useMessages] Failed to decrypt synced message:', decryptErr);
           }
+        }
+        if (skipHideIds.length > 0) {
+          hideMessages(skipHideIds);
         }
 
         newMessageCount = decryptedMessages.length;
@@ -732,7 +775,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       console.error('[useMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [sessionId, bothVerified, isOwnWireSender, onNewMessage, onSyncComplete, handleError, setSyncing, getEncryptionKey, setMessages]);
+  }, [
+    sessionId, bothVerified, isOwnWireSender, onNewMessage, onSyncComplete, handleError,
+    setSyncing, getEncryptionKey, setMessages, hiddenIds, messageTtlSeconds, hideMessages,
+  ]);
 
   const syncMessages = useCallback(() => {
     coreSyncMessages(() => isHandshakeComplete(sessionId));
@@ -747,7 +793,12 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
       if (event.success) {
         const newStatus: MessageStatus = event.delivered ? 'delivered' : 'sent';
-        setMessages(prev => updateMessageStatus(prev, event.messageId, newStatus));
+        const ackAnchor = ttlAnchorMs(event.serverTimestamp);
+        setMessages(prev => prev.map((msg) => (
+          msg.id === event.messageId
+            ? { ...msg, status: newStatus, ttlAnchorMs: ackAnchor }
+            : msg
+        )));
         onStatusChange?.(event.messageId, newStatus);
       } else {
         console.error('[useMessages] Message send failed:', event.error);
@@ -923,8 +974,25 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     return sendFileMessage(blob.file, blob.caption);
   }, [sendFileMessage, setMessages]);
 
-  return {
+  const { visibleMessages: ttlVisible, hideExpired } = useMessageExpiry({
     messages: visibleMessages,
+    messageTtlSeconds,
+  });
+
+  useEffect(() => {
+    if (hideExpired.length === 0) {
+      return;
+    }
+    hideMessages(hideExpired);
+  }, [hideExpired, hideMessages]);
+
+  const displayMessages = useMemo(
+    () => ttlVisible.map((m) => enrichReplyTo(m, ttlVisible, i18n.t.bind(i18n))),
+    [ttlVisible],
+  );
+
+  return {
+    messages: displayMessages,
     isLoading,
     isSyncing,
     sendMessage,
@@ -941,6 +1009,26 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     editMessage,
     deleteMessage,
   };
+}
+
+function shouldSkipDecryptForTtl(
+  messageId: string,
+  serverTimestamp: string | undefined,
+  clientTimestamp: number | null | undefined,
+  hiddenIds: ReadonlySet<string>,
+  messageTtlSeconds: number,
+): boolean {
+  if (hiddenIds.has(messageId)) {
+    return true;
+  }
+  if (messageTtlSeconds <= 0) {
+    return false;
+  }
+  return isTtlExpired(
+    ttlAnchorMs(serverTimestamp, clientTimestamp ?? undefined),
+    messageTtlSeconds,
+    Date.now(),
+  );
 }
 
 function mapServerError(serverError?: string): MessageErrorCode {

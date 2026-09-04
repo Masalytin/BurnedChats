@@ -88,6 +88,11 @@
   color: var(--bc-text-muted);
 }
 
+.chat-room-ttl {
+  color: var(--bc-text-secondary);
+  border-radius: var(--bc-radius-md);
+}
+
 /* Burn Button — destructive icon control (extends shared touch target) */
 .chat-room-burn {
   color: var(--bc-destructive);

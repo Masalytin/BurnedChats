@@ -79,7 +79,7 @@ describe('useMessages handleSyncMessages decrypt failures', () => {
     });
   });
 
-  function renderUseMessages(onSyncComplete = vi.fn()) {
+  function renderUseMessages(onSyncComplete = vi.fn(), messageTtlSeconds = 0) {
     const subscribe = vi.fn((destination: string, handler: (message: IMessage) => void) => {
       subscribeHandlers.set(destination, handler);
     });
@@ -99,6 +99,7 @@ describe('useMessages handleSyncMessages decrypt failures', () => {
           publish,
         },
         bothVerified: true,
+        messageTtlSeconds,
         onSyncComplete,
       }),
     );
@@ -166,5 +167,45 @@ describe('useMessages handleSyncMessages decrypt failures', () => {
     });
 
     expect(onSyncComplete).toHaveBeenCalledWith(2, undefined);
+  });
+
+  it('does not decrypt sync messages already past TTL cutoff', async () => {
+    const decryptSpy = vi.spyOn(useMessageCore, 'decryptTextContent');
+    const onSyncComplete = vi.fn();
+    const { result } = renderUseMessages(onSyncComplete, 5);
+
+    const syncHandler = subscribeHandlers.get(SYNC_MESSAGES_RESULT_DESTINATION);
+    expect(syncHandler).toBeDefined();
+
+    await act(async () => {
+      await syncHandler!({
+        body: JSON.stringify({
+          success: true,
+          sessionId: 'sess-1',
+          messages: [
+            {
+              ...makeSyncedTextMessage('expired-1', 'good:old'),
+              serverTimestamp: '2020-01-01T00:00:00.000Z',
+              clientTimestamp: Date.now() + 86_400_000,
+            },
+            {
+              ...makeSyncedTextMessage('live-1', 'good:live'),
+              serverTimestamp: new Date().toISOString(),
+              clientTimestamp: Date.now(),
+            },
+          ],
+          count: 2,
+          serverTimestamp: new Date().toISOString(),
+        }),
+      } as IMessage);
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.map((m) => m.id)).toEqual(['live-1']);
+    });
+
+    expect(decryptSpy).not.toHaveBeenCalledWith('sess-1', 'good:old', expect.anything());
+    expect(decryptSpy).toHaveBeenCalledWith('sess-1', 'good:live', 'iv-test');
+    expect(onSyncComplete).toHaveBeenCalledWith(1, undefined);
   });
 });

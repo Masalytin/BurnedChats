@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flame, Lock, Star, AlertCircle } from 'lucide-react';
+import { Flame, Lock, Star, AlertCircle, Timer } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
 import { useToast } from '@/components/Toast';
@@ -18,6 +18,9 @@ import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
+import { DmMessageTtlSheet } from '../DmMessageTtlSheet';
+import type { MessageTtlPreset } from '@/hooks/useRoomMessageTtl';
+import { isTtlExpired } from '@/utils/ttlAnchor';
 import { ChatSelectionBar } from '../ChatSelectionBar';
 import { useMessageSelection } from '@/hooks/useMessageSelection';
 import { submitMessageEdit, showMessageEditErrorToast } from '@/hooks/useMessageCore';
@@ -93,6 +96,10 @@ interface ChatRoomProps {
     success: boolean;
     errorCode?: string;
   }>;
+  /** Session message TTL in seconds; 0 = off (IMP-DISAPPEAR-02). */
+  messageTtlSeconds?: number;
+  onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
+  onApplyCustomMessageTtlSeconds?: (seconds: number) => void;
 }
 
 /**
@@ -132,6 +139,9 @@ export const ChatRoom = memo(function ChatRoom({
   hideMessages,
   onEditMessage,
   onDeleteForEveryone,
+  messageTtlSeconds = 0,
+  onApplyMessageTtlPreset,
+  onApplyCustomMessageTtlSeconds,
 }: ChatRoomProps) {
   const { t } = useTranslation();
   const peerPresence = usePresence(peer.internalId, { online: peer.online });
@@ -218,6 +228,29 @@ export const ChatRoom = memo(function ChatRoom({
     setViewerMessage(null);
   }, []);
 
+  const [ttlSheetOpen, setTtlSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (!viewerMessage) {
+      return;
+    }
+    const stillVisible = messages.some((m) => {
+      if (m.id !== viewerMessage.id || m.type === 'text' || !('fileId' in m)) {
+        return false;
+      }
+      return (m as DecryptedFileMessage).fileId === viewerMessage.fileId;
+    });
+    if (!stillVisible) {
+      setViewerMessage(null);
+    }
+  }, [messages, viewerMessage]);
+
+  useEffect(() => {
+    if (editingMessage && !messages.some((m) => m.id === editingMessage.id)) {
+      setEditingMessage(null);
+    }
+  }, [messages, editingMessage]);
+
   const handleSend = useCallback(
     async (text: string) => {
       haptics.success();
@@ -257,10 +290,18 @@ export const ChatRoom = memo(function ChatRoom({
     [],
   );
 
+  const isPastTtlCutoff = useCallback((message: DecryptedMessage) => {
+    const anchor = message.ttlAnchorMs ?? message.timestamp;
+    return isTtlExpired(anchor, messageTtlSeconds, Date.now());
+  }, [messageTtlSeconds]);
+
   const handleStartEdit = useCallback((message: DecryptedMessage) => {
+    if (isPastTtlCutoff(message)) {
+      return;
+    }
     setReplyTarget(null);
     setEditingMessage(message);
-  }, []);
+  }, [isPastTtlCutoff]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
@@ -312,9 +353,9 @@ export const ChatRoom = memo(function ChatRoom({
     }
     return Array.from(messageSelection.selectedIds).every(id => {
       const m = messages.find(x => x.id === id);
-      return m?.isOwn === true;
+      return m?.isOwn === true && !!m && !isPastTtlCutoff(m);
     });
-  }, [messageSelection.selectedIds, messages]);
+  }, [messageSelection.selectedIds, messages, isPastTtlCutoff]);
 
   const handleBulkCopy = useCallback(async () => {
     const selected = messages
@@ -437,6 +478,17 @@ export const ChatRoom = memo(function ChatRoom({
 
   const headerRight = (
     <div className="chat-room-header-actions">
+      {onApplyMessageTtlPreset && (
+        <button
+          type="button"
+          className="chat-screen-icon-btn chat-room-ttl"
+          onClick={() => setTtlSheetOpen(true)}
+          aria-label={t('room.manage.msgTtlTitle')}
+          title={t('room.manage.msgTtlTitle')}
+        >
+          <Timer size={22} aria-hidden />
+        </button>
+      )}
       {selfStakeTier != null && (
         <span
           className="chat-room-stake-badge"
@@ -550,7 +602,11 @@ export const ChatRoom = memo(function ChatRoom({
         selection={messageSelection}
         onRequestDeleteForMe={requestDeleteForMe}
         onRequestDeleteForEveryone={onDeleteForEveryone ? requestDeleteForEveryone : undefined}
-        canDeleteForEveryone={onDeleteForEveryone ? (m) => m.isOwn : undefined}
+        canDeleteForEveryone={
+          onDeleteForEveryone
+            ? (m) => m.isOwn && !isPastTtlCutoff(m)
+            : undefined
+        }
         userTelegramId={userTelegramId}
         peerDisplayName={displayName}
         onReplyToMessage={handleReplyToMessage}
@@ -627,6 +683,16 @@ export const ChatRoom = memo(function ChatRoom({
         onClose={() => setHelpOpen(false)}
         topicKey={helpTopic}
       />
+
+      {onApplyMessageTtlPreset && onApplyCustomMessageTtlSeconds && (
+        <DmMessageTtlSheet
+          open={ttlSheetOpen}
+          onClose={() => setTtlSheetOpen(false)}
+          messageTtlSeconds={messageTtlSeconds}
+          onApplyPreset={onApplyMessageTtlPreset}
+          onApplyCustomSeconds={onApplyCustomMessageTtlSeconds}
+        />
+      )}
     </div>
   );
 });

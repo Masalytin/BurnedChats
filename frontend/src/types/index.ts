@@ -92,6 +92,8 @@ export interface Session {
   createdAt: number;
   expiresAt?: number;
   hasUnread?: boolean;
+  /** Per-session disappearing-message timer; 0 = off (IMP-DISAPPEAR-02). */
+  messageTtlSeconds?: number;
 }
 
 export interface ChatRequest {
@@ -161,6 +163,11 @@ export interface DecryptedMessage extends Omit<Message, 'encryptedContent' | 'iv
   replyTo?: ReplyToInfo;
   /** When set, the message was edited (UI shows an “edited” label). */
   editedAt?: number;
+  /**
+   * Server-first hide clock (IMP-DISAPPEAR-02). Do not use for sort / HH:MM —
+   * those stay on {@link DecryptedMessage.timestamp}.
+   */
+  ttlAnchorMs?: number;
 }
 
 /**

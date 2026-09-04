@@ -35,6 +35,8 @@ export interface ActiveSession {
   isInitiator: boolean;
   /** Unix ms. PENDING uses request TTL; same parse as createdAt. */
   expiresAt: number;
+  /** Per-session disappearing-message timer; 0 = off (IMP-DISAPPEAR-02). */
+  messageTtlSeconds?: number;
 }
 
 /** Error codes for active sessions */
@@ -71,6 +73,7 @@ interface ServerActiveSessionsEvent {
     lastActivityAt: string;
     isInitiator?: boolean;
     expiresAt?: string;
+    messageTtlSeconds?: number;
   }>;
   count: number;
   serverTimestamp: string;
@@ -93,6 +96,7 @@ interface ServerSessionResumedEvent {
     lastActivityAt?: string;
     isInitiator?: boolean;
     expiresAt?: string;
+    messageTtlSeconds?: number;
   };
   peer?: WireUserResponse;
   verified?: boolean;
@@ -101,6 +105,7 @@ interface ServerSessionResumedEvent {
   lastActivityAt?: string;
   isInitiator?: boolean;
   expiresAt?: string;
+  messageTtlSeconds?: number;
   error?: string;
 }
 
@@ -234,6 +239,9 @@ export function useActiveSessions({
       expiresAt: serverSession.expiresAt
         ? new Date(serverSession.expiresAt).getTime()
         : createdAt + 5 * 60 * 1000,
+      messageTtlSeconds: typeof serverSession.messageTtlSeconds === 'number'
+        ? serverSession.messageTtlSeconds
+        : 0,
     };
   }, []);
 
@@ -308,6 +316,9 @@ export function useActiveSessions({
             : Date.now(),
           isInitiator: sessionPayload.isInitiator === true,
           expiresAt: expiresAtRaw ? new Date(expiresAtRaw).getTime() : createdAt + 5 * 60 * 1000,
+          messageTtlSeconds: typeof sessionPayload.messageTtlSeconds === 'number'
+            ? sessionPayload.messageTtlSeconds
+            : 0,
         };
 
         setResumeResult({

@@ -1,0 +1,103 @@
+.dm-msg-ttl-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  background: var(--bc-bg-overlay);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dm-msg-ttl-sheet-panel {
+  width: 100%;
+  max-width: var(--bc-sheet-max);
+  max-height: min(92vh, 45rem);
+  border-radius: var(--bc-radius-lg) var(--bc-radius-lg) 0 0;
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-primary);
+  box-shadow: var(--bc-shadow-lg);
+}
+
+.dm-msg-ttl-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bc-spacing-2xs);
+  padding: var(--bc-spacing-2xs) var(--bc-spacing-md);
+  border-bottom: 1px solid var(--bc-border-color);
+  flex-shrink: 0;
+}
+
+.dm-msg-ttl-sheet-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bc-spacing-xs);
+  margin: 0;
+  font-size: var(--bc-text-lg);
+  font-weight: 700;
+}
+
+.dm-msg-ttl-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bc-touch-target);
+  height: var(--bc-touch-target);
+  min-width: var(--bc-touch-target);
+  min-height: var(--bc-touch-target);
+  padding: 0;
+  border: none;
+  border-radius: var(--bc-radius-md);
+  background: var(--bc-bg-secondary);
+  color: var(--bc-text-primary);
+  cursor: pointer;
+}
+
+.dm-msg-ttl-sheet-close:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.dm-msg-ttl-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding: var(--bc-spacing-md);
+}
+
+.dm-msg-ttl-sheet-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bc-spacing-xs);
+}
+
+.dm-msg-ttl-sheet-chip {
+  min-height: var(--bc-touch-target);
+  padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
+  border: 1px solid var(--bc-border-color);
+  border-radius: var(--bc-radius-full);
+  background: var(--bc-bg-primary);
+  color: var(--bc-text-secondary);
+  font-size: var(--bc-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dm-msg-ttl-sheet-chip--active {
+  background: var(--bc-button-primary-bg);
+  border-color: var(--bc-button-primary-bg);
+  color: var(--bc-button-primary-text);
+}
+
+.dm-msg-ttl-sheet-chip:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
+.dm-msg-ttl-sheet-custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-spacing-sm);
+  padding-top: var(--bc-spacing-xs);
+}
