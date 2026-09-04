@@ -42,17 +42,17 @@
     "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.2",
-    "@types/node": "^22.15.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@types/sockjs-client": "^1.5.4",
-    "@vitejs/plugin-react": "^4.7.0",
-    "happy-dom": "^20.10.4",
-    "jest-axe": "^10.0.0",
-    "typescript": "~5.9.3",
-    "vite": "^7.2.4",
-    "vite-plugin-node-polyfills": "^0.26.0",
-    "vitest": "^4.0.17"
+    "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^20.11.12",
+    "jest-axe": "^11.0.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.2.2",
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "vitest": "^4.1.11"
   }
 }
