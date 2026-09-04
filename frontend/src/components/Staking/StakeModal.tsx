@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { HelpSheet, HelpTrigger } from '@/components/HelpSheet';
@@ -312,7 +313,7 @@ export function StakeModal({
     (a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier),
   );
 
-  return (
+  return createPortal(
     <div
       className={styles.backdrop}
       role="presentation"
@@ -482,6 +483,7 @@ export function StakeModal({
         onClose={() => setHelpOpen(false)}
         topicKey="staking.minStake"
       />
-    </div>
+    </div>,
+    document.body,
   );
 }

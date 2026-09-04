@@ -523,7 +523,8 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: var(--bc-z-modal);
+  /* Above .bottom-nav (10000) so Stake & sign is not covered. */
+  z-index: 10100;
   background: var(--bc-bg-overlay);
   display: flex;
   align-items: flex-end;
@@ -537,7 +538,10 @@
   overflow: auto;
   border-radius: var(--bc-radius-lg) var(--bc-radius-lg) 0 0;
   padding: var(--bc-spacing-md);
-  padding-bottom: calc(var(--bc-spacing-md) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(
+    var(--bc-spacing-md) + var(--bc-spacing-xl) + var(--bc-spacing-lg) +
+      env(safe-area-inset-bottom, 0px)
+  );
   background: var(--bc-bg-primary);
   color: var(--bc-text-primary);
   box-shadow: var(--bc-shadow-lg);

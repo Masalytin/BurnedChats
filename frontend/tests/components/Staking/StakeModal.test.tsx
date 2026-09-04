@@ -1,9 +1,14 @@
 // @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StakeModal } from '@/components/Staking/StakeModal';
+import styles from '@/components/Staking/Staking.module.css';
 import i18n from '@/i18n';
 import { MIN_STAKE_NANO } from '@/ton/minStake';
 import { StakingTier, type TierConfig } from '@/types/ton';
@@ -247,5 +252,52 @@ describe('StakeModal min-stake hint and help', () => {
 
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getAllByRole('dialog').length).toBe(2);
+  });
+});
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const stakingCss = readFileSync(
+  path.join(here, '../../../src/components/Staking/Staking.module.css'),
+  'utf-8',
+);
+const bottomNavCss = readFileSync(
+  path.join(here, '../../../src/components/BottomNavBar/BottomNavBar.css'),
+  'utf-8',
+);
+
+function cssBlock(css: string, selector: string): string {
+  const idx = css.indexOf(selector);
+  expect(idx).toBeGreaterThanOrEqual(0);
+  const start = css.indexOf('{', idx);
+  const end = css.indexOf('}', start);
+  return css.slice(start, end + 1);
+}
+
+function declaredZIndex(css: string, selector: string): number {
+  const match = cssBlock(css, selector).match(/z-index:\s*(\d+)/);
+  expect(match).toBeTruthy();
+  return Number(match![1]);
+}
+
+describe('StakeModal vs BottomNavBar stacking', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.stubEnv('VITE_STAKING_MASTER', 'EQ____________________________________________________________00');
+    vi.clearAllMocks();
+  });
+
+  it('declares a backdrop z-index above BottomNavBar so Stake & sign is not covered', () => {
+    const sheetZ = declaredZIndex(stakingCss, '.backdrop');
+    const navZ = declaredZIndex(bottomNavCss, '.bottom-nav');
+    expect(sheetZ).toBeGreaterThan(navZ);
+  });
+
+  it('portals the backdrop to document.body so a parent stacking context cannot trap it', () => {
+    const { container } = renderStakeModal();
+
+    const backdrop = document.querySelector(`.${styles.backdrop}`);
+    expect(backdrop).toBeTruthy();
+    expect(backdrop?.parentElement).toBe(document.body);
+    expect(container.querySelector(`.${styles.backdrop}`)).toBeNull();
   });
 });
