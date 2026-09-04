@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Stake sheet portals above the bottom nav so Stake & sign stays clickable.
+
 ## [0.4.4] - 2026-09-04
 
 ### Added
