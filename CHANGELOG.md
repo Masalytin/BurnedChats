@@ -7,19 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-04
+
 ### Added
 
 - DM sessions store `messageTtl` and expose `/app/session.setMessageTtl`; the relay prunes both offline queues by server time and snapshots `messageTtlSeconds` on `SessionResponse`.
 - ACTIVE DM chats can set the session timer from the header sheet; the client hides bubbles by send-time `ttlAnchorMs` (server first) without a full-list clock tick.
 - DM header shows a disappearing-messages badge when the session timer is on; remaining countdown appears next to a bubble's time only in the last 60 seconds.
 - Room list snapshots `messageTtlSeconds` on `GET_MY_ROOMS`; room chat hydrates the timer on remount, shows the shared disappearing-messages badge, and remaining countdown (last 60s) without a 1s list tick.
+- `GET /api/wallet/jetton-info` and `GET /api/wallet/fee-params` expose cached jetton supply and the fee-on-transfer split; prod clients read both from this API only (no Toncenter fallback).
 
 ### Changed
 
 - Setting the disappearing-message timer shows a one-shot “timer set” overlay in DM and rooms; help for chat and files now describes send-time TTL and that a file blob on the relay may outlive the hidden bubble.
-
-
-- `GET /api/wallet/jetton-info` and `GET /api/wallet/fee-params` expose cached jetton supply and the fee-on-transfer split; prod clients read both from this API only (no Toncenter fallback).
 
 ## [0.4.3] - 2026-09-02
 
@@ -172,7 +172,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.3
 [0.4.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.1
