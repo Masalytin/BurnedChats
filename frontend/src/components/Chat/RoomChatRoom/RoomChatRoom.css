@@ -7,7 +7,24 @@
   position: relative;
 }
 
-/* Header right area (share / manage / leave buttons) */
+/* Header right area (share / timer / manage / leave buttons) */
+
+.room-chat-room-ttl {
+  color: var(--bc-text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .room-chat-room-ttl:hover {
+    color: var(--bc-text-primary);
+    background: var(--bc-bg-hover);
+  }
+}
+
+.room-chat-room-ttl:focus-visible {
+  outline: 2px solid var(--bc-brand-primary);
+  outline-offset: 2px;
+}
+
 .room-chat-room-share {
   color: var(--bc-text-secondary);
 }

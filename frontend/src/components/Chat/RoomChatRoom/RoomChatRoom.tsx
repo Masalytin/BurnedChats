@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { matchMessageTtlPreset } from '@/utils/messageTtlPresets';
+import { matchMessageTtlPreset, type MessageTtlPreset } from '@/utils/messageTtlPresets';
 import {
   Home,
   Hourglass,
@@ -12,6 +12,7 @@ import {
   MicOff,
   Settings,
   Share2,
+  Timer,
 } from 'lucide-react';
 import { EphemeralChatBadge } from '../EphemeralChatBadge';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
@@ -23,6 +24,7 @@ import type { ReplyChipModel } from '../ReplyChip';
 import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { ChatScreenHeader } from '../ChatScreenHeader';
+import { MessageTtlSheet } from '../MessageTtlSheet';
 import { ChatSelectionBar } from '../ChatSelectionBar';
 import { useMessageSelection } from '@/hooks/useMessageSelection';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
@@ -105,6 +107,8 @@ interface RoomChatRoomProps {
   messageTtlSeconds?: number;
   /** Live setTtl overlay; omit / null on hydrate or remount (IMP-DISAPPEAR-05). */
   ttlSetNotice?: number | null;
+  onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
+  onApplyCustomMessageTtlSeconds?: (seconds: number) => void;
 }
 
 function ttlNoticeText(seconds: number, t: TFunction): string {
@@ -161,6 +165,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   onRoomMembership,
   messageTtlSeconds = 0,
   ttlSetNotice = null,
+  onApplyMessageTtlPreset,
+  onApplyCustomMessageTtlSeconds,
 }: RoomChatRoomProps) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -175,6 +181,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
   const [ownerWaitTimedOut, setOwnerWaitTimedOut] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(() => formatShortRoomId(roomId));
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [ttlSheetOpen, setTtlSheetOpen] = useState(false);
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<string[] | null>(null);
   const [deleteEveryoneIds, setDeleteEveryoneIds] = useState<string[] | null>(null);
   const [replyTarget, setReplyTarget] = useState<DecryptedMessage | null>(null);
@@ -631,7 +638,10 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     (isOwner || canBypassReadOnly) &&
     getEnvironment() === 'telegram' &&
     onShareInvite != null;
-  const hasHeaderRight = onManage != null || onLeave != null || showShareInvite;
+  const canApplyMessageTtl =
+    onApplyMessageTtlPreset != null && onApplyCustomMessageTtlSeconds != null;
+  const hasHeaderRight =
+    onManage != null || onLeave != null || showShareInvite || canApplyMessageTtl;
   const headerRight = hasHeaderRight ? (
     <>
       {showShareInvite && (
@@ -648,6 +658,17 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           ) : (
             <Share2 size={20} strokeWidth={2} aria-hidden />
           )}
+        </button>
+      )}
+      {canApplyMessageTtl && (
+        <button
+          type="button"
+          className="chat-screen-icon-btn room-chat-room-ttl"
+          onClick={() => setTtlSheetOpen(true)}
+          aria-label={t('room.manage.msgTtlTitle')}
+          title={t('room.manage.msgTtlTitle')}
+        >
+          <Timer size={22} aria-hidden />
         </button>
       )}
       {onManage && (
@@ -884,6 +905,16 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         variant="destructive"
         iconType="delete"
       />
+
+      {canApplyMessageTtl && (
+        <MessageTtlSheet
+          open={ttlSheetOpen}
+          onClose={() => setTtlSheetOpen(false)}
+          messageTtlSeconds={messageTtlSeconds}
+          onApplyPreset={onApplyMessageTtlPreset}
+          onApplyCustomSeconds={onApplyCustomMessageTtlSeconds}
+        />
+      )}
     </div>
   );
 });

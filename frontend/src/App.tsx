@@ -3996,6 +3996,8 @@ function AppContent() {
             onRoomMembership={handleRoomMembershipEvent}
             messageTtlSeconds={roomMessageTtlSeconds}
             ttlSetNotice={roomTtlSetNotice}
+            onApplyMessageTtlPreset={isRoomOwner ? applyRoomMessageTtlPreset : undefined}
+            onApplyCustomMessageTtlSeconds={isRoomOwner ? applyCustomRoomMessageTtlSeconds : undefined}
           />
           <RoomKeyRecoveryModal
             open={recoveryModalOpen}

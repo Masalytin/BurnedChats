@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Room owners can set the disappearing-message timer from the chat header (same sheet as DM).
+
 ### Changed
 
 - DM custom message TTL uses a scroll picker (hours / minutes / seconds) instead of a numeric field; presets stay one-tap.

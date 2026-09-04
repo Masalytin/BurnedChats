@@ -516,3 +516,77 @@ describe('RoomChatRoom TTL set overlay (IMP-DISAPPEAR-05)', () => {
   });
 });
 
+describe('RoomChatRoom header message TTL sheet (IMP-DURPICK-03)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(keyStore.hasGroupKey).mockReturnValue(true);
+    vi.mocked(useRoomMessages).mockReturnValue(emptyRoomMessages);
+    void i18n.changeLanguage('en');
+  });
+
+  function clickOption(listboxName: string, optionName: string): void {
+    const listbox = screen.getByRole('listbox', { name: listboxName });
+    fireEvent.click(within(listbox).getByRole('option', { name: optionName }));
+  }
+
+  it('owner with apply props sees Timer; chip 5m applies preset; custom Confirm publishes 30s', () => {
+    const onApplyMessageTtlPreset = vi.fn();
+    const onApplyCustomMessageTtlSeconds = vi.fn();
+    const onManage = vi.fn();
+
+    renderRoomChatRoom({
+      isOwner: true,
+      onManage,
+      onApplyMessageTtlPreset,
+      onApplyCustomMessageTtlSeconds,
+    });
+
+    const timerBtn = screen.getByRole('button', { name: i18n.t('room.manage.msgTtlTitle') });
+    expect(timerBtn).toBeTruthy();
+    expect(screen.getByRole('button', { name: i18n.t('room.manage.title') })).toBeTruthy();
+
+    fireEvent.click(timerBtn);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlPreset5m') }));
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledWith('5m');
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlPresetCustom') }));
+    clickOption('Seconds', '30');
+    expect(onApplyCustomMessageTtlSeconds).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlCustomApply') }));
+    expect(onApplyCustomMessageTtlSeconds).toHaveBeenCalledTimes(1);
+    expect(onApplyCustomMessageTtlSeconds).toHaveBeenCalledWith(30);
+  });
+
+  it('owner with apply props still gets Timer when Settings / Leave / Share are absent', () => {
+    renderRoomChatRoom({
+      isOwner: true,
+      onManage: undefined,
+      onLeave: undefined,
+      onShareInvite: undefined,
+      onApplyMessageTtlPreset: vi.fn(),
+      onApplyCustomMessageTtlSeconds: vi.fn(),
+    });
+
+    expect(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlTitle') })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: i18n.t('room.manage.title') })).toBeNull();
+    expect(screen.queryByRole('button', { name: i18n.t('room.manage.leaveButton') })).toBeNull();
+  });
+
+  it('non-owner without apply props has no Timer; admin Settings stays', () => {
+    renderRoomChatRoom({
+      isOwner: false,
+      canBypassReadOnly: true,
+      onManage: vi.fn(),
+    });
+
+    expect(screen.queryByRole('button', { name: i18n.t('room.manage.msgTtlTitle') })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: i18n.t('room.manage.title') })).toBeTruthy();
+  });
+});
+
