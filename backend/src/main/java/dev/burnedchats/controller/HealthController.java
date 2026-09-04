@@ -86,7 +86,7 @@ public class HealthController {
     public Map<String, Object> info() {
         return Map.of(
                 "name", "BurnedChats Backend",
-                "version", "0.4.4",
+                "version", "0.4.5",
                 "description", "Secure ephemeral chat backend for Telegram Mini App",
                 "features", Map.of(
                         "websocket", "STOMP over WebSocket with SockJS fallback",

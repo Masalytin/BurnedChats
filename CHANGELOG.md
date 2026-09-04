@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-09-04
+
 ### Added
 
 - Room owners can set the disappearing-message timer from the chat header (same sheet as DM).
@@ -189,7 +191,8 @@ Initial open-source publication. The project is pre-1.0: the public API may chan
 - **Documentation** — specifications under `docs/specs/` (architecture, API,
   security threat model, data models, key-exchange protocols, tokenomics, i18n).
 
-[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/Masalytin/BurnedChats/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.5
 [0.4.4]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.3
 [0.4.2]: https://github.com/Masalytin/BurnedChats/releases/tag/v0.4.2
