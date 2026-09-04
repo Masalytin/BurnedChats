@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wallet mount / 30s poll no longer fetch BURN history via browser Toncenter (`getTransactions` / `get_wallet_address`); history loads only when the History panel is open.
 - Stake-form net estimate no longer calls Toncenter `get_is_excluded` from the browser; prod reads `GET /api/wallet/excluded-transfer` only (no Toncenter fallback on 4xx/5xx).
 - `GET /api/wallet/jetton-info` parses Toncenter TVM `xNN` stack nums and maps unmapped master-read errors to 502 instead of a 500 Whitelabel page.
 - Stake sheet portals above the bottom nav so Stake & sign stays clickable.

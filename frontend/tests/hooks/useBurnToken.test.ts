@@ -47,6 +47,24 @@ describe('useBurnToken isolated load', () => {
     vi.useRealTimers();
   });
 
+  it('does not call getBurnHistory on mount (history is lazy)', async () => {
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    const getBurnHistory = vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.balance).toBe(42_000_000_000n);
+    });
+
+    expect(getBurnHistory).not.toHaveBeenCalled();
+    expect(result.current.history).toEqual([]);
+    expect(result.current.feeParams).toEqual(mockFees);
+  });
+
   it('shows balance when getBurnHistory fails (error only for balance path)', async () => {
     vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
     vi.spyOn(burnToken, 'getBurnHistory').mockRejectedValue(new Error('Ton Center 429'));
@@ -146,6 +164,84 @@ describe('useBurnToken isolated load', () => {
 
     expect(result.current.error).toBeNull();
     expect(result.current.supply).toBeNull();
+  });
+
+  it('does not call getBurnHistory on the 30s poll', async () => {
+    vi.useFakeTimers();
+
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    const getBurnHistory = vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
+
+    renderHook(() => useBurnToken());
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getBurnHistory).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+      await Promise.resolve();
+    });
+
+    expect(getBurnHistory).not.toHaveBeenCalled();
+  });
+
+  it('loadHistory fills history without changing balance', async () => {
+    const historyRow = {
+      hash: 'tx-1',
+      type: 'receive' as const,
+      amount: 1_000_000_000n,
+      counterparty: 'EQPeer',
+      timestamp: 1_700_000_000_000,
+      fee: null,
+      status: 'confirmed' as const,
+    };
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    vi.spyOn(burnToken, 'getBurnHistory').mockResolvedValue([historyRow]);
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await waitFor(() => {
+      expect(result.current.balance).toBe(42_000_000_000n);
+    });
+
+    expect(result.current.history).toEqual([]);
+
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    expect(result.current.history).toEqual([historyRow]);
+    expect(result.current.balance).toBe(42_000_000_000n);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('loadHistory reject leaves balance visible and history empty', async () => {
+    vi.spyOn(burnToken, 'getBurnBalance').mockResolvedValue(42_000_000_000n);
+    vi.spyOn(burnToken, 'getBurnHistory').mockRejectedValue(new Error('Ton Center 429'));
+    vi.spyOn(burnToken, 'getEffectiveFeeParams').mockResolvedValue(mockFees);
+    vi.spyOn(burnToken, 'getJettonSupply').mockResolvedValue(mockSupplyMintOpen);
+
+    const { result } = renderHook(() => useBurnToken());
+
+    await waitFor(() => {
+      expect(result.current.balance).toBe(42_000_000_000n);
+    });
+
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    expect(result.current.balance).toBe(42_000_000_000n);
+    expect(result.current.error).toBeNull();
+    expect(result.current.history).toEqual([]);
   });
 
   it('refetches supply on the 30s poll and keeps last snapshots if supply fails', async () => {

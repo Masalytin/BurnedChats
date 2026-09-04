@@ -30,8 +30,8 @@ describe('History burn row sign', () => {
         <History
           burn={{
             history: [burnTx],
-            refetch: vi.fn(),
-            isLoading: false,
+            isHistoryLoading: false,
+            loadHistory: vi.fn().mockResolvedValue(undefined),
           }}
         />
       </I18nextProvider>,
@@ -39,5 +39,22 @@ describe('History burn row sign', () => {
 
     expect(screen.getByText(`−${formatBurn(3_000_000_000n)}`)).toBeTruthy();
     expect(screen.queryByText(`+${formatBurn(3_000_000_000n)}`)).toBeNull();
+  });
+
+  it('calls loadHistory when the history panel mounts', () => {
+    const loadHistory = vi.fn().mockResolvedValue(undefined);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <History
+          burn={{
+            history: [],
+            isHistoryLoading: false,
+            loadHistory,
+          }}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(loadHistory).toHaveBeenCalledTimes(1);
   });
 });

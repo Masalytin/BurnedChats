@@ -110,16 +110,27 @@ const PINNED_TREASURY = 'EQPinnedTreasuryAddress0000000000000000000004';
 
 const defaultBurn: Pick<
   UseBurnToken,
-  'balance' | 'isLoading' | 'error' | 'refetch' | 'isRefreshing' | 'burn' | 'transferProgress' | 'history'
+  | 'balance'
+  | 'isLoading'
+  | 'isHistoryLoading'
+  | 'error'
+  | 'refetch'
+  | 'isRefreshing'
+  | 'burn'
+  | 'transferProgress'
+  | 'history'
+  | 'loadHistory'
 > = {
   balance: 1_000_000_000n,
   isLoading: false,
+  isHistoryLoading: false,
   error: null,
   refetch: vi.fn(),
   isRefreshing: false,
   burn: vi.fn(),
   transferProgress: null,
   history: [],
+  loadHistory: vi.fn().mockResolvedValue(undefined),
 };
 
 const defaultTon: Pick<UseTonConnectResult, 'walletAddress' | 'isConnected' | 'connect' | 'disconnect'> = {

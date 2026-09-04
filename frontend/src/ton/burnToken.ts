@@ -691,6 +691,8 @@ async function fetchTransactionsCenter(address: string, limit: number, deps: Res
 
 /**
  * Latest jetton-wallet activity for `address` owner's BURN transfers (decoded when possible).
+ * Uses browser Toncenter (`get_wallet_address` + getTransactions). Call only from History UI
+ * via `useBurnToken().loadHistory` — never from wallet mount or the 30s poll.
  */
 export async function getBurnHistory(ownerAddress: string, limit = 20, deps?: BurnTokenDeps): Promise<BurnTransaction[]> {
   const r = resolveDeps(deps);

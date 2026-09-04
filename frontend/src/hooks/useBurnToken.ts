@@ -26,11 +26,15 @@ export interface UseBurnToken {
   supply: JettonSupply | null;
   history: BurnTransaction[];
   isLoading: boolean;
+  /** True while a lazy history fetch is in flight. */
+  isHistoryLoading: boolean;
   /** True during refetch when a balance snapshot is already on screen. */
   isRefreshing: boolean;
   error: Error | null;
   feeParams: EffectiveFeeParams | null;
   refetch(): Promise<void>;
+  /** Jetton-wallet tx list — call only when History UI is shown (not on mount/poll). */
+  loadHistory(): Promise<void>;
   transfer(params: TransferParams): Promise<TxResult>;
   /** Voluntary TEP-74 burn of liquid JW balance. */
   burn(params: { amount: bigint }): Promise<TxResult>;
@@ -39,7 +43,8 @@ export interface UseBurnToken {
 }
 
 /**
- * BURN balance / history / fee params with 30s polling when the document is visible.
+ * BURN balance / fee params with 30s polling when the document is visible.
+ * History is lazy ({@link UseBurnToken.loadHistory}) — not on mount or the poll.
  * Balance, supply, and fee-split reads go through own API in prod
  * ({@link getBurnBalance}, {@link getJettonSupply}, {@link getEffectiveFeeParams}).
  * WebSocket real-time updates are not wired (optional in Phase 5 — backend/SSE can replace polling later).
@@ -52,6 +57,7 @@ export function useBurnToken(): UseBurnToken {
   const [history, setHistory] = useState<BurnTransaction[]>([]);
   const [feeParams, setFeeParams] = useState<EffectiveFeeParams | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -72,20 +78,29 @@ export function useBurnToken(): UseBurnToken {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
-  const loadHistoryAndFees = useCallback(async (addr: string) => {
-    const [historyResult, feesResult] = await Promise.allSettled([
-      getBurnHistory(addr, 50),
-      getEffectiveFeeParams(),
-    ]);
-    if (historyResult.status === 'fulfilled') {
-      setHistory(historyResult.value);
-    } else {
-      setHistory([]);
-    }
-    if (feesResult.status === 'fulfilled') {
-      setFeeParams(feesResult.value);
+  const loadFees = useCallback(async () => {
+    try {
+      setFeeParams(await getEffectiveFeeParams());
+    } catch {
+      /* keep last fee snapshot */
     }
   }, []);
+
+  const loadHistory = useCallback(async () => {
+    if (!walletAddress) {
+      setHistory([]);
+      return;
+    }
+    setIsHistoryLoading(true);
+    try {
+      const rows = await getBurnHistory(walletAddress, 50);
+      setHistory(rows);
+    } catch {
+      setHistory([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [walletAddress]);
 
   const load = useCallback(async () => {
     if (!walletAddress) {
@@ -129,8 +144,8 @@ export function useBurnToken(): UseBurnToken {
       setIsRefreshing(false);
     }
 
-    void loadHistoryAndFees(walletAddress);
-  }, [walletAddress, loadHistoryAndFees]);
+    void loadFees();
+  }, [walletAddress, loadFees]);
 
   useEffect(() => {
     void load();
@@ -222,10 +237,12 @@ export function useBurnToken(): UseBurnToken {
     supply,
     history,
     isLoading,
+    isHistoryLoading,
     isRefreshing,
     error,
     feeParams,
     refetch: load,
+    loadHistory,
     transfer,
     burn,
     transferProgress,

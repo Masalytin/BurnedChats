@@ -15,7 +15,7 @@ const PAGE_SIZE = 12;
 export type HistoryFilter = 'all' | 'sent' | 'received' | 'rewards';
 
 export interface HistoryProps {
-  burn: Pick<UseBurnToken, 'history' | 'refetch' | 'isLoading'>;
+  burn: Pick<UseBurnToken, 'history' | 'isHistoryLoading' | 'loadHistory'>;
   /** When list is empty, primary CTA to return to balance and highlight receive flow. */
   onReceiveCta?: () => void;
 }
@@ -67,6 +67,10 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
+    void burn.loadHistory();
+  }, [burn.loadHistory]);
+
+  useEffect(() => {
     setVisible(PAGE_SIZE);
   }, [filter, burn.history]);
 
@@ -90,7 +94,7 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await burn.refetch();
+      await burn.loadHistory();
     } finally {
       setRefreshing(false);
     }
@@ -137,8 +141,8 @@ export function History({ burn, onReceiveCta }: HistoryProps) {
         ))}
       </div>
 
-      <PullToRefresh onRefresh={onRefresh} isRefreshing={refreshing || burn.isLoading}>
-        {burn.isLoading && burn.history.length === 0 ? (
+      <PullToRefresh onRefresh={onRefresh} isRefreshing={refreshing || burn.isHistoryLoading}>
+        {burn.isHistoryLoading && burn.history.length === 0 ? (
           <div className={styles.historySkeletonList} aria-busy="true" aria-label={t('wallet.balanceLoading')}>
             <SkeletonCard />
             <SkeletonCard />
