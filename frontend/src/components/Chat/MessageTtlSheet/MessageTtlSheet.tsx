@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Timer, X } from 'lucide-react';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { DurationField } from '@/components/DurationField';
+import { DurationScrollPicker } from '@/components/DurationScrollPicker';
 import {
   MESSAGE_TTL_CUSTOM_MAX_SECONDS,
   MESSAGE_TTL_CUSTOM_MIN_SECONDS,
@@ -12,16 +12,23 @@ import {
   matchMessageTtlPreset,
   type MessageTtlPreset,
 } from '@/utils/messageTtlPresets';
-import { validateDurationSeconds } from '@/utils/duration';
-import './DmMessageTtlSheet.css';
+import {
+  partsToSeconds,
+  secondsToParts,
+  type DurationParts,
+} from '@/utils/durationColumns';
+import { secondsToBestUnit, validateDurationSeconds } from '@/utils/duration';
+import './MessageTtlSheet.css';
 
-export interface DmMessageTtlSheetProps {
+export interface MessageTtlSheetProps {
   open: boolean;
   onClose: () => void;
   messageTtlSeconds: number;
   onApplyPreset: (preset: MessageTtlPreset) => void;
   onApplyCustomSeconds: (seconds: number) => void;
 }
+
+const ZERO_PARTS: DurationParts = [0, 0, 0];
 
 function msgTtlPresetLabelKey(preset: MessageTtlPreset): string {
   if (preset === 'off') return 'room.manage.msgTtlPresetOff';
@@ -30,30 +37,42 @@ function msgTtlPresetLabelKey(preset: MessageTtlPreset): string {
   return 'room.manage.msgTtlPreset24h';
 }
 
+function formatBoundLabel(seconds: number, t: (key: string) => string): string {
+  const { value, unit } = secondsToBestUnit(seconds);
+  const unitKey =
+    unit === 'minute'
+      ? 'common.duration.unitMinutes'
+      : unit === 'hour'
+        ? 'common.duration.unitHours'
+        : 'common.duration.unitDays';
+  return `${value} ${t(unitKey)}`;
+}
+
 /**
- * DM message-TTL presets + custom (UX copy of RoomManageView msgTtl, no owner).
+ * Message-TTL presets + custom HMS scroll picker (shared DM / room header).
  */
-export function DmMessageTtlSheet({
+export function MessageTtlSheet({
   open,
   onClose,
   messageTtlSeconds,
   onApplyPreset,
   onApplyCustomSeconds,
-}: DmMessageTtlSheetProps) {
+}: MessageTtlSheetProps) {
   const { t } = useTranslation();
   const titleId = useId();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [isCustomExpanded, setIsCustomExpanded] = useState(false);
-  const [customSeconds, setCustomSeconds] = useState<number | null>(null);
+  const [draftParts, setDraftParts] = useState<DurationParts>(ZERO_PARTS);
 
   const activePreset = matchMessageTtlPreset(messageTtlSeconds);
   const isCustomActive = activePreset === null && messageTtlSeconds > 0;
   const showCustomPanel = isCustomExpanded || isCustomActive;
-  const customValidation = validateDurationSeconds(customSeconds, {
+  const draftSeconds = partsToSeconds('hms', draftParts);
+  const customValidation = validateDurationSeconds(draftSeconds, {
     min: MESSAGE_TTL_CUSTOM_MIN_SECONDS,
     max: MESSAGE_TTL_CUSTOM_MAX_SECONDS,
   });
-  const canApplyCustom = customValidation === 'ok' && customSeconds != null;
+  const canApplyCustom = customValidation === 'ok';
 
   useEffect(() => {
     if (activePreset !== null) {
@@ -62,7 +81,7 @@ export function DmMessageTtlSheet({
     }
     if (messageTtlSeconds > 0) {
       setIsCustomExpanded(true);
-      setCustomSeconds(messageTtlSeconds);
+      setDraftParts(secondsToParts('hms', messageTtlSeconds));
     }
   }, [activePreset, messageTtlSeconds]);
 
@@ -74,22 +93,37 @@ export function DmMessageTtlSheet({
   const handleSelectCustom = useCallback(() => {
     setIsCustomExpanded(true);
     if (messageTtlSeconds > 0 && activePreset === null) {
-      setCustomSeconds(messageTtlSeconds);
+      setDraftParts(secondsToParts('hms', messageTtlSeconds));
     } else {
-      setCustomSeconds(null);
+      setDraftParts(ZERO_PARTS);
     }
   }, [messageTtlSeconds, activePreset]);
 
+  const handleCommitParts = useCallback((parts: DurationParts) => {
+    setDraftParts(parts);
+  }, []);
+
   const handleApplyCustom = useCallback(() => {
-    if (!canApplyCustom || customSeconds == null) {
+    if (!canApplyCustom) {
       return;
     }
-    onApplyCustomSeconds(customSeconds);
-  }, [canApplyCustom, customSeconds, onApplyCustomSeconds]);
+    onApplyCustomSeconds(draftSeconds);
+  }, [canApplyCustom, draftSeconds, onApplyCustomSeconds]);
 
   if (!open) {
     return null;
   }
+
+  const customError =
+    customValidation === 'below-min'
+      ? t('common.duration.errorBelowMin', {
+          min: formatBoundLabel(MESSAGE_TTL_CUSTOM_MIN_SECONDS, t),
+        })
+      : customValidation === 'above-max'
+        ? t('common.duration.errorAboveMax', {
+            max: formatBoundLabel(MESSAGE_TTL_CUSTOM_MAX_SECONDS, t),
+          })
+        : undefined;
 
   return createPortal(
     <BottomSheet
@@ -98,27 +132,27 @@ export function DmMessageTtlSheet({
       ariaLabelledBy={titleId}
       reducedMotionAware
       initialFocusRef={closeBtnRef}
-      backdropClassName="dm-msg-ttl-sheet-backdrop"
-      panelClassName="dm-msg-ttl-sheet-panel"
+      backdropClassName="msg-ttl-sheet-backdrop"
+      panelClassName="msg-ttl-sheet-panel"
     >
-      <header className="dm-msg-ttl-sheet-header">
-        <h2 id={titleId} className="dm-msg-ttl-sheet-title">
+      <header className="msg-ttl-sheet-header">
+        <h2 id={titleId} className="msg-ttl-sheet-title">
           <Timer size={16} aria-hidden="true" />
           {t('room.manage.msgTtlTitle')}
         </h2>
         <button
           ref={closeBtnRef}
           type="button"
-          className="dm-msg-ttl-sheet-close"
+          className="msg-ttl-sheet-close"
           onClick={onClose}
           aria-label={t('aria.closeDialog')}
         >
           <X size={20} strokeWidth={2.2} aria-hidden />
         </button>
       </header>
-      <div className="dm-msg-ttl-sheet-body">
+      <div className="msg-ttl-sheet-body">
         <div
-          className="dm-msg-ttl-sheet-presets"
+          className="msg-ttl-sheet-presets"
           role="group"
           aria-label={t('room.manage.msgTtlTitle')}
         >
@@ -126,8 +160,8 @@ export function DmMessageTtlSheet({
             <button
               key={preset}
               type="button"
-              className={`dm-msg-ttl-sheet-chip${
-                activePreset === preset ? ' dm-msg-ttl-sheet-chip--active' : ''
+              className={`msg-ttl-sheet-chip${
+                activePreset === preset ? ' msg-ttl-sheet-chip--active' : ''
               }`}
               onClick={() => handleSelectPreset(preset)}
             >
@@ -136,8 +170,8 @@ export function DmMessageTtlSheet({
           ))}
           <button
             type="button"
-            className={`dm-msg-ttl-sheet-chip${
-              isCustomExpanded || isCustomActive ? ' dm-msg-ttl-sheet-chip--active' : ''
+            className={`msg-ttl-sheet-chip${
+              isCustomExpanded || isCustomActive ? ' msg-ttl-sheet-chip--active' : ''
             }`}
             onClick={handleSelectCustom}
           >
@@ -145,16 +179,23 @@ export function DmMessageTtlSheet({
           </button>
         </div>
         {showCustomPanel && (
-          <div className="dm-msg-ttl-sheet-custom">
-            <DurationField
-              id="dm-msg-ttl-custom"
-              label={t('room.manage.msgTtlCustomLabel')}
-              valueSeconds={customSeconds}
-              onChange={setCustomSeconds}
+          <div className="msg-ttl-sheet-custom">
+            <span className="msg-ttl-sheet-custom-label">
+              {t('room.manage.msgTtlCustomLabel')}
+            </span>
+            <DurationScrollPicker
+              mode="hms"
+              valueParts={draftParts}
+              onCommitParts={handleCommitParts}
               minSeconds={MESSAGE_TTL_CUSTOM_MIN_SECONDS}
               maxSeconds={MESSAGE_TTL_CUSTOM_MAX_SECONDS}
-              units={['minute', 'hour']}
+              ariaLabel={t('room.manage.msgTtlCustomLabel')}
             />
+            {customError && (
+              <p className="msg-ttl-sheet-custom-error" role="alert">
+                {customError}
+              </p>
+            )}
             <Button
               variant="secondary"
               onClick={handleApplyCustom}

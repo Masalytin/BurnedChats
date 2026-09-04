@@ -1,4 +1,4 @@
-.dm-msg-ttl-sheet-backdrop {
+.msg-ttl-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10100;
@@ -9,7 +9,7 @@
   overflow: hidden;
 }
 
-.dm-msg-ttl-sheet-panel {
+.msg-ttl-sheet-panel {
   width: 100%;
   max-width: var(--bc-sheet-max);
   max-height: min(92vh, 45rem);
@@ -19,7 +19,7 @@
   box-shadow: var(--bc-shadow-lg);
 }
 
-.dm-msg-ttl-sheet-header {
+.msg-ttl-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,7 +29,7 @@
   flex-shrink: 0;
 }
 
-.dm-msg-ttl-sheet-title {
+.msg-ttl-sheet-title {
   display: inline-flex;
   align-items: center;
   gap: var(--bc-spacing-xs);
@@ -38,7 +38,7 @@
   font-weight: 700;
 }
 
-.dm-msg-ttl-sheet-close {
+.msg-ttl-sheet-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -54,25 +54,25 @@
   cursor: pointer;
 }
 
-.dm-msg-ttl-sheet-close:focus-visible {
+.msg-ttl-sheet-close:focus-visible {
   outline: 2px solid var(--bc-brand-primary);
   outline-offset: 2px;
 }
 
-.dm-msg-ttl-sheet-body {
+.msg-ttl-sheet-body {
   display: flex;
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   padding: var(--bc-spacing-md);
 }
 
-.dm-msg-ttl-sheet-presets {
+.msg-ttl-sheet-presets {
   display: flex;
   flex-wrap: wrap;
   gap: var(--bc-spacing-xs);
 }
 
-.dm-msg-ttl-sheet-chip {
+.msg-ttl-sheet-chip {
   min-height: var(--bc-touch-target);
   padding: var(--bc-spacing-xs) var(--bc-spacing-sm);
   border: 1px solid var(--bc-border-color);
@@ -84,20 +84,32 @@
   cursor: pointer;
 }
 
-.dm-msg-ttl-sheet-chip--active {
+.msg-ttl-sheet-chip--active {
   background: var(--bc-button-primary-bg);
   border-color: var(--bc-button-primary-bg);
   color: var(--bc-button-primary-text);
 }
 
-.dm-msg-ttl-sheet-chip:focus-visible {
+.msg-ttl-sheet-chip:focus-visible {
   outline: 2px solid var(--bc-brand-primary);
   outline-offset: 2px;
 }
 
-.dm-msg-ttl-sheet-custom {
+.msg-ttl-sheet-custom {
   display: flex;
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   padding-top: var(--bc-spacing-xs);
+}
+
+.msg-ttl-sheet-custom-label {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.msg-ttl-sheet-custom-error {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-error);
 }

@@ -18,7 +18,7 @@ import type { SelectedFileInfo } from '../MessageInput';
 import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
-import { DmMessageTtlSheet } from '../DmMessageTtlSheet';
+import { MessageTtlSheet } from '../MessageTtlSheet';
 import { matchMessageTtlPreset, type MessageTtlPreset } from '@/utils/messageTtlPresets';
 import type { TFunction } from 'i18next';
 import { EphemeralChatBadge } from '../EphemeralChatBadge';
@@ -717,7 +717,7 @@ export const ChatRoom = memo(function ChatRoom({
       />
 
       {onApplyMessageTtlPreset && onApplyCustomMessageTtlSeconds && (
-        <DmMessageTtlSheet
+        <MessageTtlSheet
           open={ttlSheetOpen}
           onClose={() => setTtlSheetOpen(false)}
           messageTtlSeconds={messageTtlSeconds}

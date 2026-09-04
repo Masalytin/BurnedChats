@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- DM custom message TTL uses a scroll picker (hours / minutes / seconds) instead of a numeric field; presets stay one-tap.
+
 ### Fixed
 
 - Stake Min chip sets a fee-adjusted gross so net after the transfer split stays at least 0.01 BURN (excluded / zero-fee still 0.01).
