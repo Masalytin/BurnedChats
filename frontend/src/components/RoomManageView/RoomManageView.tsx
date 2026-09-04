@@ -42,8 +42,9 @@ import {
 } from '../../hooks/useRoomMessageTtl';
 import { Button } from '../Button';
 import { Input } from '../Input';
-import { DurationField } from '../DurationField';
-import { validateDurationSeconds } from '../../utils/duration';
+import { DurationScrollPicker } from '../DurationScrollPicker';
+import { secondsToBestUnit, validateDurationSeconds } from '../../utils/duration';
+import { partsToSeconds, secondsToParts, type DurationParts } from '../../utils/durationColumns';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { CopyIcon } from '../../icons';
 import { formatShortRoomId, resolveRoomDisplayName } from '../../crypto/groupKey';
@@ -95,6 +96,17 @@ type LimitValidationResult =
   | 'not-integer'
   | 'below-min'
   | 'above-max';
+
+function formatBoundLabel(seconds: number, t: (key: string) => string): string {
+  const { value, unit } = secondsToBestUnit(seconds);
+  const unitKey =
+    unit === 'minute'
+      ? 'common.duration.unitMinutes'
+      : unit === 'hour'
+        ? 'common.duration.unitHours'
+        : 'common.duration.unitDays';
+  return `${value} ${t(unitKey)}`;
+}
 
 function matchExpiryPreset(seconds: number): ExpiryPreset | null {
   for (const [preset, presetSeconds] of Object.entries(EXPIRY_PRESET_SECONDS) as [
@@ -676,6 +688,18 @@ export const RoomManageView = memo(function RoomManageView({
     onApplyCustomMessageTtlSeconds?.(customMsgTtlSeconds);
   }, [canApplyCustomMsgTtl, customMsgTtlSeconds, onApplyCustomMessageTtlSeconds]);
 
+  const handleCommitCustomTtlParts = useCallback((parts: DurationParts) => {
+    setCustomTtlSeconds(partsToSeconds('dhm', parts));
+  }, []);
+
+  const handleCommitCustomMsgTtlParts = useCallback((parts: DurationParts) => {
+    setCustomMsgTtlSeconds(partsToSeconds('hms', parts));
+  }, []);
+
+  const handleCommitCustomExpiryParts = useCallback((parts: DurationParts) => {
+    setCustomExpirySeconds(partsToSeconds('dhm', parts));
+  }, []);
+
   const customExpiryValidation = validateDurationSeconds(customExpirySeconds, {
     min: INVITE_EXPIRY_MIN_SECONDS,
     max: INVITE_EXPIRY_MAX_SECONDS,
@@ -1112,14 +1136,28 @@ export const RoomManageView = memo(function RoomManageView({
               </div>
               {onApplyCustomTtlSeconds && showCustomTtlPanel && (
                 <div className="room-manage-ttl__custom">
-                  <DurationField
-                    id="room-manage-ttl-custom"
-                    label={t('room.manage.ttlCustomLabel')}
-                    valueSeconds={customTtlSeconds}
-                    onChange={setCustomTtlSeconds}
+                  <span className="room-manage-ttl__custom-label">
+                    {t('room.manage.ttlCustomLabel')}
+                  </span>
+                  <DurationScrollPicker
+                    mode="dhm"
+                    valueParts={secondsToParts('dhm', customTtlSeconds ?? 0)}
+                    onCommitParts={handleCommitCustomTtlParts}
                     minSeconds={ROOM_TTL_CUSTOM_MIN_SECONDS}
                     maxSeconds={ROOM_TTL_CUSTOM_MAX_SECONDS}
+                    ariaLabel={t('room.manage.ttlCustomLabel')}
                   />
+                  {customTtlValidation !== 'ok' && (
+                    <p className="room-manage-ttl__custom-error" role="alert">
+                      {customTtlValidation === 'above-max'
+                        ? t('common.duration.errorAboveMax', {
+                            max: formatBoundLabel(ROOM_TTL_CUSTOM_MAX_SECONDS, t),
+                          })
+                        : t('common.duration.errorBelowMin', {
+                            min: formatBoundLabel(ROOM_TTL_CUSTOM_MIN_SECONDS, t),
+                          })}
+                    </p>
+                  )}
                   <Button
                     variant="secondary"
                     onClick={handleApplyCustomTtl}
@@ -1173,15 +1211,28 @@ export const RoomManageView = memo(function RoomManageView({
               </div>
               {onApplyCustomMessageTtlSeconds && showCustomMsgTtlPanel && (
                 <div className="room-manage-msg-ttl__custom">
-                  <DurationField
-                    id="room-manage-msg-ttl-custom"
-                    label={t('room.manage.msgTtlCustomLabel')}
-                    valueSeconds={customMsgTtlSeconds}
-                    onChange={setCustomMsgTtlSeconds}
+                  <span className="room-manage-msg-ttl__custom-label">
+                    {t('room.manage.msgTtlCustomLabel')}
+                  </span>
+                  <DurationScrollPicker
+                    mode="hms"
+                    valueParts={secondsToParts('hms', customMsgTtlSeconds ?? 0)}
+                    onCommitParts={handleCommitCustomMsgTtlParts}
                     minSeconds={MESSAGE_TTL_CUSTOM_MIN_SECONDS}
                     maxSeconds={MESSAGE_TTL_CUSTOM_MAX_SECONDS}
-                    units={['minute', 'hour']}
+                    ariaLabel={t('room.manage.msgTtlCustomLabel')}
                   />
+                  {customMsgTtlValidation !== 'ok' && (
+                    <p className="room-manage-msg-ttl__custom-error" role="alert">
+                      {customMsgTtlValidation === 'above-max'
+                        ? t('common.duration.errorAboveMax', {
+                            max: formatBoundLabel(MESSAGE_TTL_CUSTOM_MAX_SECONDS, t),
+                          })
+                        : t('common.duration.errorBelowMin', {
+                            min: formatBoundLabel(MESSAGE_TTL_CUSTOM_MIN_SECONDS, t),
+                          })}
+                    </p>
+                  )}
                   <Button
                     variant="secondary"
                     onClick={handleApplyCustomMsgTtl}
@@ -1272,14 +1323,28 @@ export const RoomManageView = memo(function RoomManageView({
                   </div>
                   {isCustomExpiryExpanded && (
                     <div className="room-manage-invites-create__custom">
-                      <DurationField
-                        id="room-manage-invite-expiry-custom"
-                        label={t('room.invite.expiryCustomLabel')}
-                        valueSeconds={customExpirySeconds}
-                        onChange={setCustomExpirySeconds}
+                      <span className="room-manage-invites-create__custom-label">
+                        {t('room.invite.expiryCustomLabel')}
+                      </span>
+                      <DurationScrollPicker
+                        mode="dhm"
+                        valueParts={secondsToParts('dhm', customExpirySeconds ?? 0)}
+                        onCommitParts={handleCommitCustomExpiryParts}
                         minSeconds={INVITE_EXPIRY_MIN_SECONDS}
                         maxSeconds={INVITE_EXPIRY_MAX_SECONDS}
+                        ariaLabel={t('room.invite.expiryCustomLabel')}
                       />
+                      {customExpiryValidation !== 'ok' && (
+                        <p className="room-manage-invites-create__custom-error" role="alert">
+                          {customExpiryValidation === 'above-max'
+                            ? t('common.duration.errorAboveMax', {
+                                max: formatBoundLabel(INVITE_EXPIRY_MAX_SECONDS, t),
+                              })
+                            : t('common.duration.errorBelowMin', {
+                                min: formatBoundLabel(INVITE_EXPIRY_MIN_SECONDS, t),
+                              })}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

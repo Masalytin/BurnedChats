@@ -540,6 +540,19 @@
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   padding-top: var(--bc-spacing-xs);
+  min-width: 0;
+}
+
+.room-manage-invites-create__custom-label {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.room-manage-invites-create__custom-error {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-error);
 }
 
 /* ============================================
@@ -601,6 +614,19 @@
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   padding-top: var(--bc-spacing-xs);
+  min-width: 0;
+}
+
+.room-manage-ttl__custom-label {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.room-manage-ttl__custom-error {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-error);
 }
 
 /* Message auto-destruction TTL presets (IMP-ROOM-19) */
@@ -653,6 +679,19 @@
   flex-direction: column;
   gap: var(--bc-spacing-sm);
   padding-top: var(--bc-spacing-xs);
+  min-width: 0;
+}
+
+.room-manage-msg-ttl__custom-label {
+  font-size: var(--bc-text-sm);
+  font-weight: 600;
+  color: var(--bc-text-secondary);
+}
+
+.room-manage-msg-ttl__custom-error {
+  margin: 0;
+  font-size: var(--bc-text-xs);
+  color: var(--bc-error);
 }
 
 /* ============================================

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - DM custom message TTL uses a scroll picker (hours / minutes / seconds) instead of a numeric field; presets stay one-tap.
+- Room manage custom durations (message TTL, room lifetime, invite expiry) use the scroll picker instead of a numeric field.
 
 ### Fixed
 
