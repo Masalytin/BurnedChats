@@ -1361,6 +1361,7 @@ Errors logged on server (`NOT_OWNER`, `ROOM_NOT_FOUND`); no separate user-queue 
 | `rooms[].createdAt` | number | Unix ms |
 | `rooms[].nameEncrypted` | string? | Encrypted name (opaque) |
 | `rooms[].nameIv` | string? | GCM IV for name |
+| `rooms[].messageTtlSeconds` | number | Snapshot of `room:{id}.messageTtl`; `0` = off. Lets the client hydrate hide/badge on remount without waiting for `ROOM_MESSAGE_TTL_UPDATED`. |
 
 ---
 

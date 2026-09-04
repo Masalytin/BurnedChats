@@ -10,8 +10,8 @@ import {
   MicOff,
   Settings,
   Share2,
-  Timer,
 } from 'lucide-react';
+import { EphemeralChatBadge } from '../EphemeralChatBadge';
 import { buildCopyText } from '@/components/Chat/messageActions/copyMessage';
 import { writeTextToClipboard } from '@/utils/clipboard';
 import { MessageList } from '../MessageList';
@@ -597,18 +597,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             <Lock size={16} strokeWidth={2} aria-hidden />
           </span>
         )}
-        {isEphemeralMode && (
-          <span
-            className="room-chat-room-ephemeral-badge"
-            title={t('room.chat.ephemeralBadge')}
-            aria-label={t('room.chat.ephemeralBadge')}
-          >
-            <Timer size={14} strokeWidth={2} aria-hidden />
-            <span className="room-chat-room-ephemeral-badge__label">
-              {t('room.chat.ephemeralBadge')}
-            </span>
-          </span>
-        )}
+        {isEphemeralMode && <EphemeralChatBadge />}
       </div>
       <div className="room-chat-room-subtitle">{subtitle}</div>
     </div>
@@ -705,6 +694,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
             peerDisplayName={roomPeerDisplayName}
             onReplyToMessage={handleReplyToMessage}
             onEditMessage={handleStartEdit}
+            messageTtlSeconds={messageTtlSeconds}
             className="room-chat-room-messages chat-screen-messages"
           />
           {moderationBannerKey && (

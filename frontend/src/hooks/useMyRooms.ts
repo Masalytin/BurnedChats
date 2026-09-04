@@ -13,6 +13,7 @@ interface ServerRoomListEvent {
     createdAt: number;
     nameEncrypted?: string | null;
     nameIv?: string | null;
+    messageTtlSeconds?: number;
   }>;
   burned?: Array<{ roomId: string; burnedAt?: number | null }>;
   error?: string;
@@ -82,6 +83,7 @@ export function useMyRooms({
             createdAt: r.createdAt,
             nameEncrypted: r.nameEncrypted,
             nameIv: r.nameIv,
+            messageTtlSeconds: typeof r.messageTtlSeconds === 'number' ? r.messageTtlSeconds : 0,
           })));
           if (event.burned && event.burned.length > 0) {
             console.info('[useMyRooms] rooms burned while offline:', event.burned.length);

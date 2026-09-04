@@ -33,6 +33,8 @@ interface UseRoomMessageTtlOptions {
   roomId: string | null;
   topicMultiplexer: TopicMultiplexer;
   publish: (destination: string, body: unknown) => void;
+  /** GET_MY_ROOMS / RoomInfo snapshot so remount is not forced to 0. */
+  initialTtlSeconds?: number;
 }
 
 interface UseRoomMessageTtlReturn {
@@ -75,18 +77,28 @@ export function useRoomMessageTtl({
   roomId,
   topicMultiplexer,
   publish,
+  initialTtlSeconds = 0,
 }: UseRoomMessageTtlOptions): UseRoomMessageTtlReturn {
-  const [messageTtlSeconds, setMessageTtlSeconds] = useState(0);
+  const [messageTtlSeconds, setMessageTtlSeconds] = useState(initialTtlSeconds);
+  const acceptedLiveEventRef = useRef(false);
 
   const publishRef = useRef(publish);
   useEffect(() => { publishRef.current = publish; }, [publish]);
 
   useEffect(() => {
-    setMessageTtlSeconds(0);
+    acceptedLiveEventRef.current = false;
+    setMessageTtlSeconds(initialTtlSeconds);
   }, [roomId]);
+
+  useEffect(() => {
+    if (!acceptedLiveEventRef.current) {
+      setMessageTtlSeconds(initialTtlSeconds);
+    }
+  }, [initialTtlSeconds]);
 
   const handleMessageTtlUpdatedEvent = useCallback((event: RoomMessageTtlUpdatedEvent) => {
     if (!roomId || event.roomId !== roomId) return;
+    acceptedLiveEventRef.current = true;
     setMessageTtlSeconds(event.messageTtlSeconds);
   }, [roomId]);
 

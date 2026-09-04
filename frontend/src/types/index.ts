@@ -363,6 +363,8 @@ export interface RoomListEntry {
   createdAt: number;
   nameEncrypted?: string | null;
   nameIv?: string | null;
+  /** Snapshot of room message TTL; 0 = off (IMP-DISAPPEAR-04). */
+  messageTtlSeconds?: number;
 }
 
 /** Room member row returned by GET_ROOM_MEMBERS / RoomMembersListEvent. */

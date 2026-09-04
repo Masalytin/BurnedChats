@@ -1212,6 +1212,14 @@ function AppContent() {
     publish,
   });
 
+  const roomMessageTtlSnapshot = useMemo(() => {
+    if (!activeRoomIdForRoles) {
+      return 0;
+    }
+    const entry = myRooms.find((r) => r.roomId === activeRoomIdForRoles);
+    return typeof entry?.messageTtlSeconds === 'number' ? entry.messageTtlSeconds : 0;
+  }, [activeRoomIdForRoles, myRooms]);
+
   const {
     messageTtlSeconds: roomMessageTtlSeconds,
     applyPreset: applyRoomMessageTtlPreset,
@@ -1221,6 +1229,7 @@ function AppContent() {
     roomId: activeRoomIdForRoles,
     topicMultiplexer,
     publish,
+    initialTtlSeconds: roomMessageTtlSnapshot,
   });
 
   const presenceRoomId =

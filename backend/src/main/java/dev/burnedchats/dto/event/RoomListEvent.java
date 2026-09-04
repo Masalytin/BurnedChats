@@ -65,6 +65,12 @@ public class RoomListEvent {
 
         /** Base64 12-byte AES-GCM IV for {@link #nameEncrypted}; null when no name is set. */
         private String nameIv;
+
+        /**
+         * Snapshot of {@code room:{id}.messageTtl} so remount hydrates the client timer.
+         * {@code 0} = off.
+         */
+        private int messageTtlSeconds;
     }
 
     @Data

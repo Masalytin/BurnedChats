@@ -24,6 +24,8 @@ import {
 } from '@/hooks/useMessageCore';
 import { createSessionOutbox } from '@/hooks/sessionOutbox';
 import { serverFileRelayErrorI18nKey } from '@/services/fileTransferErrors';
+import { useMessageExpiry } from '@/hooks/useMessageExpiry';
+import { isTtlExpired, ttlAnchorMs } from '@/utils/ttlAnchor';
 
 // ============================================
 // STOMP destinations
@@ -222,8 +224,6 @@ export interface UseRoomMessagesReturn {
 // Hook Implementation
 // ============================================
 
-const MESSAGE_TTL_TICK_MS = 1000;
-
 export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessagesReturn {
   const {
     roomId,
@@ -297,6 +297,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     pendingEditResolversRef,
     pendingEditTimeoutsRef,
     hideMessages,
+    hiddenIds,
     clearMessages,
     isSyncing,
     setSyncing,
@@ -314,6 +315,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     messageType: MessageType,
     replyToMessageId?: string,
     editedAt?: number,
+    anchorMs?: number,
   ): Promise<DecryptedMessage> => {
     return decryptWireFileMessage({
       wire,
@@ -328,6 +330,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         fromUserId: wire.senderTgId ?? 0,
         senderName: wire.senderName ?? undefined,
         isOwn: isOwnRoomMessage(ownershipCtx, wire.senderInternalId, wire.senderTgId),
+        ttlAnchorMs: anchorMs ?? timestamp,
       }),
     });
   }, [roomId, ownershipCtx]);
@@ -373,6 +376,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         isOwn: true,
         type: 'text',
         replyToMessageId,
+        ttlAnchorMs: timestamp,
       }),
       buildPublishPayload: ({ messageId, encryptedContent, iv, timestamp, replyToMessageId }) => ({
         roomId,
@@ -435,6 +439,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         fileSize: f.size,
         fileMeta: { fileName: f.name, mimeType: resolvedMime },
         replyToMessageId,
+        ttlAnchorMs: timestamp,
       } as DecryptedFileMessage),
       buildPublishPayload: (payload) => ({ roomId, ...payload }),
       validateBeforeSend,
@@ -622,15 +627,27 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         return;
       }
 
+      if (shouldSkipDecryptForTtl(
+        event.messageId,
+        event.serverTimestamp,
+        event.clientTimestamp,
+        hiddenIds,
+        messageTtlSeconds,
+      )) {
+        hideMessages(event.messageId);
+        return;
+      }
+
       try {
         const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+        const anchor = ttlAnchorMs(event.serverTimestamp, event.clientTimestamp ?? undefined);
         const eventType = toMessageType(event.type);
         const isFileMsg = eventType !== 'text' && !!event.fileId;
 
         let decryptedMsg: DecryptedMessage;
 
         if (isFileMsg) {
-          decryptedMsg = await buildFileMessage(event, ts, eventType, event.replyToMessageId || undefined);
+          decryptedMsg = await buildFileMessage(event, ts, eventType, event.replyToMessageId || undefined, undefined, anchor);
         } else {
           const plaintext = await decryptTextContent(roomId, event.encryptedContent, event.iv);
           decryptedMsg = {
@@ -644,6 +661,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
             type: 'text',
             replyToMessageId: event.replyToMessageId || undefined,
+            ttlAnchorMs: anchor,
           };
         }
 
@@ -653,7 +671,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             const existing = prev[existingIndex];
             if (existing.status === 'sending') {
               const updated = [...prev];
-              updated[existingIndex] = { ...existing, status: 'sent' as MessageStatus };
+              updated[existingIndex] = {
+                ...existing,
+                status: 'sent' as MessageStatus,
+                ttlAnchorMs: anchor,
+              };
               return updated;
             }
             return prev;
@@ -666,6 +688,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
         console.error('[useRoomMessages] Decryption failed:', decryptErr);
         if (!event.messageId) return;
         const ts = toEpochMs(event.clientTimestamp, event.serverTimestamp);
+        const anchor = ttlAnchorMs(event.serverTimestamp, event.clientTimestamp ?? undefined);
         const placeholderMsg: DecryptedMessage = {
           id: event.messageId,
           sessionId: roomId,
@@ -677,6 +700,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
           isOwn: isOwnRoomMessage(ownershipCtx, event.senderInternalId, event.senderTgId),
           type: 'text',
           replyToMessageId: event.replyToMessageId || undefined,
+          ttlAnchorMs: anchor,
         };
         setMessages(prev => {
           if (prev.some(m => m.id === event.messageId)) return prev;
@@ -690,6 +714,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     roomId, ownershipCtx, onNewMessage, handleError, onMessageDeletedByOwner, onRoomModeration,
     onRoomMembership, userInternalId, userId, getRoomEncryptionKey, setMessages,
     pendingDeleteResolversRef, buildFileMessage, applyRoomEditFromBroadcast,
+    hiddenIds, messageTtlSeconds, hideMessages,
   ]);
 
   const handleRoomMessageEditedUser = useCallback(
@@ -746,8 +771,11 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       pendingMessagesRef.current.delete(event.messageId);
 
       if (event.success) {
+        const ackAnchor = ttlAnchorMs(event.serverTimestamp);
         setMessages(prev => prev.map(msg =>
-          msg.id === event.messageId ? { ...msg, status: 'sent' as MessageStatus } : msg
+          msg.id === event.messageId
+            ? { ...msg, status: 'sent' as MessageStatus, ttlAnchorMs: ackAnchor }
+            : msg
         ));
       } else {
         console.error('[useRoomMessages] Room message send failed:', event.error);
@@ -790,8 +818,19 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
 
       const decryptedMessages: DecryptedMessage[] = [];
       for (const syncedMsg of serverList) {
+        if (shouldSkipDecryptForTtl(
+          syncedMsg.messageId,
+          syncedMsg.serverTimestamp,
+          syncedMsg.clientTimestamp,
+          hiddenIds,
+          messageTtlSeconds,
+        )) {
+          hideMessages(syncedMsg.messageId);
+          continue;
+        }
         try {
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
+          const anchor = ttlAnchorMs(syncedMsg.serverTimestamp, syncedMsg.clientTimestamp ?? undefined);
           const msgType = toMessageType(syncedMsg.type);
           const isFileMsg = msgType !== 'text' && !!syncedMsg.fileId;
 
@@ -802,6 +841,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
               msgType,
               syncedMsg.replyToMessageId || undefined,
               editedAtFromServerIso(syncedMsg.editedAt),
+              anchor,
             );
             decryptedMessages.push(fileMsg);
           } else {
@@ -818,11 +858,13 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
               type: 'text',
               replyToMessageId: syncedMsg.replyToMessageId || undefined,
               editedAt: editedAtFromServerIso(syncedMsg.editedAt),
+              ttlAnchorMs: anchor,
             });
           }
         } catch (decryptErr) {
           console.error('[useRoomMessages] Failed to decrypt synced message:', decryptErr);
           const ts = toEpochMs(syncedMsg.clientTimestamp, syncedMsg.serverTimestamp);
+          const anchor = ttlAnchorMs(syncedMsg.serverTimestamp, syncedMsg.clientTimestamp ?? undefined);
           decryptedMessages.push({
             id: syncedMsg.messageId,
             sessionId: roomId,
@@ -835,6 +877,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
             type: 'text',
             replyToMessageId: syncedMsg.replyToMessageId || undefined,
             editedAt: editedAtFromServerIso(syncedMsg.editedAt),
+            ttlAnchorMs: anchor,
           });
         }
       }
@@ -850,7 +893,7 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
       console.error('[useRoomMessages] Failed to parse sync event:', parseErr);
       setSyncing(false);
     }
-  }, [roomId, ownershipCtx, handleError, setSyncing, getRoomEncryptionKey, setMessages, buildFileMessage]);
+  }, [roomId, ownershipCtx, handleError, setSyncing, getRoomEncryptionKey, setMessages, buildFileMessage, hiddenIds, messageTtlSeconds, hideMessages]);
 
   const editMessage = useCallback(
     async (
@@ -915,37 +958,20 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     coreSyncMessages(() => Boolean(getRoomEncryptionKey()));
   }, [coreSyncMessages, getRoomEncryptionKey]);
 
-  const [messageTtlTick, setMessageTtlTick] = useState(0);
+  const { visibleMessages: ttlVisible, hideExpired } = useMessageExpiry({
+    messages: visibleMessages,
+    messageTtlSeconds,
+  });
 
   useEffect(() => {
-    if (messageTtlSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setMessageTtlTick(t => t + 1);
-    }, MESSAGE_TTL_TICK_MS);
-    return () => clearInterval(interval);
-  }, [messageTtlSeconds]);
-
-  useEffect(() => {
-    if (messageTtlSeconds <= 0) return;
-    const cutoff = Date.now() - messageTtlSeconds * 1000;
-    const expiredIds = messages
-      .filter(m => m.timestamp <= cutoff)
-      .map(m => m.id);
-    if (expiredIds.length > 0) {
-      hideMessages(expiredIds);
+    if (hideExpired.length === 0) {
+      return;
     }
-  }, [messages, messageTtlSeconds, messageTtlTick, hideMessages]);
-
-  const ttlFilteredMessages = useMemo(() => {
-    if (messageTtlSeconds <= 0) {
-      return visibleMessages;
-    }
-    const cutoff = Date.now() - messageTtlSeconds * 1000;
-    return visibleMessages.filter(m => m.timestamp > cutoff);
-  }, [visibleMessages, messageTtlSeconds, messageTtlTick]);
+    hideMessages(hideExpired);
+  }, [hideExpired, hideMessages]);
 
   return {
-    messages: ttlFilteredMessages,
+    messages: ttlVisible,
     membershipNotices,
     isLoading,
     isSyncing,
@@ -958,4 +984,24 @@ export function useRoomMessages(options: UseRoomMessagesOptions): UseRoomMessage
     editMessage,
     deleteMessage,
   };
+}
+
+function shouldSkipDecryptForTtl(
+  messageId: string,
+  serverTimestamp: string | undefined,
+  clientTimestamp: number | null | undefined,
+  hiddenIds: ReadonlySet<string>,
+  messageTtlSeconds: number,
+): boolean {
+  if (hiddenIds.has(messageId)) {
+    return true;
+  }
+  if (messageTtlSeconds <= 0) {
+    return false;
+  }
+  return isTtlExpired(
+    ttlAnchorMs(serverTimestamp, clientTimestamp ?? undefined),
+    messageTtlSeconds,
+    Date.now(),
+  );
 }

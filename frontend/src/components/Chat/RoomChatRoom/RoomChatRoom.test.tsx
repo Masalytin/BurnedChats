@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type { ComponentProps } from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
@@ -9,6 +9,8 @@ import { RoomChatRoom } from './RoomChatRoom';
 import * as keyStore from '@/crypto/keyStore';
 import { getEnvironment } from '@/env/detector';
 import type { RekeyStatus } from '@/hooks/useRekeyRoom';
+import { useRoomMessages } from '@/hooks/useRoomMessages';
+import type { DecryptedMessage } from '@/types';
 
 const ROOM_ID = 'room-recovery-test';
 
@@ -33,18 +35,23 @@ vi.mock('@/env/detector', async (importOriginal) => {
   };
 });
 
+const emptyRoomMessages = {
+  messages: [] as DecryptedMessage[],
+  membershipNotices: [],
+  sendMessage: vi.fn(),
+  sendFileMessage: vi.fn(),
+  isLoading: false,
+  isSyncing: false,
+  syncMessages: vi.fn(),
+  hideMessages: vi.fn(),
+  editMessage: vi.fn(),
+  deleteMessage: vi.fn(),
+  clearMessages: vi.fn(),
+  error: null,
+};
+
 vi.mock('@/hooks/useRoomMessages', () => ({
-  useRoomMessages: vi.fn(() => ({
-    messages: [],
-    sendMessage: vi.fn(),
-    sendFileMessage: vi.fn(),
-    isLoading: false,
-    isSyncing: false,
-    syncMessages: vi.fn(),
-    hideMessages: vi.fn(),
-    editMessage: vi.fn(),
-    deleteMessage: vi.fn(),
-  })),
+  useRoomMessages: vi.fn(() => emptyRoomMessages),
 }));
 
 const mockWs = {
@@ -337,6 +344,85 @@ describe('RoomChatRoom presence subtitle (IMP-PRESENCE-05)', () => {
 
     expect(screen.getByText(i18n.t('room.manage.onlineCount', { count: 2 }))).toBeTruthy();
     expect(screen.queryByText(i18n.t('room.chat.memberCount', { count: 5 }))).toBeNull();
+  });
+});
+
+describe('RoomChatRoom disappearing TTL UI (IMP-DISAPPEAR-04)', () => {
+  const NOW = new Date('2026-09-04T12:00:00.000Z').getTime();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    vi.mocked(keyStore.hasGroupKey).mockReturnValue(true);
+    vi.mocked(useRoomMessages).mockReturnValue(emptyRoomMessages);
+    void i18n.changeLanguage('en');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders EphemeralChatBadge and no inline room-chat-room-ephemeral-badge markup', () => {
+    renderRoomChatRoom({ messageTtlSeconds: 300 });
+
+    expect(screen.getByLabelText(i18n.t('chat.ttl.badge'))).toBeTruthy();
+    expect(document.querySelector('.ephemeral-chat-badge')).toBeTruthy();
+    expect(document.querySelector('.room-chat-room-ephemeral-badge')).toBeNull();
+  });
+
+  it('does not show the badge when TTL is off', () => {
+    renderRoomChatRoom({ messageTtlSeconds: 0 });
+
+    expect(screen.queryByLabelText(i18n.t('chat.ttl.badge'))).toBeNull();
+  });
+
+  it('passes messageTtlSeconds so remaining mounts only when remaining is ≤60s', () => {
+    vi.mocked(useRoomMessages).mockReturnValue({
+      ...emptyRoomMessages,
+      messages: [
+        {
+          id: 'near',
+          sessionId: ROOM_ID,
+          fromUserId: 2,
+          content: 'soon gone',
+          timestamp: NOW - 45_000,
+          ttlAnchorMs: NOW - 45_000,
+          status: 'delivered',
+          isOwn: false,
+          type: 'text',
+        },
+      ],
+    });
+
+    renderRoomChatRoom({ messageTtlSeconds: 60 });
+
+    const remaining = document.querySelector('.message-remaining-time');
+    expect(remaining?.textContent).toMatch(/0:15/);
+  });
+
+  it('does not show remaining text when remaining is far above 60s', () => {
+    vi.mocked(useRoomMessages).mockReturnValue({
+      ...emptyRoomMessages,
+      messages: [
+        {
+          id: 'far',
+          sessionId: ROOM_ID,
+          fromUserId: 2,
+          content: 'still far',
+          timestamp: NOW - 10_000,
+          ttlAnchorMs: NOW - 10_000,
+          status: 'delivered',
+          isOwn: false,
+          type: 'text',
+        },
+      ],
+    });
+
+    renderRoomChatRoom({ messageTtlSeconds: 300 });
+
+    expect(screen.queryByRole('status', { name: /Disappears in/ })).toBeNull();
+    expect(document.querySelector('.message-remaining-time')).toBeNull();
   });
 });
 

@@ -742,6 +742,7 @@ public class RoomHandler {
                         .createdAt(room.getCreatedAt())
                         .nameEncrypted(room.getNameEncrypted())
                         .nameIv(room.getNameIv())
+                        .messageTtlSeconds(room.getMessageTtl())
                         .build()))
                 .collectList()
                 .zipWith(roomService.drainBurnInbox(participant.internalId()))

@@ -404,7 +404,7 @@ EXPIRE room:uuid-room-1 2592000
 | `nameIv` | string | Base64 IV for `nameEncrypted` (12 bytes). Empty string = not set |
 | `readOnly` | boolean | Read-only mode: when `true` only the owner can send messages. Default `false` (missing field) |
 | `autoBurnAt` | number | Optional: absolute auto-burn instant (Unix ms). Set by owner via `/app/room.setTtl`. When present, activity TTL extension of the hash key is **capped** by this instant; deterministic burn via trigger key below |
-| `messageTtl` | number | Optional: room message self-destruct timer in **seconds**; `0` or missing field = off (only global list TTL `messages:{roomId}`). Set by owner via `/app/room.setMessageTtl` |
+| `messageTtl` | number | Optional: room message self-destruct timer in **seconds**; `0` or missing field = off (only global list TTL `messages:{roomId}`). Set by owner via `/app/room.setMessageTtl`. Snapshotted to the client as `RoomListEvent.RoomInfo.messageTtlSeconds` on `GET_MY_ROOMS` (`/user/queue/room-list`) so remount hydrates the timer without waiting for `ROOM_MESSAGE_TTL_UPDATED`. |
 
 **TTL:** 30 days (extended on activity, including `/app/room.setName`), but **not above** `autoBurnAt` when the field is set.
 
