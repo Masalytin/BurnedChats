@@ -18,9 +18,16 @@
       "errorBelowMin": "Мінімум — {{min}}",
       "errorEmpty": "Введіть значення",
       "errorNaN": "Введіть коректне число",
+      "picker": {
+        "columnDays": "Дні",
+        "columnHours": "Години",
+        "columnMinutes": "Хвилини",
+        "columnSeconds": "Секунди"
+      },
       "unitDays": "д",
       "unitHours": "год",
-      "unitMinutes": "хв"
+      "unitMinutes": "хв",
+      "unitSeconds": "с"
     },
     "dismissNotification": "Закрити сповіщення",
     "selectLanguage": "Обрати мову",

@@ -21,6 +21,13 @@
       "unitMinutes": "min",
       "unitHours": "h",
       "unitDays": "d",
+      "unitSeconds": "s",
+      "picker": {
+        "columnHours": "Hours",
+        "columnMinutes": "Minutes",
+        "columnSeconds": "Seconds",
+        "columnDays": "Days"
+      },
       "errorEmpty": "Enter a value",
       "errorNaN": "Enter a valid number",
       "errorBelowMin": "Minimum is {{min}}",

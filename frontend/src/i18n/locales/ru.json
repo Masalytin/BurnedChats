@@ -21,6 +21,13 @@
       "unitMinutes": "мин",
       "unitHours": "ч",
       "unitDays": "д",
+      "unitSeconds": "с",
+      "picker": {
+        "columnHours": "Часы",
+        "columnMinutes": "Минуты",
+        "columnSeconds": "Секунды",
+        "columnDays": "Дни"
+      },
       "errorEmpty": "Введите значение",
       "errorNaN": "Введите корректное число",
       "errorBelowMin": "Минимум — {{min}}",

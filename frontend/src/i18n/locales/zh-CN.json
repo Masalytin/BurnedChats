@@ -18,9 +18,16 @@
       "errorBelowMin": "最小值为 {{min}}",
       "errorEmpty": "请输入数值",
       "errorNaN": "请输入有效数字",
+      "picker": {
+        "columnDays": "天",
+        "columnHours": "小时",
+        "columnMinutes": "分钟",
+        "columnSeconds": "秒"
+      },
       "unitDays": "天",
       "unitHours": "时",
-      "unitMinutes": "分"
+      "unitMinutes": "分",
+      "unitSeconds": "秒"
     },
     "dismissNotification": "关闭通知",
     "selectLanguage": "选择语言",

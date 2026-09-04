@@ -18,9 +18,16 @@
       "errorBelowMin": "الحد الأدنى {{min}}",
       "errorEmpty": "أدخل قيمة",
       "errorNaN": "أدخل رقمًا صالحًا",
+      "picker": {
+        "columnDays": "أيام",
+        "columnHours": "ساعات",
+        "columnMinutes": "دقائق",
+        "columnSeconds": "ثوان"
+      },
       "unitDays": "ي",
       "unitHours": "س",
-      "unitMinutes": "د"
+      "unitMinutes": "د",
+      "unitSeconds": "ث"
     },
     "dismissNotification": "إغلاق الإشعار",
     "selectLanguage": "اختيار اللغة",

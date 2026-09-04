@@ -18,9 +18,16 @@
       "errorBelowMin": "Minimum ist {{min}}",
       "errorEmpty": "Geben Sie einen Wert ein",
       "errorNaN": "Geben Sie eine gültige Zahl ein",
+      "picker": {
+        "columnDays": "Tage",
+        "columnHours": "Stunden",
+        "columnMinutes": "Minuten",
+        "columnSeconds": "Sekunden"
+      },
       "unitDays": "T",
       "unitHours": "Std.",
-      "unitMinutes": "Min."
+      "unitMinutes": "Min.",
+      "unitSeconds": "s"
     },
     "dismissNotification": "Benachrichtigung schließen",
     "selectLanguage": "Sprache wählen",
