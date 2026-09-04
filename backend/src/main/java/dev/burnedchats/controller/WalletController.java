@@ -6,6 +6,7 @@ import dev.burnedchats.ton.StakingVerifier;
 import dev.burnedchats.ton.TonAddressBoc;
 import dev.burnedchats.ton.TonService;
 import dev.burnedchats.ton.dto.UserStakingProfile;
+import dev.burnedchats.ton.exception.TonContractException;
 import dev.burnedchats.ton.exception.TonRpcException;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
@@ -127,10 +128,9 @@ public class WalletController {
                 .getJettonInfo()
                 .map(info -> ResponseEntity.<Object>ok(
                         new JettonInfoResponse(info.totalSupply().toString(), info.mintable())))
-                .onErrorResume(
-                        TonRpcException.class,
-                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
-                                .body(Map.of("message", e.getMessage()))));
+                .onErrorResume(TonRpcException.class, WalletController::badGateway)
+                .onErrorResume(TonContractException.class, WalletController::badGateway)
+                .onErrorResume(RuntimeException.class, WalletController::badGateway);
     }
 
     /**
@@ -147,10 +147,9 @@ public class WalletController {
         return jettonService
                 .getEffectiveFeeParams()
                 .map(p -> ResponseEntity.<Object>ok(new FeeParamsResponse(p.burnBps(), p.stakingBps(), p.treasuryBps())))
-                .onErrorResume(
-                        TonRpcException.class,
-                        e -> Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY)
-                                .body(Map.of("message", e.getMessage()))));
+                .onErrorResume(TonRpcException.class, WalletController::badGateway)
+                .onErrorResume(TonContractException.class, WalletController::badGateway)
+                .onErrorResume(RuntimeException.class, WalletController::badGateway);
     }
 
     /**
@@ -201,6 +200,13 @@ public class WalletController {
             throw new TonRpcException("TON account missing balance");
         }
         return nano;
+    }
+
+    private static Mono<ResponseEntity<Object>> badGateway(Throwable e) {
+        String message = e.getMessage() != null && !e.getMessage().isBlank()
+                ? e.getMessage()
+                : "TON read failed";
+        return Mono.just(ResponseEntity.<Object>status(HttpStatus.BAD_GATEWAY).body(Map.of("message", message)));
     }
 
     private static ResponseEntity<Object> badRequest(String message) {

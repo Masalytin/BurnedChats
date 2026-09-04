@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /api/wallet/jetton-info` parses Toncenter TVM `xNN` stack nums and maps unmapped master-read errors to 502 instead of a 500 Whitelabel page.
+
 ## [0.4.4] - 2026-09-04
 
 ### Added

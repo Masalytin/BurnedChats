@@ -16,6 +16,7 @@ import dev.burnedchats.ton.dto.JettonInfo;
 import dev.burnedchats.ton.dto.StakeInfo;
 import dev.burnedchats.ton.dto.TierConfigDto;
 import dev.burnedchats.ton.dto.UserStakingProfile;
+import dev.burnedchats.ton.exception.TonContractException;
 import dev.burnedchats.ton.exception.TonRpcException;
 import java.math.BigInteger;
 import java.util.List;
@@ -388,6 +389,34 @@ class WalletControllerTest {
                 .assertNext(resp -> {
                     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
                     assertThat(resp.getBody()).isEqualTo(Map.of("message", "Ton Center jetton info error"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-info TonContractException returns 502 not 500")
+    void jettonInfoContractFailure() {
+        when(jettonService.getJettonInfo())
+                .thenReturn(Mono.error(new TonContractException("get-method exit_code=9", 9)));
+
+        StepVerifier.create(controller.jettonInfo())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "get-method exit_code=9"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("jetton-info unmapped RuntimeException returns 502 not 500")
+    void jettonInfoUnmappedRuntime() {
+        when(jettonService.getJettonInfo())
+                .thenReturn(Mono.error(new IllegalStateException("unexpected parse")));
+
+        StepVerifier.create(controller.jettonInfo())
+                .assertNext(resp -> {
+                    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(resp.getBody()).isEqualTo(Map.of("message", "unexpected parse"));
                 })
                 .verifyComplete();
     }

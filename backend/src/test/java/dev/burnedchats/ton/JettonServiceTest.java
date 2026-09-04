@@ -184,6 +184,34 @@ class JettonServiceTest {
     }
 
     @Test
+    @DisplayName("getJettonInfo accepts TVM x-prefix mintable (prod get_jetton_data x1)")
+    void jettonInfoParsesTvmXPrefixMintable() {
+        when(valueOps.get(anyString())).thenReturn(Mono.empty());
+        String adminBoc = TonAddressBoc.addressCellToBocBase64("0:" + "bb".repeat(32));
+        String contentBoc = TonAddressBoc.addressCellToBocBase64("0:" + "cc".repeat(32));
+        String codeBoc = TonAddressBoc.addressCellToBocBase64("0:" + "dd".repeat(32));
+        String jettonData = """
+                {"ok":true,"result":{"exit_code":0,"stack":[
+                  ["num","0xa"],
+                  ["num","x1"],
+                  ["tvm.Slice","%s"],
+                  ["tvm.Slice","%s"],
+                  ["tvm.Slice","%s"]
+                ]}}
+                """
+                .formatted(adminBoc, contentBoc, codeBoc)
+                .replaceAll("\\s+", "");
+        server.enqueue(new MockResponse().setBody(jettonData).addHeader("Content-Type", "application/json"));
+
+        StepVerifier.create(jettonService.getJettonInfo())
+                .assertNext(info -> {
+                    assertThat(info.totalSupply()).isEqualTo(BigInteger.TEN);
+                    assertThat(info.mintable()).isTrue();
+                })
+                .verifyComplete();
+    }
+
+    @Test
     @DisplayName("getEffectiveFeeParams reads basis points from master")
     void effectiveFees() {
         when(valueOps.get(anyString())).thenReturn(Mono.empty());

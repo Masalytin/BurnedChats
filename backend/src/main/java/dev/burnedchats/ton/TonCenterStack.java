@@ -17,24 +17,34 @@ public final class TonCenterStack {
     }
 
     /**
-     * Parse Ton Center stack {@code num} string (signed hex, unsigned hex, or decimal).
-     * Mirrors frontend {@code parseTonCenterNum.ts}.
+     * Parse Ton Center / TVM stack {@code num} string: {@code 0x}/{@code -0x},
+     * bare {@code x}/{@code -x} (prod {@code get_jetton_data}), or decimal.
      */
     public static BigInteger parseNumString(String raw) {
         String s = raw.trim();
         if (s.isEmpty()) {
             throw new TonRpcException("empty stack num");
         }
-        if (s.startsWith("-0x") || s.startsWith("-0X")) {
-            return new BigInteger(s.substring(3), 16).negate();
-        }
-        if (s.matches("-\\d+")) {
+        try {
+            if (s.startsWith("-0x") || s.startsWith("-0X")) {
+                return new BigInteger(s.substring(3), 16).negate();
+            }
+            if (s.startsWith("-x") || s.startsWith("-X")) {
+                return new BigInteger(s.substring(2), 16).negate();
+            }
+            if (s.matches("-\\d+")) {
+                return new BigInteger(s);
+            }
+            if (s.startsWith("0x") || s.startsWith("0X")) {
+                return new BigInteger(s.substring(2), 16);
+            }
+            if (s.startsWith("x") || s.startsWith("X")) {
+                return new BigInteger(s.substring(1), 16);
+            }
             return new BigInteger(s);
+        } catch (NumberFormatException e) {
+            throw new TonRpcException("invalid stack num: " + s, e);
         }
-        if (s.startsWith("0x") || s.startsWith("0X")) {
-            return new BigInteger(s.substring(2), 16);
-        }
-        return new BigInteger(s);
     }
 
     private static String valueText(JsonNode stackEntry) {

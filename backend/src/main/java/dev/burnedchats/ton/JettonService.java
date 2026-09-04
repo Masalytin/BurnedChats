@@ -170,8 +170,9 @@ public class JettonService {
         }
         BigInteger total = parseNum(flat.get(0));
         boolean mint = parseNum(flat.get(1)).compareTo(BigInteger.ZERO) != 0;
-        String admin = TonAddressBoc.decodeRawAddressFromSingleRootBoc(cellBase64(flat.get(2)));
-        String codeB64 = cellBase64(flat.get(4));
+        // REST DTO is circulatingNano + mintable; admin/code must not fail the snapshot.
+        String admin = decodeAdminOrEmpty(flat.get(2));
+        String codeB64 = decodeWalletCodeOrEmpty(flat.get(4));
         return new JettonInfo(total, mint, admin, codeB64, "");
     }
 
@@ -243,21 +244,25 @@ public class JettonService {
     }
 
     private BigInteger parseNum(JsonNode item) {
-        String raw = valueText(item);
-        if (raw.startsWith("0x") || raw.startsWith("0X")) {
-            return new BigInteger(raw.substring(2), 16);
-        }
-        return new BigInteger(raw);
+        return TonCenterStack.parseNum(item);
     }
 
-    private String valueText(JsonNode stackEntry) {
-        if (stackEntry.isArray() && stackEntry.size() >= 2) {
-            return stackEntry.get(1).asText();
+    private String decodeAdminOrEmpty(JsonNode stackEntry) {
+        try {
+            return TonAddressBoc.decodeRawAddressFromSingleRootBoc(cellBase64(stackEntry));
+        } catch (RuntimeException e) {
+            LOG.warn("get_jetton_data: admin cell skipped: {}", e.toString());
+            return "";
         }
-        if (stackEntry.has("value")) {
-            return stackEntry.get("value").asText();
+    }
+
+    private String decodeWalletCodeOrEmpty(JsonNode stackEntry) {
+        try {
+            return cellBase64(stackEntry);
+        } catch (RuntimeException e) {
+            LOG.warn("get_jetton_data: wallet code skipped: {}", e.toString());
+            return "";
         }
-        throw new TonRpcException("Cannot read stack num value");
     }
 
     private String cellBase64(JsonNode stackEntry) {
