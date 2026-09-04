@@ -1287,6 +1287,11 @@
       "failed": "Failed to edit message",
       "notEditable": "This message cannot be edited"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "Disappears in {{time}}",
+      "badge": "Disappearing messages"
+    },
     "sync": {
       "undecryptable": "{{count}} message(s) could not be restored — ask your peer to resend them",
       "expiredWhileAway": "{{count}} messages expired while you were away"

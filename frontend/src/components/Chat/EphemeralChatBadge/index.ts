@@ -1,0 +1,1 @@
+export { EphemeralChatBadge } from './EphemeralChatBadge';

@@ -318,6 +318,11 @@
       "save": "حفظ",
       "windowExpired": "انتهت نافذة التعديل (حد 15 دقيقة)"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "تختفي خلال {{time}}",
+      "badge": "رسائل مؤقتة"
+    },
     "sync": {
       "undecryptable": "تعذر استعادة {{count}} رسالة — اطلب من مراسلك إعادة إرسالها",
       "expiredWhileAway": "انتهت صلاحية {{count}} رسالة أثناء غيابك"

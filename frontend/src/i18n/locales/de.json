@@ -352,6 +352,11 @@
       "failed": "Nachricht konnte nicht bearbeitet werden",
       "notEditable": "Diese Nachricht kann nicht bearbeitet werden"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "Verschwindet in {{time}}",
+      "badge": "Selbstlöschende Nachrichten"
+    },
     "sync": {
       "undecryptable": "{{count}} Nachricht(en) konnten nicht wiederhergestellt werden — bitten Sie Ihren Gesprächspartner, sie erneut zu senden",
       "expiredWhileAway": "{{count}} Nachrichten sind abgelaufen, während Sie weg waren"

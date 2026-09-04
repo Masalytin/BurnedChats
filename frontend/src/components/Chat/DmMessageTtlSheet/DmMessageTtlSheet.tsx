@@ -11,7 +11,7 @@ import {
   MESSAGE_TTL_PRESETS,
   matchMessageTtlPreset,
   type MessageTtlPreset,
-} from '@/hooks/useRoomMessageTtl';
+} from '@/utils/messageTtlPresets';
 import { validateDurationSeconds } from '@/utils/duration';
 import './DmMessageTtlSheet.css';
 

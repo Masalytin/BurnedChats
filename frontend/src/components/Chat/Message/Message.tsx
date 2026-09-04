@@ -11,6 +11,7 @@ import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { formatChatDateSeparator } from '@/utils/formatChatDateSeparator';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { MessageRemainingTime } from '../MessageRemainingTime';
 import { MessageStatusIcon } from '../MessageStatusIcon';
 import './Message.css';
 
@@ -54,6 +55,10 @@ interface MessageProps {
   /** Hidden label id for the action menu and assistive name */
   a11yLabelId?: string;
   onRangeExtendKey?: (messageId: string, direction: 'up' | 'down') => void;
+  /** Send-time TTL anchor (server first). */
+  ttlAnchorMs?: number;
+  /** Chat-level disappearing TTL in seconds; 0 = off. */
+  messageTtlSeconds?: number;
 }
 
 /**
@@ -86,6 +91,8 @@ export const Message = memo(function Message({
   onRovingActivate,
   a11yLabelId,
   onRangeExtendKey,
+  ttlAnchorMs,
+  messageTtlSeconds = 0,
 }: MessageProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -246,6 +253,10 @@ export const Message = memo(function Message({
           <p className="message-content">{content}</p>
           <div className="message-meta">
             <span className="message-time">{formattedTime}</span>
+            <MessageRemainingTime
+              ttlAnchorMs={ttlAnchorMs ?? timestamp}
+              ttlSeconds={messageTtlSeconds}
+            />
             {isEdited && (
               <span className="message-edited" aria-label={t('chat.edit.editedLabel')}>
                 {t('chat.edit.editedLabel')}

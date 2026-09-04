@@ -318,6 +318,11 @@
       "save": "Guardar",
       "windowExpired": "La ventana de edición ha expirado (límite de 15 min)"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "Desaparece en {{time}}",
+      "badge": "Mensajes que desaparecen"
+    },
     "sync": {
       "undecryptable": "{{count}} mensaje(s) no se pudieron restaurar — pide a tu contacto que los reenvíe",
       "expiredWhileAway": "{{count}} mensajes caducaron mientras no estabas"

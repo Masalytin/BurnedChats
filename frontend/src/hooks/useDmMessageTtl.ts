@@ -6,7 +6,7 @@ import {
   MESSAGE_TTL_CUSTOM_MIN_SECONDS,
   MESSAGE_TTL_PRESET_SECONDS,
   type MessageTtlPreset,
-} from './useRoomMessageTtl';
+} from '../utils/messageTtlPresets';
 
 const SET_MESSAGE_TTL_DESTINATION = '/app/session.setMessageTtl';
 const SESSION_TTL_UPDATED_DESTINATION = '/user/queue/session-message-ttl-updated';

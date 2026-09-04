@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - DM sessions store `messageTtl` and expose `/app/session.setMessageTtl`; the relay prunes both offline queues by server time and snapshots `messageTtlSeconds` on `SessionResponse`.
 - ACTIVE DM chats can set the session timer from the header sheet; the client hides bubbles by send-time `ttlAnchorMs` (server first) without a full-list clock tick.
+- DM header shows a disappearing-messages badge when the session timer is on; remaining countdown appears next to a bubble's time only in the last 60 seconds.
 
 
 - `GET /api/wallet/jetton-info` and `GET /api/wallet/fee-params` expose cached jetton supply and the fee-on-transfer split; prod clients read both from this API only (no Toncenter fallback).

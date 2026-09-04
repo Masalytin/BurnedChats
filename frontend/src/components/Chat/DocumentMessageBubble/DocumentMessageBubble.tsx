@@ -14,6 +14,7 @@ import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
 import { getFileTypeDisplay } from '../fileTypeDisplay';
 import { FileTypeIcon } from '../FileTypeIcon';
+import { MessageRemainingTime } from '../MessageRemainingTime';
 import { MessageStatusIcon } from '../MessageStatusIcon';
 import '../Message/Message.css';
 import { saveDecryptedFile, evictCachedFile, type SaveDecryptedFileResult } from '@/services/fileDownloadService';
@@ -45,6 +46,8 @@ interface DocumentMessageBubbleProps {
   onCancelUpload?: () => void;
   /** Retry sending this own message after an upload failure (when available). */
   onRetryUpload?: () => void;
+  /** Chat-level disappearing TTL in seconds; 0 = off. */
+  messageTtlSeconds?: number;
 }
 
 function formatTime(timestamp: number): string {
@@ -76,6 +79,7 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
   isNew = false,
   onCancelUpload,
   onRetryUpload,
+  messageTtlSeconds = 0,
 }: DocumentMessageBubbleProps) {
   const { t } = useTranslation();
   const { showAlert, platform, isInTelegram } = useTelegram();
@@ -499,6 +503,10 @@ export const DocumentMessageBubble = memo(function DocumentMessageBubble({
 
         <div className="doc-bubble__meta">
           <span className="doc-bubble__time">{formattedTime}</span>
+          <MessageRemainingTime
+            ttlAnchorMs={message.ttlAnchorMs ?? message.timestamp}
+            ttlSeconds={messageTtlSeconds}
+          />
           {message.editedAt != null && (
             <span className="doc-bubble__edited">{t('chat.edit.editedLabel')}</span>
           )}

@@ -318,6 +318,11 @@
       "save": "Enregistrer",
       "windowExpired": "La fenêtre de modification a expiré (limite de 15 min)"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "Disparaît dans {{time}}",
+      "badge": "Messages éphémères"
+    },
     "sync": {
       "undecryptable": "{{count}} message(s) n'ont pas pu être restaurés — demandez à votre correspondant de les renvoyer",
       "expiredWhileAway": "{{count}} messages ont expiré pendant votre absence"

@@ -1,0 +1,12 @@
+.message-remaining-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.message--own .message-remaining-time {
+  color: color-mix(in srgb, var(--bc-on-brand) 70%, transparent);
+}
+
+.message--peer .message-remaining-time {
+  color: var(--bc-text-muted);
+}

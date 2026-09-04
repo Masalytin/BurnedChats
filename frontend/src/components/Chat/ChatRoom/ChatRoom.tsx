@@ -19,7 +19,8 @@ import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { DmMessageTtlSheet } from '../DmMessageTtlSheet';
-import type { MessageTtlPreset } from '@/hooks/useRoomMessageTtl';
+import type { MessageTtlPreset } from '@/utils/messageTtlPresets';
+import { EphemeralChatBadge } from '../EphemeralChatBadge';
 import { isTtlExpired } from '@/utils/ttlAnchor';
 import { ChatSelectionBar } from '../ChatSelectionBar';
 import { useMessageSelection } from '@/hooks/useMessageSelection';
@@ -458,6 +459,7 @@ export const ChatRoom = memo(function ChatRoom({
               <Lock size={16} aria-hidden />
             </span>
           )}
+          {messageTtlSeconds > 0 && <EphemeralChatBadge />}
         </div>
         <div className="chat-room-peer-status">
           {isPeerTyping ? (
@@ -611,6 +613,7 @@ export const ChatRoom = memo(function ChatRoom({
         peerDisplayName={displayName}
         onReplyToMessage={handleReplyToMessage}
         onEditMessage={onEditMessage ? handleStartEdit : undefined}
+        messageTtlSeconds={messageTtlSeconds}
         className="chat-room-messages chat-screen-messages"
       />
 

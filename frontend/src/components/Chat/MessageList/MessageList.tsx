@@ -69,6 +69,8 @@ interface MessageListProps {
   onReplyToMessage?: (message: DecryptedMessage) => void;
   /** Open edit-in-composer for an eligible own message (IMP-MA-04) */
   onEditMessage?: (message: DecryptedMessage) => void;
+  /** Chat-level disappearing TTL in seconds; 0 = off. Bubbles decide remaining. */
+  messageTtlSeconds?: number;
 }
 
 /**
@@ -102,6 +104,7 @@ export const MessageList = memo(
   peerDisplayName,
   onReplyToMessage,
   onEditMessage,
+  messageTtlSeconds = 0,
 },
   ref,
 ) {
@@ -527,6 +530,7 @@ export const MessageList = memo(
               )}
               <ImageMessageBubble
                 message={message}
+                messageTtlSeconds={messageTtlSeconds}
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
@@ -565,6 +569,7 @@ export const MessageList = memo(
               )}
               <VideoMessageBubble
                 message={message}
+                messageTtlSeconds={messageTtlSeconds}
                 onOpenViewer={onOpenViewer}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
@@ -603,6 +608,7 @@ export const MessageList = memo(
               )}
               <DocumentMessageBubble
                 message={message}
+                messageTtlSeconds={messageTtlSeconds}
                 selection={selection}
                 onOpenActionMenu={openMenuHandler}
                 rovingTabIndex={a11yRovingId === message.id ? 0 : -1}
@@ -637,6 +643,8 @@ export const MessageList = memo(
             content={message.content}
             isOwn={message.isOwn}
             timestamp={message.timestamp}
+            ttlAnchorMs={message.ttlAnchorMs}
+            messageTtlSeconds={messageTtlSeconds}
             status={message.status}
             showDateSeparator={dateSep}
             senderName={message.senderName}

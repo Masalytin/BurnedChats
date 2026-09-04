@@ -11,6 +11,7 @@ import { mergeMessagePointerHandlers } from '@/utils/messagePointerMerge';
 import { messageStatusAriaLabel } from '@/utils/messageStatusAria';
 import { ReplyQuote } from '../ReplyQuote';
 import { MessageReplyAction } from '../MessageReplyAction';
+import { MessageRemainingTime } from '../MessageRemainingTime';
 import { MessageStatusIcon } from '../MessageStatusIcon';
 import { UploadProgressOverlay } from '../UploadProgressOverlay';
 import '../Message/Message.css';
@@ -44,6 +45,8 @@ interface VideoMessageBubbleProps {
   onCancelUpload?: () => void;
   /** Retry sending this own message after an upload failure (when available). */
   onRetryUpload?: () => void;
+  /** Chat-level disappearing TTL in seconds; 0 = off. */
+  messageTtlSeconds?: number;
 }
 
 function formatTime(timestamp: number): string {
@@ -82,6 +85,7 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
   isNew = false,
   onCancelUpload,
   onRetryUpload,
+  messageTtlSeconds = 0,
 }: VideoMessageBubbleProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -521,6 +525,10 @@ export const VideoMessageBubble = memo(function VideoMessageBubble({
             <span className="video-bubble__duration">{formatDuration(duration)}</span>
           )}
           <span className="video-bubble__time">{formattedTime}</span>
+          <MessageRemainingTime
+            ttlAnchorMs={message.ttlAnchorMs ?? message.timestamp}
+            ttlSeconds={messageTtlSeconds}
+          />
           {message.editedAt != null && (
             <span className="video-bubble__edited">{t('chat.edit.editedLabel')}</span>
           )}

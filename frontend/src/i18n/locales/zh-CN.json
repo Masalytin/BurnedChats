@@ -318,6 +318,11 @@
       "save": "保存",
       "windowExpired": "编辑窗口已过期（15 分钟限制）"
     },
+    "ttl": {
+      "remaining": "{{time}}",
+      "remainingAria": "{{time}} 后消失",
+      "badge": "阅后即焚消息"
+    },
     "sync": {
       "undecryptable": "无法恢复 {{count}} 条消息 — 请让对方重新发送",
       "expiredWhileAway": "您不在时有 {{count}} 条消息已过期"

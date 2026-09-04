@@ -60,4 +60,29 @@ describe('ChatRoom DM TTL sheet', () => {
     fireEvent.click(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlPreset5m') }));
     expect(onApplyMessageTtlPreset).toHaveBeenCalledWith('5m');
   });
+
+  it('shows the ephemeral badge when messageTtlSeconds is greater than 0', () => {
+    renderChatRoom({ messageTtlSeconds: 300 });
+
+    expect(screen.getByLabelText(i18n.t('chat.ttl.badge'))).toBeTruthy();
+  });
+
+  it('does not show the ephemeral badge when messageTtlSeconds is 0', () => {
+    renderChatRoom({ messageTtlSeconds: 0 });
+
+    expect(screen.queryByLabelText(i18n.t('chat.ttl.badge'))).toBeNull();
+  });
+});
+
+describe('message TTL presets extract', () => {
+  it('re-exports the same preset constants from useRoomMessageTtl', async () => {
+    const presets = await import('@/utils/messageTtlPresets');
+    const hook = await import('@/hooks/useRoomMessageTtl');
+
+    expect(hook.MESSAGE_TTL_PRESETS).toBe(presets.MESSAGE_TTL_PRESETS);
+    expect(hook.MESSAGE_TTL_PRESET_SECONDS).toBe(presets.MESSAGE_TTL_PRESET_SECONDS);
+    expect(hook.MESSAGE_TTL_CUSTOM_MIN_SECONDS).toBe(presets.MESSAGE_TTL_CUSTOM_MIN_SECONDS);
+    expect(hook.MESSAGE_TTL_CUSTOM_MAX_SECONDS).toBe(presets.MESSAGE_TTL_CUSTOM_MAX_SECONDS);
+    expect(hook.matchMessageTtlPreset).toBe(presets.matchMessageTtlPreset);
+  });
 });
