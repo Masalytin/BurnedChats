@@ -62,6 +62,7 @@ describe('MessageTtlSheet', () => {
     expect(onApplyCustomSeconds).toHaveBeenCalledTimes(1);
     expect(onApplyCustomSeconds).toHaveBeenCalledWith(30);
     expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
   });
 
   it('calls onApplyCustomSeconds with 3600 only after Confirm', () => {
@@ -75,6 +76,7 @@ describe('MessageTtlSheet', () => {
     expect(onApplyCustomSeconds).toHaveBeenCalledTimes(1);
     expect(onApplyCustomSeconds).toHaveBeenCalledWith(3600);
     expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
   });
 
   it('calls onApplyCustomSeconds with 86400 only after Confirm', () => {
@@ -88,6 +90,7 @@ describe('MessageTtlSheet', () => {
     expect(onApplyCustomSeconds).toHaveBeenCalledTimes(1);
     expect(onApplyCustomSeconds).toHaveBeenCalledWith(86400);
     expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
   });
 
   it('does not apply custom seconds on scroll without Confirm', () => {
@@ -119,6 +122,42 @@ describe('MessageTtlSheet', () => {
     fireEvent.click(confirmButton());
     expect(onApplyCustomSeconds).not.toHaveBeenCalled();
     expect(onApplyPreset).not.toHaveBeenCalled();
+  });
+
+  it('keeps wheels collapsed after Confirm when parent publishes custom seconds', () => {
+    const onClose = vi.fn();
+    const onApplyPreset = vi.fn();
+    const onApplyCustomSeconds = vi.fn();
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <MessageTtlSheet
+          open
+          messageTtlSeconds={0}
+          onClose={onClose}
+          onApplyPreset={onApplyPreset}
+          onApplyCustomSeconds={onApplyCustomSeconds}
+        />
+      </I18nextProvider>,
+    );
+    expandCustom();
+    clickOption('Seconds', '30');
+    fireEvent.click(confirmButton());
+    expect(onApplyCustomSeconds).toHaveBeenCalledWith(30);
+
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <MessageTtlSheet
+          open
+          messageTtlSeconds={30}
+          onClose={onClose}
+          onApplyPreset={onApplyPreset}
+          onApplyCustomSeconds={onApplyCustomSeconds}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
   });
 
   it('applies Off chip instantly and collapses custom', () => {

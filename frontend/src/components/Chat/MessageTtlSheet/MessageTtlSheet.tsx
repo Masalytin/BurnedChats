@@ -66,7 +66,7 @@ export function MessageTtlSheet({
 
   const activePreset = matchMessageTtlPreset(messageTtlSeconds);
   const isCustomActive = activePreset === null && messageTtlSeconds > 0;
-  const showCustomPanel = isCustomExpanded || isCustomActive;
+  const showCustomPanel = isCustomExpanded;
   const draftSeconds = partsToSeconds('hms', draftParts);
   const customValidation = validateDurationSeconds(draftSeconds, {
     min: MESSAGE_TTL_CUSTOM_MIN_SECONDS,
@@ -74,21 +74,20 @@ export function MessageTtlSheet({
   });
   const canApplyCustom = customValidation === 'ok';
 
+  const collapseCustom = useCallback(() => {
+    setIsCustomExpanded(false);
+  }, []);
+
   useEffect(() => {
     if (activePreset !== null) {
-      setIsCustomExpanded(false);
-      return;
+      collapseCustom();
     }
-    if (messageTtlSeconds > 0) {
-      setIsCustomExpanded(true);
-      setDraftParts(secondsToParts('hms', messageTtlSeconds));
-    }
-  }, [activePreset, messageTtlSeconds]);
+  }, [activePreset, collapseCustom]);
 
   const handleSelectPreset = useCallback((preset: MessageTtlPreset) => {
-    setIsCustomExpanded(false);
+    collapseCustom();
     onApplyPreset(preset);
-  }, [onApplyPreset]);
+  }, [collapseCustom, onApplyPreset]);
 
   const handleSelectCustom = useCallback(() => {
     setIsCustomExpanded(true);
@@ -100,7 +99,11 @@ export function MessageTtlSheet({
   }, [messageTtlSeconds, activePreset]);
 
   const handleCommitParts = useCallback((parts: DurationParts) => {
-    setDraftParts(parts);
+    setDraftParts((prev) => (
+      prev[0] === parts[0] && prev[1] === parts[1] && prev[2] === parts[2]
+        ? prev
+        : parts
+    ));
   }, []);
 
   const handleApplyCustom = useCallback(() => {
@@ -108,7 +111,8 @@ export function MessageTtlSheet({
       return;
     }
     onApplyCustomSeconds(draftSeconds);
-  }, [canApplyCustom, draftSeconds, onApplyCustomSeconds]);
+    collapseCustom();
+  }, [canApplyCustom, collapseCustom, draftSeconds, onApplyCustomSeconds]);
 
   if (!open) {
     return null;

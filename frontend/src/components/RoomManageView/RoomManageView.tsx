@@ -64,6 +64,12 @@ const MAX_VISIBLE_INVITES = 10;
 /** Backend max TTL (30 days) — used for the "no expiry" preset. */
 const NO_EXPIRY_SECONDS = 30 * 24 * 3600;
 
+const ZERO_DURATION_PARTS: DurationParts = [0, 0, 0];
+
+function durationPartsEqual(a: DurationParts, b: DurationParts): boolean {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+
 type ExpiryPreset = '1h' | '24h' | '7d' | 'none';
 type LimitPreset = '1' | '5' | '10' | 'unlimited';
 
@@ -572,9 +578,9 @@ export const RoomManageView = memo(function RoomManageView({
       : 0,
   );
   const [isCustomTtlExpanded, setIsCustomTtlExpanded] = useState(false);
-  const [customTtlSeconds, setCustomTtlSeconds] = useState<number | null>(null);
+  const [customTtlParts, setCustomTtlParts] = useState<DurationParts>(ZERO_DURATION_PARTS);
   const [isCustomMsgTtlExpanded, setIsCustomMsgTtlExpanded] = useState(false);
-  const [customMsgTtlSeconds, setCustomMsgTtlSeconds] = useState<number | null>(null);
+  const [customMsgTtlParts, setCustomMsgTtlParts] = useState<DurationParts>(ZERO_DURATION_PARTS);
   const [presenceTick, setPresenceTick] = useState(0);
 
   useEffect(() => {
@@ -602,98 +608,99 @@ export const RoomManageView = memo(function RoomManageView({
 
   const isCustomTtlActive =
     activeTtlPreset === null && autoBurnAt != null;
-  const showCustomTtlPanel = isCustomTtlExpanded || isCustomTtlActive;
+  const showCustomTtlPanel = isCustomTtlExpanded;
 
   const isCustomMsgTtlActive =
     activeMessageTtlPreset === null && messageTtlSeconds > 0;
-  const showCustomMsgTtlPanel = isCustomMsgTtlExpanded || isCustomMsgTtlActive;
+  const showCustomMsgTtlPanel = isCustomMsgTtlExpanded;
+
+  const customTtlSeconds = partsToSeconds('dhm', customTtlParts);
+  const customMsgTtlSeconds = partsToSeconds('hms', customMsgTtlParts);
 
   const customTtlValidation = validateDurationSeconds(customTtlSeconds, {
     min: ROOM_TTL_CUSTOM_MIN_SECONDS,
     max: ROOM_TTL_CUSTOM_MAX_SECONDS,
   });
   const canApplyCustomTtl =
-    customTtlValidation === 'ok' && customTtlSeconds != null && onApplyCustomTtlSeconds != null;
+    customTtlValidation === 'ok' && onApplyCustomTtlSeconds != null;
 
   const customMsgTtlValidation = validateDurationSeconds(customMsgTtlSeconds, {
     min: MESSAGE_TTL_CUSTOM_MIN_SECONDS,
     max: MESSAGE_TTL_CUSTOM_MAX_SECONDS,
   });
   const canApplyCustomMsgTtl =
-    customMsgTtlValidation === 'ok'
-    && customMsgTtlSeconds != null
-    && onApplyCustomMessageTtlSeconds != null;
+    customMsgTtlValidation === 'ok' && onApplyCustomMessageTtlSeconds != null;
+
+  const collapseCustomTtl = useCallback(() => {
+    setIsCustomTtlExpanded(false);
+  }, []);
+
+  const collapseCustomMsgTtl = useCallback(() => {
+    setIsCustomMsgTtlExpanded(false);
+  }, []);
 
   useEffect(() => {
     if (activeTtlPreset !== null) {
-      setIsCustomTtlExpanded(false);
-      return;
+      collapseCustomTtl();
     }
-    if (autoBurnAt != null) {
-      setIsCustomTtlExpanded(true);
-      setCustomTtlSeconds(Math.max(0, Math.floor((autoBurnAt - Date.now()) / 1000)));
-    }
-  }, [activeTtlPreset, autoBurnAt]);
+  }, [activeTtlPreset, collapseCustomTtl]);
 
   useEffect(() => {
     if (activeMessageTtlPreset !== null) {
-      setIsCustomMsgTtlExpanded(false);
-      return;
+      collapseCustomMsgTtl();
     }
-    if (messageTtlSeconds > 0) {
-      setIsCustomMsgTtlExpanded(true);
-      setCustomMsgTtlSeconds(messageTtlSeconds);
-    }
-  }, [activeMessageTtlPreset, messageTtlSeconds]);
+  }, [activeMessageTtlPreset, collapseCustomMsgTtl]);
 
   const handleSelectTtlPreset = useCallback((preset: RoomTtlPreset) => {
-    setIsCustomTtlExpanded(false);
+    collapseCustomTtl();
     onApplyTtlPreset?.(preset);
-  }, [onApplyTtlPreset]);
+  }, [collapseCustomTtl, onApplyTtlPreset]);
 
   const handleSelectCustomTtl = useCallback(() => {
     setIsCustomTtlExpanded(true);
-    if (autoBurnAt != null && autoBurnRemainingSec > 0) {
-      setCustomTtlSeconds(autoBurnRemainingSec);
+    if (autoBurnAt != null && autoBurnRemainingSec > 0 && activeTtlPreset === null) {
+      setCustomTtlParts(secondsToParts('dhm', autoBurnRemainingSec));
     } else {
-      setCustomTtlSeconds(null);
+      setCustomTtlParts(ZERO_DURATION_PARTS);
     }
-  }, [autoBurnAt, autoBurnRemainingSec]);
+  }, [activeTtlPreset, autoBurnAt, autoBurnRemainingSec]);
 
   const handleApplyCustomTtl = useCallback(() => {
-    if (!canApplyCustomTtl || customTtlSeconds == null) {
+    if (!canApplyCustomTtl) {
       return;
     }
     onApplyCustomTtlSeconds?.(customTtlSeconds);
-  }, [canApplyCustomTtl, customTtlSeconds, onApplyCustomTtlSeconds]);
+    collapseCustomTtl();
+  }, [canApplyCustomTtl, collapseCustomTtl, customTtlSeconds, onApplyCustomTtlSeconds]);
 
   const handleSelectMessageTtlPreset = useCallback((preset: MessageTtlPreset) => {
-    setIsCustomMsgTtlExpanded(false);
+    collapseCustomMsgTtl();
     onApplyMessageTtlPreset?.(preset);
-  }, [onApplyMessageTtlPreset]);
+  }, [collapseCustomMsgTtl, onApplyMessageTtlPreset]);
 
   const handleSelectCustomMsgTtl = useCallback(() => {
     setIsCustomMsgTtlExpanded(true);
     if (messageTtlSeconds > 0 && activeMessageTtlPreset === null) {
-      setCustomMsgTtlSeconds(messageTtlSeconds);
+      setCustomMsgTtlParts(secondsToParts('hms', messageTtlSeconds));
     } else {
-      setCustomMsgTtlSeconds(null);
+      setCustomMsgTtlParts(ZERO_DURATION_PARTS);
     }
   }, [messageTtlSeconds, activeMessageTtlPreset]);
 
   const handleApplyCustomMsgTtl = useCallback(() => {
-    if (!canApplyCustomMsgTtl || customMsgTtlSeconds == null) {
+    if (!canApplyCustomMsgTtl) {
       return;
     }
     onApplyCustomMessageTtlSeconds?.(customMsgTtlSeconds);
-  }, [canApplyCustomMsgTtl, customMsgTtlSeconds, onApplyCustomMessageTtlSeconds]);
+    collapseCustomMsgTtl();
+  }, [canApplyCustomMsgTtl, collapseCustomMsgTtl, customMsgTtlSeconds, onApplyCustomMessageTtlSeconds]);
 
   const handleCommitCustomTtlParts = useCallback((parts: DurationParts) => {
-    setCustomTtlSeconds(partsToSeconds('dhm', parts));
+    setCustomTtlParts((prev) => (durationPartsEqual(prev, parts) ? prev : parts));
   }, []);
 
   const handleCommitCustomMsgTtlParts = useCallback((parts: DurationParts) => {
-    setCustomMsgTtlSeconds(partsToSeconds('hms', parts));
+    setCustomMsgTtlParts((prev) => (durationPartsEqual(prev, parts) ? prev : parts));
   }, []);
 
   const handleCommitCustomExpiryParts = useCallback((parts: DurationParts) => {
@@ -1141,7 +1148,7 @@ export const RoomManageView = memo(function RoomManageView({
                   </span>
                   <DurationScrollPicker
                     mode="dhm"
-                    valueParts={secondsToParts('dhm', customTtlSeconds ?? 0)}
+                    valueParts={customTtlParts}
                     onCommitParts={handleCommitCustomTtlParts}
                     minSeconds={ROOM_TTL_CUSTOM_MIN_SECONDS}
                     maxSeconds={ROOM_TTL_CUSTOM_MAX_SECONDS}
@@ -1216,7 +1223,7 @@ export const RoomManageView = memo(function RoomManageView({
                   </span>
                   <DurationScrollPicker
                     mode="hms"
-                    valueParts={secondsToParts('hms', customMsgTtlSeconds ?? 0)}
+                    valueParts={customMsgTtlParts}
                     onCommitParts={handleCommitCustomMsgTtlParts}
                     minSeconds={MESSAGE_TTL_CUSTOM_MIN_SECONDS}
                     maxSeconds={MESSAGE_TTL_CUSTOM_MAX_SECONDS}

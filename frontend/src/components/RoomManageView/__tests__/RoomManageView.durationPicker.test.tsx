@@ -6,6 +6,26 @@ import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
 import { RoomManageView } from '../RoomManageView';
 
+function ManageHarness(props: Partial<ComponentProps<typeof RoomManageView>> = {}) {
+  return (
+    <I18nextProvider i18n={i18n}>
+      <RoomManageView
+        roomId="room-1"
+        myRole="owner"
+        onViewRequests={() => {}}
+        onFetchMembers={() => {}}
+        onBurnRoom={() => {}}
+        onApplyTtlPreset={props.onApplyTtlPreset ?? (() => {})}
+        onApplyCustomTtlSeconds={props.onApplyCustomTtlSeconds ?? (() => {})}
+        onApplyMessageTtlPreset={props.onApplyMessageTtlPreset ?? (() => {})}
+        onApplyCustomMessageTtlSeconds={props.onApplyCustomMessageTtlSeconds ?? (() => {})}
+        onCreateInviteLink={props.onCreateInviteLink ?? (() => {})}
+        {...props}
+      />
+    </I18nextProvider>
+  );
+}
+
 function renderManage(props: Partial<ComponentProps<typeof RoomManageView>> = {}) {
   const onApplyTtlPreset = props.onApplyTtlPreset ?? vi.fn();
   const onApplyCustomTtlSeconds = props.onApplyCustomTtlSeconds ?? vi.fn();
@@ -19,21 +39,14 @@ function renderManage(props: Partial<ComponentProps<typeof RoomManageView>> = {}
     onApplyCustomMessageTtlSeconds,
     onCreateInviteLink,
     ...render(
-      <I18nextProvider i18n={i18n}>
-        <RoomManageView
-          roomId="room-1"
-          myRole="owner"
-          onViewRequests={() => {}}
-          onFetchMembers={() => {}}
-          onBurnRoom={() => {}}
-          {...props}
-          onApplyTtlPreset={onApplyTtlPreset}
-          onApplyCustomTtlSeconds={onApplyCustomTtlSeconds}
-          onApplyMessageTtlPreset={onApplyMessageTtlPreset}
-          onApplyCustomMessageTtlSeconds={onApplyCustomMessageTtlSeconds}
-          onCreateInviteLink={onCreateInviteLink}
-        />
-      </I18nextProvider>,
+      <ManageHarness
+        {...props}
+        onApplyTtlPreset={onApplyTtlPreset}
+        onApplyCustomTtlSeconds={onApplyCustomTtlSeconds}
+        onApplyMessageTtlPreset={onApplyMessageTtlPreset}
+        onApplyCustomMessageTtlSeconds={onApplyCustomMessageTtlSeconds}
+        onCreateInviteLink={onCreateInviteLink}
+      />,
     ),
   };
 }
@@ -160,5 +173,138 @@ describe('RoomManageView duration picker', () => {
     expect(onApplyTtlPreset).toHaveBeenCalledTimes(1);
     expect(onApplyTtlPreset).toHaveBeenCalledWith('1h');
     expect(onApplyCustomTtlSeconds).not.toHaveBeenCalled();
+  });
+
+  it('hides lifetime wheels after Confirm and keeps Settings mounted', () => {
+    const { onApplyCustomTtlSeconds } = renderManage();
+    expandLifetimeCustom();
+    clickOption('Minutes', '5');
+
+    fireEvent.click(lifetimeConfirmButton());
+
+    expect(onApplyCustomTtlSeconds).toHaveBeenCalledTimes(1);
+    expect(onApplyCustomTtlSeconds).toHaveBeenCalledWith(300);
+    expect(screen.getByRole('group', { name: i18n.t('room.manage.ttlTitle') })).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+  });
+
+  it('hides message TTL wheels after Confirm and keeps Settings mounted', () => {
+    const { onApplyCustomMessageTtlSeconds } = renderManage();
+    expandMsgTtlCustom();
+    clickOption('Seconds', '30');
+
+    fireEvent.click(msgTtlConfirmButton());
+
+    expect(onApplyCustomMessageTtlSeconds).toHaveBeenCalledTimes(1);
+    expect(onApplyCustomMessageTtlSeconds).toHaveBeenCalledWith(30);
+    expect(screen.getByRole('group', { name: i18n.t('room.manage.msgTtlTitle') })).toBeTruthy();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+  });
+
+  it('does not collapse invite picker on Create at 0d 0h 0m', () => {
+    const { onCreateInviteLink } = renderManage();
+    expandInviteCustom();
+    clickOption('Days', '0');
+    clickOption('Hours', '0');
+    clickOption('Minutes', '0');
+
+    expect(createInviteButton()).toHaveProperty('disabled', true);
+    fireEvent.click(createInviteButton());
+    expect(onCreateInviteLink).not.toHaveBeenCalled();
+    expect(screen.getByRole('listbox', { name: 'Days' })).toBeTruthy();
+  });
+
+  it('does not collapse invite picker after a successful Create', () => {
+    const { onCreateInviteLink } = renderManage();
+    expandInviteCustom();
+    expect(screen.getByRole('listbox', { name: 'Days' })).toBeTruthy();
+
+    fireEvent.click(createInviteButton());
+
+    expect(onCreateInviteLink).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('listbox', { name: 'Days' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Hours' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Minutes' })).toBeTruthy();
+  });
+
+  it('expands lifetime custom from scratch at 0d 0h 0m with below-min, not empty', () => {
+    renderManage();
+    expandLifetimeCustom();
+
+    const days = screen.getByRole('listbox', { name: 'Days' });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+    const minutes = screen.getByRole('listbox', { name: 'Minutes' });
+    expect(within(days).getByRole('option', { name: '0' }).getAttribute('aria-selected')).toBe('true');
+    expect(within(hours).getByRole('option', { name: '0' }).getAttribute('aria-selected')).toBe('true');
+    expect(within(minutes).getByRole('option', { name: '0' }).getAttribute('aria-selected')).toBe('true');
+    expect(lifetimeConfirmButton()).toHaveProperty('disabled', true);
+    expect(screen.queryByText(i18n.t('common.duration.errorEmpty'))).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain(
+      i18n.t('common.duration.errorBelowMin', { min: '5 min' }),
+    );
+  });
+
+  it('keeps lifetime draft parts when parent rerenders with new callbacks', () => {
+    const firstApply = vi.fn();
+    const view = render(
+      <ManageHarness
+        onApplyCustomTtlSeconds={firstApply}
+        onFetchMembers={() => {}}
+      />,
+    );
+    expandLifetimeCustom();
+    clickOption('Minutes', '5');
+    expect(firstApply).not.toHaveBeenCalled();
+    expect(lifetimeConfirmButton()).toHaveProperty('disabled', false);
+    expect(
+      within(screen.getByRole('listbox', { name: 'Minutes' })).getByRole('option', { name: '5' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+
+    const secondApply = vi.fn();
+    view.rerender(
+      <ManageHarness
+        onApplyCustomTtlSeconds={secondApply}
+        onFetchMembers={() => {}}
+        autoBurnAt={Date.now() + 8 * 3600 * 1000}
+      />,
+    );
+
+    expect(firstApply).not.toHaveBeenCalled();
+    expect(secondApply).not.toHaveBeenCalled();
+    expect(lifetimeConfirmButton()).toHaveProperty('disabled', false);
+    expect(screen.getByRole('listbox', { name: 'Days' })).toBeTruthy();
+    expect(
+      within(screen.getByRole('listbox', { name: 'Minutes' })).getByRole('option', { name: '5' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+  });
+
+  it('applies Off chip instantly and collapses message TTL custom', () => {
+    const { onApplyMessageTtlPreset, onApplyCustomMessageTtlSeconds } = renderManage();
+    expandMsgTtlCustom();
+    expect(screen.getByRole('listbox', { name: 'Seconds' })).toBeTruthy();
+
+    const group = screen.getByRole('group', { name: i18n.t('room.manage.msgTtlTitle') });
+    fireEvent.click(within(group).getByRole('button', { name: i18n.t('room.manage.msgTtlPresetOff') }));
+
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledWith('off');
+    expect(onApplyCustomMessageTtlSeconds).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+  });
+
+  it('applies 5m chip instantly and collapses message TTL custom', () => {
+    const { onApplyMessageTtlPreset, onApplyCustomMessageTtlSeconds } = renderManage();
+    expandMsgTtlCustom();
+    expect(screen.getByRole('listbox', { name: 'Seconds' })).toBeTruthy();
+
+    const group = screen.getByRole('group', { name: i18n.t('room.manage.msgTtlTitle') });
+    fireEvent.click(within(group).getByRole('button', { name: i18n.t('room.manage.msgTtlPreset5m') }));
+
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyMessageTtlPreset).toHaveBeenCalledWith('5m');
+    expect(onApplyCustomMessageTtlSeconds).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
   });
 });
