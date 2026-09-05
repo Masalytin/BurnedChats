@@ -53,6 +53,14 @@ describe('secondsToParts', () => {
     expect(secondsToParts('dhm', 300)).toEqual([0, 0, 5]);
     expect(secondsToParts('dhm', ROOM_LIFETIME_MAX)).toEqual([30, 0, 0]);
   });
+
+  it('clamps HMS hours above columnMax when input exceeds 24h', () => {
+    expect(secondsToParts('hms', 90_000)).toEqual([24, 0, 0]);
+  });
+
+  it('clamps DHM days above columnMax when input exceeds 30d', () => {
+    expect(secondsToParts('dhm', 31 * 86_400)).toEqual([30, 0, 0]);
+  });
 });
 
 describe('clampAfterSnap', () => {

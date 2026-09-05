@@ -24,16 +24,17 @@ export function partsToSeconds(mode: DurationPickerMode, parts: DurationParts): 
 }
 
 export function secondsToParts(mode: DurationPickerMode, seconds: number): DurationParts {
+  const max = columnMax(mode);
   const safe = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
   if (mode === 'hms') {
-    const hours = Math.floor(safe / HOUR);
-    const minutes = Math.floor((safe % HOUR) / 60);
-    const secs = safe % 60;
+    const hours = Math.min(max[0], Math.floor(safe / HOUR));
+    const minutes = Math.min(max[1], Math.floor((safe % HOUR) / 60));
+    const secs = Math.min(max[2], safe % 60);
     return [hours, minutes, secs];
   }
-  const days = Math.floor(safe / DAY);
-  const hours = Math.floor((safe % DAY) / HOUR);
-  const minutes = Math.floor((safe % HOUR) / 60);
+  const days = Math.min(max[0], Math.floor(safe / DAY));
+  const hours = Math.min(max[1], Math.floor((safe % DAY) / HOUR));
+  const minutes = Math.min(max[2], Math.floor((safe % HOUR) / 60));
   return [days, hours, minutes];
 }
 

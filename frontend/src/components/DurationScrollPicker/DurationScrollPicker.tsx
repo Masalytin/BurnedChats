@@ -29,6 +29,7 @@ type ColumnDef = {
 };
 
 const FALLBACK_ITEM_HEIGHT = 44;
+const LIVE_ITEM_CLASS = 'duration-scroll-picker__item--live';
 
 function columnsForMode(mode: DurationPickerMode): ColumnDef[] {
   const max = columnMax(mode);
@@ -91,6 +92,27 @@ function partsEqual(a: DurationParts, b: DurationParts): boolean {
   return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 }
 
+function hasScrollendSupport(): boolean {
+  return typeof globalThis !== 'undefined' && typeof globalThis.onscrollend !== 'undefined';
+}
+
+function applyLiveItem(
+  wheel: HTMLElement | null,
+  previous: Element | null,
+  index: number
+): Element | null {
+  if (!wheel) {
+    return previous;
+  }
+  const next = wheel.children[index] ?? null;
+  if (previous === next) {
+    return previous;
+  }
+  previous?.classList.remove(LIVE_ITEM_CLASS);
+  next?.classList.add(LIVE_ITEM_CLASS);
+  return next;
+}
+
 export function DurationScrollPicker({
   mode,
   valueParts,
@@ -111,8 +133,31 @@ export function DurationScrollPicker({
   const indexRefs = useRef<DurationParts>([valueParts[0], valueParts[1], valueParts[2]]);
   const valuePartsRef = useRef<DurationParts>(valueParts);
   valuePartsRef.current = valueParts;
+  const lastSyncedPartsRef = useRef<DurationParts | null>(null);
+  const liveItemRefs = useRef<Array<Element | null>>([null, null, null]);
+  const rafCommitRef = useRef<[number, number, number]>([0, 0, 0]);
+  const ignoreClickRef = useRef<[boolean, boolean, boolean]>([false, false, false]);
+  const pointerStartTopRef = useRef<[number, number, number]>([0, 0, 0]);
 
   const scrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
+
+  const cancelRafCommit = (colIndex: number): void => {
+    const id = rafCommitRef.current[colIndex];
+    if (id !== 0) {
+      cancelAnimationFrame(id);
+      rafCommitRef.current[colIndex] = 0;
+    }
+  };
+
+  const applyLiveForParts = (parts: DurationParts): void => {
+    columns.forEach((_, colIndex) => {
+      liveItemRefs.current[colIndex] = applyLiveItem(
+        wheelRefs.current[colIndex],
+        liveItemRefs.current[colIndex],
+        parts[colIndex]
+      );
+    });
+  };
 
   const syncWheels = useCallback(
     (parts: DurationParts, behavior: ScrollBehavior) => {
@@ -129,24 +174,33 @@ export function DurationScrollPicker({
   );
 
   useEffect(() => {
+    if (lastSyncedPartsRef.current && partsEqual(lastSyncedPartsRef.current, valueParts)) {
+      return;
+    }
+    lastSyncedPartsRef.current = [valueParts[0], valueParts[1], valueParts[2]];
     indexRefs.current = [valueParts[0], valueParts[1], valueParts[2]];
     syncWheels(valueParts, 'auto');
-  }, [valueParts, syncWheels]);
+    applyLiveForParts(valueParts);
+  }, [valueParts, syncWheels, columns]);
 
   const emitParts = useCallback(
     (next: DurationParts) => {
       const clamped = clampAfterSnap(mode, next, maxSeconds);
       if (partsEqual(clamped, valuePartsRef.current)) {
         if (!partsEqual(clamped, next)) {
+          lastSyncedPartsRef.current = clamped;
           syncWheels(clamped, scrollBehavior);
+          applyLiveForParts(clamped);
         }
         return;
       }
       indexRefs.current = clamped;
+      lastSyncedPartsRef.current = clamped;
       onCommitParts(clamped);
       syncWheels(clamped, scrollBehavior);
+      applyLiveForParts(clamped);
     },
-    [maxSeconds, mode, onCommitParts, scrollBehavior, syncWheels]
+    [maxSeconds, mode, onCommitParts, scrollBehavior, syncWheels, columns]
   );
 
   const commitColumnIndex = useCallback(
@@ -184,19 +238,33 @@ export function DurationScrollPicker({
     emitParts(next);
   };
 
+  const scheduleRafCommit = (colIndex: number): void => {
+    cancelRafCommit(colIndex);
+    rafCommitRef.current[colIndex] = requestAnimationFrame(() => {
+      rafCommitRef.current[colIndex] = 0;
+      commitFromWheelRef.current(colIndex);
+    });
+  };
+
   useEffect(() => {
     const cleanups: Array<() => void> = [];
+    const supportsScrollend = hasScrollendSupport();
     wheelRefs.current.forEach((el, colIndex) => {
       if (!el) {
         return;
       }
+      if (!supportsScrollend) {
+        return;
+      }
       const onEnd = (): void => {
+        cancelRafCommit(colIndex);
         commitFromWheelRef.current(colIndex);
       };
       el.addEventListener('scrollend', onEnd);
       cleanups.push(() => el.removeEventListener('scrollend', onEnd));
     });
     return () => {
+      rafCommitRef.current.forEach((_, colIndex) => cancelRafCommit(colIndex));
       cleanups.forEach((fn) => fn());
     };
   }, [columns, itemLists]);
@@ -206,11 +274,46 @@ export function DurationScrollPicker({
     if (!el) {
       return;
     }
-    indexRefs.current[colIndex] = indexFromScrollTop(
+    const idx = indexFromScrollTop(
       el.scrollTop,
       readItemHeight(el),
       columns[colIndex].max
     );
+    if (idx === indexRefs.current[colIndex]) {
+      return;
+    }
+    indexRefs.current[colIndex] = idx;
+    liveItemRefs.current[colIndex] = applyLiveItem(
+      el,
+      liveItemRefs.current[colIndex],
+      idx
+    );
+    if (!hasScrollendSupport()) {
+      scheduleRafCommit(colIndex);
+    }
+  };
+
+  const handlePointerDown = (colIndex: number): void => {
+    const el = wheelRefs.current[colIndex];
+    pointerStartTopRef.current[colIndex] = el?.scrollTop ?? 0;
+    ignoreClickRef.current[colIndex] = false;
+  };
+
+  const handlePointerUp = (colIndex: number): void => {
+    const el = wheelRefs.current[colIndex];
+    cancelRafCommit(colIndex);
+    commitFromWheelRef.current(colIndex);
+    if (el) {
+      ignoreClickRef.current[colIndex] = el.scrollTop !== pointerStartTopRef.current[colIndex];
+    }
+  };
+
+  const handleOptionClick = (colIndex: number, nextIndex: number): void => {
+    if (ignoreClickRef.current[colIndex]) {
+      ignoreClickRef.current[colIndex] = false;
+      return;
+    }
+    commitColumnIndex(colIndex, nextIndex);
   };
 
   const handleKeyDown = (colIndex: number, event: KeyboardEvent<HTMLDivElement>): void => {
@@ -250,7 +353,8 @@ export function DurationScrollPicker({
             aria-disabled={disabled || undefined}
             tabIndex={disabled ? -1 : 0}
             onScroll={() => handleScroll(colIndex)}
-            onPointerUp={() => commitFromWheelRef.current(colIndex)}
+            onPointerDown={() => handlePointerDown(colIndex)}
+            onPointerUp={() => handlePointerUp(colIndex)}
             onKeyDown={(event) => handleKeyDown(colIndex, event)}
           >
             {itemLists[colIndex].map((n) => (
@@ -259,7 +363,7 @@ export function DurationScrollPicker({
                 className="duration-scroll-picker__item"
                 role="option"
                 aria-selected={n === valueParts[colIndex]}
-                onClick={() => commitColumnIndex(colIndex, n)}
+                onClick={() => handleOptionClick(colIndex, n)}
               >
                 {n}
               </div>

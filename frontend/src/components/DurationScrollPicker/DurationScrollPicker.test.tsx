@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
@@ -19,6 +19,30 @@ vi.mock('motion/react', async (importOriginal) => {
     useReducedMotion: () => useReducedMotionMock(),
   };
 });
+
+async function flushAnimationFrames(times = 2): Promise<void> {
+  for (let i = 0; i < times; i += 1) {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  }
+}
+
+const windowScrollendDescriptor = Object.getOwnPropertyDescriptor(window, 'onscrollend');
+
+function hideWindowScrollend(): void {
+  Object.defineProperty(window, 'onscrollend', {
+    configurable: true,
+    enumerable: true,
+    get: () => undefined,
+  });
+}
+
+function restoreWindowScrollend(): void {
+  if (windowScrollendDescriptor) {
+    Object.defineProperty(window, 'onscrollend', windowScrollendDescriptor);
+  }
+}
 
 function renderPicker(props: Partial<DurationScrollPickerProps> = {}) {
   const onCommitParts = props.onCommitParts ?? vi.fn();
@@ -46,6 +70,7 @@ describe('DurationScrollPicker', () => {
   });
 
   afterEach(async () => {
+    restoreWindowScrollend();
     await i18n.changeLanguage('en');
   });
 
@@ -156,6 +181,9 @@ describe('DurationScrollPicker', () => {
     expect(css).toMatch(/height:\s*var\(--bc-touch-target\)/);
     expect(css).toMatch(/transform:\s*translateY\(-50%\)/);
     expect(css).toMatch(/prefers-reduced-motion:\s*reduce/);
+    expect(css).toMatch(/padding-inline-end/);
+    expect(css).toMatch(/duration-scroll-picker__item--live/);
+    expect(css).toMatch(/transition:\s*none/);
   });
 
   it('renders DHM columns without a seconds wheel', () => {
@@ -170,5 +198,99 @@ describe('DurationScrollPicker', () => {
     expect(screen.getByRole('listbox', { name: 'Hours' })).toBeTruthy();
     expect(screen.getByRole('listbox', { name: 'Minutes' })).toBeTruthy();
     expect(screen.queryByRole('listbox', { name: 'Seconds' })).toBeNull();
+  });
+
+  it('commits from scrollTop on pointerup', () => {
+    const { onCommitParts } = renderPicker({ valueParts: [0, 0, 30] });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+
+    hours.scrollTop = 44 * 2;
+    fireEvent.pointerUp(hours);
+
+    expect(onCommitParts).toHaveBeenCalledTimes(1);
+    expect(onCommitParts).toHaveBeenCalledWith([2, 0, 30]);
+  });
+
+  it('does not commit on scroll when the snapped index is unchanged', () => {
+    const { onCommitParts } = renderPicker({ valueParts: [0, 0, 30] });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+
+    hours.scrollTop = 0;
+    fireEvent.scroll(hours);
+
+    expect(onCommitParts).not.toHaveBeenCalled();
+  });
+
+  it('commits after a gesture when scrollend is missing', async () => {
+    hideWindowScrollend();
+    const { onCommitParts } = renderPicker({ valueParts: [0, 0, 30] });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+
+    hours.scrollTop = 44 * 3;
+    fireEvent.scroll(hours);
+    await flushAnimationFrames();
+
+    expect(onCommitParts).toHaveBeenCalledTimes(1);
+    expect(onCommitParts).toHaveBeenCalledWith([3, 0, 30]);
+  });
+
+  it('does not emit a second foreign parts when click follows pointerup', () => {
+    const { onCommitParts } = renderPicker({ valueParts: [0, 0, 30] });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+    const options = within(hours).getAllByRole('option');
+
+    fireEvent.pointerDown(hours);
+    hours.scrollTop = 44 * 2;
+    fireEvent.scroll(hours);
+    fireEvent.pointerUp(hours);
+    fireEvent.click(options[4]);
+
+    expect(onCommitParts).toHaveBeenCalledTimes(1);
+    expect(onCommitParts).toHaveBeenCalledWith([2, 0, 30]);
+    expect(onCommitParts).not.toHaveBeenCalledWith([4, 0, 30]);
+  });
+
+  it('keeps aria-selected on committed parts while the live center follows the wheel', () => {
+    renderPicker({ valueParts: [0, 0, 30] });
+    const hours = screen.getByRole('listbox', { name: 'Hours' });
+    const options = within(hours).getAllByRole('option');
+
+    expect(options[0].getAttribute('aria-selected')).toBe('true');
+    expect(options[0].classList.contains('duration-scroll-picker__item--live')).toBe(true);
+
+    hours.scrollTop = 44 * 2;
+    fireEvent.scroll(hours);
+
+    expect(options[0].getAttribute('aria-selected')).toBe('true');
+    expect(options[2].getAttribute('aria-selected')).toBe('false');
+    expect(options[2].classList.contains('duration-scroll-picker__item--live')).toBe(true);
+    expect(options[0].classList.contains('duration-scroll-picker__item--live')).toBe(false);
+  });
+
+  it('does not scrollTo when valueParts numbers are unchanged', () => {
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo;
+
+    try {
+      const { rerender, onCommitParts } = renderPicker({ valueParts: [0, 0, 30] });
+      const callsAfterMount = scrollTo.mock.calls.length;
+
+      rerender(
+        <I18nextProvider i18n={i18n}>
+          <DurationScrollPicker
+            mode="hms"
+            valueParts={[0, 0, 30]}
+            minSeconds={30}
+            maxSeconds={86_400}
+            onCommitParts={onCommitParts}
+          />
+        </I18nextProvider>
+      );
+
+      expect(scrollTo.mock.calls.length).toBe(callsAfterMount);
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo;
+    }
   });
 });

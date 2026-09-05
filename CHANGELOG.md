@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Duration scroll picker keeps a stable draft through WebView flicks (no `scrollend`, no ghost-click) and highlights the live center.
 - Custom duration Apply hides the scroll picker; the TTL sheet and room Settings stay open.
 
 ### Fixed
