@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Custom duration Apply hides the scroll picker; the TTL sheet and room Settings stay open.
 
+### Fixed
+
+- Room Settings invite-expiry wheels keep their draft when the page rerenders (countdown or new callbacks).
+
 ## [0.4.5] - 2026-09-04
 
 ### Added

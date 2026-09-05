@@ -227,6 +227,49 @@ describe('RoomManageView duration picker', () => {
     expect(screen.getByRole('listbox', { name: 'Minutes' })).toBeTruthy();
   });
 
+  it('keeps invite expiry draft parts when parent rerenders with new callbacks', () => {
+    const scrollTo = vi.spyOn(Element.prototype, 'scrollTo');
+    const firstCreate = vi.fn();
+    const view = render(
+      <ManageHarness
+        onCreateInviteLink={firstCreate}
+        onFetchMembers={() => {}}
+      />,
+    );
+    expandInviteCustom();
+    clickOption('Hours', '1');
+    expect(
+      within(screen.getByRole('listbox', { name: 'Hours' })).getByRole('option', { name: '1' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+    expect(firstCreate).not.toHaveBeenCalled();
+    scrollTo.mockClear();
+
+    const secondCreate = vi.fn();
+    view.rerender(
+      <ManageHarness
+        onCreateInviteLink={secondCreate}
+        onFetchMembers={() => {}}
+        autoBurnAt={Date.now() + 8 * 3600 * 1000}
+      />,
+    );
+
+    expect(firstCreate).not.toHaveBeenCalled();
+    expect(secondCreate).not.toHaveBeenCalled();
+    expect(screen.getByRole('listbox', { name: 'Days' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Hours' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Minutes' })).toBeTruthy();
+    expect(
+      within(screen.getByRole('listbox', { name: 'Hours' })).getByRole('option', { name: '1' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+    try {
+      expect(scrollTo).not.toHaveBeenCalled();
+    } finally {
+      scrollTo.mockRestore();
+    }
+  });
+
   it('expands lifetime custom from scratch at 0d 0h 0m with below-min, not empty', () => {
     renderManage();
     expandLifetimeCustom();

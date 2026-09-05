@@ -568,7 +568,7 @@ export const RoomManageView = memo(function RoomManageView({
   const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d');
   const [limitPreset, setLimitPreset] = useState<LimitPreset>('unlimited');
   const [isCustomExpiryExpanded, setIsCustomExpiryExpanded] = useState(false);
-  const [customExpirySeconds, setCustomExpirySeconds] = useState<number | null>(null);
+  const [customExpiryParts, setCustomExpiryParts] = useState<DurationParts>(ZERO_DURATION_PARTS);
   const [isCustomLimitExpanded, setIsCustomLimitExpanded] = useState(false);
   const [customLimitInput, setCustomLimitInput] = useState('');
   const [showAllInvites, setShowAllInvites] = useState(false);
@@ -704,9 +704,10 @@ export const RoomManageView = memo(function RoomManageView({
   }, []);
 
   const handleCommitCustomExpiryParts = useCallback((parts: DurationParts) => {
-    setCustomExpirySeconds(partsToSeconds('dhm', parts));
+    setCustomExpiryParts((prev) => (durationPartsEqual(prev, parts) ? prev : parts));
   }, []);
 
+  const customExpirySeconds = partsToSeconds('dhm', customExpiryParts);
   const customExpiryValidation = validateDurationSeconds(customExpirySeconds, {
     min: INVITE_EXPIRY_MIN_SECONDS,
     max: INVITE_EXPIRY_MAX_SECONDS,
@@ -714,7 +715,7 @@ export const RoomManageView = memo(function RoomManageView({
   const parsedCustomLimit = parseLimitInput(customLimitInput);
   const customLimitValidation = validateLimitValue(parsedCustomLimit);
   const matchedExpiryPreset =
-    customExpiryValidation === 'ok' && customExpirySeconds != null
+    customExpiryValidation === 'ok'
       ? matchExpiryPreset(customExpirySeconds)
       : null;
   const matchedLimitPreset =
@@ -764,7 +765,9 @@ export const RoomManageView = memo(function RoomManageView({
   const handleSelectCustomExpiry = useCallback(() => {
     setIsCustomExpiryExpanded(true);
     const presetSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
-    setCustomExpirySeconds(presetSeconds ?? null);
+    setCustomExpiryParts(
+      presetSeconds != null ? secondsToParts('dhm', presetSeconds) : ZERO_DURATION_PARTS,
+    );
   }, [expiryPreset]);
 
   const handleSelectLimitPreset = useCallback((preset: LimitPreset) => {
@@ -861,9 +864,7 @@ export const RoomManageView = memo(function RoomManageView({
     const options: GetInviteLinkOptions = {};
 
     if (isCustomExpiryExpanded) {
-      if (customExpirySeconds != null) {
-        options.expiresInSeconds = customExpirySeconds;
-      }
+      options.expiresInSeconds = customExpirySeconds;
     } else {
       const expiresInSeconds = EXPIRY_PRESET_SECONDS[expiryPreset];
       if (expiresInSeconds != null) {
@@ -1335,7 +1336,7 @@ export const RoomManageView = memo(function RoomManageView({
                       </span>
                       <DurationScrollPicker
                         mode="dhm"
-                        valueParts={secondsToParts('dhm', customExpirySeconds ?? 0)}
+                        valueParts={customExpiryParts}
                         onCommitParts={handleCommitCustomExpiryParts}
                         minSeconds={INVITE_EXPIRY_MIN_SECONDS}
                         maxSeconds={INVITE_EXPIRY_MAX_SECONDS}
