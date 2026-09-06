@@ -851,9 +851,6 @@ contract BurnJettonWallet(
         self.balance -= amount;
         require(self.balance >= 0, "Incorrect balance after send");
 
-        let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
-        let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
-
         deploy(DeployParameters {
             value: deliverTon,
             bounce: true,
@@ -869,49 +866,58 @@ contract BurnJettonWallet(
             init: initOf BurnJettonWallet(destination, self.master, 0, emptyCfg),
         });
 
-        message(MessageParameters {
-            to: contractAddress(poolWalletInit),
-            value: poolDeliverTon,
-            bounce: true,
-            mode: SendPayGasSeparately,
-            body: JettonTransferInternal {
-                queryId: queryId,
-                amount: parts.staking,
-                sender: self.owner,
-                responseDestination: responseDestination,
-                forwardTonAmount: poolFwdTon,
-                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
-            }.toCell(),
-        });
+        // Dust (1–10 nano) yields parts.* == 0; sending those legs notifies
+        // StakingPool with amount 0 and fails `require(msg.amount > 0)` (IMP-CIP-11).
+        if (parts.staking > 0) {
+            let poolWalletInit = initOf BurnJettonWallet(cfg.poolOwner, self.master, 0, emptyCfg);
+            message(MessageParameters {
+                to: contractAddress(poolWalletInit),
+                value: poolDeliverTon,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: JettonTransferInternal {
+                    queryId: queryId,
+                    amount: parts.staking,
+                    sender: self.owner,
+                    responseDestination: responseDestination,
+                    forwardTonAmount: poolFwdTon,
+                    forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+                }.toCell(),
+            });
+        }
 
-        // Forward enough TON so Treasury receives `JettonNotification` for total_received stats (P5-3-2-1).
-        message(MessageParameters {
-            to: contractAddress(treasWalletInit),
-            value: treasDeliverTon,
-            bounce: true,
-            mode: SendPayGasSeparately,
-            body: JettonTransferInternal {
-                queryId: queryId,
-                amount: parts.treasury,
-                sender: self.owner,
-                responseDestination: responseDestination,
-                forwardTonAmount: treasFwdTon,
-                forwardPayload: beginCell().storeUint(0, 1).asSlice(),
-            }.toCell(),
-        });
+        if (parts.treasury > 0) {
+            let treasWalletInit = initOf BurnJettonWallet(cfg.treasuryOwner, self.master, 0, emptyCfg);
+            message(MessageParameters {
+                to: contractAddress(treasWalletInit),
+                value: treasDeliverTon,
+                bounce: true,
+                mode: SendPayGasSeparately,
+                body: JettonTransferInternal {
+                    queryId: queryId,
+                    amount: parts.treasury,
+                    sender: self.owner,
+                    responseDestination: responseDestination,
+                    forwardTonAmount: treasFwdTon,
+                    forwardPayload: beginCell().storeUint(0, 1).asSlice(),
+                }.toCell(),
+            });
+        }
 
-        message(MessageParameters {
-            to: self.master,
-            value: cfg.gas.burnNotifyTon,
-            mode: SendPayGasSeparately,
-            bounce: true,
-            body: JettonBurnNotification {
-                queryId: queryId,
-                amount: parts.burn,
-                sender: self.owner,
-                responseDestination: responseDestination,
-            }.toCell(),
-        });
+        if (parts.burn > 0) {
+            message(MessageParameters {
+                to: self.master,
+                value: cfg.gas.burnNotifyTon,
+                mode: SendPayGasSeparately,
+                bounce: true,
+                body: JettonBurnNotification {
+                    queryId: queryId,
+                    amount: parts.burn,
+                    sender: self.owner,
+                    responseDestination: responseDestination,
+                }.toCell(),
+            });
+        }
 
         requestRecipientFeeConfigSync(self.master, queryId, self.owner, destination, cfg.gas.propagateTon);
         // IMP-MNAUD-F14: fee sinks are deployed with emptyCfg on first fanout —

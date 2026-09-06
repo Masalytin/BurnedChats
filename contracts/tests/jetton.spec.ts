@@ -849,9 +849,13 @@ describe('BurnJetton', () => {
             await ctx.master.sendSyncFeeConfigToWallet(ctx.deployer.getSender(), ctx.userX.address);
 
             const wx = await getWallet(ctx, ctx.userX.address);
+            // CIP-11 skips JettonBurnNotification when burn part is 0 (1 nano).
+            // 200 nano is the floor for 1 nano burn at 50 bps, so activity still ticks.
+            const pump = 200n;
+            const pumpNet = pump - (pump * 50n) / 10000n - (pump * 30n) / 10000n - (pump * 20n) / 10000n;
             for (let i = 0; i < 101; i++) {
                 await wx.sendTransfer(ctx.userX.getSender(), {
-                    jettonAmount: 1n,
+                    jettonAmount: pump,
                     destinationOwner: ctx.userY.address,
                     responseDestination: ctx.userX.address,
                     value: TRANSFER_TON,
@@ -872,8 +876,7 @@ describe('BurnJetton', () => {
 
             const wy = await getWallet(ctx, ctx.userY.address);
             const yBal = (await wy.getGetWalletData()).balance;
-            const from101nano = 101n;
-            expect(yBal).toBe(from101nano + net);
+            expect(yBal).toBe(101n * pumpNet + net);
         });
     });
 
