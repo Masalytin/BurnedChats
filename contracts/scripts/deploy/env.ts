@@ -122,3 +122,23 @@ export function isForceRedeploy(): boolean {
 export function isDryRun(): boolean {
     return process.argv.includes('--dry-run');
 }
+
+const NANO = 1_000_000_000n;
+/** Testnet / lab: enough for relays without parking 50 TON on every redeploy. */
+export const DEFAULT_DEPLOY_STAKING_MASTER_TESTNET = 10n * NANO;
+/** Mainnet operational reserve (live 2026-08-23 deploy parked 50 TON). */
+export const DEFAULT_DEPLOY_STAKING_MASTER_MAINNET = 50n * NANO;
+
+/** StakingMaster deploy attach. Env override wins; else testnet 10 TON, mainnet 50 TON. */
+export function resolveDeployStakingMasterNano(
+    network: 'testnet' | 'mainnet',
+    env: NodeJS.Dict<string> = process.env,
+): bigint {
+    const raw = env.DEPLOY_STAKING_MASTER_NANO?.trim();
+    if (raw) {
+        return BigInt(raw);
+    }
+    return network === 'testnet'
+        ? DEFAULT_DEPLOY_STAKING_MASTER_TESTNET
+        : DEFAULT_DEPLOY_STAKING_MASTER_MAINNET;
+}

@@ -18,8 +18,9 @@ npm run testnet:scenarios -- --manifest lab …
 ```bash
 cd contracts
 cp .env.example .env.testnet
-# Fund deployer (~5 TON testnet) and set:
+# Fund deployer (~15 TON testnet: StakingMaster default 10 TON + the rest) and set:
 #   WALLET_MNEMONIC + WALLET_VERSION (or legacy MNEMONIC_TESTNET)
+# Mainnet StakingMaster default stays 50 TON. Override: DEPLOY_STAKING_MASTER_NANO.
 #   TONCENTER_API_KEY_TESTNET
 # Optional override (default: frontend-hosted metadata on burnedchats.net):
 #   JETTON_METADATA_URI=https://burnedchats.net/jetton-metadata.json

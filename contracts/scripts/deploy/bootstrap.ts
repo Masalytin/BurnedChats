@@ -14,6 +14,7 @@ import { Timelock, TIMELOCK_HIGH_VALUE_DELAY_FLOOR_SEC } from '../../wrappers/Ti
 import { Treasury } from '../../wrappers/Treasury';
 import { Vesting } from '../../wrappers/Vesting';
 import { presetDurations, presetTotalNano, VESTING_PRESETS } from '../vesting/presets';
+import { resolveDeployStakingMasterNano } from './env';
 import { saveDeployment } from './store';
 import type { DeploymentAddresses, DeploymentFile, MintAllocation } from './types';
 import { getSenderSeqno, waitForSenderSeqnoIncrement } from './wait';
@@ -25,9 +26,6 @@ const DEPLOY_JETTON = toNano('0.2');
 const DEPLOY_TREASURY = toNano('0.15');
 const DEPLOY_POOL = toNano('0.25');
 const DEPLOY_LOCK = toNano('0.1');
-const DEPLOY_STAKING_MASTER = process.env.DEPLOY_STAKING_MASTER_NANO?.trim()
-    ? BigInt(process.env.DEPLOY_STAKING_MASTER_NANO.trim())
-    : toNano('50');
 const DEPLOY_GOVERNOR = toNano('0.55');
 const DEPLOY_TIMELOCK = toNano('0.12');
 const DEPLOY_VESTING = toNano('0.22');
@@ -892,7 +890,16 @@ export async function deployBurnStack(
         } else {
             console.log('[deploy] governance slice — skip jetton/treasury/pool/lock redeploy');
         }
-        await deployIfNeeded(provider, stakingMasterInit, DEPLOY_STAKING_MASTER, 'StakingMaster', opts.force);
+        const deployStakingMaster = resolveDeployStakingMasterNano(testnet ? 'testnet' : 'mainnet');
+        console.log(
+            `[deploy] StakingMaster attach ${deployStakingMaster.toString()} nano` +
+                (process.env.DEPLOY_STAKING_MASTER_NANO?.trim()
+                    ? ' (DEPLOY_STAKING_MASTER_NANO)'
+                    : testnet
+                      ? ' (testnet default 10 TON)'
+                      : ' (mainnet default 50 TON)'),
+        );
+        await deployIfNeeded(provider, stakingMasterInit, deployStakingMaster, 'StakingMaster', opts.force);
 
         if (opts.force || !(await isStakingMasterWired(provider, poolInit, stakingMasterInit.address))) {
             console.log('[deploy] wireStakingMaster');

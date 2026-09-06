@@ -2,10 +2,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { toNano } from '@ton/core';
 import {
     applyBlueprintWalletAliases,
     initDeployEnv,
     loadDeployEnv,
+    resolveDeployStakingMasterNano,
     resolveMnemonic,
 } from '../scripts/deploy/env';
 
@@ -123,5 +125,23 @@ describe('deploy env', () => {
         initDeployEnv(tempRoot);
 
         expect(process.env.WALLET_MNEMONIC).toBe('from testnet file');
+    });
+});
+
+describe('resolveDeployStakingMasterNano', () => {
+    it('defaults testnet attach to 10 TON', () => {
+        expect(resolveDeployStakingMasterNano('testnet', {})).toBe(toNano('10'));
+    });
+
+    it('defaults mainnet attach to 50 TON', () => {
+        expect(resolveDeployStakingMasterNano('mainnet', {})).toBe(toNano('50'));
+    });
+
+    it('honours DEPLOY_STAKING_MASTER_NANO on both networks', () => {
+        const env = { DEPLOY_STAKING_MASTER_NANO: '10000000000' };
+        expect(resolveDeployStakingMasterNano('mainnet', env)).toBe(toNano('10'));
+        expect(resolveDeployStakingMasterNano('testnet', { DEPLOY_STAKING_MASTER_NANO: '38000000000' })).toBe(
+            toNano('38'),
+        );
     });
 });
