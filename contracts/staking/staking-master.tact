@@ -413,16 +413,16 @@ contract StakingMaster(
                 queryId: queryId,
                 amount: amount,
                 destination: recipient,
-                responseDestination: myAddress(),
+                responseDestination: recipient,
                 customPayload: null,
                 forwardTonAmount: 0,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
             }.toCell(),
         });
-        cashback(sender());
+        cashback(recipient);
     }
 
-    fun forwardStakeJettonsToPool(amount: Int, queryId: Int) {
+    fun forwardStakeJettonsToPool(amount: Int, queryId: Int, staker: Address) {
         message(MessageParameters {
             to: self.masterJettonWalletAddr(),
             value: self.GasForwardStakeJetton,
@@ -432,7 +432,7 @@ contract StakingMaster(
                 queryId: queryId,
                 amount: amount,
                 destination: self.pool,
-                responseDestination: myAddress(),
+                responseDestination: staker,
                 customPayload: null,
                 forwardTonAmount: 0,
                 forwardPayload: beginCell().storeUint(0, 1).asSlice(),
@@ -614,7 +614,8 @@ contract StakingMaster(
             }.toCell(),
         });
 
-        self.forwardStakeJettonsToPool(msg.amount, msg.queryId);
+        self.forwardStakeJettonsToPool(msg.amount, msg.queryId, staker);
+        cashback(staker);
     }
 
     receive(msg: UnstakeJetton) {
@@ -669,6 +670,7 @@ contract StakingMaster(
                 delta: msg.amount,
             }.toCell(),
         });
+        cashback(who);
     }
 
     receive(msg: ClaimRewards) {
@@ -699,6 +701,7 @@ contract StakingMaster(
             unlockTime: cur.unlockTime,
         };
         self.stakesMapSet(tierAsInt, who, upd);
+        cashback(who);
     }
 
     /// Trusted callback from staking pool (`sender()==pool`): accrues staking fee into rewardPerShare.

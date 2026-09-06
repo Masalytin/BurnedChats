@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Leftover TON on stake/claim/unstake returns to the payer instead of parking on the staking master, pool, or their jetton wallets.
 - Room Settings invite-expiry wheels keep their draft when the page rerenders (countdown or new callbacks).
 
 ## [0.4.5] - 2026-09-04
