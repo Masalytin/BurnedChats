@@ -12,12 +12,12 @@ import {
   PROPAGATE_FEE_CONFIG_NANO,
 } from '@/ton/estimateBurnTransferTon';
 
-/** Mirrors `GasForwardStakeJetton` in staking-master.tact. */
-const GAS_FORWARD_STAKE_JETTON_NANO = toNano('3.5');
+/** Mirrors `GasForwardStakeJetton` in staking-master.tact (IMP-CIP-12: 3.5 → 1.5). */
+export const GAS_FORWARD_STAKE_JETTON_NANO = toNano('1.5');
 /** Mirrors `GasToPool` in staking-master.tact. */
 const GAS_TO_POOL_NANO = toNano('0.06');
-/** Mirrors `GasPayRewards` in staking-master.tact. */
-const GAS_PAY_REWARDS_NANO = toNano('3.5');
+/** Mirrors `GasPayRewards` in staking-master.tact (IMP-CIP-12: 3.5 → 1.5). */
+export const GAS_PAY_REWARDS_NANO = toNano('1.5');
 /** Buffer inside `minStakeNotifyTon` (staking-master.tact). */
 const STAKE_NOTIFY_BUFFER_NANO = toNano('0.08');
 /** `deliverTon` headroom in burn-jetton-wallet.tact. */
@@ -41,8 +41,8 @@ const STAKE_FEE_PATH_FANOUT_MARGIN_NANO = toNano('0.35');
  * Headroom for live forward-fee variance on the post-F11 uniform wallet entry
  * gate `value > forward + 2*fwd + minTonFeePath` (live fwd ≈ 0.0003–0.004 TON
  * vs the 0.00027 estimate; IMP-MNAUD-F20). With the post-F17 gate (1.0) the
- * default stake attach lands at ~6.45 TON at forward 5 (was ~7.5 at the F16
- * gate 2.05 — IMP-MNAUD-F24 sync). Surplus refunds via JettonExcesses.
+ * default stake attach lands at ~3.45 TON at forward 2 (was ~6.45 at forward 5
+ * — IMP-CIP-12). Surplus refunds via JettonExcesses.
  */
 const GATE_FORWARD_FEE_HEADROOM_NANO = toNano('0.25');
 
@@ -52,15 +52,20 @@ export const STAKE_NOTIFY_FORWARD_MIN_NANO =
 
 /**
  * forward_ton_amount for stake deposits: funds StakingMaster notify out-messages —
- * `GasForwardStakeJetton` (3.5) + `GasToPool` ×2 (0.12) + 0.08 buffer.
- * 5 TON ≥ 3.7 min with headroom for forward-fee on the notify hop.
+ * `GasForwardStakeJetton` (1.5) + `GasToPool` ×2 (0.12) + 0.08 buffer.
+ * 2 TON ≥ 1.7 min with headroom for forward-fee on the notify hop.
  */
-export const STAKE_FORWARD_TON = toNano('5');
+export const STAKE_FORWARD_TON = toNano('2');
 
 /**
- * Restake with pending rewards: minStakeNotifyTon adds `GasPayRewards` (3.5) → 7.2 TON floor.
+ * Restake with pending rewards: minStakeNotifyTon adds `GasPayRewards` (1.5) → 3.2 TON floor.
  */
 export const STAKE_RESTAKE_NOTIFY_FORWARD_NANO = STAKE_NOTIFY_FORWARD_MIN_NANO + GAS_PAY_REWARDS_NANO;
+
+/** Native attach for `ClaimRewards` (`GasPayRewards` + 0.06 + margin). */
+export const CLAIM_ATTACHED_TON = toNano('2');
+/** Native attach for `UnstakeJetton` (`GasPayRewards` + `GasToPool` + 0.08 + margin). */
+export const UNSTAKE_ATTACHED_TON = toNano('2.1');
 
 function maxBig(a: bigint, b: bigint): bigint {
   return a > b ? a : b;

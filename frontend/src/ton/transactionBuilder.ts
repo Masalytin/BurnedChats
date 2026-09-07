@@ -8,6 +8,8 @@ import {
   STAKE_FORWARD_TON,
   STAKE_RESTAKE_ATTACHED_TON,
   STAKE_RESTAKE_NOTIFY_FORWARD_NANO,
+  CLAIM_ATTACHED_TON,
+  UNSTAKE_ATTACHED_TON,
 } from '@/ton/estimateStakeTon';
 
 export {
@@ -17,6 +19,8 @@ export {
   STAKE_FORWARD_TON,
   STAKE_RESTAKE_ATTACHED_TON,
   STAKE_RESTAKE_NOTIFY_FORWARD_NANO,
+  CLAIM_ATTACHED_TON,
+  UNSTAKE_ATTACHED_TON,
 };
 
 /** TEP-74 jetton transfer opcode (`JettonTransfer` in burn-jetton-wallet.tact). */
@@ -194,7 +198,7 @@ export function buildStakeMsg(params: {
 }
 
 /**
- * Direct `UnstakeJetton` on staking master (matches StakingMaster wrapper value ~4.2 TON).
+ * Direct `UnstakeJetton` on staking master (IMP-CIP-12: 2.1 TON ≥ on-chain gate).
  */
 export function buildUnstakeMsg(params: {
   stakingMaster: Address;
@@ -210,13 +214,13 @@ export function buildUnstakeMsg(params: {
     .endCell();
   return {
     address: params.stakingMaster.toString(),
-    amount: toNano('4.2').toString(),
+    amount: UNSTAKE_ATTACHED_TON.toString(),
     payload: body.toBoc({ idx: false }).toString('base64'),
   };
 }
 
 /**
- * Direct `ClaimRewards` on staking master (~4 TON).
+ * Direct `ClaimRewards` on staking master (IMP-CIP-12: 2 TON ≥ on-chain gate).
  */
 export function buildClaimMsg(params: {
   stakingMaster: Address;
@@ -230,7 +234,7 @@ export function buildClaimMsg(params: {
     .endCell();
   return {
     address: params.stakingMaster.toString(),
-    amount: toNano('4').toString(),
+    amount: CLAIM_ATTACHED_TON.toString(),
     payload: body.toBoc({ idx: false }).toString('base64'),
   };
 }

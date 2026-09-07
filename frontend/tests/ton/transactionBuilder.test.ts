@@ -86,7 +86,7 @@ describe('transactionBuilder payload encoding', () => {
     const responseDest = s.loadMaybeAddress();
     expect(responseDest?.equals(userWallet)).toBe(true);
     expect(s.loadBit()).toBe(false);
-    // forward_ton_amount must fund StakingMaster GasForwardStakeJetton (3.5) + pool legs.
+    // forward_ton_amount must fund StakingMaster GasForwardStakeJetton (1.5) + pool legs.
     expect(s.loadCoins()).toBe(STAKE_FORWARD_TON);
     expect(s.preloadUint(1)).toBe(1);
     expect(s.loadUint(1)).toBe(1);

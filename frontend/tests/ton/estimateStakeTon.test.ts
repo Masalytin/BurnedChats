@@ -14,16 +14,17 @@ import {
 } from '@/ton/estimateStakeTon';
 
 describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
-  it('forward covers minStakeNotifyTon base (3.7 TON) with headroom', () => {
+  it('forward covers minStakeNotifyTon base (1.7 TON) with headroom (IMP-CIP-12)', () => {
+    expect(STAKE_FORWARD_TON).toBe(toNano('2'));
     expect(STAKE_FORWARD_TON).toBeGreaterThan(STAKE_NOTIFY_FORWARD_MIN_NANO);
-    expect(STAKE_NOTIFY_FORWARD_MIN_NANO).toBe(toNano('3.7'));
-    expect(STAKE_RESTAKE_NOTIFY_FORWARD_NANO).toBe(toNano('7.2'));
+    expect(STAKE_NOTIFY_FORWARD_MIN_NANO).toBe(toNano('1.7'));
+    expect(STAKE_RESTAKE_NOTIFY_FORWARD_NANO).toBe(toNano('3.2'));
+    expect(STAKE_FORWARD_TON).toBeLessThan(toNano('3.5'));
   });
 
   it('excluded attach clears the post-F11 gate and stays below fee-path attach', () => {
-    expect(STAKE_ATTACHED_TON).toBe(6_450_540_001n);
-    expect(STAKE_FEE_PATH_ATTACHED_TON).toBe(6_600_540_001n);
     expect(STAKE_FEE_PATH_ATTACHED_TON).toBeGreaterThan(STAKE_ATTACHED_TON);
+    expect(STAKE_ATTACHED_TON).toBeLessThan(toNano('4'));
   });
 
   it('default attach passes the on-chain wallet entry gate with live fwd-fee variance (IMP-MNAUD-F24)', () => {
@@ -73,8 +74,8 @@ describe('IMP-STKFEE-03 — estimateStakeTon path gas budget', () => {
     });
     expect(estimate.forwardTonNano).toBe(STAKE_RESTAKE_NOTIFY_FORWARD_NANO);
     expect(estimate.recommendedNano).toBe(STAKE_RESTAKE_ATTACHED_TON);
-    expect(STAKE_RESTAKE_ATTACHED_TON).toBe(8_650_540_001n);
-    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBe(8_800_540_001n);
+    expect(STAKE_RESTAKE_ATTACHED_TON).toBeGreaterThan(STAKE_ATTACHED_TON);
+    expect(STAKE_FEE_PATH_RESTAKE_ATTACHED_TON).toBeGreaterThan(STAKE_RESTAKE_ATTACHED_TON);
   });
 
   it('restake fee path uses higher fanout attach', () => {

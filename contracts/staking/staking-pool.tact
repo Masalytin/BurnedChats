@@ -15,7 +15,8 @@ contract StakingPool(
     const MinTier: Int = 0;
     const MaxTier: Int = 3;
     /// TON attached to payout JettonTransfer (must cover wallet gates, see burn-jetton-wallet JettonTransfer).
-    const PayRewardsTon: Int = ton("3.5");
+    /// 1.5 sits ~0.5 above minTonFeePath 1.0 (IMP-CIP-12). Excess returns to the recipient.
+    const PayRewardsTon: Int = ton("1.5");
 
     inline fun jettonRewardsWalletAddr(): Address {
         return contractAddress(

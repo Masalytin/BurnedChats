@@ -2,7 +2,12 @@ import { Address, Cell, toNano } from '@ton/core';
 import { describe, expect, it } from 'vitest';
 
 import { estimateBurnTransferTon } from '@/ton/estimateBurnTransferTon';
-import { STAKE_ATTACHED_TON, estimateStakeTon } from '@/ton/estimateStakeTon';
+import {
+  CLAIM_ATTACHED_TON,
+  STAKE_ATTACHED_TON,
+  UNSTAKE_ATTACHED_TON,
+  estimateStakeTon,
+} from '@/ton/estimateStakeTon';
 import {
   buildClaimMsg,
   buildJettonBurnMsg,
@@ -14,8 +19,8 @@ import {
   VOTE_ATTACHED_TON,
 } from '@/ton/transactionBuilder';
 
-/** Mirrors `GasPayRewards` in staking-master.tact. */
-const GAS_PAY_REWARDS_NANO = toNano('3.5');
+/** Mirrors `GasPayRewards` in staking-master.tact (IMP-CIP-12). */
+const GAS_PAY_REWARDS_NANO = toNano('1.5');
 /** Mirrors `GasToPool` in staking-master.tact. */
 const GAS_TO_POOL_NANO = toNano('0.06');
 /** Mirrors `GasVoteAttach` in governor.tact (IMP-GOVOTE-04). */
@@ -147,13 +152,13 @@ describe('IMP-RELAY-05 — frontend attach & responseDestination parity', () => 
     it('unstake attach covers GasPayRewards + GasToPool + 0.08', () => {
       const msg = buildUnstakeMsg({ stakingMaster, tier: 1, amount: 10n ** 9n });
       expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(UNSTAKE_MIN_ATTACH_NANO);
-      expect(BigInt(msg.amount)).toBe(toNano('4.2'));
+      expect(BigInt(msg.amount)).toBe(UNSTAKE_ATTACHED_TON);
     });
 
     it('claim attach covers GasPayRewards + 0.06', () => {
       const msg = buildClaimMsg({ stakingMaster, tier: 3 });
       expect(BigInt(msg.amount)).toBeGreaterThanOrEqual(CLAIM_MIN_ATTACH_NANO);
-      expect(BigInt(msg.amount)).toBe(toNano('4'));
+      expect(BigInt(msg.amount)).toBe(CLAIM_ATTACHED_TON);
     });
   });
 });

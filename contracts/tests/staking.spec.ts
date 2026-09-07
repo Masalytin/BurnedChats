@@ -1312,10 +1312,10 @@ describe('IMP-STAKE-GAS-01 — stake notify gas guard + JettonExcesses', () => {
 
 describe('IMP-MNAUD-F09 — underfunded / rejected stake refunds jettons', () => {
     /**
-     * minStakeNotifyTon (new stake) = GasForwardStakeJetton(3.5) + GasToPool*2(0.12) + 0.08 = 3.7 TON.
-     * Refund needs >= GasForwardStakeJetton (3.5). Window 3.5..3.7 refunds without recording stake.
+     * minStakeNotifyTon (new stake) = GasForwardStakeJetton(1.5) + GasToPool*2(0.12) + 0.08 = 1.7 TON.
+     * Refund needs >= GasForwardStakeJetton (1.5). Window 1.5..1.7 refunds without recording stake.
      */
-    const UNDERFUNDED_BUT_REFUNDABLE_FWD = toNano('3.55');
+    const UNDERFUNDED_BUT_REFUNDABLE_FWD = toNano('1.55');
 
     it('underfunded stake (≥ MinStake, forward TON in refund window) returns jettons; no stake recorded', async () => {
         const env = await setupStakingEnvironment('https://example.com/mnaud-f09-underfund.json');

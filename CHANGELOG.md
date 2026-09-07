@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Stake/claim/unstake attach is lower: on-chain payout pad 1.5 TON (was 3.5); Mini App forward 2 TON and claim/unstake 2 / 2.1 (was 5 / 4 / 4.2).
 - Testnet stack deploy parks 10 TON on StakingMaster by default (mainnet stays 50; `DEPLOY_STAKING_MASTER_NANO` still overrides).
 - Duration scroll picker keeps a stable draft through WebView flicks (no `scrollend`, no ghost-click) and highlights the live center.
 - Custom duration Apply hides the scroll picker; the TTL sheet and room Settings stay open.
