@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Custom duration chips in the message-timer sheet and room Settings show the value that was set, not only “Custom”.
+- Username search no longer scans every `user:*` Redis key; it uses a `username_idx:*` lookup (with a one-shot scan only when the index is cold).
 - Leftover TON on stake/claim/unstake returns to the payer instead of parking on the staking master, pool, or their jetton wallets.
 - Dust jetton transfers (fee parts round to 0) no longer send zero-amount pool/treasury/burn legs that failed the staking pool notify.
 - Room Settings invite-expiry wheels keep their draft when the page rerenders (countdown or new callbacks).

@@ -6,7 +6,7 @@
 
 ### Key Overview
 
-Complete inventory of **51** Redis key families (source of truth — code).
+Complete inventory of **52** Redis key families (source of truth — code).
 Detailed sections below cover the most frequently used patterns; the rest are
 summarized in the table.
 
@@ -16,6 +16,7 @@ summarized in the table.
 | `auth_wallet:{walletAddress}` | string | 90d | wallet → `internalId` |
 | `user:{internalId}` | hash | 90d | Canonical profile (`UserIdentityRepository`) |
 | `user:{tgId}` | hash | **7d** | Legacy TG cache (`UserRepository`); see §below |
+| `username_idx:{normalizedUsername}` | string | **7d** | Reverse index → `tgId` (`UserRepository.findByUsername`) |
 | `lang:pref:{userId}` | string | 90d | Language preferences |
 | `session:{sessionId}` | hash | PENDING: `session.request.ttl` (300s); else `session.active.ttl` (24h) | DM session metadata |
 | `session_token:{token}` | string | 1h | One-time resume token → `internalId` |
@@ -255,6 +256,17 @@ HSET user:a1b2c3d4-e5f6-7890-abcd-ef1234567890
 **Legacy Telegram cache** (`UserRepository`): separate hash `user:{tgId}` for fast
 lookup by `@username` / TG ID. Contains optional `internalId` field for enriching
 `UserResponse`. Wallet-only records are **not** duplicated in `user:{tgId}`.
+
+**Username index** (`username_idx:{normalizedUsername}`): String value = `tgId`.
+`normalizedUsername` is lowercased, leading `@` stripped. TTL is the same 7 days
+as `user:{tgId}` and is rewritten on `save` / `saveAndRefreshTtl` / `refreshTtl`.
+`findByUsername` reads the index first; on miss it may one-shot scan `KEYS user:*`
+(skipping `user:{feature}:*` such as `user:deadman:*`) and lazily fill the index.
+
+**Namespace rule:** do not add new keys under `user:{feature}:*`. `user:*` is
+historically scanned for username lookup. New features use their own prefix
+(`deadman:*`, etc.). Existing `user:deadman:*` stays as a historical exception
+(keyspace listener depends on that prefix).
 
 **TTL:** canonical `user:{internalId}` — **90 days** (refreshed on each login);
 

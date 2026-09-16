@@ -15,7 +15,8 @@ import java.util.Map;
 /**
  * Redis repository for Telegram user cache.
  *
- * <p>Caches user information using Redis Hash with key pattern: {@code user:{tgId}}
+ * <p>Caches user information using Redis Hash with key pattern: {@code user:{tgId}}.
+ * Username lookups use {@code username_idx:{normalizedUsername}} → tgId.
  *
  * <p>User fields stored:
  * <ul>
@@ -39,6 +40,7 @@ public class UserRepository {
     private static final Logger LOG = LoggerFactory.getLogger(UserRepository.class);
 
     private static final String KEY_PREFIX = "user:";
+    private static final String USERNAME_INDEX_PREFIX = "username_idx:";
     private static final Duration DEFAULT_TTL = Duration.ofDays(7);
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
@@ -74,10 +76,10 @@ public class UserRepository {
     }
 
     /**
-     * Find user by username.
+     * Find user by username via {@code username_idx:{normalized}} then {@code user:{tgId}}.
      *
-     * <p>Note: This is an expensive operation as it scans all user keys.
-     * Consider maintaining a username->id index for frequent lookups.
+     * <p>On index miss, falls back to a one-shot {@code KEYS user:*} scan (skips
+     * {@code user:deadman:*} sub-namespaces) and lazily fills the index.
      *
      * @param username Telegram username (without @)
      * @return user if found
@@ -87,27 +89,18 @@ public class UserRepository {
             return Mono.empty();
         }
 
-        String normalizedUsername = username.toLowerCase().replaceFirst("^@", "");
+        String normalizedUsername = normalizeUsername(username);
+        if (normalizedUsername.isEmpty()) {
+            return Mono.empty();
+        }
 
-        return redisTemplate.keys(KEY_PREFIX + "*")
-                // Skip sub-namespaces like "user:deadman:*" — they hold non-hash values
-                // and HGETALL on them fails the whole scan with WRONGTYPE.
-                .filter(key -> key.indexOf(':', KEY_PREFIX.length()) < 0)
-                .flatMap(key -> redisTemplate.opsForHash().entries(key)
-                        .collectMap(
-                                entry -> entry.getKey().toString(),
-                                entry -> entry.getValue().toString()
-                        )
-                        .filter(map -> !map.isEmpty())
-                        .map(this::mapToUser)
-                        .onErrorResume(err -> {
-                            LOG.warn("Skipping unreadable user key '{}' during username scan: {}",
-                                    key, err.getMessage());
-                            return Mono.empty();
-                        }))
-                .filter(user -> user.getUsername() != null
-                        && user.getUsername().toLowerCase().equals(normalizedUsername))
-                .next()
+        return redisTemplate.opsForValue()
+                .get(usernameIndexKey(normalizedUsername))
+                .flatMap(this::parseTgId)
+                .flatMap(this::findById)
+                .switchIfEmpty(Mono.defer(() -> scanByUsername(normalizedUsername)
+                        .flatMap(user -> writeUsernameIndex(normalizedUsername, user.getId())
+                                .thenReturn(user))))
                 .doOnSuccess(user -> {
                     if (user != null) {
                         LOG.debug("Found user by username: {}", username);
@@ -137,10 +130,20 @@ public class UserRepository {
 
         String key = keyFor(user.getId());
         Map<String, String> hash = userToMap(user, internalId);
+        String newNormalized = normalizeUsername(user.getUsername());
 
-        return redisTemplate.opsForHash()
-                .putAll(key, hash)
+        return readStoredUsername(user.getId())
+                .flatMap(oldUsername -> {
+                    String oldNormalized = normalizeUsername(oldUsername);
+                    Mono<Void> dropOld = !oldNormalized.isEmpty() && !oldNormalized.equals(newNormalized)
+                            ? redisTemplate.delete(usernameIndexKey(oldNormalized)).then()
+                            : Mono.empty();
+                    return dropOld;
+                })
+                .then(redisTemplate.opsForHash().putAll(key, hash))
                 .then(redisTemplate.expire(key, DEFAULT_TTL))
+                .then(writeUsernameIndex(newNormalized, user.getId()))
+                .thenReturn(true)
                 .doOnSuccess(result -> LOG.debug("Saved user to cache: {} (@{})",
                         user.getId(), user.getUsername()));
     }
@@ -177,7 +180,14 @@ public class UserRepository {
     public Mono<Long> delete(Long tgId) {
         String key = keyFor(tgId);
 
-        return redisTemplate.delete(key)
+        return readStoredUsername(tgId)
+                .flatMap(oldUsername -> {
+                    String normalized = normalizeUsername(oldUsername);
+                    return normalized.isEmpty()
+                            ? Mono.empty()
+                            : redisTemplate.delete(usernameIndexKey(normalized));
+                })
+                .then(redisTemplate.delete(key))
                 .doOnSuccess(count -> LOG.debug("Deleted user from cache: {}", tgId));
     }
 
@@ -198,7 +208,17 @@ public class UserRepository {
      * @return true if TTL was set
      */
     public Mono<Boolean> refreshTtl(Long tgId) {
-        return redisTemplate.expire(keyFor(tgId), DEFAULT_TTL);
+        return redisTemplate.expire(keyFor(tgId), DEFAULT_TTL)
+                .flatMap(expired -> readStoredUsername(tgId)
+                        .flatMap(username -> {
+                            String normalized = normalizeUsername(username);
+                            if (normalized.isEmpty()) {
+                                return Mono.just(expired);
+                            }
+                            return redisTemplate.expire(usernameIndexKey(normalized), DEFAULT_TTL)
+                                    .thenReturn(expired);
+                        })
+                        .defaultIfEmpty(expired));
     }
 
     /**
@@ -230,6 +250,70 @@ public class UserRepository {
 
     private String keyFor(Long tgId) {
         return KEY_PREFIX + tgId;
+    }
+
+    private static String usernameIndexKey(String normalizedUsername) {
+        return USERNAME_INDEX_PREFIX + normalizedUsername;
+    }
+
+    private static String normalizeUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return "";
+        }
+        return username.toLowerCase().replaceFirst("^@", "").trim();
+    }
+
+    private Mono<Long> parseTgId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Mono.empty();
+        }
+        try {
+            return Mono.just(Long.parseLong(raw.trim()));
+        } catch (NumberFormatException e) {
+            LOG.warn("Ignoring malformed username index value '{}'", raw);
+            return Mono.empty();
+        }
+    }
+
+    private Mono<String> readStoredUsername(Long tgId) {
+        return redisTemplate.opsForHash()
+                .get(keyFor(tgId), "username")
+                .map(Object::toString)
+                .filter(value -> !value.isBlank())
+                .defaultIfEmpty("");
+    }
+
+    private Mono<Void> writeUsernameIndex(String normalizedUsername, Long tgId) {
+        if (normalizedUsername == null || normalizedUsername.isEmpty() || tgId == null) {
+            return Mono.empty();
+        }
+        return redisTemplate.opsForValue()
+                .set(usernameIndexKey(normalizedUsername), tgId.toString(), DEFAULT_TTL)
+                .then();
+    }
+
+    /**
+     * Fallback scan used only when {@code username_idx:*} is missing (pre-index cache).
+     * Skips {@code user:deadman:*} and other {@code user:{feature}:*} keys.
+     */
+    private Mono<TelegramUser> scanByUsername(String normalizedUsername) {
+        return redisTemplate.keys(KEY_PREFIX + "*")
+                .filter(key -> key.indexOf(':', KEY_PREFIX.length()) < 0)
+                .flatMap(key -> redisTemplate.opsForHash().entries(key)
+                        .collectMap(
+                                entry -> entry.getKey().toString(),
+                                entry -> entry.getValue().toString()
+                        )
+                        .filter(map -> !map.isEmpty())
+                        .map(this::mapToUser)
+                        .onErrorResume(err -> {
+                            LOG.warn("Skipping unreadable user key '{}' during username scan: {}",
+                                    key, err.getMessage());
+                            return Mono.empty();
+                        }))
+                .filter(user -> user.getUsername() != null
+                        && normalizeUsername(user.getUsername()).equals(normalizedUsername))
+                .next();
     }
 
     /**
