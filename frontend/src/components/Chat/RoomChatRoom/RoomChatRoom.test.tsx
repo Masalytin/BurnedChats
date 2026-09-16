@@ -577,6 +577,23 @@ describe('RoomChatRoom header message TTL sheet (IMP-DURPICK-03)', () => {
     expect(screen.queryByRole('button', { name: i18n.t('room.manage.leaveButton') })).toBeNull();
   });
 
+  it('labels the timer button with the current custom TTL', () => {
+    renderRoomChatRoom({
+      isOwner: true,
+      onApplyMessageTtlPreset: vi.fn(),
+      onApplyCustomMessageTtlSeconds: vi.fn(),
+      messageTtlSeconds: 30,
+    });
+
+    const label = i18n.t('common.duration.customChip', {
+      label: i18n.t('room.manage.msgTtlTitle'),
+      value: '30 s',
+    });
+    const timerBtn = screen.getByRole('button', { name: label });
+    expect(timerBtn).toBeTruthy();
+    expect(timerBtn.getAttribute('title')).toBe(label);
+  });
+
   it('non-owner without apply props has no Timer; admin Settings stays', () => {
     renderRoomChatRoom({
       isOwner: false,

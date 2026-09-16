@@ -19,8 +19,11 @@ import { FilePreview } from '../FilePreview';
 import { MediaViewer } from '../MediaViewer';
 import { ChatScreenHeader } from '../ChatScreenHeader';
 import { MessageTtlSheet } from '../MessageTtlSheet';
-import { matchMessageTtlPreset, type MessageTtlPreset } from '@/utils/messageTtlPresets';
-import type { TFunction } from 'i18next';
+import {
+  messageTtlButtonLabel,
+  messageTtlNoticeText,
+  type MessageTtlPreset,
+} from '@/utils/messageTtlPresets';
 import { EphemeralChatBadge } from '../EphemeralChatBadge';
 import { isTtlExpired } from '@/utils/ttlAnchor';
 import { ChatSelectionBar } from '../ChatSelectionBar';
@@ -104,25 +107,6 @@ interface ChatRoomProps {
   ttlSetNotice?: number | null;
   onApplyMessageTtlPreset?: (preset: MessageTtlPreset) => void;
   onApplyCustomMessageTtlSeconds?: (seconds: number) => void;
-}
-
-function ttlNoticeText(seconds: number, t: TFunction): string {
-  if (seconds <= 0) {
-    return t('chat.ttl.noticeOff');
-  }
-  const preset = matchMessageTtlPreset(seconds);
-  const duration = preset === '5m'
-    ? t('room.manage.msgTtlPreset5m')
-    : preset === '1h'
-      ? t('room.manage.msgTtlPreset1h')
-      : preset === '24h'
-        ? t('room.manage.msgTtlPreset24h')
-        : seconds % 3600 === 0
-          ? t('chat.ttl.duration', { value: seconds / 3600, unit: t('common.duration.unitHours') })
-          : seconds % 60 === 0
-            ? t('chat.ttl.duration', { value: seconds / 60, unit: t('common.duration.unitMinutes') })
-            : t('chat.ttl.durationSeconds', { count: seconds });
-  return t('chat.ttl.noticeOn', { duration });
 }
 
 /**
@@ -501,6 +485,7 @@ export const ChatRoom = memo(function ChatRoom({
     </>
   );
 
+  const ttlButtonLabel = messageTtlButtonLabel(messageTtlSeconds, t);
   const headerRight = (
     <div className="chat-room-header-actions">
       {onApplyMessageTtlPreset && (
@@ -508,8 +493,8 @@ export const ChatRoom = memo(function ChatRoom({
           type="button"
           className="chat-screen-icon-btn chat-room-ttl"
           onClick={() => setTtlSheetOpen(true)}
-          aria-label={t('room.manage.msgTtlTitle')}
-          title={t('room.manage.msgTtlTitle')}
+          aria-label={ttlButtonLabel}
+          title={ttlButtonLabel}
         >
           <Timer size={22} aria-hidden />
         </button>
@@ -618,7 +603,7 @@ export const ChatRoom = memo(function ChatRoom({
 
       {ttlSetNotice != null && (
         <div className="chat-ttl-set-notice" role="status">
-          <span>{ttlNoticeText(ttlSetNotice, t)}</span>
+          <span>{messageTtlNoticeText(ttlSetNotice, t)}</span>
         </div>
       )}
 

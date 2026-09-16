@@ -17,7 +17,12 @@ import {
   secondsToParts,
   type DurationParts,
 } from '@/utils/durationColumns';
-import { secondsToBestUnit, validateDurationSeconds } from '@/utils/duration';
+import {
+  formatCompactDuration,
+  formatCustomChipLabel,
+  secondsToBestUnit,
+  validateDurationSeconds,
+} from '@/utils/duration';
 import './MessageTtlSheet.css';
 
 export interface MessageTtlSheetProps {
@@ -118,6 +123,17 @@ export function MessageTtlSheet({
     return null;
   }
 
+  const customChipSeconds = showCustomPanel && canApplyCustom
+    ? draftSeconds
+    : isCustomActive
+      ? messageTtlSeconds
+      : 0;
+  const customChipLabel = formatCustomChipLabel(
+    t('room.manage.msgTtlPresetCustom'),
+    formatCompactDuration(customChipSeconds, t, 'hms') || undefined,
+    t,
+  );
+
   const customError =
     customValidation === 'below-min'
       ? t('common.duration.errorBelowMin', {
@@ -179,7 +195,7 @@ export function MessageTtlSheet({
             }`}
             onClick={handleSelectCustom}
           >
-            {t('room.manage.msgTtlPresetCustom')}
+            {customChipLabel}
           </button>
         </div>
         {showCustomPanel && (

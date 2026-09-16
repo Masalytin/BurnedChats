@@ -22,6 +22,7 @@
       "unitHours": "ч",
       "unitDays": "д",
       "unitSeconds": "с",
+      "customChip": "{{label}} · {{value}}",
       "picker": {
         "columnHours": "Часы",
         "columnMinutes": "Минуты",
