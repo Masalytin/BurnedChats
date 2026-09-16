@@ -22,6 +22,7 @@
       "unitHours": "h",
       "unitDays": "d",
       "unitSeconds": "s",
+      "customChip": "{{label}} · {{value}}",
       "picker": {
         "columnHours": "Hours",
         "columnMinutes": "Minutes",

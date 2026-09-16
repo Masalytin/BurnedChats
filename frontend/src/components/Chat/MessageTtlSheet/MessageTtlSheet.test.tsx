@@ -29,8 +29,12 @@ function renderSheet(props: Partial<ComponentProps<typeof MessageTtlSheet>> = {}
   };
 }
 
+function customChipName(): RegExp {
+  return new RegExp(i18n.t('room.manage.msgTtlPresetCustom'));
+}
+
 function expandCustom(): void {
-  fireEvent.click(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlPresetCustom') }));
+  fireEvent.click(screen.getByRole('button', { name: customChipName() }));
 }
 
 function confirmButton(): HTMLElement {
@@ -158,6 +162,48 @@ describe('MessageTtlSheet', () => {
 
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+    expect(screen.getByRole('button', {
+      name: i18n.t('common.duration.customChip', {
+        label: i18n.t('room.manage.msgTtlPresetCustom'),
+        value: '30 s',
+      }),
+    })).toBeTruthy();
+  });
+
+  it('reopens the picker when the valued custom chip is clicked again', () => {
+    renderSheet({ messageTtlSeconds: 30 });
+
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+    expandCustom();
+    expect(screen.getByRole('listbox', { name: 'Seconds' })).toBeTruthy();
+  });
+
+  it('keeps the custom chip as Custom only while the draft is empty', async () => {
+    renderSheet();
+    await act(async () => {
+      expandCustom();
+    });
+
+    expect(screen.getByRole('button', { name: i18n.t('room.manage.msgTtlPresetCustom') })).toBeTruthy();
+    expect(screen.queryByRole('button', {
+      name: i18n.t('common.duration.customChip', {
+        label: i18n.t('room.manage.msgTtlPresetCustom'),
+        value: '30 s',
+      }),
+    })).toBeNull();
+  });
+
+  it('shows the draft value on the custom chip before Confirm', () => {
+    renderSheet();
+    expandCustom();
+    clickOption('Seconds', '30');
+
+    expect(screen.getByRole('button', {
+      name: i18n.t('common.duration.customChip', {
+        label: i18n.t('room.manage.msgTtlPresetCustom'),
+        value: '30 s',
+      }),
+    })).toBeTruthy();
   });
 
   it('applies Off chip instantly and collapses custom', () => {

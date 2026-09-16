@@ -51,24 +51,39 @@ function renderManage(props: Partial<ComponentProps<typeof RoomManageView>> = {}
   };
 }
 
+function customChipName(labelKey: string): RegExp {
+  return new RegExp(i18n.t(labelKey));
+}
+
+function valuedCustomChip(labelKey: string, value: string): string {
+  return i18n.t('common.duration.customChip', { label: i18n.t(labelKey), value });
+}
+
 function expandMsgTtlCustom(): void {
   const group = screen.getByRole('group', { name: i18n.t('room.manage.msgTtlTitle') });
   fireEvent.click(
-    within(group).getByRole('button', { name: i18n.t('room.manage.msgTtlPresetCustom') }),
+    within(group).getByRole('button', { name: customChipName('room.manage.msgTtlPresetCustom') }),
   );
 }
 
 function expandLifetimeCustom(): void {
   const group = screen.getByRole('group', { name: i18n.t('room.manage.ttlTitle') });
   fireEvent.click(
-    within(group).getByRole('button', { name: i18n.t('room.manage.ttlPresetCustom') }),
+    within(group).getByRole('button', { name: customChipName('room.manage.ttlPresetCustom') }),
   );
 }
 
 function expandInviteCustom(): void {
   const group = screen.getByRole('group', { name: i18n.t('room.invite.createExpiryLabel') });
   fireEvent.click(
-    within(group).getByRole('button', { name: i18n.t('room.invite.createExpiryCustom') }),
+    within(group).getByRole('button', { name: customChipName('room.invite.createExpiryCustom') }),
+  );
+}
+
+function expandInviteLimitCustom(): void {
+  const group = screen.getByRole('group', { name: i18n.t('room.invite.createLimitLabel') });
+  fireEvent.click(
+    within(group).getByRole('button', { name: customChipName('room.invite.createLimitCustom') }),
   );
 }
 
@@ -335,6 +350,90 @@ describe('RoomManageView duration picker', () => {
     expect(onApplyMessageTtlPreset).toHaveBeenCalledWith('off');
     expect(onApplyCustomMessageTtlSeconds).not.toHaveBeenCalled();
     expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+  });
+
+  it('shows applied custom message TTL on the chip after Confirm', () => {
+    const view = render(
+      <ManageHarness
+        messageTtlSeconds={0}
+        onFetchMembers={() => {}}
+      />,
+    );
+    expandMsgTtlCustom();
+    clickOption('Seconds', '30');
+    fireEvent.click(msgTtlConfirmButton());
+
+    view.rerender(
+      <ManageHarness
+        messageTtlSeconds={30}
+        onFetchMembers={() => {}}
+      />,
+    );
+
+    const group = screen.getByRole('group', { name: i18n.t('room.manage.msgTtlTitle') });
+    expect(screen.queryAllByRole('listbox')).toHaveLength(0);
+    expect(within(group).getByRole('button', {
+      name: valuedCustomChip('room.manage.msgTtlPresetCustom', '30 s'),
+    })).toBeTruthy();
+  });
+
+  it('shows remaining custom room lifetime on the chip', () => {
+    renderManage({
+      autoBurnAt: Date.now() + 8 * 3600 * 1000 + 90 * 1000,
+    });
+
+    const group = screen.getByRole('group', { name: i18n.t('room.manage.ttlTitle') });
+    expect(within(group).getByRole('button', {
+      name: new RegExp(`${i18n.t('room.manage.ttlPresetCustom')} · 8 h`),
+    })).toBeTruthy();
+  });
+
+  it('shows a valid invite expiry draft on the custom chip', () => {
+    renderManage();
+    expandInviteCustom();
+    clickOption('Days', '0');
+    clickOption('Hours', '2');
+
+    const group = screen.getByRole('group', { name: i18n.t('room.invite.createExpiryLabel') });
+    expect(within(group).getByRole('button', {
+      name: valuedCustomChip('room.invite.createExpiryCustom', '2 h'),
+    })).toBeTruthy();
+  });
+
+  it('keeps invite expiry custom as Custom only while the draft is empty', () => {
+    renderManage();
+    expandInviteCustom();
+
+    const group = screen.getByRole('group', { name: i18n.t('room.invite.createExpiryLabel') });
+    expect(within(group).getByRole('button', {
+      name: i18n.t('room.invite.createExpiryCustom'),
+    })).toBeTruthy();
+    expect(within(group).queryByRole('button', {
+      name: valuedCustomChip('room.invite.createExpiryCustom', '2 h'),
+    })).toBeNull();
+  });
+
+  it('shows a valid invite limit draft on the custom chip', () => {
+    renderManage();
+    expandInviteLimitCustom();
+    fireEvent.change(screen.getByLabelText(i18n.t('room.invite.limitCustomLabel')), {
+      target: { value: '42' },
+    });
+
+    const group = screen.getByRole('group', { name: i18n.t('room.invite.createLimitLabel') });
+    expect(within(group).getByRole('button', {
+      name: valuedCustomChip('room.invite.createLimitCustom', '42'),
+    })).toBeTruthy();
+  });
+
+  it('keeps invite limit custom as Custom only while the draft is empty', () => {
+    renderManage();
+    expandInviteLimitCustom();
+
+    const group = screen.getByRole('group', { name: i18n.t('room.invite.createLimitLabel') });
+    expect(within(group).getByRole('button', {
+      name: i18n.t('room.invite.createLimitCustom'),
+    })).toBeTruthy();
   });
 
   it('applies 5m chip instantly and collapses message TTL custom', () => {

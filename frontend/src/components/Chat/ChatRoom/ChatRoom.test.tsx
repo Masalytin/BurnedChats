@@ -72,6 +72,18 @@ describe('ChatRoom DM TTL sheet', () => {
 
     expect(screen.queryByLabelText(i18n.t('chat.ttl.badge'))).toBeNull();
   });
+
+  it('labels the timer button with the current custom TTL', () => {
+    renderChatRoom({ messageTtlSeconds: 30 });
+
+    const label = i18n.t('common.duration.customChip', {
+      label: i18n.t('room.manage.msgTtlTitle'),
+      value: '30 s',
+    });
+    const timerBtn = screen.getByRole('button', { name: label });
+    expect(timerBtn).toBeTruthy();
+    expect(timerBtn.getAttribute('title')).toBe(label);
+  });
 });
 
 describe('ChatRoom TTL set overlay (IMP-DISAPPEAR-05)', () => {

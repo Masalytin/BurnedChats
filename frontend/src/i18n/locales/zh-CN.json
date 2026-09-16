@@ -27,7 +27,8 @@
       "unitDays": "天",
       "unitHours": "时",
       "unitMinutes": "分",
-      "unitSeconds": "秒"
+      "unitSeconds": "秒",
+      "customChip": "{{label}} · {{value}}"
     },
     "dismissNotification": "关闭通知",
     "selectLanguage": "选择语言",

@@ -43,7 +43,12 @@ import {
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { DurationScrollPicker } from '../DurationScrollPicker';
-import { secondsToBestUnit, validateDurationSeconds } from '../../utils/duration';
+import {
+  formatCompactDuration,
+  formatCustomChipLabel,
+  secondsToBestUnit,
+  validateDurationSeconds,
+} from '../../utils/duration';
 import { partsToSeconds, secondsToParts, type DurationParts } from '../../utils/durationColumns';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { CopyIcon } from '../../icons';
@@ -723,6 +728,45 @@ export const RoomManageView = memo(function RoomManageView({
       ? matchLimitPreset(parsedCustomLimit)
       : null;
 
+  const ttlChipSeconds = showCustomTtlPanel && canApplyCustomTtl
+    ? customTtlSeconds
+    : isCustomTtlActive
+      ? autoBurnRemainingSec
+      : 0;
+  const ttlCustomChipLabel = formatCustomChipLabel(
+    t('room.manage.ttlPresetCustom'),
+    formatCompactDuration(ttlChipSeconds, t, 'dhm') || undefined,
+    t,
+  );
+
+  const msgTtlChipSeconds = showCustomMsgTtlPanel && canApplyCustomMsgTtl
+    ? customMsgTtlSeconds
+    : isCustomMsgTtlActive
+      ? messageTtlSeconds
+      : 0;
+  const msgTtlCustomChipLabel = formatCustomChipLabel(
+    t('room.manage.msgTtlPresetCustom'),
+    formatCompactDuration(msgTtlChipSeconds, t, 'hms') || undefined,
+    t,
+  );
+
+  const inviteExpiryCustomChipLabel = formatCustomChipLabel(
+    t('room.invite.createExpiryCustom'),
+    isCustomExpiryExpanded && customExpiryValidation === 'ok' && matchedExpiryPreset === null
+      ? formatCompactDuration(customExpirySeconds, t, 'dhm') || undefined
+      : undefined,
+    t,
+  );
+
+  const inviteLimitCustomChipLabel = formatCustomChipLabel(
+    t('room.invite.createLimitCustom'),
+    isCustomLimitExpanded && customLimitValidation === 'ok' && matchedLimitPreset === null
+      && parsedCustomLimit != null
+      ? String(parsedCustomLimit)
+      : undefined,
+    t,
+  );
+
   const canCreateInvite = useMemo(() => {
     if (isCustomExpiryExpanded && customExpiryValidation !== 'ok') {
       return false;
@@ -1138,7 +1182,7 @@ export const RoomManageView = memo(function RoomManageView({
                     }`}
                     onClick={handleSelectCustomTtl}
                   >
-                    {t('room.manage.ttlPresetCustom')}
+                    {ttlCustomChipLabel}
                   </button>
                 )}
               </div>
@@ -1213,7 +1257,7 @@ export const RoomManageView = memo(function RoomManageView({
                     }`}
                     onClick={handleSelectCustomMsgTtl}
                   >
-                    {t('room.manage.msgTtlPresetCustom')}
+                    {msgTtlCustomChipLabel}
                   </button>
                 )}
               </div>
@@ -1326,7 +1370,7 @@ export const RoomManageView = memo(function RoomManageView({
                       }`}
                       onClick={handleSelectCustomExpiry}
                     >
-                      {t('room.invite.createExpiryCustom')}
+                      {inviteExpiryCustomChipLabel}
                     </button>
                   </div>
                   {isCustomExpiryExpanded && (
@@ -1382,7 +1426,7 @@ export const RoomManageView = memo(function RoomManageView({
                       }`}
                       onClick={handleSelectCustomLimit}
                     >
-                      {t('room.invite.createLimitCustom')}
+                      {inviteLimitCustomChipLabel}
                     </button>
                   </div>
                   {isCustomLimitExpanded && (

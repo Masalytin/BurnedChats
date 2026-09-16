@@ -27,7 +27,8 @@
       "unitDays": "д",
       "unitHours": "год",
       "unitMinutes": "хв",
-      "unitSeconds": "с"
+      "unitSeconds": "с",
+      "customChip": "{{label}} · {{value}}"
     },
     "dismissNotification": "Закрити сповіщення",
     "selectLanguage": "Обрати мову",

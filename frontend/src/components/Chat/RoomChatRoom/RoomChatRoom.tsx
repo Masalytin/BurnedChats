@@ -1,8 +1,11 @@
 import { memo, useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import { matchMessageTtlPreset, type MessageTtlPreset } from '@/utils/messageTtlPresets';
+import {
+  messageTtlButtonLabel,
+  messageTtlNoticeText,
+  type MessageTtlPreset,
+} from '@/utils/messageTtlPresets';
 import {
   Home,
   Hourglass,
@@ -111,24 +114,6 @@ interface RoomChatRoomProps {
   onApplyCustomMessageTtlSeconds?: (seconds: number) => void;
 }
 
-function ttlNoticeText(seconds: number, t: TFunction): string {
-  if (seconds <= 0) {
-    return t('chat.ttl.noticeOff');
-  }
-  const preset = matchMessageTtlPreset(seconds);
-  const duration = preset === '5m'
-    ? t('room.manage.msgTtlPreset5m')
-    : preset === '1h'
-      ? t('room.manage.msgTtlPreset1h')
-      : preset === '24h'
-        ? t('room.manage.msgTtlPreset24h')
-        : seconds % 3600 === 0
-          ? t('chat.ttl.duration', { value: seconds / 3600, unit: t('common.duration.unitHours') })
-          : seconds % 60 === 0
-            ? t('chat.ttl.duration', { value: seconds / 60, unit: t('common.duration.unitMinutes') })
-            : t('chat.ttl.durationSeconds', { count: seconds });
-  return t('chat.ttl.noticeOn', { duration });
-}
 
 // ============================================
 // Component
@@ -640,6 +625,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
     onShareInvite != null;
   const canApplyMessageTtl =
     onApplyMessageTtlPreset != null && onApplyCustomMessageTtlSeconds != null;
+  const ttlButtonLabel = messageTtlButtonLabel(messageTtlSeconds, t);
   const hasHeaderRight =
     onManage != null || onLeave != null || showShareInvite || canApplyMessageTtl;
   const headerRight = hasHeaderRight ? (
@@ -665,8 +651,8 @@ export const RoomChatRoom = memo(function RoomChatRoom({
           type="button"
           className="chat-screen-icon-btn room-chat-room-ttl"
           onClick={() => setTtlSheetOpen(true)}
-          aria-label={t('room.manage.msgTtlTitle')}
-          title={t('room.manage.msgTtlTitle')}
+          aria-label={ttlButtonLabel}
+          title={ttlButtonLabel}
         >
           <Timer size={22} aria-hidden />
         </button>
@@ -726,7 +712,7 @@ export const RoomChatRoom = memo(function RoomChatRoom({
         <>
           {ttlSetNotice != null && (
             <div className="chat-ttl-set-notice" role="status">
-              <span>{ttlNoticeText(ttlSetNotice, t)}</span>
+              <span>{messageTtlNoticeText(ttlSetNotice, t)}</span>
             </div>
           )}
           <MessageList

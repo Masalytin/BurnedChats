@@ -27,7 +27,8 @@
       "unitDays": "d",
       "unitHours": "h",
       "unitMinutes": "min",
-      "unitSeconds": "s"
+      "unitSeconds": "s",
+      "customChip": "{{label}} · {{value}}"
     },
     "dismissNotification": "Cerrar notificación",
     "selectLanguage": "Seleccionar idioma",

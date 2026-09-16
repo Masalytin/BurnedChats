@@ -27,7 +27,8 @@
       "unitDays": "ي",
       "unitHours": "س",
       "unitMinutes": "د",
-      "unitSeconds": "ث"
+      "unitSeconds": "ث",
+      "customChip": "{{label}} · {{value}}"
     },
     "dismissNotification": "إغلاق الإشعار",
     "selectLanguage": "اختيار اللغة",
